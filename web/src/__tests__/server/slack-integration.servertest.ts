@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Mock } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
@@ -54,14 +55,7 @@ const prepare = async () => {
           ],
         },
       ],
-      featureFlags: {
-        searchBar: false,
-        templateFlag: true,
-        excludeClickhouseRead: false,
-        observationEvals: false,
-        v4BetaToggleVisible: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin: true,
     },
     environment: {

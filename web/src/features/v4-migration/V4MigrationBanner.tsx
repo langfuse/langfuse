@@ -1,9 +1,8 @@
-import Link from "next/link";
+/* eslint-disable no-nested-ternary */
 import { useSession } from "next-auth/react";
 import { Zap } from "lucide-react";
 import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { DismissController } from "@/src/components/DismissController";
-import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
@@ -65,32 +64,22 @@ export function V4MigrationBanner({
           <Callout
             variant="info"
             align="middle"
-            actions={
-              <>
-                <Button asChild size="sm" variant="secondary">
-                  <Link
-                    href="/v4-migration"
-                    onClick={() =>
-                      capture("v4_migration:overview_banner_status_clicked")
-                    }
-                  >
-                    Check status
-                  </Link>
-                </Button>
-                <Button asChild size="sm" variant="secondary">
-                  <a
-                    href={V4_DOCS_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() =>
-                      capture("v4_migration:overview_banner_docs_clicked")
-                    }
-                  >
-                    Docs
-                  </a>
-                </Button>
-              </>
-            }
+            actions={[
+              {
+                type: "link",
+                label: "Check status",
+                href: "/v4-migration",
+                onClick: () =>
+                  capture("v4_migration:overview_banner_status_clicked"),
+              },
+              {
+                type: "link",
+                label: "Docs",
+                href: V4_DOCS_URL,
+                onClick: () =>
+                  capture("v4_migration:overview_banner_docs_clicked"),
+              },
+            ]}
             onDismiss={onDismiss}
           >
             <div className="flex items-start gap-2 sm:items-center">

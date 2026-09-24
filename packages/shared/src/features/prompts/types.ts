@@ -1,6 +1,15 @@
 import { z } from "zod";
 import type { Prompt } from "@prisma/client";
-import { jsonSchema } from "../../utils/zod";
+import { jsonSchema, optionalJsonParam } from "../../utils/zod";
+import {
+  arrayOptionsFilter,
+  coerceLegacyEmptyMetadataFilters,
+  numberFilter,
+  stringFilter,
+  stringObjectFilter,
+  stringOptionsFilter,
+  timeFilter,
+} from "../../interfaces/filters";
 import {
   COMMIT_MESSAGE_MAX_LENGTH,
   PROMPT_LABEL_MAX_LENGTH,
@@ -76,6 +85,25 @@ export const CreatePromptTRPCSchema = z.union([
 
 export type CreatePromptTRPCType = z.infer<typeof CreatePromptTRPCSchema>;
 
+const promptFilterSchema = z.preprocess(
+  coerceLegacyEmptyMetadataFilters,
+  z.array(
+    z.discriminatedUnion("type", [
+      stringFilter.extend({ column: z.enum(["id", "name", "type"]) }),
+      stringOptionsFilter.safeExtend({
+        column: z.enum(["id", "name", "type"]),
+      }),
+      numberFilter.extend({ column: z.literal("version") }),
+      timeFilter.extend({ column: z.enum(["createdAt", "updatedAt"]) }),
+      arrayOptionsFilter.safeExtend({
+        column: z.enum(["labels", "tags"]),
+        value: z.array(z.string()).min(1),
+      }),
+      stringObjectFilter.extend({ column: z.literal("config") }),
+    ]),
+  ),
+);
+
 export const GetPromptsMetaSchema = z.object({
   name: z.string().optional(),
   version: z.coerce.number().int().nullish(),
@@ -85,6 +113,7 @@ export const GetPromptsMetaSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(10),
   fromUpdatedAt: z.iso.datetime({ offset: true }).nullish(),
   toUpdatedAt: z.iso.datetime({ offset: true }).nullish(),
+  filter: optionalJsonParam(promptFilterSchema, "filter"),
 });
 
 export type GetPromptsMetaType = z.infer<typeof GetPromptsMetaSchema>;

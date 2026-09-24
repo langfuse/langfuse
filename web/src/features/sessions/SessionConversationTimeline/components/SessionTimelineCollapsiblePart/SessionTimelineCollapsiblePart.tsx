@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useState } from "react";
 import { Check, ChevronDown, X } from "lucide-react";
 

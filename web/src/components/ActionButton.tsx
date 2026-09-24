@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useMemo } from "react";
 import { Lock, AlertCircle, Sparkle } from "lucide-react";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
@@ -8,9 +9,9 @@ import {
   HoverCardPortal,
 } from "@/src/components/ui/hover-card";
 import Link from "next/link";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
-type ActionButtonProps = Pick<
+export type ActionButtonProps = Pick<
   ButtonProps,
   "disabled" | "onClick" | "size" | "title" | "type" | "variant"
 > & {

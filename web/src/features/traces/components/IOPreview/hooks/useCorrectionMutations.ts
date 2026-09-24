@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { api } from "@/src/utils/api";
-import { useCorrectionCache } from "@/src/features/corrections/contexts/CorrectionCacheContext";
+import { useCorrectionCache } from "@/src/features/corrections";
 import { type ScoreDomain } from "@langfuse/shared";
 import { toast } from "sonner";
 import { v4 } from "uuid";

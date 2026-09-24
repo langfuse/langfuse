@@ -1,4 +1,99 @@
 import type { NormalizedIOFixture } from "../fixture-types";
+import { toJsonValue } from "../../../core/utils/json";
+
+// Docs-derived tool-result variants; the image data is a sample placeholder.
+// https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls
+export const documentedToolResultFixtures: NormalizedIOFixture[] = [
+  { label: "empty", content: undefined },
+  {
+    label: "text and image",
+    content: [
+      { type: "text", text: "15 degrees" },
+      {
+        type: "image",
+        source: { type: "base64", media_type: "image/jpeg", data: "aGVsbG8=" },
+      },
+    ],
+  },
+  {
+    label: "text and document",
+    content: [
+      { type: "text", text: "The weather is" },
+      {
+        type: "document",
+        source: { type: "text", media_type: "text/plain", data: "15 degrees" },
+      },
+    ],
+  },
+].map(
+  ({ label, content }): NormalizedIOFixture => ({
+    name: `Anthropic ${label} tool result with string system instruction`,
+    spanIO: {
+      input: {
+        system: "Be concise.",
+        messages: [
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_use",
+                id: "call_weather",
+                name: "get_weather",
+                input: { city: "Paris" },
+              },
+            ],
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: "call_weather",
+                ...(content === undefined ? {} : { content }),
+              },
+            ],
+          },
+        ],
+      },
+      output: undefined,
+      metadata: undefined,
+    },
+    expected: {
+      messages: [
+        {
+          source: "input",
+          role: "system",
+          parts: [{ type: "text", text: "Be concise." }],
+        },
+        {
+          source: "input",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-call",
+              toolCallId: "call_weather",
+              toolName: "get_weather",
+              input: { city: "Paris" },
+              toolType: "tool_use",
+            },
+          ],
+        },
+        {
+          source: "input",
+          role: "tool",
+          parts: [
+            {
+              type: "tool-result",
+              toolCallId: "call_weather",
+              output: toJsonValue(content ?? null),
+            },
+          ],
+        },
+      ],
+      toolDefinitions: [],
+    },
+  }),
+);
 
 const searchSchema = {
   type: "object",
@@ -587,3 +682,48 @@ export const anthropicMessagesRichContentFixture = {
     ],
   },
 } satisfies NormalizedIOFixture;
+
+// Verbatim stored observation IO from ChatML integration-example exports.
+export const capturedTraceFixtures: NormalizedIOFixture[] = [
+  // Source: worker/src/__tests__/chatml/framework-traces/claude-agent-2025-12-22.trace.json; observation f8e8f040dc94e67e
+  {
+    name: "verbatim claude-agent-2025-12-22.trace.json / f8e8f040dc94e67e",
+    spanIO: {
+      input: '{"content":"role"}',
+      output:
+        '{"content":[{"type":"tool_use","id":"toolu_01NtVat4vJLFfVd5TqdLHcA7","name":"mcp__weather__get_weather","input":{"city":"New York"}}],"role":"assistant"}',
+      metadata:
+        '{"attributes":{"gen_ai.operation.name":"chat","gen_ai.serialized.name":"claude.assistant.turn","langsmith.span.kind":"llm","langsmith.trace.name":"claude.assistant.turn","langsmith.trace.session_name":"default","gen_ai.system":"anthropic","gen_ai.request.model":"claude-sonnet-4-5-20250929","langsmith.metadata.ls_model_name":"claude-sonnet-4-5-20250929","langsmith.metadata.LANGSMITH_OTEL_ENABLED":"true","langsmith.metadata.LANGSMITH_OTEL_ONLY":"true","langsmith.metadata.LANGSMITH_TRACING":"true"},"resourceAttributes":{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"1.37.0","service.name":"unknown_service"},"scope":{"name":"langsmith","attributes":{}}}',
+    },
+    expected: {
+      messages: [
+        {
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              text: "role",
+            },
+          ],
+          source: "input",
+        },
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-call",
+              toolCallId: "toolu_01NtVat4vJLFfVd5TqdLHcA7",
+              toolName: "mcp__weather__get_weather",
+              input: {
+                city: "New York",
+              },
+              toolType: "tool_use",
+            },
+          ],
+          source: "output",
+        },
+      ],
+      toolDefinitions: [],
+    },
+  },
+];

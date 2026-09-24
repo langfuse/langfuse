@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { InvalidRequestError } from "@langfuse/shared";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
@@ -139,6 +140,7 @@ const MetricsQueryObjectV2BaseSchema = z.object({
 
 export const [queryMetricsTool, handleQueryMetrics] = defineTool({
   name: "queryMetrics",
+  action: "metrics:read",
   description:
     "Answer analytics questions about the current Langfuse project, such as usage over time, model costs, latency, errors, scores, or grouped breakdowns by environment, trace, observation, model, user, session, tag, or score name.",
   baseSchema: MetricsQueryObjectV2BaseSchema,

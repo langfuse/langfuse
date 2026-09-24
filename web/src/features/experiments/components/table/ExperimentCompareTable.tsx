@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { type OrderByState } from "@langfuse/shared";

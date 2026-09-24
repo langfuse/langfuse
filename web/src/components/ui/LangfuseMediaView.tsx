@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
@@ -18,7 +19,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   type MediaContentType,
   type MediaReturnType,
-} from "@/src/features/media/validation";
+} from "@/src/features/media";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
 

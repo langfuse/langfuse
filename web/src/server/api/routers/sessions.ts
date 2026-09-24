@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   applyCommentFilters,
   traceException,
@@ -52,7 +52,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";
 import chunk from "lodash/chunk";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { aggregateScores } from "@/src/features/scores/server";
 import {
   toDomainArrayWithStringifiedMetadata,
   toDomainWithStringifiedMetadata,

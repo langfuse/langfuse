@@ -11,6 +11,7 @@ export const [getDatasetItemTool, handleGetDatasetItem] = defineTool({
   name: "getDatasetItem",
   description:
     "Get a dataset item, one example in a dataset with input and optional expected output, by ID.",
+  action: "datasets:read",
   baseSchema: GetDatasetItemV1Query,
   inputSchema: GetDatasetItemV1Query,
   handler: async (input, context) =>

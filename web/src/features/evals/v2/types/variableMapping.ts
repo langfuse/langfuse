@@ -9,5 +9,5 @@ export type VariableFieldState = {
 
 export type ActiveVariableMapping = {
   variable: string;
-  state: "preview" | "editing";
+  state: "preview" | "editing" | "renaming";
 } | null;

@@ -10,7 +10,7 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/src/components/ui/dropdown-menu";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Rows3, Rows2, Rows4 } from "lucide-react";
 
 const ROW_HEIGHT_OPTIONS = [

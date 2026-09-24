@@ -363,7 +363,7 @@ if (isSingleScoreColors(colors)) {
 
 ## File Locations Reference
 
-**Page**: `/web/src/pages/project/[projectId]/scores/analytics.tsx`
+**Page**: `/web/src/features/scores/ScoresAnalyticsPage.tsx`
 
 **Feature Directory**: `/web/src/features/score-analytics/`
 

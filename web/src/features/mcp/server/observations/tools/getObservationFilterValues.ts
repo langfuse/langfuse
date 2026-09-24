@@ -164,6 +164,7 @@ export const [
   name: "getObservationFilterValues",
   description:
     "List example values for a string or boolean observation filter field, such as names, types, levels, environments, model names, tags, users, or sessions. For numeric metric fields, returns a range with min, max, avg, and count. Use the returned cursor to page through long value lists.",
+  action: "traces:read",
   baseSchema: GetObservationFilterValuesBaseSchema,
   inputSchema: GetObservationFilterValuesBaseSchema,
   handler: async (input, context) => {

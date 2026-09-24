@@ -177,7 +177,13 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
       `(${timeGroupPredicates.join(`
       OR `)})`,
       timeGroupParams,
-    );
+    )
+    // Keep each tenant/trace contiguous across time buckets and result blocks.
+    // The transcript assembler orders observations within each trace in memory.
+    .orderByColumns([
+      { column: "e.project_id", direction: "ASC" },
+      { column: "e.trace_id", direction: "ASC" },
+    ]);
 
   return {
     ...builder.buildWithParams(),
@@ -187,6 +193,8 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
 
 /**
  * Stream full events_full payloads into the worker without retaining a whole batch.
+ * Rows are contiguous per (project_id, trace_id); a pair change or successful EOF
+ * completes that trace's query window, not its lifetime of possible late arrivals.
  * Rows reflect the events table's current merge state, as in other event reads;
  * this read-only experiment does not deduplicate versions or enrich model data.
  */
@@ -196,6 +204,7 @@ export async function* getTraceBatchEventStream(
     maxThreads?: number;
     maxBlockSize?: number;
     experimentId?: string;
+    queryId?: string;
   } = {},
 ): AsyncGenerator<TraceBatchEventRow> {
   if (props.traces.length === 0) return;
@@ -203,6 +212,7 @@ export async function* getTraceBatchEventStream(
   const { query, params, projectIds } = buildTraceBatchEventQuery(props);
   yield* queryClickhouseStream<TraceBatchEventRow>({
     query,
+    queryId: options.queryId,
     params,
     useMultipartParamsAuto: true,
     tags: {

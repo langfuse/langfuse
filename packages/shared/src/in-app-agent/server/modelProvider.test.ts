@@ -16,6 +16,7 @@ const original = {
   LANGFUSE_AI_USE_RESPONSES_API: env.LANGFUSE_AI_USE_RESPONSES_API,
   LANGFUSE_AI_EXTRA_HEADERS: env.LANGFUSE_AI_EXTRA_HEADERS,
   LANGFUSE_AI_AWS_BEDROCK_REGION: env.LANGFUSE_AI_AWS_BEDROCK_REGION,
+  LANGFUSE_AI_VERTEX_LOCATION: env.LANGFUSE_AI_VERTEX_LOCATION,
   LANGFUSE_IN_APP_AGENT_ENABLED: env.LANGFUSE_IN_APP_AGENT_ENABLED,
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
 };
@@ -205,6 +206,92 @@ describe("getInAppAgentModelConfig", () => {
     });
 
     expect(getInAppAgentModelConfig()).toBeUndefined();
+  });
+  it("resolves Vertex from LANGFUSE_AI_PROVIDER and LANGFUSE_AI_VERTEX_LOCATION", () => {
+    Object.assign(env, {
+      LANGFUSE_AI_PROVIDER: "vertex",
+      LANGFUSE_AI_MODEL: "claude-sonnet-4-5@20250929",
+      LANGFUSE_AI_SMALL_MODEL: "gemini-2.5-flash",
+      LANGFUSE_AI_API_KEY: undefined,
+      LANGFUSE_AI_BASE_URL: undefined,
+      LANGFUSE_AI_EXTRA_HEADERS: undefined,
+      LANGFUSE_AI_USE_RESPONSES_API: undefined,
+      LANGFUSE_AI_VERTEX_LOCATION: "us-east5",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    });
+
+    expect(getInAppAgentModelConfig()).toEqual({
+      provider: "vertex",
+      modelId: "claude-sonnet-4-5@20250929",
+      titleModelId: "gemini-2.5-flash",
+      location: "us-east5",
+    });
+  });
+
+  it("leaves the Vertex location undefined when LANGFUSE_AI_VERTEX_LOCATION is unset", () => {
+    Object.assign(env, {
+      LANGFUSE_AI_PROVIDER: "vertex",
+      LANGFUSE_AI_MODEL: "gemini-2.5-pro",
+      LANGFUSE_AI_SMALL_MODEL: undefined,
+      LANGFUSE_AI_API_KEY: undefined,
+      LANGFUSE_AI_BASE_URL: undefined,
+      LANGFUSE_AI_EXTRA_HEADERS: undefined,
+      LANGFUSE_AI_USE_RESPONSES_API: undefined,
+      LANGFUSE_AI_VERTEX_LOCATION: undefined,
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    });
+
+    expect(getInAppAgentModelConfig()).toEqual({
+      provider: "vertex",
+      modelId: "gemini-2.5-pro",
+      titleModelId: "gemini-2.5-pro",
+      location: undefined,
+    });
+  });
+
+  it("treats an invalid LANGFUSE_AI_VERTEX_LOCATION as unconfigured", () => {
+    Object.assign(env, {
+      LANGFUSE_AI_PROVIDER: "vertex",
+      LANGFUSE_AI_MODEL: "gemini-2.5-pro",
+      LANGFUSE_AI_SMALL_MODEL: undefined,
+      LANGFUSE_AI_API_KEY: undefined,
+      LANGFUSE_AI_BASE_URL: undefined,
+      LANGFUSE_AI_EXTRA_HEADERS: undefined,
+      LANGFUSE_AI_USE_RESPONSES_API: undefined,
+      LANGFUSE_AI_VERTEX_LOCATION: "us-east5.attacker.test",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    });
+
+    expect(getInAppAgentModelConfig()).toBeUndefined();
+  });
+
+  it("warns that key-bearing variables are ignored on Vertex", () => {
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+
+    Object.assign(env, {
+      LANGFUSE_AI_PROVIDER: "vertex",
+      LANGFUSE_AI_MODEL: "gemini-2.5-pro",
+      LANGFUSE_AI_SMALL_MODEL: undefined,
+      LANGFUSE_AI_API_KEY: "sk-test",
+      LANGFUSE_AI_BASE_URL: "https://api.anthropic.com",
+      LANGFUSE_AI_EXTRA_HEADERS: undefined,
+      LANGFUSE_AI_USE_RESPONSES_API: undefined,
+      LANGFUSE_AI_VERTEX_LOCATION: "global",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    });
+
+    expect(getInAppAgentModelConfig()).toEqual({
+      provider: "vertex",
+      modelId: "gemini-2.5-pro",
+      titleModelId: "gemini-2.5-pro",
+      location: "global",
+    });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toEqual(
+      "Ignoring LANGFUSE_AI_API_KEY and LANGFUSE_AI_BASE_URL because the Langfuse AI provider is vertex. Vertex AI uses GCP application default credentials, not an API key, base URL, extra headers, or the OpenAI Responses API toggle.",
+    );
+
+    warn.mockRestore();
   });
 });
 

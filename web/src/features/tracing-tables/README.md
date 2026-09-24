@@ -29,7 +29,7 @@ traces), following the local-store pattern from
 
 ## Status / Remaining Spread
 
-`ObservationsTable` (`web/src/components/table/use-cases/observations.tsx`)
+`ObservationsTable` (`observations/ObservationsTable.tsx`)
 is still a controller component: inline column building, query-state assembly
 from multiple hooks, and data preparation in render. Per the 2026-06 decision,
 the legacy observations page is frozen (bugfix-only); the filtering/search

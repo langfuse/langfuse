@@ -1,4 +1,5 @@
 import { useStore } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 
 import { VariableMappingStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/VariableMappingStep/VariableMappingStep";
 import { VariableMappingEditorContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/VariableMappingStep/components/VariableMappingEditorContainer/VariableMappingEditorContainer";
@@ -13,11 +14,18 @@ export function VariableMappingStepContainer({
   store: EvaluatorSetupStore;
   onStepOpenChange: (step: number, open: boolean) => void;
 }) {
-  const open = useStore(store, (state) => Boolean(state.openSteps[2]));
+  const { open, type } = useStore(
+    store,
+    useShallow((state) => ({
+      open: Boolean(state.openSteps[2]),
+      type: state.type,
+    })),
+  );
 
   return (
     <VariableMappingStep
       open={open}
+      variant={type === "DECISION_MODEL" ? "state" : "variables"}
       onOpenChange={(open) => onStepOpenChange(2, open)}
       mappingEditor={
         <VariableMappingEditorContainer projectId={projectId} store={store} />

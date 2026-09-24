@@ -129,10 +129,11 @@ async fn signs_the_exact_key_and_sends_only_the_api_format() {
         .await
         .unwrap();
     assert_eq!(context.connection().id(), "connection-1");
-    assert_eq!(
-        context.connection().provider_token(),
-        "private-provider-token"
-    );
+    assert_eq!(context.connection().provider(), Provider::OpenAi);
+    assert!(matches!(
+        context.connection().credential(),
+        ProviderCredential::Bearer("private-provider-token")
+    ));
     assert_eq!(context.attribution().project_id(), "project-1");
     assert_eq!(
         context.attribution().provider_connection_id(),
@@ -319,10 +320,126 @@ async fn concurrent_resolutions_keep_credentials_and_contexts_isolated() {
     let alice = alice.unwrap();
     let bob = bob.unwrap();
     assert_eq!(alice.attribution().project_id(), "project-alice");
-    assert_eq!(alice.connection().provider_token(), "token-alice");
+    assert!(matches!(
+        alice.connection().credential(),
+        ProviderCredential::Bearer("token-alice")
+    ));
     assert_eq!(bob.attribution().project_id(), "project-bob");
-    assert_eq!(bob.connection().provider_token(), "token-bob");
+    assert!(matches!(
+        bob.connection().credential(),
+        ProviderCredential::Bearer("token-bob")
+    ));
     assert_eq!(web.calls(), 2);
+}
+
+fn anthropic_success(provider_key: &str) -> Value {
+    let mut body = success("project-1", "unused");
+    body["connection"] = json!({
+        "id": "connection-anthropic",
+        "provider": "anthropic",
+        "api_format": "anthropic.messages",
+        "base_url": "https://api.anthropic.com/v1",
+        "auth": {"type": "x-api-key", "header": "x-api-key", "value": provider_key}
+    });
+    body["attribution"]["provider_connection_id"] = json!("connection-anthropic");
+    body
+}
+
+#[tokio::test]
+async fn resolves_anthropic_messages_with_the_native_credential_scheme() {
+    let web = FakeWeb::start(|request| async move {
+        assert_eq!(
+            to_bytes(request.into_body(), 1024).await.unwrap(),
+            r#"{"apiFormat":"anthropic.messages"}"#
+        );
+        response(anthropic_success("private-anthropic-key"))
+    })
+    .await;
+
+    let context = web
+        .control_plane()
+        .resolve_at(GATEWAY_KEY, ApiFormat::AnthropicMessages, NOW_TIME)
+        .await
+        .unwrap();
+    assert_eq!(context.connection().id(), "connection-anthropic");
+    assert_eq!(context.connection().provider(), Provider::Anthropic);
+    assert_eq!(
+        context.connection().api_format(),
+        ApiFormat::AnthropicMessages
+    );
+    assert_eq!(
+        context.connection().base_url(),
+        "https://api.anthropic.com/v1"
+    );
+    assert!(matches!(
+        context.connection().credential(),
+        ProviderCredential::XApiKey("private-anthropic-key")
+    ));
+    assert!(
+        !format!("{context:?}").contains("private-anthropic-key"),
+        "execution context leaked the provider key"
+    );
+    assert_eq!(web.calls(), 1);
+}
+
+#[tokio::test]
+async fn rejects_connections_whose_provider_format_origin_and_credential_disagree() {
+    // Web returned an Anthropic connection for an OpenAI Responses request, or the
+    // OpenAI connection with Anthropic's credential scheme.
+    assert_invalid_context_for(
+        anthropic_success("provider-key"),
+        ApiFormat::OpenAiResponses,
+    )
+    .await;
+    let mut body = success("project-1", "provider-token");
+    body["connection"]["auth"] =
+        json!({"type": "x-api-key", "header": "x-api-key", "value": "provider-key"});
+    assert_invalid_context_for(body, ApiFormat::OpenAiResponses).await;
+
+    // Every single-field deviation from the official Anthropic pairing.
+    let mutations = [
+        ("/connection/provider", json!("openai")),
+        ("/connection/api_format", json!("openai.responses")),
+        ("/connection/base_url", json!("https://api.openai.com/v1")),
+        ("/connection/base_url", json!("http://api.anthropic.com/v1")),
+        (
+            "/connection/base_url",
+            json!("https://api.anthropic.com.attacker.example/v1"),
+        ),
+        (
+            "/connection/base_url",
+            json!("https://api.anthropic.com/v1/"),
+        ),
+        (
+            "/connection/auth",
+            json!({"type": "Bearer", "token": "provider-key"}),
+        ),
+        (
+            "/connection/auth",
+            json!({"type": "x-api-key", "header": "authorization", "value": "provider-key"}),
+        ),
+        (
+            "/connection/auth",
+            json!({"type": "x-api-key", "value": "provider-key"}),
+        ),
+        (
+            "/connection/auth",
+            json!({"type": "x-api-key", "header": "x-api-key", "value": "provider-key", "token": "extra"}),
+        ),
+        ("/connection/auth/value", json!("")),
+        ("/connection/auth/value", json!("bad\r\nheader")),
+    ];
+    for (pointer, value) in mutations {
+        let mut body = anthropic_success("provider-key");
+        *body.pointer_mut(pointer).unwrap() = value;
+        assert_invalid_context_for(body, ApiFormat::AnthropicMessages).await;
+    }
+    // A valid OpenAI connection never satisfies an Anthropic request either.
+    assert_invalid_context_for(
+        success("project-1", "provider-token"),
+        ApiFormat::AnthropicMessages,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -384,6 +501,10 @@ async fn rejects_incompatible_or_incomplete_execution_contexts() {
 }
 
 async fn assert_invalid_context(body: Value) {
+    assert_invalid_context_for(body, ApiFormat::OpenAiResponses).await;
+}
+
+async fn assert_invalid_context_for(body: Value, api_format: ApiFormat) {
     let web = FakeWeb::start(move |_| {
         let body = body.clone();
         async move { response(body) }
@@ -391,7 +512,7 @@ async fn assert_invalid_context(body: Value) {
     .await;
     let result = web
         .control_plane()
-        .resolve_at(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW_TIME)
+        .resolve_at(GATEWAY_KEY, api_format, NOW_TIME)
         .await;
     assert!(matches!(result, Err(ResolutionError::InvalidResponse)));
     assert_eq!(web.calls(), 1);

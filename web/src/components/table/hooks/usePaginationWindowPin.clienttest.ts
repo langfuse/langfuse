@@ -86,6 +86,20 @@ describe("usePaginationWindowPin", () => {
     expect(closed.result.current.range).toBe(absolute);
   });
 
+  it("releases the previous view's pin before the page reset reaches the URL", () => {
+    const { result, rerender } = renderHook(
+      ({ pageIndex }) => usePaginationWindowPin(LIVE, pageIndex),
+      { initialProps: { pageIndex: 2 } },
+    );
+    expect(result.current.range?.to).toEqual(START);
+    act(() => result.current.resetPin());
+    expect(result.current.range?.to).toBeUndefined();
+    rerender({ pageIndex: 0 });
+    act(() => result.current.pinOnLeavingFirstPage(1, NEWEST_ON_PAGE_1));
+    rerender({ pageIndex: 1 });
+    expect(result.current.range?.to).toEqual(NEWEST_ON_PAGE_1);
+  });
+
   it("does not pin a live window when the sort has no live tail", () => {
     const { result, rerender } = renderHook(
       ({ pageIndex }: { pageIndex: number }) =>

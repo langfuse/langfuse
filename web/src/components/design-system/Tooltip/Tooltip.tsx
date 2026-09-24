@@ -12,7 +12,12 @@ type TooltipProps = Omit<
 };
 
 function Tooltip({ label, ...props }: TooltipProps) {
-  return <CustomTooltip content={<span>{label}</span>} {...props} />;
+  return (
+    <CustomTooltip
+      content={<span className="whitespace-pre-line">{label}</span>}
+      {...props}
+    />
+  );
 }
 
 export { Tooltip };

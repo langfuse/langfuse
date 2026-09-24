@@ -9,7 +9,11 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   BaseError,
+  ForbiddenError,
+  LangfuseNotFoundError,
   PayloadTooLargeError,
+  ServiceUnavailableError,
+  UnauthorizedError,
   type RateLimitResource,
   type ApiDeprecationInfo,
 } from "@langfuse/shared";
@@ -31,12 +35,39 @@ import { attachDeprecation } from "@/src/features/public-api/server/deprecations
 import { applyLegacyApiOrganizationCutoff } from "@/src/features/public-api/server/legacyApiOrganizationCutoff";
 import { type RouteAccessLevel } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
-import { type ProjectAction } from "@/src/features/auth/policy/types";
+import {
+  type AuthorizationContext,
+  type ProjectAction,
+} from "@/src/features/auth/policy/types";
 
 // Next's res.json uses JSON.stringify; V8 throws this when the JSON string
 // exceeds the engine limit. Keep this check scoped to the response write.
 const isJsonStringTooLargeError = (error: unknown): error is RangeError =>
   error instanceof RangeError && error.message === "Invalid string length";
+
+/** toMiddlewareAuthError maps seam auth failures onto the BaseError classes whose `name` withMiddlewares already puts in `{ error }`. */
+function toMiddlewareAuthError(error: BaseError): BaseError {
+  switch (error.httpCode) {
+    case 401:
+      return error instanceof UnauthorizedError
+        ? error
+        : new UnauthorizedError(error.message);
+    case 403:
+      return error instanceof ForbiddenError
+        ? error
+        : new ForbiddenError(error.message);
+    case 404:
+      return error instanceof LangfuseNotFoundError
+        ? error
+        : new LangfuseNotFoundError(error.message);
+    case 503:
+      return error instanceof ServiceUnavailableError
+        ? error
+        : new ServiceUnavailableError(error.message);
+    default:
+      return error;
+  }
+}
 
 export type AuthedProjectAPIRouteConfig<
   TQuery extends ZodType<any>,
@@ -78,7 +109,6 @@ export type AuthedProjectAPIRouteConfig<
   allowedAccessLevels?: RouteAccessLevel[];
   /**
    * Whether in-app agent API keys can call this route without additional confirmation. Defaults to false.
-   * Only set this to true on non-mutating (GET) routes that should be callable by the in-app agent.
    */
   allowInAppAgentKey?: boolean;
   /**
@@ -104,6 +134,11 @@ export type AuthedProjectAPIRouteConfig<
     auth: AuthHeaderValidVerificationResult & {
       scope: { projectId: string; accessLevel: RouteAccessLevel };
     };
+    /**
+     * Policy context from the new auth pipeline. Present in shadow and
+     * enforce; absent in legacy and on gateway-token auth.
+     */
+    ctx?: AuthorizationContext;
   }) => Promise<z.infer<TResponse>>;
 };
 
@@ -140,14 +175,21 @@ export const createAuthedProjectAPIRoute = <
       return;
     }
 
-    const renderAuthError = (statusCode: number, message: string) => {
+    const renderAuthError = (error: BaseError) => {
+      const publicError = toMiddlewareAuthError(error);
       if (routeConfig.errorContract === structuredPublicApiErrorContract) {
         return sendStructuredPublicApiErrorResponse(
           res,
-          createStructuredPublicApiAuthError({ statusCode, message }),
+          createStructuredPublicApiAuthError({
+            statusCode: publicError.httpCode,
+            message: publicError.message,
+          }),
         );
       }
-      res.status(statusCode).json({ message });
+      res.status(publicError.httpCode).json({
+        message: publicError.message,
+        error: publicError.name,
+      });
     };
 
     // A signed AI-gateway ingestion token authorizes the project directly,
@@ -163,8 +205,13 @@ export const createAuthedProjectAPIRoute = <
         );
       } catch (error) {
         renderAuthError(
-          error instanceof BaseError ? error.httpCode : 401,
-          error instanceof BaseError ? error.message : "Authentication failed",
+          error instanceof BaseError
+            ? error
+            : new UnauthorizedError(
+                error instanceof Error
+                  ? error.message
+                  : "Authentication failed",
+              ),
         );
         return;
       }
@@ -178,6 +225,7 @@ export const createAuthedProjectAPIRoute = <
         accessLevel: RouteAccessLevel;
       };
     };
+    let authzCtx: AuthorizationContext | undefined;
 
     if (gatewayAuth) {
       auth = gatewayAuth;
@@ -191,7 +239,7 @@ export const createAuthedProjectAPIRoute = <
       });
 
       if (!result.success) {
-        renderAuthError(result.error.httpCode, result.error.message);
+        renderAuthError(result.error);
         return;
       }
 
@@ -202,6 +250,7 @@ export const createAuthedProjectAPIRoute = <
           accessLevel: RouteAccessLevel;
         },
       };
+      authzCtx = result.ctx;
     }
 
     const rateLimitResponse =
@@ -276,7 +325,7 @@ export const createAuthedProjectAPIRoute = <
       throw error;
     }
 
-    const ctx = contextWithLangfuseProps({
+    const otelCtx = contextWithLangfuseProps({
       headers: req.headers,
       projectId: auth.scope.projectId,
       apiKeyId: auth.scope.apiKeyId,
@@ -285,7 +334,7 @@ export const createAuthedProjectAPIRoute = <
         route: clickHouseRouteForRequest(req),
       },
     });
-    return opentelemetry.context.with(ctx, async () => {
+    return opentelemetry.context.with(otelCtx, async () => {
       const response = await routeConfig.fn({
         query,
         body,
@@ -296,6 +345,7 @@ export const createAuthedProjectAPIRoute = <
         auth: auth as AuthHeaderValidVerificationResult & {
           scope: { projectId: string; accessLevel: RouteAccessLevel };
         },
+        ctx: authzCtx,
       });
 
       if (env.NODE_ENV === "development" && routeConfig.responseSchema) {
@@ -306,12 +356,18 @@ export const createAuthedProjectAPIRoute = <
         }
       }
 
-      res.status(
+      const statusCode =
         // Check whether status code was already set inside handler to non default value
         res.statusCode !== 200
           ? res.statusCode
-          : routeConfig.successStatusCode || 200,
-      );
+          : routeConfig.successStatusCode || 200;
+
+      if (statusCode === 204) {
+        res.status(204).end();
+        return;
+      }
+
+      res.status(statusCode);
 
       try {
         res.json(attachDeprecation(response || { message: "OK" }, deprecation));

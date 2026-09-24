@@ -13,7 +13,7 @@ import {
   createShaHash,
 } from "@langfuse/shared/src/server";
 
-import { Authenticator } from "@/src/features/apiKey/authenticator";
+import { Authenticator } from "@/src/features/apiKey/server";
 import { AuthenticatorCache } from "@/src/features/apiKey/authenticatorCache";
 import {
   OrganizationRepository,

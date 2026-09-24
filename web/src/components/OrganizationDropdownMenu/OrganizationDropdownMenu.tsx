@@ -3,7 +3,7 @@ import { PlusIcon, Settings } from "lucide-react";
 import { type Session } from "next-auth";
 import { type ComponentProps, useMemo } from "react";
 import { env } from "@/src/env.mjs";
-import { createOrganizationRoute } from "@/src/features/setup/setupRoutes";
+import { createOrganizationRoute } from "@/src/features/setup";
 
 type Organization = NonNullable<Session["user"]>["organizations"][number];
 

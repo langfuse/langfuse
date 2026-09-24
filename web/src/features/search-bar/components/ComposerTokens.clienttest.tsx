@@ -26,4 +26,16 @@ describe("ComposerTokens", () => {
       'scores."Rouge Score":>=1',
     );
   });
+
+  it("renders whitespace and trailing plain text as elements, not raw text nodes", () => {
+    // IME composition writes into whatever text node the caret sits in. A
+    // fragment-emitted " " between pills is a node React will not rewrite, so
+    // the composed run stays in the DOM next to the token projection.
+    const { container } = render(
+      <ComposerTokens draft="level:ERROR hello" showDiagnostics={false} />,
+    );
+    for (const child of Array.from(container.childNodes)) {
+      expect(child.nodeType).toBe(Node.ELEMENT_NODE);
+    }
+  });
 });

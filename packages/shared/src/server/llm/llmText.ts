@@ -673,6 +673,12 @@ function translateLegacyProviderOptions(params: {
           });
       break;
     }
+    case LLMAdapter.TypeSafe:
+      throw new LLMValidationError({
+        code: "invalid-request",
+        message:
+          "TypeSafe decision models cannot generate text; use a decision-model evaluator",
+      });
     default: {
       const _exhaustiveCheck: never = modelParams.adapter;
       throw new LLMValidationError({

@@ -85,16 +85,6 @@ export function extractSchemaFields(
   return fields;
 }
 
-/**
- * Check if the schema is an object type (key-value mapping makes sense).
- */
-export function isObjectSchema(schema: unknown): boolean {
-  if (!isJsonSchemaObject(schema)) {
-    return false;
-  }
-  return getSchemaType(schema) === "object";
-}
-
 // --- Internal helpers ---
 
 function isJsonSchemaObject(value: unknown): value is JSONSchemaObject {

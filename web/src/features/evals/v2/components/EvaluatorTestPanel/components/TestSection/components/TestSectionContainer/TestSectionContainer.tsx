@@ -1,12 +1,22 @@
+import type { EvalTemplateType } from "@langfuse/shared";
 import { useStore } from "zustand";
 
-import { TestResultPanelView } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultPanelView/TestResultPanelView";
+import {
+  TestResultPanelView,
+  type TestResultPanelTitle,
+} from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultPanelView/TestResultPanelView";
 import { TestSection } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/TestSection";
 import { TestRerunAction } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/components/TestRerunAction/TestRerunAction";
 import { TestResultActions } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/components/TestResultActions/TestResultActions";
 import { TestRunCard } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/components/TestRunCard/TestRunCard";
 import { toTestResultPanelState } from "@/src/features/evals/v2/fns/evaluatorTesting/toTestResultPanelState";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+
+const RESULT_TITLES: Record<EvalTemplateType, TestResultPanelTitle> = {
+  LLM_AS_JUDGE: "LLM Output",
+  CODE: "Code Output",
+  DECISION_MODEL: "Decision Model Output",
+};
 
 export function TestSectionContainer({
   projectId,
@@ -52,7 +62,7 @@ export function TestSectionContainer({
           />
         ) : (
           <TestResultPanelView
-            title={type === "LLM_AS_JUDGE" ? "LLM Output" : "Code Output"}
+            title={RESULT_TITLES[type]}
             result={toTestResultPanelState({
               type,
               isPending: testPending,

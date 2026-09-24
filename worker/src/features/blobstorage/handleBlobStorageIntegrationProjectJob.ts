@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { pipeline, Transform, type Readable } from "stream";
 import { monitorEventLoopDelay } from "perf_hooks";
 import { Job, UnrecoverableError } from "bullmq";

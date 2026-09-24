@@ -1,12 +1,19 @@
+/* eslint-disable no-nested-ternary */
 import { registeredProviders } from "../../conventions";
 import type { MessageSource } from "../../conventions/io-convention";
-import { asRecord, parseIfString, parseRecord } from "../utils/json";
+import {
+  asRecord,
+  parseArray,
+  parseIfString,
+  parseRecord,
+  recordKeyAsParsed,
+} from "../utils/json";
 import type { NormalizedMessage, NormalizedMessagePart } from "../../types";
 import { addMessage, addToolDefinitionValue } from "./helpers";
 import type { NormalizedIOAccumulator } from "./interface";
 import type { ParserContext } from "../parser-context";
 import {
-  normalizePart,
+  normalizePartValue,
   normalizeMessage,
   normalizeFinishReason,
 } from "../normalize";
@@ -15,14 +22,13 @@ import { isMessageLike, isToolDefinitionMessage } from "../utils/format";
 export type ParsedIOValue = {
   value: unknown;
   record?: Record<string, unknown>;
-  messages?: unknown[];
 };
 
 function collectToolDefinitionsFromRecord(
   record: Record<string, unknown>,
   accumulator: NormalizedIOAccumulator,
-): void {
-  addToolDefinitionValue(accumulator, record.tools, {
+): boolean {
+  const toolsFullyParsed = addToolDefinitionValue(accumulator, record.tools, {
     allowProviderToolWithoutName: true,
     allowToolMap: true,
   });
@@ -30,13 +36,16 @@ function collectToolDefinitionsFromRecord(
   if (isToolDefinitionMessage(record)) {
     addToolDefinitionValue(accumulator, record.content);
   }
+  return toolsFullyParsed;
 }
 
 function collectRootToolDefinitions(
   root: Record<string, unknown>,
   accumulator: NormalizedIOAccumulator,
 ): void {
-  collectToolDefinitionsFromRecord(root, accumulator);
+  if (collectToolDefinitionsFromRecord(root, accumulator)) {
+    recordKeyAsParsed(root, "tools");
+  }
 
   // Definitions are independent of the message claim. A record can contain
   // an OpenAI `choices` carrier and, next to it, a framework `messages` or
@@ -142,9 +151,11 @@ function collectMessageSequence(
     if (record?.type === "mcp_list_tools") continue;
 
     if (record && !isMessageLike(record)) {
-      const part = normalizePart(record, parserContext);
-      if (part?.type === "tool-call") {
-        standaloneToolCalls.push(part);
+      const parts = normalizePartValue(record, parserContext);
+      const onlyToolCalls =
+        parts.length > 0 && parts.every((part) => part.type === "tool-call");
+      if (onlyToolCalls) {
+        standaloneToolCalls.push(...parts);
         continue;
       }
     }
@@ -196,48 +207,67 @@ function emitRootSource(
   );
 }
 
+function findSystemMessageSources(
+  root: Record<string, unknown>,
+  source: "input" | "output",
+): MessageSource[] {
+  const sources: MessageSource[] = [];
+  for (const provider of registeredProviders) {
+    const systemMessage = provider.getSystemMessage?.(root, source);
+    if (systemMessage) sources.push(systemMessage);
+  }
+  return sources;
+}
+
+function claimMessages(
+  root: Record<string, unknown>,
+  source: "input" | "output",
+  parserContext: ParserContext,
+): MessageSource[] {
+  for (const provider of registeredProviders) {
+    const sources = provider.claimMessages?.(root, source) ?? [];
+    if (sources.length > 0) {
+      parserContext.preferredProvider = provider;
+      return sources;
+    }
+  }
+  return [];
+}
+
 function collectRecordMessages(
-  parsedValue: ParsedIOValue,
+  root: Record<string, unknown>,
   parserContext: ParserContext,
   accumulator: NormalizedIOAccumulator,
 ): void {
-  const record = parsedValue.record;
-  if (!record) return;
-
   const { source } = parserContext;
   const fallbackRole = source === "input" ? "user" : "assistant";
 
-  const providerClaims = registeredProviders.map((provider) => ({
-    provider,
-    sources: provider.claimMessages?.(record, source) ?? [],
-    systemMessage: provider.getSystemMessage?.(record, source),
-  }));
-  const selectedClaim = providerClaims.find(
-    ({ sources }) => sources.length > 0,
-  );
-
-  if (selectedClaim) {
-    parserContext.preferredProvider = selectedClaim.provider;
-  }
+  const systemSources =
+    source === "input" ? findSystemMessageSources(root, source) : [];
+  const claimedSources = claimMessages(root, source, parserContext);
+  const rootMessages = parseArray(root.messages);
 
   const messages: NormalizedMessage[] = [];
-  const claimedSources = selectedClaim?.sources;
 
-  if (claimedSources && claimedSources.length > 0) {
+  if (claimedSources.length > 0) {
     for (const rootSource of claimedSources) {
       emitRootSource(rootSource, parserContext, messages, accumulator);
     }
-  } else if (parsedValue.messages) {
+  } else if (rootMessages) {
+    recordKeyAsParsed(root, "messages");
     collectMessageSequence(
-      parsedValue.messages,
+      rootMessages,
       fallbackRole,
       parserContext,
       messages,
       accumulator,
     );
   } else {
-    const recordMessage = normalizeMessage(record, fallbackRole, parserContext);
-    if (recordMessage) addMessage(messages, recordMessage, parserContext);
+    const recordMessage = normalizeMessage(root, fallbackRole, parserContext);
+    if (recordMessage) {
+      addMessage(messages, recordMessage, parserContext);
+      delete accumulator.unparsedKeys[source];
+    }
   }
 
   // System instructions supplement the selected input conversation. Defer
@@ -245,16 +275,9 @@ function collectRecordMessages(
   // suppresses every top-level system sidecar.
   if (source === "input" && !parserContext.hasSystemMessage) {
     const systemMessages: NormalizedMessage[] = [];
-    for (const { systemMessage } of providerClaims) {
-      if (systemMessage) {
-        emitRootSource(
-          systemMessage,
-          parserContext,
-          systemMessages,
-          accumulator,
-        );
-      }
-      if (parserContext.hasSystemMessage) break;
+    for (const systemSource of systemSources) {
+      emitRootSource(systemSource, parserContext, systemMessages, accumulator);
+      if (systemMessages.length > 0) break;
     }
     messages.unshift(...systemMessages);
   }
@@ -282,7 +305,7 @@ export function collectIO(
 
   if (Array.isArray(parsedValue.value)) {
     collectMessageSequence(
-      parsedValue.messages ?? parsedValue.value,
+      parsedValue.value,
       fallbackRole,
       context,
       accumulator.messages,
@@ -292,8 +315,10 @@ export function collectIO(
   }
 
   if (parsedValue.record) {
-    collectRootToolDefinitions(parsedValue.record, accumulator);
-    collectRecordMessages(parsedValue, context, accumulator);
+    const unparsedKeys = { ...parsedValue.record };
+    accumulator.unparsedKeys[source] = unparsedKeys;
+    collectRootToolDefinitions(unparsedKeys, accumulator);
+    collectRecordMessages(unparsedKeys, context, accumulator);
     return;
   }
 

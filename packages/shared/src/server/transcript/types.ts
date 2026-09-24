@@ -8,10 +8,18 @@ export type ThreadMessage = NormalizedMessage & {
   traceId: string;
 };
 
-export type Thread = {
+/** Messages of one turn with the observations that emitted them. */
+export type Turn = {
   messages: ThreadMessage[];
-  /** Observations that contributed to this thread, in contribution order. */
+  /** Observations that contributed to this turn, in contribution order. */
   observations: { id: string; traceId: string }[];
+};
+
+export type Thread = {
+  /** Messages replayed from earlier turns, in replay order, without provenance. */
+  conversationHistory: NormalizedMessage[];
+  /** Messages the supplied observations added to the conversation. */
+  currentTurn: Turn;
 };
 
 export type Transcript = {

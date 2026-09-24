@@ -161,6 +161,28 @@ describe("heatmap-utils", () => {
       expect(result.cells[1].metadata?.percentage).toBe(75);
     });
 
+    it("should not collide cells when categories contain the key delimiter", () => {
+      const input = {
+        data: [
+          { row_category: "a-b", col_category: "c", count: 10 },
+          { row_category: "a", col_category: "b-c", count: 99 },
+        ],
+      };
+
+      const result = generateConfusionMatrixData(input);
+
+      const cellAB_C = result.cells.find(
+        (c) =>
+          c.metadata?.rowCategory === "a-b" && c.metadata?.colCategory === "c",
+      );
+      const cellA_BC = result.cells.find(
+        (c) =>
+          c.metadata?.rowCategory === "a" && c.metadata?.colCategory === "b-c",
+      );
+      expect(cellAB_C?.value).toBe(10);
+      expect(cellA_BC?.value).toBe(99);
+    });
+
     it("should handle empty confusion matrix data", () => {
       const input = {
         data: [],

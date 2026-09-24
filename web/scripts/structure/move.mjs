@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable no-nested-ternary */
 // structure:move — move files/folders and rewrite every importer, the way an
 // IDE does: TypeScript's own LanguageService.getEditsForFileRename over
 // web/tsconfig.json, so `@/src/...` aliases, extension-less specifiers, index

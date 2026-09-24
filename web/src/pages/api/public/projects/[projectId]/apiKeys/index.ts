@@ -8,9 +8,11 @@ import {
   handleGetApiKeys,
   handleCreateApiKey,
 } from "@/src/ee/features/admin-api/server/projects/projectById/apiKeys";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
-import { writeProjectError } from "@/src/features/public-api/server/writeError";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import {
+  shadowAuth,
+  writeProjectError,
+} from "@/src/features/public-api/server";
 
 export default async function handler(
   req: NextApiRequest,

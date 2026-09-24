@@ -246,83 +246,16 @@ const findDirectoriesWithAgentsFile = (startDirectory) => {
   return directories.sort((left, right) => left.localeCompare(right));
 };
 
-// Every `AGENTS.md` below the repo root gets a sibling `CLAUDE.md` symlink so
-// Claude picks up package-local guidance when it reads a file in that
-// directory. The repo root is handled explicitly above.
-const packageAgentsDirectories = findDirectoriesWithAgentsFile(repoRoot);
-
 const symlinkOutputs = [
   {
     path: resolve(repoRoot, "AGENTS.md"),
     target: resolve(repoRoot, ".agents/AGENTS.md"),
   },
-  {
-    path: resolve(repoRoot, "CLAUDE.md"),
-    target: resolve(repoRoot, "AGENTS.md"),
-  },
-  ...packageAgentsDirectories.map((directory) => ({
-    path: resolve(directory, "CLAUDE.md"),
-    target: resolve(directory, "AGENTS.md"),
-  })),
   ...sharedSkillNames.map((name) => ({
     path: resolve(repoRoot, ".claude/skills", name),
     target: resolve(skillsRoot, name),
   })),
 ];
-
-const expectedClaudeShims = new Set(
-  symlinkOutputs
-    .filter((output) => output.path.endsWith("CLAUDE.md"))
-    .map((output) => output.path),
-);
-
-// A `CLAUDE.md` symlink whose `AGENTS.md` was deleted or moved would otherwise
-// linger and keep feeding stale guidance into context. Hand-written regular
-// `CLAUDE.md` files are left alone; only generated symlinks are swept.
-const isSymbolicLink = (path) => {
-  try {
-    return lstatSync(path).isSymbolicLink();
-  } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "ENOENT"
-    ) {
-      return false;
-    }
-
-    throw error;
-  }
-};
-
-const findStaleClaudeShims = (startDirectory) => {
-  const stale = [];
-
-  const visit = (directory) => {
-    const candidate = resolve(directory, "CLAUDE.md");
-
-    if (!expectedClaudeShims.has(candidate) && isSymbolicLink(candidate)) {
-      stale.push(candidate);
-    }
-
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      if (!entry.isDirectory() || entry.isSymbolicLink()) {
-        continue;
-      }
-
-      if (entry.name.startsWith(".") || ignoredDirectoryNames.has(entry.name)) {
-        continue;
-      }
-
-      visit(resolve(directory, entry.name));
-    }
-  };
-
-  visit(startDirectory);
-
-  return stale;
-};
 
 const managedDirectoryEntries = [
   {
@@ -398,7 +331,7 @@ const findBrokenReferences = () => {
   const broken = [];
   const guidanceFiles = [
     resolve(repoRoot, ".agents/AGENTS.md"),
-    ...packageAgentsDirectories.map((directory) =>
+    ...findDirectoriesWithAgentsFile(repoRoot).map((directory) =>
       resolve(directory, "AGENTS.md"),
     ),
   ];
@@ -551,19 +484,6 @@ for (const output of symlinkOutputs) {
     lstatSync(output.target).isDirectory() ? "dir" : "file",
   );
   console.log(`Linked ${output.path}`);
-}
-
-for (const staleShim of findStaleClaudeShims(repoRoot)) {
-  if (checkMode) {
-    hasMismatch = true;
-    console.error(
-      `Stale CLAUDE.md shim: ${staleShim}. Run "pnpm run agents:sync".`,
-    );
-    continue;
-  }
-
-  rmSync(staleShim, { force: true });
-  console.log(`Removed stale CLAUDE.md shim ${staleShim}`);
 }
 
 for (const directory of managedDirectoryEntries) {

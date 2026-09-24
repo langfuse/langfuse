@@ -14,7 +14,7 @@ services:
   clickhouse:
     # Latest ClickHouse in the CI matrix. Used to catch parser/settings
     # regressions such as DateTime64 unquoted-number scaling on 26.8+.
-    image: docker.io/clickhouse/clickhouse-server:26.8
+    image: docker.io/clickhouse/clickhouse-server:26.9
     user: "101:101"
     environment:
       CLICKHOUSE_DB: default

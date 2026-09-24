@@ -6,6 +6,7 @@ import {
 import { type z } from "zod";
 import {
   getObservationById,
+  getObservationByIdFromEventsTable,
   getTraceById,
   getTracesIdentifierForSession,
 } from "@langfuse/shared/src/server";
@@ -22,9 +23,15 @@ export const validateCommentReferenceObject = async ({
   let commentTarget;
   switch (objectType) {
     case CommentObjectType.OBSERVATION: {
+      const getObservation = (
+        params: Parameters<typeof getObservationByIdFromEventsTable>[0],
+      ) =>
+        ctx.session?.user?.v4BetaEnabled === true
+          ? getObservationByIdFromEventsTable(params)
+          : // eslint-disable-next-line @typescript-eslint/no-deprecated
+            getObservationById(params);
       try {
-        // eslint-disable-next-line @typescript-eslint/no-deprecated
-        commentTarget = await getObservationById({
+        commentTarget = await getObservation({
           id: objectId,
           projectId,
           // objectStartTime is a performance hint: it bounds the lookup to its
@@ -35,8 +42,7 @@ export const validateCommentReferenceObject = async ({
         });
       } catch (e) {
         if (!(e instanceof LangfuseNotFoundError) || !objectStartTime) throw e;
-        // eslint-disable-next-line @typescript-eslint/no-deprecated
-        commentTarget = await getObservationById({ id: objectId, projectId });
+        commentTarget = await getObservation({ id: objectId, projectId });
       }
       break;
     }

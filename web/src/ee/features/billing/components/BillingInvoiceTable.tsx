@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -31,8 +32,11 @@ type InvoiceRow = {
 };
 
 export function BillingInvoiceTable() {
-  const { organization } = useBillingInformation();
+  const { organization, billingProvider } = useBillingInformation();
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
+  // ClickHouse Billing reports a single total per invoice, so the
+  // Stripe-only breakdown columns would always read $0.00.
+  const showBreakdownColumns = billingProvider !== "clickhouse";
   // Provider-agnostic: getInvoices dispatches to whichever provider bills the
   // org, so the gate is "does this org have a billing identity at all", not
   // "does it have a Stripe customer". A CHB org never populates
@@ -150,34 +154,38 @@ export function BillingInvoiceTable() {
         return <Badge variant={variant}>{status}</Badge>;
       },
     },
-    createNumberTableColumn<InvoiceRow>({
-      accessorFn: (row) => (row.breakdown?.subscriptionCents ?? 0) / 100,
-      id: "subscription",
-      header: "Subscription",
-      size: 100,
-      formatter: costFormatter,
-    }),
-    createNumberTableColumn<InvoiceRow>({
-      accessorFn: (row) => (row.breakdown?.usageCents ?? 0) / 100,
-      id: "usage",
-      header: "Usage",
-      size: 90,
-      formatter: costFormatter,
-    }),
-    createNumberTableColumn<InvoiceRow>({
-      accessorFn: (row) => (row.breakdown?.discountCents ?? 0) / 100,
-      id: "discounts",
-      header: "Discounts",
-      size: 90,
-      formatter: costFormatter,
-    }),
-    createNumberTableColumn<InvoiceRow>({
-      accessorFn: (row) => (row.breakdown?.taxCents ?? 0) / 100,
-      id: "tax",
-      header: "Tax",
-      size: 90,
-      formatter: costFormatter,
-    }),
+    ...(showBreakdownColumns
+      ? [
+          createNumberTableColumn<InvoiceRow>({
+            accessorFn: (row) => (row.breakdown?.subscriptionCents ?? 0) / 100,
+            id: "subscription",
+            header: "Subscription",
+            size: 100,
+            formatter: costFormatter,
+          }),
+          createNumberTableColumn<InvoiceRow>({
+            accessorFn: (row) => (row.breakdown?.usageCents ?? 0) / 100,
+            id: "usage",
+            header: "Usage",
+            size: 90,
+            formatter: costFormatter,
+          }),
+          createNumberTableColumn<InvoiceRow>({
+            accessorFn: (row) => (row.breakdown?.discountCents ?? 0) / 100,
+            id: "discounts",
+            header: "Discounts",
+            size: 90,
+            formatter: costFormatter,
+          }),
+          createNumberTableColumn<InvoiceRow>({
+            accessorFn: (row) => (row.breakdown?.taxCents ?? 0) / 100,
+            id: "tax",
+            header: "Tax",
+            size: 90,
+            formatter: costFormatter,
+          }),
+        ]
+      : []),
     createNumberTableColumn<InvoiceRow>({
       accessorFn: (row) => (row.breakdown?.totalCents ?? 0) / 100,
       id: "total",

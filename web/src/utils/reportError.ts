@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { addBreadcrumb, captureException } from "@sentry/nextjs";
 
 /**

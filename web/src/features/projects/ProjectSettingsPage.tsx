@@ -8,34 +8,39 @@ import Link from "next/link";
 import { LlmApiKeyList } from "@/src/features/public-api/components/LLMApiKeyList";
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import { MembershipInvitesPage } from "@/src/features/rbac/components/MembershipInvitesPage";
-import { MembersTable } from "@/src/features/rbac/components/MembersTable";
+import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";
+import { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
+import {
+  useHasProjectAccess,
+  useHasOrganizationAccess,
+} from "@/src/features/rbac";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import { Card } from "@/src/components/ui/card";
 import { TransferProjectDialogController } from "@/src/features/projects/components/TransferProjectDialogController";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasEntitlement } from "@/src/features/entitlements";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { ActionButton } from "@/src/components/ActionButton";
-import { BatchExportsSettingsPage } from "@/src/features/batch-exports/components/BatchExportsSettingsPage";
-import { BatchActionsSettingsPage } from "@/src/features/batch-actions/components/BatchActionsSettingsPage";
-import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/AuditLogsSettingsPage";
-import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
+import { BatchExportsSettingsPage } from "@/src/features/batch-exports";
+import { BatchActionsSettingsPage } from "@/src/features/batch-actions";
+import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer";
+import { ModelsSettings } from "@/src/features/models";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import ProtectedLabelsSettings from "@/src/features/prompts/components/ProtectedLabelsSettings";
+import { ProtectedLabelsSettings } from "@/src/features/prompts";
 import { SiSlack } from "react-icons/si";
-import { ScoreConfigSettings } from "@/src/features/score-configs/components/ScoreConfigSettings";
+import { ScoreConfigSettings } from "@/src/features/score-configs";
 import { env } from "@/src/env.mjs";
 import { PersonalNotificationSettings } from "@/src/features/notifications/components/PersonalNotificationSettings";
 import { ProjectNotificationChannels } from "@/src/features/notifications/components/ProjectNotificationChannels";
-import { WebCalloutIntegrationCard } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
-import { DeveloperToolsSettings } from "@/src/features/developer-tools/components/DeveloperToolsSettings";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import { WebCalloutIntegrationCard } from "@/src/features/web-callouts";
+import { DeveloperToolsSettings } from "@/src/features/developer-tools";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { api } from "@/src/utils/api";
 
 type ProjectSettingsPageEntry = {
   title: string;
@@ -155,7 +160,7 @@ const getProjectSettingsPages = ({
             {
               title: "Delete this project",
               description:
-                "Once you delete a project, there is no going back. Please be certain.",
+                "Once you delete a project, there is no going back. Deletion time scales with project size and can take multiple days for very large projects.",
               button: (
                 <DeleteProjectDialogController>
                   {({ hasAccess, openDialog }) => (
@@ -246,20 +251,10 @@ const getProjectSettingsPages = ({
     slug: "members",
     cmdKKeywords: ["invite", "user"],
     content: (
-      <div>
-        <Header title="Project Members" />
-        <MembersTable
-          orgId={organization.id}
-          project={{ id: project.id, name: project.name }}
-          showSettingsCard
-        />
-        <div>
-          <MembershipInvitesPage
-            orgId={organization.id}
-            projectId={project.id}
-          />
-        </div>
-      </div>
+      <ProjectMembersSettings
+        orgId={organization.id}
+        project={{ id: project.id, name: project.name }}
+      />
     ),
   },
   {
@@ -346,6 +341,64 @@ export default function ProjectSettingsPage() {
         pages={pages}
       />
     </ContainerPage>
+  );
+}
+
+function ProjectMembersSettings({
+  orgId,
+  project,
+}: {
+  orgId: string;
+  project: { id: string; name: string };
+}) {
+  const [invitesPagination, setInvitesPagination] = useSessionStorage(
+    `projectInvites_${project.id}_pagination`,
+    { pageIndex: 0, pageSize: 10 },
+  );
+
+  const hasOrgViewAccess = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "organizationMembers:read",
+  });
+
+  const hasProjectViewAccess =
+    useHasProjectAccess({
+      projectId: project.id,
+      scope: "projectMembers:read",
+    }) || hasOrgViewAccess;
+
+  const membershipInvites = api.members.allInvitesFromProject.useQuery(
+    {
+      projectId: project.id,
+      page: invitesPagination.pageIndex,
+      limit: invitesPagination.pageSize,
+    },
+    { enabled: hasProjectViewAccess },
+  );
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <Header title="Project Members" />
+        <ConnectedMembersSettingsTable orgId={orgId} project={project} />
+      </div>
+      {hasProjectViewAccess && (
+        <div
+          className={
+            membershipInvites.data?.totalCount === 0 ? "hidden" : undefined
+          }
+        >
+          <Header title="Membership Invites" />
+          <ConnectedMembershipInvitesSettingsTable
+            orgId={orgId}
+            projectId={project.id}
+            query={membershipInvites}
+            paginationState={invitesPagination}
+            setPaginationState={setInvitesPagination}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 

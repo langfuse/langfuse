@@ -67,7 +67,9 @@ describe("prepareSessionTimelineObservations", () => {
   });
 
   it("preserves skipped and failed observations in their original positions", () => {
+    // Force a parsing failure even when the parser copies enumerable fields.
     const invalidInput = Object.defineProperty({}, "messages", {
+      enumerable: true,
       get() {
         throw new Error("Cannot parse input");
       },

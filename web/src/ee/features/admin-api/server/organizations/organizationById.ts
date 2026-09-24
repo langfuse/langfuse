@@ -4,7 +4,7 @@ import {
   invalidateCachedOrgApiKeys,
   logger,
 } from "@langfuse/shared/src/server";
-import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
+import { organizationNameSchema } from "@/src/features/organizations/server";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { z } from "zod";
 

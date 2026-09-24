@@ -92,7 +92,7 @@ describe("direct-v4 trace batch tracking", () => {
         "createEventRecord",
       ).mockImplementation(async (input) => {
         if (input.traceId === "conversion-failed") throw new Error("invalid");
-        return { span_id: input.spanId } as Awaited<
+        return { span_id: input.spanId, event_bytes: 10_000 } as Awaited<
           ReturnType<IngestionService["createEventRecord"]>
         >;
       });
@@ -100,6 +100,7 @@ describe("direct-v4 trace batch tracking", () => {
         .spyOn(IngestionService.prototype, "writeEventRecord")
         .mockImplementation(async (record) => {
           if (record.span_id === "third") throw new Error("write rejected");
+          return record.span_id === "first" ? 101 : 202;
         });
       const processor = otelIngestionQueueProcessorBuilder(false);
       const job = {
@@ -126,9 +127,11 @@ describe("direct-v4 trace batch tracking", () => {
       expect(write).toHaveBeenCalledTimes(3);
       expect(trackTraceBatchActivity).toHaveBeenCalledExactlyOnceWith(
         "project",
-        inputs
-          .slice(0, 2)
-          .map(({ traceId, startTimeISO }) => ({ traceId, startTimeISO })),
+        inputs.slice(0, 2).map(({ traceId, startTimeISO }, index) => ({
+          traceId,
+          startTimeISO,
+          serializedEventBytes: index === 0 ? 101 : 202,
+        })),
       );
       expect(recordDistribution).toHaveBeenCalledWith(
         "langfuse.trace_batch.ingestion_trace_count",

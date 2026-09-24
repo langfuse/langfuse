@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useStore } from "zustand";
 
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";

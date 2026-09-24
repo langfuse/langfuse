@@ -9,6 +9,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS, LLMAdapter } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
@@ -104,14 +105,7 @@ describe("llmApiKey.all RPC", () => {
             ],
           },
         ],
-        featureFlags: {
-          searchBar: false,
-          templateFlag: true,
-          excludeClickhouseRead: false,
-          observationEvals: false,
-          v4BetaToggleVisible: false,
-          experimentsV4Enabled: false,
-        },
+        featureFlags: testFeatureFlags(),
         admin: true,
       },
       environment: {} as any,
@@ -343,6 +337,97 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys[0].config).toEqual({});
   });
 
+  it("should store a preset upstream as the base URL of a decision-model connection", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: "sk-or-test",
+      provider: "jev-via-openrouter",
+      adapter: LLMAdapter.TypeSafe,
+      baseURL: "https://openrouter.ai/api/v1",
+    });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({
+      projectId,
+      includeDecisionModels: true,
+    });
+
+    expect(llmApiKeys).toHaveLength(1);
+    expect(llmApiKeys[0].baseURL).toBe("https://openrouter.ai/api/v1");
+  });
+
+  it.each(["https://example.com/v1", "https://api.typesafe.ai/v1"])(
+    "should reject decision-model connections with the non-preset base URL %s",
+    async (baseURL) => {
+      await expect(
+        caller.llmApiKey.create({
+          projectId,
+          secretKey: "sk-test",
+          provider: "jev-custom-url",
+          adapter: LLMAdapter.TypeSafe,
+          baseURL,
+        }),
+      ).rejects.toThrow(
+        "only support the TypeSafe, Vercel AI Gateway, and OpenRouter base URLs",
+      );
+
+      const { data: llmApiKeys } = await caller.llmApiKey.all({
+        projectId,
+        includeDecisionModels: true,
+      });
+      expect(llmApiKeys).toHaveLength(0);
+    },
+  );
+
+  it("should require a new secret key when moving a decision-model connection to another upstream", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: "sk-typesafe",
+      provider: "jev",
+      adapter: LLMAdapter.TypeSafe,
+    });
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "jev" },
+    });
+
+    await expect(
+      caller.llmApiKey.update({
+        id: existingKey.id,
+        projectId,
+        provider: "jev",
+        adapter: LLMAdapter.TypeSafe,
+        baseURL: "https://ai-gateway.vercel.sh/typesafe/v1",
+      }),
+    ).rejects.toThrow("Secret key is required when changing the base URL");
+
+    await caller.llmApiKey.update({
+      id: existingKey.id,
+      projectId,
+      provider: "jev",
+      adapter: LLMAdapter.TypeSafe,
+      secretKey: "vck-gateway",
+      baseURL: "https://ai-gateway.vercel.sh/typesafe/v1",
+    });
+
+    const updatedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: { id: existingKey.id, projectId },
+    });
+    expect(updatedKey.baseURL).toBe("https://ai-gateway.vercel.sh/typesafe/v1");
+    expect(decrypt(updatedKey.secretKey)).toBe("vck-gateway");
+
+    await caller.llmApiKey.update({
+      id: existingKey.id,
+      projectId,
+      provider: "jev",
+      adapter: LLMAdapter.TypeSafe,
+      secretKey: "sk-typesafe-2",
+      baseURL: null,
+    });
+
+    const revertedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: { id: existingKey.id, projectId },
+    });
+    expect(revertedKey.baseURL).toBeNull();
+  });
   it("should derive the Bedrock auth method in llmApiKey.all without returning secrets", async () => {
     await prisma.llmApiKeys.createMany({
       data: [

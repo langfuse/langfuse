@@ -265,6 +265,7 @@ DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
  */
 type DropdownMenuControllerProps = {
   align: React.ComponentProps<typeof DropdownMenuContent>["align"];
+  isActive?: boolean;
   children: (control: {
     isOpen: boolean;
     Trigger: typeof DropdownMenuTrigger;
@@ -279,6 +280,7 @@ type DropdownMenuControllerProps = {
 
 const DropdownMenuController = ({
   align,
+  isActive = true,
   children,
   maxWidth,
   onCloseAutoFocus,
@@ -287,13 +289,16 @@ const DropdownMenuController = ({
   const [isOpen, setIsOpen] = React.useState(false);
 
   return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-      {children({ isOpen, Trigger: DropdownMenuTrigger })}
+    <DropdownMenu open={isActive && isOpen} onOpenChange={setIsOpen}>
+      {children({ isOpen: isActive && isOpen, Trigger: DropdownMenuTrigger })}
       <DropdownMenuContent
         align={align}
         style={maxWidth === undefined ? undefined : { maxWidth }}
         onClick={(event) => event.stopPropagation()}
-        onCloseAutoFocus={onCloseAutoFocus}
+        onCloseAutoFocus={(event) => {
+          if (!isActive) event.preventDefault();
+          onCloseAutoFocus?.(event);
+        }}
       >
         {renderMenu()}
       </DropdownMenuContent>

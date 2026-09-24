@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Prisma } from "../../../db";
 import { FieldValidationError } from "../../../utils/jsonSchemaValidation";
 import { parseJsonPrioritised } from "../../../utils/json";

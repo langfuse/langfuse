@@ -220,9 +220,8 @@ MCP server catalog.
 
 - Canonical shared docs:
   - `.agents/AGENTS.md`
-- Root discovery symlinks:
-  - `AGENTS.md`
-  - `CLAUDE.md`
+- Root discovery symlink: `AGENTS.md` -> `.agents/AGENTS.md`
+- Folder instructions: `AGENTS.md` in the directory they describe
 - Shared agent setup overview: `.agents/README.md`
 - Shared skills: `.agents/skills/`
 - Shared tool/bootstrap/MCP config: `.agents/config.json`
@@ -240,6 +239,10 @@ MCP server catalog.
 - Tool-specific skill projections generated locally and not committed:
   - `.claude/skills/*`
 - Shared bootstrap for agent environments: `bash scripts/agents/setup.sh`
+
+Use a harness that reads `AGENTS.md` directly. For Claude Code, upgrade to
+2.1.277 or later and see the compatibility notes in `.agents/README.md`.
+Folder instructions need no `CLAUDE.md` copy or symlink.
 
 When you change the shared MCP setup:
 
@@ -269,12 +272,7 @@ When you change the shared MCP setup:
    pnpm run prepare  # Sets up Husky pre-commit hooks for code formatting
    ```
 
-   The pre-commit hook runs formatting and lint checks. To skip only the lint
-   check for a commit, set `LANGFUSE_PRE_COMMIT_SKIP_LINT`, for example:
-
-   ```bash
-   LANGFUSE_PRE_COMMIT_SKIP_LINT=1 git commit -m "your commit message"
-   ```
+   The pre-commit hook runs formatting checks.
 
    CI still runs the required checks for pull requests.
 
@@ -428,6 +426,16 @@ CI on `main` and `pull_request`
 CD on `main`
 
 - Publish Docker image to GitHub Packages if CI passes. Done on every push to `main` branch. Only released versions are tagged with `latest`.
+
+### Version tests
+
+Our CI pipeline runs multiple configurations of Langfuse - the "plain" deployment, an "azure" specific deployment, and a "redis-cluster" deployment
+using the specific `docker-compose.dev-*.yml` files at the repository root.
+
+Additionally, we use those files to test different ClickHouse versions.
+- Azure: Use 25.12 for compatibility testing with our lowest supported version.
+- Redis Cluster: Use 26.8 as the latest available ClickHouse release.
+- Plain: Use 26.4 as the current Cloud version.
 
 ## Staging environment
 

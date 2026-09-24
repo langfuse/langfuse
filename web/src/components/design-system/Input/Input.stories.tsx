@@ -26,6 +26,7 @@ export const Invalid = meta.story({
     "aria-label": "Dataset name",
     "aria-invalid": true,
     defaultValue: "Existing dataset",
+    error: true,
   },
 });
 

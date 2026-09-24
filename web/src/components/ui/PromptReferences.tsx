@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { createContext, useContext, type ReactNode } from "react";
 import {
   MUSTACHE_REGEX,

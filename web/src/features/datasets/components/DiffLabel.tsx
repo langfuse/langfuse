@@ -38,7 +38,6 @@ export function DiffLabel({
   if (diff.type === "NUMERIC") {
     return (
       <Badge
-        size="sm"
         variant={getVariant(diff.direction, preferNegativeDiff)}
         // A number must never break across the badge's line box or give up
         // width to a sibling: both render a fragment. If it cannot sit beside
@@ -57,7 +56,6 @@ export function DiffLabel({
     const move = diff.from && diff.to ? `${diff.from} → ${diff.to}` : "Varies";
     return (
       <Badge
-        size="sm"
         variant="warning"
         // A named move can be longer than the cell it sits in, and the value it
         // qualifies matters more than the move does — so shrink and ellipsise

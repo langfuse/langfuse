@@ -17,7 +17,7 @@
 import * as React from "react";
 
 import { type FilterState } from "@langfuse/shared";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useQueryProject } from "@/src/features/projects";
 import { cn } from "@/src/utils/tailwind";
 import type {
   ObservedOptions,

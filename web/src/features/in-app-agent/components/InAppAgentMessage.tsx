@@ -444,7 +444,7 @@ function InAppAgentReasoningBlock({
           className={cn(
             // Vertical spacing is margin, not padding, so the left border
             // hugs the text instead of extending past it.
-            "border-border/70 mt-2 mb-1 border-l px-3 leading-5 wrap-break-word whitespace-pre-wrap",
+            "border-border/70 mt-2 mb-1 border-l px-3 wrap-break-word whitespace-pre-wrap",
             isCompact && "px-2.5 leading-4",
           )}
         >
@@ -804,7 +804,7 @@ function ToolCallDisclosure({
       <summary
         aria-label={`${toolName}: ${status}`}
         className={cn(
-          "hover:text-foreground focus-visible:ring-ring flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
+          "hover:text-foreground focus-visible:ring-ring flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
           isCompact && "px-0.5",
         )}
       >

@@ -25,7 +25,7 @@ export const CrashModal = ({
         <h1 className="text-2xl font-bold tracking-tight">
           Something went wrong
         </h1>
-        <p className="text-muted-foreground mt-2 text-sm leading-5">
+        <p className="text-muted-foreground mt-2 text-sm">
           {statusCode ? (
             <span className="text-foreground mr-2 font-bold whitespace-nowrap">
               Error {statusCode}
@@ -49,10 +49,17 @@ export const CrashModal = ({
           </div>
         ) : null}
 
-        {showReturnHome ? (
-          <Button asChild className="mt-6">
-            <Link href="/">Return home</Link>
-          </Button>
+        {!statusCode || showReturnHome ? (
+          <div className="mt-6 flex flex-wrap gap-3">
+            {!statusCode ? (
+              <Button onClick={() => window.location.reload()}>Reload</Button>
+            ) : null}
+            {showReturnHome ? (
+              <Button asChild variant={!statusCode ? "secondary" : "default"}>
+                <Link href="/">Return home</Link>
+              </Button>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </div>

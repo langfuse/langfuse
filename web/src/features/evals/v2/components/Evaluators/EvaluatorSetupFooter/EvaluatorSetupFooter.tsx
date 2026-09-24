@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";

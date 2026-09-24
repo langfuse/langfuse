@@ -24,6 +24,11 @@ import { type TreeNode } from "../types/treeNode";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import Decimal from "decimal.js";
 import {
+  computeTraceMetricEmphasis,
+  metricEmphasisFor,
+  type TraceMetricEmphasis,
+} from "@/src/features/traces/fns/metricEmphasis";
+import {
   type ObservationLevelType,
   ObservationLevel,
   type TraceDomain,
@@ -545,33 +550,15 @@ export function buildTraceUiData(
   roots: TreeNode[];
   searchItems: TraceSearchListItem[];
   nodeMap: Map<string, TreeNode>;
+  metricEmphasis: TraceMetricEmphasis;
 } {
   const { roots, nodeMap } = buildTraceTree(trace, observations);
+  const metricEmphasis = computeTraceMetricEmphasis(roots);
 
   // Handle empty roots case
   if (roots.length === 0) {
-    return { roots, searchItems: [], nodeMap };
+    return { roots, searchItems: [], nodeMap, metricEmphasis };
   }
-
-  // TODO: Extract aggregation logic to shared utility - duplicated in TraceTree.tsx and TraceTimeline/index.tsx
-  // Calculate aggregated totals across all roots for heatmap scaling
-  const rootTotalCost = roots.reduce<Decimal | undefined>((acc, r) => {
-    if (!r.totalCost) return acc;
-    return acc ? acc.plus(r.totalCost) : r.totalCost;
-  }, undefined);
-
-  const rootDuration =
-    roots.length > 0
-      ? Math.max(
-          ...roots.map((r) =>
-            r.latency
-              ? r.latency * 1000
-              : r.endTime
-                ? r.endTime.getTime() - r.startTime.getTime()
-                : 0,
-          ),
-        )
-      : undefined;
 
   // Build flat search items list (iterative to avoid stack overflow on deep trees)
   const searchItems: TraceSearchListItem[] = [];
@@ -586,8 +573,7 @@ export function buildTraceUiData(
     const node = stack.pop()!;
     searchItems.push({
       node,
-      parentTotalCost: rootTotalCost,
-      parentTotalDuration: rootDuration,
+      emphasis: metricEmphasisFor(node, metricEmphasis),
       observationId: node.type === "TRACE" ? undefined : node.id,
     });
     // Push children in reverse order to maintain depth-first left-to-right traversal
@@ -596,7 +582,7 @@ export function buildTraceUiData(
     }
   }
 
-  return { roots, searchItems, nodeMap };
+  return { roots, searchItems, nodeMap, metricEmphasis };
 }
 
 /**

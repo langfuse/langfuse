@@ -23,16 +23,23 @@ type PasswordInputProps = Pick<
   | "tabIndex"
   | "value"
 > & {
+  error?: boolean;
   ref?: Ref<HTMLInputElement>;
 };
 
-export function PasswordInput({ ref, disabled, ...props }: PasswordInputProps) {
+export function PasswordInput({
+  ref,
+  disabled,
+  error,
+  ...props
+}: PasswordInputProps) {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const VisibilityIcon = isPasswordVisible ? EyeOff : Eye;
 
   return (
     <InputControl
       contentLayout="text"
+      error={error}
       trailingAction={{
         label: isPasswordVisible ? "Hide password" : "Show password",
         icon: VisibilityIcon,

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import isEqual from "lodash/isEqual";
 
 // Display copy for the per-card observation cap; the authoritative limit is

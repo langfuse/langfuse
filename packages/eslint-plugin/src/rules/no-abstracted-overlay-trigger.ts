@@ -99,14 +99,82 @@ function getEffectiveRoots(node: JsxRenderableNode): TSESTree.JSXElement[] {
   return child ? getEffectiveRoots(child) : [];
 }
 
-function expressionRendersJsx(node: TSESTree.Expression): boolean {
+function expressionRendersJsx(
+  node: TSESTree.Expression,
+): node is TSESTree.JSXElement | TSESTree.JSXFragment {
   return (
     node.type === AST_NODE_TYPES.JSXElement ||
     node.type === AST_NODE_TYPES.JSXFragment
   );
 }
 
-function controllerOwnsPresentation(node: TSESTree.JSXElement): boolean {
+const MAX_CONTROLLER_TRIGGER_ELEMENTS = 5;
+
+function countJsxElements(
+  node: TSESTree.JSXElement | TSESTree.JSXFragment,
+): number {
+  let count = node.type === AST_NODE_TYPES.JSXElement ? 1 : 0;
+
+  for (const child of node.children) {
+    if (
+      child.type === AST_NODE_TYPES.JSXElement ||
+      child.type === AST_NODE_TYPES.JSXFragment
+    ) {
+      count += countJsxElements(child);
+      continue;
+    }
+    if (
+      child.type === AST_NODE_TYPES.JSXExpressionContainer &&
+      child.expression.type !== AST_NODE_TYPES.JSXEmptyExpression
+    ) {
+      for (const root of getEffectiveRoots(child.expression)) {
+        count += countJsxElements(root);
+      }
+    }
+  }
+
+  return count;
+}
+
+function isInteractiveElement(node: TSESTree.JSXElement): boolean {
+  const name = getJsxElementName(node);
+  if (!name) return false;
+  if (name === "button" || name === "a" || name === "input") return true;
+
+  return /(Button|Trigger|Link|Item|Switch)$/.test(name);
+}
+
+function containsInteractiveElement(
+  node: TSESTree.JSXElement | TSESTree.JSXFragment,
+): boolean {
+  if (node.type === AST_NODE_TYPES.JSXElement && isInteractiveElement(node)) {
+    return true;
+  }
+
+  for (const child of node.children) {
+    if (
+      child.type === AST_NODE_TYPES.JSXElement ||
+      child.type === AST_NODE_TYPES.JSXFragment
+    ) {
+      if (containsInteractiveElement(child)) return true;
+      continue;
+    }
+    if (
+      child.type === AST_NODE_TYPES.JSXExpressionContainer &&
+      child.expression.type !== AST_NODE_TYPES.JSXEmptyExpression
+    ) {
+      if (
+        getEffectiveRoots(child.expression).some(containsInteractiveElement)
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function controllerOwnsTriggerPresentation(node: TSESTree.JSXElement): boolean {
   const child = getMeaningfulChild(node.children);
   if (
     child?.type !== AST_NODE_TYPES.ArrowFunctionExpression &&
@@ -115,11 +183,18 @@ function controllerOwnsPresentation(node: TSESTree.JSXElement): boolean {
     return false;
   }
 
-  let ownsPresentation = false;
+  let ownsTriggerPresentation = false;
   visitFunctionReturnExpressions(child, (returnExpression) => {
-    if (expressionRendersJsx(returnExpression)) ownsPresentation = true;
+    if (!expressionRendersJsx(returnExpression)) return;
+
+    if (
+      countJsxElements(returnExpression) <= MAX_CONTROLLER_TRIGGER_ELEMENTS &&
+      containsInteractiveElement(returnExpression)
+    ) {
+      ownsTriggerPresentation = true;
+    }
   });
-  return ownsPresentation;
+  return ownsTriggerPresentation;
 }
 
 function jsxSubtreeContainsName(
@@ -218,7 +293,7 @@ const rule = createRule<Options, "abstractedTrigger">({
             if (
               localImports.get(`${family.module}:${family.root}`) ===
                 localRootName &&
-              controllerOwnsPresentation(rootNode)
+              controllerOwnsTriggerPresentation(rootNode)
             ) {
               context.report({
                 node: rootNode.openingElement,

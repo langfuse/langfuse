@@ -1,4 +1,3 @@
-import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
 import {
   EVALUATOR_EMPTY_STATE_DOCS_HREF,
   EVALUATOR_EMPTY_STATE_STARTING_POINTS,
@@ -32,7 +31,7 @@ export function prepareEvaluatorEmptyState(): EvaluatorEmptyStateModel {
       const template = managedEvaluatorTemplateService.get(point.templateKey);
       return template ? [toStartingPoint(point, template)] : [];
     }),
-    templateCount: MANAGED_TEMPLATES_CATALOG.templates.length,
+    templateCount: managedEvaluatorTemplateService.list().templates.length,
     docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
   };
 }

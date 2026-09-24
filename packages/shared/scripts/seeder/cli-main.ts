@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * Langfuse seed CLI — one-shot local test data for humans and coding agents.
  *

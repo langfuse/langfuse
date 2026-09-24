@@ -36,6 +36,45 @@
   overflow-wrap: break-word;
 }
 
+.sbdocs.sbdocs-content:has(.component-relationship-graph) {
+  display: flex;
+  height: 100vh;
+  max-width: none;
+  flex-direction: column;
+  overflow: hidden;
+  padding: var(--docs-space-6);
+}
+
+.component-relationship-node--component {
+  fill: hsl(var(--chart-1) / 0.16);
+  stroke: hsl(var(--chart-1));
+}
+
+.component-relationship-node--function {
+  fill: hsl(var(--chart-2) / 0.16);
+  stroke: hsl(var(--chart-2));
+}
+
+.component-relationship-node--internal {
+  fill: hsl(var(--chart-4) / 0.16);
+  stroke: hsl(var(--chart-4));
+}
+
+.component-relationship-key--component {
+  background: hsl(var(--chart-1) / 0.16);
+  border-color: hsl(var(--chart-1));
+}
+
+.component-relationship-key--function {
+  background: hsl(var(--chart-2) / 0.16);
+  border-color: hsl(var(--chart-2));
+}
+
+.component-relationship-key--internal {
+  background: hsl(var(--chart-4) / 0.16);
+  border-color: hsl(var(--chart-4));
+}
+
 .sbdocs.sbdocs-content .docblock-source {
   max-width: 52rem;
   margin-top: 0;

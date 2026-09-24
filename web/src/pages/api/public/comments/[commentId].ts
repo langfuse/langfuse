@@ -1,4 +1,4 @@
-import { getCommentForApi } from "@/src/features/comments/server/publicCommentService";
+import { getCommentForApi } from "@/src/features/comments/server";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {

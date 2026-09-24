@@ -7,7 +7,6 @@ const meta = preview.meta({
 
 export const Default = meta.story({
   args: {
-    tags: ["production", "support"],
     previewKey: "default-observation",
     previewProps: {
       input: {

@@ -3,8 +3,8 @@ mod contracts;
 pub(crate) mod signing;
 
 pub use contracts::{
-    ApiFormat, IngestionGrant, IngestionMode, MetadataValue, ProviderConnection,
-    RequestAttribution, ResolvedRequestContext,
+    ApiFormat, IngestionGrant, IngestionMode, MetadataValue, Provider, ProviderConnection,
+    ProviderCredential, RequestAttribution, ResolvedRequestContext,
 };
 use reqwest::{
     Client, Url,

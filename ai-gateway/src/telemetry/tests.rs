@@ -32,6 +32,7 @@ async fn grant() -> DeliveryContext {
     DeliveryContext::from_resolved(
         &resolved_request_context("provider-secret").await,
         &HeaderMap::new(),
+        None,
     )
 }
 
@@ -124,7 +125,7 @@ async fn concurrent_projects_keep_their_original_grants_and_attribution() {
                 serde_json::from_str(metadata["value"]["stringValue"].as_str().unwrap()).unwrap();
             received.lock().unwrap().push((
                 authorization,
-                metadata["langfuse.gateway.project_id"]
+                metadata["langfuse.gateway.project.id"]
                     .as_str()
                     .unwrap()
                     .to_owned(),
@@ -301,6 +302,7 @@ async fn retained_byte_budget_is_released_after_successful_drain() {
     let second = DeliveryContext::from_resolved(
         &resolved_request_context("provider-secret").await,
         &HeaderMap::new(),
+        None,
     );
     telemetry.record(second, facts("project-1"));
     assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 1);

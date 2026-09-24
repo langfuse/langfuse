@@ -1,5 +1,4 @@
-/* eslint-disable boundaries/dependencies */
-import { Button } from "@/src/components/ui/button";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Check, Copy } from "lucide-react";
 import { type FC, memo, useState } from "react";
@@ -37,24 +36,13 @@ const CodeBlock: FC<Props> = memo(
     };
 
     const copyButton = (
-      <Button
-        variant="ghost"
+      <IconButton
+        icon={isCopied ? Check : Copy}
+        label="Copy code"
         size="xs"
-        className={cn(
-          "text-xs focus-visible:ring-1 focus-visible:ring-offset-0",
-          variant === "read-only"
-            ? "text-muted-foreground hover:bg-background/50 absolute top-1.5 right-1.5"
-            : "hover:bg-border",
-        )}
+        variant={variant === "read-only" ? "ghost" : "subtle"}
         onClick={handleCopy}
-      >
-        {isCopied ? (
-          <Check className="h-3 w-3" />
-        ) : (
-          <Copy className="h-3 w-3" />
-        )}
-        <span className="sr-only">Copy code</span>
-      </Button>
+      />
     );
 
     return (
@@ -73,7 +61,9 @@ const CodeBlock: FC<Props> = memo(
             <div className="flex items-center py-1">{copyButton}</div>
           </div>
         ) : (
-          copyButton
+          <div className="text-muted-foreground absolute top-1.5 right-1.5">
+            {copyButton}
+          </div>
         )}
         <Highlight
           theme={appliedTheme === "dark" ? themes.vsDark : themes.github}

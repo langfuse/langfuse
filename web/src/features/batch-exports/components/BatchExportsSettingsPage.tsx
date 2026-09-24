@@ -1,8 +1,7 @@
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { BatchExportsTable } from "@/src/features/batch-exports/components/BatchExportsTable";
+import { ConnectedBatchExportsTable } from "@/src/features/batch-exports/components/BatchExportsTable/ConnectedBatchExportsTable";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 
 export function BatchExportsSettingsPage(props: { projectId: string }) {
   const hasAccess = useHasProjectAccess({
@@ -20,9 +19,7 @@ export function BatchExportsSettingsPage(props: { projectId: string }) {
         will receive an email notification once your export is ready.
       </p>
       {hasAccess ? (
-        <SettingsTableCard>
-          <BatchExportsTable projectId={props.projectId} />
-        </SettingsTableCard>
+        <ConnectedBatchExportsTable projectId={props.projectId} />
       ) : (
         <Alert>
           <Alert.Title>Access Denied</Alert.Title>

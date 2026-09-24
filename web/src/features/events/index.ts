@@ -4,7 +4,10 @@
 // EventsTable stays a deep import: it reaches the whole trace/peek graph, so
 // re-exporting it here would make every consumer of this index part of that
 // graph and turn several feature pairs into runtime cycles.
-export { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
+export {
+  V4PreviewToggleRow,
+  V4SidebarToggle,
+} from "@/src/features/events/components/V4SidebarToggle";
 export {
   canReuseOutlierPlaceholder,
   formatBucketRange,
@@ -19,8 +22,11 @@ export { useMetadataValueOptions } from "@/src/features/events/hooks/useMetadata
 export { useReadPath } from "@/src/features/events/hooks/useReadPath";
 export type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 export {
+  buildEventsTablePathForColumnFilter,
+  buildEventsTablePathForMetadataFilter,
   buildEventsTablePathForObservationType,
   buildEventsTablePathForSpanName,
+  type MetadataFilterOperator,
 } from "@/src/features/events/lib/eventsTablePaths";
 export { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 // shouldAutoEnableV4 / canToggleV4 stay on the deep lib path (or a future

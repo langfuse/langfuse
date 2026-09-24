@@ -18,6 +18,9 @@
 - Main exports: `src/index.ts`
 - DB clients and types: `src/db.ts`
 - Server exports: `src/server/index.ts`
+- CloudWatch metrics: `recordGauge` batches values; windowed measurements can
+  call `flushMetricsToCloudWatch` from the server barrel after recording to
+  submit them before the next gauge replaces the cached value.
 - Server cache utilities: `src/server/cache/*`
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
@@ -29,16 +32,21 @@
   the worker owns experiment enablement and lifecycle. Reader options control
   per-query threads/block size and experiment attribution; retain exact tenant
   pairs and per-trace time windows when changing parameter chunking.
+  Rows must stay contiguous by project and trace ID so consumers can finish a
+  trace at the next pair or successful EOF; time buckets must not precede trace ID.
 - Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
-- Query-builder AST (server half, WIP): `src/server/query-ast/*` — golden-SQL
-  recording/diff harness that captures the current SQL at the
-  `src/server/repositories/clickhouse.ts` exec seam and normalizes it via
-  `clickhouse format` for snapshot comparison. Every migrated call site is
-  proven against its baseline here. The Kysely ClickHouse dialect (ARRAY JOIN /
-  LIMIT BY / metadata indexOf nodes, `ExecutionContext` tenancy injection,
-  per-table dedup lowering, virtual views, catalog parity) lives under
-  `src/server/query-ast/kysely/`.
+- Query-builder AST (server half, WIP): `src/server/query-ast/*` — the Kysely
+  ClickHouse dialect (ARRAY JOIN / LIMIT BY / metadata indexOf nodes,
+  `ExecutionContext` tenancy injection, per-table dedup lowering, virtual views,
+  catalog parity). Compile only through `compileClickhouseQuery` in
+  `src/server/query-ast/compile.ts`. SQL correctness is proven by a golden-SQL
+  harness (`src/server/repositories/goldenHarness.ts`, capturing at the
+  `src/server/repositories/clickhouse.ts` exec seam and normalizing via
+  `clickhouse format`); each migrated call site keeps its `*.golden.test.ts`
+  baseline next to the call site (e.g.
+  `src/server/repositories/environments.golden.test.ts`,
+  `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`
 - Canonical ClickHouse migration templates (rendered for clustered and
@@ -92,10 +100,10 @@
   `@langfuse/shared/src/server/ee/ingestionMasking`,
   `@langfuse/shared/src/server/llm/llmText`, and
   `@langfuse/shared/src/utils/chatml`. The
-  `@langfuse/shared/src/utils/normalized-io` parser is client-safe and powers
-  the web "Improved Message Rendering" feature preview (the normalized Formatted
-  trace/observation view). Its public contract is still settling, so treat other
-  consumers as experimental until it stabilizes.
+  `@langfuse/shared/src/utils/normalized-io` parser is client-safe and is the
+  only parser behind the web Formatted trace/observation view; the legacy
+  ChatML helpers remain for the session feed and the playground (for now). Its result
+  type is not frozen yet, so a new consumer should expect to move with it.
 
 When changing export surfaces, keep `package.json#exports`, the relevant barrel
 file (`src/index.ts`, `src/server/index.ts`, etc.), and this guide aligned in

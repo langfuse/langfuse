@@ -1,0 +1,552 @@
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { Button } from "@/src/components/ui/button";
+import { Card } from "@/src/components/ui/card";
+import { SimpleDataTable } from "@/src/components/table/simple-data-table";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import {
+  DialogBody,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/src/components/ui/form";
+import { Input } from "@/src/components/ui/input";
+import { SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso";
+import { api } from "@/src/utils/api";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Check, Copy } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
+import {
+  type SsoConfigRow,
+  type SsoConfigTableRow,
+} from "./SsoConfigsTable/SsoConfigsTable";
+
+const SSO_PROVIDERS: ReadonlyArray<{
+  id: SsoProviderSchema["authProvider"];
+  label: string;
+  fields: ReadonlyArray<"issuer" | "tenantId" | "baseUrl" | "name">;
+}> = [
+  { id: "google", label: "Google", fields: [] },
+  { id: "github", label: "GitHub", fields: [] },
+  { id: "github-enterprise", label: "GitHub Enterprise", fields: ["baseUrl"] },
+  { id: "gitlab", label: "GitLab", fields: [] },
+  { id: "auth0", label: "Auth0", fields: ["issuer"] },
+  { id: "okta", label: "Okta", fields: ["issuer"] },
+  { id: "authentik", label: "Authentik", fields: ["issuer"] },
+  { id: "onelogin", label: "OneLogin", fields: ["issuer"] },
+  { id: "azure-ad", label: "Azure AD / Entra ID", fields: ["tenantId"] },
+  { id: "cognito", label: "AWS Cognito", fields: ["issuer"] },
+  { id: "keycloak", label: "Keycloak", fields: ["issuer"] },
+  { id: "jumpcloud", label: "JumpCloud", fields: ["issuer"] },
+  // Custom OIDC requires a display name on the schema; surface it in the form.
+  { id: "custom", label: "Custom OIDC", fields: ["name", "issuer"] },
+];
+
+// Loose form schema; the strict validation lives in SsoProviderSchema and runs
+// at submit time. Keeping the form schema permissive lets users mid-edit a
+// field without immediate noise from required-field errors on every render.
+const formSchema = z.object({
+  authProvider: z.enum(SSO_PROVIDERS.map((p) => p.id) as [string, ...string[]]),
+  authConfig: z.object({
+    clientId: z.string().min(1, "Required"),
+    clientSecret: z.string().min(1, "Required"),
+    issuer: z.string().optional(),
+    tenantId: z.string().optional(),
+    baseUrl: z.string().optional(),
+    // Required by CustomProviderSchema; optional in the form so other
+    // providers don't carry a stray field. The strict provider schema
+    // enforces presence at submit for `custom`.
+    name: z.string().optional(),
+    idToken: z.boolean().optional(),
+  }),
+});
+
+type FormValues = z.infer<typeof formSchema>;
+
+type AuthConfigFormField = `authConfig.${
+  | "clientId"
+  | "clientSecret"
+  | "issuer"
+  | "tenantId"
+  | "baseUrl"
+  | "name"
+  | "idToken"}`;
+
+export function SsoConfigDialogController({
+  orgId,
+  children,
+}: {
+  orgId: string;
+  children: (control: {
+    openDialog: (config: SsoConfigTableRow) => void;
+  }) => React.ReactNode;
+}) {
+  return (
+    <DialogController<SsoConfigTableRow>
+      renderDialog={({ state, closeDialog }) => (
+        <DialogContent className="sm:max-w-xl">
+          <SsoConfigDialogContent
+            key={state.domain}
+            orgId={orgId}
+            domain={state.domain}
+            existing={state.config}
+            closeDialog={closeDialog}
+          />
+        </DialogContent>
+      )}
+    >
+      {({ openDialog }) => children({ openDialog })}
+    </DialogController>
+  );
+}
+
+function SsoConfigDialogContent({
+  orgId,
+  domain,
+  existing,
+  closeDialog,
+}: {
+  orgId: string;
+  domain: string;
+  existing: SsoConfigRow | null;
+  closeDialog: () => void;
+}) {
+  const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
+  const utils = api.useUtils();
+
+  const defaultValues = useMemo<FormValues>(() => {
+    const cfg = (existing?.authConfig ?? {}) as Record<string, unknown>;
+    const enterprise = cfg.enterprise as { baseUrl?: string } | undefined;
+    return {
+      authProvider:
+        existing?.authProvider ?? ("okta" as SsoProviderSchema["authProvider"]),
+      authConfig: {
+        clientId: typeof cfg.clientId === "string" ? cfg.clientId : "",
+        clientSecret: "",
+        issuer: typeof cfg.issuer === "string" ? cfg.issuer : "",
+        tenantId: typeof cfg.tenantId === "string" ? cfg.tenantId : "",
+        baseUrl: enterprise?.baseUrl ?? "",
+        name: typeof cfg.name === "string" ? cfg.name : "",
+        idToken: typeof cfg.idToken === "boolean" ? cfg.idToken : true,
+      },
+    };
+  }, [existing]);
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues,
+  });
+  const selectedProvider = form.watch("authProvider");
+  const providerSpec = useMemo(
+    () =>
+      SSO_PROVIDERS.find((p) => p.id === selectedProvider) ?? SSO_PROVIDERS[0],
+    [selectedProvider],
+  );
+
+  const callbackUrl = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    return `${window.location.origin}/api/auth/callback/${domain}.${selectedProvider}`;
+  }, [domain, selectedProvider]);
+
+  const saveMutation = api.ssoConfig.save.useMutation({
+    onSuccess: () => {
+      utils.ssoConfig.get.invalidate({ orgId });
+      showSuccessToast({
+        title: existing ? "SSO updated" : "SSO configured",
+        description: `Active for @${domain} within 1 hour.`,
+      });
+      closeDialog();
+      setPendingValues(null);
+      form.reset();
+    },
+    onError: (err) => {
+      showErrorToast(
+        existing ? "Update failed" : "SSO configuration failed",
+        err.message,
+      );
+    },
+  });
+
+  async function handleConfirm() {
+    if (!pendingValues) return;
+    const payload = buildSsoPayload(domain, pendingValues);
+    const parsed = SsoProviderSchema.safeParse(payload);
+    if (!parsed.success) {
+      const firstIssue = parsed.error.issues[0];
+      const schemaPath = firstIssue.path.join(".");
+      // `buildSsoPayload` re-nests `baseUrl` under `enterprise` for
+      // github-enterprise; the strict schema reports errors at the nested
+      // path, but the form field is registered flat. Map back so
+      // `setError` lands on a watched field and the inline message renders.
+      const formPath =
+        schemaPath === "authConfig.enterprise.baseUrl"
+          ? "authConfig.baseUrl"
+          : schemaPath;
+      const formField = formPath.startsWith("authConfig.")
+        ? (formPath as AuthConfigFormField)
+        : "authProvider";
+      form.setError(formField, { message: firstIssue.message });
+      // Defensive fallback: if a future schema path doesn't map cleanly to
+      // a registered form field, surface a toast so the user is never left
+      // with a silently-closing dialog and no feedback.
+      const FORM_FIELDS = [
+        "authProvider",
+        "authConfig.clientId",
+        "authConfig.clientSecret",
+        "authConfig.issuer",
+        "authConfig.tenantId",
+        "authConfig.baseUrl",
+        "authConfig.name",
+        "authConfig.idToken",
+      ];
+      if (!FORM_FIELDS.includes(formField)) {
+        showErrorToast(
+          existing ? "Update failed" : "SSO configuration failed",
+          firstIssue.message,
+        );
+      }
+      return;
+    }
+    await saveMutation.mutateAsync({ orgId, payload: parsed.data });
+  }
+
+  return (
+    <ConfirmationDialogController
+      title={
+        existing
+          ? `Replace SSO for @${domain}?`
+          : `Activate SSO for @${domain}?`
+      }
+      text={`Saving will activate SSO for @${domain} within 1 hour. Every user at that domain will be redirected to your identity provider on sign-in - they will not be able to use Google, GitHub, password, or any other method until SSO is deleted.${existing ? " The new credentials will replace the active configuration." : ""} Tip: sign in via the new SSO in a second browser to confirm it works before closing this tab.`}
+      confirmLabel={existing ? "Replace" : "Activate SSO"}
+      variant="default"
+      loading={saveMutation.isPending}
+      onConfirm={handleConfirm}
+    >
+      {({ openDialog }) => (
+        <>
+          <DialogHeader>
+            <DialogTitle>
+              {existing
+                ? `Update SSO for ${domain}`
+                : `Configure SSO for ${domain}`}
+            </DialogTitle>
+          </DialogHeader>
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit((values) => {
+                setPendingValues(values);
+                openDialog();
+              })}
+            >
+              <DialogBody className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="authProvider"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Provider</FormLabel>
+                      <FormControl>
+                        <SelectInput
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          placeholder="Select an SSO provider"
+                          options={SSO_PROVIDERS.map((provider) => ({
+                            value: provider.id,
+                            label: provider.label,
+                          }))}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <CallbackUrlPanel callbackUrl={callbackUrl} />
+
+                {providerSpec.fields.includes("name") ? (
+                  <FormField
+                    control={form.control}
+                    name="authConfig.name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Display Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Acme SSO" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : null}
+
+                <FormField
+                  control={form.control}
+                  name="authConfig.clientId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Client ID</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="authConfig.clientSecret"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Client Secret</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          autoComplete="off"
+                          placeholder={
+                            existing ? "Re-enter to update" : undefined
+                          }
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {providerSpec.fields.includes("issuer") ? (
+                  <FormField
+                    control={form.control}
+                    name="authConfig.issuer"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Issuer URL</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="https://example.okta.com"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : null}
+
+                {providerSpec.fields.includes("tenantId") ? (
+                  <FormField
+                    control={form.control}
+                    name="authConfig.tenantId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tenant ID</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : null}
+
+                {providerSpec.fields.includes("baseUrl") ? (
+                  <FormField
+                    control={form.control}
+                    name="authConfig.baseUrl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Base URL</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="https://github.acme.com"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : null}
+
+                {selectedProvider === "custom" ? (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="authConfig.idToken"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-y-0 space-x-3 rounded-md border p-4">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value ?? false}
+                              onCheckedChange={(checked) =>
+                                field.onChange(checked === true)
+                              }
+                            />
+                          </FormControl>
+                          <div className="space-y-1 leading-none">
+                            <FormLabel>
+                              Use id_token claims only (skip userinfo)
+                            </FormLabel>
+                            <FormDescription>
+                              Leave off for IdPs that release email only via the
+                              userinfo endpoint.
+                            </FormDescription>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                ) : null}
+              </DialogBody>
+              <DialogFooter>
+                <Button type="button" variant="ghost" onClick={closeDialog}>
+                  Cancel
+                </Button>
+                <Button type="submit" loading={saveMutation.isPending}>
+                  Save
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </>
+      )}
+    </ConfirmationDialogController>
+  );
+}
+
+function CallbackUrlPanel({ callbackUrl }: { callbackUrl: string }) {
+  const columns: LangfuseColumnDef<{ url: string }>[] = [
+    {
+      accessorKey: "url",
+      header: "URL",
+      cell: ({ getValue }) => (
+        <CopyableCallbackUrl value={getValue<string>()} />
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <p className="mb-2 text-sm font-bold">Callback URL</p>
+      <Card className="overflow-hidden">
+        <SimpleDataTable
+          columns={columns}
+          data={[{ url: callbackUrl }]}
+          isLoading={false}
+          noResults={null}
+        />
+      </Card>
+      <p className="text-muted-foreground mt-2 text-xs">
+        Add this URL as an authorized redirect URI in your identity provider.
+      </p>
+    </div>
+  );
+}
+
+function CopyableCallbackUrl({ value }: { value: string }) {
+  const { copy, isCopied } = useCopyToClipboard();
+
+  return (
+    <div className="relative pr-8 font-mono break-all">
+      <span>{value}</span>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        className="absolute top-1/2 right-0 -translate-y-1/2"
+        title="Copy to clipboard"
+        aria-label="Copy to clipboard"
+        onClick={async (event) => {
+          event.preventDefault();
+          const button = event.currentTarget;
+          await copy(value).catch(() => undefined);
+          button.focus();
+        }}
+      >
+        {isCopied ? (
+          <Check className="h-3 w-3" />
+        ) : (
+          <Copy className="h-3 w-3" />
+        )}
+      </Button>
+    </div>
+  );
+}
+
+// Build the SsoProviderSchema-shaped payload from the flat form values.
+// Handles the nested github-enterprise.enterprise.baseUrl shape.
+function buildSsoPayload(domain: string, values: FormValues) {
+  const { authProvider, authConfig } = values;
+  // allowDangerousEmailAccountLinking is required for SSO migration of
+  // existing accounts. Cross-tenant misuse is prevented by the DNS-verified
+  // domain check at save time + the runtime domain enforcement in
+  // web/src/server/auth.ts.
+  const base = {
+    clientId: authConfig.clientId,
+    clientSecret: authConfig.clientSecret,
+    allowDangerousEmailAccountLinking: true,
+  };
+
+  switch (authProvider) {
+    case "google":
+    case "github":
+    case "gitlab":
+      return { domain, authProvider, authConfig: base };
+    case "github-enterprise":
+      return {
+        domain,
+        authProvider,
+        authConfig: {
+          ...base,
+          enterprise: { baseUrl: authConfig.baseUrl ?? "" },
+        },
+      };
+    case "azure-ad":
+      return {
+        domain,
+        authProvider,
+        authConfig: { ...base, tenantId: authConfig.tenantId ?? "" },
+      };
+    case "auth0":
+    case "okta":
+    case "authentik":
+    case "onelogin":
+    case "cognito":
+    case "keycloak":
+    case "jumpcloud":
+      return {
+        domain,
+        authProvider,
+        authConfig: { ...base, issuer: authConfig.issuer ?? "" },
+      };
+    case "custom":
+      return {
+        domain,
+        authProvider,
+        authConfig: {
+          ...base,
+          issuer: authConfig.issuer ?? "",
+          name: authConfig.name ?? "",
+          idToken: authConfig.idToken ?? true,
+        },
+      };
+    default:
+      return { domain, authProvider, authConfig: base };
+  }
+}

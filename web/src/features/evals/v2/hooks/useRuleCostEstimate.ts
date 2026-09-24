@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { EvalTemplateType } from "@langfuse/shared";
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";

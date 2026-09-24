@@ -1,4 +1,4 @@
-import { deleteAnnotationQueueItemForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
+import { deleteAnnotationQueueItemForApi } from "@/src/features/annotation-queues/server";
 import {
   DeleteAnnotationQueueItemQuery,
   DeleteAnnotationQueueItemResponse,
@@ -11,6 +11,7 @@ export const [deleteAnnotationQueueItemTool, handleDeleteAnnotationQueueItem] =
     name: "deleteAnnotationQueueItem",
     description:
       "Remove an annotation queue item, the queued trace or observation, from a queue.",
+    action: "annotationQueues:CUD",
     baseSchema: DeleteAnnotationQueueItemQuery,
     inputSchema: DeleteAnnotationQueueItemQuery,
     handler: async (input, context) =>

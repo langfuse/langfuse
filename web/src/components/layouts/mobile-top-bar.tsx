@@ -9,7 +9,7 @@ import { TopbarAccount } from "@/src/components/nav/topbar-account";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
-import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
 
 /**
  * Slim mobile top chrome for the minimal-chrome shell: hamburger · centered

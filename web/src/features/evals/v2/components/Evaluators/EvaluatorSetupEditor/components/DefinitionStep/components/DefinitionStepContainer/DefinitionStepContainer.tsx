@@ -5,6 +5,8 @@ import type { LLMAdapter } from "@langfuse/shared";
 import { DefinitionStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/DefinitionStep";
 import { CodeEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/CodeEditor/CodeEditor";
 import { CodeLanguageSelector } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/CodeLanguageSelector/CodeLanguageSelector";
+import { DecisionModelQuestionsEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/DecisionModelQuestionsEditor/DecisionModelQuestionsEditor";
+import { DecisionModelSelector } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/DecisionModelSelector/DecisionModelSelector";
 import { ModelSelector } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/ModelSelector/ModelSelector";
 import { PromptEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/PromptEditor/PromptEditor";
 import { ScoreOutputEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/ScoreOutputEditor/ScoreOutputEditor";
@@ -47,43 +49,64 @@ export function DefinitionStepContainer({
     })),
   );
 
-  return state.type === "LLM_AS_JUDGE" ? (
-    <DefinitionStep
-      open={state.open}
-      onOpenChange={(open) => onStepOpenChange(1, open)}
-      type={state.type}
-      onTypeChange={state.actions.setType}
-      isEditing={isEditing}
-      typeConfiguration={
-        <ModelSelector
-          projectId={projectId}
-          store={store}
-          defaultModel={defaultModel}
-          providerGroups={providerGroups}
-          providerAdapters={providerAdapters}
-          canSetProjectDefault={canSetProjectDefault}
-          onConfigureProviders={onConfigureProviders}
-          onSetProjectDefault={onSetProjectDefault}
+  const stepProps = {
+    open: state.open,
+    onOpenChange: (open: boolean) => onStepOpenChange(1, open),
+    onTypeChange: state.actions.setType,
+    isEditing,
+  };
+
+  switch (state.type) {
+    case "LLM_AS_JUDGE":
+      return (
+        <DefinitionStep
+          {...stepProps}
+          type={state.type}
+          typeConfiguration={
+            <ModelSelector
+              projectId={projectId}
+              store={store}
+              defaultModel={defaultModel}
+              providerGroups={providerGroups}
+              providerAdapters={providerAdapters}
+              canSetProjectDefault={canSetProjectDefault}
+              onConfigureProviders={onConfigureProviders}
+              onSetProjectDefault={onSetProjectDefault}
+            />
+          }
+          promptEditor={<PromptEditor projectId={projectId} store={store} />}
+          scoreOutputEditor={<ScoreOutputEditor store={store} />}
         />
-      }
-      promptEditor={<PromptEditor projectId={projectId} store={store} />}
-      scoreOutputEditor={<ScoreOutputEditor store={store} />}
-    />
-  ) : (
-    <DefinitionStep
-      open={state.open}
-      onOpenChange={(open) => onStepOpenChange(1, open)}
-      type={state.type}
-      onTypeChange={state.actions.setType}
-      isEditing={isEditing}
-      typeConfiguration={<CodeLanguageSelector store={store} />}
-      codeEditor={
-        <CodeEditor
-          projectId={projectId}
-          store={store}
-          validationResult={codeValidationResult}
+      );
+    case "CODE":
+      return (
+        <DefinitionStep
+          {...stepProps}
+          type={state.type}
+          typeConfiguration={<CodeLanguageSelector store={store} />}
+          codeEditor={
+            <CodeEditor
+              projectId={projectId}
+              store={store}
+              validationResult={codeValidationResult}
+            />
+          }
         />
-      }
-    />
-  );
+      );
+    case "DECISION_MODEL":
+      return (
+        <DefinitionStep
+          {...stepProps}
+          type={state.type}
+          typeConfiguration={
+            <DecisionModelSelector
+              projectId={projectId}
+              store={store}
+              onConfigureProviders={onConfigureProviders}
+            />
+          }
+          questionsEditor={<DecisionModelQuestionsEditor store={store} />}
+        />
+      );
+  }
 }

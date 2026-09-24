@@ -1,4 +1,3 @@
-/* eslint-disable boundaries/dependencies */
 "use client";
 
 import * as DialogPrimitive from "@radix-ui/react-dialog";
@@ -6,7 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { X, type LucideIcon } from "lucide-react";
 import * as React from "react";
 
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { cn } from "@/src/utils/tailwind";
 
@@ -133,26 +132,24 @@ function DialogRoot({
         {actions?.length ? (
           <DialogFooter>
             <DialogPrimitive.Close asChild>
-              <Button ref={cancelButtonRef} variant="outline">
-                Cancel
-              </Button>
+              <Button ref={cancelButtonRef} variant="secondary" text="Cancel" />
             </DialogPrimitive.Close>
-            {actions.map(({ icon: Icon, label, ...buttonProps }, index) => (
-              <Button
-                key={label}
-                ref={(button) => {
-                  actionButtonRefs.current[index] = button;
-                }}
-                {...buttonProps}
-              >
-                <span className="flex items-center gap-1.5">
-                  {label}
-                  {Icon ? (
-                    <Icon className="size-3.5 shrink-0" aria-hidden="true" />
-                  ) : null}
-                </span>
-              </Button>
-            ))}
+            {actions.map(
+              ({ icon: Icon, label, variant, ...buttonProps }, index) => (
+                <Button
+                  key={label}
+                  icon={Icon}
+                  ref={(button) => {
+                    actionButtonRefs.current[index] = button;
+                  }}
+                  text={label}
+                  {...buttonProps}
+                  variant={
+                    variant === "destructive" ? "destructive" : "primary"
+                  }
+                />
+              ),
+            )}
           </DialogFooter>
         ) : null}
       </DialogPrimitive.Content>

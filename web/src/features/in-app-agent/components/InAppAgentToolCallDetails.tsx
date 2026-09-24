@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 "use client";
 
 import {

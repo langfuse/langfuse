@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { normalizeSpanIO } from "../../../parser";
 import {
+  capturedTraceFixtures,
+  documentedFunctionRoundTripFixtures,
   geminiEmbeddedToolDefinitionFixture,
   geminiMediaAndCodeExecutionFixture,
   geminiSystemInstructionWithGenericMessagesFixture,
@@ -9,6 +11,8 @@ import {
 
 describe("Gemini normalized I/O", () => {
   it.each([
+    ...capturedTraceFixtures,
+    ...documentedFunctionRoundTripFixtures,
     geminiEmbeddedToolDefinitionFixture,
     geminiSystemInstructionWithGenericMessagesFixture,
     geminiMediaAndCodeExecutionFixture,

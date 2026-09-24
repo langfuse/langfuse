@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { evaluatorToEvaluatorSetupDraft } from "@/src/features/evals/v2/fns/templateGallery/evaluatorToEvaluatorSetupDraft";
 import { managedEvaluatorTemplateService } from "@/src/features/evals/v2/fns/templateGallery/managedEvaluatorTemplateService";
 import { managedTemplateToEvaluatorSetupDraft } from "@/src/features/evals/v2/fns/templateGallery/managedTemplateToEvaluatorSetupDraft";

@@ -51,7 +51,12 @@ export const promptVersionProcessor = async (
     for (const trigger of triggers) {
       try {
         const eventMatches = matchesTriggerFilter(
-          { Name: event.prompt.name, action: event.action },
+          {
+            Name: event.prompt.name,
+            Labels: event.prompt.labels,
+            Tags: event.prompt.tags,
+            action: event.action,
+          },
           trigger,
         );
 

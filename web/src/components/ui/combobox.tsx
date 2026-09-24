@@ -122,8 +122,9 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
 
   return (
     <Popover
-      open={open}
+      open={!disabled && open}
       onOpenChange={(nextOpen) => {
+        if (disabled) return;
         setOpen(nextOpen);
         if (!nextOpen) setSearch("");
       }}
@@ -132,7 +133,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
         <Button
           variant="outline"
           role="combobox"
-          aria-expanded={open}
+          aria-expanded={!disabled && open}
           className={cn(
             "w-full justify-between text-xs font-normal",
             !value && "text-muted-foreground",
@@ -157,7 +158,12 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
+      <PopoverContent
+        className="w-(--radix-popover-trigger-width) p-0"
+        onCloseAutoFocus={(event) => {
+          if (disabled) event.preventDefault();
+        }}
+      >
         <Command>
           <CommandInput
             placeholder={searchPlaceholder}

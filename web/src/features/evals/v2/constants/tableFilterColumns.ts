@@ -13,6 +13,10 @@ const evaluatorTypeOptions = [
     displayValue: "LLM as a judge",
   },
   { value: EvalTemplateType.CODE, displayValue: "Code" },
+  {
+    value: EvalTemplateType.DECISION_MODEL,
+    displayValue: "Decision model (experimental)",
+  },
 ];
 
 export const evaluatorTableFilterColumns: ColumnDefinition[] = [

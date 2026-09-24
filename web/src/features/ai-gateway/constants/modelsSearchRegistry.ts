@@ -1,4 +1,4 @@
-import { fieldRegistryFromColumns } from "@/src/features/search-bar/lib/fields";
+import { fieldRegistryFromColumns } from "@/src/features/search-bar";
 import { gatewayModelsFilterConfig } from "./modelsFilterConfig";
 
 const facetColumns = new Set(

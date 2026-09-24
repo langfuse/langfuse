@@ -61,10 +61,8 @@ describe("PrettyJsonView short-list expansion", () => {
     ).not.toBeInTheDocument();
     expect(within(expandedTable).getByText("0")).toBeInTheDocument();
     expect(within(expandedTable).getByText("1")).toBeInTheDocument();
-    expect(within(expandedTable).getByText('"email"')).toBeInTheDocument();
-    expect(
-      within(expandedTable).getByText('"paid_social"'),
-    ).toBeInTheDocument();
+    expect(within(expandedTable).getByText("email")).toBeInTheDocument();
+    expect(within(expandedTable).getByText("paid_social")).toBeInTheDocument();
   });
 
   it("keeps the parent preview when every expanded child is hidden", () => {
@@ -148,6 +146,6 @@ describe("PrettyJsonView short-list expansion", () => {
       within(expandedTable).queryByText('{"name": "Ada"}'),
     ).not.toBeInTheDocument();
     expect(within(expandedTable).getByText("name")).toBeInTheDocument();
-    expect(within(expandedTable).getByText('"Ada"')).toBeInTheDocument();
+    expect(within(expandedTable).getByText("Ada")).toBeInTheDocument();
   });
 });

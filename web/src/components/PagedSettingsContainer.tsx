@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { cn } from "@/src/utils/tailwind";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
@@ -99,7 +100,7 @@ export const PagedSettingsContainer = ({
         </nav>
         <nav
           className={cn(
-            "text-muted-foreground hidden text-sm md:sticky md:top-5 md:grid",
+            "text-muted-foreground hidden text-sm md:sticky md:top-5 md:grid md:gap-y-1",
             fullHeight && "md:top-0",
           )}
           x-chunk="dashboard-04-chunk-0"

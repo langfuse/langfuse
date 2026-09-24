@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import Decimal from "decimal.js";
 import { InfoIcon } from "lucide-react";
 import { useMemo, useState } from "react";

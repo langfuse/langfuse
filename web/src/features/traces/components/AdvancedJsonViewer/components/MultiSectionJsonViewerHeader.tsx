@@ -1,6 +1,6 @@
 import { ChevronRight, ChevronDown, MessageSquare } from "lucide-react";
 import type { SectionContext } from "../types";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { MediaButtonGroup } from "./MediaButtonGroup";
 
 export interface MultiSectionJsonViewerHeaderProps {

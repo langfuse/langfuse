@@ -1,6 +1,6 @@
 import React from "react";
 import { PlusIcon } from "lucide-react";
-import { fn } from "storybook/test";
+import { expect, fn } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import { Button, type ButtonProps } from "./button";
@@ -117,4 +117,17 @@ export const VariantMatrix = meta.story({
       ))}
     </div>
   ),
+});
+
+export const KeyboardFocus = meta.story({
+  name: "(Test) Keyboard Focus",
+  args: {
+    children: "Add to",
+    size: "sm",
+    variant: "secondary",
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.tab();
+    await expect(canvas.getByRole("button", { name: "Add to" })).toHaveFocus();
+  },
 });

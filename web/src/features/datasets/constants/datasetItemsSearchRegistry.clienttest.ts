@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { FilterState } from "@langfuse/shared";
 import { DATASET_ITEMS_FIELD_REGISTRY } from "./datasetItemsSearchRegistry";
-import { planCommit } from "@/src/features/search-bar/lib/commit";
-import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import {
+  planCommit,
+  filterStateToQueryText,
   applyPick,
   planInputCompletions,
-} from "@/src/features/search-bar/lib/completions";
-import { runSearchBarInvariants } from "@/src/features/search-bar/lib/searchBarInvariants";
+  runSearchBarInvariants,
+} from "@/src/features/search-bar";
 
 const registry = DATASET_ITEMS_FIELD_REGISTRY;
 const metadataFilter: FilterState = [

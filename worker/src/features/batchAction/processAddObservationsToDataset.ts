@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { logger, traceException } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { createManyDatasetItems } from "@langfuse/shared/src/server";

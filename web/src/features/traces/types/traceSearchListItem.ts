@@ -1,12 +1,10 @@
-import type Decimal from "decimal.js";
 import type { TreeNode } from "@/src/features/traces/types/treeNode";
+import type { MetricEmphasisContext } from "@/src/features/traces/fns/metricEmphasis";
 
 export interface TraceSearchListItem {
   node: TreeNode;
-  /** Root-level total cost for heatmap scaling */
-  parentTotalCost?: Decimal;
-  /** Root-level total duration for heatmap scaling */
-  parentTotalDuration?: number;
+  /** Trace totals the row's metrics are compared against; undefined for rows that are the whole trace */
+  emphasis?: MetricEmphasisContext;
   /** Observation ID for navigation (undefined for TRACE nodes) */
   observationId?: string;
 }

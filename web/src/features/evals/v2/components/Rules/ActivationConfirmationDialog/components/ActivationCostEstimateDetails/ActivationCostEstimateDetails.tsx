@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Slider } from "@/src/components/ui/slider";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import {

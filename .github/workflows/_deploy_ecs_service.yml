@@ -55,6 +55,7 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build \
+            --pull \
             --platform linux/amd64 \
             --target runtime \
             --build-arg BUILD_ID="$IMAGE_TAG" \

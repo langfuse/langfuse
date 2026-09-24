@@ -10,7 +10,7 @@ import {
 } from "@/src/features/public-api/types/metrics";
 import { executeQuery } from "@langfuse/shared/query/server";
 import { METRICS_DEPRECATION } from "@/src/features/public-api/server/deprecations";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({

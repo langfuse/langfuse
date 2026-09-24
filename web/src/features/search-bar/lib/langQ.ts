@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 // Search-bar query language: tolerant hand-rolled lexer + recursive-descent
 // parser and the canonical serializer.
 //

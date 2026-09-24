@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/server";
 import {
@@ -25,14 +26,18 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
+  findTypeSafeUpstream,
   type LLMConnectionConfig,
 } from "@langfuse/shared";
 
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
   ChatMessageType,
+  createTypeSafeDecisionModelClient,
+  DECISION_MODEL_ADAPTERS,
   generateLLMText,
   getClientInitiatedNonStreamingLlmTimeoutMs,
+  isDecisionModelAdapter,
   LLMAdapter,
   logger,
   mapLegacyLLMCompletionParams,
@@ -103,6 +108,58 @@ type TestLLMConnectionParams = {
   config?: unknown;
 };
 
+function assertDecisionModelConnectionInput(input: {
+  adapter: LLMAdapter;
+  baseURL?: string | null;
+  extraHeaders?: Record<string, string | null | undefined> | null;
+}) {
+  if (!isDecisionModelAdapter(input.adapter)) return;
+  if (!findTypeSafeUpstream(input.baseURL)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "Decision-model connections only support the TypeSafe, Vercel AI Gateway, and OpenRouter base URLs.",
+    });
+  }
+  if (input.extraHeaders && Object.keys(input.extraHeaders).length > 0) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Decision-model connections do not support extra headers.",
+    });
+  }
+}
+
+async function testDecisionModelConnection(params: {
+  secretKey: string;
+  model: string;
+  baseURL?: string | null;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const client = createTypeSafeDecisionModelClient({
+      apiKey: params.secretKey,
+      model: params.model,
+      baseURL: params.baseURL,
+    });
+    await client.evaluate({
+      state: { message: "Hello, is anyone there?" },
+      questions: {
+        kind: {
+          type: "choice",
+          instructions: "What kind of message is `message`?",
+          criteria: { greeting: null, other: null },
+        },
+      },
+    });
+    return { success: true };
+  } catch (err) {
+    logger.error(err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
+  }
+}
+
 async function testLLMConnection(
   params: TestLLMConnectionParams,
 ): Promise<{ success: boolean; error?: string }> {
@@ -112,6 +169,14 @@ async function testLLMConnection(
       : supportedModels[params.adapter][0];
 
     if (!model) throw Error("No model found");
+
+    if (isDecisionModelAdapter(params.adapter)) {
+      return await testDecisionModelConnection({
+        secretKey: params.secretKey,
+        model,
+        baseURL: params.baseURL,
+      });
+    }
 
     if (params.adapter === LLMAdapter.VertexAI) {
       // Skip validation if using ADC (Application Default Credentials)
@@ -209,6 +274,8 @@ export const llmApiKeyRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "llmApiKeys:create",
         });
+
+        assertDecisionModelConnectionInput(input);
 
         await validateBaseURLForWrite({
           baseURL: input.baseURL,
@@ -378,6 +445,7 @@ export const llmApiKeyRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
+        includeDecisionModels: z.boolean().optional().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -386,6 +454,13 @@ export const llmApiKeyRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "llmApiKeys:read",
       });
+
+      const where = {
+        projectId: input.projectId,
+        ...(input.includeDecisionModels
+          ? {}
+          : { adapter: { notIn: [...DECISION_MODEL_ADAPTERS] } }),
+      };
 
       const storedApiKeys = await ctx.prisma.llmApiKeys.findMany({
         // secretKey is selected server-side only to derive a safe auth-method enum for Bedrock
@@ -404,9 +479,7 @@ export const llmApiKeyRouter = createTRPCRouter({
           config: true,
           secretKey: true,
         },
-        where: {
-          projectId: input.projectId,
-        },
+        where,
       });
 
       const apiKeys = z.array(SafeLlmApiKeySchema).parse(
@@ -421,11 +494,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         })),
       );
 
-      const count = await ctx.prisma.llmApiKeys.count({
-        where: {
-          projectId: input.projectId,
-        },
-      });
+      const count = await ctx.prisma.llmApiKeys.count({ where });
 
       return {
         data: apiKeys, // does not contain the secret key
@@ -441,6 +510,8 @@ export const llmApiKeyRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "llmApiKeys:create",
       });
+
+      assertDecisionModelConnectionInput(input);
 
       if (input.baseURL) {
         try {
@@ -489,9 +560,12 @@ export const llmApiKeyRouter = createTRPCRouter({
           });
         }
 
+        assertDecisionModelConnectionInput(input);
+
         const hasNewSecretKey =
           typeof input.secretKey === "string" && input.secretKey.length > 0;
-        const baseURL = input.baseURL ?? existingKey.baseURL;
+        const baseURL =
+          input.baseURL !== undefined ? input.baseURL : existingKey.baseURL;
         const isBaseURLChanged = baseURL !== existingKey.baseURL;
 
         if (isBaseURLChanged && !hasNewSecretKey) {
@@ -579,6 +653,8 @@ export const llmApiKeyRouter = createTRPCRouter({
             message: "Provider and adapter cannot be changed",
           });
         }
+
+        assertDecisionModelConnectionInput(input);
 
         // Validate that default credentials sentinel is only allowed for Bedrock/VertexAI in self-hosted deployments
         const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);

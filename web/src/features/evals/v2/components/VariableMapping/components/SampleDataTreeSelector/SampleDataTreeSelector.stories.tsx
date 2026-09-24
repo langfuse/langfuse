@@ -27,7 +27,7 @@ const meta = preview.meta({ component: SampleDataTreeSelector });
 
 export const Default = meta.story({
   args: {
-    variable: "input",
+    variableLabel: "{{input}}",
     roots,
     currentColumnId: null,
     currentSegments: null,
@@ -37,7 +37,7 @@ export const Default = meta.story({
 
 export const CurrentMapping = meta.story({
   args: {
-    variable: "input",
+    variableLabel: "{{input}}",
     roots,
     currentColumnId: "input",
     currentSegments: ["messages", WILDCARD, "content"],
@@ -47,7 +47,7 @@ export const CurrentMapping = meta.story({
 
 export const MediaReference = meta.story({
   args: {
-    variable: "input",
+    variableLabel: "{{input}}",
     roots: [
       {
         id: "input",

@@ -1,6 +1,7 @@
 import { type CaptureResult, type CaptureOptions } from "posthog-js";
 import { usePostHog } from "posthog-js/react";
 import { useCallback } from "react";
+import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAnalytics";
 
 export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
 
@@ -26,7 +27,6 @@ const events = {
     "observation_tree_toggle_scores",
     "observation_tree_toggle_metrics",
     "io_mode_switch",
-    "io_parser_comparison",
     "test_in_playground_button_click",
     "display_mode_switch",
     "download_button_click",
@@ -138,7 +138,13 @@ const events = {
     "create_form_open",
     "update_comment",
     "delete_comment",
+    "form_abandoned",
+    "value_set",
+    "level_changed",
+    "level_added",
   ],
+  annotation: ["entry_click"],
+  annotation_queues: ["item_added", "item_removed", "manage_click"],
   score_configs: [
     "create_form_submit",
     "update_form_submit",
@@ -467,15 +473,22 @@ type EventName = {
   [Resource in keyof typeof events]: `${Resource}:${(typeof events)[Resource][number]}`;
 }[keyof typeof events];
 
+type EventProperties = AnnotationEventMap & {
+  [E in Exclude<EventName, keyof AnnotationEventMap>]: Record<
+    string,
+    any
+  > | null;
+};
+
 export const usePostHogClientCapture = () => {
   const posthog = usePostHog();
 
   // wrapped posthog.capture function that only allows events that are in the
   // allowlist; stable identity so it is safe in useCallback/useMemo deps
   return useCallback(
-    function capture(
-      eventName: EventName,
-      properties?: Record<string, any> | null,
+    function capture<E extends EventName>(
+      eventName: E,
+      properties?: EventProperties[E],
       options?: CaptureOptions,
     ): CaptureResult | void {
       return posthog.capture(eventName, properties, options);

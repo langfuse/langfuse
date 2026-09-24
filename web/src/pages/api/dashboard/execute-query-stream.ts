@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import type { NextApiRequest, NextApiResponse } from "next";
 import * as z from "zod/v4";
 import {

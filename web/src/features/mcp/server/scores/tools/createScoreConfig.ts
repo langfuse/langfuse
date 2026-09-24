@@ -35,6 +35,7 @@ export const [createScoreConfigTool, handleCreateScoreConfig] = defineTool({
   name: "createScoreConfig",
   description:
     "Create a score configuration. Supports numeric, categorical, boolean, and text configs. Boolean configs automatically receive True and False categories.",
+  action: "scoreConfigs:CUD",
   baseSchema: CreateScoreConfigBaseSchema,
   inputSchema: CreateScoreConfigInputSchema,
   destructiveHint: true,

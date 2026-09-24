@@ -5,6 +5,12 @@
 //! `metrics` and `tracing` facades set up in [`telemetry`]; it never hands
 //! values back for Node to record.
 
+/// Rust-only encoder for prepared v4 `events_full` rows.
+// These modules are exercised by Rust tests until the ingestion transport calls them.
+#[allow(dead_code)]
+pub mod native_codec;
+#[allow(dead_code)]
+pub(crate) mod native_schema;
 mod telemetry;
 
 use std::time::Duration;

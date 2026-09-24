@@ -16,7 +16,7 @@ export function SessionTimelineSystemMessage({
         variant="plain"
         alignment="row"
       >
-        <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-6">
+        <div className="text-muted-foreground flex flex-col gap-2 text-sm">
           {parts.map((part, index) => (
             <SessionTimelinePart key={`${part.type}-${index}`} part={part} />
           ))}

@@ -1,8 +1,10 @@
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { env } from "../../env";
-import type { ExecutionContext } from "../query-ast/executionContext";
-import { compileClickhouseQuery } from "../query-ast/kysely/compile";
-import { getClickhouseKysely } from "../query-ast/kysely/dialect";
+import {
+  compileClickhouseQuery,
+  type ExecutionContext,
+} from "../query-ast/compile";
+import { getClickhouseKysely } from "../query-ast/dialect";
 import { queryClickhouse } from "./clickhouse";
 
 export type EnvironmentFilterProps = {

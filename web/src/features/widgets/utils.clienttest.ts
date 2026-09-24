@@ -1,5 +1,5 @@
 import { type FilterState } from "@langfuse/shared";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard";
 import { mergeWidgetAndDashboardFilters } from "./utils";
 
 /**

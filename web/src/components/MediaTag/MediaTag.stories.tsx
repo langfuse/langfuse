@@ -147,7 +147,7 @@ export const TruncatedMimeTypePreview = meta.story({
 
 export const InlineWithText = meta.story({
   render: () => (
-    <pre className="font-sans text-sm leading-5">
+    <pre className="font-sans text-sm">
       {'"media": "'}
       <span className="inline-flex">
         <MediaTag contentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />

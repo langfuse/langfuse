@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import {
   ScoreDataTypeType,
@@ -36,6 +37,7 @@ import {
   DateTimeFilter,
   CTEQueryBuilder,
   NumberFilter,
+  scoreOnlyFiltersAreSeekEligible,
 } from "../queries";
 import { FilterCondition, FilterState, TimeFilter } from "../../types";
 import {
@@ -1633,11 +1635,45 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         ${includeHasMetadataFlag ? ",length(mapKeys(s.metadata)) > 0 AS has_metadata" : ""}
       `;
 
+  // ── Selective seek ────────────────────────────────────────────────────────
+  // A highly selective score-only filter (single trace/observation/id, or a
+  // name) otherwise reconstructs the whole project before the outer WHERE
+  // discards almost everything. When at least one score-only conjunct is
+  // index-prunable (see scoreOnlyFiltersAreSeekEligible), first collect the
+  // matching dedup keys via the bloom / primary indexes, then reconstruct only
+  // those keys.
+  //
+  // The seek carries the *entire* score-only predicate, not just the prunable
+  // conjuncts: it stays a superset collection (proof below), the index prunes
+  // granules via the eligible conjuncts, and the remaining conjuncts shrink the
+  // key set within surviving granules.
+  //
+  // Correctness: if a key's deduped-latest satisfies predicate P, its latest raw
+  // row satisfies P (the latest *is* a raw row), so `SELECT DISTINCT … WHERE P`
+  // over raw rows collects it — `{latest matches P} ⊆ {some raw row matches P}`
+  // for any P (negation, null, range included). False positives (a key seeked
+  // via an older matching version whose latest no longer matches) are removed by
+  // re-applying P in the outer WHERE post-dedup. The seek's projection is the
+  // dedup key only, all immutable within a group, so the resulting tuple IN
+  // touches only dedup-key columns and is safe pre-dedup.
+  const seekEligible = scoreOnlyFiltersAreSeekEligible(scoreOnlyFilters);
+  const seekSubquery = seekEligible
+    ? `
+        SELECT DISTINCT s.project_id, toDate(s.timestamp), s.name, s.id
+        FROM scores s
+        WHERE s.project_id = {projectId: String}
+        ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}
+        ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}`
+    : "";
+
   // Pre-dedup inner scan: project scope + coarse date prune only. Mutable-column
-  // filters run post-dedup in the outer WHERE (see the dedup rule below).
+  // filters run post-dedup in the outer WHERE (see the dedup rule below). When
+  // the seek fired, the tuple IN restricts the reconstruct scan to seeked keys;
+  // it references only dedup-key columns, so it is safe pre-dedup.
   const innerScanWhere = `
         WHERE s.project_id = {projectId: String}
-        ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}`;
+        ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}
+        ${seekSubquery ? `AND (s.project_id, toDate(s.timestamp), s.name, s.id) IN (${seekSubquery}\n        )` : ""}`;
 
   // Post-dedup outer filters, shared by the count and rows paths.
   const outerWhereClause = `

@@ -1,4 +1,4 @@
-import { useQueryOrganization } from "@/src/features/organizations/hooks";
+import { useQueryOrganization } from "@/src/features/organizations";
 import { api } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";

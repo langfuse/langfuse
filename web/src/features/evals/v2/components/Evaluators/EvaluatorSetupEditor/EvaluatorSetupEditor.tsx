@@ -58,7 +58,7 @@ export function EvaluatorSetupEditor({
         onSetProjectDefault={onSetProjectDefault}
         codeValidationResult={codeValidationResult}
       />
-      {type === "LLM_AS_JUDGE" ? (
+      {type === "LLM_AS_JUDGE" || type === "DECISION_MODEL" ? (
         <VariableMappingStepContainer
           projectId={projectId}
           store={store}

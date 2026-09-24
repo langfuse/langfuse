@@ -115,7 +115,6 @@ export function CategoricalScoreChart(props: {
         chartConfig={{
           type: "VERTICAL_BAR",
           row_limit: 100,
-          subtle_fill: true,
         }}
       />
     </div>

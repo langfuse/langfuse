@@ -2,7 +2,7 @@ import {
   GetModelV1Query,
   GetModelV1Response,
 } from "@/src/features/public-api/server";
-import { getModelForApi } from "@/src/features/models/server/publicApiModelService";
+import { getModelForApi } from "@/src/features/models/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildModelUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -10,6 +10,7 @@ import { runMcpTool } from "../../../core/run-mcp-tool";
 export const [getModelTool, handleGetModel] = defineTool({
   name: "getModel",
   description: "Get a model definition by ID from the current project scope.",
+  action: "models:read",
   baseSchema: GetModelV1Query,
   inputSchema: GetModelV1Query,
   handler: async (input, context) =>

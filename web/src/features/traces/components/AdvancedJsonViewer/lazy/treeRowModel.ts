@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * TreeRowModel — the ONE flatten/expand/paginate implementation (LFE-11080).
  *

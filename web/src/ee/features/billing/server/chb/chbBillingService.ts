@@ -289,6 +289,9 @@ export class ChbBillingService {
       // Reuse the CH organization from an earlier checkout attempt so a retry
       // recovers the same org instead of orphaning one
       organizationId: existingChOrgId,
+      // Names the CH organization when this call creates it, instead of the
+      // default CHB derives from the email; a reused one keeps its name
+      name: parsedOrg.name,
       email,
       planCode,
       returnUrl: this.returnUrl(orgId),
@@ -457,6 +460,14 @@ export class ChbBillingService {
     });
 
     try {
+      // CHB rejects a set while a change is already pending, so undo any
+      // pending one first — a user who scheduled a downgrade and then picks a
+      // different plan must not hit a conflict.
+      await this.clearExistingScheduledChangeIfAny(
+        chb.organizationId,
+        chb.attachedPlanId,
+        opId,
+      );
       await this.client.setScheduledChange({
         chOrganizationId: chb.organizationId,
         change: {
@@ -528,6 +539,14 @@ export class ChbBillingService {
       });
       return { status: "noop" } as const;
     }
+
+    // A pending downgrade or cancellation would make the immediate-cancel set
+    // conflict, so clear it first (org deletion reaches here).
+    await this.clearExistingScheduledChangeIfAny(
+      chb.organizationId,
+      chb.attachedPlanId,
+      opId,
+    );
 
     await this.client.setScheduledChange({
       chOrganizationId: chb.organizationId,
@@ -642,6 +661,38 @@ export class ChbBillingService {
     });
   }
 
+  /**
+   * CHB rejects `PUT attachedplan/scheduled` while a scheduled change is
+   * already pending, so every set has to start from a clean slate.
+   */
+  private async clearExistingScheduledChangeIfAny(
+    chOrganizationId: string,
+    attachedPlanId: string,
+    opId?: string,
+  ) {
+    const attachedPlan = await this.client.getAttachedPlan({
+      chOrganizationId,
+    });
+    if (!attachedPlan.scheduled) return;
+
+    logger.info("chbBillingService.attachedplan.scheduled.clearBeforeSet", {
+      chOrganizationId,
+      attachedPlanId,
+      pendingType: attachedPlan.scheduled.type,
+      opId,
+      userId: this.ctx.session.user.id,
+    });
+
+    await this.client.clearScheduledChange({
+      chOrganizationId,
+      idempotencyKey: makeIdempotencyKey({
+        kind: IdempotencyKind.enum["chb.attachedplan.scheduled.clear"],
+        fields: { attachedPlanId, phase: "before-set" },
+        opId,
+      }),
+    });
+  }
+
   private async setCancellation(
     orgId: string,
     when: "immediate" | "billing_cycle_end",
@@ -663,6 +714,14 @@ export class ChbBillingService {
       opId,
       userId: this.ctx.session.user.id,
     });
+
+    // An existing pending change (e.g. a scheduled downgrade) would make this
+    // set conflict, so undo it before scheduling the cancellation.
+    await this.clearExistingScheduledChangeIfAny(
+      chb.organizationId,
+      chb.attachedPlanId,
+      opId,
+    );
 
     await this.client.setScheduledChange({
       chOrganizationId: chb.organizationId,

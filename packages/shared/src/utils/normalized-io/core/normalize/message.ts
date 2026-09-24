@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import type {
   MessageEnvelopeContext,
   PartHandlerContext,
@@ -5,16 +6,12 @@ import type {
   SiblingPartSlot,
 } from "../../conventions/io-convention";
 import { isMessageLike, isToolDefinitionMessage } from "../utils/format";
-import type {
-  NormalizedMessage,
-  NormalizedMessagePart,
-  NormalizedMessageRole,
-} from "../../types";
+import type { NormalizedMessage, NormalizedMessagePart } from "../../types";
 import { asRecord, isRecord, optionalString, parseArray } from "../utils/json";
 import { normalizeFinishReason } from "./finish-reason";
 import { normalizeMediaPartsFromString } from "./message-parts/media";
 import { extractCitations } from "./message-parts/text";
-import { normalizePart, normalizePartList } from "./part";
+import { normalizePartValue, normalizePartList } from "./part";
 import { coerceRole, normalizeRole } from "./role";
 import type { ParserContext } from "../parser-context";
 import { providersInOrder } from "../utils/providers";
@@ -23,7 +20,6 @@ import { providersInOrder } from "../utils/providers";
 function normalizeMessageContent(
   value: Record<string, unknown>,
   nestedContent: Record<string, unknown> | undefined,
-  role: NormalizedMessageRole,
   parserContext: ParserContext,
 ): NormalizedMessagePart[] {
   const rawParts = Array.isArray(value.parts)
@@ -41,14 +37,19 @@ function normalizeMessageContent(
     const parsedContent = parseArray(value.content);
     if (parsedContent?.length) {
       const parsedParts = parsedContent.map((part) =>
-        normalizePart(part, parserContext),
+        normalizePartValue(part, parserContext),
       );
       if (
         parsedParts.every(
-          (part) => part?.type === "tool-call" || part?.type === "tool-result",
+          (parts) =>
+            parts.length > 0 &&
+            parts.every(
+              (part) =>
+                part.type === "tool-call" || part.type === "tool-result",
+            ),
         )
       ) {
-        return parsedParts.filter((part) => part !== null);
+        return parsedParts.flat();
       }
     }
 
@@ -56,8 +57,7 @@ function normalizeMessageContent(
   }
 
   if (isRecord(value.content)) {
-    const part = normalizePart(value.content, parserContext);
-    return part ? [part] : [];
+    return normalizePartValue(value.content, parserContext);
   }
 
   return [];
@@ -77,7 +77,7 @@ function applySiblingFields(
   parserContext: ParserContext,
 ): void {
   const partContext: PartHandlerContext = {
-    normalizePart: (part) => normalizePart(part, parserContext),
+    normalizePartValue: (part) => normalizePartValue(part, parserContext),
     normalizePartList: (values) => normalizePartList(values, parserContext),
   };
   const contributions: SiblingPartContribution[] = [];
@@ -190,16 +190,19 @@ export function normalizeMessage(
 
   // Standalone tool-call/result values (no message keys): normalize once,
   // inspect the result, rather than shape-probing before normalizing.
-  const directPart = !isMessageLike(value)
-    ? normalizePart(value, parserContext)
-    : null;
-  if (
-    directPart &&
-    (directPart.type === "tool-call" || directPart.type === "tool-result")
-  ) {
+  const directParts = !isMessageLike(value)
+    ? normalizePartValue(value, parserContext)
+    : [];
+  const onlyToolCalls =
+    directParts.length > 0 &&
+    directParts.every((part) => part.type === "tool-call");
+  const onlyToolResults =
+    directParts.length > 0 &&
+    directParts.every((part) => part.type === "tool-result");
+  if (onlyToolCalls || onlyToolResults) {
     return {
-      role: directPart.type === "tool-result" ? "tool" : "assistant",
-      parts: [directPart],
+      role: onlyToolResults ? "tool" : "assistant",
+      parts: directParts,
       source,
     };
   }
@@ -211,12 +214,7 @@ export function normalizeMessage(
     (nestedContent ? normalizeRole(nestedContent) : undefined) ??
     fallbackRole;
 
-  const parts = normalizeMessageContent(
-    value,
-    nestedContent,
-    role,
-    parserContext,
-  );
+  const parts = normalizeMessageContent(value, nestedContent, parserContext);
   applySiblingFields(value, parts, parserContext);
   role = coerceRole(role, value, parts);
 
@@ -224,8 +222,7 @@ export function normalizeMessage(
   // records, {text} items): represent them instead of dropping — the trace
   // view renders these as JSON too.
   if (parts.length === 0 && !isMessageLike(value)) {
-    const part = normalizePart(value, parserContext);
-    if (part) parts.push(part);
+    parts.push(...directParts);
   }
 
   // Choice/candidate-level values are wired in by the accumulator collector.

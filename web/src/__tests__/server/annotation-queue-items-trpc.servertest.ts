@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { AnnotationQueueObjectType, type Plan } from "@langfuse/shared";
@@ -50,14 +51,7 @@ describe("annotation queues trpc", () => {
             ],
           },
         ],
-        featureFlags: {
-          templateFlag: true,
-          excludeClickhouseRead: false,
-          experimentsV4Enabled: false,
-          observationEvals: false,
-          searchBar: false,
-          v4BetaToggleVisible: false,
-        },
+        featureFlags: testFeatureFlags(),
       },
       environment: {} as Session["environment"],
     };

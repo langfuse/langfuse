@@ -44,7 +44,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import type { ChatPromptClient } from "langfuse";
-import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
+import { getLangfuseClient } from "@/src/features/natural-language-filters/server";
 import {
   buildFieldCatalog,
   buildFilterSystemPrompt,

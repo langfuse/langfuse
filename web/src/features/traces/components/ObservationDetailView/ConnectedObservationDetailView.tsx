@@ -42,24 +42,29 @@ import {
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
-} from "@/src/features/comments/CommentDrawerController";
+  useCommentedPaths,
+} from "@/src/features/comments";
 import { useRouter } from "next/router";
-import ScoresTable from "@/src/components/table/use-cases/scores";
-import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
+import { TraceDetailTabMenu } from "../TraceDetailTabMenu";
+import { ScoresTable } from "@/src/features/scores";
+import { getMostRecentCorrection } from "@/src/features/corrections";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import {
   type DetailTab,
   useSelection,
 } from "@/src/features/traces/contexts/SelectionContext";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import {
+  jsonViewToggleTab,
+  normalizeJsonViewPreference,
+} from "@/src/components/ui/jsonViewPreference";
 
 // Contexts and hooks
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useParsedObservation } from "@/src/features/traces/hooks/useParsedObservation";
-import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { api } from "@/src/utils/api";
 
 // Extracted components
@@ -74,6 +79,11 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
+import {
+  InternalFeatureBadge,
+  useInternalFeaturesEnabled,
+} from "@/src/features/feature-flags";
+import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
 import { ObservationAttributesTab } from "./ObservationAttributesTab";
 import { buildModelParameters } from "@/src/features/traces/fns/buildModelParameters";
 import { buildObservationAttributes } from "@/src/features/traces/fns/buildObservationAttributes";
@@ -101,6 +111,8 @@ export function ConnectedObservationDetailView({
 
   // V4 beta mode and observations for log tab
   const { isV4: isV4Enabled } = useReadPath();
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const showMessagesTab = internalFeaturesEnabled && isV4Enabled;
   const {
     observations,
     roots,
@@ -150,8 +162,8 @@ export function ConnectedObservationDetailView({
       detachedObservationIsMisplaced && observation.id === detachedObservationId
     );
 
-  // Without a TRACE row (v4) this span stands in for the trace, so its badge and
-  // its Scores tab both cover the trace-level scores.
+  // Without a TRACE row (v4) this span stands in for the trace, so its Scores
+  // tab covers the trace-level scores.
   const ownsTraceLevelScores = traceLevelScoreOwnerIds.has(observation.id);
 
   // For root observations, compute subtree metrics for badge tooltips.
@@ -173,11 +185,13 @@ export function ConnectedObservationDetailView({
 
   // "log" is v4-only and needs observations; everything else falls back to preview.
   const selectedTab = useMemo(() => {
+    if (globalSelectedTab === "messages" && showMessagesTab)
+      return "messages" as const;
     if (globalSelectedTab === "scores") return "scores" as const;
     if (globalSelectedTab === "attributes") return "attributes" as const;
     if (globalSelectedTab === "log" && showLogViewTab) return "log" as const;
     return "preview" as const;
-  }, [globalSelectedTab, showLogViewTab]);
+  }, [globalSelectedTab, showLogViewTab, showMessagesTab]);
 
   const refreshTraceScores = useCallback(() => {
     utils.traces.byIdWithObservationsAndScores.invalidate({
@@ -206,7 +220,7 @@ export function ConnectedObservationDetailView({
 
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
-  const selectedViewTab = currentView === "pretty" ? "pretty" : "json";
+  const selectedViewTab = jsonViewToggleTab(currentView);
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
 
   const handleViewTabChange = useCallback(
@@ -219,11 +233,11 @@ export function ConnectedObservationDetailView({
           ...analyticsDimensions,
         });
       }
-      if (tab === "pretty") {
-        setJsonViewPreference(tab);
-      } else {
+      if (tab === "json") {
         // When switching to JSON, use beta preference
         setJsonViewPreference(jsonBetaEnabled ? "json-beta" : "json");
+      } else {
+        setJsonViewPreference(normalizeJsonViewPreference(tab));
       }
     },
     [
@@ -370,35 +384,56 @@ export function ConnectedObservationDetailView({
 
           <TabsBar
             value={selectedTab}
-            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+            className="@container/detailtabs flex min-h-0 flex-1 flex-col overflow-hidden"
             onValueChange={(value) => setSelectedTab(value as DetailTab)}
           >
             <TooltipProvider>
-              <TabsBarList>
-                <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
-                <TabsBarTrigger value="attributes">Attributes</TabsBarTrigger>
-                {showScoresTab ? (
-                  <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
-                ) : null}
-                {showLogViewTab ? (
-                  <TabsBarTrigger value="log">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span>Log View</span>
-                      </TooltipTrigger>
-                      <TooltipContent className="text-xs">
-                        {isLogViewVirtualized
-                          ? `Shows all ${observations.length} observations with virtualization enabled.`
-                          : "Shows all observations concatenated. Great for quickly scanning through them."}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TabsBarTrigger>
-                ) : null}
+              <TabsBarList className="shrink-0">
+                <div className="shrink-0 @min-[680px]/detailtabs:hidden">
+                  <TraceDetailTabMenu
+                    selectedTab={selectedTab}
+                    onSelect={setSelectedTab}
+                    tabs={[
+                      "preview",
+                      ...(showMessagesTab ? ["messages" as const] : []),
+                      "attributes",
+                      ...(showScoresTab ? ["scores" as const] : []),
+                      ...(showLogViewTab ? ["log" as const] : []),
+                    ]}
+                  />
+                </div>
+                <div className="hidden h-full shrink-0 @min-[680px]/detailtabs:contents">
+                  <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+                  {showMessagesTab && (
+                    <TabsBarTrigger value="messages" className="gap-1">
+                      Messages <InternalFeatureBadge />
+                    </TabsBarTrigger>
+                  )}
+                  <TabsBarTrigger value="attributes">Attributes</TabsBarTrigger>
+                  {showScoresTab ? (
+                    <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+                  ) : null}
+                  {showLogViewTab ? (
+                    <TabsBarTrigger value="log">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span>Log View</span>
+                        </TooltipTrigger>
+                        <TooltipContent className="text-xs">
+                          {isLogViewVirtualized
+                            ? `Shows all ${observations.length} observations with virtualization enabled.`
+                            : "Shows all observations concatenated. Great for quickly scanning through them."}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TabsBarTrigger>
+                  ) : null}
+                </div>
 
                 {(selectedTab === "log" ||
+                  selectedTab === "attributes" ||
                   (selectedTab === "preview" && isPrettyViewAvailable)) && (
                   <>
-                    <div className="ml-auto h-fit px-2 py-0.5">
+                    <div className="ml-auto h-fit shrink-0 px-2 py-0.5">
                       <Tabs
                         value={
                           selectedTab === "log" && isLogViewVirtualized
@@ -430,7 +465,7 @@ export function ConnectedObservationDetailView({
                                     value="json"
                                     size="sm"
                                     disabled
-                                    label="JSON"
+                                    label="Raw"
                                   />
                                 </span>
                               </HoverCardTrigger>
@@ -440,7 +475,7 @@ export function ConnectedObservationDetailView({
                                 sideOffset={8}
                               >
                                 <p className="font-bold">
-                                  JSON view unavailable
+                                  Raw view unavailable
                                 </p>
                                 <p className="text-muted-foreground mt-1">
                                   Disabled for traces with{" "}
@@ -453,12 +488,13 @@ export function ConnectedObservationDetailView({
                               </HoverCardContent>
                             </HoverCard>
                           ) : (
-                            <Tabs.Trigger value="json" size="sm" label="JSON" />
+                            <Tabs.Trigger value="json" size="sm" label="Raw" />
                           )}
                         </Tabs.List>
                       </Tabs>
                     </div>
                     {selectedViewTab === "json" &&
+                      selectedTab !== "attributes" &&
                       !(selectedTab === "log" && isLogViewVirtualized) && (
                         <div className="mr-1 flex items-center gap-1.5">
                           <Switch
@@ -476,13 +512,20 @@ export function ConnectedObservationDetailView({
               </TabsBarList>
             </TooltipProvider>
 
+            {selectedTab === "messages" && (
+              <TabsBarContent
+                value="messages"
+                className="mt-0 min-h-0 flex-1 overflow-auto"
+              >
+                <TraceMessagesView />
+              </TabsBarContent>
+            )}
             <TabsBarContent
               value="preview"
               className="mt-0 flex max-h-full min-h-0 w-full flex-1"
             >
               <ObservationPreview
                 currentView={currentView}
-                tags={isRoot ? observation.traceTags : undefined}
                 previewKey={observation.id}
                 onPrettyViewAvailabilityChange={setIsPrettyViewAvailable}
                 previewProps={{

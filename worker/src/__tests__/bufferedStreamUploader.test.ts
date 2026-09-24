@@ -170,23 +170,24 @@ describe("BufferedStreamUploader", () => {
       }
     });
 
-    it("returns an oversized chunk's non-final parts as their own allocation, not a view pinning the whole chunk", async () => {
+    it("copies an oversized chunk's non-final parts instead of returning views that pin the source", async () => {
       const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       try {
         const mock = createMockStrategy();
-        // Above Node's Buffer pool threshold so a copied slice gets a
-        // dedicated ArrayBuffer sized to the slice, while a subarray view
-        // would keep the full coalesced backing buffer.
         const partSizeBytes = 8192;
         const uploader = new BufferedStreamUploader({
           ...defaultParams(mock.strategy),
           partSizeBytes,
         });
 
-        // One chunk spanning >2 parts: part 1 leaves >= a full part over.
-        await uploader.upload(
-          streamFrom(["x".repeat(partSizeBytes * 2 + 100)]),
-        );
+        // A single Buffer chunk spanning >2 parts: part 1 leaves >= a full part
+        // over. Non-final parts must be copied out of this chunk, not returned
+        // as zero-copy subarray views — a view would pin the whole ~16 KiB
+        // coalesced buffer alive for the part's upload+retry lifetime, and would
+        // be corrupted if the source is reused. Feed a Buffer (not a string) so
+        // the uploader slices the exact buffer we mutate below.
+        const source = Buffer.alloc(partSizeBytes * 2 + 100, "x");
+        await uploader.upload(Readable.from([source]));
 
         const parts = [...mock.uploadedParts].sort(
           (a, b) => a.partNumber - b.partNumber,
@@ -196,9 +197,19 @@ describe("BufferedStreamUploader", () => {
           partSizeBytes,
           100,
         ]);
-        // Part 1 is copied, so its backing buffer is exactly the slice size
-        // rather than the full ~16 KiB coalesced chunk.
-        expect(parts[0].data.buffer.byteLength).toBe(partSizeBytes);
+
+        // Overwrite the source after the uploader has read from it: the two
+        // non-final parts are independent copies, so their bytes are unchanged,
+        // whereas a subarray view would now read back the overwritten bytes.
+        // (The final part may legitimately be a zero-copy view, so it is not
+        // asserted.) Checking bytes rather than the part's backing-buffer size
+        // keeps this independent of Node's Buffer.poolSize — its default rose
+        // from 8 KiB to 64 KiB in v24.18.0, which pool-backs an 8 KiB copy and
+        // so changes `.buffer.byteLength` without changing copy-vs-view.
+        const x = "x".charCodeAt(0);
+        source.fill("y");
+        expect(parts[0].data.every((b) => b === x)).toBe(true);
+        expect(parts[1].data.every((b) => b === x)).toBe(true);
       } finally {
         warnSpy.mockRestore();
       }

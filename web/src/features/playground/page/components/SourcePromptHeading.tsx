@@ -20,7 +20,7 @@ export const SourcePromptHeading: React.FC<SourcePromptHeadingProps> = ({
       >
         {sourcePrompt.name}
       </span>
-      <Badge size="sm" text={version} />
+      <Badge text={version} />
       {isEdited && <span className="text-foreground shrink-0">· edited</span>}
     </div>
   );

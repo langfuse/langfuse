@@ -227,6 +227,42 @@ describe("ClickhouseWriter", () => {
     );
   });
 
+  it.each(["batch-size", "interval"] as const)(
+    "waits for an in-flight %s flush before shutdown completes",
+    async (flushTrigger) => {
+      let resolveInsert!: () => void;
+      const mockInsert = vi
+        .spyOn(clickhouseClientMock, "insert")
+        .mockImplementation(
+          () => new Promise<void>((resolve) => (resolveInsert = resolve)),
+        );
+      if (flushTrigger === "batch-size") writer.batchSize = 1;
+      writer.addToQueue(TableName.Traces, { id: "1", name: "trace" } as any);
+      if (flushTrigger === "interval") {
+        await vi.advanceTimersByTimeAsync(writer.writeInterval);
+      }
+
+      let shutdown: Promise<void> | undefined;
+      try {
+        await vi.waitFor(() => expect(mockInsert).toHaveBeenCalledTimes(1));
+        let shutdownComplete = false;
+        shutdown = writer.shutdown().then(() => {
+          shutdownComplete = true;
+        });
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(shutdownComplete).toBe(false);
+
+        resolveInsert();
+        await shutdown;
+        expect(shutdownComplete).toBe(true);
+      } finally {
+        resolveInsert?.();
+        await shutdown;
+      }
+    },
+  );
+
   it("should handle multiple table types", async () => {
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")

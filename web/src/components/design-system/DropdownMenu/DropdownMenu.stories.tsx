@@ -50,6 +50,86 @@ export const ManyItems = meta.story({
   },
 });
 
+export const TestSearchBehavior = meta.story({
+  name: "(Test) Search behavior",
+  args: {
+    search: { placeholder: "Search items" },
+    items: [
+      {
+        type: "item",
+        id: "default",
+        title: "Create report",
+        onClick: fn(),
+      },
+      {
+        type: "item",
+        id: "hidden",
+        title: "Create config",
+        searchBehavior: "hide",
+        onClick: fn(),
+      },
+      {
+        type: "item",
+        id: "always-show",
+        title: "Help",
+        searchBehavior: "always-show",
+        onClick: fn(),
+      },
+      {
+        type: "item",
+        id: "no-results",
+        title: "Add item",
+        searchBehavior: "show-when-no-results",
+        onClick: fn(),
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
+    await userEvent.type(
+      body.getByRole("searchbox", { name: "Search items" }),
+      "   ",
+    );
+    await expect(
+      body.getByRole("menuitem", { name: "Create config" }),
+    ).toBeVisible();
+    await expect(
+      body.getByRole("menuitem", { name: "Add item" }),
+    ).toBeVisible();
+
+    await userEvent.clear(
+      body.getByRole("searchbox", { name: "Search items" }),
+    );
+    await userEvent.type(
+      body.getByRole("searchbox", { name: "Search items" }),
+      "create",
+    );
+
+    await expect(
+      body.getByRole("menuitem", { name: "Create report" }),
+    ).toBeVisible();
+    await expect(
+      body.queryByRole("menuitem", { name: "Create config" }),
+    ).toBeNull();
+    await expect(body.getByRole("menuitem", { name: "Help" })).toBeVisible();
+    await expect(body.queryByRole("menuitem", { name: "Add item" })).toBeNull();
+
+    const search = body.getByRole("searchbox", { name: "Search items" });
+    await userEvent.clear(search);
+    await userEvent.type(search, "missing");
+
+    await expect(
+      body.queryByRole("menuitem", { name: "Create report" }),
+    ).toBeNull();
+    await expect(
+      body.getByRole("menuitem", { name: "Add item" }),
+    ).toBeVisible();
+  },
+});
+
 const getMenuActions = async (canvasElement: HTMLElement) => {
   const canvas = within(canvasElement);
   const body = within(canvasElement.ownerDocument.body);
@@ -242,5 +322,184 @@ export const TestDisabledLink = meta.story({
     const link = await body.findByRole("link", { name: "View item" });
     await expect(link).toHaveAttribute("aria-disabled", "true");
     await expect(link).toHaveAttribute("tabindex", "-1");
+  },
+});
+
+const onCheckboxChange = fn();
+const onNestedAction = fn();
+
+export const TestCheckboxAndSubmenu = meta.story({
+  name: "(Test) Checkbox and submenu",
+  args: {
+    items: [
+      {
+        type: "checkbox",
+        id: "include-output",
+        title: "Include output",
+        checked: false,
+        onCheckedChange: onCheckboxChange,
+      },
+      {
+        type: "submenu",
+        id: "destinations",
+        title: "Destinations",
+        search: { placeholder: "Search destinations…" },
+        items: [
+          {
+            type: "item",
+            id: "dataset",
+            title: "Dataset",
+            onClick: onNestedAction,
+          },
+          {
+            type: "item",
+            id: "playground",
+            title: "Playground",
+            onClick: fn(),
+          },
+        ],
+      },
+      {
+        type: "submenu",
+        id: "unavailable",
+        title: "Unavailable",
+        disabled: { reason: "This submenu is unavailable." },
+        items: [
+          {
+            type: "item",
+            id: "hidden-item",
+            title: "Hidden item",
+            onClick: fn(),
+          },
+        ],
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    onCheckboxChange.mockClear();
+    onNestedAction.mockClear();
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    const trigger = canvas.getByRole("button", { name: "Open menu" });
+    trigger.focus();
+    await userEvent.keyboard("{ArrowDown}");
+    const menu = await body.findByRole("menu", { name: "Actions" });
+    const checkbox = body.getByRole("menuitemcheckbox", {
+      name: "Include output",
+    });
+    await expect(checkbox).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    await expect(onCheckboxChange).toHaveBeenCalledWith(true);
+    await userEvent.keyboard("{ArrowDown}");
+    await expect(
+      body.getByRole("menuitem", { name: "Destinations" }),
+    ).toHaveFocus();
+    await expect(menu).toBeVisible();
+
+    await userEvent.hover(body.getByRole("menuitem", { name: "Destinations" }));
+    const submenu = await body.findByRole("menu", { name: "Destinations" });
+    await waitFor(() => expect(submenu).toBeVisible());
+    await userEvent.type(
+      body.getByRole("searchbox", { name: "Search destinations…" }),
+      "data",
+    );
+    await userEvent.keyboard("{ArrowUp}");
+    await expect(body.getByRole("menuitem", { name: "Dataset" })).toHaveFocus();
+    await userEvent.click(body.getByRole("button", { name: "Dataset" }));
+    await expect(onNestedAction).toHaveBeenCalledOnce();
+    await expect(body.queryByRole("menu", { name: "Actions" })).toBeNull();
+
+    await userEvent.click(trigger);
+    await userEvent.hover(body.getByRole("menuitem", { name: "Destinations" }));
+    await body.findByRole("menu", { name: "Destinations" });
+    await userEvent.click(
+      body.getByRole("searchbox", { name: "Search destinations…" }),
+    );
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(body.queryByRole("menu", { name: "Destinations" })).toBeNull(),
+    );
+
+    await userEvent.hover(body.getByRole("menuitem", { name: "Unavailable" }));
+    await expect(body.queryByRole("menu", { name: "Unavailable" })).toBeNull();
+  },
+});
+
+export const TestNestedMenusStayWithinViewport = meta.story({
+  name: "(Test) Nested menus stay within viewport",
+  globals: { viewport: { value: "narrow", isRotated: false } },
+  parameters: {
+    viewport: {
+      options: {
+        narrow: {
+          name: "Narrow phone",
+          styles: { width: "320px", height: "640px" },
+        },
+      },
+    },
+  },
+  args: {
+    placement: "bottom-end",
+    items: [
+      {
+        type: "item",
+        id: "copy-observation",
+        title: "Copy observation identifier",
+        onClick: fn(),
+      },
+      {
+        type: "submenu",
+        id: "add-to",
+        title: "Add to",
+        items: [
+          {
+            type: "submenu",
+            id: "datasets",
+            title: "Datasets",
+            search: { placeholder: "Search datasets…" },
+            items: [
+              {
+                type: "item",
+                id: "long-dataset",
+                title:
+                  "Customer support quality evaluation with additional reference answers",
+                onClick: fn(),
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const document = canvasElement.ownerDocument;
+    const body = within(document.body);
+    const expectMenuWithinViewport = async (name: string) => {
+      const menu = await body.findByRole("menu", { name });
+      await waitFor(() => {
+        const bounds = menu.getBoundingClientRect();
+        expect(bounds.left).toBeGreaterThanOrEqual(0);
+        expect(bounds.right).toBeLessThanOrEqual(
+          document.documentElement.clientWidth,
+        );
+      });
+    };
+
+    await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
+    await expectMenuWithinViewport("Actions");
+    await userEvent.click(body.getByRole("menuitem", { name: "Add to" }));
+    await expectMenuWithinViewport("Add to");
+    await userEvent.click(body.getByRole("menuitem", { name: "Datasets" }));
+    await expectMenuWithinViewport("Datasets");
+    const search = body.getByRole("searchbox", { name: "Search datasets…" });
+    await userEvent.type(search, "quality");
+    await expect(search).toHaveValue("quality");
+    await expect(
+      body.getByRole("menuitem", {
+        name: "Customer support quality evaluation with additional reference answers",
+      }),
+    ).toBeVisible();
   },
 });

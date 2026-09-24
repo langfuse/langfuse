@@ -24,7 +24,7 @@ import { ChartConfigSchema, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   getWidgetImportFilterConfig,
   partitionStoredUiTableFiltersToView,
-} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+} from "@/src/features/dashboard/server";
 import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,

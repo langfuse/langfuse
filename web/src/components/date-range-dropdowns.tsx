@@ -18,7 +18,7 @@ import {
   getAbbreviatedTimeRange,
   getTimeRangeLabel,
 } from "@/src/utils/date-range-utils";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements";
 import { useMemo } from "react";
 import {
   HoverCard,

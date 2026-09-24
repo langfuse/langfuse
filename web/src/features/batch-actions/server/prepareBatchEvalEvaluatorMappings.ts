@@ -69,8 +69,12 @@ export async function prepareBatchEvalEvaluatorMappings(params: {
         prompt: latestVersion.prompt,
         promptMessages: latestVersion.promptMessages,
       });
+      const requiredVariables =
+        evaluator.type === EvalTemplateType.DECISION_MODEL
+          ? latestVersion.vars
+          : extractEvaluatorPromptVariables(promptMessages);
       assertCompleteEvaluatorVariableMapping({
-        promptVariables: extractEvaluatorPromptVariables(promptMessages),
+        promptVariables: requiredVariables,
         variableMapping:
           storedVariableMapping ?? prepared.defaultVariableMapping,
       });

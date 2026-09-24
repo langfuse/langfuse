@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * TruncatedString - String value with truncation and popover
  *

@@ -1,4 +1,4 @@
-import { updateAnnotationQueueItemForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
+import { updateAnnotationQueueItemForApi } from "@/src/features/annotation-queues/server";
 import { UpdateAnnotationQueueItemResponse } from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildAnnotationQueueItemUrl } from "@langfuse/shared/src/server";
@@ -10,6 +10,7 @@ export const [updateAnnotationQueueItemTool, handleUpdateAnnotationQueueItem] =
     name: "updateAnnotationQueueItem",
     description:
       "Update an annotation queue item's review status, such as pending or completed.",
+    action: "annotationQueues:CUD",
     baseSchema: UpdateAnnotationQueueItemToolSchema,
     inputSchema: UpdateAnnotationQueueItemToolSchema,
     handler: async (input, context) =>

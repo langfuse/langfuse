@@ -1,7 +1,7 @@
 import {
   isRegionProduction,
   type CloudRegionName,
-} from "@/src/features/organizations/cloudRegions";
+} from "@/src/features/organizations";
 import { assertUnreachable } from "@/src/utils/types";
 import { cva } from "class-variance-authority";
 import { useMemo } from "react";

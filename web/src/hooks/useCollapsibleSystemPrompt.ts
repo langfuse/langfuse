@@ -1,5 +1,5 @@
 import { useMemo, useSyncExternalStore } from "react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 const COLLAPSE_CHAR_THRESHOLD = 250;
 const DEFAULT_PREVIEW_LINES = 4;

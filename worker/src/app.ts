@@ -60,6 +60,7 @@ import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
 import { traceBatchQueueProcessor } from "./queues/traceBatchQueue";
 import { TraceBatchDispatcher } from "./features/traceBatching/traceBatching";
+import { TraceBatchMetricsRunner } from "./features/traceBatching/TraceBatchMetricsRunner";
 import { projectDeleteProcessor } from "./queues/projectDelete";
 import {
   postHogIntegrationProcessingProcessor,
@@ -154,6 +155,16 @@ if (
   WorkerManager.register(QueueName.TraceBatch, traceBatchQueueProcessor, {
     concurrency: env.LANGFUSE_TRACE_BATCH_CONCURRENCY,
   });
+}
+
+export let traceBatchMetricsRunner: TraceBatchMetricsRunner | null = null;
+if (
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+  (env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true" ||
+    env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true")
+) {
+  traceBatchMetricsRunner = new TraceBatchMetricsRunner();
+  traceBatchMetricsRunner.start();
 }
 
 if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {

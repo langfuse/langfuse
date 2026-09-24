@@ -15,8 +15,7 @@ import {
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 import { randomUUID } from "crypto";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
-
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Score",

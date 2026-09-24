@@ -2,7 +2,7 @@
  * TracePanelNavigation - Pure content component for navigation panel
  *
  * Responsibility:
- * - Decide which navigation view to show (Tree/Timeline/Search)
+ * - Decide which navigation view to show (Tree/Timeline/Graph/Search)
  * - The Timeline is either the classic gantt or the Compact Timeline, depending
  *   on that feature preview
  * - NO layout structure - just returns the content component

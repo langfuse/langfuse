@@ -12,7 +12,7 @@ import {
   deleteModelForApi,
   getModelForApi,
   upsertModelForApi,
-} from "@/src/features/models/server/publicApiModelService";
+} from "@/src/features/models/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({

@@ -169,6 +169,7 @@
     "@ai-sdk/google-vertex": "^5.0.8",
     "@ai-sdk/openai": "^4.0.0",
     "@ai-sdk/openai-compatible": "^3.0.3",
+    "@ai-sdk/typesafe-ai": "^3.0.4",
     "@aws-sdk/client-cloudwatch": "catalog:",
     "@aws-sdk/client-lambda": "catalog:",
     "@aws-sdk/client-s3": "catalog:",

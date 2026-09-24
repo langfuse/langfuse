@@ -28,10 +28,10 @@ export function useAnnotationScoreConfigs({
   isLoading: boolean;
   availableConfigs: ScoreConfigDomain[];
   selectedConfigIds: string[];
+  setSelectedConfigIds: (ids: string[]) => void;
 } {
-  const { emptySelectedConfigIds } = useEmptyScoreConfigs(
-    emptySelectedConfigIdsStorageKey,
-  );
+  const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
+    useEmptyScoreConfigs(emptySelectedConfigIdsStorageKey);
 
   const configs = api.scoreConfigs.all.useQuery(
     {
@@ -47,11 +47,13 @@ export function useAnnotationScoreConfigs({
       isLoading: false,
       selectedConfigIds: configSelection.configs.map((c) => c.id),
       availableConfigs: configSelection.configs,
+      setSelectedConfigIds: setEmptySelectedConfigIds,
     };
   }
   return {
     isLoading: configs.isLoading,
     selectedConfigIds: emptySelectedConfigIds,
     availableConfigs: configs.data?.configs ?? [],
+    setSelectedConfigIds: setEmptySelectedConfigIds,
   };
 }

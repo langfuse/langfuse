@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
@@ -14,12 +15,7 @@ import { ChevronDown, ListTree, Trash } from "lucide-react";
 import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useState } from "react";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -31,6 +27,8 @@ import {
 } from "@/src/components/ui/dialog";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { useHasProjectAccess } from "@/src/features/rbac";
+import { useReadPath } from "@/src/features/events";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
@@ -38,23 +36,56 @@ import { createLinkTableColumn } from "@/src/components/design-system/table/colu
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 
 const QueueItemTableMultiSelectAction = ({
-  selectedItemIds,
+  selectedItems,
   projectId,
+  isV4,
   onDeleteSuccess,
 }: {
-  selectedItemIds: string[];
+  selectedItems: Pick<QueueItemRowData, "id" | "objectType">[];
   projectId: string;
+  isV4: boolean;
   onDeleteSuccess: () => void;
 }) => {
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
   const [open, setOpen] = useState(false);
+  const selectedItemIds = selectedItems.map((item) => item.id);
 
   const hasDeleteAccess = useHasProjectAccess({
     projectId,
     scope: "annotationQueues:CUD",
   });
   const mutDeleteItems = api.annotationQueueItems.deleteMany.useMutation({
-    onSuccess: () => {
+    onMutate: (variables) => {
+      const itemIds = new Set(variables.itemIds);
+      return {
+        isV4,
+        objectTypes: new Set(
+          selectedItems
+            .filter((item) => itemIds.has(item.id))
+            .map((item) => item.objectType),
+        ),
+      };
+    },
+    onSuccess: (data, _variables, context) => {
+      if (context && data.deletedCount > 0) {
+        for (const objectType of context.objectTypes) {
+          capture("annotation_queues:item_removed", {
+            type: objectType === "SESSION" ? "session" : "trace",
+            source: "AnnotationQueue",
+            targetType: (
+              {
+                TRACE: "trace",
+                OBSERVATION: "observation",
+                SESSION: "session",
+              } as const
+            )[objectType],
+            objectType,
+            queueCount: 1,
+            isV4: context.isV4,
+          });
+        }
+      }
       onDeleteSuccess();
       utils.annotationQueueItems.itemsByQueueId.invalidate();
     },
@@ -62,24 +93,29 @@ const QueueItemTableMultiSelectAction = ({
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button disabled={selectedItemIds.length < 1}>
+      <DropdownMenu
+        disabled={selectedItemIds.length < 1}
+        items={[
+          {
+            type: "item",
+            id: "delete",
+            title: "Delete",
+            icon: Trash,
+            disabled: hasDeleteAccess
+              ? undefined
+              : { reason: "Missing permission to delete queue items" },
+            onClick: () => {
+              setOpen(true);
+            },
+          },
+        ]}
+      >
+        {({ getTriggerProps }) => (
+          <Button disabled={selectedItemIds.length < 1} {...getTriggerProps()}>
             Actions ({selectedItemIds.length} selected)
             <ChevronDown className="h-5 w-5" />
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <DropdownMenuItem
-            disabled={!hasDeleteAccess}
-            onClick={() => {
-              setOpen(true);
-            }}
-          >
-            <Trash className="mr-2 h-4 w-4" />
-            <span>Delete</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
+        )}
       </DropdownMenu>
       <Dialog
         open={open}
@@ -163,6 +199,7 @@ export function AnnotationQueueItemsTable({
   projectId: string;
   queueId: string;
 }) {
+  const { isV4 } = useReadPath();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -176,6 +213,8 @@ export function AnnotationQueueItemsTable({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
+  const selectedItems =
+    items.data?.queueItems.filter((item) => selectedRows[item.id]) ?? [];
 
   const columns: LangfuseColumnDef<QueueItemRowData>[] = [
     {
@@ -412,15 +451,11 @@ export function AnnotationQueueItemsTable({
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         actionButtons={[
-          Object.keys(selectedRows).filter((itemId) =>
-            items.data?.queueItems.map((item) => item.id).includes(itemId),
-          ).length > 0 ? (
+          selectedItems.length > 0 ? (
             <QueueItemTableMultiSelectAction
-              // Exclude items that are not in the current page
-              selectedItemIds={Object.keys(selectedRows).filter((itemId) =>
-                items.data?.queueItems.map((item) => item.id).includes(itemId),
-              )}
+              selectedItems={selectedItems}
               projectId={projectId}
+              isV4={isV4}
               onDeleteSuccess={() => {
                 setSelectedRows({});
               }}

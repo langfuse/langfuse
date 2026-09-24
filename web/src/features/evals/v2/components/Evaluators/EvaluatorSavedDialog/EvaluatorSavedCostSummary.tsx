@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { type EvalTemplateType, EvalTemplateTypeEnum } from "@langfuse/shared";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Skeleton } from "@/src/components/ui/skeleton";

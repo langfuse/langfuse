@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { useEffect, useState } from "react";
 import { cn } from "@/src/utils/tailwind";

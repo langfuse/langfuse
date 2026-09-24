@@ -3,8 +3,7 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import { GetScoresQueryV3, GetScoresResponseV3 } from "@langfuse/shared";
 import { listScoresV3ForPublicApi } from "@/src/features/public-api/server/scores-api-v3";
 import { EncodedScoresCursorV3 } from "@/src/features/public-api/types/scores";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
-
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 const GetScoresV3Query = GetScoresQueryV3.extend({
   cursor: EncodedScoresCursorV3.optional(),
 }).superRefine((data, ctx) => {

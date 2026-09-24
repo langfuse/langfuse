@@ -1,7 +1,8 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { api } from "@/src/utils/api";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { type ScoreDataTypeType, type FilterState } from "@langfuse/shared";
+import { type FilterState, type ScoreDataTypeType } from "@langfuse/shared";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import {
   convertScoreColumnsToAnalyticsData,
@@ -9,7 +10,6 @@ import {
   isBooleanDataType,
   isCategoricalDataType,
   isNumericDataType,
-  MultiSelectKeyValues,
 } from "@/src/features/scores";
 import React, { useMemo } from "react";
 import { Separator } from "@/src/components/ui/separator";
@@ -20,6 +20,7 @@ import DocPopup from "@/src/components/layouts/doc-popup";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { type ViewVersion } from "@langfuse/shared/query";
+import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
 
 export function ScoreAnalytics(props: {
   className?: string;
@@ -62,6 +63,34 @@ export function ScoreAnalytics(props: {
     selectedDashboardScoreKeys.includes(option.key),
   );
 
+  const scoreSelectorOptions = useMemo(() => {
+    const scoreNameCounts = new Map<string, number>();
+    scoreKeyToData.forEach(({ name }) => {
+      scoreNameCounts.set(name, (scoreNameCounts.get(name) ?? 0) + 1);
+    });
+
+    return scoreAnalyticsOptions.map(({ key }) => {
+      const scoreData = scoreKeyToData.get(key);
+      if (!scoreData) return { value: key, label: key };
+
+      // Scores with the same name can differ by type or source, so only disambiguate duplicates to keep unique labels concise.
+      const hasDuplicateName = (scoreNameCounts.get(scoreData.name) ?? 0) > 1;
+      if (!hasDuplicateName) return { value: key, label: scoreData.name };
+
+      const suffix = [
+        getScoreDataTypeIcon(scoreData.dataType),
+        scoreData.source.toLowerCase(),
+      ]
+        .filter(Boolean)
+        .join(" · ");
+
+      return {
+        value: key,
+        label: `${scoreData.name} (${suffix})`,
+      };
+    });
+  }, [scoreAnalyticsOptions, scoreKeyToData]);
+
   return (
     <DashboardCard
       className={props.className}
@@ -73,29 +102,16 @@ export function ScoreAnalytics(props: {
         !scoreKeysAndProps.isPending &&
         !props.isLoading &&
         Boolean(scoreKeysAndProps.data?.scoreColumns.length) && (
-          <MultiSelectKeyValues
-            placeholder="Search score..."
-            onValueChange={(values, changedValueId, selectedValueKeys) => {
-              if (values.length === 0) setSelectedDashboardScoreKeys([]);
-
-              if (changedValueId) {
-                if (selectedValueKeys?.has(changedValueId)) {
-                  setSelectedDashboardScoreKeys([
-                    ...selectedDashboardScoreKeys,
-                    changedValueId,
-                  ]);
-                } else {
-                  setSelectedDashboardScoreKeys(
-                    selectedDashboardScoreKeys.filter(
-                      (key) => key !== changedValueId,
-                    ),
-                  );
-                }
-              }
-            }}
-            values={scoreAnalyticsValues}
-            options={scoreAnalyticsOptions}
-          />
+          <div className="w-80 max-w-full">
+            <MultiSelectTagInput
+              value={scoreAnalyticsValues.map(({ key }) => key)}
+              options={scoreSelectorOptions}
+              onValueChange={setSelectedDashboardScoreKeys}
+              placeholder="Select scores"
+              searchPlaceholder="Search scores..."
+              emptyMessage="No scores found."
+            />
+          </div>
         )
       }
     >

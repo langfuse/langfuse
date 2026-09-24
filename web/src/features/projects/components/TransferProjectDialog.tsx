@@ -45,7 +45,9 @@ export function TransferProjectDialog({
     name: z.string().includes(confirmMessage, {
       message: `Please confirm with "${confirmMessage}"`,
     }),
-    organizationId: z.string(),
+    organizationId: z.string().min(1, {
+      message: "Please select an organization",
+    }),
   });
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -65,6 +67,7 @@ export function TransferProjectDialog({
           form: formId,
           variant: "destructive",
           loading: isPending,
+          disabled: organizations.length === 0,
         },
       ]}
     >
@@ -107,6 +110,7 @@ export function TransferProjectDialog({
                       value={field.value}
                       disabled={isPending}
                       placeholder="Select organization"
+                      emptyMessage="No eligible organizations available. You need owner or admin access to another organization to transfer this project."
                       options={organizations.map((organization) => ({
                         value: organization.id,
                         label: organization.name,

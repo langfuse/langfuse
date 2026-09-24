@@ -8,6 +8,7 @@ export const [deleteEvaluationRuleTool, handleDeleteEvaluationRule] =
     name: "deleteEvaluationRule",
     description:
       "Delete an observation evaluation rule by ID. This cannot be undone.",
+    action: "evaluationRule:CUD",
     baseSchema: EvaluationRuleIdInputSchema,
     inputSchema: EvaluationRuleIdInputSchema,
     handler: async (input, context) =>

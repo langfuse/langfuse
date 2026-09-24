@@ -1,5 +1,5 @@
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
-import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-utils";
+import { RESOURCE_METRICS } from "@/src/features/dashboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { MultiSelectKeyValues } from "@/src/features/scores";
 

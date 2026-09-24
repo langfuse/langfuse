@@ -7,7 +7,10 @@ import {
   type EditableVariableMappingProps,
 } from "./components/EditableVariableMapping/EditableVariableMapping";
 import { VariableMappingBinding } from "./components/VariableMappingBinding/VariableMappingBinding";
-import { ReadOnlyVariableMappingCardShell } from "./components/VariableMappingCardShell";
+import {
+  ReadOnlyVariableMappingCardShell,
+  type VariableDisplay,
+} from "./components/VariableMappingCardShell";
 
 type VariableMappingProps = {
   mappings: Array<{ variable: string; fieldState: VariableFieldState }>;
@@ -23,18 +26,22 @@ type VariableMappingProps = {
       | "unvalidatedSourceColumnIds"
       | "sourceUnavailableMessage"
     >)
-  | { mode: "read-only" }
+  | { mode: "read-only"; variableDisplay?: VariableDisplay }
 );
 
 function ReadOnlyVariableMapping({
   mappings,
-}: Pick<VariableMappingProps, "mappings">) {
+  variableDisplay,
+}: Pick<VariableMappingProps, "mappings"> & {
+  variableDisplay?: VariableDisplay;
+}) {
   return (
     <div className="flex flex-col gap-4">
       {mappings.map((mapping) => (
         <ReadOnlyVariableMappingCardShell
           key={mapping.variable}
           variable={mapping.variable}
+          variableDisplay={variableDisplay}
           mapping={
             <VariableMappingBinding
               columnLabel={
@@ -77,6 +84,9 @@ export function VariableMapping(props: VariableMappingProps) {
   return props.mode === "editable" ? (
     <EditableVariableMapping {...props} />
   ) : (
-    <ReadOnlyVariableMapping mappings={props.mappings} />
+    <ReadOnlyVariableMapping
+      mappings={props.mappings}
+      variableDisplay={props.variableDisplay}
+    />
   );
 }

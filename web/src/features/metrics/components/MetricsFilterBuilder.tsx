@@ -18,7 +18,7 @@ import {
   displayNameForFilterColumn,
   mapViewFilterToUiTableFilter,
   partitionWidgetUiTableFiltersToView,
-} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+} from "@/src/features/dashboard";
 import { useMetadataValueOptions } from "@/src/features/events";
 import {
   InlineFilterBuilder,

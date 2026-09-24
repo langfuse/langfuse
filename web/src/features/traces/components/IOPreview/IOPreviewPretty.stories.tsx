@@ -24,6 +24,15 @@ export const Default = meta.story({
   },
 });
 
+export const OversizedSibling = meta.story({
+  args: {
+    input: {
+      attachment: JSON.stringify({ text: "x".repeat(523_000) }),
+      details: JSON.stringify({ status: "ready", count: 2 }),
+    },
+  },
+});
+
 export const LongSystemPrompt = meta.story({
   args: {
     input: {

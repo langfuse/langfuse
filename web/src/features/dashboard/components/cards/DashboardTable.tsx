@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { type ReactNode, useState } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";

@@ -1,21 +1,11 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
 import { type Prisma, deepParseJson } from "@langfuse/shared";
 import { normalizeSpanIO } from "@langfuse/shared/src/utils/normalized-io";
+import { reportError } from "@/src/utils/reportError";
 import { toIOPreview } from "../parsers/toIOPreview";
-import { parseChatML, type ChatMLParserResult } from "./useChatMLParser";
+import { type ChatMLParserResult } from "./useChatMLParser";
 import { isOnlyJsonMessage } from "../fns/chatMessageUtils";
-
-export type IOPreviewParserMode = "legacy" | "normalized";
-export type IOPreviewParserComparisonOutcome =
-  | "both"
-  | "normalized_only"
-  | "legacy_only"
-  | "neither";
-
-export interface IOPreviewParserResult {
-  result: ChatMLParserResult;
-  comparisonOutcome?: IOPreviewParserComparisonOutcome;
-}
 
 /** The same message-level displayability check used by the pretty preview. */
 export function hasRenderableChatMessages(result: ChatMLParserResult): boolean {
@@ -24,63 +14,24 @@ export function hasRenderableChatMessages(result: ChatMLParserResult): boolean {
   );
 }
 
-export function selectIOPreviewParserResult(
-  normalizedResult: ChatMLParserResult | undefined,
-  legacyResult: ChatMLParserResult,
-): IOPreviewParserResult {
-  const normalizedWorks =
-    normalizedResult !== undefined &&
-    hasRenderableChatMessages(normalizedResult);
-  const legacyWorks = hasRenderableChatMessages(legacyResult);
-
-  if (normalizedWorks && legacyWorks) {
-    return {
-      result: normalizedResult,
-      comparisonOutcome: "both",
-    };
-  }
-
-  if (normalizedWorks) {
-    return {
-      result: normalizedResult,
-      comparisonOutcome: "normalized_only",
-    };
-  }
-
-  if (legacyWorks) {
-    return {
-      result: legacyResult,
-      comparisonOutcome: "legacy_only",
-    };
-  }
-
-  return {
-    // Keep normalized data when available so tool definitions and other
-    // extracted details remain visible while the UI falls back to JSON.
-    result: normalizedResult ?? legacyResult,
-    comparisonOutcome: "neither",
-  };
-}
-
 /**
- * Selects the parser used by the pretty I/O preview.
+ * Parses observation I/O into the contract rendered by the Formatted view.
  *
- * Both parsers return the same ChatMLParserResult, so the rendering tree does
- * not need to know which representation produced it. A normalized parse is
- * deliberately best-effort: malformed or unsupported data falls back to the
- * established parser for this observation.
+ * A precomputed result wins so surfaces that already parsed (the session
+ * feed) are not parsed twice. Parsing is best-effort: a payload the parser
+ * cannot handle yields no chat messages and the view falls back to JSON. The
+ * parser is not expected to throw; if it does, that is a parser bug worth a
+ * Sentry issue, and the view still falls back to JSON.
  */
 export function useIOPreviewParser(
-  parser: IOPreviewParserMode,
   input: Prisma.JsonValue | undefined,
   output: Prisma.JsonValue | undefined,
   metadata: Prisma.JsonValue | undefined,
-  observationName: string | undefined,
   preParsedInput?: unknown,
   preParsedOutput?: unknown,
   preParsedMetadata?: unknown,
   preParsedResult?: ChatMLParserResult,
-): IOPreviewParserResult {
+): ChatMLParserResult {
   const parsedInput = preParsedResult
     ? undefined
     : preParsedInput !== undefined
@@ -97,37 +48,19 @@ export function useIOPreviewParser(
       ? preParsedMetadata
       : deepParseJson(metadata, { maxSize: 100_000, maxDepth: 25 });
 
-  return useMemo<IOPreviewParserResult>(() => {
-    // Precomputed results win regardless of parser mode; surfaces that supply
-    // one disable the normalized-beta tab (see IOPreview) so labels stay honest.
-    if (preParsedResult) return { result: preParsedResult };
+  return useMemo<ChatMLParserResult>(() => {
+    if (preParsedResult) return preParsedResult;
 
-    const parseLegacy = () =>
-      parseChatML(parsedInput, parsedOutput, parsedMetadata, observationName);
-
-    if (parser === "legacy") return { result: parseLegacy() };
-
-    let normalizedResult: ChatMLParserResult | undefined;
+    const span = {
+      input: parsedInput,
+      output: parsedOutput,
+      metadata: parsedMetadata,
+    };
     try {
-      const normalized = normalizeSpanIO({
-        input: parsedInput,
-        output: parsedOutput,
-        metadata: parsedMetadata,
-      });
-      normalizedResult = toIOPreview(normalized, parsedInput);
-    } catch {
-      // The legacy parser remains the visible fallback for malformed input.
+      return toIOPreview(normalizeSpanIO(span));
+    } catch (error) {
+      reportError(error, { area: "io-preview-parser" });
+      return toIOPreview({ messages: [], toolDefinitions: [], span });
     }
-
-    const legacyResult = parseLegacy();
-
-    return selectIOPreviewParserResult(normalizedResult, legacyResult);
-  }, [
-    parser,
-    preParsedResult,
-    parsedInput,
-    parsedOutput,
-    parsedMetadata,
-    observationName,
-  ]);
+  }, [preParsedResult, parsedInput, parsedOutput, parsedMetadata]);
 }

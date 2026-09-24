@@ -1,13 +1,30 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mutateAsyncMock, signInMock, routerPushMock, useSessionMock } =
-  vi.hoisted(() => ({
-    mutateAsyncMock: vi.fn(),
-    signInMock: vi.fn(),
-    routerPushMock: vi.fn(),
-    useSessionMock: vi.fn(),
-  }));
+const {
+  mutateAsyncMock,
+  signInMock,
+  routerPushMock,
+  routerState,
+  useLangfuseCloudRegionMock,
+  useSessionMock,
+} = vi.hoisted(() => ({
+  mutateAsyncMock: vi.fn(),
+  signInMock: vi.fn(),
+  routerPushMock: vi.fn(),
+  routerState: {
+    isReady: true,
+    query: {} as Record<string, string>,
+  },
+  useLangfuseCloudRegionMock: vi.fn(),
+  useSessionMock: vi.fn(),
+}));
 
 vi.mock("next-auth/react", () => ({
   signIn: signInMock,
@@ -17,7 +34,8 @@ vi.mock("next-auth/react", () => ({
 vi.mock("next/router", () => ({
   useRouter: () => ({
     push: routerPushMock,
-    query: {},
+    query: routerState.query,
+    isReady: routerState.isReady,
   }),
 }));
 
@@ -39,10 +57,7 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 }));
 
 vi.mock("@/src/features/organizations/hooks", () => ({
-  useLangfuseCloudRegion: () => ({
-    isLangfuseCloud: false,
-    region: undefined,
-  }),
+  useLangfuseCloudRegion: () => useLangfuseCloudRegionMock(),
 }));
 
 vi.mock(
@@ -64,11 +79,51 @@ vi.mock(
 
 import { ResetPasswordPage } from "@/src/features/auth-credentials/components/ResetPasswordPage";
 
+const submitPasswordForm = ({
+  code,
+  passwordLabel,
+  confirmPasswordLabel,
+  submitLabel,
+}: {
+  code: string;
+  passwordLabel: string;
+  confirmPasswordLabel: string;
+  submitLabel: string;
+}) => {
+  fireEvent.change(screen.getByLabelText("Verification code"), {
+    target: { value: code },
+  });
+  fireEvent.change(screen.getByLabelText(passwordLabel), {
+    target: { value: "Newpass1!" },
+  });
+  fireEvent.change(screen.getByLabelText(confirmPasswordLabel), {
+    target: { value: "Newpass1!" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: submitLabel }));
+};
+
+const flushPasswordSubmit = async () => {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+};
+
 describe("ResetPasswordPage re-authentication", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    routerState.isReady = true;
+    routerState.query = {};
+    useLangfuseCloudRegionMock.mockReturnValue({
+      isLangfuseCloud: false,
+      region: undefined,
+    });
     mutateAsyncMock.mockResolvedValue({ success: true });
     signInMock.mockResolvedValue({ ok: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("re-authenticates after password update while already signed in", async () => {
@@ -96,16 +151,12 @@ describe("ResetPasswordPage re-authentication", () => {
       expect(screen.getByLabelText("Verification code")).toBeTruthy();
     });
 
-    fireEvent.change(screen.getByLabelText("Verification code"), {
-      target: { value: "123456" },
+    submitPasswordForm({
+      code: "123456",
+      passwordLabel: "New Password",
+      confirmPasswordLabel: "Confirm New Password",
+      submitLabel: "Update Password",
     });
-    fireEvent.change(screen.getByLabelText("New Password"), {
-      target: { value: "Newpass1!" },
-    });
-    fireEvent.change(screen.getByLabelText("Confirm New Password"), {
-      target: { value: "Newpass1!" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Update Password" }));
 
     await waitFor(() => {
       expect(mutateAsyncMock).toHaveBeenCalledWith({
@@ -144,16 +195,12 @@ describe("ResetPasswordPage re-authentication", () => {
       expect(screen.getByLabelText("Verification code")).toBeTruthy();
     });
 
-    fireEvent.change(screen.getByLabelText("Verification code"), {
-      target: { value: "654321" },
+    submitPasswordForm({
+      code: "654321",
+      passwordLabel: "Password",
+      confirmPasswordLabel: "Confirm Password",
+      submitLabel: "Set password",
     });
-    fireEvent.change(screen.getByLabelText("Password"), {
-      target: { value: "Newpass1!" },
-    });
-    fireEvent.change(screen.getByLabelText("Confirm Password"), {
-      target: { value: "Newpass1!" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Set password" }));
 
     await waitFor(() => {
       expect(signInMock).toHaveBeenCalledWith("credentials", {
@@ -162,5 +209,44 @@ describe("ResetPasswordPage re-authentication", () => {
         redirect: false,
       });
     });
+  });
+
+  it("routes initial Cloud password setup through onboarding with the demo target", async () => {
+    vi.useFakeTimers();
+    routerState.query = {
+      targetPath: "/demo/datasets/dataset-1/items?foo=bar",
+    };
+    useLangfuseCloudRegionMock.mockReturnValue({
+      isLangfuseCloud: true,
+      region: "EU",
+    });
+    useSessionMock.mockReturnValue({
+      status: "unauthenticated",
+      data: null,
+    });
+
+    render(
+      <ResetPasswordPage
+        passwordResetAvailable
+        initialEmail="oauth@example.com"
+        intent="setup"
+      />,
+    );
+
+    submitPasswordForm({
+      code: "654321",
+      passwordLabel: "Password",
+      confirmPasswordLabel: "Confirm Password",
+      submitLabel: "Set password",
+    });
+
+    await flushPasswordSubmit();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(routerPushMock).toHaveBeenCalledWith(
+      "/onboarding?targetPath=%2Fdemo%2Fdatasets%2Fdataset-1%2Fitems%3Ffoo%3Dbar",
+    );
   });
 });

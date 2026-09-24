@@ -17,6 +17,7 @@ export const [
   name: "listManagedEvaluatorTemplates",
   description:
     "List the evaluator templates maintained by Langfuse and partners. Copy a returned definition into createEvaluator to create a project evaluator.",
+  action: "evaluator:read",
   baseSchema: ListManagedEvaluatorTemplatesInput,
   inputSchema: ListManagedEvaluatorTemplatesInput,
   handler: (input, context) =>

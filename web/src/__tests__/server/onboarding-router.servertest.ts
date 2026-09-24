@@ -1,11 +1,12 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
-import { V4_DEFAULT_ENABLED_FROM_AT } from "@/src/features/events/lib/v4Rollout";
-import { createProjectRoute } from "@/src/features/setup/setupRoutes";
+import { V4_DEFAULT_ENABLED_FROM_AT } from "@/src/features/events/server";
+import { createProjectRoute } from "@/src/features/setup";
 import { prisma, Role } from "@langfuse/shared/src/db";
 
 const makeSession = ({
@@ -29,10 +30,7 @@ const makeSession = ({
       name,
       canCreateOrganizations,
       organizations,
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-      },
+      featureFlags: testFeatureFlags(),
       admin: false,
     },
     environment: {} as Session["environment"],

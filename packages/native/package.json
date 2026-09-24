@@ -15,10 +15,12 @@
     "node": "24"
   },
   "scripts": {
-    "build": "napi build --platform --release",
-    "build:debug": "napi build --platform",
-    "lint": "cargo fmt --check && cargo clippy --all-targets -- -D warnings",
-    "lint:fix": "cargo fmt && cargo clippy --all-targets --fix --allow-dirty -- -D warnings"
+    "prepare-clickhouse-rs": "sh scripts/prepare-clickhouse-rs.sh",
+    "build": "pnpm run prepare-clickhouse-rs && napi build --platform --release",
+    "build:debug": "pnpm run prepare-clickhouse-rs && napi build --platform",
+    "lint": "pnpm run prepare-clickhouse-rs && cargo fmt --check && cargo clippy --all-targets -- -D warnings",
+    "lint:fix": "pnpm run prepare-clickhouse-rs && cargo fmt && cargo clippy --all-targets --fix --allow-dirty -- -D warnings",
+    "test": "pnpm run prepare-clickhouse-rs && cargo test --locked"
   },
   "napi": {
     "binaryName": "langfuse-native",

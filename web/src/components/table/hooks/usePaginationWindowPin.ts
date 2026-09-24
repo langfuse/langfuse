@@ -80,5 +80,9 @@ export function usePaginationWindowPin(
     [enabled],
   );
 
-  return { range: pinnedRange, pinOnLeavingFirstPage };
+  return {
+    range: pinnedRange,
+    pinOnLeavingFirstPage,
+    resetPin: () => setPinnedAt(null),
+  };
 }

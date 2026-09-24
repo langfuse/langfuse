@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import Redis, { RedisOptions, Cluster, ClusterOptions } from "ioredis";
 import type { QueueBaseOptions } from "bullmq";
 import fs from "fs";
@@ -34,17 +35,34 @@ const defaultRedisOptions: Partial<RedisOptions> = {
 
 const REDIS_SCAN_COUNT = 1000;
 
+// Both reconnect strategies below randomize their delay within [base/2, base]
+// so that clients which failed at the same moment do not all reconnect at the
+// same moment. Each caller clamps its own base delay, so that clamp is also
+// the upper bound of the delay returned here.
+const jitteredBackoffMs = (baseDelayMs: number): number =>
+  Math.floor(baseDelayMs / 2 + Math.random() * (baseDelayMs / 2));
+
+// Delay before an ioredis Cluster client reconnects after a failed topology
+// refresh or after losing its last node. The ioredis default retries every
+// 100–300ms without jitter, and one process holds a separate Cluster client
+// per queue and per BullMQ worker, so a single failed refresh sends all of
+// them back to the configuration endpoint together. Doubles from 200ms to a
+// 5s cap and retries forever: a cluster that fails over is reachable again
+// within seconds, so the cap stays low.
+export const redisClusterRetryStrategy = (times: number): number =>
+  jitteredBackoffMs(Math.min(200 * 2 ** Math.max(times - 1, 0), 5000));
+
 export const redisQueueRetryOptions: Partial<RedisOptions> = {
   retryStrategy: (times: number) => {
     if (times >= 5) {
       // A few retries are expected and no cause for action.
       logger.warn(`Connection to redis lost. Retry attempt: ${times}`);
     }
-    // Retries forever. Exponential base delay clamped to 1s–20s, plus up to
-    // 50% random jitter (so at most 30s), so the per-queue connections do not
-    // reconnect in lockstep when Redis becomes unreachable.
-    const delay = Math.max(Math.min(Math.exp(times), 20000), 1000);
-    return delay + Math.random() * delay * 0.5;
+    // Retries forever, between 1s and 20s apart. The base delay holds at 2s
+    // for the first several attempts, so a connection dropped by a Redis
+    // restart is re-established promptly, then ramps to a 20s cap once the
+    // outage outlives those attempts.
+    return jitteredBackoffMs(Math.max(Math.min(Math.exp(times), 20000), 2000));
   },
   reconnectOnError: (err) => {
     // MOVED/ASK are normal cluster redirections handled by ioredis — not real errors.
@@ -158,6 +176,7 @@ const createRedisClusterInstance = (
       ...tlsOptions,
     },
     // Retry configuration for cluster
+    clusterRetryStrategy: redisClusterRetryStrategy,
     retryDelayOnFailover: 100,
   };
 
@@ -235,6 +254,43 @@ const createRedisSentinelInstance = (
   return instance;
 };
 
+/**
+ * Every connection handed out by createNewRedisInstance, so that a shutdown can
+ * release all of them. Each queue owns a dedicated client, and those clients
+ * retry forever; left connected they keep the event loop alive and the process
+ * never exits.
+ */
+const activeRedisInstances = new Set<Redis | Cluster>();
+
+const trackRedisInstance = <T extends Redis | Cluster | null>(
+  instance: T,
+): T => {
+  if (instance) {
+    activeRedisInstances.add(instance);
+    instance.once("end", () => activeRedisInstances.delete(instance));
+  }
+  return instance;
+};
+
+/**
+ * Disconnect every client created by createNewRedisInstance, including the
+ * shared `redis` client, which is created through the same path. Returns how
+ * many were closed, for shutdown logging.
+ */
+export const disconnectAllRedisInstances = (): number => {
+  let closed = 0;
+  for (const instance of activeRedisInstances) {
+    try {
+      instance.disconnect();
+      closed++;
+    } catch (error) {
+      logRedisError("Failed to disconnect Redis instance on shutdown", error);
+    }
+  }
+  activeRedisInstances.clear();
+  return closed;
+};
+
 export const createNewRedisInstance = (
   additionalOptions: Partial<RedisOptions> = {},
 ): Redis | Cluster | null => {
@@ -249,11 +305,11 @@ export const createNewRedisInstance = (
   }
 
   if (env.REDIS_CLUSTER_ENABLED === "true") {
-    return createRedisClusterInstance(additionalOptions);
+    return trackRedisInstance(createRedisClusterInstance(additionalOptions));
   }
 
   if (env.REDIS_SENTINEL_ENABLED === "true") {
-    return createRedisSentinelInstance(additionalOptions);
+    return trackRedisInstance(createRedisSentinelInstance(additionalOptions));
   }
 
   const tlsOptions = buildTlsOptions();
@@ -269,7 +325,7 @@ export const createNewRedisInstance = (
           host: String(env.REDIS_HOST),
           port: Number(env.REDIS_PORT),
           username: env.REDIS_USERNAME || undefined,
-          password: String(env.REDIS_AUTH),
+          password: env.REDIS_AUTH || undefined,
           ...defaultRedisOptions,
           ...additionalOptions,
           ...tlsOptions,
@@ -280,7 +336,7 @@ export const createNewRedisInstance = (
     logRedisError("Redis error", error);
   });
 
-  return instance;
+  return trackRedisInstance(instance);
 };
 
 /**

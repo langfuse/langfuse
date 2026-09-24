@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React from "react";
 import {
@@ -45,7 +46,7 @@ import {
 } from "@langfuse/shared";
 import { InlineFilterBuilder, MultiSelect } from "@/src/features/filters";
 import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ActionHandlerRegistry } from "./actions";
 import { webhookSchema } from "./actions/WebhookActionForm";
@@ -266,75 +267,93 @@ const EventSourceField = ({
 
 /** PromptTriggerFields renders the eventAction picker and inline filter builder for prompt-source automations. */
 const PromptTriggerFields = ({
+  projectId,
   control,
   disabled,
 }: {
+  projectId: string;
   control: Control<FormValues>;
   disabled: boolean;
-}) => (
-  <>
-    <FormField
-      control={control}
-      name="eventAction"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>Event Action</FormLabel>
-          <FormControl>
-            <MultiSelect
-              title="Event Actions"
-              label="Actions"
-              values={field.value}
-              onValueChange={field.onChange}
-              options={[
-                {
-                  value: "created",
-                  description: "Whenever a new prompt version is created",
-                },
-                {
-                  value: "updated",
-                  description:
-                    "Whenever tags or labels on a prompt version are updated",
-                },
-                {
-                  value: "deleted",
-                  description: "Whenever a prompt version is deleted",
-                },
-              ]}
-              className="my-0 w-auto overflow-hidden"
-              disabled={disabled}
-              labelTruncateCutOff={4}
-            />
-          </FormControl>
-          <FormDescription>
-            The actions on the event source that trigger this automation.
-          </FormDescription>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-    <FormField
-      control={control}
-      name="filter"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>Filter</FormLabel>
-          <FormControl>
-            <InlineFilterBuilder
-              columns={webhookActionFilterOptions()}
-              filterState={field.value || []}
-              onChange={field.onChange}
-              disabled={disabled}
-            />
-          </FormControl>
-          <FormDescription>
-            Add conditions to narrow down when this trigger fires.
-          </FormDescription>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-  </>
-);
+}) => {
+  const [optionsOpened, setOptionsOpened] = React.useState(false);
+  const { data: filterOptions, isFetching: optionsLoading } =
+    api.prompts.filterOptions.useQuery(
+      { projectId },
+      { enabled: optionsOpened },
+    );
+
+  return (
+    <>
+      <FormField
+        control={control}
+        name="eventAction"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Event Action</FormLabel>
+            <FormControl>
+              <MultiSelect
+                title="Event Actions"
+                label="Actions"
+                values={field.value}
+                onValueChange={field.onChange}
+                options={[
+                  {
+                    value: "created",
+                    description: "Whenever a new prompt version is created",
+                  },
+                  {
+                    value: "updated",
+                    description:
+                      "Whenever tags or labels on a prompt version are updated",
+                  },
+                  {
+                    value: "deleted",
+                    description: "Whenever a prompt version is deleted",
+                  },
+                ]}
+                className="my-0 w-auto overflow-hidden"
+                disabled={disabled}
+                labelTruncateCutOff={4}
+              />
+            </FormControl>
+            <FormDescription>
+              The actions on the event source that trigger this automation.
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={control}
+        name="filter"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Filter</FormLabel>
+            <FormControl>
+              <InlineFilterBuilder
+                columns={webhookActionFilterOptions(filterOptions)}
+                columnsWithCustomSelect={["labels", "tags"]}
+                loadingOptionColumns={optionsLoading ? ["labels", "tags"] : []}
+                onOptionsOpen={(columnId) => {
+                  if (columnId === "labels" || columnId === "tags") {
+                    setOptionsOpened(true);
+                  }
+                }}
+                filterState={field.value || []}
+                onChange={field.onChange}
+                disabled={disabled}
+              />
+            </FormControl>
+            <FormDescription>
+              Add conditions to narrow down when this trigger fires.
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </>
+  );
+};
 
 /** MonitorTriggerFields renders an info card explaining that monitors connect to this automation via the create-monitor page. */
 const MonitorTriggerFields = ({ projectId }: { projectId: string }) => (
@@ -730,6 +749,7 @@ export const AutomationForm = ({
                 <MonitorTriggerFields projectId={projectId} />
               ) : (
                 <PromptTriggerFields
+                  projectId={projectId}
                   control={form.control}
                   disabled={!hasAccess || !isEditing}
                 />
