@@ -36,6 +36,21 @@ const tableToCommentType: Record<string, CommentObjectType | undefined> = {
 
 const BATCH_EXPORT_CLICKHOUSE_SERVICE: PreferredClickhouseService = "ReadOnly";
 
+// Walks an error's `cause` chain to check whether `target` produced it. Used to
+// tell a read/transform failure (whose error the uploader rethrows as its cause)
+// apart from a genuine storage failure that merely aborts the stream as a side
+// effect. Guards against cause cycles.
+const isCausedBy = (error: unknown, target: unknown): boolean => {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current && typeof current === "object" && !seen.has(current)) {
+    if (current === target) return true;
+    seen.add(current);
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+};
+
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
 ) => {
@@ -285,12 +300,14 @@ export const handleBatchExportJob = async (
       partSizeBytes: env.BATCH_EXPORT_S3_PART_SIZE_MIB * 1024 * 1024,
     });
   } catch (uploadError) {
-    // A read/transform stream failure surfaces here as an upload rejection.
-    // Re-throw the real cause so the worker failure log and traceException point
-    // at the actual origin (a ClickHouse or Postgres read, or a transform)
-    // rather than the uploader. Thrown as a plain Error so the customer-facing
-    // `log` stays generic and does not leak internals.
-    if (readStreamError) {
+    // A read/transform stream failure (ClickHouse/Postgres read or a transform)
+    // is piped into the uploader, which rethrows it as the cause of its own
+    // error. Surface the real origin only when the upload error's cause chain
+    // traces back to that stream error — otherwise a genuine storage failure,
+    // which aborts the stream as a side effect and trips readStreamError with an
+    // unrelated premature-close, would be mislabeled. Thrown as a plain Error so
+    // the customer-facing `log` stays generic and does not leak internals.
+    if (readStreamError && isCausedBy(uploadError, readStreamError)) {
       const causeMessage =
         readStreamError instanceof Error
           ? readStreamError.message

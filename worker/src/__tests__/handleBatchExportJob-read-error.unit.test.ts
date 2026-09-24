@@ -37,7 +37,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
       getSignedUrl: mocks.getSignedUrl,
     }),
   },
-  // JSONL transform: object-mode passthrough so the CH read error propagates.
+  // Object-mode passthrough so the piped stream error propagates to the uploader.
   streamTransformations: {
     [BatchExportFileFormat.JSONL]: () => new PassThrough({ objectMode: true }),
   },
@@ -59,15 +59,40 @@ vi.mock("../features/database-read-stream/event-stream", () => ({
 
 import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
 
-it("surfaces the ClickHouse read error instead of the storage upload error", async () => {
-  const chError = new Error("Read timeout: query exceeded max_execution_time");
+const seedQueuedExport = () =>
+  mocks.findBatchExport.mockResolvedValue({
+    createdAt: new Date(),
+    status: BatchExportStatus.QUEUED,
+    format: BatchExportFileFormat.JSONL,
+    query: {
+      tableName: BatchExportTableName.Events,
+      filter: null,
+      orderBy: null,
+    },
+  });
 
-  const chReadStream = new Readable({ objectMode: true, read() {} });
-  setImmediate(() => chReadStream.destroy(chError));
-  mocks.getEventsStream.mockResolvedValue(chReadStream);
+const runAndCatch = () =>
+  handleBatchExportJob({
+    projectId: "project-1",
+    batchExportId: "export-1",
+  }).then(
+    () => {
+      throw new Error("expected handleBatchExportJob to reject");
+    },
+    (err) => err,
+  );
 
-  // Uploader consumes the piped stream and rewraps a mid-stream failure as a
-  // generic storage error, mirroring StorageService.handleStorageError.
+it("surfaces the read error, not the storage error, when the read stream fails", async () => {
+  const readError = new Error(
+    "Read timeout: query exceeded max_execution_time",
+  );
+
+  const readStream = new Readable({ objectMode: true, read() {} });
+  setImmediate(() => readStream.destroy(readError));
+  mocks.getEventsStream.mockResolvedValue(readStream);
+
+  // Uploader rewraps a mid-stream failure as a storage error whose cause is the
+  // piped read error, mirroring StorageService.handleStorageError.
   mocks.uploadFileBuffered.mockImplementation(
     ({ data }: { data: Readable }) =>
       new Promise((_resolve, reject) => {
@@ -81,30 +106,51 @@ it("surfaces the ClickHouse read error instead of the storage upload error", asy
       }),
   );
 
-  mocks.findBatchExport.mockResolvedValue({
-    createdAt: new Date(),
-    status: BatchExportStatus.QUEUED,
-    format: BatchExportFileFormat.JSONL,
-    query: {
-      tableName: BatchExportTableName.Events,
-      filter: null,
-      orderBy: null,
-    },
-  });
+  seedQueuedExport();
 
-  const thrown = await handleBatchExportJob({
-    projectId: "project-1",
-    batchExportId: "export-1",
-  }).then(
-    () => {
-      throw new Error("expected handleBatchExportJob to reject");
-    },
-    (err) => err,
-  );
+  const thrown = await runAndCatch();
 
   expect(thrown).toBeInstanceOf(Error);
-  expect(thrown.message).toContain(chError.message);
+  expect(thrown.message).toContain(readError.message);
   expect(thrown.message).not.toContain("S3");
-  expect(thrown.cause).toBe(chError);
+  expect(thrown.cause).toBe(readError);
+  expect(mocks.getSignedUrl).not.toHaveBeenCalled();
+});
+
+it("keeps reporting a genuine storage failure as a storage error", async () => {
+  // Read stream stays healthy and keeps producing rows.
+  const readStream = new Readable({
+    objectMode: true,
+    read() {
+      this.push({ id: "row" });
+    },
+  });
+  mocks.getEventsStream.mockResolvedValue(readStream);
+
+  const s3Error = new Error("S3 AccessDenied");
+  const storageError = new Error("Failed to upload file to S3 (buffered)", {
+    cause: s3Error,
+  });
+
+  // A real part-upload failure aborts the piped stream (as BufferedStreamUploader
+  // does on its early break), which trips the pipeline's premature-close error,
+  // then rejects with the storage error — whose cause is the S3 failure, not the
+  // premature-close.
+  mocks.uploadFileBuffered.mockImplementation(
+    ({ data }: { data: Readable }) =>
+      new Promise((_resolve, reject) => {
+        data.once("data", () => {
+          data.destroy();
+          setImmediate(() => reject(storageError));
+        });
+      }),
+  );
+
+  seedQueuedExport();
+
+  const thrown = await runAndCatch();
+
+  expect(thrown).toBe(storageError);
+  expect(thrown.message).toContain("S3");
   expect(mocks.getSignedUrl).not.toHaveBeenCalled();
 });
