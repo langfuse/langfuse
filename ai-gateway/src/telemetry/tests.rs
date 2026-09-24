@@ -96,6 +96,7 @@ async fn upload_uses_prefixed_path_signed_grant_and_gateway_sdk_headers() {
     .await;
     let telemetry = Telemetry::new(
         &ControlPlaneConfig::new(&format!("{}/app", web.url), "test-service-key").unwrap(),
+        DEFAULT_RETAINED_BYTES,
     )
     .unwrap();
     telemetry.record(grant().await, facts("project-1"));
@@ -146,7 +147,7 @@ async fn concurrent_projects_keep_their_original_grants_and_attribution() {
     let telemetry = Telemetry::with_uploader(
         uploader(&web.url),
         2,
-        MAX_RETAINED_BYTES,
+        DEFAULT_RETAINED_BYTES,
         BatchPolicy::default(),
         fast_retry(),
     );
@@ -322,7 +323,7 @@ async fn records_of_one_project_share_an_upload_with_the_latest_expiring_grant()
     let telemetry = Telemetry::with_uploader(
         uploader(&web.url),
         2,
-        MAX_RETAINED_BYTES,
+        DEFAULT_RETAINED_BYTES,
         BatchPolicy::default(),
         fast_retry(),
     );
@@ -388,7 +389,7 @@ async fn interleaved_projects_never_share_an_upload_or_a_grant() {
     let telemetry = Telemetry::with_uploader(
         uploader(&web.url),
         2,
-        MAX_RETAINED_BYTES,
+        DEFAULT_RETAINED_BYTES,
         BatchPolicy {
             max_records: 3,
             ..BatchPolicy::default()
@@ -430,7 +431,7 @@ async fn open_batches_upload_once_their_linger_elapses() {
     let telemetry = Telemetry::with_uploader(
         uploader(&web.url),
         1,
-        MAX_RETAINED_BYTES,
+        DEFAULT_RETAINED_BYTES,
         BatchPolicy {
             linger: Duration::from_millis(20),
             ..BatchPolicy::default()
@@ -456,7 +457,7 @@ async fn deliver_three_records(web: &FakeServer) -> Telemetry {
     let telemetry = Telemetry::with_uploader(
         uploader(&web.url),
         1,
-        MAX_RETAINED_BYTES,
+        DEFAULT_RETAINED_BYTES,
         BatchPolicy::default(),
         fast_retry(),
     );
@@ -493,7 +494,10 @@ async fn transient_failures_resend_the_identical_batch_until_accepted() {
     assert_eq!(bodies[0], bodies[1]);
     assert_eq!(telemetry.0.stats.accepted.load(Ordering::Relaxed), 3);
     assert_eq!(telemetry.0.stats.failed.load(Ordering::Relaxed), 0);
-    assert_eq!(telemetry.0.retained.available_permits(), MAX_RETAINED_BYTES);
+    assert_eq!(
+        telemetry.0.retained.available_permits(),
+        DEFAULT_RETAINED_BYTES
+    );
 }
 
 #[tokio::test]
@@ -503,7 +507,10 @@ async fn batches_that_keep_failing_count_every_record_once_after_the_last_attemp
     assert_eq!(web.calls(), 3);
     assert_eq!(telemetry.0.stats.failed.load(Ordering::Relaxed), 3);
     assert_eq!(telemetry.0.stats.accepted.load(Ordering::Relaxed), 0);
-    assert_eq!(telemetry.0.retained.available_permits(), MAX_RETAINED_BYTES);
+    assert_eq!(
+        telemetry.0.retained.available_permits(),
+        DEFAULT_RETAINED_BYTES
+    );
 }
 
 #[tokio::test]
@@ -520,7 +527,7 @@ async fn shutdown_deadline_cuts_retry_backoff_short() {
     let telemetry = Telemetry::with_uploader(
         uploader(&web.url),
         1,
-        MAX_RETAINED_BYTES,
+        DEFAULT_RETAINED_BYTES,
         BatchPolicy::default(),
         RetryPolicy {
             max_attempts: 3,
@@ -535,7 +542,10 @@ async fn shutdown_deadline_cuts_retry_backoff_short() {
     assert_eq!(web.calls(), 1);
     assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 1);
     assert_eq!(telemetry.0.stats.failed.load(Ordering::Relaxed), 0);
-    assert_eq!(telemetry.0.retained.available_permits(), MAX_RETAINED_BYTES);
+    assert_eq!(
+        telemetry.0.retained.available_permits(),
+        DEFAULT_RETAINED_BYTES
+    );
 }
 
 #[tokio::test]
@@ -554,7 +564,7 @@ async fn shutdown_deadline_bounds_hanging_delivery_and_closes_admission() {
     let telemetry = Telemetry::with_uploader(
         uploader(&web.url),
         1,
-        MAX_RETAINED_BYTES,
+        DEFAULT_RETAINED_BYTES,
         BatchPolicy {
             max_records: 1,
             ..BatchPolicy::default()
@@ -570,7 +580,10 @@ async fn shutdown_deadline_bounds_hanging_delivery_and_closes_admission() {
     assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 0);
     telemetry.shutdown(Instant::now()).await;
     assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 2);
-    assert_eq!(telemetry.0.retained.available_permits(), MAX_RETAINED_BYTES);
+    assert_eq!(
+        telemetry.0.retained.available_permits(),
+        DEFAULT_RETAINED_BYTES
+    );
     telemetry.record(grant().await, facts("project-1"));
     assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 3);
     assert_eq!(web.calls(), 1);
@@ -631,7 +644,7 @@ async fn oversized_records_are_dropped_before_admission() {
     let telemetry = Telemetry::with_uploader(
         uploader(&web.url),
         1,
-        MAX_RETAINED_BYTES,
+        DEFAULT_RETAINED_BYTES,
         BatchPolicy::default(),
         fast_retry(),
     );
@@ -639,7 +652,10 @@ async fn oversized_records_are_dropped_before_admission() {
     oversized.metadata["key_metadata"] = json!({"oversized": "x".repeat(MAX_RECORD_BYTES)});
     telemetry.record(grant().await, oversized);
     assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 1);
-    assert_eq!(telemetry.0.retained.available_permits(), MAX_RETAINED_BYTES);
+    assert_eq!(
+        telemetry.0.retained.available_permits(),
+        DEFAULT_RETAINED_BYTES
+    );
     telemetry
         .shutdown(Instant::now() + Duration::from_secs(2))
         .await;

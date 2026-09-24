@@ -11,6 +11,7 @@ pub struct GatewayConfig {
     pub log_format: LogFormat,
     pub max_active_requests: usize,
     pub max_concurrent_resolutions: usize,
+    pub telemetry_buffer_bytes: usize,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -46,6 +47,9 @@ impl GatewayConfig {
             read_env("LANGFUSE_LOG_FORMAT")?.as_deref(),
             read_env("LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS")?.as_deref(),
             read_env("LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS")?.as_deref(),
+        )?;
+        config.telemetry_buffer_bytes = telemetry_buffer_bytes(
+            read_env("LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_MIB")?.as_deref(),
         )?;
         if let Some(web_url) =
             read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?.filter(|url| !url.is_empty())
@@ -140,6 +144,7 @@ impl GatewayConfig {
                 max_concurrent_resolutions,
                 "LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS must be a positive integer within the semaphore capacity",
             )?,
+            telemetry_buffer_bytes: crate::telemetry::DEFAULT_RETAINED_BYTES,
         })
     }
 }
@@ -154,6 +159,20 @@ fn concurrency_limit(
         .ok()
         .filter(|limit| (1..=tokio::sync::Semaphore::MAX_PERMITS).contains(limit))
         .ok_or(GatewayConfigError(message))
+}
+
+fn telemetry_buffer_bytes(value: Option<&str>) -> Result<usize, GatewayConfigError> {
+    let Some(value) = value else {
+        return Ok(crate::telemetry::DEFAULT_RETAINED_BYTES);
+    };
+    value
+        .parse::<usize>()
+        .ok()
+        .filter(|mebibytes| (4..=4096).contains(mebibytes))
+        .map(|mebibytes| mebibytes * 1024 * 1024)
+        .ok_or(GatewayConfigError(
+            "LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_MIB must be an integer from 4 to 4096",
+        ))
 }
 
 fn read_env(name: &'static str) -> Result<Option<String>, GatewayConfigError> {
@@ -188,6 +207,7 @@ mod tests {
         assert_eq!(default.log_format, LogFormat::Text);
         assert_eq!(default.max_active_requests, 128);
         assert_eq!(default.max_concurrent_resolutions, 128);
+        assert_eq!(default.telemetry_buffer_bytes, 64 * 1024 * 1024);
         let custom = GatewayConfig::from_values(
             Some("[::1]:9000"),
             Some("true"),
@@ -313,6 +333,31 @@ mod tests {
                 assert!(error.to_string().contains(name));
                 assert!(!error.to_string().contains("secret-that-must-not-appear"));
             }
+        }
+    }
+
+    #[test]
+    fn telemetry_buffer_is_read_in_mebibytes_within_bounds() {
+        assert_eq!(telemetry_buffer_bytes(None).unwrap(), 64 * 1024 * 1024);
+        assert_eq!(telemetry_buffer_bytes(Some("4")).unwrap(), 4 * 1024 * 1024);
+        assert_eq!(
+            telemetry_buffer_bytes(Some("4096")).unwrap(),
+            4096 * 1024 * 1024
+        );
+        for value in [
+            "",
+            "0",
+            "3",
+            "4097",
+            "-1",
+            "1.5",
+            "secret-that-must-not-appear",
+        ] {
+            let error = telemetry_buffer_bytes(Some(value)).err().unwrap();
+            assert_eq!(
+                error.to_string(),
+                "LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_MIB must be an integer from 4 to 4096"
+            );
         }
     }
 }

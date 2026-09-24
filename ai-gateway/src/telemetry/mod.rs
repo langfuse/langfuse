@@ -38,7 +38,7 @@ use worker::{Message, Uploads};
 
 const MAX_UPLOADS: usize = 32;
 const MAX_RECORD_BYTES: usize = 4 * 1024 * 1024;
-const MAX_RETAINED_BYTES: usize = 16 * 1024 * 1024;
+pub(crate) const DEFAULT_RETAINED_BYTES: usize = 64 * 1024 * 1024;
 const MAX_QUEUED_RECORDS: usize = 1024;
 
 struct Grant {
@@ -122,11 +122,14 @@ struct Delivery {
 pub struct Telemetry(Arc<Delivery>);
 
 impl Telemetry {
-    pub(crate) fn new(config: &ControlPlaneConfig) -> Result<Self, ResolutionError> {
+    pub(crate) fn new(
+        config: &ControlPlaneConfig,
+        retained_bytes: usize,
+    ) -> Result<Self, ResolutionError> {
         Ok(Self::with_uploader(
             Uploader::new(config)?,
             MAX_UPLOADS,
-            MAX_RETAINED_BYTES,
+            retained_bytes,
             BatchPolicy::default(),
             RetryPolicy::default(),
         ))
@@ -137,7 +140,7 @@ impl Telemetry {
         Self::with_uploader(
             Uploader::new(config).expect("test uploader"),
             MAX_UPLOADS,
-            MAX_RETAINED_BYTES,
+            DEFAULT_RETAINED_BYTES,
             BatchPolicy {
                 linger: Duration::from_millis(10),
                 ..BatchPolicy::default()

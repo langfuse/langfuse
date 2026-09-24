@@ -313,6 +313,7 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
     let (collector, uploaded) = collector().await;
     let telemetry = crate::telemetry::Telemetry::new(
         &crate::resolution::ControlPlaneConfig::new(&collector.url, "test-service-key").unwrap(),
+        crate::telemetry::DEFAULT_RETAINED_BYTES,
     )
     .unwrap();
     let context =

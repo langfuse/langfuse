@@ -272,8 +272,11 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
         }
     })
     .await;
-    let telemetry =
-        Telemetry::new(&ControlPlaneConfig::new(&web.url, "test-service-key").unwrap()).unwrap();
+    let telemetry = Telemetry::new(
+        &ControlPlaneConfig::new(&web.url, "test-service-key").unwrap(),
+        crate::telemetry::DEFAULT_RETAINED_BYTES,
+    )
+    .unwrap();
     let service = InferenceService::for_test(
         web.control_plane(),
         ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default())
