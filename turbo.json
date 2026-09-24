@@ -32,9 +32,11 @@
       "dependsOn": ["^start"]
     },
     "db:migrate": {
+      "env": ["DATABASE_URL", "DIRECT_URL"],
       "cache": false
     },
     "db:deploy": {
+      "env": ["DATABASE_URL", "DIRECT_URL"],
       "cache": false
     },
     "db:reset": {

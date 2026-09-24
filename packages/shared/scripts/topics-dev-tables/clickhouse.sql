@@ -1,4 +1,4 @@
--- Single-node development schema. Existing tables are not upgraded.
+-- Creation-only Topics schema. Existing tables are validated, not upgraded.
 CREATE TABLE IF NOT EXISTS topics
 (
     project_id String,

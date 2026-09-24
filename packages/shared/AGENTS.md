@@ -159,6 +159,9 @@ the same PR.
 - Build: `pnpm --filter @langfuse/shared run build`
 - Prisma generate: `pnpm --filter @langfuse/shared run db:generate`
 - Prisma migrate (dev): `pnpm --filter @langfuse/shared run db:migrate`
+- Topics table preflight: `pnpm run topics:dev-tables`; add `--apply` to create.
+  For deployment targeting and external-table ownership, see
+  `scripts/topics-dev-tables/README.md`.
 - ClickHouse reset: `pnpm --filter @langfuse/shared run ch:reset`
 - Materialize direct-migration trees: `pnpm ch:migrations:materialize`
 - Clean direct-migration trees: `pnpm ch:migrations:clean`
@@ -168,7 +171,9 @@ the same PR.
 ### Postgres schema change
 
 1. Update `prisma/schema.prisma`.
-2. Add migration in `prisma/migrations/*`.
+2. Add migration in `prisma/migrations/*`. Topics tables are externally managed
+   in `prisma.config.ts`; update their provisioning SQL and plan explicit upgrades
+   instead of generating migrations for them.
 3. Regenerate client/types via `db:generate`.
 4. Update affected repository/query code under `src/server/repositories/*`.
 5. Add/adjust `web` and/or `worker` tests for changed behavior.

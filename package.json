@@ -25,7 +25,7 @@
     "nuke": "bash ./scripts/nuke.sh",
     "scan:client-bundle": "node scripts/scan-client-bundle.mjs web/.next/static",
     "seed": "pnpm --filter=shared run seed:scenario",
-    "topics:dev-setup": "pnpm --filter @langfuse/shared run db:deploy && pnpm run db:generate && pnpm --filter @langfuse/shared run build && pnpm --filter @langfuse/shared run ch:up && pnpm --filter @langfuse/shared run topics:dev-tables && pnpm --filter @langfuse/shared run db:seed && pnpm --filter @langfuse/shared run ch:seed && pnpm --filter @langfuse/shared run ch:dev-tables && pnpm --filter @langfuse/shared run db:seed:examples && pnpm run seed -- topics",
+    "topics:dev-setup": "pnpm --filter @langfuse/shared run db:deploy && pnpm run db:generate && pnpm --filter @langfuse/shared run build && pnpm --filter @langfuse/shared run ch:up && pnpm --filter @langfuse/shared run topics:dev-tables --apply && pnpm --filter @langfuse/shared run db:seed && pnpm --filter @langfuse/shared run ch:seed && pnpm --filter @langfuse/shared run ch:dev-tables && pnpm --filter @langfuse/shared run db:seed:examples && pnpm run seed -- topics",
     "dx": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "dx-f": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset -f && SKIP_CONFIRM=1 pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "dx:skip-infra": "pnpm i && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
@@ -48,7 +48,8 @@
     "test": "turbo run test",
     "release": "bash ./scripts/release-preflight.sh && dotenv -e ../.env -- release-it",
     "release:cloud": "bash ./scripts/release-cloud.sh",
-    "prepare": "husky"
+    "prepare": "husky",
+    "topics:dev-tables": "pnpm --filter @langfuse/shared run topics:dev-tables"
   },
   "devDependencies": {
     "@release-it/bumper": "^7.0.6",

@@ -1,4 +1,4 @@
--- Creation-only development schema. Existing tables are not upgraded.
+-- Creation-only Topics schema. Existing tables are validated, not upgraded.
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS "facets" (
