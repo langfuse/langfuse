@@ -13,6 +13,7 @@ import {
   TraceReviewPanelProvider,
   useTraceReviewPanel,
 } from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import { SessionReviewLeading } from "./sessionReviewLeading";
 import { SessionReviewWorkspace } from "./SessionReviewWorkspace";
 
 const { groupRef, router } = vi.hoisted(() => ({
@@ -121,6 +122,9 @@ function Harness() {
   return (
     <TraceReviewPanelProvider projectId="project">
       <SessionReviewWorkspace projectId="project">
+        <SessionReviewLeading>
+          <div>Session metrics</div>
+        </SessionReviewLeading>
         <SessionContent />
       </SessionReviewWorkspace>
     </TraceReviewPanelProvider>
@@ -137,6 +141,7 @@ function resize(nextWidth: number) {
 
 beforeEach(() => {
   width = 1200;
+  groupRef.current.setLayout.mockClear();
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -172,6 +177,24 @@ afterEach(() => {
 });
 
 describe("session review workspace", () => {
+  it("keeps session metrics above both panels and opens a narrow review column", async () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Annotate session" }));
+
+    const metrics = screen.getByText("Session metrics");
+    const panels = screen.getByTestId("workspace-panels");
+    expect(metrics.parentElement).toHaveClass("sticky");
+    expect(metrics.parentElement?.nextElementSibling).toBe(panels);
+    expect(panels.contains(metrics)).toBe(false);
+
+    await waitFor(() => {
+      const reviewSizes = groupRef.current.setLayout.mock.calls
+        .map((call: [{ review: number }]) => call[0].review)
+        .filter((review: number) => review > 0);
+      expect(reviewSizes.at(-1)).toBe(32);
+    });
+  });
+
   it("brings an opened stacked editor into its own scrollport", async () => {
     width = 320;
     const { container } = render(<Harness />);
