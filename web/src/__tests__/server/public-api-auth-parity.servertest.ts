@@ -119,7 +119,7 @@ const projectRoutes: Route[] = [
     methods: ["PATCH"],
   },
   { route: "v1/skills/index", methods: ["GET", "POST"] },
-  { route: "v1/skills/[skillName]/index", methods: ["GET"] },
+  { route: "v1/skills/[skillName]/index", methods: ["GET", "PATCH"] },
   {
     route: "v1/skills/[skillName]/versions/[skillVersion]",
     methods: ["PATCH", "DELETE"],

@@ -4,6 +4,7 @@ import {
   SkillNameSchema,
   SkillSelectorSchema,
   SkillVersionSchema,
+  UpdateSkillTagsBodySchema,
 } from "@langfuse/shared";
 import {
   createAuthedProjectAPIRoute,
@@ -16,6 +17,27 @@ const querySchema = SkillSelectorSchema.and(
 );
 
 export default withMiddlewares({
+  PATCH: createAuthedProjectAPIRoute({
+    name: "Update Skill",
+    action: "skills:CUD",
+    querySchema: z.object({ skillName: SkillNameSchema }),
+    bodySchema: UpdateSkillTagsBodySchema,
+    responseSchema: SkillVersionSchema,
+    rateLimitResource: "public-api",
+    fn: ({ query, body, auth, ctx }) =>
+      new SkillService(prisma).setTags({
+        projectId: auth.scope.projectId,
+        name: query.skillName,
+        tags: body.tags,
+        actor: {
+          apiKeyId: auth.scope.apiKeyId!,
+          orgId: auth.scope.orgId,
+          projectId: auth.scope.projectId,
+          accessLevel: auth.scope.accessLevel,
+          ctx,
+        },
+      }),
+  }),
   GET: createAuthedProjectAPIRoute({
     name: "Get Skill",
     action: "skills:read",

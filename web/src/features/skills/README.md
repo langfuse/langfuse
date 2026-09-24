@@ -4,6 +4,7 @@
 - `POST /api/public/v1/skills`
 - `POST /api/public/v1/skills/blobs`
 - `GET /api/public/v1/skills/{skillName}`
+- `PATCH /api/public/v1/skills/{skillName}`
 - `GET /api/public/v1/skills/files/{fileId}/content`
 - `PATCH /api/public/v1/skills/{skillName}/versions/{skillVersion}`
 - `DELETE /api/public/v1/skills/{skillName}/versions/{skillVersion}`

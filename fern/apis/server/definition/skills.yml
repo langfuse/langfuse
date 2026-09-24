@@ -62,6 +62,15 @@ service:
           label: optional<string>
       response: SkillVersion
 
+    update:
+      docs: Replace the shared tags across all versions of a skill. An empty tags list clears all tags. Returns the latest skill version with the updated tags.
+      method: PATCH
+      path: /skills/{skillName}
+      path-parameters:
+        skillName: string
+      request: UpdateSkillRequest
+      response: SkillVersion
+
     getFileContent:
       docs: |
         Download one file from a persisted skill version using its file id, not its blob id.
@@ -178,6 +187,12 @@ types:
       labels: list<string>
       commitMessage: nullable<string>
       files: list<SkillFile>
+
+  UpdateSkillRequest:
+    properties:
+      tags:
+        type: list<string>
+        docs: The complete set of tags to apply to every version of the skill. Pass an empty list to clear all tags.
 
   UpdateSkillLabelsRequest:
     properties:

@@ -7599,6 +7599,59 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+    patch:
+      description: >-
+        Replace the shared tags across all versions of a skill. An empty tags
+        list clears all tags. Returns the latest skill version with the updated
+        tags.
+      operationId: skills_update
+      tags:
+        - Skills
+      parameters:
+        - name: skillName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillVersion'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSkillRequest'
   /api/public/v1/skills/files/{fileId}/content:
     get:
       description: >-
@@ -17248,6 +17301,19 @@ components:
         - labels
         - commitMessage
         - files
+    UpdateSkillRequest:
+      title: UpdateSkillRequest
+      type: object
+      properties:
+        tags:
+          type: array
+          items:
+            type: string
+          description: >-
+            The complete set of tags to apply to every version of the skill.
+            Pass an empty list to clear all tags.
+      required:
+        - tags
     UpdateSkillLabelsRequest:
       title: UpdateSkillLabelsRequest
       type: object

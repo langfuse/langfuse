@@ -648,7 +648,7 @@ export class SkillService {
   async setTags(params: {
     projectId: string;
     name: string;
-    version: number;
+    version?: number;
     tags: string[];
     actor: SkillActor;
   }) {
@@ -661,8 +661,9 @@ export class SkillService {
           name: params.name,
           version: params.version,
         },
+        orderBy: { version: "desc" },
       });
-      if (!target) throw new LangfuseNotFoundError("Skill version not found");
+      if (!target) throw new LangfuseNotFoundError("Skill not found");
 
       const tags = [...new Set(input.tags)];
       await tx.skill.updateMany({
