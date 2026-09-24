@@ -228,14 +228,19 @@ async function validateBaseURLForAdapter(params: {
   adapter: LLMAdapter;
   baseURL: string;
 }): Promise<void> {
-  // The TypeSafe provider appends /systemone to the base URL itself.
-  if (
-    params.adapter === LLMAdapter.TypeSafe &&
-    /\/systemone\/?$/.test(params.baseURL)
-  ) {
-    throw new Error(
-      "Remove /systemone from the end of the base URL. Langfuse appends it.",
-    );
+  // The TypeSafe provider appends /systemone to the raw base URL string.
+  if (params.adapter === LLMAdapter.TypeSafe) {
+    const url = new URL(params.baseURL);
+    if (/\/systemone\/?$/.test(url.pathname)) {
+      throw new Error(
+        "Remove /systemone from the end of the base URL. Langfuse appends it.",
+      );
+    }
+    if (url.search || url.hash) {
+      throw new Error(
+        "Remove the query string from the base URL. Langfuse appends /systemone to it.",
+      );
+    }
   }
 
   await validateLlmConnectionBaseURL(params.baseURL);

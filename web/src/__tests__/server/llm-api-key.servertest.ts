@@ -403,7 +403,7 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys).toHaveLength(0);
   });
 
-  it("should reject decision-model base URLs that already end in /systemone", async () => {
+  it("should reject decision-model base URLs that end in /systemone or have a query string", async () => {
     const connection = {
       projectId,
       secretKey: "sk-proxy",
@@ -426,6 +426,18 @@ describe("llmApiKey.all RPC", () => {
       success: false,
       error: expect.stringContaining("Remove /systemone"),
     });
+    await expect(
+      caller.llmApiKey.create({
+        ...connection,
+        baseURL: "https://example.com/typesafe/v1/systemone?api-version=1",
+      }),
+    ).rejects.toThrow("Remove /systemone");
+    await expect(
+      caller.llmApiKey.create({
+        ...connection,
+        baseURL: "https://example.com/typesafe/v1?api-version=1",
+      }),
+    ).rejects.toThrow("Remove the query string");
 
     await caller.llmApiKey.create({
       ...connection,
