@@ -252,6 +252,8 @@ const SCORES_DDL = `
 //  c: two day-buckets (distinct dedup groups), trace_id T3
 //  d: has observation_id O1
 //  e: value mutates 0.9 -> 0.1 (latest) — exercises dedup-then-filter
+//  f: two rows sharing the SAME max event_ts (a tie) — the equality join emits
+//     both, so the dedup must collapse them to one row before any filter runs
 const ROWS: Array<
   [string, string, string, string, string | null, number, number]
 > = [
@@ -263,6 +265,8 @@ const ROWS: Array<
   ["d", "n3", "2026-01-10 07:00:00.000", "T4", "O1", 0.4, 1],
   ["e", "n4", "2026-01-10 06:00:00.000", "T5", null, 0.9, 1],
   ["e", "n4", "2026-01-10 06:05:00.000", "T5", null, 0.1, 2],
+  ["f", "n1", "2026-01-10 05:00:00.000", "T2", null, 0.9, 3],
+  ["f", "n1", "2026-01-10 05:00:00.000", "T2", null, 0.9, 3],
 ];
 
 const insertRows = () => {

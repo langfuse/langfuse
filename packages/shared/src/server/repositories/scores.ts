@@ -1686,9 +1686,13 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   // latest event_ts. The count path collapses columns with one argMax pass. The
   // rows path needs every (incl. wide Map/String) column, so it groups only to
   // find each key's max(event_ts), then INNER JOINs back to scores on the full
-  // key + that event_ts to hydrate the whole latest row. A trailing LIMIT 1 BY
-  // collapses the rare case where two raw rows share a key's max event_ts (the
-  // equality join would emit both) back to a single row.
+  // key + that event_ts to hydrate the whole latest row. Both sides of that join
+  // carry innerScanWhere (project scope + coarse date prune + selective seek),
+  // so the wide-column hydration scan is pruned to the same rows as the group-by,
+  // not the whole table. A LIMIT 1 BY inside the dedup subquery collapses the
+  // rare case where two raw rows share a key's max event_ts (the equality join
+  // would emit both) to one row — before any outer filter runs, so a filter can
+  // never resurrect a tied row the retained one would have excluded.
   //
   // The GROUP BY runs in sort-key order on a narrow projection, and wide columns
   // are read only for the deduped keys the join hydrates, so the only sort left
@@ -1731,27 +1735,31 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       ${tracesCTEClause}
       SELECT
           ${rowSelect}
-      FROM scores s
-      INNER JOIN (
-        SELECT
-          s.project_id AS project_id,
-          toDate(s.timestamp) AS date,
-          s.name AS name,
-          s.id AS id,
-          max(s.event_ts) AS event_ts
+      FROM (
+        SELECT s.*
         FROM scores s
+        INNER JOIN (
+          SELECT
+            s.project_id AS latest_project_id,
+            toDate(s.timestamp) AS latest_date,
+            s.name AS latest_name,
+            s.id AS latest_id,
+            max(s.event_ts) AS latest_event_ts
+          FROM scores s
+          ${innerScanWhere}
+          GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
+        ) latest
+          ON s.project_id = latest.latest_project_id
+          AND toDate(s.timestamp) = latest.latest_date
+          AND s.name = latest.latest_name
+          AND s.id = latest.latest_id
+          AND s.event_ts = latest.latest_event_ts
         ${innerScanWhere}
-        GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
-      ) latest
-        ON s.project_id = latest.project_id
-        AND toDate(s.timestamp) = latest.date
-        AND s.name = latest.name
-        AND s.id = latest.id
-        AND s.event_ts = latest.event_ts
+        LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
+      ) s
       ${eventsJoin}
       ${outerWhereClause}
       ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
-      LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
