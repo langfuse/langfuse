@@ -10570,9 +10570,13 @@ components:
         metadata:
           description: Metadata associated with the dataset
         inputSchema:
+          type: object
+          additionalProperties: true
           nullable: true
           description: JSON Schema for validating dataset item inputs
         expectedOutputSchema:
+          type: object
+          additionalProperties: true
           nullable: true
           description: JSON Schema for validating dataset item expected outputs
         projectId:
@@ -11492,11 +11496,15 @@ components:
         metadata:
           nullable: true
         inputSchema:
+          type: object
+          additionalProperties: true
           nullable: true
           description: >-
             JSON Schema for validating dataset item inputs. When set, all new
             and existing dataset items will be validated against this schema.
         expectedOutputSchema:
+          type: object
+          additionalProperties: true
           nullable: true
           description: >-
             JSON Schema for validating dataset item expected outputs. When set,
@@ -15048,12 +15056,15 @@ components:
       description: Individual span representing a unit of work or operation
       properties:
         traceId:
+          type: string
           nullable: true
           description: Trace ID (16 bytes, hex-encoded string in JSON or Buffer in binary)
         spanId:
+          type: string
           nullable: true
           description: Span ID (8 bytes, hex-encoded string in JSON or Buffer in binary)
         parentSpanId:
+          type: string
           nullable: true
           description: Parent span ID if this is a child span
         name:
@@ -15065,11 +15076,17 @@ components:
           nullable: true
           description: Span kind (1=INTERNAL, 2=SERVER, 3=CLIENT, 4=PRODUCER, 5=CONSUMER)
         startTimeUnixNano:
+          type: string
           nullable: true
-          description: Start time in nanoseconds since Unix epoch
+          description: >-
+            Start time in nanoseconds since Unix epoch (64-bit value serialized
+            as a string in JSON)
         endTimeUnixNano:
+          type: string
           nullable: true
-          description: End time in nanoseconds since Unix epoch
+          description: >-
+            End time in nanoseconds since Unix epoch (64-bit value serialized as
+            a string in JSON)
         attributes:
           type: array
           items:
@@ -15079,6 +15096,8 @@ components:
             Span attributes including Langfuse-specific attributes
             (langfuse.observation.*)
         status:
+          type: object
+          additionalProperties: true
           nullable: true
           description: Span status object
     OtelAttribute:
