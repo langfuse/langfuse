@@ -8,7 +8,7 @@ import {
 // Score columns whose equality / IN predicate an index can prune, letting the
 // selective-seek path collect candidate dedup keys without a full-project scan:
 //   - id                        → idx_id (bloom_filter)
-//   - trace_id / observation_id → idx_project_trace_observation (bloom_filter)
+//   - trace_id / observation_id → idx_project_trace_observation_v2 (bloom_filter)
 //   - session_id                → idx_project_session (bloom_filter)
 //   - dataset_run_id            → idx_project_dataset_run (bloom_filter)
 //   - evaluator_id              → idx_evaluator_id (bloom_filter)
