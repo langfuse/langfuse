@@ -112,7 +112,30 @@ export const skillRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "skills:read",
       });
-      return new SkillService(prisma).skillVersions(input);
+      const history = await new SkillService(prisma).skillVersions(input);
+      const userIds = [
+        ...new Set(history.items.map((item) => item.createdBy)),
+      ].filter((id) => id !== "API");
+      const users = userIds.length
+        ? await ctx.prisma.user.findMany({
+            select: { id: true, name: true },
+            where: {
+              id: { in: userIds },
+              organizationMemberships: {
+                some: { orgId: ctx.session.orgId },
+              },
+            },
+          })
+        : [];
+      const namesById = new Map(users.map((user) => [user.id, user.name]));
+      return {
+        ...history,
+        items: history.items.map((item) => ({
+          ...item,
+          creator:
+            item.createdBy === "API" ? "API" : namesById.get(item.createdBy),
+        })),
+      };
     }),
 
   prepareUploads: protectedProjectProcedure

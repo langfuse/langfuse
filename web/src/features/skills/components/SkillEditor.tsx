@@ -71,6 +71,8 @@ export function SkillEditor({
           labels: string[];
           commitMessage: string | null;
           createdAt: Date;
+          createdBy: string;
+          creator: string | null | undefined;
         }>;
         selectedVersion: number;
         hasMore: boolean;
@@ -139,7 +141,10 @@ export function SkillEditor({
   const [isDownloading, setIsDownloading] = useState(false);
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
   const createButtonTitle = canCreate
-    ? (createDisabledReason ?? undefined)
+    ? (createDisabledReason ??
+      (baseVersion !== null && !dirty
+        ? "Edit the skill to create a new version"
+        : undefined))
     : "You do not have write access";
 
   const save = async (createNew: boolean): Promise<boolean> => {
@@ -149,7 +154,7 @@ export function SkillEditor({
       store.getState().isImporting ||
       createDisabledReason ||
       isCheckingName ||
-      (!createNew && hasNameChanged)
+      (!createNew && (hasNameChanged || !store.getState().dirty))
     )
       return false;
     setIsSaving(true);
@@ -182,16 +187,26 @@ export function SkillEditor({
     }
   };
 
-  const saveLabels = async (labels: string[]): Promise<boolean> => {
-    if (baseVersion === null) return false;
+  const saveLabels = async (
+    version: number,
+    labels: string[],
+  ): Promise<boolean> => {
     try {
       await saveSkillLabels({
         projectId,
         name,
-        version: baseVersion,
+        version,
         labels,
         store,
         setLabels: (input) => setVersionLabels.mutateAsync(input),
+        getLabels: async (selectedVersion) =>
+          (
+            await utils.skills.byName.fetch({
+              projectId,
+              name,
+              version: selectedVersion,
+            })
+          ).labels,
         invalidate: () =>
           Promise.all([
             utils.skills.all.invalidate(),
@@ -201,7 +216,7 @@ export function SkillEditor({
       });
       showSuccessToast({
         title: "Skill labels updated",
-        description: `Version ${baseVersion} now uses the selected labels.`,
+        description: `Version ${version} now uses the selected labels.`,
       });
       return true;
     } catch (error) {
@@ -279,7 +294,11 @@ export function SkillEditor({
                 canEdit={canCreate}
                 isSavingLabels={setVersionLabels.isPending}
                 isSavingTags={setVersionTags.isPending}
-                onSaveLabels={saveLabels}
+                onSaveLabels={(labels) =>
+                  baseVersion === null
+                    ? Promise.resolve(false)
+                    : saveLabels(baseVersion, labels)
+                }
                 onSaveTags={saveTags}
                 metadataOptions={metadataOptions}
               />
@@ -342,7 +361,7 @@ export function SkillEditor({
                   isImporting ||
                   Boolean(createDisabledReason) ||
                   isCheckingName ||
-                  (!createNew && hasNameChanged)
+                  (!createNew && (hasNameChanged || !dirty))
                 }
                 onCancel={closeDialog}
                 onConfirm={async () => {
@@ -360,6 +379,7 @@ export function SkillEditor({
                       !canCreate ||
                       isSaving ||
                       isImporting ||
+                      (baseVersion !== null && !dirty) ||
                       Boolean(createDisabledReason) ||
                       isCheckingName
                     }
@@ -392,7 +412,14 @@ export function SkillEditor({
       </PageHeaderActionsPortal>
       <div className="flex min-h-[720px] flex-1 flex-col overflow-hidden border-t md:min-h-[560px] md:flex-row">
         {history.kind === "versions" ? (
-          <SkillVersionHistory {...history} dirty={dirty} />
+          <SkillVersionHistory
+            {...history}
+            dirty={dirty}
+            canEdit={canCreate}
+            labelOptions={metadataOptions.labels}
+            isSavingLabels={setVersionLabels.isPending}
+            onSaveLabels={saveLabels}
+          />
         ) : (
           <SkillVersionHistory kind="new" />
         )}
@@ -447,6 +474,7 @@ function SkillMetadataFields({
       <div className="flex min-w-0 items-center gap-1.5">
         <span className="text-muted-foreground text-xs">Labels</span>
         <SkillLabelsSelect
+          showOnlyOnHover={false}
           value={labels}
           options={metadataOptions.labels}
           disabled={!canEdit}

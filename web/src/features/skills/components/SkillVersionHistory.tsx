@@ -7,6 +7,7 @@ import {
   TimelineItem,
 } from "@/src/features/prompts/components/timeline";
 import { cn } from "@/src/utils/tailwind";
+import { SkillLabelsSelect } from "./SkillMetadataSelect";
 
 export function SkillVersionHistory(
   props:
@@ -18,6 +19,8 @@ export function SkillVersionHistory(
           labels: string[];
           commitMessage: string | null;
           createdAt: Date;
+          createdBy: string;
+          creator: string | null | undefined;
         }>;
         selectedVersion: number;
         hasMore: boolean;
@@ -25,6 +28,10 @@ export function SkillVersionHistory(
         loadMoreError: boolean;
         onLoadMore: () => void;
         dirty: boolean;
+        canEdit: boolean;
+        labelOptions: string[];
+        isSavingLabels: boolean;
+        onSaveLabels: (version: number, labels: string[]) => Promise<boolean>;
         onSelect: (version: number) => Promise<void>;
       },
 ) {
@@ -35,8 +42,18 @@ export function SkillVersionHistory(
           (left, right) => right.version - left.version,
         )
       : [];
-  const latestVersion = sortedVersions[0]?.version;
   const showDraft = props.kind === "new" || props.dirty;
+
+  const selectVersion = async (version: number) => {
+    if (props.kind !== "versions" || version === props.selectedVersion) return;
+    if (
+      props.dirty &&
+      !window.confirm("Discard this unsaved draft and open another version?")
+    ) {
+      return;
+    }
+    await props.onSelect(version);
+  };
 
   return (
     <aside
@@ -95,13 +112,50 @@ export function SkillVersionHistory(
             ) : null}
             {props.kind === "versions"
               ? sortedVersions.map(
-                  ({ version, labels, commitMessage, createdAt }) => (
+                  ({
+                    version,
+                    labels,
+                    commitMessage,
+                    createdAt,
+                    createdBy,
+                    creator,
+                  }) => (
                     <TimelineItem
                       key={version}
+                      className="group/skill-version"
                       isActive={
                         !props.dirty && version === props.selectedVersion
                       }
                     >
+                      <div className="flex flex-wrap items-center gap-1">
+                        <button
+                          type="button"
+                          aria-label={`Open version ${version}`}
+                          aria-current={
+                            !props.dirty && version === props.selectedVersion
+                              ? "page"
+                              : undefined
+                          }
+                          onClick={() => selectVersion(version)}
+                        >
+                          <Badge
+                            variant="outline"
+                            className="bg-background/50 h-6 shrink-0"
+                          >
+                            # {version}
+                          </Badge>
+                        </button>
+                        <SkillLabelsSelect
+                          showOnlyOnHover
+                          value={labels}
+                          options={props.labelOptions}
+                          disabled={!props.canEdit || props.isSavingLabels}
+                          isSaving={props.isSavingLabels}
+                          onSave={(nextLabels) =>
+                            props.onSaveLabels(version, nextLabels)
+                          }
+                        />
+                      </div>
                       <button
                         type="button"
                         className="flex w-full flex-col gap-1 text-left"
@@ -110,27 +164,8 @@ export function SkillVersionHistory(
                             ? "page"
                             : undefined
                         }
-                        onClick={async () => {
-                          if (version === props.selectedVersion) return;
-                          if (
-                            props.dirty &&
-                            !window.confirm(
-                              "Discard this unsaved draft and open another version?",
-                            )
-                          ) {
-                            return;
-                          }
-                          await props.onSelect(version);
-                        }}
+                        onClick={() => selectVersion(version)}
                       >
-                        <span className="flex w-full items-center justify-between gap-2">
-                          <Badge variant="outline"># {version}</Badge>
-                          {version === latestVersion ? (
-                            <span className="text-muted-foreground text-xs">
-                              Latest
-                            </span>
-                          ) : null}
-                        </span>
                         {commitMessage ? (
                           <span
                             className="text-muted-foreground max-w-full truncate text-xs"
@@ -140,25 +175,11 @@ export function SkillVersionHistory(
                           </span>
                         ) : null}
                         <span
-                          className="text-muted-foreground text-xs"
+                          className="text-muted-foreground flex flex-wrap gap-1 text-xs break-words"
                           title={`Created ${createdAt.toLocaleString()}`}
                         >
-                          {createdAt.toLocaleString()}
+                          {createdAt.toLocaleString()} by {creator || createdBy}
                         </span>
-                        {labels.length > 0 ? (
-                          <span className="flex flex-wrap gap-1">
-                            {labels.map((label) => (
-                              <Badge
-                                key={label}
-                                variant="secondary"
-                                className="h-5 max-w-full truncate px-1.5 text-[10px]"
-                                title={label}
-                              >
-                                {label}
-                              </Badge>
-                            ))}
-                          </span>
-                        ) : null}
                       </button>
                     </TimelineItem>
                   ),

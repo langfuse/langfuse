@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Session } from "next-auth";
 import { ForbiddenError } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import { skillRouter } from "@/src/features/skills/server/skill-router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   filterOptions: vi.fn(),
   skillVersions: vi.fn(),
+  findUsers: vi.fn(),
 }));
 
 vi.mock("@/src/server/auth", () => ({ getServerAuthSession: vi.fn() }));
@@ -116,11 +118,16 @@ const mutations = [
 describe("skill mutation router", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(prisma.user, "findMany").mockImplementation(mocks.findUsers);
     mocks.createVersion.mockResolvedValue({ version: 1 });
     mocks.setLabels.mockResolvedValue({ version: 1 });
     mocks.setTags.mockResolvedValue({ version: 1 });
     mocks.deleteVersion.mockResolvedValue(undefined);
+    mocks.skillVersions.mockResolvedValue({ items: [], nextCursor: undefined });
+    mocks.findUsers.mockResolvedValue([]);
   });
+
+  afterEach(() => vi.restoreAllMocks());
 
   it("validates bounded version history and checks project access", async () => {
     const caller = createCaller("VIEWER");

@@ -20,16 +20,19 @@ export function SkillLabelsSelect({
   options,
   disabled,
   isSaving,
+  showOnlyOnHover,
   onSave,
 }: {
   value: string[];
   options: string[];
   disabled: boolean;
   isSaving: boolean;
+  showOnlyOnHover: boolean;
   onSave: (value: string[]) => Promise<boolean>;
 }) {
   const [search, setSearch] = useState("");
-  const [pendingLabels, setPendingLabels] = useState(value);
+  const editableLabels = value.filter((label) => label !== SKILL_LATEST_LABEL);
+  const [pendingLabels, setPendingLabels] = useState(editableLabels);
   const listId = useId();
   const normalizedSearch = search.trim();
   const labels = [...new Set([...options, ...value, ...pendingLabels])]
@@ -46,7 +49,7 @@ export function SkillLabelsSelect({
     PromptLabelSchema.safeParse(normalizedSearch).success;
   const labelsChanged =
     JSON.stringify([...pendingLabels].sort()) !==
-    JSON.stringify([...value].sort());
+    JSON.stringify([...editableLabels].sort());
   const isPromotingToProduction =
     !value.includes("production") && pendingLabels.includes("production");
   const isDemotingFromProduction =
@@ -73,7 +76,7 @@ export function SkillLabelsSelect({
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
-      setPendingLabels(value);
+      setPendingLabels(editableLabels);
       setSearch("");
     }
   };
@@ -176,7 +179,12 @@ export function SkillLabelsSelect({
               size="icon"
               title="Add skill label"
               disabled={disabled}
-              className="bg-muted-gray text-primary h-6 w-6"
+              className={cn(
+                "bg-muted-gray text-primary h-6 w-6",
+                showOnlyOnHover &&
+                  !isOpen &&
+                  "opacity-0 group-focus-within/skill-version:opacity-100 group-hover/skill-version:opacity-100 [@media(hover:none)]:opacity-100",
+              )}
             >
               <CircleFadingArrowUp className="h-3.5 w-3.5" />
             </Button>

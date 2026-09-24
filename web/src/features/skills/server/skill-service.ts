@@ -171,6 +171,7 @@ export class SkillService {
         labels: true,
         commitMessage: true,
         createdAt: true,
+        createdBy: true,
       },
     });
     const hasMore = versions.length > params.limit;
