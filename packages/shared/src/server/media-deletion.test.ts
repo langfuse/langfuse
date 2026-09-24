@@ -57,3 +57,28 @@ it("keeps expired media while a recent trace still references it", async () => {
     }),
   );
 });
+
+it("keeps expired media while a recent dataset upload is pending", async () => {
+  const cutoffDate = new Date("2026-09-16T00:00:00Z");
+  const deleteFiles = vi.fn().mockResolvedValue(undefined);
+  mocks.datasetLinks.mockResolvedValueOnce([{ mediaId: "media-1" }]);
+  mocks.traceLinks.mockResolvedValueOnce([]);
+
+  await expect(
+    deleteMediaFiles({
+      projectId: "project-1",
+      mediaFiles: [{ id: "media-1", bucketPath: "media/media-1.png" }],
+      storageClient: { deleteFiles },
+      linkCleanupCutoffDate: cutoffDate,
+    }),
+  ).resolves.toBe(0);
+
+  expect(deleteFiles).not.toHaveBeenCalled();
+  expect(mocks.datasetLinks).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: expect.objectContaining({
+        OR: expect.arrayContaining([{ createdAt: { gt: cutoffDate } }]),
+      }),
+    }),
+  );
+});
