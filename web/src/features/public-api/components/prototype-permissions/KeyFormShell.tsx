@@ -14,7 +14,6 @@ import {
 } from "@/src/components/ui/card";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { Textarea } from "@/src/components/ui/textarea";
 import { ExpirySelect } from "../prototype/ExpirySelect";
 import { ProjectMultiSelect } from "../prototype/ProjectMultiSelect";
 import {
@@ -59,19 +58,6 @@ export const KeyFormShell = ({
             placeholder="e.g. Production server"
             value={draft.name}
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="description">Description (optional)</Label>
-          <Textarea
-            id="description"
-            rows={2}
-            placeholder="What is this key used for?"
-            value={draft.description}
-            onChange={(e) =>
-              setDraft({ ...draft, description: e.target.value })
-            }
-            className="min-h-0 resize-none"
           />
         </div>
         <div className="flex flex-col gap-1.5">
