@@ -94,9 +94,17 @@ export const VariantSingleDialog = ({
                       e.stopPropagation();
                       openPopup(p.key);
                     }}
-                    className="text-muted-foreground hover:bg-accent hover:text-foreground ml-auto flex shrink-0 items-center gap-1 self-center rounded-md px-1.5 py-1 text-xs"
+                    className="text-muted-foreground hover:bg-accent hover:text-foreground ml-auto flex shrink-0 items-center gap-1.5 self-center rounded-md px-1.5 py-1"
                   >
-                    {rolePermissionCount(p.key)} permissions
+                    <Badge
+                      variant="tertiary"
+                      className="rounded-full px-2 py-0.5 text-xs font-bold tabular-nums"
+                    >
+                      {rolePermissionCount(p.key)}
+                    </Badge>
+                    <span className="text-[0.65rem] font-bold tracking-wider uppercase">
+                      Permissions
+                    </span>
                     <ChevronRight className="h-3.5 w-3.5" />
                   </button>
                 </div>
