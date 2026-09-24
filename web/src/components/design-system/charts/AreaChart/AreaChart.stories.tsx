@@ -160,9 +160,14 @@ export const Intermittent = meta.story({
     )[1];
     if (!hoverArea) throw new Error("Missing hover area for data gap");
     await userEvent.hover(hoverArea);
-    await expect(within(document.body).getByRole("tooltip")).toHaveTextContent(
-      "No data available",
+    const tooltip = within(document.body).getByRole("tooltip");
+    await expect(tooltip).toHaveTextContent("No data available");
+    await expect(tooltip).toHaveTextContent("Sep 2, 2026");
+    const labels = Array.from(
+      canvasElement.querySelectorAll('[data-x-axis-label=""]'),
+      (label) => label.textContent,
     );
+    await expect(new Set(labels).size).toBe(labels.length);
   },
 });
 

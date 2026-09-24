@@ -5,10 +5,6 @@ import {
   type TimeRange,
 } from "@/src/utils/date-range-utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import {
-  formatChartTimestamp,
-  formatChartTooltipTimestamp,
-} from "../../lib/chart-formatters";
 
 export interface NumericTimeSeriesChartProps {
   data: Array<{
@@ -28,8 +24,6 @@ export function ScoreTimeSeriesNumericChart({
   data,
   score1Name,
   score2Name,
-  interval,
-  timeRange,
   colors,
 }: NumericTimeSeriesChartProps) {
   const chartData = useMemo(
@@ -86,10 +80,6 @@ export function ScoreTimeSeriesNumericChart({
       series={series}
       xAxis={{
         type: "time",
-        tickFormatter: (value) =>
-          formatChartTimestamp(value, interval, timeRange),
-        tooltipFormatter: (value) =>
-          formatChartTooltipTimestamp(value, interval, timeRange),
       }}
       valueFormatter={compactNumberFormatter}
       showDataPointDots

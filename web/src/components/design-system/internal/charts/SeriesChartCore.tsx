@@ -66,8 +66,6 @@ type LineChartProps = CommonLineChartProps &
         data: TimeLineChartDatum[];
         xAxis: {
           type: "time";
-          tickFormatter?: (value: Date) => string;
-          tooltipFormatter?: (value: Date) => string;
         };
       }
     | {
@@ -86,17 +84,10 @@ type NormalizedDatum = LineChartValues & {
   x: Date | string;
 };
 
-const APPROX_TIME_TICK_WIDTH = 64;
 const CATEGORY_TICK_GAP = 16;
 const SERIES_HOVER_DISTANCE = 10;
 const MAX_VISIBLE_POINT_RADIUS = 5;
 const defaultValueFormatter = (value: number) => value.toLocaleString();
-const defaultTimeTickFormatter = (value: Date) =>
-  value.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
 
 const getSeriesSummaries = (
   data: LineChartProps["data"],
@@ -529,9 +520,45 @@ function LineChartContent(
       ? timeScale(new Date(Number(key)))
       : (categoryScale(key) ?? LEFT_MARGIN);
 
-  const maxXTicks = Math.max(2, Math.floor(plotWidth / APPROX_TIME_TICK_WIDTH));
-  const firstX = data[0]?.x;
-  const lastX = data[data.length - 1]?.x;
+  const timeDataDates = data.flatMap((datum) =>
+    datum.x instanceof Date ? [datum.x] : [],
+  );
+  const timeTickDates = timeDataDates.filter(
+    (date, index) =>
+      index === 0 || date.getTime() !== timeDataDates[index - 1]!.getTime(),
+  );
+  const sortedTimes = timeTickDates.map((date) => date.getTime());
+  const minTickGap = sortedTimes.reduce((gap, time, index) => {
+    const distance = time - (sortedTimes[index - 1] ?? time);
+    return distance > 0 ? Math.min(gap, distance) : gap;
+  }, Infinity);
+  const crossesYear =
+    timeTickDates[0]?.getUTCFullYear() !==
+    timeTickDates[timeTickDates.length - 1]?.getUTCFullYear();
+  const distinctTickMonths = new Set(
+    timeTickDates.map(
+      (date) => `${date.getUTCFullYear()}-${date.getUTCMonth()}`,
+    ),
+  ).size;
+  const formatTimeTick = (value: Date) =>
+    value.toLocaleString("en-US", {
+      timeZone: "UTC",
+      ...(Number.isFinite(minTickGap) &&
+      minTickGap >= 28 * 24 * 60 * 60 * 1000 &&
+      distinctTickMonths === timeTickDates.length
+        ? { month: "short" as const, year: "numeric" as const }
+        : {
+            month: "short" as const,
+            day: "numeric" as const,
+            ...(crossesYear ? { year: "numeric" as const } : {}),
+            ...(minTickGap < 24 * 60 * 60 * 1000
+              ? { hour: "numeric" as const, minute: "2-digit" as const }
+              : {}),
+            ...(minTickGap < 60 * 60 * 1000
+              ? { second: "2-digit" as const }
+              : {}),
+          }),
+    });
   const categoryTickStep = Math.max(
     1,
     Math.ceil((80 * Math.max(1, data.length - 1)) / Math.max(1, plotWidth)),
@@ -547,30 +574,11 @@ function LineChartContent(
   if (data.length > 1) categoryTickIndices.push(data.length - 1);
   const xTicks =
     xAxis.type === "time"
-      ? [
-          ...(firstX instanceof Date ? [firstX] : []),
-          ...timeScale.ticks(Math.max(0, maxXTicks - 2)).filter((value) => {
-            const x = timeScale(value);
-            return (
-              x - LEFT_MARGIN >= APPROX_TIME_TICK_WIDTH &&
-              LEFT_MARGIN + plotWidth - x >= APPROX_TIME_TICK_WIDTH
-            );
-          }),
-          ...(lastX instanceof Date ? [lastX] : []),
-        ]
-          .filter(
-            (value, index, ticks) =>
-              ticks.findIndex(
-                (candidate) => candidate.getTime() === value.getTime(),
-              ) === index,
-          )
-          .sort((left, right) => left.getTime() - right.getTime())
-          .map((value) => ({
-            key: String(value.getTime()),
-            x: timeScale(value),
-            label:
-              xAxis.tickFormatter?.(value) ?? defaultTimeTickFormatter(value),
-          }))
+      ? timeTickDates.map((value) => ({
+          key: String(value.getTime()),
+          x: timeScale(value),
+          label: formatTimeTick(value),
+        }))
       : categoryTickIndices.map((index, tickIndex) => {
           const datum = data[index]!;
           const previous = categoryTickIndices[tickIndex - 1];
@@ -596,9 +604,7 @@ function LineChartContent(
   const activeDatum = data.find((datum) => datum.key === activeKey);
   const formatXAxisTick = (datum: NormalizedDatum) => {
     if (xAxis.type === "time" && datum.x instanceof Date) {
-      return (
-        xAxis.tickFormatter?.(datum.x) ?? defaultTimeTickFormatter(datum.x)
-      );
+      return formatTimeTick(datum.x);
     }
     if (xAxis.type === "category" && typeof datum.x === "string") {
       return xAxis.tickFormatter?.(datum.x) ?? datum.x;
@@ -612,15 +618,106 @@ function LineChartContent(
         label: formatXAxisTick(activeDatum),
       }
     : undefined;
-  const visibleXTicks = activeXAxisTick
+  const candidateXTicks = activeXAxisTick
     ? [
         ...xTicks.filter((tick) => tick.key !== activeXAxisTick.key),
         { ...activeXAxisTick, maxWidth: undefined },
       ].sort((left, right) => left.x - right.x)
     : xTicks;
+  const visibleXTicks =
+    xAxis.type === "time"
+      ? candidateXTicks
+          // Reserve space for the active label first, then endpoints, before
+          // retaining intermediate ticks whose rendered labels still fit.
+          .map((tick, index) => {
+            const active = tick.key === activeKey;
+            const textWidth = tick.label.length * 7;
+            const labelWidth = active ? textWidth + 96 : textWidth;
+            const start = active
+              ? Math.max(
+                  LEFT_MARGIN,
+                  Math.min(
+                    LEFT_MARGIN + plotWidth - labelWidth,
+                    tick.x - labelWidth / 2,
+                  ),
+                )
+              : candidateXTicks.length > 1 && index === 0
+                ? tick.x
+                : candidateXTicks.length > 1 &&
+                    index === candidateXTicks.length - 1
+                  ? tick.x - labelWidth
+                  : tick.x - labelWidth / 2;
+            return {
+              tick: {
+                ...tick,
+                textAnchor: active
+                  ? undefined
+                  : candidateXTicks.length === 1
+                    ? ("middle" as const)
+                    : index === 0
+                      ? ("start" as const)
+                      : index === candidateXTicks.length - 1
+                        ? ("end" as const)
+                        : ("middle" as const),
+              },
+              index,
+              start,
+              end: start + labelWidth,
+            };
+          })
+          .sort((left, right) => {
+            if (left.tick.key === activeKey) return -1;
+            if (right.tick.key === activeKey) return 1;
+            const leftEndpoint =
+              left.index === 0 || left.index === candidateXTicks.length - 1;
+            const rightEndpoint =
+              right.index === 0 || right.index === candidateXTicks.length - 1;
+            return Number(rightEndpoint) - Number(leftEndpoint);
+          })
+          .reduce<
+            Array<{
+              tick: (typeof candidateXTicks)[number];
+              start: number;
+              end: number;
+            }>
+          >((visible, candidate) => {
+            if (
+              visible.some(
+                (item) =>
+                  candidate.start < item.end + 8 &&
+                  candidate.end + 8 > item.start,
+              )
+            ) {
+              return visible;
+            }
+            visible.push(candidate);
+            return visible;
+          }, [])
+          .map(({ tick }) => tick)
+          .sort((left, right) => left.x - right.x)
+      : candidateXTicks;
+  const showTooltipTime = timeDataDates.some(
+    (date, index) =>
+      date.getUTCHours() !== 0 ||
+      date.getUTCMinutes() !== 0 ||
+      date.getUTCSeconds() !== 0 ||
+      (index > 0 &&
+        date.getTime() - timeDataDates[index - 1]!.getTime() <
+          24 * 60 * 60 * 1000),
+  );
+  const showTooltipSeconds = timeDataDates.some(
+    (date) => date.getUTCSeconds() !== 0,
+  );
   const formatXTooltip = (datum: NormalizedDatum) => {
     if (xAxis.type === "time" && datum.x instanceof Date) {
-      return xAxis.tooltipFormatter?.(datum.x) ?? datum.x.toLocaleString();
+      return datum.x.toLocaleString("en-US", {
+        timeZone: "UTC",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        ...(showTooltipTime ? { hour: "numeric", minute: "2-digit" } : {}),
+        ...(showTooltipSeconds ? { second: "2-digit" } : {}),
+      });
     }
     if (xAxis.type === "category" && typeof datum.x === "string") {
       return xAxis.tooltipFormatter?.(datum.x) ?? datum.x;

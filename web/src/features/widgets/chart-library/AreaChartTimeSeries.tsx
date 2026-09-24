@@ -152,8 +152,6 @@ export function AreaChartTimeSeries({
         legend={chartLegend}
         xAxis={{
           type: "time",
-          tickFormatter: (value) => timeAxis.formatTick(value.getTime()),
-          tooltipFormatter: (value) => timeAxis.formatTooltip(value.getTime()),
         }}
       />
     );
