@@ -1013,6 +1013,8 @@ jobs:
           pnpm --filter=shared ch:dev-tables
       - name: Build
         run: pnpm --filter=worker... run build
+      - name: Setup Topics ClickHouse tables
+        run: pnpm --filter=shared run topics:dev-tables clickhouse --apply
       - name: run native codec tests against ClickHouse
         if: matrix.deploy-mode == ''
         env:
