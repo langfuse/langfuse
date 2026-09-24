@@ -242,6 +242,14 @@ export default function SessionsTable({
   const filterOptions = isV4 ? filterOptionsV4 : filterOptionsV3;
   const eventToolOptions = useEventsFilterOptions({
     projectId,
+    refiningFilter: [
+      {
+        column: "sessionId",
+        type: "string",
+        operator: "is not empty",
+        value: "",
+      },
+    ],
     startTimeFilter: (dateRangeFilter as TimeFilter[]).map((item) => ({
       ...item,
       column: "startTime" as const,
