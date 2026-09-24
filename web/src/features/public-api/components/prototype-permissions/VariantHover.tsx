@@ -91,7 +91,7 @@ const RoleOption = ({ preset }: { preset: ApiKeyDraft["preset"] }) => {
           collisionPadding={12}
           className="max-h-[90vh] w-72 overflow-y-auto p-0"
         >
-          <div className="bg-background sticky top-0 flex items-center gap-2 border-b px-3 py-2">
+          <div className="flex items-center gap-2 px-3 py-2">
             <Icon className="h-4 w-4 shrink-0" />
             <span className="text-xs font-bold">{meta.label}</span>
             <Badge
