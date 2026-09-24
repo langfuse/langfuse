@@ -2,7 +2,7 @@
 // count, with a "View N permissions" link below opening a popup for the role.
 
 import { useState } from "react";
-import { SquareArrowOutUpRight } from "lucide-react";
+import { AppWindow, SquareArrowOutUpRight } from "lucide-react";
 
 import { Badge } from "@/src/components/ui/badge";
 import {
@@ -118,12 +118,12 @@ export const VariantSingleDialog = ({
       <button
         type="button"
         onClick={() => setPopupRole(draft.preset)}
-        className="text-muted-foreground hover:text-foreground mt-1 ml-1 flex w-fit items-center gap-1 text-xs"
+        className="text-muted-foreground hover:text-foreground ml-1 flex w-fit items-center gap-1 text-xs"
       >
         <span>
           See the <span className="underline">full list of permissions</span>
         </span>
-        <SquareArrowOutUpRight className="h-3 w-3" />
+        <AppWindow className="h-3.5 w-3.5" />
       </button>
       <PermissionsPopup role={popupRole} onClose={() => setPopupRole(null)} />
     </KeyFormShell>
