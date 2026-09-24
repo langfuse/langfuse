@@ -1,5 +1,7 @@
 use super::*;
-use crate::test_support::{FakeServer, resolved_request_context, resolved_request_context_for};
+use crate::test_support::{
+    FakeServer, ingestion_token, resolved_request_context, resolved_request_context_for,
+};
 use axum::{
     body::to_bytes,
     http::{HeaderName, StatusCode},
@@ -360,7 +362,6 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
         resolution::ControlPlaneConfig, telemetry::Telemetry,
         test_support::resolved_request_context_with_mode,
     };
-    use serde_json::Value;
 
     const JSON: &str = r#"{"id":"resp-1","model":"actual","status":"completed","output":[],"usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3}}"#;
     const SSE: &str = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-1\",\"model\":\"actual\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":2,\"output_tokens\":1,\"total_tokens\":3}}}\n\n";
@@ -377,7 +378,7 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
             let release = sink_release.clone();
             async move {
                 let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
-                sent.send(serde_json::from_slice::<Value>(&bytes).unwrap())
+                sent.send(crate::test_support::upload_json(&bytes))
                     .await
                     .unwrap();
                 release.notified().await;
@@ -389,7 +390,7 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
         })
         .await;
         let telemetry =
-            Telemetry::new(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap()).unwrap();
+            Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
         let upstream = FakeServer::start(move |_| async move {
             let body = if close_before_eof {
                 Body::from_stream(
@@ -472,10 +473,10 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
             async move {
                 assert_eq!(
                     request.headers()[header::AUTHORIZATION],
-                    "Bearer private-ingestion-token"
+                    format!("Bearer {}", ingestion_token("org-1", "project-1")).as_str()
                 );
                 let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
-                sent.send(serde_json::from_slice::<Value>(&bytes).unwrap())
+                sent.send(crate::test_support::upload_json(&bytes))
                     .await
                     .unwrap();
                 Response::new(Body::from("{}"))
@@ -483,7 +484,7 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
         })
         .await;
         let telemetry =
-            Telemetry::new(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap()).unwrap();
+            Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
         let dropped = Arc::new(Notify::new());
         let upstream = stalled_provider(dropped).await;
         let relay = ProviderTransport::for_test(
@@ -552,7 +553,6 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
 #[tokio::test]
 async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
     use crate::{resolution::ControlPlaneConfig, telemetry::Telemetry};
-    use serde_json::Value;
 
     const COMPACT: &[u8] =
         br#"{"model":"gpt-4.1","input":[{"encrypted_content":"opaque-ciphertext"}]}"#;
@@ -565,7 +565,7 @@ async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
         let sent = sent.clone();
         async move {
             let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
-            sent.send(serde_json::from_slice::<Value>(&bytes).unwrap())
+            sent.send(crate::test_support::upload_json(&bytes))
                 .await
                 .unwrap();
             Response::new(Body::from("{}"))
@@ -573,7 +573,7 @@ async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
     })
     .await;
     let telemetry =
-        Telemetry::new(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap()).unwrap();
+        Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
     let upstream = FakeServer::start(|request| async move {
         let uri = request.uri().to_string();
         let method = request.method().clone();

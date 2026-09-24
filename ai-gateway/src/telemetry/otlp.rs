@@ -1,20 +1,25 @@
 use std::{
-    io::{self, Write},
+    io::{self, BufWriter, Write},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use axum::http::{HeaderValue, header};
+use axum::{
+    body::Bytes,
+    http::{HeaderValue, header},
+};
+use flate2::{Compression, write::GzEncoder};
 use reqwest::{Client, Url};
 use reqwest_middleware::ClientWithMiddleware;
+use serde::Serialize;
 use serde_json::{Value, json};
 
-use super::DeliveryContext;
+use super::Grant;
 use crate::resolution::{ControlPlaneConfig, ResolutionError, signing};
 
 const INGESTION_PATH: &str = "/api/public/otel/v1/traces";
 const MAX_PAYLOAD_BYTES: usize = 8 * 1024 * 1024;
 const MAX_RESPONSE_BYTES: usize = 64 * 1024;
-const UPLOAD_TIMEOUT: Duration = Duration::from_secs(5);
+const UPLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub(super) struct Uploader {
     client: ClientWithMiddleware,
@@ -27,7 +32,10 @@ pub(super) enum ExportError {
     Expired,
     Payload,
     Transport,
-    Rejected,
+    Rejected {
+        status: u16,
+        retry_after: Option<Duration>,
+    },
     Response,
     Partial,
 }
@@ -38,9 +46,24 @@ impl ExportError {
             Self::Expired => "expired_grant",
             Self::Payload => "payload",
             Self::Transport => "transport",
-            Self::Rejected => "http_status",
+            Self::Rejected { .. } => "http_status",
             Self::Response => "invalid_response",
             Self::Partial => "rejected_spans",
+        }
+    }
+
+    pub fn is_transient(&self) -> bool {
+        match self {
+            Self::Transport => true,
+            Self::Rejected { status, .. } => matches!(status, 408 | 429 | 500 | 502 | 503 | 504),
+            _ => false,
+        }
+    }
+
+    pub fn retry_after(&self) -> Option<Duration> {
+        match self {
+            Self::Rejected { retry_after, .. } => *retry_after,
+            _ => None,
         }
     }
 }
@@ -67,18 +90,7 @@ impl Uploader {
         })
     }
 
-    /// A collection allows project batching without changing the HTTP transport.
-    pub async fn export(
-        &self,
-        grant: &DeliveryContext,
-        spans: &[Value],
-    ) -> Result<(), ExportError> {
-        let payload = json!({"resourceSpans": [{
-            "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "langfuse-ai-gateway"}}]},
-            "scopeSpans": [{"scope": {"name": "langfuse-ai-gateway", "version": env!("CARGO_PKG_VERSION")}, "spans": spans}]
-        }]});
-        let mut body = LimitedBody(Vec::new());
-        serde_json::to_writer(&mut body, &payload).map_err(|_| ExportError::Payload)?;
+    pub async fn export(&self, grant: &Grant, payload: &Payload) -> Result<(), ExportError> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| ExportError::Expired)?;
@@ -102,17 +114,28 @@ impl Uploader {
             .header(header::AUTHORIZATION, authorization)
             .header("langfuse-gateway-authorization", signature)
             .header(header::CONTENT_TYPE, "application/json")
+            .header(header::CONTENT_ENCODING, "gzip")
             .header(header::ACCEPT_ENCODING, "identity")
             .header("x-langfuse-sdk-name", "langfuse-ai-gateway")
             .header("x-langfuse-sdk-version", env!("CARGO_PKG_VERSION"))
             .header("x-langfuse-ingestion-version", "4")
             .timeout(UPLOAD_TIMEOUT.min(remaining))
-            .body(body.0)
+            .body(payload.0.clone())
             .send()
             .await
             .map_err(|_| ExportError::Transport)?;
-        if response.status().as_u16() != 200 {
-            return Err(ExportError::Rejected);
+        let status = response.status().as_u16();
+        if status != 200 {
+            let retry_after = response
+                .headers()
+                .get(header::RETRY_AFTER)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.trim().parse().ok())
+                .map(Duration::from_secs);
+            return Err(ExportError::Rejected {
+                status,
+                retry_after,
+            });
         }
         if response
             .content_length()
@@ -121,7 +144,7 @@ impl Uploader {
             return Err(ExportError::Response);
         }
         let mut bytes = Vec::new();
-        while let Some(chunk) = response.chunk().await.map_err(|_| ExportError::Transport)? {
+        while let Some(chunk) = response.chunk().await.map_err(|_| ExportError::Response)? {
             if chunk.len() > MAX_RESPONSE_BYTES - bytes.len() {
                 return Err(ExportError::Response);
             }
@@ -150,17 +173,43 @@ impl Uploader {
     }
 }
 
-struct LimitedBody(Vec<u8>);
+pub(super) struct Payload(Bytes);
+
+impl Payload {
+    pub fn encode(spans: &[impl Serialize]) -> Result<Self, ExportError> {
+        let payload = json!({"resourceSpans": [{
+            "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "langfuse-ai-gateway"}}]},
+            "scopeSpans": [{"scope": {"name": "langfuse-ai-gateway", "version": env!("CARGO_PKG_VERSION")}, "spans": spans}]
+        }]});
+        let mut writer = BufWriter::with_capacity(
+            64 * 1024,
+            LimitedBody {
+                written: 0,
+                encoder: GzEncoder::new(Vec::new(), Compression::fast()),
+            },
+        );
+        serde_json::to_writer(&mut writer, &payload).map_err(|_| ExportError::Payload)?;
+        let body = writer.into_inner().map_err(|_| ExportError::Payload)?;
+        let compressed = body.encoder.finish().map_err(|_| ExportError::Payload)?;
+        Ok(Self(compressed.into()))
+    }
+}
+
+struct LimitedBody {
+    written: usize,
+    encoder: GzEncoder<Vec<u8>>,
+}
 
 impl Write for LimitedBody {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        if bytes.len() > MAX_PAYLOAD_BYTES - self.0.len() {
+        if bytes.len() > MAX_PAYLOAD_BYTES - self.written {
             return Err(io::Error::other("telemetry payload limit"));
         }
-        self.0.extend_from_slice(bytes);
+        self.encoder.write_all(bytes)?;
+        self.written += bytes.len();
         Ok(bytes.len())
     }
     fn flush(&mut self) -> io::Result<()> {
-        Ok(())
+        self.encoder.flush()
     }
 }

@@ -17,6 +17,8 @@ use std::{
 };
 use tokio::{net::TcpListener, task::JoinHandle};
 
+use crate::test_support::ingestion_token;
+
 const NOW: u64 = 1_800_000_000;
 const NOW_TIME: Duration = Duration::from_secs(NOW);
 const SERVICE_KEY: &str = "gateway-web-test-secret-not-for-production";
@@ -105,7 +107,7 @@ fn success(project: &str, provider_token: &str) -> Value {
             "provider_connection_id": "connection-1"
         },
         "ingestion_mode": "usage",
-        "ingestion": {"access_token": "private-ingestion-token", "token_type": "Bearer", "expires_at": NOW + 300}
+        "ingestion": {"access_token": ingestion_token("org-1", project), "token_type": "Bearer", "expires_at": NOW + 300}
     })
 }
 
@@ -141,7 +143,7 @@ async fn signs_the_exact_key_and_sends_only_the_api_format() {
     );
     assert_eq!(
         context.ingestion().access_token(),
-        "private-ingestion-token"
+        ingestion_token("org-1", "project-1")
     );
     let debug = format!("{context:?}");
     for sensitive in [
@@ -498,6 +500,50 @@ async fn rejects_incompatible_or_incomplete_execution_contexts() {
     let mut body = success("project-1", "provider-token");
     body["unexpected"] = json!(true);
     assert_invalid_context(body).await;
+}
+
+#[tokio::test]
+async fn rejects_ingestion_tokens_that_authorize_a_different_tenant() {
+    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+    let payload = |claims: Value| URL_SAFE_NO_PAD.encode(claims.to_string());
+    let claims = json!({"organization_id": "org-1", "project_id": "project-1"});
+    for token in [
+        ingestion_token("org-1", "project-2"),
+        ingestion_token("org-2", "project-1"),
+        "opaque-ingestion-token".to_owned(),
+        format!("header.{}.signature.extra", payload(claims.clone())),
+        format!("header.{}", payload(claims.clone())),
+        format!("header.{}=.signature", payload(claims)),
+        format!(
+            "header.{}.signature",
+            payload(json!({"project_id": "project-1"}))
+        ),
+        format!(
+            "header.{}.signature",
+            payload(json!({"organization_id": "org-1", "project_id": 1}))
+        ),
+        "header.not-base64!.signature".to_owned(),
+    ] {
+        let mut body = success("project-1", "provider-token");
+        body["ingestion"]["access_token"] = json!(token);
+        assert_invalid_context(body).await;
+    }
+    let mut body = success("project-1", "provider-token");
+    body["ingestion"]["access_token"] = json!(format!(
+        "header.{}.signature",
+        payload(json!({"organization_id": "org-1", "project_id": "project-1", "extra": true}))
+    ));
+    let web = FakeWeb::start(move |_| {
+        let body = body.clone();
+        async move { response(body) }
+    })
+    .await;
+    assert!(
+        web.control_plane()
+            .resolve_at(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW_TIME)
+            .await
+            .is_ok()
+    );
 }
 
 async fn assert_invalid_context(body: Value) {
