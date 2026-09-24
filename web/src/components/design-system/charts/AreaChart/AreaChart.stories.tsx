@@ -1,8 +1,10 @@
+import { useState } from "react";
 import preview from "../../../../../.storybook/preview";
 import { expect, userEvent, within } from "storybook/test";
 import { AreaChart } from "./AreaChart";
 import { type LineChartLegend } from "../LineChart/LineChart";
 import { AreaChartTimeSeries } from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
+import { LineChartTimeSeries } from "@/src/features/widgets/chart-library/LineChartTimeSeries";
 
 const series = [
   { id: "api", label: "API", color: "#3a3dee" },
@@ -34,6 +36,7 @@ type StoryProps = {
     | "negative"
     | "category"
     | "denseCategory"
+    | "narrowCategory"
     | "mixedBuckets";
   connectNulls?: boolean;
   legend?: LineChartLegend;
@@ -44,15 +47,42 @@ function AreaChartDemo({
   connectNulls,
   legend,
 }: StoryProps) {
+  const [activeKey, setActiveKey] = useState<string>();
   if (scenario === "mixedBuckets") {
+    const mixedData = [
+      { time_dimension: "2026-09-01", dimension: "api", metric: 12 },
+      { time_dimension: "2026-09-04", dimension: "api", metric: 18 },
+      { time_dimension: "Unknown", dimension: "api", metric: 7 },
+    ];
     return (
-      <AreaChartTimeSeries
-        data={[
-          { time_dimension: "2026-09-01", dimension: "api", metric: 12 },
-          { time_dimension: "2026-09-02", dimension: "api", metric: 18 },
-          { time_dimension: "Unknown", dimension: "api", metric: 7 },
-        ]}
-      />
+      <div className="flex size-full flex-col">
+        <div className="min-h-0 flex-1" data-chart="area">
+          <AreaChartTimeSeries
+            data={mixedData}
+            sync={{ activeKey, onActiveKeyChange: setActiveKey }}
+          />
+        </div>
+        <div className="min-h-0 flex-1" data-chart="line">
+          <LineChartTimeSeries
+            data={mixedData}
+            sync={{ activeKey, onActiveKeyChange: setActiveKey }}
+          />
+        </div>
+      </div>
+    );
+  }
+  if (scenario === "narrowCategory") {
+    return (
+      <div className="h-full w-[220px]">
+        <AreaChart
+          data={Array.from({ length: 6 }, (_, index) => ({
+            x: `Category ${index}`,
+            values: { api: index },
+          }))}
+          series={series.slice(0, 1)}
+          xAxis={{ type: "category" }}
+        />
+      </div>
     );
   }
   if (scenario === "denseCategory") {
@@ -82,15 +112,14 @@ function AreaChartDemo({
     );
   }
 
-  const chartData =
-    scenario === "gaps"
-      ? gaps
-      : scenario === "negative"
-        ? data.map((datum, index) => ({
-            ...datum,
-            values: { api: index * 3 - 18, worker: 12 - index * 2 },
-          }))
-        : data;
+  let chartData = data;
+  if (scenario === "gaps") chartData = gaps;
+  else if (scenario === "negative") {
+    chartData = data.map((datum, index) => ({
+      ...datum,
+      values: { api: index * 3 - 18, worker: 12 - index * 2 },
+    }));
+  }
 
   return (
     <AreaChart
@@ -121,6 +150,7 @@ const meta = preview.meta({
 export const Default = meta.story({});
 
 export const DenseCategories = meta.story({
+  name: "(Test) Dense Categories",
   args: { scenario: "denseCategory" },
   play: async ({ canvasElement }) => {
     const labels = canvasElement.querySelectorAll('[data-x-axis-label=""]');
@@ -130,13 +160,43 @@ export const DenseCategories = meta.story({
   },
 });
 
+export const NarrowCategories = meta.story({
+  name: "(Test) Narrow Categories",
+  args: { scenario: "narrowCategory" },
+  play: async ({ canvasElement }) => {
+    const labels = canvasElement.querySelectorAll('[data-x-axis-label=""]');
+    await expect(labels[0]).toHaveTextContent("Category 0");
+    await expect(labels[labels.length - 1]).toHaveTextContent("Category 5");
+  },
+});
+
 export const MixedBuckets = meta.story({
+  name: "(Test) Mixed Buckets",
   args: { scenario: "mixedBuckets" },
   play: async ({ canvasElement }) => {
+    const area = canvasElement.querySelector<HTMLElement>(
+      '[data-chart="area"]',
+    );
+    const line = canvasElement.querySelector<HTMLElement>(
+      '[data-chart="line"]',
+    );
+    if (!area || !line) throw new Error("Charts not found");
+    for (const chart of [area, line]) {
+      await expect(
+        within(chart).getByRole("graphics-symbol", { name: /Unknown.*7/ }),
+      ).toBeInTheDocument();
+      await expect(
+        chart.querySelector('[data-x-axis-label=""]'),
+      ).toHaveTextContent("Sep 1");
+    }
+    const datePoint = within(area).getByRole("graphics-symbol", {
+      name: /Sep 1, 2026.*12/,
+    });
+    const hoverArea = datePoint.parentElement?.querySelector("rect");
+    if (!hoverArea) throw new Error("Hover area not found");
+    await userEvent.hover(hoverArea);
     await expect(
-      within(canvasElement).getByRole("graphics-symbol", {
-        name: /Unknown.*7/,
-      }),
+      line.querySelector('line[stroke-dasharray="3 3"]'),
     ).toBeInTheDocument();
   },
 });
@@ -185,6 +245,7 @@ export const OverlappingAreas = meta.story({
 });
 
 export const StackedAreas = meta.story({
+  name: "(Test) Stacked Areas",
   args: {
     scenario: "stacked",
     legend: { visibility: "visible", interaction: "toggle", summary: "sum" },
@@ -223,6 +284,7 @@ export const StackedAreas = meta.story({
 });
 
 export const WithLegend = meta.story({
+  name: "(Test) With Legend",
   args: {
     scenario: "time",
     legend: { visibility: "visible", interaction: "toggle", summary: "sum" },
@@ -246,6 +308,7 @@ export const WithLegend = meta.story({
 });
 
 export const HighlightLegend = meta.story({
+  name: "(Test) Highlight Legend",
   args: {
     scenario: "time",
     legend: {
@@ -272,6 +335,7 @@ export const HighlightLegend = meta.story({
 });
 
 export const LimitedVisibleSeries = meta.story({
+  name: "(Test) Limited Visible Series",
   args: {
     scenario: "time",
     legend: {
@@ -293,6 +357,7 @@ export const LimitedVisibleSeries = meta.story({
 });
 
 export const GapsAndIsolatedPoints = meta.story({
+  name: "(Test) Gaps And Isolated Points",
   args: { scenario: "gaps" },
   play: async ({ canvasElement }) => {
     await expect(
@@ -314,6 +379,7 @@ export const ConnectNulls = meta.story({
 });
 
 export const NegativeValues = meta.story({
+  name: "(Test) Negative Values",
   args: { scenario: "negative" },
   play: async ({ canvasElement }) => {
     await expect(

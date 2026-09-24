@@ -536,6 +536,15 @@ function LineChartContent(
     1,
     Math.ceil((80 * Math.max(1, data.length - 1)) / Math.max(1, plotWidth)),
   );
+  const categoryTickIndices = data.flatMap((_, index) =>
+    index % categoryTickStep === 0 &&
+    (index === 0 ||
+      ((data.length - 1 - index) * plotWidth) / Math.max(1, data.length - 1) >=
+        80)
+      ? [index]
+      : [],
+  );
+  if (data.length > 1) categoryTickIndices.push(data.length - 1);
   const xTicks =
     xAxis.type === "time"
       ? [
@@ -562,24 +571,26 @@ function LineChartContent(
             label:
               xAxis.tickFormatter?.(value) ?? defaultTimeTickFormatter(value),
           }))
-      : data.flatMap((datum, index) =>
-          index % categoryTickStep === 0
-            ? [
-                {
-                  key: datum.key,
-                  x: getX(datum),
-                  label:
-                    xAxis.tickFormatter?.(String(datum.x)) ?? String(datum.x),
-                  maxWidth: Math.max(
-                    0,
-                    (plotWidth * categoryTickStep) /
-                      Math.max(1, data.length - 1) -
-                      CATEGORY_TICK_GAP,
-                  ),
-                },
-              ]
-            : [],
-        );
+      : categoryTickIndices.map((index, tickIndex) => {
+          const datum = data[index]!;
+          const previous = categoryTickIndices[tickIndex - 1];
+          const next = categoryTickIndices[tickIndex + 1];
+          const gap = Math.min(
+            previous === undefined ? Infinity : index - previous,
+            next === undefined ? Infinity : next - index,
+          );
+          return {
+            key: datum.key,
+            x: getX(datum),
+            label: xAxis.tickFormatter?.(String(datum.x)) ?? String(datum.x),
+            maxWidth: Math.max(
+              0,
+              (plotWidth * (Number.isFinite(gap) ? gap : 1)) /
+                Math.max(1, data.length - 1) -
+                CATEGORY_TICK_GAP,
+            ),
+          };
+        });
   const activeKey =
     hoveredIndex === undefined ? sync?.activeKey : data[hoveredIndex]?.key;
   const activeDatum = data.find((datum) => datum.key === activeKey);
@@ -792,7 +803,7 @@ function LineChartContent(
               <g
                 key={item.id}
                 className="transition-opacity duration-150"
-                opacity={areaVariant ? 1 : dimmed ? 0.2 : 1}
+                opacity={areaVariant || !dimmed ? 1 : 0.2}
               >
                 {areaVariant ? (
                   <>

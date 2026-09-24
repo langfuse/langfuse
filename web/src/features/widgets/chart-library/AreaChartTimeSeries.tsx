@@ -68,6 +68,14 @@ export function AreaChartTimeSeries({
       ),
     [groupedData, hideXAxisLabels],
   );
+  const dateAxis = useMemo(() => {
+    if (timeAxis.mode !== "category") return timeAxis;
+    const dates = groupedData.flatMap((datum) => {
+      const date = parseChartTimestamp(datum.time_dimension);
+      return date ? [date.getTime()] : [];
+    });
+    return dates.length ? prepareTimeAxis(dates) : timeAxis;
+  }, [groupedData, timeAxis]);
   const formatValue = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
   const chartData = useMemo(
@@ -117,14 +125,18 @@ export function AreaChartTimeSeries({
         xAxis={{
           type: "category",
           labels: hideXAxisLabels ? "hidden" : "visible",
-          tickFormatter: (value) =>
-            hasNonTimestampBucket && timeAxis.mode !== "category"
-              ? value
-              : timeAxis.formatTick(value),
-          tooltipFormatter: (value) =>
-            hasNonTimestampBucket && timeAxis.mode !== "category"
-              ? value
-              : timeAxis.formatTooltip(value),
+          tickFormatter: (value) => {
+            const date = parseChartTimestamp(value);
+            return date
+              ? dateAxis.formatTick(date.getTime())
+              : timeAxis.formatTick(value);
+          },
+          tooltipFormatter: (value) => {
+            const date = parseChartTimestamp(value);
+            return date
+              ? dateAxis.formatTooltip(date.getTime())
+              : timeAxis.formatTooltip(value);
+          },
         }}
       />
     ) : (
