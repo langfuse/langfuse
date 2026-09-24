@@ -115,6 +115,7 @@ const apiScopeList = [
   "traces:create",
   "media:read",
   "media:create",
+  "scores:create",
   "llmGatewayConfig:read",
   "llmGatewayConfig:write",
 ];
@@ -226,10 +227,10 @@ function resolvePreset(preset: PresetKey): string[] {
       return [
         "project:traces:create",
         "project:media:create",
-        "project:scores:write",
+        "project:scores:create",
       ];
     case "scores":
-      return ["project:scores:write"];
+      return ["project:scores:create"];
     case "custom":
       return [];
   }
