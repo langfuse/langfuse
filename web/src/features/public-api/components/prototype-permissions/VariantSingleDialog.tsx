@@ -123,7 +123,7 @@ export const VariantSingleDialog = ({
         Grants{" "}
         <span className="inline-flex items-center gap-0.5 underline">
           {rolePermissionCount(draft.preset)} permissions
-          <ArrowUpRight className="h-3.5 w-3.5" />
+          <ArrowUpRight className="h-3 w-3" />
         </span>
       </button>
       <PermissionsPopup role={popupRole} onClose={() => setPopupRole(null)} />
