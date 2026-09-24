@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type UIEvent } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import {
@@ -11,7 +11,7 @@ import {
   type SessionObservation,
   type SessionObservationActions,
 } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
-import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
+import { SessionConversationTimelineFeed } from "./SessionConversationTimelineFeed";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { useVirtualizedScrollSpy } from "@/src/hooks/useVirtualizedScrollSpy";
@@ -215,106 +215,20 @@ export function SessionConversationTimeline({
 
   return (
     <SessionConversationTimelineFeed
-      traces={traces}
-      states={states}
+      traces={traces.map(({ trace, turnNumber }, index) => ({
+        trace,
+        turnNumber,
+        state: states[index]!,
+        onOpenTrace: () => onOpenTrace(trace),
+        onOpenObservation: (observationId: string) =>
+          onOpenObservation(trace, observationId),
+        observationActions,
+        scrollTarget: scrollTarget?.traceId === trace.id ? scrollTarget : null,
+      }))}
+      TraceComponent={SessionConversationTimelineTrace}
       filterMeasurementKey={filterMeasurementKey}
-      onOpenTrace={onOpenTrace}
-      onOpenObservation={onOpenObservation}
       controller={controller}
-      observationActions={observationActions}
-      scrollTarget={scrollTarget ?? null}
       onLoadMoreObservations={onLoadMoreObservations}
     />
-  );
-}
-
-function SessionConversationTimelineFeed({
-  traces,
-  states,
-  filterMeasurementKey,
-  onOpenTrace,
-  onOpenObservation,
-  controller,
-  observationActions,
-  scrollTarget,
-  onLoadMoreObservations,
-}: {
-  traces: readonly SessionConversationTimelineItem[];
-  states: readonly PreparedSessionConversationTimelineTraceState[];
-  filterMeasurementKey: string;
-  onOpenTrace: (trace: EventSessionTrace) => void;
-  onOpenObservation: (trace: EventSessionTrace, observationId: string) => void;
-  controller: SessionConversationTimelineController;
-  observationActions?: SessionConversationTimelineObservationActions;
-  scrollTarget: SessionConversationTimelineScrollTarget | null;
-  onLoadMoreObservations?: () => void;
-}) {
-  const { feedRef, virtualItems, virtualizer } = controller;
-  const handleScroll = (event: UIEvent<HTMLDivElement>) => {
-    if (!onLoadMoreObservations) return;
-
-    const { clientHeight, scrollTop } = event.currentTarget;
-    const viewportBottom = scrollTop + clientHeight;
-    const visibleTrace = virtualItems.findLast(
-      (virtualItem) => virtualItem.start < viewportBottom,
-    );
-    const loadMoreThreshold = visibleTrace
-      ? Math.min(240, visibleTrace.size / 4)
-      : 0;
-    if (
-      visibleTrace &&
-      viewportBottom >= visibleTrace.end - loadMoreThreshold
-    ) {
-      onLoadMoreObservations();
-    }
-  };
-
-  return (
-    <div
-      ref={feedRef}
-      aria-label="Session conversation timeline"
-      className="h-full min-h-0 overflow-y-auto scroll-smooth"
-      onScroll={handleScroll}
-    >
-      <div
-        style={{
-          height: `${virtualizer.getTotalSize()}px`,
-          width: "100%",
-          position: "relative",
-        }}
-      >
-        {virtualItems.map((virtualItem) => {
-          const timelineTrace = traces[virtualItem.index];
-          const state = states[virtualItem.index];
-          if (!timelineTrace || !state) return null;
-          const { trace, turnNumber } = timelineTrace;
-
-          return (
-            <SessionVirtualizedRow
-              key={virtualItem.key}
-              itemKey={String(virtualItem.key)}
-              measurementKey={`${String(virtualItem.key)}:${filterMeasurementKey}`}
-              source="modern"
-              virtualItem={virtualItem}
-              virtualizer={virtualizer}
-            >
-              <SessionConversationTimelineTrace
-                trace={trace}
-                turnNumber={turnNumber}
-                state={state}
-                onOpenTrace={() => onOpenTrace(trace)}
-                onOpenObservation={(observationId) =>
-                  onOpenObservation(trace, observationId)
-                }
-                observationActions={observationActions}
-                scrollTarget={
-                  scrollTarget?.traceId === trace.id ? scrollTarget : null
-                }
-              />
-            </SessionVirtualizedRow>
-          );
-        })}
-      </div>
-    </div>
   );
 }
