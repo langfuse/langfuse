@@ -42,8 +42,8 @@
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
   `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads
-  independently default-off and cloud-gated. Do not expose these PoC controls in
-  local or production env templates. Reader query controls are independent of
+  independently default-off and cloud-gated. Leave the enablement flags commented
+  in env templates. The local dev template may set the idle time. Reader query controls are independent of
   locality selection; logs must preserve separate input/output/metadata metrics.
   `src/features/traceBatching/TraceBatchMetricsRunner.ts` collects bounded queue
   and Redis snapshots independently of dispatch/consumption when either role is
@@ -54,6 +54,7 @@
   previous generic text as a comparison, then renders Topics text and its block
   metrics. Token estimates run sequentially;
   tool-response size uses comparable character counts over message parts.
+  Allowlisted projects are then summarized from that assembled transcript.
   Allow one pending tokenization promise per batch while
   buffering the next trace, and drain it even on read failure. Never flush a failed
   stream's partial final trace; completion covers the query window, not future arrivals.
