@@ -289,6 +289,9 @@ export class ChbBillingService {
       // Reuse the CH organization from an earlier checkout attempt so a retry
       // recovers the same org instead of orphaning one
       organizationId: existingChOrgId,
+      // Names the CH organization when this call creates it, instead of the
+      // default CHB derives from the email; a reused one keeps its name
+      name: parsedOrg.name,
       email,
       planCode,
       returnUrl: this.returnUrl(orgId),
