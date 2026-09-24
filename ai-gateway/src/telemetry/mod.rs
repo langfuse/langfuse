@@ -3,6 +3,7 @@ mod batch;
 mod context;
 mod mapping;
 mod otlp;
+mod retry;
 mod worker;
 
 use std::{
@@ -11,6 +12,7 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
     },
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use axum::http::HeaderMap;
@@ -31,6 +33,7 @@ use batch::{BatchPolicy, Batches, Pending};
 use context::GenerationContext;
 pub(crate) use context::take_agent_client_metadata;
 use otlp::Uploader;
+use retry::RetryPolicy;
 use worker::{Message, Uploads};
 
 const MAX_UPLOADS: usize = 32;
@@ -43,6 +46,15 @@ struct Grant {
     project_id: String,
     access_token: String,
     expires_at: u64,
+}
+
+impl Grant {
+    fn remaining(&self) -> Duration {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default();
+        Duration::from_secs(self.expires_at).saturating_sub(now)
+    }
 }
 
 /// Project attribution stays attached to each execution even when delivery outlives
@@ -124,10 +136,12 @@ impl Telemetry {
             MAX_UPLOADS,
             MAX_RETAINED_BYTES,
             BatchPolicy::default(),
+            RetryPolicy::default(),
         ))
     }
 
-    /// Uploads open batches after a few milliseconds instead of the production linger.
+    /// Uploads open batches after a few milliseconds instead of the production linger,
+    /// in a single attempt.
     #[cfg(test)]
     pub(crate) fn for_test(config: &ControlPlaneConfig) -> Self {
         Self::with_uploader(
@@ -135,8 +149,12 @@ impl Telemetry {
             MAX_UPLOADS,
             MAX_RETAINED_BYTES,
             BatchPolicy {
-                linger: std::time::Duration::from_millis(10),
+                linger: Duration::from_millis(10),
                 ..BatchPolicy::default()
+            },
+            RetryPolicy {
+                max_attempts: 1,
+                ..RetryPolicy::default()
             },
         )
     }
@@ -146,13 +164,14 @@ impl Telemetry {
         uploads: usize,
         bytes: usize,
         policy: BatchPolicy,
+        retry: RetryPolicy,
     ) -> Self {
         let (queue, receiver) = mpsc::channel(MAX_QUEUED_RECORDS);
         let stats = Arc::new(Stats::default());
         let worker = tokio::spawn(worker::run_worker(
             receiver,
             Batches::new(policy),
-            Uploads::new(uploader, uploads, stats.clone()),
+            Uploads::new(uploader, uploads, retry, stats.clone()),
         ));
         Self(Arc::new(Delivery {
             queue,

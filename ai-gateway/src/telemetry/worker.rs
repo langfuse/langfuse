@@ -14,6 +14,7 @@ use super::{
     Grant, Stats,
     batch::{Batches, Flush, Pending},
     otlp::Uploader,
+    retry::{RetryPolicy, random},
 };
 
 pub(super) enum Message {
@@ -58,19 +59,22 @@ async fn sleep_until_due(due: Option<Instant>) {
 }
 
 /// In-flight uploads. Each flush becomes a task immediately and waits for an upload
-/// slot there, so a slow ingestion endpoint never stalls batching or shutdown.
+/// slot there, so a slow ingestion endpoint never stalls batching or shutdown. A
+/// task keeps its spans, and their retained bytes, until its last attempt settles.
 pub(super) struct Uploads {
     uploader: Arc<Uploader>,
     slots: Arc<Semaphore>,
+    retry: RetryPolicy,
     tasks: JoinSet<()>,
     stats: Arc<Stats>,
 }
 
 impl Uploads {
-    pub fn new(uploader: Uploader, slots: usize, stats: Arc<Stats>) -> Self {
+    pub fn new(uploader: Uploader, slots: usize, retry: RetryPolicy, stats: Arc<Stats>) -> Self {
         Self {
             uploader: Arc::new(uploader),
             slots: Arc::new(Semaphore::new(slots)),
+            retry,
             tasks: JoinSet::new(),
             stats,
         }
@@ -90,7 +94,8 @@ impl Uploads {
             parent: None,
             "telemetry.batch",
             otel.kind = "internal",
-            gateway.telemetry.records = i64::try_from(flush.items.len()).unwrap_or(i64::MAX)
+            gateway.telemetry.records = i64::try_from(flush.items.len()).unwrap_or(i64::MAX),
+            gateway.telemetry.attempts = tracing::field::Empty
         );
         for item in &flush.items {
             if item.link.is_valid() {
@@ -99,13 +104,36 @@ impl Uploads {
         }
         let uploader = self.uploader.clone();
         let slots = self.slots.clone();
+        let retry = self.retry;
         self.tasks.spawn(
             async move {
-                let Ok(_slot) = slots.acquire_owned().await else {
-                    return;
-                };
                 let spans: Vec<_> = flush.items.iter().map(|item| &item.span).collect();
-                match uploader.export(&flush.grant, &spans).await {
+                let mut attempt = 1;
+                let outcome = loop {
+                    // The slot is held per attempt, not across backoff, so a failing
+                    // project does not starve others of upload concurrency.
+                    let Ok(slot) = slots.acquire().await else {
+                        return;
+                    };
+                    let result = uploader.export(&flush.grant, &spans).await;
+                    drop(slot);
+                    let Err(error) = result else { break Ok(()) };
+                    let Some(delay) =
+                        retry.backoff(attempt, &error, flush.grant.remaining(), random())
+                    else {
+                        break Err(error);
+                    };
+                    tracing::debug!(
+                        attempt,
+                        reason = error.reason(),
+                        delay_ms = u64::try_from(delay.as_millis()).unwrap_or(u64::MAX),
+                        "gateway telemetry upload retrying"
+                    );
+                    tokio::time::sleep(delay).await;
+                    attempt += 1;
+                };
+                tracing::Span::current().record("gateway.telemetry.attempts", i64::from(attempt));
+                match outcome {
                     Ok(()) => receipt.settle_accepted(),
                     Err(error) => receipt.settle_failed(error.reason()),
                 }

@@ -1,7 +1,7 @@
 //! Pure grouping of mapped spans into per-project upload batches.
 use std::{
     collections::{HashMap, hash_map::Entry},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::Duration,
 };
 
 use opentelemetry::trace::SpanContext;
@@ -105,12 +105,7 @@ impl Batch {
 
 /// The earlier of the linger deadline and the last safe moment to use the grant.
 fn due_at(grant: &Grant, opened: Instant, now: Instant, policy: &BatchPolicy) -> Instant {
-    let unix_now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    let usable = Duration::from_secs(grant.expires_at)
-        .saturating_sub(unix_now)
-        .saturating_sub(policy.expiry_margin);
+    let usable = grant.remaining().saturating_sub(policy.expiry_margin);
     (opened + policy.linger).min(now + usable.min(policy.linger))
 }
 

@@ -15,7 +15,8 @@ use crate::resolution::{ControlPlaneConfig, ResolutionError, signing};
 const INGESTION_PATH: &str = "/api/public/otel/v1/traces";
 const MAX_PAYLOAD_BYTES: usize = 8 * 1024 * 1024;
 const MAX_RESPONSE_BYTES: usize = 64 * 1024;
-const UPLOAD_TIMEOUT: Duration = Duration::from_secs(5);
+/// Large enough for a full 8 MiB payload over a slow link.
+const UPLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub(super) struct Uploader {
     client: ClientWithMiddleware,
@@ -27,8 +28,13 @@ pub(super) struct Uploader {
 pub(super) enum ExportError {
     Expired,
     Payload,
+    /// The request failed before a response status arrived, including timeouts.
     Transport,
-    Rejected,
+    Rejected {
+        status: u16,
+        retry_after: Option<Duration>,
+    },
+    /// The status was 200 but the body was unreadable or not an OTLP response.
     Response,
     Partial,
 }
@@ -39,9 +45,28 @@ impl ExportError {
             Self::Expired => "expired_grant",
             Self::Payload => "payload",
             Self::Transport => "transport",
-            Self::Rejected => "http_status",
+            Self::Rejected { .. } => "http_status",
             Self::Response => "invalid_response",
             Self::Partial => "rejected_spans",
+        }
+    }
+
+    /// Whether resending the identical payload may succeed. Web stores spans by span
+    /// ID, so a resent span replaces an already ingested copy instead of duplicating it.
+    /// Partial rejections are not resent: the accepted spans need no second attempt and
+    /// the rejected ones would be rejected again.
+    pub fn is_transient(&self) -> bool {
+        match self {
+            Self::Transport => true,
+            Self::Rejected { status, .. } => matches!(status, 408 | 429 | 500 | 502 | 503 | 504),
+            _ => false,
+        }
+    }
+
+    pub fn retry_after(&self) -> Option<Duration> {
+        match self {
+            Self::Rejected { retry_after, .. } => *retry_after,
+            _ => None,
         }
     }
 }
@@ -108,8 +133,19 @@ impl Uploader {
             .send()
             .await
             .map_err(|_| ExportError::Transport)?;
-        if response.status().as_u16() != 200 {
-            return Err(ExportError::Rejected);
+        let status = response.status().as_u16();
+        if status != 200 {
+            // Only the delta-seconds form; an HTTP-date falls back to the backoff.
+            let retry_after = response
+                .headers()
+                .get(header::RETRY_AFTER)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.trim().parse().ok())
+                .map(Duration::from_secs);
+            return Err(ExportError::Rejected {
+                status,
+                retry_after,
+            });
         }
         if response
             .content_length()
@@ -118,7 +154,7 @@ impl Uploader {
             return Err(ExportError::Response);
         }
         let mut bytes = Vec::new();
-        while let Some(chunk) = response.chunk().await.map_err(|_| ExportError::Transport)? {
+        while let Some(chunk) = response.chunk().await.map_err(|_| ExportError::Response)? {
             if chunk.len() > MAX_RESPONSE_BYTES - bytes.len() {
                 return Err(ExportError::Response);
             }

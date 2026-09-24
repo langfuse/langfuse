@@ -141,7 +141,7 @@ has no unattributed wall time:
 
 Inference-telemetry uploads carry records from many requests, so each runs in its
 own trace: a root `telemetry.batch` span with `gateway.telemetry.records` and a span
-link to every request it carries, and an `ingestion` client span for the HTTP send.
+link to every request it carries, and an `ingestion` client span per HTTP attempt.
 
 `reqwest-tracing` instruments resolver, provider-header, and ingestion requests.
 Each request starts a fresh operational trace, independent of incoming trace IDs,
@@ -317,9 +317,22 @@ and POSTs each batch to the Web base URL's `/api/public/otel/v1/traces` endpoint
 when it reaches 100 spans or 4 MiB, after a one-second linger, 30 seconds before its
 grant expires, when more than 256 projects have open batches (the batch due soonest
 goes first), or at shutdown. The client response and provider admission never wait
-for ingestion. There is no retry or durable delivery. A successful upload
-acknowledges ingestion acceptance; storage and cost processing still happen
-asynchronously in Langfuse.
+for ingestion. There is no durable delivery. A successful upload acknowledges
+ingestion acceptance; storage and cost processing still happen asynchronously in
+Langfuse.
+
+A batch gets up to three attempts. Only failures a resend can fix are retried:
+transport errors and timeouts, and HTTP 408, 429, 500, 502, 503 or 504. The second
+attempt waits 250–500 ms and the third 1–2 s (the upper half of a 0.5 s × 4ⁿ step,
+randomized), or longer when `Retry-After` asks for up to 10 s; a longer
+`Retry-After`, or a wait that would leave under a second of grant lifetime, fails
+the batch instead. Other statuses, expired grants, invalid responses and partial
+OTLP rejections are not retried. Every attempt resends the identical payload: Web
+stores spans by span ID, so a span already ingested by a timed-out attempt is
+replaced rather than duplicated. A batch holds an upload slot only while an attempt
+runs, but keeps its retained bytes until its last attempt settles, so a failing
+ingestion endpoint fills the byte budget and new records are dropped instead of
+queuing without bound.
 
 A resolver-issued project grant authenticates the upload, together with a fresh
 gateway HMAC signature over that grant. Web authorizes a grant by its organization
@@ -383,19 +396,22 @@ serialized span and credentials per record, 16 MiB total retained span/credentia
 bytes, 8 MiB encoded payloads, and
 64 KiB ingestion responses. Serialization and mapping have additional bounded memory
 overhead; these byte budgets are not an RSS limit. Uploads have a two-second connect
-timeout and a five-second total timeout, shortened to the grant's remaining lifetime.
+timeout and a 30-second total timeout per attempt, enough for a full payload over a
+slow link and shortened to the grant's remaining lifetime.
 Capacity exhaustion, oversized payloads, auth/HTTP errors, rejected OTLP spans, and
-transport failures are reported per record without changing inference results; one
-failed upload fails every record in its batch. Sanitized logs
+transport failures are reported per record without changing inference results; a
+batch that fails its last attempt fails every record in it. The `telemetry.batch`
+span records `gateway.telemetry.attempts`. Sanitized logs
 record failures/drops; shutdown reports accepted, failed and dropped counts.
 
 SIGTERM marks the gateway unready, drains inference, then flushes open batches and
-finishes uploads within the remaining shared shutdown budget. At the deadline, unfinished uploads are
-cancelled and counted as drops. Process crashes or forced shutdown can lose telemetry;
+finishes uploads within the remaining shared shutdown budget. At the deadline, unfinished uploads,
+including batches waiting to retry, are cancelled and counted as drops. Process crashes or forced shutdown can lose telemetry;
 these records are not a durable accounting ledger.
 
 `telemetry/mod.rs` owns admission and shutdown, `telemetry/mapping.rs` maps facts,
 `telemetry/batch.rs` is the pure per-project grouping and flush policy,
+`telemetry/retry.rs` is the pure retry decision,
 `telemetry/worker.rs` is the delivery actor that owns batches and upload tasks, and
 `telemetry/otlp.rs` owns encoding and HTTP delivery.
 

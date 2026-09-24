@@ -40,6 +40,14 @@ fn uploader(url: &str) -> Uploader {
     Uploader::new(&ControlPlaneConfig::new(url, "test-service-key").unwrap()).unwrap()
 }
 
+fn fast_retry() -> RetryPolicy {
+    RetryPolicy {
+        max_attempts: 3,
+        base_delay: Duration::from_millis(2),
+        max_delay: Duration::from_millis(10),
+    }
+}
+
 fn response(status: u16, body: impl Into<Body>) -> Response<Body> {
     Response::builder()
         .status(status)
@@ -139,6 +147,7 @@ async fn concurrent_projects_keep_their_original_grants_and_attribution() {
         2,
         MAX_RETAINED_BYTES,
         BatchPolicy::default(),
+        fast_retry(),
     );
     for project in ["project-a", "project-b"] {
         let mut grant = grant().await;
@@ -162,10 +171,17 @@ async fn concurrent_projects_keep_their_original_grants_and_attribution() {
 }
 
 #[tokio::test]
-async fn upload_response_failures_are_reported_without_retries() {
+async fn upload_response_failures_are_classified_per_attempt() {
     let grant = grant().await;
     for (status, body, expected) in [
-        (500, "{}", Err(ExportError::Rejected)),
+        (
+            500,
+            "{}",
+            Err(ExportError::Rejected {
+                status: 500,
+                retry_after: None,
+            }),
+        ),
         (
             200,
             r#"{"partialSuccess":{"rejectedSpans":"1"}}"#,
@@ -203,6 +219,21 @@ async fn upload_response_failures_are_reported_without_retries() {
         Err(ExportError::Response)
     );
     assert_eq!(web.calls(), 1);
+    let web = FakeServer::start(|_| async {
+        Response::builder()
+            .status(429)
+            .header("retry-after", " 7 ")
+            .body(Body::empty())
+            .unwrap()
+    })
+    .await;
+    assert_eq!(
+        uploader(&web.url).export(&grant.grant, &[json!({})]).await,
+        Err(ExportError::Rejected {
+            status: 429,
+            retry_after: Some(Duration::from_secs(7)),
+        })
+    );
 }
 
 #[tokio::test]
@@ -224,7 +255,10 @@ async fn redirects_do_not_forward_the_ingestion_credentials() {
         uploader(&web.url)
             .export(&grant().await.grant, &[json!({})])
             .await,
-        Err(ExportError::Rejected)
+        Err(ExportError::Rejected {
+            status: 307,
+            retry_after: None,
+        })
     );
     assert_eq!(web.calls(), 1);
     assert_eq!(destination.calls(), 0);
@@ -289,6 +323,7 @@ async fn records_of_one_project_share_an_upload_with_the_latest_expiring_grant()
         2,
         MAX_RETAINED_BYTES,
         BatchPolicy::default(),
+        fast_retry(),
     );
     for (token, extra_seconds) in [("token-a", 0), ("token-b", 60), ("token-c", 30)] {
         let mut context = grant().await;
@@ -317,6 +352,7 @@ async fn open_batches_upload_once_their_linger_elapses() {
             linger: Duration::from_millis(20),
             ..BatchPolicy::default()
         },
+        fast_retry(),
     );
     telemetry.record(grant().await, facts("project-1"));
     tokio::time::timeout(Duration::from_secs(2), async {
@@ -333,14 +369,13 @@ async fn open_batches_upload_once_their_linger_elapses() {
     assert_eq!(web.calls(), 1);
 }
 
-#[tokio::test]
-async fn failed_batches_count_every_record() {
-    let web = FakeServer::start(|_| async { response(500, "{}") }).await;
+async fn deliver_three_records(web: &FakeServer) -> Telemetry {
     let telemetry = Telemetry::with_uploader(
         uploader(&web.url),
         1,
         MAX_RETAINED_BYTES,
         BatchPolicy::default(),
+        fast_retry(),
     );
     for _ in 0..3 {
         telemetry.record(grant().await, facts("project-1"));
@@ -348,9 +383,76 @@ async fn failed_batches_count_every_record() {
     telemetry
         .shutdown(Instant::now() + Duration::from_secs(2))
         .await;
-    assert_eq!(web.calls(), 1);
+    telemetry
+}
+
+#[tokio::test]
+async fn transient_failures_resend_the_identical_batch_until_accepted() {
+    let bodies = Arc::new(Mutex::new(Vec::new()));
+    let received = bodies.clone();
+    let web = FakeServer::start(move |request| {
+        let received = received.clone();
+        async move {
+            let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
+            let mut received = received.lock().unwrap();
+            received.push(bytes);
+            if received.len() == 1 {
+                response(503, "{}")
+            } else {
+                response(200, "{}")
+            }
+        }
+    })
+    .await;
+    let telemetry = deliver_three_records(&web).await;
+    assert_eq!(web.calls(), 2);
+    let bodies = bodies.lock().unwrap();
+    assert_eq!(bodies[0], bodies[1]);
+    assert_eq!(telemetry.0.stats.accepted.load(Ordering::Relaxed), 3);
+    assert_eq!(telemetry.0.stats.failed.load(Ordering::Relaxed), 0);
+    assert_eq!(telemetry.0.retained.available_permits(), MAX_RETAINED_BYTES);
+}
+
+#[tokio::test]
+async fn batches_that_keep_failing_count_every_record_once_after_the_last_attempt() {
+    let web = FakeServer::start(|_| async { response(500, "{}") }).await;
+    let telemetry = deliver_three_records(&web).await;
+    assert_eq!(web.calls(), 3);
     assert_eq!(telemetry.0.stats.failed.load(Ordering::Relaxed), 3);
     assert_eq!(telemetry.0.stats.accepted.load(Ordering::Relaxed), 0);
+    assert_eq!(telemetry.0.retained.available_permits(), MAX_RETAINED_BYTES);
+}
+
+#[tokio::test]
+async fn permanent_rejections_are_not_retried() {
+    let web = FakeServer::start(|_| async { response(400, "{}") }).await;
+    let telemetry = deliver_three_records(&web).await;
+    assert_eq!(web.calls(), 1);
+    assert_eq!(telemetry.0.stats.failed.load(Ordering::Relaxed), 3);
+}
+
+#[tokio::test]
+async fn shutdown_deadline_cuts_retry_backoff_short() {
+    let web = FakeServer::start(|_| async { response(503, "{}") }).await;
+    let telemetry = Telemetry::with_uploader(
+        uploader(&web.url),
+        1,
+        MAX_RETAINED_BYTES,
+        BatchPolicy::default(),
+        RetryPolicy {
+            max_attempts: 3,
+            base_delay: Duration::from_secs(60),
+            max_delay: Duration::from_secs(60),
+        },
+    );
+    telemetry.record(grant().await, facts("project-1"));
+    telemetry
+        .shutdown(Instant::now() + Duration::from_millis(200))
+        .await;
+    assert_eq!(web.calls(), 1);
+    assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 1);
+    assert_eq!(telemetry.0.stats.failed.load(Ordering::Relaxed), 0);
+    assert_eq!(telemetry.0.retained.available_permits(), MAX_RETAINED_BYTES);
 }
 
 #[tokio::test]
@@ -374,6 +476,7 @@ async fn shutdown_deadline_bounds_hanging_delivery_and_closes_admission() {
             max_records: 1,
             ..BatchPolicy::default()
         },
+        fast_retry(),
     );
     telemetry.record(grant().await, facts("project-1"));
     tokio::time::timeout(Duration::from_secs(2), started.notified())
@@ -416,6 +519,7 @@ async fn retained_byte_budget_is_released_after_successful_drain() {
             max_records: 1,
             ..BatchPolicy::default()
         },
+        fast_retry(),
     );
     telemetry.record(grant, facts("project-1"));
     tokio::time::timeout(Duration::from_secs(2), started.notified())
@@ -446,6 +550,7 @@ async fn oversized_records_are_dropped_before_admission() {
         1,
         MAX_RETAINED_BYTES,
         BatchPolicy::default(),
+        fast_retry(),
     );
     let mut oversized = facts("project-1");
     oversized.metadata["key_metadata"] = json!({"oversized": "x".repeat(MAX_RECORD_BYTES)});

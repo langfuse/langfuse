@@ -366,6 +366,7 @@ fn assert_phase_spans(spans: &[SpanData], server: &SpanData) {
         std::slice::from_ref(&server.span_context)
     );
     assert_attribute(batch, "gateway.telemetry.records", 1i64);
+    assert_attribute(batch, "gateway.telemetry.attempts", 1i64);
     let ingestion = named("ingestion");
     assert_eq!(ingestion.parent_span_id, batch.span_context.span_id());
     assert_eq!(
