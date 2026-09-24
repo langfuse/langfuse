@@ -16,15 +16,18 @@ type ReplayFixture = {
     scopeSpan: ScopeSpan;
     resourceAttributes: Record<string, unknown>;
   };
+  spanIO: {
+    input: unknown;
+    output: unknown;
+  };
 };
 
 type ProviderCase = {
   name: string;
   fixture: ReplayFixture;
-  inputAttribute: string;
-  outputAttribute: string;
   toolDefinitionsAttribute?: string;
-  systemMessage?: { role: "system"; content: string };
+  addToolDefinitionsToInput?: boolean;
+  expectedObservationType?: string;
   expectedModelName: string;
   expectedUsageDetails: Record<string, number>;
   expectedFinalUsageDetails: Record<string, number>;
@@ -37,6 +40,7 @@ type ProviderCase = {
   }>;
   expectedMetadata?: Record<string, string>;
   expectedModelParameters?: Record<string, string | number>;
+  stringRepairs?: Record<string, string>;
   numericRepairs: Record<string, string>;
 };
 
@@ -44,10 +48,13 @@ const providerCases: ProviderCase[] = [
   {
     name: "AI SDK",
     fixture: vercelAiSdkMixedToolMessagesFixture,
-    inputAttribute: "gen_ai.input.messages",
-    outputAttribute: "gen_ai.output.messages",
     toolDefinitionsAttribute: "gen_ai.tool.definitions",
+    // The captured spanIO input omits tools; the replay stores the OTLP tool
+    // definitions with the messages in its input column.
+    addToolDefinitionsToInput: true,
     expectedModelName: "gpt-5-2025-08-07",
+    // The fixture has no usage attributes; current persistence represents the
+    // missing counts as zero, so the replay keeps that behavior explicit.
     expectedUsageDetails: { input: 0, output: 0 },
     expectedFinalUsageDetails: { input: 0, output: 0, total: 0 },
     expectedToolCalls: [
@@ -68,8 +75,6 @@ const providerCases: ProviderCase[] = [
   {
     name: "LangGraph",
     fixture: langgraphProductionShapeFixture,
-    inputAttribute: "langfuse.observation.input",
-    outputAttribute: "langfuse.observation.output",
     expectedModelName: "synthetic-value-044",
     expectedUsageDetails: {
       synthetic_field_010: 13252,
@@ -100,10 +105,7 @@ const providerCases: ProviderCase[] = [
   {
     name: "Pydantic AI",
     fixture: pydanticAiProductionShapeFixture,
-    inputAttribute: "gen_ai.input.messages",
-    outputAttribute: "gen_ai.output.messages",
     toolDefinitionsAttribute: "gen_ai.tool.definitions",
-    systemMessage: { role: "system", content: "synthetic-value-393" },
     expectedModelName: "synthetic-value-403",
     expectedUsageDetails: {
       input: 31,
@@ -122,8 +124,9 @@ const providerCases: ProviderCase[] = [
       rejected_prediction_tokens: 0,
       total: 134,
     },
-    // This provider puts tool calls in `parts`; the complete output above is
-    // persisted, while the current extracted tool-call columns remain empty.
+    // Known limitation: this provider puts tool calls in `parts`, which the
+    // current extractor does not split into tool-call columns. The full output
+    // is persisted while those columns remain empty.
     expectedToolCalls: [],
     expectedModelParameters: { max_tokens: 1024 },
     numericRepairs: {
@@ -139,9 +142,15 @@ const providerCases: ProviderCase[] = [
   {
     name: "OTel GenAI",
     fixture: microsoftAgentProductionShapeFixture,
-    inputAttribute: "gen_ai.input.messages",
-    outputAttribute: "gen_ai.output.messages",
     toolDefinitionsAttribute: "gen_ai.tool.definitions",
+    // The anonymizer replaced this Langfuse enum with an invalid placeholder.
+    // For this replay contract, the GenAI model and message payload are treated
+    // as a generation; this does not claim the original enum value was recovered.
+    stringRepairs: { "langfuse.observation.type": "generation" },
+    expectedObservationType: "GENERATION",
+    // Current conversion suppresses model and usage for any invoke_agent span,
+    // including this fixture with gen_ai.request.model. Keep the observed blank
+    // model and absent usage explicit until that behavior is changed separately.
     expectedModelName: "",
     expectedUsageDetails: {},
     expectedFinalUsageDetails: {},
@@ -180,6 +189,16 @@ function fixtureJsonAttribute(fixture: ReplayFixture, key: string): unknown {
   const value = fixtureStringAttribute(fixture, key);
   if (value === undefined) throw new Error(`Fixture is missing ${key}`);
   return JSON.parse(value);
+}
+
+function parseFixtureValue(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
 }
 
 function persistedJsonColumn(
@@ -253,6 +272,7 @@ function buildResourceSpans(
   fixture: ReplayFixture,
   startTimeUnixNano: string,
   endTimeUnixNano: string,
+  stringRepairs: Record<string, string>,
   numericRepairs: Record<string, string>,
 ): ResourceSpan[] {
   const sourceScopeSpan = fixture.otel.scopeSpan;
@@ -289,12 +309,14 @@ function buildResourceSpans(
             endTimeUnixNano,
             attributes: sourceSpan.attributes?.map((attribute) => {
               const repairedValue = numericRepairs[attribute.key];
-              return repairedValue === undefined
+              if (repairedValue !== undefined) {
+                return { ...attribute, value: { intValue: repairedValue } };
+              }
+
+              const repairedString = stringRepairs[attribute.key];
+              return repairedString === undefined
                 ? structuredClone(attribute)
-                : {
-                    ...attribute,
-                    value: { intValue: repairedValue },
-                  };
+                : { ...attribute, value: { stringValue: repairedString } };
             }),
             events: sourceSpan.events
               ? structuredClone(sourceSpan.events)
@@ -319,20 +341,21 @@ describe("OTEL replay provider corpus", { retry: 0, timeout: 120_000 }, () => {
         expectedModelParameters,
         expectedToolCalls,
         expectedModelName,
+        expectedObservationType,
         expectedFinalUsageDetails,
         expectedUsageDetails,
         fixture,
-        inputAttribute,
         name,
         numericRepairs,
-        outputAttribute,
-        systemMessage,
+        stringRepairs,
         toolDefinitionsAttribute,
+        addToolDefinitionsToInput,
       } = providerCase;
       const resourceSpans = buildResourceSpans(
         fixture,
         "1714488530686000000",
         "1714488530687000000",
+        stringRepairs ?? {},
         numericRepairs,
       );
       const sourceSpan = resourceSpans[0].scopeSpans?.[0].spans?.[0];
@@ -348,10 +371,13 @@ describe("OTEL replay provider corpus", { retry: 0, timeout: 120_000 }, () => {
 
       expect(row.trace_id).toBe(idToHex(sourceSpan!.traceId));
       expect(row.span_id).toBe(idToHex(sourceSpan!.spanId));
+      if (expectedObservationType) {
+        expect(row.type).toBe(expectedObservationType);
+      }
       expect(row.provided_model_name).toBe(expectedModelName);
 
-      const expectedInput = fixtureJsonAttribute(fixture, inputAttribute);
-      const expectedOutput = fixtureJsonAttribute(fixture, outputAttribute);
+      const spanIOInput = parseFixtureValue(fixture.spanIO.input);
+      const expectedOutput = parseFixtureValue(fixture.spanIO.output);
       const storedInput = persistedJsonColumn(row, "input");
       expect(persistedJsonColumn(row, "output")).toEqual(expectedOutput);
 
@@ -360,18 +386,18 @@ describe("OTEL replay provider corpus", { retry: 0, timeout: 120_000 }, () => {
           fixture,
           toolDefinitionsAttribute,
         ) as unknown[];
-        const expectedMessages = systemMessage
-          ? [systemMessage, ...(expectedInput as unknown[])]
-          : expectedInput;
-        expect(storedInput).toEqual({
-          messages: expectedMessages,
-          tools: toolDefinitions,
-        });
+        const expectedInput = addToolDefinitionsToInput
+          ? {
+              ...(spanIOInput as Record<string, unknown>),
+              tools: toolDefinitions,
+            }
+          : spanIOInput;
+        expect(storedInput).toEqual(expectedInput);
         expect(persistedJsonColumn(row, "tool_definitions")).toEqual(
           expectedToolDefinitions(toolDefinitions),
         );
       } else {
-        expect(storedInput).toEqual(expectedInput);
+        expect(storedInput).toEqual(spanIOInput);
       }
 
       expect(persistedJsonColumn(row, "provided_usage_details")).toEqual(

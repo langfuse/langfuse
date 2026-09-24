@@ -17,6 +17,10 @@ const RESOURCE_RELEASE = "resource-release";
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type JsonObject = Record<string, Json>;
 
+type RootPayload =
+  | { kind: "json"; value: Json }
+  | { kind: "raw"; value: string };
+
 type TypedScalar =
   | { kind: "string"; value: string }
   | { kind: "int"; value: number }
@@ -29,14 +33,20 @@ type MetadataAttribute = {
 };
 
 type SpanSeed = {
-  input: Json;
-  output: Json;
+  input: RootPayload;
+  output: RootPayload;
   observationMetadata: JsonObject;
   traceMetadata: JsonObject;
   observationAttributes: MetadataAttribute[];
   traceAttributes: MetadataAttribute[];
   parentSelector: number;
   orderKey: number;
+  timestampPresence: "both" | "startOnly" | "endOnly";
+  promptVersion: number | null;
+  version: string | null;
+  release: string | null;
+  environment: "span" | "lower" | "empty" | "resource";
+  modelPrecedence: "canonical" | "response" | "request" | "none";
 };
 
 type ReplayCase = {
@@ -53,9 +63,9 @@ type ExpectedSpan = {
   name: string;
   startTimeMillis: number;
   endTimeMillis: number;
-  promptVersion: number;
-  input: Json;
-  output: Json;
+  promptVersion: number | null;
+  input: string;
+  output: string;
   metadata: Record<string, unknown>;
   release: string;
   version: string;
@@ -106,14 +116,19 @@ function paddedHex(value: bigint, digits: number): string {
   return value.toString(16).padStart(digits, "0");
 }
 
-// JSON is the transport contract for these roots. This also canonicalizes -0
-// to 0 before the generated value is used in both the payload and oracle.
+// JSON-encoded values canonicalize -0 to 0 before transport and comparison.
 function canonicalJson(value: Json): Json {
   return JSON.parse(JSON.stringify(value)) as Json;
 }
 
 function canonicalObject(value: JsonObject): JsonObject {
   return canonicalJson(value) as JsonObject;
+}
+
+function rootPayloadText(value: RootPayload): string {
+  return value.kind === "json"
+    ? JSON.stringify(canonicalJson(value.value))
+    : value.value;
 }
 
 function metadataFromSource(
@@ -149,9 +164,8 @@ function expectedMetadata(seed: SpanSeed): Record<string, unknown> {
   };
 }
 
-// Independent test-side witness for the persisted flattened metadata contract.
-// Arrays stay leaves, objects recurse, and each leaf is converted as a JSON
-// value for ClickHouse's Array(String) column. Returning pairs keeps collisions.
+// Test-side contract oracle for the persisted flattened metadata. Arrays stay
+// leaves; returning pairs preserves duplicate flattened paths.
 function expectedMetadataPairs(
   metadata: Record<string, unknown>,
   prefix = "",
@@ -185,41 +199,40 @@ function buildReplayCase(params: ReplayCase): {
 
   const expectedSpans: ExpectedSpan[] = spanIds.map((spanId, ordinal) => {
     const seed = params.spanSeeds[ordinal];
-    const variant = ordinal % 3;
     const timestampMillis = params.baseTimeMillis + ordinal * 1_000;
+    const endMillis = timestampMillis + 250;
     const parentOrdinal =
       ordinal === 0 ? undefined : seed.parentSelector % ordinal;
     const marker = `${traceId}-${ordinal}`;
+    const modelName =
+      seed.modelPrecedence === "canonical"
+        ? `explicit-model-${marker}`
+        : seed.modelPrecedence === "response"
+          ? `response-model-${marker}`
+          : seed.modelPrecedence === "request"
+            ? `request-model-${marker}`
+            : "";
 
     return {
       spanId,
       ordinal,
       parentSpanId: parentOrdinal === undefined ? "" : spanIds[parentOrdinal],
       name: `property-span-${marker}`,
-      startTimeMillis: timestampMillis,
-      endTimeMillis: variant === 0 ? timestampMillis + 250 : timestampMillis,
-      promptVersion: [0, 1, 65_535][variant],
-      input: canonicalJson(seed.input),
-      output: canonicalJson(seed.output),
+      startTimeMillis:
+        seed.timestampPresence === "endOnly" ? endMillis : timestampMillis,
+      endTimeMillis:
+        seed.timestampPresence === "startOnly" ? timestampMillis : endMillis,
+      promptVersion: seed.promptVersion,
+      input: rootPayloadText(seed.input),
+      output: rootPayloadText(seed.output),
       metadata: expectedMetadata(seed),
-      release:
-        variant === 0
-          ? `span-release-${marker}`
-          : variant === 1
-            ? ""
-            : RESOURCE_RELEASE,
-      version:
-        variant === 0
-          ? `span-version-${marker}`
-          : variant === 1
-            ? ""
-            : RESOURCE_VERSION,
+      release: seed.release ?? RESOURCE_RELEASE,
+      version: seed.version ?? RESOURCE_VERSION,
       environment:
-        variant === 0
+        seed.environment === "span"
           ? `span-env-${traceId.slice(-8)}-${ordinal}`
           : RESOURCE_ENVIRONMENT,
-      modelName:
-        variant === 0 ? `explicit-model-${marker}` : `response-model-${marker}`,
+      modelName,
       traceName: `property-trace-${traceId}`,
     };
   });
@@ -227,17 +240,10 @@ function buildReplayCase(params: ReplayCase): {
   const spans = expectedSpans.map((expected, ordinal) => {
     const seed = params.spanSeeds[ordinal];
     const marker = `${traceId}-${ordinal}`;
-    const variant = ordinal % 3;
     const attributes = [
       stringAttribute("langfuse.observation.type", "generation"),
-      stringAttribute(
-        "langfuse.observation.input",
-        JSON.stringify(expected.input),
-      ),
-      stringAttribute(
-        "langfuse.observation.output",
-        JSON.stringify(expected.output),
-      ),
+      stringAttribute("langfuse.observation.input", expected.input),
+      stringAttribute("langfuse.observation.output", expected.output),
       stringAttribute(
         "gen_ai.input.messages",
         JSON.stringify([{ role: "user", content: `provider-input-${marker}` }]),
@@ -248,12 +254,30 @@ function buildReplayCase(params: ReplayCase): {
           { role: "assistant", content: `provider-output-${marker}` },
         ]),
       ),
-      stringAttribute("gen_ai.request.model", PROVIDER_MODEL),
       stringAttribute(
-        "langfuse.observation.prompt.version",
-        String(expected.promptVersion),
+        "gen_ai.request.model",
+        seed.modelPrecedence === "request"
+          ? expected.modelName
+          : seed.modelPrecedence === "none"
+            ? ""
+            : PROVIDER_MODEL,
       ),
-      stringAttribute("gen_ai.response.model", `response-model-${marker}`),
+      ...(seed.promptVersion === null
+        ? []
+        : [
+            stringAttribute(
+              "langfuse.observation.prompt.version",
+              String(seed.promptVersion),
+            ),
+          ]),
+      stringAttribute(
+        "gen_ai.response.model",
+        seed.modelPrecedence === "request" || seed.modelPrecedence === "none"
+          ? ""
+          : seed.modelPrecedence === "response"
+            ? expected.modelName
+            : `response-model-${marker}`,
+      ),
       stringAttribute("langfuse.trace.name", expected.traceName),
       stringAttribute(
         "langfuse.observation.metadata",
@@ -277,34 +301,39 @@ function buildReplayCase(params: ReplayCase): {
       ),
     ];
 
-    if (variant === 0) {
+    attributes.push(
+      stringAttribute(
+        "langfuse.observation.model.name",
+        seed.modelPrecedence === "canonical" ? expected.modelName : "",
+      ),
+    );
+    if (seed.version !== null) {
+      attributes.push(stringAttribute("langfuse.version", seed.version));
+    }
+    if (seed.release !== null) {
+      attributes.push(stringAttribute("langfuse.release", seed.release));
+    }
+    if (seed.environment === "span") {
       attributes.push(
-        stringAttribute("langfuse.observation.model.name", expected.modelName),
-        stringAttribute("langfuse.version", expected.version),
-        stringAttribute("langfuse.release", expected.release),
         stringAttribute("langfuse.environment", expected.environment),
       );
-    } else if (variant === 1) {
-      // Present empty values take precedence over resource version/release.
+    } else if (seed.environment === "lower") {
       attributes.push(
-        stringAttribute("langfuse.version", ""),
-        stringAttribute("langfuse.release", ""),
         stringAttribute("deployment.environment.name", "span-fallback-env"),
       );
-    } else {
-      // A blank canonical model is ignored, so the response model wins.
-      attributes.push(stringAttribute("langfuse.observation.model.name", ""));
+    } else if (seed.environment === "empty") {
+      attributes.push(stringAttribute("langfuse.environment", ""));
     }
 
     const timestampMillis = params.baseTimeMillis + ordinal * 1_000;
     const timestampFields =
-      variant === 0
+      seed.timestampPresence === "both"
         ? {
             startTimeUnixNano: unixNanos(timestampMillis, 0),
             endTimeUnixNano: unixNanos(timestampMillis + 250, 1),
           }
-        : variant === 1
-          ? { endTimeUnixNano: unixNanos(timestampMillis, 999_999) }
+        : seed.timestampPresence === "endOnly"
+          ? { endTimeUnixNano: unixNanos(timestampMillis + 250, 999_999) }
           : { startTimeUnixNano: unixNanos(timestampMillis, 999_999) };
 
     return {
@@ -371,6 +400,7 @@ function persistedMillis(value: unknown): number {
 }
 
 const jsonKeyArbitrary = fc.oneof(
+  { withCrossShrink: true },
   fc.string({ maxLength: 12, unit: "grapheme" }),
   fc.constantFrom("", "a.b", "__proto__", "constructor", "prototype", "🌍\n"),
 );
@@ -383,12 +413,8 @@ const metadataObjectKeyArbitrary = jsonKeyArbitrary.filter(
 );
 const metadataAttributeKeyArbitrary = jsonKeyArbitrary.filter(
   (key) =>
-    // Empty suffixes are ignored; prototype assignment and tool-normalizer
-    // reserved forms are outside this property input domain.
-    key !== "" &&
-    key !== "__proto__" &&
-    key !== "tools" &&
-    key !== "attributes",
+    // Empty suffixes are ignored; tool-normalizer reserved forms are out of scope.
+    key !== "" && key !== "tools" && key !== "attributes",
 );
 
 function recursiveJsonArbitrary(
@@ -396,6 +422,7 @@ function recursiveJsonArbitrary(
   maxWidth: number,
 ): Arbitrary<Json> {
   const leaf = fc.oneof(
+    { withCrossShrink: true },
     fc.constant(null),
     fc.boolean(),
     fc.double({ noNaN: true, noDefaultInfinity: true }),
@@ -404,6 +431,7 @@ function recursiveJsonArbitrary(
   if (depth === 0) return leaf;
 
   return fc.oneof(
+    { withCrossShrink: true },
     { weight: 4, arbitrary: leaf },
     {
       weight: 2,
@@ -442,26 +470,29 @@ const specialJsonValues: Json[] = [
 
 function scalarAttributeArbitrary(): Arbitrary<TypedScalar> {
   return fc.oneof(
-    fc.string({ maxLength: 20, unit: "grapheme" }).map((value) => ({
-      kind: "string" as const,
-      value,
-    })),
-    fc.integer({ min: -1_000_000, max: 1_000_000 }).map((value) => ({
-      kind: "int" as const,
-      value,
-    })),
-    fc
-      .oneof(
+    { withCrossShrink: true },
+    fc.record({
+      kind: fc.constant("string" as const),
+      value: fc.string({ maxLength: 20, unit: "grapheme" }),
+    }),
+    fc.record({
+      kind: fc.constant("int" as const),
+      value: fc.integer({ min: -1_000_000, max: 1_000_000 }),
+    }),
+    fc.record({
+      kind: fc.constant("double" as const),
+      value: fc.oneof(
+        { withCrossShrink: true },
         fc.double({ noNaN: true, noDefaultInfinity: true }),
         fc.constantFrom(
           "NaN" as const,
           "Infinity" as const,
           "-Infinity" as const,
         ),
-      )
-      .map((value) => ({ kind: "double" as const, value })),
-    fc.boolean().map((value) => ({ kind: "bool" as const, value })),
-  ) as Arbitrary<TypedScalar>;
+      ),
+    }),
+    fc.record({ kind: fc.constant("bool" as const), value: fc.boolean() }),
+  );
 }
 
 function metadataAttributeArbitrary(
@@ -471,13 +502,38 @@ function metadataAttributeArbitrary(
   return fc.record({
     key: keyArbitrary,
     value: fc.oneof(
+      { withCrossShrink: true },
       scalar,
-      fc.array(scalar, { maxLength: 4 }).map((values) => ({
-        kind: "array" as const,
-        values,
-      })),
+      fc.record({
+        kind: fc.constant("array" as const),
+        values: fc.array(scalar, { maxLength: 4 }),
+      }),
     ),
   });
+}
+
+function rootPayloadArbitrary(
+  jsonValue: Arbitrary<Json>,
+): Arbitrary<RootPayload> {
+  return fc.oneof(
+    { withCrossShrink: true },
+    fc.record({
+      kind: fc.constant("raw" as const),
+      value: fc.oneof(
+        { withCrossShrink: true },
+        fc.string({ maxLength: 24, unit: "grapheme" }),
+        fc.constantFrom(
+          "",
+          "plain text",
+          "{invalid",
+          " \r\n\t",
+          "  null ",
+          "  {}  ",
+        ),
+      ),
+    }),
+    fc.record({ kind: fc.constant("json" as const), value: jsonValue }),
+  );
 }
 
 function replayCaseArbitrary(
@@ -488,6 +544,7 @@ function replayCaseArbitrary(
   const broadJson = recursiveJsonArbitrary(depth, maxWidth);
   const jsonValue = biased
     ? fc.oneof(
+        { withCrossShrink: true },
         { weight: 2, arbitrary: broadJson },
         { weight: 5, arbitrary: fc.constantFrom(...specialJsonValues) },
       )
@@ -505,6 +562,7 @@ function replayCaseArbitrary(
   );
   const metadataRoot = biased
     ? fc.oneof(
+        { withCrossShrink: true },
         { weight: 2, arbitrary: broadMetadataRoot },
         {
           weight: 5,
@@ -543,12 +601,14 @@ function replayCaseArbitrary(
     : broadMetadataRoot;
   const metadataAttrKey = biased
     ? fc.oneof(
+        { withCrossShrink: true },
         { weight: 2, arbitrary: metadataAttributeKeyArbitrary },
         {
           weight: 5,
           arbitrary: fc.constantFrom(
             "a.b",
             "route.status",
+            "__proto__",
             "tags",
             "model",
             "scope.name",
@@ -561,145 +621,115 @@ function replayCaseArbitrary(
   });
 
   return fc.record({
-    traceId: fc
-      .stringMatching(/^[0-9a-f]{32}$/)
-      .filter((id) => id !== "0".repeat(32)),
+    traceId: fc.bigInt({ min: 1n, max: (1n << 128n) - 1n }).map(
+      (value) => paddedHex(value, 32),
+      (value) => {
+        if (typeof value !== "string" || !/^[0-9a-f]{32}$/.test(value)) {
+          throw new Error("Expected a 32-digit hexadecimal trace ID");
+        }
+        return BigInt(`0x${value}`);
+      },
+    ),
     spanIdBase: fc.bigInt({ min: 6n, max: (1n << 64n) - 1n }),
     baseTimeMillis: fc.integer({
       min: 1_700_000_000_000,
       max: 1_800_000_000_000,
     }),
-    spanSeeds: fc.array(
-      fc.record({
-        input: jsonValue,
-        output: jsonValue,
-        observationMetadata: metadataRoot,
-        traceMetadata: metadataRoot,
-        observationAttributes: metadataAttrs,
-        traceAttributes: metadataAttrs,
-        parentSelector: fc.nat(65_535),
-        orderKey: fc.integer(),
-      }),
-      { minLength: 3, maxLength: 6 },
-    ),
+    // A filtered zero-minimum array can shrink away trailing spans even when
+    // its first span is the failure; fast-check's minLength: 1 retains that tail.
+    spanSeeds: fc
+      .array(
+        fc.record({
+          input: rootPayloadArbitrary(jsonValue),
+          output: rootPayloadArbitrary(jsonValue),
+          observationMetadata: metadataRoot,
+          traceMetadata: metadataRoot,
+          observationAttributes: metadataAttrs,
+          traceAttributes: metadataAttrs,
+          parentSelector: fc.nat(65_535),
+          orderKey: fc.integer(),
+          timestampPresence: fc.constantFrom(
+            "both" as const,
+            "startOnly" as const,
+            "endOnly" as const,
+          ),
+          promptVersion: fc.constantFrom(null, 0, 1, 65_535),
+          version: fc.option(fc.string({ maxLength: 20 }), { nil: null }),
+          release: fc.option(fc.string({ maxLength: 20 }), { nil: null }),
+          environment: fc.constantFrom(
+            "resource" as const,
+            "span" as const,
+            "lower" as const,
+            "empty" as const,
+          ),
+          modelPrecedence: fc.constantFrom(
+            "none" as const,
+            "canonical" as const,
+            "response" as const,
+            "request" as const,
+          ),
+        }),
+        { maxLength: 6 },
+      )
+      .filter((seeds) => seeds.length > 0),
   });
 }
 
+// Small defaults keep directed witnesses within the same shrinkable input domain.
+const minimalSpan: SpanSeed = {
+  input: { kind: "raw", value: "" },
+  output: { kind: "raw", value: "" },
+  observationMetadata: {},
+  traceMetadata: {},
+  observationAttributes: [],
+  traceAttributes: [],
+  parentSelector: 0,
+  orderKey: 0,
+  timestampPresence: "both",
+  promptVersion: null,
+  version: null,
+  release: null,
+  environment: "resource",
+  modelPrecedence: "none",
+};
+
 const directedCases: ReplayCase[] = [
   {
-    traceId: "00000000000000000000000000000001",
+    traceId: paddedHex(1n, 32),
     spanIdBase: 6n,
     baseTimeMillis: 1_700_000_000_000,
     spanSeeds: [
       {
-        input: null,
-        output: "",
-        observationMetadata: JSON.parse(
-          '{"route":{"status":"nested observation","deep":{"leaf":1}},"route.status":"literal observation","emptyObject":{},"emptyArray":[],"nullLeaf":null,"__proto__":{"preserved":true},"constructor":{"prototype":"safe"},"langgraph":{"checkpoint_ns":"root","step":2,"parents":["root","child"],"messages":[{"type":"human","content":[{"type":"text","text":"hello"}]},{"type":"ai","content":[{"type":"text","text":"world"}]}]}}',
-        ),
-        traceMetadata: JSON.parse(
-          '{"route":{"status":"nested trace"},"route.status":"literal trace","winner":"trace"}',
-        ),
-        observationAttributes: [
-          {
-            key: "route.status",
-            value: { kind: "string", value: "dotted observation" },
-          },
-          {
-            key: "typedArray",
-            value: {
-              kind: "array",
-              values: [
-                { kind: "string", value: "x" },
-                { kind: "int", value: 2 },
-                { kind: "double", value: -0 },
-                { kind: "bool", value: false },
-              ],
-            },
-          },
-          { key: "typedSpecial", value: { kind: "double", value: "Infinity" } },
-          { key: "prototype", value: { kind: "string", value: "safe" } },
-        ],
-        traceAttributes: [
-          { key: "route.status", value: { kind: "int", value: 7 } },
-          { key: "winner", value: { kind: "bool", value: true } },
-        ],
-        parentSelector: 0,
-        orderKey: 2,
-      },
-      {
-        input: [null, false, [], {}],
-        output: { empty: "", controls: "\u0000\n\r\t", unicode: "🌍\u2028🧪" },
+        ...minimalSpan,
         observationMetadata: {
-          "scope.name": "metadata scope",
-          messages: ["a", { content: [null, "b"] }],
+          route: { status: "nested" },
+          "route.status": "literal",
         },
-        traceMetadata: {},
-        observationAttributes: [],
-        traceAttributes: [],
-        parentSelector: 0,
-        orderKey: 1,
-      },
-      {
-        input: JSON.parse(
-          '{"__proto__":{"value":"kept"},"constructor":{"prototype":false},"a.b":"literal","nested":{"a":{"b":"nested"}}}',
-        ) as Json,
-        output: [
-          { role: "assistant", content: [{ type: "text", text: "ok" }] },
+        traceAttributes: [
+          { key: "route.status", value: { kind: "string", value: "trace" } },
         ],
-        observationMetadata: { resourceAttributes: { custom: "user wins" } },
-        traceMetadata: { resourceAttributes: { nested: ["trace", null] } },
-        observationAttributes: [],
-        traceAttributes: [],
-        parentSelector: 1,
-        orderKey: 0,
       },
     ],
   },
   {
-    traceId: "ffffffffffffffffffffffffffffffff",
-    spanIdBase: (1n << 64n) - 1n,
-    baseTimeMillis: 1_800_000_000_000,
+    traceId: paddedHex(2n, 32),
+    spanIdBase: 7n,
+    baseTimeMillis: 1_700_000_000_000,
     spanSeeds: [
       {
-        input: { deep: { one: { two: { three: { four: ["last", null] } } } } },
-        output: ["a", "b", "c", "d", "e", "f", "g", "h"],
-        observationMetadata: Object.fromEntries(
-          Array.from({ length: 8 }, (_, index) => [
-            `wide${index}`,
-            { nested: [index, null, "🌍"] },
-          ]),
-        ),
-        traceMetadata: {},
-        observationAttributes: [],
-        traceAttributes: [],
-        parentSelector: 0,
-        orderKey: 5,
+        ...minimalSpan,
+        input: { kind: "raw", value: "{invalid" },
+        observationAttributes: [
+          { key: "a", value: { kind: "array", values: [] } },
+        ],
+        traceAttributes: [
+          { key: "__proto__", value: { kind: "string", value: "kept" } },
+        ],
       },
       {
-        input: { messages: [{ role: "user", content: "question" }] },
-        output: { messages: [{ role: "assistant", content: "answer" }] },
-        observationMetadata: {
-          graph: {
-            nodes: ["root", "child"],
-            state: { messages: ["one", "two"] },
-          },
-        },
-        traceMetadata: { graph: { state: { messages: ["trace wins"] } } },
-        observationAttributes: [],
-        traceAttributes: [],
-        parentSelector: 0,
-        orderKey: 4,
-      },
-      {
-        input: [],
-        output: {},
-        observationMetadata: {},
-        traceMetadata: {},
-        observationAttributes: [],
-        traceAttributes: [],
-        parentSelector: 1,
-        orderKey: 3,
+        ...minimalSpan,
+        input: { kind: "json", value: [null, false, {}] },
+        output: { kind: "raw", value: "  null " },
       },
     ],
   },
@@ -746,8 +776,9 @@ async function assertReplayPersists(params: ReplayCase): Promise<void> {
       ingestion_sdk_version: "test",
       blob_storage_file_path: FILE_KEY,
     });
-    expect(JSON.parse(String(row?.input))).toEqual(expected.input);
-    expect(JSON.parse(String(row?.output))).toEqual(expected.output);
+    // Langfuse input/output strings, including invalid JSON and whitespace, are preserved.
+    expect(row?.input).toBe(expected.input);
+    expect(row?.output).toBe(expected.output);
 
     const names = row?.metadata_names;
     const values = row?.metadata_values;
