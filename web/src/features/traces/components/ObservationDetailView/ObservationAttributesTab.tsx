@@ -49,12 +49,11 @@ export function ObservationAttributesTab({
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col overflow-auto pb-4">
-      <div className="space-y-4 pt-2">
+      <div className="space-y-2 pt-1">
         {hasAttributes ? (
           <div className={SECTION_CLASS}>
             <PrettyJsonView
               title="Attributes"
-              showHeader={false}
               json={attributes}
               currentView={currentView}
               rowActions={(row) => (
@@ -66,7 +65,6 @@ export function ObservationAttributesTab({
                   analyticsTable="attributes"
                 />
               )}
-              hoverControls
             />
           </div>
         ) : null}
@@ -74,10 +72,8 @@ export function ObservationAttributesTab({
           <div className={SECTION_CLASS}>
             <PrettyJsonView
               title="Model parameters"
-              showHeader={false}
               json={modelParameters}
               currentView={currentView}
-              hoverControls
             />
           </div>
         ) : null}
@@ -94,12 +90,10 @@ export function ObservationAttributesTab({
             ) : (
               <PrettyJsonView
                 title="Metadata"
-                showHeader={false}
                 json={metadata}
                 parsedJson={parsedMetadata}
                 currentView={currentView}
                 metadataActions={metadataActions}
-                hoverControls
               />
             )}
           </div>

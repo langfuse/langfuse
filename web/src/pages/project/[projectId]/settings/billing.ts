@@ -1,4 +1,4 @@
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useQueryProject } from "@/src/features/projects";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 

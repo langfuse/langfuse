@@ -4,17 +4,29 @@ import { type LucideIcon } from "lucide-react";
 import { type ComponentPropsWithoutRef } from "react";
 
 const inputControlVariants = cva(
-  "border-input bg-background ring-offset-background placeholder:text-foreground-tertiary focus-visible:ring-ring disabled:bg-muted/50 h-8 w-full rounded-md border px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-bold focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+  "bg-background ring-offset-background placeholder:text-foreground-tertiary focus-visible:ring-ring disabled:bg-muted/50 h-8 w-full rounded-md border text-sm file:border-0 file:bg-transparent file:text-sm file:font-bold focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       contentLayout: {
-        text: "min-w-14",
-        spread: "flex min-w-0 items-center justify-between gap-1",
+        none: null,
+        text: "min-w-14 px-3 py-2",
+        spread: "flex min-w-0 items-center justify-between gap-1 px-3 py-2",
       },
       trailingAction: {
         true: "pr-10",
         false: null,
       },
+      error: {
+        true: "border-destructive [&_svg]:text-destructive",
+        false: "border-input",
+      },
+      disabled: {
+        true: "bg-muted/50 cursor-not-allowed opacity-50",
+        false: null,
+      },
+    },
+    defaultVariants: {
+      error: false,
     },
   },
 );
@@ -23,7 +35,9 @@ type InputControlProps = Omit<
   ComponentPropsWithoutRef<typeof Slot>,
   "className"
 > & {
-  contentLayout: "text" | "spread";
+  contentLayout: "none" | "text" | "spread";
+  error?: boolean;
+  disabled?: boolean;
   trailingAction?: {
     label: string;
     icon: LucideIcon;
@@ -41,6 +55,8 @@ type InputControlProps = Omit<
  */
 export function InputControl({
   contentLayout,
+  error,
+  disabled,
   trailingAction,
   ...props
 }: InputControlProps) {
@@ -48,6 +64,8 @@ export function InputControl({
     <Slot
       className={inputControlVariants({
         contentLayout,
+        error,
+        disabled,
         trailingAction: Boolean(trailingAction),
       })}
       {...props}
@@ -73,7 +91,9 @@ export function InputControl({
       >
         <TrailingActionIcon
           aria-hidden="true"
-          className="text-muted-foreground size-4"
+          className={
+            error ? "text-destructive size-4" : "text-muted-foreground size-4"
+          }
         />
       </button>
     </div>

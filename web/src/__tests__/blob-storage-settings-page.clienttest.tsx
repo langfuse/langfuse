@@ -87,9 +87,9 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-import BlobStorageIntegrationSettings from "@/src/pages/project/[projectId]/settings/integrations/blobstorage";
+import BlobStorageIntegrationPage from "@/src/features/blobstorage-integration/BlobStorageIntegrationPage";
 
-describe("BlobStorageIntegrationSettings entitlement gate", () => {
+describe("BlobStorageIntegrationPage entitlement gate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.hasAccess = true;
@@ -101,7 +101,7 @@ describe("BlobStorageIntegrationSettings entitlement gate", () => {
   });
 
   it("does not fetch config and shows a plan message without scheduled-blob-exports", () => {
-    render(<BlobStorageIntegrationSettings />);
+    render(<BlobStorageIntegrationPage />);
 
     expect(
       screen.getByText("This feature is not available in your current plan."),
@@ -118,7 +118,7 @@ describe("BlobStorageIntegrationSettings entitlement gate", () => {
     mocks.hasEntitlement = true;
     mocks.hasAccess = false;
 
-    render(<BlobStorageIntegrationSettings />);
+    render(<BlobStorageIntegrationPage />);
 
     expect(
       screen.getByText(
@@ -140,7 +140,7 @@ describe("BlobStorageIntegrationSettings entitlement gate", () => {
       isLoading: false,
     });
 
-    render(<BlobStorageIntegrationSettings />);
+    render(<BlobStorageIntegrationPage />);
 
     expect(screen.getByText("Blob storage form")).toBeInTheDocument();
     expect(screen.queryByText("Loading configuration")).not.toBeInTheDocument();

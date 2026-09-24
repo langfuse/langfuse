@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { type UseFormReturn, useForm } from "react-hook-form";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Input } from "@/src/components/ui/input";
@@ -121,11 +122,11 @@ import { cn } from "@/src/utils/tailwind";
 import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 // Lazy load tables
-const TracesTable = lazy(
-  () => import("@/src/components/table/use-cases/traces"),
-);
-const ObservationsTable = lazy(
-  () => import("@/src/components/table/use-cases/observations"),
+const TracesTable = lazy(() => import("@/src/features/traces/TracesTable"));
+const ObservationsTable = lazy(() =>
+  import("@/src/features/tracing-tables").then((m) => ({
+    default: m.ObservationsTable,
+  })),
 );
 
 const EventsTable = lazy(
@@ -913,7 +914,6 @@ export const InnerEvaluatorForm = (props: {
                                 Traces
                                 <Badge
                                   variant="secondary"
-                                  size="sm"
                                   className="border-border border font-normal"
                                 >
                                   Legacy
@@ -994,7 +994,6 @@ export const InnerEvaluatorForm = (props: {
                           Low-level SDK methods
                           <Badge
                             variant="secondary"
-                            size="sm"
                             className="border-border border font-normal"
                           >
                             Legacy

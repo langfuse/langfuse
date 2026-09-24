@@ -47,6 +47,7 @@ const mockIoredis = () => {
     public status = "ready";
     public isCluster = false;
     public on = vi.fn();
+    public once = vi.fn();
     public duplicate = vi.fn(() => new MockRedis(this.options));
 
     constructor(...args: unknown[]) {
@@ -274,7 +275,7 @@ describe("BullMQ Redis version check options", () => {
       defaultJobOptions: expect.objectContaining({
         attempts: 8,
         removeOnComplete: true,
-        removeOnFail: 10_000,
+        removeOnFail: { age: 7 * 24 * 3600, count: 1000 },
       }),
     });
   });

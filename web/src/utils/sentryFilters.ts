@@ -367,6 +367,58 @@ const CHROME_EXTENSION_PORT_MESSAGES: readonly string[] = [
 ];
 
 /**
+ * Chromium wording when Next.js Pages Router `initialize()` does
+ * `window.__NEXT_DATA__ = initialData` and that Window property is
+ * getter-only. Observed: LANGFUSE-61R (`/auth/sign-up`, us-prod, 0 users,
+ * stack is only Next.js `client/index.tsx` + turbopack). Langfuse never
+ * assigns this property. A page-world extension / SES lockdown / named
+ * Window property made it a getter; we cannot make it writable after
+ * `initialize` has thrown.
+ *
+ * Whole-message only — an app error that quotes the phrase is longer
+ * and is KEPT. Stored without a trailing period because
+ * {@link coreMessage} strips one.
+ */
+const CHROMIUM_GETTER_ONLY_WINDOW_NEXT_DATA_MESSAGE =
+  "Cannot set property __NEXT_DATA__ of #<Window> which has only a getter";
+
+/**
+ * Safari / WebKit wording when injected password-manager or autofill JS
+ * does `addMore.click()` and `addMore` is undefined. WebKit uniquely
+ * includes the expression in the TypeError. Langfuse has no `addMore`
+ * identifier. Observed as a global-handler TypeError with
+ * document-attributed frames — `denyUrls` cannot match.
+ *
+ * Whole-message only. An app error that quotes the phrase is longer
+ * and is KEPT.
+ */
+const SAFARI_ADDMORE_CLICK_RE =
+  /^(?:undefined|null) is not an object \(evaluating 'addMore\.click(?:\(\))?'\)$/;
+
+/**
+ * Match {@link SAFARI_ADDMORE_CLICK_RE} without {@link coreMessage}.
+ * `coreMessage` strips a trailing `(…)` parenthetical — that clause *is*
+ * WebKit's signature here, so stripping it would miss the real event.
+ */
+function isSafariAddMoreClickMessage(value: string): boolean {
+  return SAFARI_ADDMORE_CLICK_RE.test(value.trim().replace(/\.$/, "").trim());
+}
+
+/**
+ * True when any stack frame is a first-party Next.js chunk. Used as a
+ * negative guard so a future first-party throw that happens to share
+ * WebKit's wording still reaches Sentry.
+ */
+function hasFirstPartyChunkFrame(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+  return frames.some(
+    (frame) =>
+      typeof frame?.filename === "string" && frame.filename.includes("/_next/"),
+  );
+}
+
+/**
  * A `TRPCClientError` re-wraps its cause's message. Depending on capture path
  * the Sentry `value` may be the bare cause message (`Failed to fetch`) or carry
  * the wrapper prefix (`TRPCClientError: Failed to fetch`). We strip ONLY this
@@ -464,7 +516,11 @@ export function isReactDevtoolsInternalEvent(event: ErrorEvent): boolean {
  *    surfaces as a spike on one issue.
  *  - first-party `Failed to fetch dynamically imported module` of a
  *    `/_next/static/chunks/` URL — same Chrome wording as the extension
- *    family, but our chunks (stale tab / CDN); kept.
+ *    family, but our chunks (stale tab / CDN); kept and GROUPED via
+ *    {@link isStaleChunkLoadErrorEvent}.
+ *  - an UNCAUGHT `window.__NEXT_DATA__` getter-only TypeError (global
+ *    `onerror`) — Next.js Pages Router failed to boot; kept as a diagnostic.
+ *    Only the console-captured sibling is dropped (LANGFUSE-61R).
  */
 export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
   const exception = event.exception?.values?.[0];
@@ -616,8 +672,13 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // no stack, `denyUrls` cannot match. Sibling message is the other
     // documented lastError for a torn-down extension port.
     //
-    // Both are anchored to a Sentry browser-API / global-handler mechanism
-    // so an app-captured exception that merely quotes the phrase is KEPT.
+    // Safari password-manager `addMore.click` is the same class: WebKit's
+    // exact TypeError for an injected `addMore` that is undefined. Stack is
+    // document-attributed global code, not a chunk.
+    //
+    // All three are anchored to a Sentry browser-API / global-handler
+    // mechanism so an app-captured exception that merely quotes the
+    // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
     if (
       typeof mechanismType === "string" &&
@@ -628,6 +689,13 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       }
       if (
         CHROME_EXTENSION_PORT_MESSAGES.includes(coreMessage(exceptionValue))
+      ) {
+        return true;
+      }
+      if (
+        exceptionType === "TypeError" &&
+        isSafariAddMoreClickMessage(exceptionValue) &&
+        !hasFirstPartyChunkFrame(event)
       ) {
         return true;
       }
@@ -650,6 +718,26 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       mechanismType.startsWith("auto.browser.") &&
       isInvalidUrlConstructorMessage(exceptionValue) &&
       isDataDocumentUrl(event)
+    ) {
+      return true;
+    }
+
+    // Next.js Pages Router boots with `window.__NEXT_DATA__ = initialData`
+    // (`next/src/client/index.tsx`). When that Window property is
+    // getter-only, Chromium throws TypeError. Observed as a console
+    // capture (LANGFUSE-61R): extra args are `Error was not caught` +
+    // the TypeError (that wrapper string is not in Next.js 16.3.3 —
+    // page-world). We never assign `__NEXT_DATA__` ourselves.
+    //
+    // Guarded to `capture_console` so an UNCAUGHT throw (page failed to
+    // hydrate via global onerror) is KEPT — that is a real diagnostic.
+    // An app-captured exception that merely quotes the phrase (`generic`)
+    // is also KEPT.
+    if (
+      exceptionType === "TypeError" &&
+      mechanismType === "auto.core.capture_console" &&
+      coreMessage(exceptionValue) ===
+        CHROMIUM_GETTER_ONLY_WINDOW_NEXT_DATA_MESSAGE
     ) {
       return true;
     }
@@ -694,6 +782,16 @@ function isGlobalHandlerUnsupportedMediaResourceEvent(
  * issue (see {@link isStaleChunkParseErrorEvent}).
  */
 export const STALE_CHUNK_PARSE_FINGERPRINT = "stale-chunk-parse-error";
+
+/**
+ * Fingerprint used to collapse first-party chunk LOAD failures into ONE Sentry
+ * issue (see {@link isStaleChunkLoadErrorEvent}). Separate from the parse
+ * fingerprint: a 404/network miss is not the same signal as an unparsable body.
+ */
+export const STALE_CHUNK_LOAD_FINGERPRINT = "stale-chunk-load-error";
+
+const NEXT_STATIC_CHUNK_PATH = "/_next/static/";
+const FAILED_TO_LOAD_SCRIPT_MARKER = "Failed to load script:";
 
 /**
  * True for a browser-level parse failure of a Next.js chunk: the global
@@ -741,10 +839,41 @@ export function isStaleChunkParseErrorEvent(event: ErrorEvent): boolean {
 }
 
 /**
- * PostHog's lazily-loaded session-replay recorder script (served as
- * `/static/posthog-recorder.js?v=<posthog-js version>`).
+ * True for a first-party Next.js chunk that failed to LOAD (not parse):
+ * Pages Router `route-loader` `script.onerror` (`Failed to load script:
+ * <hashed /_next/static/… URL>`) or Chrome's dynamic
+ * `import()` of the same path. Chunk filenames are content-hashed, so Sentry
+ * minted a new issue per chunk per deploy. The one-shot reload in
+ * `reloadOnStaleChunk` is the user-facing recovery; these events are GROUPED
+ * under {@link STALE_CHUNK_LOAD_FINGERPRINT} in `beforeSend`, NOT dropped —
+ * a CDN/deploy that 404s a chunk for everyone still spikes on one issue.
+ *
+ * Cannot catch:
+ *  - a third-party `Failed to load script:` (no `/_next/static/` path);
+ *  - UI copy such as `Failed to load evaluators:` (no chunk URL);
+ *  - worker `importScripts` failures (different message family);
+ *  - browser-extension `import()` (extension protocol, already denylisted).
  */
-const POSTHOG_RECORDER_SCRIPT_SUFFIX = "/static/posthog-recorder.js";
+export function isStaleChunkLoadErrorEvent(event: ErrorEvent): boolean {
+  const text = eventText(event);
+  if (!text.includes(NEXT_STATIC_CHUNK_PATH)) return false;
+  return (
+    text.includes(FAILED_TO_LOAD_SCRIPT_MARKER) ||
+    text.includes(DYNAMIC_IMPORT_FAILURE_MARKER)
+  );
+}
+
+/**
+ * PostHog's lazily-loaded session-replay recorder script. Older posthog-js
+ * served `/static/posthog-recorder.js?v=<version>`; 1.417+ serves
+ * `/static/<version>/posthog-recorder.js`. Match the filename as a path
+ * segment so both layouts (and a query string) count.
+ */
+function isPosthogRecorderFilename(path: string): boolean {
+  return (
+    path === "posthog-recorder.js" || path.endsWith("/posthog-recorder.js")
+  );
+}
 
 /**
  * Frames that carry no attribution: browser-native/eval frames, and the Sentry
@@ -767,8 +896,11 @@ function isOpaqueOrSdkFrame(filename: string): boolean {
  * every attributable stack frame lives in the recorder script (plus at most
  * browser-native and Sentry-SDK wrapper frames). rrweb's DOM serialization
  * throws on exotic page content (observed: `SyntaxError: Invalid or unexpected
- * token` from `processMutations` / `onRRwebEmit`, LANGFUSE-5VY/5VX), and each
- * throw site mints a new fingerprint per recorder version.
+ * token` from `processMutations` / `onRRwebEmit`, LANGFUSE-5VY/5VX; later
+ * `TypeError: string "" is not a function` from `onRRwebEmit` under the
+ * path-versioned script, LANGFUSE-621/620), and each throw site mints a new
+ * fingerprint per recorder version. The recorder filename may sit at
+ * `/static/posthog-recorder.js` or `/static/<version>/posthog-recorder.js`.
  *
  * Safe to drop: an error thrown by OUR code always carries at least one app
  * chunk frame (the throwing frame), which fails this check. Errors with no
@@ -794,11 +926,9 @@ export function isPosthogRecorderInternalEvent(event: ErrorEvent): boolean {
     const filename = frame?.filename;
     // A frame with no filename has no attribution — treat like <anonymous>.
     if (typeof filename !== "string" || filename.length === 0) continue;
-    // The recorder loads with a version query (`?v=<posthog-js version>`) that
-    // survives into wire-format frame filenames — strip query/fragment before
-    // matching the path suffix.
+    // Strip query/fragment (older `?v=` layout) before matching the filename.
     const path = filename.split(/[?#]/)[0];
-    if (path.endsWith(POSTHOG_RECORDER_SCRIPT_SUFFIX)) {
+    if (isPosthogRecorderFilename(path)) {
       sawRecorderFrame = true;
       continue;
     }

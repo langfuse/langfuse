@@ -14,13 +14,13 @@ import { env } from "@/src/env.mjs";
 import {
   useOrgProjectSwitchPaths,
   useQueryProjectOrOrganization,
-} from "@/src/features/projects/hooks";
+} from "@/src/features/projects";
 import { useSession } from "next-auth/react";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import {
   createOrganizationRoute,
   createProjectRoute,
-} from "@/src/features/setup/setupRoutes";
+} from "@/src/features/setup";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import Link from "next/link";
 import { Badge } from "@/src/components/ui/badge";
@@ -87,10 +87,7 @@ const BreadcrumbComponent = ({
               {organization?.name ?? "Organization"}
               {isCloudPlan(organization?.plan) &&
                 organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
-                  <Badge
-                    className="ml-1 px-1 py-0 text-xs font-normal"
-                    variant="secondary"
-                  >
+                  <Badge className="ml-1" variant="secondary">
                     {planLabels[organization.plan]}
                   </Badge>
                 )}

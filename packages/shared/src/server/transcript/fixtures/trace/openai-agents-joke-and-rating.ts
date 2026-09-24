@@ -203,7 +203,6 @@ const generatorAttributes = JSON.stringify({
 
 export const openaiAgentsJokeAndRatingFixture = {
   name: "OpenAI Agents joke generation followed by rating",
-  scope: "trace",
   description:
     "Separate agent executions generate a joke and rate it. The second prompt quotes the joke inside a fresh user message rather than replaying the first assistant message.",
   observations: [
@@ -368,5 +367,90 @@ export const openaiAgentsJokeAndRatingFixture = {
       output: payload5,
     },
   ],
-  expected: undefined,
+  expected: {
+    threads: [
+      {
+        conversationHistory: [],
+        currentTurn: {
+          messages: [
+            {
+              role: "user",
+              parts: [
+                {
+                  type: "text",
+                  text: "Tell me a joke",
+                },
+              ],
+              source: "input",
+              observationId: "f8fdd8164d6f8dbe",
+              traceId: "afa1ae379b6c3a5333e2bab357f31cdc",
+            },
+            {
+              id: "msg_05e10c6f9849abe80068db9d07270c81a0ab2f2738f61c1d11",
+              role: "assistant",
+              parts: [
+                {
+                  type: "text",
+                  text: "Sure! Here’s one for you:\n\nWhy did the scarecrow win an award?\n\nBecause he was outstanding in his field! 🌾😄",
+                  providerMetadata: {
+                    logprobs: [],
+                  },
+                },
+              ],
+              source: "output",
+              observationId: "f8fdd8164d6f8dbe",
+              traceId: "afa1ae379b6c3a5333e2bab357f31cdc",
+            },
+          ],
+          observations: [
+            {
+              id: "f8fdd8164d6f8dbe",
+              traceId: "afa1ae379b6c3a5333e2bab357f31cdc",
+            },
+          ],
+        },
+      },
+      {
+        conversationHistory: [],
+        currentTurn: {
+          messages: [
+            {
+              role: "user",
+              parts: [
+                {
+                  type: "text",
+                  text: "Rate this joke: Sure! Here’s one for you:\n\nWhy did the scarecrow win an award?\n\nBecause he was outstanding in his field! 🌾😄",
+                },
+              ],
+              source: "input",
+              observationId: "496efdc060a5399b",
+              traceId: "afa1ae379b6c3a5333e2bab357f31cdc",
+            },
+            {
+              id: "msg_03e1816217fbc8a30068db9d07dbe481a28fae7f2a41f76827",
+              role: "assistant",
+              parts: [
+                {
+                  type: "text",
+                  text: "Great choice! That’s a classic joke—punny, wholesome, and easy to get. Here’s how I’d rate it:\n\n**Joke Rating: 8/10**\n\n**Why?**\n- **Punniness:** Strong, farm-fresh wordplay!\n- **Audience:** Universally funny—works for kids and adults.\n- **Originality:** Popular, but still a crowd-pleaser.\n\n**Bonus:** The addition of the emoji 🌾 gives it an extra playful touch! Want to hear a joke from me now?",
+                  providerMetadata: {
+                    logprobs: [],
+                  },
+                },
+              ],
+              source: "output",
+              observationId: "496efdc060a5399b",
+              traceId: "afa1ae379b6c3a5333e2bab357f31cdc",
+            },
+          ],
+          observations: [
+            {
+              id: "496efdc060a5399b",
+              traceId: "afa1ae379b6c3a5333e2bab357f31cdc",
+            },
+          ],
+        },
+      },
+    ],
+  },
 } satisfies TranscriptFixture;

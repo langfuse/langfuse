@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { generateKeyPairSync, randomUUID } from "node:crypto";
 
 import type { Session } from "next-auth";
@@ -136,7 +137,7 @@ async function prepare(role: Role = Role.OWNER) {
       id: user.id,
       name: user.name,
       canCreateOrganizations: true,
-      featureFlags: {} as NonNullable<Session["user"]>["featureFlags"],
+      featureFlags: testFeatureFlags({ templateFlag: false }),
       organizations: [
         {
           id: org.id,

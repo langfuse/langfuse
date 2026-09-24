@@ -3,9 +3,11 @@ import { type NextApiRequest } from "next";
 import { ForbiddenError, UnauthorizedError } from "@langfuse/shared";
 import { type ApiAccessScope } from "@langfuse/shared/src/server";
 
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
-import { ErrorOrgApiKeyRequired } from "@/src/features/public-api/server/writeError";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import {
+  shadowAuth,
+  ErrorOrgApiKeyRequired,
+} from "@/src/features/public-api/server";
 
 /** authorizeBlobStorageRequest gates a blob-storage request on an organization key and the blob-export entitlement, returning the verified scope. */
 export async function authorizeBlobStorageRequest(

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Fragment, useState, type CSSProperties } from "react";
 import {
   Check,
@@ -187,7 +188,7 @@ export function PromptEditorContent({
             aria-hidden="true"
             className="bg-secondary text-secondary-foreground flex h-9 w-full items-center gap-2 rounded-md border px-2 shadow-lg"
           >
-            <Badge variant="tertiary" size="sm" className="h-5 shrink-0">
+            <Badge variant="tertiary" className="h-5 shrink-0">
               {ROLES.find((role) => role.value === activeMessage.role)?.label}
             </Badge>
             <span
@@ -237,11 +238,7 @@ function SortablePromptMessage({
     .filter(Boolean)
     .join(" ");
   const roleBadge = (
-    <Badge
-      variant="tertiary"
-      size="sm"
-      className="h-5 shrink-0 gap-1 leading-none"
-    >
+    <Badge variant="tertiary" className="h-5 shrink-0 gap-1 leading-none">
       {warningReason ? (
         <TriangleAlert
           className="text-dark-yellow h-3.5 w-3.5"

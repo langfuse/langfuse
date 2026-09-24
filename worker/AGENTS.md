@@ -16,18 +16,35 @@
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
+- OTEL event processing:
+  `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
+  after its legacy persistence path for event normalization, evaluation
+  scheduling, direct events-table writes, and trace-batch accounting.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
   `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads
   independently default-off and cloud-gated. Do not expose these PoC controls in
   local or production env templates. Reader query controls are independent of
   locality selection; logs must preserve separate input/output/metadata metrics.
+  `src/features/traceBatching/TraceBatchMetricsRunner.ts` collects bounded queue
+  and Redis snapshots independently of dispatch/consumption when either role is
+  enabled. Global snapshot gauges must not be summed across worker reporters.
+  `src/features/traceBatching/traceBatchTranscript.ts` measures per-trace assembly
+  phases, thread count, current-turn/history token estimates and their sum.
+  Token partitions run sequentially; tool-response size uses comparable character
+  counts over message parts, without another tokenizer pass.
+  Allow one pending tokenization promise per batch while
+  buffering the next trace, and drain it even on read failure. Never flush a failed
+  stream's partial final trace; completion covers the query window, not future arrivals.
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
 - Rust addon (`@langfuse/native`): telemetry init and the startup hello call live
   in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code
   records its own metrics and logs; see `../packages/native/AGENTS.md`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
+- Direct-event replay: `pnpm --filter worker run test:otel-replay` exercises the
+  production OTEL event phase with isolated ClickHouse tables. Setup and scope:
+  `src/features/otel-ingestion/README.md`.
 
 ## Shared Package Imports
 

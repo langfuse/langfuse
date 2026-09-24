@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo, useState } from "react";
 import {
   ChevronDown,
@@ -160,7 +161,7 @@ function SessionObservationActionsMenuContent({
         disabled={actions.comment.disabled}
         onSelect={() => actions.comment.onSelect(observation)}
       >
-        Add comment
+        Comments
       </DropdownMenuItem>
       <DropdownMenuItem
         disabled={actions.addToDataset.disabled}
@@ -908,7 +909,8 @@ function LoadedSessionConversationTimeline({
                   }
                   onOpenInTraceView={() => onOpenObservation(observation.id)}
                 />
-              ) : !isToolStart && !isEmptyEnd ? (
+              ) : !isEmptyEnd &&
+                (observation.type !== "TOOL" || phase !== "end") ? (
                 <SessionTimelineObservation
                   observation={observation}
                   parsed={parsed}

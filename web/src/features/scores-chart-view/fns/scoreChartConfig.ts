@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { type FilterState, type QueryType } from "@langfuse/shared";
 import {
   AGGREGATION_LABELS,
@@ -5,7 +6,7 @@ import {
   GRANULARITIES,
   isTimeSeriesChartType,
 } from "@/src/features/chart-view/vocab";
-import { type ChartWidgetInput } from "@/src/features/chart-view/lib/chartConfigToWidget";
+import { type ChartWidgetInput } from "@/src/features/chart-view";
 import {
   type DataPoint,
   getWidgetMissingBucketValue,

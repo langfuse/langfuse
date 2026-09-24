@@ -4,9 +4,10 @@ use axum::{
     http::{HeaderMap, Response},
 };
 use tokio::sync::Semaphore;
+use tracing::Instrument;
 
 use crate::{
-    providers::openai::{OpenAiProvider, ProviderError, RequestPermit},
+    providers::{ProviderError, ProviderTransport, RequestPermit, Route},
     resolution::{
         ApiFormat, ControlPlaneClient, ControlPlaneConfig, ResolutionError, ResolvedRequestContext,
     },
@@ -14,7 +15,7 @@ use crate::{
 
 pub struct InferenceService {
     control_plane: ControlPlaneClient,
-    provider: OpenAiProvider,
+    provider: ProviderTransport,
     resolution_capacity: Semaphore,
     telemetry: Option<crate::telemetry::Telemetry>,
 }
@@ -40,7 +41,7 @@ impl InferenceService {
         let telemetry = crate::telemetry::Telemetry::new(&config)?;
         Ok(Self {
             control_plane: ControlPlaneClient::new(config)?,
-            provider: OpenAiProvider::new(max_active_requests)
+            provider: ProviderTransport::new(max_active_requests)
                 .map_err(|_| ResolutionError::Configuration)?
                 .with_telemetry(telemetry.clone()),
             resolution_capacity: Semaphore::new(max_concurrent_resolutions),
@@ -53,9 +54,37 @@ impl InferenceService {
     }
 
     /// Authenticate with a separate bounded budget before reserving execution capacity.
+    /// The API format comes from the public route, so Web selects a compatible connection.
     pub(crate) async fn resolve_and_admit(
         &self,
         gateway_key: &str,
+        api_format: ApiFormat,
+    ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
+        let span = tracing::info_span!(
+            "resolution",
+            otel.kind = "internal",
+            gateway.outcome = tracing::field::Empty
+        );
+        async {
+            let prepared = self.prepare(gateway_key, api_format).await;
+            tracing::Span::current().record(
+                "gateway.outcome",
+                match &prepared {
+                    Ok(_) => "admitted",
+                    Err(RequestPreparationError::Resolution(_)) => "resolution_failed",
+                    Err(RequestPreparationError::Provider(_)) => "busy",
+                },
+            );
+            prepared
+        }
+        .instrument(span)
+        .await
+    }
+
+    async fn prepare(
+        &self,
+        gateway_key: &str,
+        api_format: ApiFormat,
     ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
         let context = {
             let _permit = self.resolution_capacity.try_acquire().map_err(|_| {
@@ -64,7 +93,7 @@ impl InferenceService {
             })?;
             let _active = crate::observability::Active::new("resolution");
             self.control_plane
-                .resolve(gateway_key, ApiFormat::OpenAiResponses)
+                .resolve(gateway_key, api_format)
                 .await
                 .map_err(RequestPreparationError::Resolution)?
         };
@@ -81,14 +110,18 @@ impl InferenceService {
         context: ResolvedRequestContext,
         headers: &HeaderMap,
         body: Bytes,
+        route: Route,
+        query: Option<&str>,
     ) -> Result<Response<Body>, ProviderError> {
-        self.provider.forward(permit, context, headers, body).await
+        self.provider
+            .forward_route(permit, context, headers, body, route, query)
+            .await
     }
 
     #[cfg(test)]
     pub(crate) fn for_test(
         control_plane: ControlPlaneClient,
-        provider: OpenAiProvider,
+        provider: ProviderTransport,
         resolutions: usize,
     ) -> Self {
         Self {

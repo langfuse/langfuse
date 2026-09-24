@@ -39,7 +39,6 @@ export function ExperimentPeekFooter({ projectId }: { projectId: string }) {
         </span>
         <Badge
           variant="outline"
-          size="sm"
           className={cn("shrink-0 font-bold", colorStyles?.badgeClass)}
         >
           {currentIndex === 0 ? "Baseline" : "Comp"}
