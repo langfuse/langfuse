@@ -26,7 +26,6 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
-  findTypeSafeUpstream,
   type LLMConnectionConfig,
 } from "@langfuse/shared";
 
@@ -108,37 +107,18 @@ type TestLLMConnectionParams = {
   config?: unknown;
 };
 
-function assertDecisionModelConnectionInput(input: {
-  adapter: LLMAdapter;
-  baseURL?: string | null;
-  extraHeaders?: Record<string, string | null | undefined> | null;
-}) {
-  if (!isDecisionModelAdapter(input.adapter)) return;
-  if (!findTypeSafeUpstream(input.baseURL)) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message:
-        "Decision-model connections only support the TypeSafe, Vercel AI Gateway, and OpenRouter base URLs.",
-    });
-  }
-  if (input.extraHeaders && Object.keys(input.extraHeaders).length > 0) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Decision-model connections do not support extra headers.",
-    });
-  }
-}
-
 async function testDecisionModelConnection(params: {
   secretKey: string;
   model: string;
   baseURL?: string | null;
+  extraHeaders?: Record<string, string>;
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const client = createTypeSafeDecisionModelClient({
       apiKey: params.secretKey,
       model: params.model,
       baseURL: params.baseURL,
+      extraHeaders: params.extraHeaders,
     });
     await client.evaluate({
       state: { message: "Hello, is anyone there?" },
@@ -175,6 +155,7 @@ async function testLLMConnection(
         secretKey: params.secretKey,
         model,
         baseURL: params.baseURL,
+        extraHeaders: params.extraHeaders,
       });
     }
 
@@ -264,6 +245,35 @@ async function validateBaseURLForWrite(params: {
   }
 }
 
+function resolveUpdatedExtraHeaders(params: {
+  inputHeaders: Record<string, string | null | undefined> | undefined;
+  storedHeaders: string | null;
+  isBaseURLChanged: boolean;
+}): Record<string, string> | undefined {
+  const existingHeaders: Record<string, string> = params.isBaseURLChanged
+    ? {}
+    : (decryptAndParseExtraHeaders(params.storedHeaders) ?? {});
+
+  if (params.inputHeaders === undefined) {
+    return Object.keys(existingHeaders).length > 0
+      ? existingHeaders
+      : undefined;
+  }
+
+  const extraHeaders: Record<string, string> = {};
+  for (const [key, value] of Object.entries(params.inputHeaders)) {
+    if (value === null || value === undefined || value === "") {
+      if (existingHeaders[key] !== undefined) {
+        extraHeaders[key] = existingHeaders[key];
+      }
+    } else {
+      extraHeaders[key] = value;
+    }
+  }
+
+  return Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined;
+}
+
 export const llmApiKeyRouter = createTRPCRouter({
   create: protectedProjectProcedureWithoutTracing
     .input(CreateLlmApiKey)
@@ -274,8 +284,6 @@ export const llmApiKeyRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "llmApiKeys:create",
         });
-
-        assertDecisionModelConnectionInput(input);
 
         await validateBaseURLForWrite({
           baseURL: input.baseURL,
@@ -511,8 +519,6 @@ export const llmApiKeyRouter = createTRPCRouter({
         scope: "llmApiKeys:create",
       });
 
-      assertDecisionModelConnectionInput(input);
-
       if (input.baseURL) {
         try {
           await validateLlmConnectionBaseURL(input.baseURL);
@@ -560,8 +566,6 @@ export const llmApiKeyRouter = createTRPCRouter({
           });
         }
 
-        assertDecisionModelConnectionInput(input);
-
         const hasNewSecretKey =
           typeof input.secretKey === "string" && input.secretKey.length > 0;
         const baseURL =
@@ -589,15 +593,11 @@ export const llmApiKeyRouter = createTRPCRouter({
         const customModels = input.customModels ?? existingKey.customModels;
         const config = input.config ?? existingKey.config;
 
-        // Never reuse stored headers across a destination change.
-        const extraHeaders =
-          input.extraHeaders !== undefined
-            ? input.extraHeaders
-            : isBaseURLChanged
-              ? undefined
-              : existingKey.extraHeaders
-                ? decryptAndParseExtraHeaders(existingKey.extraHeaders)
-                : undefined;
+        const extraHeaders = resolveUpdatedExtraHeaders({
+          inputHeaders: input.extraHeaders,
+          storedHeaders: existingKey.extraHeaders,
+          isBaseURLChanged,
+        });
 
         return testLLMConnection({
           adapter,
@@ -653,8 +653,6 @@ export const llmApiKeyRouter = createTRPCRouter({
             message: "Provider and adapter cannot be changed",
           });
         }
-
-        assertDecisionModelConnectionInput(input);
 
         // Validate that default credentials sentinel is only allowed for Bedrock/VertexAI in self-hosted deployments
         const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
@@ -713,44 +711,11 @@ export const llmApiKeyRouter = createTRPCRouter({
           input.extraHeaders = {};
         }
 
-        // Get existing decrypted headers for comparison
-        const decryptedHeaders = existingKey.extraHeaders
-          ? decryptAndParseExtraHeaders(existingKey.extraHeaders)
-          : null;
-        const existingHeaders: Record<string, string> = isBaseURLChanged
-          ? {}
-          : (decryptedHeaders ?? {});
-
-        // Ensure we only update the extraHeaders where the value is not null
-        let extraHeaders: Record<string, string> | undefined;
-
-        if (input.extraHeaders === undefined) {
-          // Keep all existing headers unchanged
-          extraHeaders =
-            Object.keys(existingHeaders).length > 0
-              ? existingHeaders
-              : undefined;
-        } else {
-          // Process input headers, preserving existing values for empty inputs
-          extraHeaders = {};
-
-          for (const [key, value] of Object.entries(input.extraHeaders)) {
-            if (value === null || value === undefined || value === "") {
-              // Keep existing value if input value is empty and key exists
-              if (existingHeaders[key] !== undefined) {
-                extraHeaders[key] = existingHeaders[key];
-              }
-            } else {
-              // Use the new non-empty value
-              extraHeaders[key] = value;
-            }
-          }
-
-          // If no headers remain, set to undefined
-          if (Object.keys(extraHeaders).length === 0) {
-            extraHeaders = undefined;
-          }
-        }
+        const extraHeaders = resolveUpdatedExtraHeaders({
+          inputHeaders: input.extraHeaders,
+          storedHeaders: existingKey.extraHeaders,
+          isBaseURLChanged,
+        });
 
         const key = await ctx.prisma.llmApiKeys.update({
           where: {

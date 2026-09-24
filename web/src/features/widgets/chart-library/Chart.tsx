@@ -209,7 +209,6 @@ const ChartComponent = ({
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
             sync={sync}
-            subtleFill={chartConfig?.subtle_fill}
             missingValue={missingValue}
             hideXAxisLabels={hideXAxisLabels}
           />
@@ -226,7 +225,6 @@ const ChartComponent = ({
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
             sync={sync}
-            subtleFill={chartConfig?.subtle_fill}
             hideXAxisLabels={hideXAxisLabels}
           />
         );
@@ -236,7 +234,6 @@ const ChartComponent = ({
             data={renderedData.slice(0, rowLimit)}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
-            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "VERTICAL_BAR":
@@ -257,7 +254,6 @@ const ChartComponent = ({
           <PieChart
             data={renderedData.slice(0, rowLimit)}
             metricFormatter={metricFormatter}
-            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "HISTOGRAM":

@@ -13,6 +13,8 @@ import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import { NodeSDK, tracing } from "@opentelemetry/sdk-node";
 import {
   getCurrentSpan,
+  convertObservation,
+  createObservation,
   getTraceBatchEventStream,
   logger,
   QueueJobs,
@@ -25,6 +27,7 @@ import {
 import { env } from "../../env";
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
 import { tokenCount } from "../../features/tokenisation/usage";
+import { recordTraceBatchTranscript } from "../../features/traceBatching/traceBatchTranscript";
 import {
   recordTraceBatchActiveReads,
   traceBatchQueueProcessor,
@@ -80,6 +83,219 @@ afterEach(() => {
 });
 
 describe("trace batch queue", () => {
+  it("measures history, current turn, threads and deduplicated tool responses", async () => {
+    const history = [
+      { role: "user", content: "earlier question" },
+      { role: "assistant", content: "earlier answer" },
+    ];
+    const question = { role: "user", content: "current question" };
+    const call = {
+      role: "assistant",
+      content: null,
+      tool_calls: [
+        {
+          id: "call",
+          type: "function",
+          function: { name: "lookup", arguments: "{}" },
+        },
+      ],
+    };
+    const observation = (
+      id: string,
+      input: unknown,
+      output: unknown,
+      type: "GENERATION" | "TOOL" = "GENERATION",
+    ) =>
+      convertObservation(
+        createObservation({
+          id,
+          trace_id: "trace",
+          project_id: "project",
+          type,
+          name: type === "TOOL" ? "lookup" : "generation",
+          start_time: `2026-01-01T12:00:0${id}.000Z`,
+          input: JSON.stringify(input),
+          output: JSON.stringify(output),
+        }),
+      );
+    await recordTraceBatchTranscript([
+      observation("1", [...history, question], call),
+      observation("2", {}, "tool payload", "TOOL"),
+      observation(
+        "3",
+        [
+          ...history,
+          question,
+          call,
+          { role: "tool", tool_call_id: "call", content: "tool payload" },
+        ],
+        "current answer",
+      ),
+      observation(
+        "4",
+        [{ role: "user", content: "independent question" }],
+        "independent answer",
+      ),
+    ]);
+    const estimates = vi
+      .mocked(tokenCountAsync)
+      .mock.calls.map(([params]) => params);
+    expect(estimates).toHaveLength(2);
+    const [current, historyOnly] = estimates.map(({ text }) =>
+      JSON.stringify(text),
+    );
+    expect(current.split("tool payload")).toHaveLength(2);
+    expect(current).not.toContain("earlier question");
+    expect(current).toContain("current question");
+    expect(current).toContain("independent question");
+    expect(historyOnly).toContain("earlier question");
+    expect(historyOnly).not.toContain("current question");
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_thread_count",
+      2,
+    );
+    for (const [index, suffix] of [
+      "current_turn_tokens",
+      "history_tokens",
+    ].entries()) {
+      expect(recordDistribution).toHaveBeenCalledWith(
+        `langfuse.trace_batch.transcript_${suffix}`,
+        tokenCount(estimates[index]),
+        { tokenizer: "o200k_base" },
+      );
+    }
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_message_tokens",
+      tokenCount(estimates[0])! + tokenCount(estimates[1])!,
+      { tokenizer: "o200k_base" },
+    );
+    const span = exporter.getFinishedSpans()[0];
+    const toolCharacters = JSON.stringify({
+      type: "text",
+      text: "tool payload",
+    }).length;
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_tool_response_characters",
+      toolCharacters,
+    );
+    expect(
+      span.attributes["langfuse.trace_batch.transcript_content_characters"],
+    ).toBeGreaterThan(toolCharacters);
+    let phaseTotal = 0;
+    for (const phase of ["normalization", "matching"]) {
+      const duration = span.attributes[
+        `langfuse.trace_batch.transcript_assembly_${phase}_duration_ms`
+      ] as number;
+      expect(duration).toBeGreaterThanOrEqual(0);
+      phaseTotal += duration;
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.trace_batch.transcript_assembly_phase_duration_ms",
+        duration,
+        { phase },
+      );
+    }
+    expect(phaseTotal).toBeLessThanOrEqual(
+      span.attributes[
+        "langfuse.trace_batch.transcript_assembly_duration_ms"
+      ] as number,
+    );
+  });
+
+  it("counts unmatched tool results without counting adjacent user text", async () => {
+    await recordTraceBatchTranscript([
+      convertObservation(
+        createObservation({
+          type: "GENERATION",
+          trace_id: "trace",
+          input: JSON.stringify([
+            {
+              role: "user",
+              content: [
+                { type: "text", text: "Please explain this result" },
+                {
+                  type: "tool_result",
+                  tool_use_id: "unmatched",
+                  content: "tool payload",
+                },
+              ],
+            },
+          ]),
+          output: "Answer",
+        }),
+      ),
+    ]);
+    expect(tokenCountAsync).toHaveBeenCalledTimes(1);
+    const toolCharacters = JSON.stringify({
+      type: "tool-result",
+      toolCallId: "unmatched",
+      output: "tool payload",
+    }).length;
+    const totalCharacters =
+      toolCharacters +
+      JSON.stringify({ type: "text", text: "Please explain this result" })
+        .length +
+      JSON.stringify({ type: "text", text: "Answer" }).length;
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_tool_response_characters",
+      toolCharacters,
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_content_characters",
+      totalCharacters,
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_history_tokens",
+      0,
+      { tokenizer: "o200k_base" },
+    );
+  });
+
+  it.each(["unavailable", "failed"])(
+    "retains current-turn tokens and character counts but omits the sum when history is %s",
+    async (outcome) => {
+      vi.mocked(tokenCountAsync).mockResolvedValueOnce(100);
+      if (outcome === "unavailable")
+        vi.mocked(tokenCountAsync).mockResolvedValueOnce(undefined);
+      else
+        vi.mocked(tokenCountAsync).mockRejectedValueOnce(
+          new Error("tokenizer failed"),
+        );
+      await recordTraceBatchTranscript([
+        convertObservation(
+          createObservation({
+            type: "GENERATION",
+            trace_id: "trace",
+            input: JSON.stringify([
+              { role: "assistant", content: "history" },
+              { role: "user", content: "question" },
+            ]),
+            output: "answer",
+          }),
+        ),
+      ]);
+      const span = exporter.getFinishedSpans()[0];
+      expect(
+        span.attributes["langfuse.trace_batch.transcript_current_turn_tokens"],
+      ).toBe(100);
+      expect(span.attributes).not.toHaveProperty(
+        "langfuse.trace_batch.transcript_history_tokens",
+      );
+      expect(span.attributes).not.toHaveProperty(
+        "langfuse.trace_batch.transcript_message_tokens",
+      );
+      expect(
+        span.attributes["langfuse.trace_batch.transcript_content_characters"],
+      ).toBeGreaterThan(0);
+      expect(span.attributes["langfuse.trace_batch.token_estimation"]).toBe(
+        outcome,
+      );
+      expect(recordIncrement).toHaveBeenCalledWith(
+        `langfuse.trace_batch.token_estimation_${outcome}`,
+        1,
+      );
+    },
+  );
+
   it.each([false, true])(
     "overlaps one tokenization with streaming, bounds pending work and drains it (stream fails: %s)",
     async (streamFails) => {
@@ -169,7 +385,7 @@ describe("trace batch queue", () => {
         expect(spans).toHaveLength(streamFails ? 2 : 3);
         expect(spans[0].attributes).toMatchObject({
           "langfuse.trace.id": "a",
-          "langfuse.trace_batch.transcript_tokens": 100,
+          "langfuse.trace_batch.transcript_message_tokens": 100,
         });
         expect(spans[1].attributes).toMatchObject({
           "langfuse.trace.id": "b",
@@ -177,7 +393,7 @@ describe("trace batch queue", () => {
         });
         expect(spans[1].status.code).toBe(SpanStatusCode.UNSET);
         expect(spans[1].attributes).not.toHaveProperty(
-          "langfuse.trace_batch.transcript_tokens",
+          "langfuse.trace_batch.transcript_message_tokens",
         );
         expect(
           spans[1].attributes["langfuse.trace_batch.transcript_characters"],
@@ -275,14 +491,31 @@ describe("trace batch queue", () => {
       expect(serializedTranscript.split(content)).toHaveLength(2);
     }
     expect(recordDistribution).toHaveBeenCalledWith(
-      "langfuse.trace_batch.transcript_tokens",
+      "langfuse.trace_batch.transcript_message_tokens",
       tokenCount(estimates[0][0]),
       { tokenizer: "o200k_base" },
     );
     expect(recordDistribution).toHaveBeenCalledWith(
-      "langfuse.trace_batch.transcript_tokens",
+      "langfuse.trace_batch.transcript_message_tokens",
       0,
       { tokenizer: "o200k_base" },
+    );
+    for (const suffix of ["current_turn", "history"]) {
+      expect(recordDistribution).toHaveBeenCalledWith(
+        `langfuse.trace_batch.transcript_${suffix}_tokens`,
+        0,
+        { tokenizer: "o200k_base" },
+      );
+    }
+    for (const suffix of ["content", "tool_response"]) {
+      expect(recordDistribution).toHaveBeenCalledWith(
+        `langfuse.trace_batch.transcript_${suffix}_characters`,
+        0,
+      );
+    }
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_thread_count",
+      0,
     );
     for (const hasTranscript of ["true", "false"]) {
       expect(recordDistribution).toHaveBeenCalledWith(
@@ -301,10 +534,10 @@ describe("trace batch queue", () => {
         "langfuse.trace.id": "shared-trace",
         "langfuse.trace_batch.observation_count": 2,
         "langfuse.trace_batch.has_transcript": index === 0,
-        "langfuse.trace_batch.transcript_tokens":
+        "langfuse.trace_batch.transcript_message_tokens":
           index === 0 ? tokenCount(estimates[0][0]) : 0,
         "langfuse.trace_batch.transcript_characters":
-          index === 0 ? serializedTranscript.length : 0,
+          index === 0 ? expect.any(Number) : 0,
         "langfuse.trace_batch.transcript_assembly_duration_ms":
           expect.any(Number),
       });

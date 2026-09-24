@@ -25,7 +25,6 @@ import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hook
 const SCORES_CHART_CONFIG = {
   type: "LINE_TIME_SERIES",
   show_data_point_dots: false,
-  subtle_fill: true,
 } as const;
 
 export function ChartScores(props: {
@@ -39,6 +38,10 @@ export function ChartScores(props: {
   metricsVersion: ViewVersion;
   schedulerId?: string;
   syncId?: string;
+  sync?: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
 }) {
   const scoresQuery: QueryType = {
     view: "scores-numeric",
@@ -130,6 +133,7 @@ export function ChartScores(props: {
             rowLimit={100}
             chartConfig={SCORES_CHART_CONFIG}
             syncId={props.syncId}
+            sync={props.sync}
           />
         </div>
       ) : (
