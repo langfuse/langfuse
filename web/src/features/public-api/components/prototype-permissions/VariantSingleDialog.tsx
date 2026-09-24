@@ -1,6 +1,7 @@
 // PROTOTYPE — throwaway. Variant E: role dropdown whose "View N permissions"
 // link opens a popup showing the selected role's nested permission list.
 
+import { Badge } from "@/src/components/ui/badge";
 import {
   DialogBody,
   DialogController,
@@ -91,9 +92,12 @@ const PermissionsDialog = ({ preset }: { preset: PresetKey }) => {
             <DialogTitle className="flex items-center gap-2">
               <Icon className="h-4 w-4" />
               {meta.label}
-              <span className="text-muted-foreground ml-auto text-xs font-normal">
+              <Badge
+                variant="secondary"
+                className="ml-auto font-normal tabular-nums"
+              >
                 {rolePermissionCount(preset)} permissions
-              </span>
+              </Badge>
             </DialogTitle>
           </DialogHeader>
           <DialogBody className="p-0">

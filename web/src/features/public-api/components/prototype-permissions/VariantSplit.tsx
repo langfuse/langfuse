@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 
+import { Badge } from "@/src/components/ui/badge";
 import { PopoverController } from "@/src/components/ui/popover";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { cn } from "@/src/utils/tailwind";
@@ -78,8 +79,10 @@ export const VariantSplit = ({
               })}
             </div>
             <div className="flex w-1/2 flex-col">
-              <div className="text-muted-foreground border-b px-4 py-2 text-xs font-bold">
-                {rolePermissionCount(preview)} permissions
+              <div className="flex items-center border-b px-4 py-2">
+                <Badge variant="secondary" className="font-normal tabular-nums">
+                  {rolePermissionCount(preview)} permissions
+                </Badge>
               </div>
               <ScrollArea className="flex-1">
                 <div className="p-4">

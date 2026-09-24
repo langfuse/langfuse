@@ -1,6 +1,7 @@
 // PROTOTYPE — throwaway. Variant A: role dropdown where each option reveals its
 // full permission set in a hover card — a polished take on the membership hover.
 
+import { Badge } from "@/src/components/ui/badge";
 import {
   HoverCard,
   HoverCardContent,
@@ -93,9 +94,12 @@ const RoleOption = ({ preset }: { preset: ApiKeyDraft["preset"] }) => {
           <div className="bg-background sticky top-0 flex items-center gap-2 border-b px-3 py-2">
             <Icon className="h-4 w-4 shrink-0" />
             <span className="text-xs font-bold">{meta.label}</span>
-            <span className="text-muted-foreground ml-auto text-[0.65rem]">
+            <Badge
+              variant="secondary"
+              className="ml-auto px-1.5 py-0 text-[0.6rem] font-normal tabular-nums"
+            >
               {rolePermissionCount(preset)} permissions
-            </span>
+            </Badge>
           </div>
           <div className="px-3 py-2">
             <RolePermissionList preset={preset} dense />
