@@ -20,10 +20,8 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { handleDataRetentionProcessingJob } from "../ee/dataRetention/handleDataRetentionProcessingJob";
 import { Job } from "bullmq";
-import { appendRunEvents } from "@langfuse/shared/in-app-agent/server/persistence";
-import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
-import { EventType } from "@ag-ui/core";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 
 describe("DataRetentionProcessingJob", () => {
   let storageService: StorageService;
@@ -57,24 +55,25 @@ describe("DataRetentionProcessingJob", () => {
     s3Prefix = null;
   });
 
-  it("prunes expired events while keeping conversations, recent events and active runs", async () => {
+  it("deletes expired conversations and their runs and events, but keeps recent and active conversations", async () => {
     const expiredAt = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const recentAt = new Date();
     const expiredId = randomUUID();
     const recentId = randomUUID();
     const runningId = randomUUID();
     const staleId = randomUUID();
-    const eventlessStaleId = randomUUID();
+    const eventlessId = randomUUID();
     const legacyId = randomUUID();
-    const expiredKeyRunId = randomUUID();
+    const recentLegacyId = randomUUID();
     const keyIds: string[] = [];
     const ids = [
       expiredId,
       recentId,
       runningId,
       staleId,
-      eventlessStaleId,
+      eventlessId,
       legacyId,
+      recentLegacyId,
     ];
 
     await prisma.project.update({
@@ -83,19 +82,13 @@ describe("DataRetentionProcessingJob", () => {
     });
 
     try {
-      const staleKey = await createAndAddApiKeysToDb({
+      const key = await createAndAddApiKeysToDb({
         prisma,
         entityId: projectId,
         scope: "PROJECT",
         isInAppAgentKey: true,
       });
-      const expiredKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: projectId,
-        scope: "PROJECT",
-        isInAppAgentKey: true,
-      });
-      keyIds.push(staleKey.id, expiredKey.id);
+      keyIds.push(key.id);
       await prisma.inAppAgentConversation.createMany({
         data: [
           {
@@ -116,125 +109,92 @@ describe("DataRetentionProcessingJob", () => {
             createdAt: expiredAt,
             updatedAt: expiredAt,
           },
-          { id: staleId, projectId, createdAt: expiredAt },
-          { id: eventlessStaleId, projectId, createdAt: expiredAt },
-          { id: legacyId, projectId, createdAt: expiredAt },
+          {
+            id: staleId,
+            projectId,
+            createdAt: expiredAt,
+            updatedAt: expiredAt,
+          },
+          {
+            id: eventlessId,
+            projectId,
+            createdAt: expiredAt,
+            updatedAt: expiredAt,
+          },
+          {
+            id: legacyId,
+            projectId,
+            createdAt: expiredAt,
+            updatedAt: expiredAt,
+          },
+          {
+            id: recentLegacyId,
+            projectId,
+            createdAt: expiredAt,
+            updatedAt: expiredAt,
+          },
         ],
       });
       const expiredRunId = randomUUID();
       const runningRunId = randomUUID();
-      const staleRunId = randomUUID();
-      const eventlessStaleRunId = randomUUID();
-      const legacyRunId = randomUUID();
       await prisma.inAppAgentRun.createMany({
         data: [
           {
             id: expiredRunId,
             projectId,
             conversationId: expiredId,
+            createdAt: expiredAt,
             finishedAt: expiredAt,
+            mcpApiKeyId: key.id,
           },
           { id: runningRunId, projectId, conversationId: runningId },
           {
-            id: staleRunId,
+            id: randomUUID(),
             projectId,
             conversationId: staleId,
             status: InAppAgentRunStatus.RUNNING,
             createdAt: expiredAt,
             claimedAt: expiredAt,
             heartbeatAt: expiredAt,
-            mcpApiKeyId: staleKey.id,
           },
           {
-            id: eventlessStaleRunId,
-            projectId,
-            conversationId: eventlessStaleId,
-            status: InAppAgentRunStatus.RUNNING,
-            createdAt: expiredAt,
-            claimedAt: expiredAt,
-            heartbeatAt: expiredAt,
-            request: { message: "expired" },
-          },
-          {
-            id: legacyRunId,
+            id: randomUUID(),
             projectId,
             conversationId: legacyId,
             status: null,
             createdAt: expiredAt,
-            request: { message: "expired legacy request" },
+            request: { message: "old request" },
           },
           {
-            id: expiredKeyRunId,
+            id: randomUUID(),
             projectId,
-            conversationId: expiredId,
-            createdAt: expiredAt,
-            finishedAt: expiredAt,
-            mcpApiKeyId: expiredKey.id,
+            conversationId: recentLegacyId,
+            status: null,
+            createdAt: recentAt,
           },
         ],
       });
-      await prisma.inAppAgentEvent.create({
-        data: {
-          projectId,
-          conversationId: expiredId,
-          runId: expiredRunId,
-          sequenceNumber: 1,
-          type: "test",
-          event: {},
-        },
-      });
-      await prisma.inAppAgentEvent.create({
-        data: {
-          projectId,
-          conversationId: expiredId,
-          runId: expiredRunId,
-          sequenceNumber: 2,
-          type: "test",
-          event: {},
-        },
-      });
-      await prisma.inAppAgentEvent.update({
-        where: {
-          projectId_conversationId_sequenceNumber: {
+      await prisma.inAppAgentEvent.createMany({
+        data: [
+          {
             projectId,
             conversationId: expiredId,
-            sequenceNumber: 1,
+            runId: expiredRunId,
+            sequenceNumber: 0,
+            type: "test",
+            event: {},
+            createdAt: recentAt,
           },
-        },
-        data: { createdAt: expiredAt },
-      });
-      await prisma.inAppAgentEvent.create({
-        data: {
-          projectId,
-          conversationId: runningId,
-          runId: runningRunId,
-          sequenceNumber: 0,
-          type: "test",
-          event: {},
-          createdAt: expiredAt,
-        },
-      });
-      await prisma.inAppAgentEvent.create({
-        data: {
-          projectId,
-          conversationId: staleId,
-          runId: staleRunId,
-          sequenceNumber: 4,
-          type: "test",
-          event: {},
-          createdAt: expiredAt,
-        },
-      });
-      await prisma.inAppAgentEvent.create({
-        data: {
-          projectId,
-          conversationId: legacyId,
-          runId: legacyRunId,
-          sequenceNumber: 3,
-          type: "test",
-          event: {},
-          createdAt: expiredAt,
-        },
+          {
+            projectId,
+            conversationId: runningId,
+            runId: runningRunId,
+            sequenceNumber: 0,
+            type: "test",
+            event: {},
+            createdAt: expiredAt,
+          },
+        ],
       });
 
       await handleDataRetentionProcessingJob({
@@ -243,114 +203,37 @@ describe("DataRetentionProcessingJob", () => {
 
       const conversations = await prisma.inAppAgentConversation.findMany({
         where: { projectId, id: { in: ids } },
+        select: { id: true },
       });
-      expect(
-        conversations.map((conversation) => conversation.id).sort(),
-      ).toEqual(ids.sort());
-      expect(
-        conversations.find((conversation) => conversation.id === expiredId)
-          ?.historyPrunedAt,
-      ).not.toBeNull();
+      expect(conversations.map(({ id }) => id).sort()).toEqual(
+        [recentId, runningId, recentLegacyId].sort(),
+      );
       expect(
         await prisma.inAppAgentRun.count({
           where: { projectId, conversationId: expiredId },
         }),
-      ).toBe(1);
+      ).toBe(0);
+      expect(
+        await prisma.inAppAgentEvent.count({
+          where: { projectId, conversationId: expiredId },
+        }),
+      ).toBe(0);
       expect(
         await prisma.inAppAgentEvent.count({
           where: { projectId, conversationId: runningId },
         }),
       ).toBe(1);
+      expect(await prisma.apiKey.count({ where: { id: key.id } })).toBe(0);
       expect(
-        await prisma.inAppAgentEvent.count({
-          where: { projectId, conversationId: expiredId },
-        }),
-      ).toBe(1);
-      expect(
-        await prisma.inAppAgentEvent.findFirst({
-          where: { projectId, conversationId: expiredId },
-          select: { sequenceNumber: true },
-        }),
-      ).toMatchObject({ sequenceNumber: 2 });
-      expect(
-        await prisma.inAppAgentRun.findUnique({
-          where: { id_projectId: { id: staleRunId, projectId } },
-        }),
-      ).toMatchObject({ status: InAppAgentRunStatus.FAILED });
-      expect(
-        await prisma.inAppAgentEvent.count({
-          where: { projectId, conversationId: staleId },
-        }),
-      ).toBe(0);
-      expect(
-        await prisma.inAppAgentConversation.findUnique({
-          where: { id_projectId: { id: staleId, projectId } },
-        }),
-      ).toMatchObject({ prunedEventCursor: 4 });
-      expect(
-        await prisma.inAppAgentRun.findUnique({
-          where: { id_projectId: { id: eventlessStaleRunId, projectId } },
-        }),
-      ).toMatchObject({ status: InAppAgentRunStatus.FAILED, request: null });
-      expect(
-        await prisma.inAppAgentRun.findUnique({
-          where: { id_projectId: { id: legacyRunId, projectId } },
-        }),
-      ).toMatchObject({ status: InAppAgentRunStatus.FAILED, request: null });
-      expect(
-        await prisma.inAppAgentEvent.count({
+        await prisma.inAppAgentRun.count({
           where: { projectId, conversationId: legacyId },
         }),
       ).toBe(0);
       expect(
-        await prisma.inAppAgentConversation.findUnique({
-          where: { id_projectId: { id: legacyId, projectId } },
-        }),
-      ).toMatchObject({ prunedEventCursor: 3 });
-      expect(await prisma.apiKey.count({ where: { id: { in: keyIds } } })).toBe(
-        0,
-      );
-      expect(
-        await prisma.inAppAgentRun.findUnique({
-          where: { id_projectId: { id: expiredKeyRunId, projectId } },
-        }),
-      ).toBeNull();
-      expect(
-        await prisma.inAppAgentRun.findUnique({
-          where: { id_projectId: { id: staleRunId, projectId } },
-        }),
-      ).toMatchObject({ mcpApiKeyId: null });
-
-      const nextRunId = randomUUID();
-      await prisma.inAppAgentRun.create({
-        data: {
-          id: nextRunId,
-          projectId,
-          conversationId: staleId,
-          status: InAppAgentRunStatus.RUNNING,
-        },
-      });
-      expect(
-        await appendRunEvents({
-          prisma,
-          projectId,
-          conversationId: staleId,
-          runId: nextRunId,
-          events: [
-            {
-              type: EventType.RUN_FINISHED,
-              threadId: staleId,
-              runId: nextRunId,
-            },
-          ],
-        }),
-      ).toBe(true);
-      expect(
-        await prisma.inAppAgentEvent.findFirst({
+        await prisma.inAppAgentRun.count({
           where: { projectId, conversationId: staleId },
-          select: { sequenceNumber: true },
         }),
-      ).toMatchObject({ sequenceNumber: 5 });
+      ).toBe(0);
     } finally {
       await prisma.inAppAgentConversation.deleteMany({
         where: { projectId, id: { in: ids } },

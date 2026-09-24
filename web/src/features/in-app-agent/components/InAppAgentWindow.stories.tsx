@@ -782,35 +782,6 @@ export const Empty = meta.story({
   },
 });
 
-export const HistoryPruned = meta.story({
-  name: "(Test) History pruned",
-  args: {
-    isHistoryPruned: true,
-    selectedConversationId: "conversation-1",
-    messages: [
-      {
-        id: "user-after-retention",
-        role: "user",
-        content: { type: "text", text: "What happened today?" },
-      },
-      {
-        id: "assistant-after-retention",
-        role: "assistant",
-        content: {
-          type: "text",
-          text: "I can only see the messages remaining after retention.",
-        },
-      },
-    ],
-  },
-  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
-    const canvas = within(canvasElement);
-    await expect(
-      canvas.getByText("Earlier messages were removed by data retention."),
-    ).toBeVisible();
-  },
-});
-
 export const Conversation = meta.story({
   args: {
     selectedConversationId: "conversation-1",

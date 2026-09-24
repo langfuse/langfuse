@@ -445,7 +445,6 @@ export async function executeInAppAgentRun(params: {
       input: agentInput,
       signal: abortController.signal,
       options: {
-        historyPruned: conversation.historyPrunedAt !== null,
         onEvent: async (event) => {
           const parsedInterrupt = parseInAppAgentInterruptEvent(event);
 

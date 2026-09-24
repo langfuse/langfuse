@@ -854,17 +854,6 @@ async function appendConversationEventInTransaction(params: {
   runId: string;
   event: AgUiEvent;
 }): Promise<number> {
-  const conversation = await params.tx.inAppAgentConversation.findUniqueOrThrow(
-    {
-      where: {
-        id_projectId: {
-          id: params.conversationId,
-          projectId: params.projectId,
-        },
-      },
-      select: { prunedEventCursor: true },
-    },
-  );
   const latestEvent = await params.tx.inAppAgentEvent.findFirst({
     where: {
       projectId: params.projectId,
@@ -874,11 +863,7 @@ async function appendConversationEventInTransaction(params: {
     select: { sequenceNumber: true },
   });
 
-  const sequenceNumber =
-    Math.max(
-      latestEvent?.sequenceNumber ?? -1,
-      conversation.prunedEventCursor,
-    ) + 1;
+  const sequenceNumber = (latestEvent?.sequenceNumber ?? -1) + 1;
 
   await params.tx.inAppAgentEvent.create({
     data: {
