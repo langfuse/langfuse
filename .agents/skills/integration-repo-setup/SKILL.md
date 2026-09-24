@@ -7,9 +7,7 @@ description: |
   manifests and tags in a plugin repo, not this monorepo, whose git and release
   flow is owned by git-workflow. Use when creating a plugin repo, adding or
   changing a workflow, preparing a public launch, cutting a release, or when a
-  published version does not contain merged fixes. This skill owns whether a
-  workflow exists and how it is gated; which cells the test matrix must cover,
-  and what the suite must assert, are owned by integration-testing.
+  published version does not contain merged fixes.
 ---
 
 # Integration Repo Setup
@@ -71,5 +69,4 @@ the rest of the setup is in flux:
 
 ## Related
 
-- What the matrix must cover and what tests assert: [`integration-testing`](../integration-testing/SKILL.md)
 - This monorepo's own git and release flow: [`git-workflow`](../git-workflow/SKILL.md)
