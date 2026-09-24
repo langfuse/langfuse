@@ -286,6 +286,44 @@ export const FullyTruncatedLabels = meta.story({
   },
 });
 
+export const ShortZeroRange = meta.story({
+  name: "(Test) Short zero-range y-axis labels do not overlap",
+  args: {
+    data: [
+      { label: "run-a", value: 0 },
+      { label: "run-b", value: 0 },
+      { label: "run-c", value: 0 },
+    ],
+    valueFormatter: (value: number) =>
+      new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+      }).format(value),
+  },
+  decorators: [
+    (Story) => (
+      <div className="h-[100px] w-[400px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const labels = Array.from(
+      canvasElement.querySelectorAll<SVGTextElement>("[data-y-axis-label]"),
+    );
+    await expect(labels.length).toBeGreaterThan(1);
+    const ordered = labels
+      .map((label) => label.getBoundingClientRect())
+      .toSorted((left, right) => left.top - right.top);
+    for (let index = 1; index < ordered.length; index++) {
+      const previous = ordered[index - 1];
+      const current = ordered[index];
+      if (!previous || !current) throw new Error("Y-axis label not found");
+      await expect(current.top).toBeGreaterThanOrEqual(previous.bottom);
+    }
+  },
+});
+
 export const NegativeValues = meta.story({
   args: {
     data: [
