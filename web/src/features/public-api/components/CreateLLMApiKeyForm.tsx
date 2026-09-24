@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useFieldArray, useForm } from "react-hook-form";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   type BedrockApiKey,
@@ -403,10 +403,11 @@ export function CreateLLMApiKeyForm({
   const currentTypeSafePreset = TYPESAFE_UPSTREAMS.find(
     (upstream) => upstream.id === currentTypeSafeUpstream,
   );
-  const existingCustomTypeSafeBaseURL =
+  const customTypeSafeBaseURLDraft = useRef(
     existingKey?.baseURL && !findTypeSafeUpstream(existingKey.baseURL)
       ? existingKey.baseURL
-      : "";
+      : "",
+  );
   const isKeepingCurrentBedrockAuthMethod =
     mode === "update" &&
     currentAdapter === LLMAdapter.Bedrock &&
@@ -833,6 +834,10 @@ export function CreateLLMApiKeyForm({
                           aria-label="Upstream"
                           value={field.value}
                           onValueChange={(id) => {
+                            if (field.value === "custom") {
+                              customTypeSafeBaseURLDraft.current =
+                                form.getValues("baseURL");
+                            }
                             field.onChange(id);
                             const preset = TYPESAFE_UPSTREAMS.find(
                               (upstream) => upstream.id === id,
@@ -841,7 +846,7 @@ export function CreateLLMApiKeyForm({
                               "baseURL",
                               preset
                                 ? (preset.baseURL ?? "")
-                                : existingCustomTypeSafeBaseURL,
+                                : customTypeSafeBaseURLDraft.current,
                             );
                           }}
                         />
