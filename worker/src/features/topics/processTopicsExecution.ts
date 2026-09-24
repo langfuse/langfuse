@@ -190,7 +190,6 @@ async function summarizeTrace(
       summary: reusable.summary,
       embedding: reuseEmbedding ? reusable.embedding : [],
       metadata: {
-        ...summary.metadata,
         summaryReusedFromProcessedAt: reusable.processedAt,
         ...(reuseEmbedding
           ? { embeddingReusedFromProcessedAt: reusable.processedAt }
@@ -273,7 +272,6 @@ async function awaitEmbeddingBatch(
   batchId: string,
   summaries: TopicEmbeddingRef[],
   retryFailed: boolean,
-  pendingEmbeddingBatchIds: Set<string>,
 ): Promise<void> {
   if (!summaries.length) return;
   const scope = { projectId: execution.projectId, executionId: execution.id };
@@ -282,10 +280,7 @@ async function awaitEmbeddingBatch(
       { ...scope, batchId, summaries },
       { retryFailed },
     );
-    if (status === "pending") {
-      pendingEmbeddingBatchIds.add(batchId);
-      throw new PendingTopicEmbeddings();
-    }
+    if (status === "pending") throw new PendingTopicEmbeddings();
   } catch (error) {
     if (error instanceof PendingTopicEmbeddings) throw error;
     throw new TopicEmbeddingFailure(errorMessage(error));
@@ -750,7 +745,6 @@ async function processTraces(
   state: TopicProcessBatchState,
   batchId: string,
   retryFailed: boolean,
-  pendingEmbeddingBatchIds: Set<string>,
   save: (phase: string) => Promise<void>,
 ) {
   const facets: (PendingFacet & {
@@ -872,13 +866,7 @@ async function processTraces(
     await save("embedding");
   }
   if (!state.assignedAt) {
-    await awaitEmbeddingBatch(
-      execution,
-      batchId,
-      state.summaries,
-      retryFailed,
-      pendingEmbeddingBatchIds,
-    );
+    await awaitEmbeddingBatch(execution, batchId, state.summaries, retryFailed);
     // This saved timestamp acknowledges the summary insert and fixes assignment
     // ordering across retries, even if the completed embedding job is removed.
     state.assignedAt = new Date().toISOString();
@@ -1091,7 +1079,6 @@ export async function processTopicsExecution({
     failedTraceIds: [],
     summarized: false,
   };
-  const pendingEmbeddingBatchIds = new Set<string>();
   const metrics = new TopicMetrics();
   const save = async (phase: string) => {
     execution.phase = phase;
@@ -1124,7 +1111,6 @@ export async function processTopicsExecution({
         state,
         batchId!,
         retryFailed,
-        pendingEmbeddingBatchIds,
         save,
       );
     else await updateTopics(metrics, execution as UpdateExecution);
@@ -1139,7 +1125,7 @@ export async function processTopicsExecution({
   } catch (error) {
     if (error instanceof PendingTopicEmbeddings) {
       await save("embedding");
-      return { pendingEmbeddingBatchIds: [...pendingEmbeddingBatchIds] };
+      return { pendingEmbeddingBatchIds: [batchId!] };
     }
     metrics.error("execution", error);
     metrics.execution("failed");

@@ -410,7 +410,7 @@ async function processSelection(
   pending.input.reuseExistingSummaries = reuseExistingSummaries;
   if (traceIds) pending.input.traceIds = traceIds;
   state.executions.set(id, pending);
-  await processTopicsExecution({ projectId: "project", executionId: id });
+  return processTopicsExecution({ projectId: "project", executionId: id });
 }
 
 async function updateSelection(id: string) {
@@ -727,7 +727,9 @@ describe("Topics execution", () => {
     await updateSelection("first-map");
     const first = [...state.runs.values()].at(-1)!;
     state.deferEmbeddings = true;
-    await processSelection("incoming", 1, ["trace100"]);
+    expect(await processSelection("incoming", 1, ["trace100"])).toEqual({
+      pendingEmbeddingBatchIds: ["batch-0"],
+    });
     expect(state.batches.get("incoming")?.summarized).toBe(true);
     expect(state.executions.get("incoming")?.phase).toBe("embedding");
     await updateSelection("second-map");
