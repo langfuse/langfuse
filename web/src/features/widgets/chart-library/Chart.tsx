@@ -209,7 +209,6 @@ const ChartComponent = ({
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
             sync={sync}
-            subtleFill={chartConfig?.subtle_fill}
             missingValue={missingValue}
             hideXAxisLabels={hideXAxisLabels}
           />
