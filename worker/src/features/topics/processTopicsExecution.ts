@@ -23,6 +23,7 @@ import {
   enqueueTopicEmbeddingBatch,
   topicSummaryId,
   TOPIC_EMBEDDING_EXPIRED_ERROR,
+  TOPICS_TRANSCRIPT_VERSION,
   type TopicEmbeddingRef,
 } from "@langfuse/shared/topics/server";
 import {
@@ -122,7 +123,8 @@ async function loadCachedSummaries(
     staged,
     stored: stored.filter(
       (row) =>
-        row.summaryModel === execution.input.processingConfig.summaryModel,
+        row.summaryModel === execution.input.processingConfig.summaryModel &&
+        row.transcriptVersion === TOPICS_TRANSCRIPT_VERSION,
     ),
   };
 }
@@ -161,7 +163,7 @@ async function summarizeTrace(
     summary: "",
     embedding: [],
     transcriptId: "poc",
-    transcriptVersion: "poc",
+    transcriptVersion: TOPICS_TRANSCRIPT_VERSION,
     summaryModel: TOPICS_SUMMARY_MODEL,
     embeddingModel: TOPICS_EMBEDDING_MODEL,
     providedUsageDetails: {},
@@ -169,7 +171,7 @@ async function summarizeTrace(
     providedCostDetails: {},
     costDetails: {},
     processedAt: new Date().toISOString(),
-    metadata: { coverage: transcript.coverage },
+    metadata: {},
   };
   const reusable = cached.stored.find((row) => row.traceId === traceId);
   if (reusable) {
@@ -195,11 +197,11 @@ async function summarizeTrace(
           : {}),
       },
     };
-  } else if (transcript.hasContent) {
+  } else if (transcript !== null) {
     const result = await metrics.measure("summary", async () => {
       const result = await summarizeTopicTrace(
         facet,
-        transcript.text,
+        JSON.stringify(transcript),
         execution.input.processingConfig,
       );
       const applicable = result.output.status === "applicable";

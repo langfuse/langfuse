@@ -29,6 +29,8 @@
   Trigger/retry also requires `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`; reads/configuration
   use the `langfuseTopics` flag and project permissions. Storage, retry and setup
   details: `../worker/src/features/topics/README.md`.
+  The source inspector returns `loadTopicTranscript`'s shared `Transcript | null`
+  directly, using the same character cap as worker inference.
 - Reusable UI components: `src/components/*`
 - Tests:
   - Server integration tests: `src/__tests__/server/*.servertest.ts`

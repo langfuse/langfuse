@@ -6,8 +6,3 @@ export * from "./embedding-queue";
 export * from "./embeddings";
 export * from "./config";
 export * from "./trace-input";
-export {
-  prepareTrace,
-  serializeTraceTranscript,
-  type TopicsObservation,
-} from "./transcript";

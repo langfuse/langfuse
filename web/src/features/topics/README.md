@@ -2,8 +2,8 @@
 
 Topics requires explicit opt-in through **Profile → Feature Previews → Langfuse
 Topics**. Only platform administrators see or change this personal flag. The
-sidebar, direct page, and Topics API require the flag;
-existing local-development and project-access checks still apply.
+sidebar, direct page, and Topics API also require deployment enablement and
+project permissions. Processing additionally requires the project allowlist.
 
 - `TopicsPage.tsx` owns facet configuration and the execution history drawer.
   `CurrentTopics.tsx` remains mounted as the only results workspace, including

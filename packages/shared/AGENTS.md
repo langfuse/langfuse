@@ -74,10 +74,16 @@
   - `embeddings.ts`: Bedrock embedding transport using the shared AI SDK;
     worker model calls own usage, cost and vector validation.
   - `loadTopicTranscript`: shared in-memory source assembly for worker and inspector.
-    Token counting and its WASM dependency belong to worker model calls.
+    Returns the shared `Transcript | null`, capped at 10,000 serialized characters.
+    Historical reuse must match `TOPICS_TRANSCRIPT_VERSION`; accepted Redis results
+    retain their original version. Token counting belongs to worker model calls.
   - `LANGFUSE_TOPICS_ENABLED` defaults to false and gates deployment availability,
     including cleanup. Processing also requires `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`
     (empty by default); reads/configuration remain feature-flag/RBAC controlled.
+
+- `src/server/transcript`: `assembleTranscript` accepts minimal
+  `TranscriptObservation` inputs and `{ maxCharacters?, onTimings? }` options.
+  The optional cap bounds `JSON.stringify(result).length`; see its README.
 
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt

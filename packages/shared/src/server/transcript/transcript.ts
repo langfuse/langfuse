@@ -1,7 +1,11 @@
 import { partition } from "lodash";
-import type { Observation } from "../../domain";
 import { normalizeIO } from "../normalized-io";
-import type { Transcript } from "./types";
+import type {
+  Transcript,
+  TranscriptObservation as InputObservation,
+  TranscriptOptions,
+} from "./types";
+import { limitTranscript } from "./limit";
 import {
   append,
   findThread,
@@ -14,7 +18,7 @@ import { createToolCallRegistry } from "./tool-calls";
 
 /** Check if an observation is relevant for the transcript. */
 const isRelevantObservation = (
-  observation: Observation,
+  observation: InputObservation,
 ): observation is TranscriptObservation =>
   (observation.type === "GENERATION" || observation.type === "TOOL") &&
   observation.traceId !== null;
@@ -42,15 +46,18 @@ function normalize(observation: TranscriptObservation) {
  * history, and retain first-seen provenance. The caller supplies the
  * observations in transcript order, see `orderObservations`; they are consumed
  * as given. Optional timings separate normalization (including initial message
- * keys) from remaining assembly work, excluding caller-owned observation ordering.
+ * keys) from remaining assembly work, excluding ordering and optional truncation.
  */
 export function assembleTranscript(
-  orderedObservations: Observation[],
-  onTimings?: (timings: {
-    normalizationMs: number;
-    matchingMs: number;
-  }) => void,
+  orderedObservations: InputObservation[],
+  { maxCharacters, onTimings }: TranscriptOptions = {},
 ): Transcript | null {
+  if (
+    maxCharacters !== undefined &&
+    (!Number.isSafeInteger(maxCharacters) || maxCharacters < 4)
+  ) {
+    throw new RangeError("maxCharacters must be a safe integer of at least 4");
+  }
   const startedAt = onTimings ? performance.now() : 0;
   let normalizationMs = 0;
   const states: ThreadState[] = [];
@@ -88,5 +95,7 @@ export function assembleTranscript(
     normalizationMs,
     matchingMs: performance.now() - startedAt - normalizationMs,
   });
-  return transcript;
+  return transcript && maxCharacters !== undefined
+    ? limitTranscript(transcript, maxCharacters)
+    : transcript;
 }

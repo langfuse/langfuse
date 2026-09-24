@@ -25,7 +25,8 @@
   `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`; cleanup remains independent of this list.
   Paid results are staged before retryable
   persistence, and unchanged embedding waits must read only Redis queue state.
-  Transcript assembly is shared with web through `loadTopicTranscript`.
+  Transcript assembly is shared with web through `loadTopicTranscript`, returning
+  `Transcript | null`; serialize it for inference and skip inference on null.
   Token counting and its WASM dependency stay in `src/features/topics/models.ts`.
   Cohere embeddings use `generateTopicEmbedding` from `@langfuse/shared/topics/server`
   to keep the Bedrock transport on shared's AI SDK version. Local AWS auth uses

@@ -22,7 +22,7 @@ export function SummaryInspector({
       </Alert>
     );
   if (!query.data) return <p className="text-xs">Loading transcript…</p>;
-  const transcript = query.data.text;
+  const transcript = query.data.transcript;
   const projectionDescription = transcript
     ? "Current transcript regenerated from trace data. It may differ from the summarized input."
     : "Source transcript unavailable. The stored summary is still retained.";
@@ -33,11 +33,7 @@ export function SummaryInspector({
       </p>
       <p className="text-muted-foreground text-xs">{projectionDescription}</p>
       {transcript && (
-        <JSONView
-          title="Transcript"
-          json={JSON.parse(transcript)}
-          preserveStrings
-        />
+        <JSONView title="Transcript" json={transcript} preserveStrings />
       )}
     </div>
   );

@@ -12,10 +12,18 @@ Status: generation-led builder with tool responses matched by ID or name and ord
 ## Interface
 
 ```ts
-orderObservations(observations: Observation[]): Observation[];
-assembleTranscript(orderedObservations: Observation[]): Transcript | null;
+orderObservations<T extends TranscriptObservation>(observations: T[]): T[];
+assembleTranscript(
+  orderedObservations: TranscriptObservation[],
+  options?: TranscriptOptions,
+): Transcript | null;
 
-type Transcript = { threads: Thread[] };
+type TranscriptOptions = {
+  maxCharacters?: number;
+  onTimings?: (timings: { normalizationMs: number; matchingMs: number }) => void;
+};
+
+type Transcript = { threads: Thread[]; truncated?: true };
 
 type Thread = {
   conversationHistory: NormalizedMessage[]; // replayed from earlier turns, no provenance
@@ -33,8 +41,10 @@ type ThreadMessage = NormalizedMessage & {
 };
 ```
 
-Consumers load the domain `Observation`s (see `domain/observations.ts`)
-themselves, order them with `orderObservations`, and hand them to
+Consumers load observations themselves. `TranscriptObservation` requires only
+`id`, `traceId`, `parentObservationId`, `type`, `name`, `startTime` (a `Date`),
+`input`, `output` and `metadata`; full domain `Observation`s also satisfy it.
+Order them with `orderObservations` and hand them to
 `assembleTranscript`, which consumes the given order and returns `null` when
 no eligible generations produce messages. For one trace, read it through
 `getObservationsForTraceFromEventsTable`, the same repository function and
@@ -42,6 +52,28 @@ time bounds the trace tree uses: once for the structure of every observation
 without I/O, once for the `GENERATION` and `TOOL` observations with I/O, then
 merge the two by id so the walk order comes from the structure and the
 messages from the content.
+
+## Character limit
+
+`assembleTranscript(observations, { maxCharacters: 10_000 })` guarantees
+`JSON.stringify(result).length <= 10_000`. The limit counts UTF-16 code units,
+including JSON escaping, provenance, provider metadata and the truncation marker.
+It must be a safe integer of at least 4, the serialized length of `null`.
+Omitting it preserves the complete transcript and existing assembly behavior.
+
+Limiting happens after normalization, matching and turn splitting. Text and
+unsigned textual reasoning without provider metadata can be shortened with an
+ellipsis; identifiers, tool arguments/results, media, signed reasoning and other structured fields
+stay intact. Messages that cannot fit even with shortened text are omitted.
+When too many messages remain, the beginning and end are retained, preserving
+their order and history/current-turn partition. Contributor references are
+pruned to the retained current-turn messages.
+
+Changed results include `truncated: true`. If no message fits, the result is
+`null`. Truncated transcripts are partial evidence, not a replayable conversation:
+a tool call and its result can be separated by omitted messages. This bounds
+serialized output, not input size or normalization work. Timing callbacks exclude
+the limiting pass.
 
 ## Ordering
 
@@ -184,14 +216,14 @@ transcript/
 ├── ordering.ts            orderObservations, the trace tree walk
 ├── ordering.test.ts       ordering rules
 ├── transcript.ts          assembleTranscript
+├── limit.ts               optional hard limit on serialized JSON
 ├── threads.ts             thread selection and message deduplication
 ├── tool-calls.ts          tool matching and response association
 ├── types.ts               Transcript, Thread, Turn, ThreadMessage
 └── fixtures/
     ├── fixture-types.ts   TranscriptFixture
-    ├── format-transcript.ts  chat-shaped printout used by the test
     ├── index.ts           registry of fixtures
-    ├── fixtures.test.ts   structural checks and behavior assertion per fixture
+    ├── fixtures.test.ts   exact fixture expectations and assembly/cap regressions
     └── trace/             one file per fixture
 ```
 
@@ -201,8 +233,8 @@ Each fixture is one trace with an expected transcript, which the test asserts
 as a whole. Fixtures whose generations replay earlier turns pin the split
 between conversation history and current turn.
 
-Run with console output enabled to see it:
+Run the fixture and ordering regressions:
 
 ```bash
-pnpm --filter @langfuse/shared run test src/server/transcript --disableConsoleIntercept
+pnpm --filter @langfuse/shared run test src/server/transcript
 ```

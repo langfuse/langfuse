@@ -149,12 +149,11 @@ export function recordTraceBatchTranscript(
     }
     const startedAt = performance.now();
     let phaseTimings = { normalizationMs: 0, matchingMs: 0 };
-    const transcript = assembleTranscript(
-      orderObservations(observations),
-      (timings) => {
+    const transcript = assembleTranscript(orderObservations(observations), {
+      onTimings: (timings) => {
         phaseTimings = timings;
       },
-    );
+    });
     const assemblyDurationMs = performance.now() - startedAt;
     recordDistribution(
       "langfuse.trace_batch.transcript_assembly_duration_ms",

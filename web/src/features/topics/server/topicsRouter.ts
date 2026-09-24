@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
+import type { Transcript } from "@langfuse/shared/src/server";
 import {
   topicEmbeddingConfigSchema,
   topicIdSchema,
@@ -414,12 +415,6 @@ export const topicsRouter = createTRPCRouter({
         execution.id,
         execution.input.operation,
       );
-      return {
-        ...execution,
-        status: "queued" as const,
-        phase: "queued",
-        error: null,
-      };
     }),
   map: topicsProcedure
     .input(mapInput)
@@ -437,19 +432,19 @@ export const topicsRouter = createTRPCRouter({
         summary.traceId === null
       )
         throw new LangfuseNotFoundError("Trace summary not found.");
-      let text: string | null = null;
+      let transcript: Transcript | null = null;
       try {
         const current = await loadTopicTranscript({
           projectId: input.projectId,
           traceId: summary.traceId,
         });
-        text = current.transcript.text;
+        transcript = current.transcript;
       } catch {
         // Stored summaries remain inspectable after source retention or deletion.
       }
       return {
         model: summary.summaryModel,
-        text,
+        transcript,
       };
     }),
 });

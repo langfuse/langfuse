@@ -201,11 +201,9 @@ describe("Current Topics", () => {
       undefined,
       { shallow: true },
     );
-    state.inspect.mockImplementation(
-      ({ summaryId }: { summaryId: string }) => ({
-        data: { model: "summary-model", text: JSON.stringify([summaryId]) },
-      }),
-    );
+    state.inspect.mockReturnValue({
+      data: { model: "summary-model", transcript: { threads: [] } },
+    });
     state.push.mockClear();
     expect(state.inspect).not.toHaveBeenCalled();
     fireEvent.click(
@@ -218,11 +216,11 @@ describe("Current Topics", () => {
       projectId: "project",
       summaryId: "summary-1",
     });
-    expect(within(inspector).getByText('["summary-1"]')).toBeInTheDocument();
+    expect(
+      within(inspector).getByText('{"threads":[]}').closest(".ph-no-capture"),
+    ).not.toBeNull();
     expect(state.push).not.toHaveBeenCalled();
-    fireEvent.click(
-      within(inspector).getAllByRole("button", { name: "Close" })[0],
-    );
+    fireEvent.click(within(inspector).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("link", { name: "trace-20" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Go to next page" }));
     expect(screen.getByRole("link", { name: "trace-20" })).toBeInTheDocument();
@@ -238,14 +236,10 @@ describe("Current Topics", () => {
       button: 0,
       ctrlKey: false,
     });
+    const panel = screen.getByRole("tabpanel", { name: "Issues" });
     expect(
-      screen.getByRole("tabpanel", { name: "Issues" }),
+      within(panel).getByText("No traces in this selection."),
     ).toBeInTheDocument();
-    expect(
-      within(screen.getByRole("table")).queryByRole("button", {
-        name: /^trace-/,
-      }),
-    ).toBeNull();
   });
   it("keeps map selection pinned and reveals it across pages and conflicting current memberships", async () => {
     const topics = [

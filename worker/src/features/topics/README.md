@@ -181,33 +181,37 @@ reads. Missing/expired payloads fail explicitly. A new execution with **Reuse st
 summaries** can recover persisted results. Redis loss or a crash between a provider
 response and saving it can repeat inference.
 
-Stored-summary reuse is opt-in and requires the same facet version/model; it does
-not check content freshness. Compatible vectors are reused; changed dimensions
-regenerate only embeddings. Results receive the new execution's staging ownership,
+Stored-summary reuse is opt-in and requires the same facet version, summary model
+and transcript producer version; it does not check content freshness. Compatible
+vectors are reused; changed dimensions regenerate only embeddings. Results receive
+the new execution's staging ownership,
 replace previous summaries, record reuse timestamps and count only new usage.
 This is not a cross-execution deduplication cache.
 
 Each processing attempt shares identical transcript text across facets for a trace.
-Facet instructions affect only summarization. This PoC focuses on generations
-and tools when present, falling back to other observations otherwise. Wrapper
-errors/status remain visible. Repeated input text and tool definitions are omitted,
-including assistant replies replayed as input; repeated outputs are retained.
-The transcript is a compact JSON array containing source direction, message role
-and text, plus coverage counts.
-Internal block/observation IDs, parent IDs, message/part indices and kinds are
-excluded from model input. The entire serialized JSON is limited to 10,000
-characters, including escaping. Long entries are shortened first, preserving
-both ends. If too many entries remain, keep the beginning and end of the trace
-and explicitly mark the omitted middle. Coverage reports shortened and omitted
-blocks. Assembly omits media bytes and reasoning, and preserves available audio
-transcripts. Structural ordering and replayed-context deduplication are shared
-across facets. This is a normalized representation, not a lossless export.
+Facet instructions affect only summarization. `loadTopicTranscript` uses the shared
+`orderObservations` and `assembleTranscript` producer, with a 10,000-character cap
+on the complete serialized JSON, including escaping, provenance and metadata.
+The model receives the structured transcript directly: threads with conversation
+history and current-turn messages, normalized parts and observation provenance.
+`truncated: true` marks omitted content. A null transcript produces
+`insufficient_input` without a summarization or embedding call.
+
+The shared producer defines observation eligibility, tool association and replay
+deduplication. It includes generations and matched tool responses. Root-only
+non-generation traces, unmatched tool observations and observation-level status
+messages are outside that conversation contract. Topics does not add fallbacks,
+coverage fields, custom media handling or a separate transcript projection.
+See `packages/shared/src/server/transcript/README.md` for the producer's semantics
+and limitations.
 
 If transcript plus instructions/schema exceeds the execution's input allowance,
 the worker fails before calling the provider; it does not
 silently change the evidence for that facet. Stored summaries record
-`transcript_id` and `transcript_version`, currently both `poc`, plus the models
-used. Transcripts are regenerated from current observations; original source
+`transcript_id` (`poc`) and `transcript_version` (`shared-transcript-v1`), plus the
+models used. Historical summaries from other producer versions are regenerated.
+Accepted Redis payloads retain their recorded version when the same execution
+resumes. Transcripts are regenerated from current observations; original source
 snapshots and content hashes are not retained.
 
 The tested nano prompt and schema write the summary before deciding applicability.

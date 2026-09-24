@@ -352,8 +352,8 @@ export function TopicTraceSelector({
           )}
           <p className="text-muted-foreground text-sm">
             A trace is included when an observation matches all filters in this
-            time range. Topics uses the whole trace transcript, including
-            observations outside these filters.
+            time range. Topics summarizes the available conversation in the
+            trace, including messages outside these filters.
           </p>
           {!validLimit && (
             <Alert variant="destructive" size="sm">

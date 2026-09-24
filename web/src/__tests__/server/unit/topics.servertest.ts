@@ -1,6 +1,7 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import type * as sharedServer from "@langfuse/shared/src/server";
+import type * as topicsServer from "@langfuse/shared/topics/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   topicProcessingConfigSchema,
@@ -31,7 +32,7 @@ const mocks = vi.hoisted(() => ({
   getTopicRun: vi.fn(),
   readTopicSummaries: vi.fn(),
   readTopicMapAssignments: vi.fn(),
-  loadTopicTranscript: vi.fn(),
+  loadTopicTranscript: vi.fn<typeof topicsServer.loadTopicTranscript>(),
   isTopicsEnabled: vi.fn(),
   isTopicsProjectEnabled: vi.fn(),
   enqueueTopicExecution: vi.fn(),
@@ -747,23 +748,45 @@ describe("Topics local execution access and publication", () => {
     expect(mocks.loadTopicTranscript).not.toHaveBeenCalled();
   });
 
-  it("inspects the current transcript without execution state and tolerates source deletion", async () => {
-    mocks.loadTopicTranscript.mockResolvedValue({
-      transcript: { text: "Changed trace" },
-    });
-    const request = { projectId, summaryId: "summary-a" };
-    expect(await caller().inspect(request)).toEqual({
+  const source = {
+    unitStartTime: summary.unitStartTime,
+    sessionId: summary.sessionId,
+    environment: "production",
+    traceName: "Refund request",
+    transcript: { threads: [], truncated: true },
+  } satisfies Awaited<ReturnType<typeof topicsServer.loadTopicTranscript>>;
+
+  it("returns the current structured transcript including truncation", async () => {
+    mocks.loadTopicTranscript.mockResolvedValue(source);
+    expect(
+      await caller().inspect({ projectId, summaryId: "summary-a" }),
+    ).toEqual({
       model: summary.summaryModel,
-      text: "Changed trace",
+      transcript: source.transcript,
     });
     expect(mocks.loadTopicTranscript).toHaveBeenCalledWith({
       projectId,
       traceId: "trace-a",
     });
+  });
+
+  it("reports the source unavailable when no conversation can be assembled", async () => {
+    mocks.loadTopicTranscript.mockResolvedValue({
+      ...source,
+      transcript: null,
+    });
+    expect(
+      await caller().inspect({ projectId, summaryId: "summary-a" }),
+    ).toEqual({ model: summary.summaryModel, transcript: null });
+  });
+
+  it("retains the stored summary when the source was deleted", async () => {
     mocks.loadTopicTranscript.mockRejectedValue(
       new Error("Trace no longer exists"),
     );
-    expect((await caller().inspect(request)).text).toBeNull();
+    expect(
+      await caller().inspect({ projectId, summaryId: "summary-a" }),
+    ).toEqual({ model: summary.summaryModel, transcript: null });
   });
 
   it("does not retry terminal partial facets", async () => {
