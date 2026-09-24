@@ -135,11 +135,12 @@ function metadataFromSource(
   raw: JsonObject,
   attributes: MetadataAttribute[],
 ): Record<string, unknown> {
+  // Prefixed __proto__ entries are currently dropped during extraction; an
+  // own __proto__ key in the raw JSON metadata remains part of the stored data.
   const dottedValues = Object.fromEntries(
-    attributes.map((attribute) => [
-      attribute.key,
-      typedAttributeValue(attribute),
-    ]),
+    attributes
+      .filter((attribute) => attribute.key !== "__proto__")
+      .map((attribute) => [attribute.key, typedAttributeValue(attribute)]),
   );
   // OTEL's raw JSON metadata is merged first; prefixed attributes then replace
   // an identical top-level key while leaving literal-dot/nested collisions.
@@ -719,6 +720,7 @@ const directedCases: ReplayCase[] = [
       {
         ...minimalSpan,
         input: { kind: "raw", value: "{invalid" },
+        observationMetadata: JSON.parse('{"__proto__":"raw-value"}'),
         observationAttributes: [
           { key: "a", value: { kind: "array", values: [] } },
         ],
