@@ -624,78 +624,6 @@ function LineChartContent(
         { ...activeXAxisTick, maxWidth: undefined },
       ].sort((left, right) => left.x - right.x)
     : xTicks;
-  const visibleXTicks =
-    xAxis.type === "time"
-      ? candidateXTicks
-          // Reserve space for the active label first, then endpoints, before
-          // retaining intermediate ticks whose rendered labels still fit.
-          .map((tick, index) => {
-            const active = tick.key === activeKey;
-            const textWidth = tick.label.length * 7;
-            const labelWidth = active ? textWidth + 96 : textWidth;
-            const start = active
-              ? Math.max(
-                  LEFT_MARGIN,
-                  Math.min(
-                    LEFT_MARGIN + plotWidth - labelWidth,
-                    tick.x - labelWidth / 2,
-                  ),
-                )
-              : candidateXTicks.length > 1 && index === 0
-                ? tick.x
-                : candidateXTicks.length > 1 &&
-                    index === candidateXTicks.length - 1
-                  ? tick.x - labelWidth
-                  : tick.x - labelWidth / 2;
-            return {
-              tick: {
-                ...tick,
-                textAnchor: active
-                  ? undefined
-                  : candidateXTicks.length === 1
-                    ? ("middle" as const)
-                    : index === 0
-                      ? ("start" as const)
-                      : index === candidateXTicks.length - 1
-                        ? ("end" as const)
-                        : ("middle" as const),
-              },
-              index,
-              start,
-              end: start + labelWidth,
-            };
-          })
-          .sort((left, right) => {
-            if (left.tick.key === activeKey) return -1;
-            if (right.tick.key === activeKey) return 1;
-            const leftEndpoint =
-              left.index === 0 || left.index === candidateXTicks.length - 1;
-            const rightEndpoint =
-              right.index === 0 || right.index === candidateXTicks.length - 1;
-            return Number(rightEndpoint) - Number(leftEndpoint);
-          })
-          .reduce<
-            Array<{
-              tick: (typeof candidateXTicks)[number];
-              start: number;
-              end: number;
-            }>
-          >((visible, candidate) => {
-            if (
-              visible.some(
-                (item) =>
-                  candidate.start < item.end + 8 &&
-                  candidate.end + 8 > item.start,
-              )
-            ) {
-              return visible;
-            }
-            visible.push(candidate);
-            return visible;
-          }, [])
-          .map(({ tick }) => tick)
-          .sort((left, right) => left.x - right.x)
-      : candidateXTicks;
   const showTooltipTime = timeDataDates.some(
     (date, index) =>
       date.getUTCHours() !== 0 ||
@@ -810,7 +738,7 @@ function LineChartContent(
           xAxis={
             showXAxisLabels
               ? {
-                  ticks: visibleXTicks,
+                  ticks: candidateXTicks,
                   activeKey,
                   showCategoryTicks: xAxis.type === "category",
                 }

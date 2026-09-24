@@ -155,6 +155,9 @@ export const Default = meta.story({});
 export const Intermittent = meta.story({
   args: { scenario: "gaps" },
   play: async ({ canvasElement }) => {
+    const labelsBeforeHover = canvasElement.querySelectorAll(
+      '[data-x-axis-label=""]',
+    ).length;
     const hoverArea = canvasElement.querySelectorAll<SVGRectElement>(
       'rect[fill="transparent"]',
     )[1];
@@ -167,6 +170,7 @@ export const Intermittent = meta.story({
       canvasElement.querySelectorAll('[data-x-axis-label=""]'),
       (label) => label.textContent,
     );
+    await expect(labels).toHaveLength(labelsBeforeHover);
     await expect(new Set(labels).size).toBe(labels.length);
   },
 });
@@ -302,6 +306,37 @@ export const StackedAreas = meta.story({
     await expect(
       canvasElement.querySelectorAll('path[fill^="url(#"]'),
     ).toHaveLength(1);
+  },
+});
+
+export const StackedAreasStableTicks = meta.story({
+  name: "(Test) Stacked Areas Stable Ticks",
+  args: { scenario: "stacked" },
+  decorators: [
+    (Story) => (
+      <div className="h-40 w-[420px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const getLabels = () =>
+      Array.from(
+        canvasElement.querySelectorAll<SVGTextElement>("[data-x-axis-label]"),
+        (label) => [label.textContent, label.getAttribute("x")] as const,
+      );
+    const before = new Map(getLabels());
+    const hoverArea = canvasElement.querySelectorAll<SVGRectElement>(
+      'rect[fill="transparent"]',
+    )[1];
+    if (!hoverArea) throw new Error("Second hover area not found");
+    await userEvent.hover(hoverArea);
+    const after = getLabels();
+    for (const [label, x] of after) {
+      if (label === "Sep 2") continue;
+      await expect(before.get(label)).toBe(x);
+    }
+    await expect(after.length).toBeLessThanOrEqual(before.size + 1);
   },
 });
 

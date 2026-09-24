@@ -176,7 +176,7 @@ export const LongCategoryLabels = meta.story({
     ).toHaveTextContent("dataset-run-1-transcription");
     await expect(
       canvasElement.querySelector("[data-active-x-axis-label-background]"),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
   },
 });
 

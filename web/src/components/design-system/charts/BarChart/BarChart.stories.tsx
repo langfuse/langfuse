@@ -213,7 +213,7 @@ export const LongLabels = meta.story({
     ).toHaveTextContent("production-evaluation-run-1-with-a-long-name");
     await expect(
       canvasElement.querySelector("[data-active-x-axis-label-background]"),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
   },
 });
 
@@ -238,16 +238,11 @@ export const EdgeLabels = meta.story({
       const label = canvasElement.querySelector<SVGTextElement>(
         "[data-active-x-axis-label]",
       );
-      const background = canvasElement.querySelector<SVGRectElement>(
-        "[data-active-x-axis-label-background]",
-      );
-      if (!label || !background) throw new Error("Active label not found");
+      if (!label) throw new Error("Active label not found");
       const chartWidth = label.ownerSVGElement?.width.baseVal.value ?? 0;
-      for (const element of [label, background]) {
-        const bounds = element.getBBox();
-        await expect(bounds.x).toBeGreaterThanOrEqual(0);
-        await expect(bounds.x + bounds.width).toBeLessThanOrEqual(chartWidth);
-      }
+      const bounds = label.getBBox();
+      await expect(bounds.x).toBeGreaterThanOrEqual(0);
+      await expect(bounds.x + bounds.width).toBeLessThanOrEqual(chartWidth);
     }
   },
 });

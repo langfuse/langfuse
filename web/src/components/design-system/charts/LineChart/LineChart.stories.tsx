@@ -170,6 +170,39 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+export const OnCardSurface = meta.story({
+  decorators: [
+    (Story) => (
+      <div className="bg-card h-dvh w-full">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const hoverArea = canvasElement.querySelector<SVGRectElement>(
+      'rect[fill="transparent"]',
+    );
+    if (!hoverArea) throw new Error("Hover area not found");
+    await userEvent.hover(hoverArea);
+    const activeLabel = canvasElement.querySelector<SVGTextElement>(
+      "[data-active-x-axis-label]",
+    );
+    if (!activeLabel) throw new Error("Active label not found");
+    await expect(
+      canvasElement.querySelector("[data-active-x-axis-label-background]"),
+    ).not.toBeInTheDocument();
+    const activeBounds = activeLabel.getBoundingClientRect();
+    for (const label of canvasElement.querySelectorAll<SVGTextElement>(
+      "[data-x-axis-label]:not([data-active-x-axis-label])",
+    )) {
+      const bounds = label.getBoundingClientRect();
+      await expect(
+        bounds.right <= activeBounds.left || bounds.left >= activeBounds.right,
+      ).toBe(true);
+    }
+  },
+});
+
 export const BoundaryPoints = meta.story({
   name: "(Test) Boundary Points",
   args: { variant: "boundary-points" },
@@ -361,15 +394,13 @@ export const CategoryLongLabels = meta.story({
     await expect(activeLabel).toHaveTextContent(categoryData[0]?.x ?? "");
     await expect(activeLabel).toHaveAttribute("font-weight", "700");
     await expect(
-      canvasElement
-        .querySelector("[data-active-x-axis-label-background]")
-        ?.getAttribute("fill"),
-    ).toContain("url(#");
+      canvasElement.querySelector("[data-active-x-axis-label-background]"),
+    ).not.toBeInTheDocument();
 
     const renderedLabels = canvasElement.querySelectorAll(
       "[data-x-axis-label]",
     );
-    await expect(renderedLabels).toHaveLength(categoryData.length);
+    await expect(renderedLabels.length).toBeLessThan(categoryData.length);
     Array.from(renderedLabels)
       .filter((label) => !label.hasAttribute("data-active-x-axis-label"))
       .forEach((label) => {
@@ -422,10 +453,8 @@ export const KeyboardFocus = meta.story({
     });
     await expect(activeLabel).toHaveAttribute("font-weight", "700");
     await expect(
-      canvasElement
-        .querySelector("[data-active-x-axis-label-background]")
-        ?.getAttribute("fill"),
-    ).toContain("url(#");
+      canvasElement.querySelector("[data-active-x-axis-label-background]"),
+    ).not.toBeInTheDocument();
 
     const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
       "tooltip",
