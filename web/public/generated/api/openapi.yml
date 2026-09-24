@@ -16313,14 +16313,10 @@ components:
       properties:
         limit:
           type: integer
-        cursor:
-          type: string
-          nullable: true
-          description: >-
-            URL-safe base64 (base64url) cursor for the next page. Absent when
-            there are no more results.
       required:
         - limit
+      allOf:
+        - $ref: '#/components/schemas/utilsCursorMetaResponse'
     GetScoresV3Response:
       title: GetScoresV3Response
       type: object
