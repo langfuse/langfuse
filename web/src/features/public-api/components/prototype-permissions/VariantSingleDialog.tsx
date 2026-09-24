@@ -2,6 +2,7 @@
 // count, with a "View N permissions" link below opening a popup for the role.
 
 import { useState } from "react";
+import { SquareArrowOutUpRight } from "lucide-react";
 
 import { Badge } from "@/src/components/ui/badge";
 import {
@@ -46,11 +47,19 @@ export const VariantSingleDialog = ({
   draft: ApiKeyDraft;
   setDraft: (draft: ApiKeyDraft) => void;
 }) => {
+  const [selectOpen, setSelectOpen] = useState(false);
   const [popupRole, setPopupRole] = useState<PresetKey | null>(null);
+
+  const openPopup = (role: PresetKey) => {
+    setSelectOpen(false);
+    setPopupRole(role);
+  };
 
   return (
     <KeyFormShell projects={projects} draft={draft} setDraft={setDraft}>
       <Select
+        open={selectOpen}
+        onOpenChange={setSelectOpen}
         value={draft.preset}
         onValueChange={(value) =>
           setDraft({ ...draft, preset: value as ApiKeyDraft["preset"] })
@@ -76,17 +85,23 @@ export const VariantSingleDialog = ({
                       {p.description}
                     </span>
                   </div>
-                  <span className="text-muted-foreground ml-auto flex shrink-0 items-center gap-1 self-center">
-                    <Badge
-                      variant="tertiary"
-                      className="rounded-full px-1.5 py-0 text-[0.6rem] font-bold tabular-nums"
-                    >
+                  <button
+                    type="button"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onPointerUp={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      openPopup(p.key);
+                    }}
+                    className="bg-tertiary text-tertiary-foreground hover:bg-tertiary/70 ml-auto flex shrink-0 items-center gap-1 self-center rounded-full px-2 py-0.5 text-[0.6rem] font-bold tracking-wider uppercase"
+                  >
+                    <span className="tabular-nums">
                       {rolePermissionCount(p.key)}
-                    </Badge>
-                    <span className="text-[0.55rem] font-bold tracking-wider uppercase">
-                      Permissions
                     </span>
-                  </span>
+                    Permissions
+                    <SquareArrowOutUpRight className="h-3 w-3" />
+                  </button>
                 </div>
               </SelectItem>
             );
