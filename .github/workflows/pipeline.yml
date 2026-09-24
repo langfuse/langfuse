@@ -798,25 +798,10 @@ jobs:
           pnpm install
       - name: Load default env
         run: |
-          write_test_env() {
-            {
-              grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' "$1"
-              echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1"
-              echo "LANGFUSE_CACHE_PROMPT_ENABLED=false"
-              echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1"
-              echo "LANGFUSE_TRACE_DELETE_DELAY_MS=1"
-              echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100"
-              echo "ADMIN_API_KEY=admin-api-key"
-              echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test"
-              echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true"
-              echo "LANGFUSE_ENABLE_SCORES_V3_API=true"
-            } > "$2"
-          }
-
           # Compile once under the default test environment. Next's generate
           # phase below reapplies the mode-specific config and prerendering.
-          write_test_env .env.dev.example .env
-          write_test_env .env.dev${{ matrix.deploy-mode }}.example .env.runtime
+          bash scripts/ci/write-web-test-env.sh .env.dev.example .env
+          bash scripts/ci/write-web-test-env.sh .env.dev${{ matrix.deploy-mode }}.example .env.runtime
           echo "LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED=${{ matrix.deploy-mode != '-azure' }}" >> .env.runtime
       - name: Setup Turbo remote cache
         if: env.CI_CACHE_ALLOWED == 'true'
@@ -1057,6 +1042,130 @@ jobs:
         run: pnpm --filter=worker run test:exclude-llm-connections
         env:
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
+
+  tests-fips:
+    # Runs the web and worker suites the way a FIPS host would: on the UBI
+    # toolchain from worker/Dockerfile with OPENSSL_FORCE_FIPS_MODE=1, which
+    # puts Red Hat's OpenSSL in FIPS mode without a FIPS kernel. Code paths
+    # that need an algorithm FIPS refuses (md5, ...) fail with
+    # ERR_OSSL_EVP_UNSUPPORTED. Databases and migrations run on the runner as
+    # in tests-web/tests-worker; install, build, the web and worker processes
+    # and the tests run in the container (scripts/ci/fips-tests.sh).
+    # Not part of all-ci-passed yet.
+    timeout-minutes: 45
+    runs-on: ${{ matrix.runner }}
+    needs:
+      - pre-job
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    name: tests-fips (${{ matrix.suite }})
+    env:
+      VITEST_MAX_WORKERS: ${{ matrix.max-workers }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: web
+            runner: blacksmith-16vcpu-ubuntu-2404
+            max-workers: "12"
+          - suite: worker
+            runner: blacksmith-8vcpu-ubuntu-2404
+            max-workers: "4"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+          cache: false
+      - name: Login to Docker Hub
+        if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
+          password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
+      - name: Use Node.js 24 without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Use Node.js 24 with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] test job dependency cache only; no released artifacts are built or published from this cached state
+        with:
+          node-version: 24
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        # For the migrations and seeding on the runner; the container installs
+        # its own copy for UBI.
+        run: |
+          pnpm install
+      - name: Install golang-migrate for Clickhouse migrations
+        run: |
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
+          sudo mv migrate /usr/bin/migrate
+          which migrate
+      - name: Load default env
+        run: |
+          if [ "${{ matrix.suite }}" = "web" ]; then
+            bash scripts/ci/write-web-test-env.sh .env.dev.example .env
+            cp .env .env.runtime
+            echo "LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED=true" >> .env.runtime
+          else
+            cp .env.dev.example .env
+            cp .env.dev.example web/.env
+            cp .env.dev.example worker/.env
+          fi
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@1e75355f81cbb3f93cba1eb5dd5e5b05110ca8f9 # v2.0.1
+        with:
+          cache-key: langfuse/test-fips-toolchain
+      - name: Build UBI toolchain image
+        run: docker buildx build --load --target toolchain -f worker/Dockerfile -t langfuse-fips-toolchain .
+      - name: Run + migrate
+        run: |
+          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
+          docker compose -f docker-compose.dev.yml ps
+          pnpm run db:migrate
+          if [ "${{ matrix.suite }}" = "worker" ]; then
+            pnpm --filter=shared run db:seed
+          fi
+          pnpm --filter=shared ch:up
+        env:
+          POSTGRES_VERSION: 15
+          # The worker's code-eval tests need the extra floci container.
+          COMPOSE_PROFILES: ${{ matrix.suite == 'worker' && 'worker-tests' || '' }}
+      - name: Provide ClickHouse client via dev container for dev-tables setup
+        # The clickhouse-server container already ships the client binary;
+        # a shim avoids re-downloading the ~300MB client package every run.
+        run: |
+          sudo tee /usr/local/bin/clickhouse > /dev/null <<'EOF'
+          #!/bin/bash
+          exec docker exec -i langfuse-clickhouse clickhouse "$@"
+          EOF
+          sudo chmod +x /usr/local/bin/clickhouse
+      - name: Setup Dev Tables
+        run: |
+          pnpm --filter=shared ch:dev-tables
+      - name: Run ${{ matrix.suite }} tests under forced FIPS
+        env:
+          LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.suite == 'worker' && 'http://localhost:4566' || '' }}
+          SUITE: ${{ matrix.suite }}
+        run: |
+          docker run --rm --network host \
+            -e OPENSSL_FORCE_FIPS_MODE=1 \
+            -e CI -e VITEST_MAX_WORKERS -e LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT \
+            -e PNPM_STORE_DIR=/pnpm-store \
+            -v "$(pnpm store path --silent):/pnpm-store" \
+            -v "$PWD:/src:ro" \
+            langfuse-fips-toolchain \
+            bash /src/scripts/ci/fips-tests.sh "$SUITE"
+
   test-worker-llm-connections:
     timeout-minutes: 20
     runs-on: blacksmith-4vcpu-ubuntu-2404

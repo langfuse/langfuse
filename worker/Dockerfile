@@ -107,9 +107,10 @@ WORKDIR /app
 COPY . .
 RUN turbo prune --scope=worker --docker
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS builder
-
-WORKDIR /app
+# UBI build toolchain: RPM Node, pnpm, turbo, gcc and Rust. CI's tests-fips job
+# also runs the web and worker test suites on this stage with the OpenSSL FIPS
+# provider forced on (scripts/ci/fips-tests.sh).
+FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS toolchain
 
 ARG TARGETARCH
 
@@ -137,6 +138,10 @@ RUN set -eux; \
     /tmp/rust-1.98.0-${triple}/install.sh --prefix=/usr/local \
     --components=rustc,cargo,rust-std-${triple}; \
     rm -rf /tmp/rust.tar.gz /tmp/rust-1.98.0-${triple}
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} toolchain AS builder
+
+WORKDIR /app
 
 # First install the dependencies (as they change less often)
 COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
