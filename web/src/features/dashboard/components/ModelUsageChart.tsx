@@ -38,6 +38,7 @@ export const ModelUsageChart = ({
   metricsVersion,
   schedulerId,
   syncId,
+  sync,
 }: {
   className?: string;
   projectId: string;
@@ -50,6 +51,10 @@ export const ModelUsageChart = ({
   metricsVersion: ViewVersion;
   schedulerId?: string;
   syncId?: string;
+  sync?: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
 }) => {
   const { allModels, selectedModels, setSelectedModels } = useModelSelection(
     projectId,
@@ -392,6 +397,7 @@ export const ModelUsageChart = ({
                       // Token/cost totals are additive sums. (LFE-10498)
                       legendSummary="sum"
                       syncId={syncId}
+                      sync={sync}
                       // Additive sums: a bucket without data honestly sums to 0. (LFE-10694)
                       missingValue="zero"
                     />
