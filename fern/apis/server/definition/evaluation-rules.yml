@@ -3,6 +3,7 @@ imports:
   evals: ./evaluation-commons.yml
   evaluators: ./evaluators.yml
   errors: ./evaluation-errors.yml
+  pagination: ./utils/pagination.yml
 
 service:
   auth: true
@@ -230,7 +231,7 @@ types:
         type: list<EvaluationRule>
         docs: Evaluation rules for this page.
       meta:
-        type: evaluators.CursorMeta
+        type: pagination.CursorMetaResponse
         docs: Cursor pagination metadata.
 
   DeletedEvaluationRule:

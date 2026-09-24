@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
   commons: ./commons.yml
+  pagination: ./utils/pagination.yml
 service:
   auth: true
   base-path: /api/public
@@ -228,11 +229,4 @@ types:
       data:
         type: list<commons.ObservationV2>
         docs: Array of observation objects. Fields included depend on the `fields` parameter in the request.
-      meta: ObservationsV2Meta
-
-  ObservationsV2Meta:
-    docs: Metadata for cursor-based pagination
-    properties:
-      cursor:
-        type: optional<string>
-        docs: Base64-encoded cursor to use for retrieving the next page. If not present, there are no more results.
+      meta: pagination.CursorMetaResponse

@@ -12689,7 +12689,7 @@ components:
             $ref: '#/components/schemas/EvaluationRule'
           description: Evaluation rules for this page.
         meta:
-          $ref: '#/components/schemas/CursorMeta'
+          $ref: '#/components/schemas/utilsCursorMetaResponse'
           description: Cursor pagination metadata.
       required:
         - data
@@ -13331,7 +13331,7 @@ components:
             $ref: '#/components/schemas/Evaluator'
           description: Evaluators for this page.
         meta:
-          $ref: '#/components/schemas/CursorMeta'
+          $ref: '#/components/schemas/utilsCursorMetaResponse'
           description: Cursor pagination metadata.
       required:
         - data
@@ -13346,19 +13346,11 @@ components:
             $ref: '#/components/schemas/EvaluatorVersion'
           description: Evaluator versions for this page in newest-first order.
         meta:
-          $ref: '#/components/schemas/CursorMeta'
+          $ref: '#/components/schemas/utilsCursorMetaResponse'
           description: Cursor pagination metadata.
       required:
         - data
         - meta
-    CursorMeta:
-      title: CursorMeta
-      type: object
-      properties:
-        cursor:
-          type: string
-          nullable: true
-          description: Opaque cursor for the next page. Omitted when there is no next page.
     DeletedEvaluator:
       title: DeletedEvaluator
       type: object
@@ -13378,20 +13370,10 @@ components:
           items:
             $ref: '#/components/schemas/Experiment'
         meta:
-          $ref: '#/components/schemas/ExperimentsResponseMeta'
+          $ref: '#/components/schemas/utilsCursorMetaResponse'
       required:
         - data
         - meta
-    ExperimentsResponseMeta:
-      title: ExperimentsResponseMeta
-      type: object
-      properties:
-        cursor:
-          type: string
-          nullable: true
-          description: >-
-            Versioned base64url cursor for retrieving the next page. Absent when
-            there are no more results.
     Experiment:
       title: Experiment
       type: object
@@ -13453,7 +13435,7 @@ components:
           items:
             $ref: '#/components/schemas/ExperimentItem'
         meta:
-          $ref: '#/components/schemas/ExperimentsResponseMeta'
+          $ref: '#/components/schemas/utilsCursorMetaResponse'
       required:
         - data
         - meta
@@ -14965,21 +14947,10 @@ components:
             Array of observation objects. Fields included depend on the `fields`
             parameter in the request.
         meta:
-          $ref: '#/components/schemas/ObservationsV2Meta'
+          $ref: '#/components/schemas/utilsCursorMetaResponse'
       required:
         - data
         - meta
-    ObservationsV2Meta:
-      title: ObservationsV2Meta
-      type: object
-      description: Metadata for cursor-based pagination
-      properties:
-        cursor:
-          type: string
-          nullable: true
-          description: >-
-            Base64-encoded cursor to use for retrieving the next page. If not
-            present, there are no more results.
     OtelResourceSpan:
       title: OtelResourceSpan
       type: object
@@ -17378,6 +17349,15 @@ components:
         - limit
         - totalItems
         - totalPages
+    utilsCursorMetaResponse:
+      title: utilsCursorMetaResponse
+      type: object
+      description: Metadata for cursor-based pagination.
+      properties:
+        cursor:
+          type: string
+          nullable: true
+          description: Opaque cursor for the next page. Omitted when there is no next page.
   securitySchemes:
     BasicAuth:
       type: http

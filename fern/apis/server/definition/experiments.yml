@@ -2,6 +2,7 @@
 imports:
   commons: ./commons.yml
   scoresV3: ./scores-v3.yml
+  pagination: ./utils/pagination.yml
 
 service:
   auth: true
@@ -116,13 +117,7 @@ types:
   ExperimentsResponse:
     properties:
       data: list<Experiment>
-      meta: ExperimentsResponseMeta
-
-  ExperimentsResponseMeta:
-    properties:
-      cursor:
-        type: optional<string>
-        docs: Versioned base64url cursor for retrieving the next page. Absent when there are no more results.
+      meta: pagination.CursorMetaResponse
 
   Experiment:
     properties:
@@ -156,7 +151,7 @@ types:
   ExperimentItemsResponse:
     properties:
       data: list<ExperimentItem>
-      meta: ExperimentsResponseMeta
+      meta: pagination.CursorMetaResponse
 
   ExperimentItem:
     properties:

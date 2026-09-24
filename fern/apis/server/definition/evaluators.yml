@@ -2,6 +2,7 @@
 imports:
   evals: ./evaluation-commons.yml
   errors: ./evaluation-errors.yml
+  pagination: ./utils/pagination.yml
 
 service:
   auth: true
@@ -509,7 +510,7 @@ types:
         type: list<Evaluator>
         docs: Evaluators for this page.
       meta:
-        type: CursorMeta
+        type: pagination.CursorMetaResponse
         docs: Cursor pagination metadata.
 
   EvaluatorVersionsPage:
@@ -518,14 +519,8 @@ types:
         type: list<EvaluatorVersion>
         docs: Evaluator versions for this page in newest-first order.
       meta:
-        type: CursorMeta
+        type: pagination.CursorMetaResponse
         docs: Cursor pagination metadata.
-
-  CursorMeta:
-    properties:
-      cursor:
-        type: optional<string>
-        docs: Opaque cursor for the next page. Omitted when there is no next page.
 
   DeletedEvaluator:
     docs: Confirmation returned after successful evaluator deletion.
