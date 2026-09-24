@@ -96,7 +96,7 @@ const PermissionsDialog = ({ preset }: { preset: PresetKey }) => {
               <Icon className="h-4 w-4 shrink-0" />
               <span>{meta.label} Permissions</span>
               <Badge
-                variant="secondary"
+                variant="tertiary"
                 className="shrink-0 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums"
               >
                 {rolePermissionCount(preset)}
@@ -104,7 +104,7 @@ const PermissionsDialog = ({ preset }: { preset: PresetKey }) => {
             </DialogTitle>
           </DialogHeader>
           <DialogBody className="p-0">
-            <div className="max-h-[70vh] overflow-y-auto px-5 pb-8">
+            <div className="max-h-[70vh] overflow-y-auto px-5 pb-12">
               <RolePermissionList preset={preset} />
             </div>
           </DialogBody>
