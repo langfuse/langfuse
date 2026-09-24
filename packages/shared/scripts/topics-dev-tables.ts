@@ -260,6 +260,15 @@ ClickHouse uses CLICKHOUSE_URL (HTTP/HTTPS), not CLICKHOUSE_MIGRATION_URL. Self-
       const url = new URL(required("CLICKHOUSE_URL"));
       if (!["http:", "https:"].includes(url.protocol))
         throw new SetupError("CLICKHOUSE_URL requires HTTP or HTTPS.");
+      if (
+        (url.pathname !== "/" && url.pathname !== "") ||
+        url.search ||
+        url.hash
+      ) {
+        throw new SetupError(
+          "CLICKHOUSE_URL must contain only the server origin; set the database with CLICKHOUSE_DB, not a URL path or query.",
+        );
+      }
       const database = envFile
         ? required("CLICKHOUSE_DB")
         : config.CLICKHOUSE_DB || "default";

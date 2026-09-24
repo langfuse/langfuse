@@ -9,7 +9,8 @@ without these tables.
 From an installed checkout (`pnpm install`, generated Prisma client), copy
 [remote.env.example](./remote.env.example) to a private file outside the repo.
 Fill in that deployment's **direct Postgres URL** and **ClickHouse HTTP URL**,
-credentials and database name. The databases and normal Langfuse migrations must
+credentials and database name. `CLICKHOUSE_URL` must be the server origin, without
+a database path or query parameters. The databases and normal Langfuse migrations must
 already exist. Use a machine with network access and DDL permissions.
 
 ```bash
@@ -69,7 +70,8 @@ pnpm --filter @langfuse/shared exec dotenv -e ../../.env.test -e ../../.env -- p
 ```
 
 The existing `db:reset`, `db:reset:test`, and `ch:reset` now provision their Topics
-tables too. CI applies baseline migrations with `db:deploy`, then runs this
+tables too. `ch:reset` explicitly drops Topics tables after the normal confirmed
+down-migration step, including incompatible schemas and existing rows. CI applies baseline migrations with `db:deploy`, then runs this
 provisioner explicitly. Production entrypoints never run it automatically.
 
 ## Safety and schema changes
