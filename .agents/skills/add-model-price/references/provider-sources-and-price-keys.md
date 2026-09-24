@@ -790,6 +790,34 @@ Formula:
 price_per_token = price_per_mtok / 1_000_000
 ```
 
+- **Pricing scope is limited to the six covered providers — a non-provider
+  "jev" entry found without official evidence (found September 24 2026)** —
+  `default-model-prices.json` contains a `jev` pricing entry (input
+  4.2e-8/token = $0.042/MTok, output 0, `matchPattern` covering
+  `typesafe/jev*`, `typesafe-ai/jev*`) added by the September 22 2026 audit
+  run (PR #17802) alongside the legitimate `claude-opus-5-5`/`gpt-6-sol`/
+  `gpt-6-luna` additions. "Jev" is not a model from any of the six covered
+  providers — it is TypeSafe's proprietary decision-model evaluator
+  (`packages/shared/src/server/llm/typesafe/typeSafeDecisionModelClient.ts`,
+  selectable IDs `jev-1.13.0`/`jev-latest` in `typeSafeModels` in `types.ts`),
+  reachable directly through TypeSafe's own API or proxied through the
+  Vercel AI Gateway or OpenRouter (`TYPESAFE_UPSTREAMS` in `types.ts`). None
+  of `typesafe.ai`, `ai-gateway.vercel.sh`, or `openrouter.ai` are official
+  provider pricing sources for this skill, and none are in the audit
+  workflow's WebFetch domain allowlist — so the price in this entry cannot
+  have come from an official source reachable by the automated audit tool
+  permissions, and neither this reference file nor `model-audit-memory.md`
+  documents any evidence trail for it. Per the automated-audit scope (six
+  covered providers only, official-domain evidence required, no removal
+  category authorized), this entry was left unchanged rather than corrected
+  or removed — there is no official source to correct it against, and
+  deleting it is outside this skill's authorized edit rules. Report it as a
+  standing unresolved finding in every future audit until a human either
+  supplies an official TypeSafe/gateway pricing source (which would require
+  a WebFetch domain allowlist change, reviewed together with the workflow)
+  or removes the entry through a non-audit change. Do not treat its presence
+  as precedent for adding further non-six-provider pricing entries.
+
 ## Provider Usage Keys
 
 Use [provider-usage-key-matrix.md](provider-usage-key-matrix.md) as the single

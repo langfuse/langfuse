@@ -226,6 +226,7 @@ jobs:
             - Workflow self-improvements must preserve the schedule/manual triggers, repo guard, read-only audit permissions, explicit read-only GitHub token, separate publish job, secret names, input validation, diff allowlist, hook-disabled commit path, staged-blob checks, artifact handoff, and non-fatal reviewer request.
             - Do not grant the audit job write permissions, `id-token: write`, package-manager tools, arbitrary shell tools, arbitrary network tools, `gh`, or `git push`.
             - Do not change official provider WebFetch domains. Report a required domain change as unresolved so the workflow and deterministic source validation can be updated together.
+            - Only add or change a pricing entry for a model served by one of the six covered providers (OpenAI, Anthropic, Google Gemini, AWS Bedrock, Azure OpenAI, Vertex AI), confirmed via an allowed WebFetch domain. Do not add or modify a pricing entry for an internal, partner-routed, or gateway-only model (for example an in-repo evaluator/decision-model integration) without official evidence from an allowed provider domain; report it as unresolved instead.
             - Keep the first entry in every selectable model array unchanged unless the audit explicitly changes the default model.
             - Use the allowed exact `date -u +%Y-%m-%dT00:00:00.000Z` command if you need the current timestamp.
 
