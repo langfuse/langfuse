@@ -342,6 +342,88 @@ async fn records_of_one_project_share_an_upload_with_the_latest_expiring_grant()
     assert_eq!(telemetry.0.stats.accepted.load(Ordering::Relaxed), 3);
 }
 
+fn span_projects(payload: &Value) -> Vec<String> {
+    payload["resourceSpans"][0]["scopeSpans"][0]["spans"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|span| {
+            let metadata = span["attributes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|attribute| attribute["key"] == "langfuse.observation.metadata")
+                .unwrap();
+            let metadata: Value =
+                serde_json::from_str(metadata["value"]["stringValue"].as_str().unwrap()).unwrap();
+            metadata["langfuse.gateway.project.id"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn interleaved_projects_never_share_an_upload_or_a_grant() {
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let received = observed.clone();
+    let web = FakeServer::start(move |request| {
+        let received = received.clone();
+        async move {
+            let authorization = request.headers()["authorization"]
+                .to_str()
+                .unwrap()
+                .to_owned();
+            let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
+            let payload: Value = serde_json::from_slice(&bytes).unwrap();
+            received
+                .lock()
+                .unwrap()
+                .push((authorization, span_projects(&payload)));
+            response(200, "{}")
+        }
+    })
+    .await;
+    let telemetry = Telemetry::with_uploader(
+        uploader(&web.url),
+        2,
+        MAX_RETAINED_BYTES,
+        BatchPolicy {
+            max_records: 3,
+            ..BatchPolicy::default()
+        },
+        fast_retry(),
+    );
+    // Later records carry later-expiring grants, so each batch adopts a new grant
+    // while the other project's batch is open.
+    for round in 0..4u64 {
+        for project in ["project-a", "project-b"] {
+            let mut context = grant().await;
+            context.grant.project_id = project.into();
+            context.grant.access_token = format!("{project}-token-{round}");
+            context.grant.expires_at += round * 10;
+            telemetry.record(context, facts(project));
+        }
+    }
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(2))
+        .await;
+    let mut uploads = observed.lock().unwrap().clone();
+    uploads.sort();
+    let spans = |project: &str, count| vec![project.to_owned(); count];
+    assert_eq!(
+        uploads,
+        vec![
+            ("Bearer project-a-token-2".into(), spans("project-a", 3)),
+            ("Bearer project-a-token-3".into(), spans("project-a", 1)),
+            ("Bearer project-b-token-2".into(), spans("project-b", 3)),
+            ("Bearer project-b-token-3".into(), spans("project-b", 1)),
+        ]
+    );
+    assert_eq!(telemetry.0.stats.accepted.load(Ordering::Relaxed), 8);
+}
+
 #[tokio::test]
 async fn open_batches_upload_once_their_linger_elapses() {
     let web = FakeServer::start(|_| async { response(200, "{}") }).await;
