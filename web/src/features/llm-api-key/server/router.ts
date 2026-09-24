@@ -245,6 +245,41 @@ async function validateBaseURLForWrite(params: {
   }
 }
 
+/**
+ * Resolves the extra headers an update would store. Blank values stand for
+ * masked stored values and are filled from the stored headers, but only when
+ * the base URL is unchanged: stored secrets must never be sent to a new
+ * destination chosen by the caller.
+ */
+function resolveUpdatedExtraHeaders(params: {
+  inputHeaders: Record<string, string | null | undefined> | undefined;
+  storedHeaders: string | null;
+  isBaseURLChanged: boolean;
+}): Record<string, string> | undefined {
+  const existingHeaders: Record<string, string> = params.isBaseURLChanged
+    ? {}
+    : (decryptAndParseExtraHeaders(params.storedHeaders) ?? {});
+
+  if (params.inputHeaders === undefined) {
+    return Object.keys(existingHeaders).length > 0
+      ? existingHeaders
+      : undefined;
+  }
+
+  const extraHeaders: Record<string, string> = {};
+  for (const [key, value] of Object.entries(params.inputHeaders)) {
+    if (value === null || value === undefined || value === "") {
+      if (existingHeaders[key] !== undefined) {
+        extraHeaders[key] = existingHeaders[key];
+      }
+    } else {
+      extraHeaders[key] = value;
+    }
+  }
+
+  return Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined;
+}
+
 export const llmApiKeyRouter = createTRPCRouter({
   create: protectedProjectProcedureWithoutTracing
     .input(CreateLlmApiKey)
@@ -564,15 +599,11 @@ export const llmApiKeyRouter = createTRPCRouter({
         const customModels = input.customModels ?? existingKey.customModels;
         const config = input.config ?? existingKey.config;
 
-        // Never reuse stored headers across a destination change.
-        const extraHeaders =
-          input.extraHeaders !== undefined
-            ? input.extraHeaders
-            : isBaseURLChanged
-              ? undefined
-              : existingKey.extraHeaders
-                ? decryptAndParseExtraHeaders(existingKey.extraHeaders)
-                : undefined;
+        const extraHeaders = resolveUpdatedExtraHeaders({
+          inputHeaders: input.extraHeaders,
+          storedHeaders: existingKey.extraHeaders,
+          isBaseURLChanged,
+        });
 
         return testLLMConnection({
           adapter,
@@ -686,44 +717,11 @@ export const llmApiKeyRouter = createTRPCRouter({
           input.extraHeaders = {};
         }
 
-        // Get existing decrypted headers for comparison
-        const decryptedHeaders = existingKey.extraHeaders
-          ? decryptAndParseExtraHeaders(existingKey.extraHeaders)
-          : null;
-        const existingHeaders: Record<string, string> = isBaseURLChanged
-          ? {}
-          : (decryptedHeaders ?? {});
-
-        // Ensure we only update the extraHeaders where the value is not null
-        let extraHeaders: Record<string, string> | undefined;
-
-        if (input.extraHeaders === undefined) {
-          // Keep all existing headers unchanged
-          extraHeaders =
-            Object.keys(existingHeaders).length > 0
-              ? existingHeaders
-              : undefined;
-        } else {
-          // Process input headers, preserving existing values for empty inputs
-          extraHeaders = {};
-
-          for (const [key, value] of Object.entries(input.extraHeaders)) {
-            if (value === null || value === undefined || value === "") {
-              // Keep existing value if input value is empty and key exists
-              if (existingHeaders[key] !== undefined) {
-                extraHeaders[key] = existingHeaders[key];
-              }
-            } else {
-              // Use the new non-empty value
-              extraHeaders[key] = value;
-            }
-          }
-
-          // If no headers remain, set to undefined
-          if (Object.keys(extraHeaders).length === 0) {
-            extraHeaders = undefined;
-          }
-        }
+        const extraHeaders = resolveUpdatedExtraHeaders({
+          inputHeaders: input.extraHeaders,
+          storedHeaders: existingKey.extraHeaders,
+          isBaseURLChanged,
+        });
 
         const key = await ctx.prisma.llmApiKeys.update({
           where: {

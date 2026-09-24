@@ -681,6 +681,67 @@ describe("llmApiKey.all RPC", () => {
     );
   });
 
+  it("should fill masked header values from the stored headers in testUpdate", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-original",
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: { "X-Api-Key": "stored-token", "X-Team": "stored-team" },
+    });
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "openai" },
+    });
+
+    const result = await caller.llmApiKey.testUpdate({
+      id: existingKey.id,
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: { "X-Api-Key": "", "X-Team": "new-team" },
+    });
+
+    expect(result).toEqual({ success: true });
+    const connection = mockGenerateLLMText.mock.calls[0][0].connection;
+    expect(JSON.parse(decrypt(connection.extraHeaders!))).toEqual({
+      "X-Api-Key": "stored-token",
+      "X-Team": "new-team",
+    });
+  });
+
+  it("should not fill masked header values from the stored headers when testUpdate changes the base URL", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-original",
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: { "X-Api-Key": "stored-token" },
+    });
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "openai" },
+    });
+
+    const result = await caller.llmApiKey.testUpdate({
+      id: existingKey.id,
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-rotated",
+      baseURL: "https://example.net/v1",
+      extraHeaders: { "X-Api-Key": "", "X-Team": "new-team" },
+    });
+
+    expect(result).toEqual({ success: true });
+    const connection = mockGenerateLLMText.mock.calls[0][0].connection;
+    expect(connection.baseURL).toBe("https://example.net/v1");
+    expect(JSON.parse(decrypt(connection.extraHeaders!))).toEqual({
+      "X-Team": "new-team",
+    });
+  });
+
   it("should allow testUpdate when the base URL changes and a new secret key is provided", async () => {
     const existingExtraHeaders = {
       Authorization: "Bearer stored-token",
