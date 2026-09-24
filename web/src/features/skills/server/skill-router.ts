@@ -3,7 +3,6 @@ import { z } from "zod/v4";
 import {
   CreateSkillVersionBodySchema,
   ListSkillsQuerySchema,
-  PrepareSkillUploadsBodySchema,
   SkillSelectorSchema,
   SkillNameSchema,
   UpdateSkillLabelsBodySchema,
@@ -87,7 +86,7 @@ export const skillRouter = createTRPCRouter({
       });
     }),
 
-  fileDownload: protectedProjectProcedure
+  fileContent: protectedProjectProcedure
     .input(projectInput.extend({ fileId: z.string().min(1) }))
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
@@ -95,7 +94,7 @@ export const skillRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "skills:read",
       });
-      return new SkillService(prisma).getFileDownload(input);
+      return new SkillService(prisma).getFileContent(input);
     }),
 
   skillVersions: protectedProjectProcedure
@@ -138,31 +137,8 @@ export const skillRouter = createTRPCRouter({
       };
     }),
 
-  prepareUploads: protectedProjectProcedure
-    .input(projectInput.and(PrepareSkillUploadsBodySchema))
-    .mutation(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "skills:CUD",
-      });
-      return new SkillService(prisma).prepareUploads({
-        projectId: input.projectId,
-        input,
-      });
-    }),
-
   createVersion: protectedProjectProcedure
-    .input(
-      projectInput
-        .extend({
-          target: z.discriminatedUnion("kind", [
-            z.object({ kind: z.literal("new") }),
-            z.object({ kind: z.literal("version"), name: SkillNameSchema }),
-          ]),
-        })
-        .and(CreateSkillVersionBodySchema),
-    )
+    .input(projectInput.and(CreateSkillVersionBodySchema))
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -172,7 +148,6 @@ export const skillRouter = createTRPCRouter({
       return new SkillService(prisma).createVersion({
         projectId: input.projectId,
         createdBy: ctx.session.user.id,
-        target: input.target,
         input,
         actor: { session: ctx.session },
       });

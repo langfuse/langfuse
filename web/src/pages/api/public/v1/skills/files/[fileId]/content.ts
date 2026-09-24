@@ -1,3 +1,4 @@
+import { SkillFileContentResponseSchema } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod/v4";
 import {
@@ -8,19 +9,17 @@ import { SkillService } from "@/src/features/skills/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
-    name: "Download Skill File",
+    name: "Get Skill File Content",
     action: "skills:read",
     querySchema: z.object({ fileId: z.string().min(1) }),
-    responseSchema: z.void(),
-    successStatusCode: 307,
+    responseSchema: SkillFileContentResponseSchema,
     rateLimitResource: "public-api",
     fn: async ({ query, auth, res }) => {
-      const { downloadUrl } = await new SkillService(prisma).getFileDownload({
+      res.setHeader("Cache-Control", "no-store");
+      return new SkillService(prisma).getFileContent({
         projectId: auth.scope.projectId,
         fileId: query.fileId,
       });
-      res.setHeader("Cache-Control", "no-store");
-      res.setHeader("Location", downloadUrl);
     },
   }),
 });

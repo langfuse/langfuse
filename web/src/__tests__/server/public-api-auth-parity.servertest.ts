@@ -124,7 +124,6 @@ const projectRoutes: Route[] = [
     route: "v1/skills/[skillName]/versions/[skillVersion]",
     methods: ["PATCH", "DELETE"],
   },
-  { route: "v1/skills/blobs/index", methods: ["POST"] },
   { route: "v1/skills/files/[fileId]/content", methods: ["GET"] },
 ];
 

@@ -32,12 +32,11 @@ CREATE TABLE "skill_files" (
 CREATE TABLE "skill_blobs" (
     "id" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "verified_at" TIMESTAMP(3),
     "project_id" TEXT NOT NULL,
     "sha_256_hash" CHAR(44) NOT NULL,
     "content_type" TEXT NOT NULL,
     "content_length" INTEGER NOT NULL,
-    "bucket_path" TEXT NOT NULL,
+    "content" TEXT NOT NULL,
 
     CONSTRAINT "skill_blobs_pkey" PRIMARY KEY ("id")
 );

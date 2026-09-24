@@ -11,6 +11,12 @@ import {
 } from "@/src/features/public-api/server";
 import { SkillService } from "@/src/features/skills/server";
 
+export const config = {
+  api: {
+    bodyParser: { sizeLimit: "4.5mb" },
+  },
+};
+
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "List Skills",

@@ -1,77 +1,13 @@
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectAuthedContext } from "@/src/server/api/trpc";
-import type { Prisma, PrismaClient, SkillBlob } from "@langfuse/shared/src/db";
-import type { StorageService } from "@langfuse/shared/src/server";
+import type { PrismaClient } from "@langfuse/shared/src/db";
 import { SkillService } from "@/src/features/skills/server/skill-service";
-import { getSkillStorageClient } from "@/src/features/skills/server/getSkillStorageClient";
 import { auditLog } from "@/src/features/audit-logs/server";
-
-vi.mock("@/src/features/skills/server/getSkillStorageClient", () => ({
-  getSkillStorageClient: vi.fn(),
-}));
 
 vi.mock("@/src/features/audit-logs/server", () => ({
   auditLog: vi.fn(),
 }));
-
-describe("SkillService storage configuration", () => {
-  it.each(["default", "injected"] as const)(
-    "prepares uploads using %s storage",
-    async (mode) => {
-      const getSignedUploadUrl = vi
-        .fn()
-        .mockResolvedValue(`https://${mode}.example.com/upload`);
-      const storage = { getSignedUploadUrl } as unknown as StorageService;
-      const defaultConfig = vi.mocked(getSkillStorageClient);
-      defaultConfig.mockReset();
-      if (mode === "default") {
-        defaultConfig.mockReturnValue(storage);
-      } else {
-        defaultConfig.mockImplementation(() => {
-          throw new Error("Default storage is unavailable");
-        });
-      }
-      const create = vi.fn(
-        async ({ data }: { data: Prisma.SkillBlobUncheckedCreateInput }) => ({
-          ...data,
-          verifiedAt: null,
-        }),
-      );
-      const prisma = { skillBlob: { create } } as unknown as PrismaClient;
-      const service = new SkillService(
-        prisma,
-        mode === "injected" ? storage : undefined,
-      );
-      const hash = createHash("sha256").update("hello").digest();
-      const descriptor = {
-        sha256Hash: hash.toString("base64"),
-        contentType: "text/plain",
-        contentLength: 5,
-      };
-
-      const result = await service.prepareUploads({
-        projectId: "project",
-        input: { blobs: [descriptor] },
-      });
-
-      const path = `skills/project/${hash.toString("base64url")}`;
-      expect(create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          bucketPath: path,
-        }),
-      });
-      expect(getSignedUploadUrl).toHaveBeenCalledWith({
-        ...descriptor,
-        path,
-        ttlSeconds: 3600,
-      });
-      expect(result.data[0]?.uploadUrl).toBe(
-        `https://${mode}.example.com/upload`,
-      );
-    },
-  );
-});
 
 describe("SkillService versions", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -88,34 +24,21 @@ describe("SkillService versions", () => {
   }
 
   function setup() {
-    const markdown = Buffer.from(
-      "---\nname: test-skill\ndescription: A test skill\n---\nInstructions",
-    );
-    const blobs: SkillBlob[] = [markdown, Buffer.from([0, 255, 1])].map(
-      (bytes, index) => ({
-        id: `blob-${index}`,
-        projectId: "project",
-        createdAt: new Date(),
-        verifiedAt: null,
-        sha256Hash: createHash("sha256").update(bytes).digest("base64"),
-        contentType: index === 0 ? "text/markdown" : "application/octet-stream",
-        contentLength: bytes.byteLength,
-        bucketPath: `skills/project/blob-${index}`,
-      }),
-    );
-    const events: string[] = [];
-    const getObjectSize = vi.fn(async (path: string) => {
-      events.push(`size:${path}`);
-      return blobs.find((blob) => blob.bucketPath === path)!.contentLength;
-    });
-    const downloadBytes = vi.fn(async (path: string) => {
-      events.push(`download:${path}`);
-      return markdown;
-    });
+    const markdown =
+      "---\nname: test-skill\ndescription: A test skill\n---\nInstructions";
+    const blobs = [markdown, "Hello 🌍\n"].map((content, index) => ({
+      id: `blob-${index}`,
+      projectId: "project",
+      createdAt: new Date(),
+      sha256Hash: createHash("sha256").update(content).digest("base64"),
+      contentType: "text/plain",
+      contentLength: Buffer.byteLength(content, "utf8"),
+      content,
+    }));
     const files = [
-      { path: "SKILL.md", blobId: blobs[0]!.id },
-      { path: "image.png", blobId: blobs[1]!.id },
-      { path: "copy.png", blobId: blobs[1]!.id },
+      { path: "SKILL.md", content: markdown },
+      { path: "reference.txt", content: blobs[1]!.content },
+      { path: "copy.txt", content: blobs[1]!.content },
     ];
     const skill = {
       id: "skill",
@@ -133,32 +56,24 @@ describe("SkillService versions", () => {
       files: files.map((file, index) => ({
         ...file,
         id: `file-${index}`,
-        blob: blobs.find((blob) => blob.id === file.blobId),
+        blobId: blobs[index === 0 ? 0 : 1]!.id,
+        blob: blobs[index === 0 ? 0 : 1]!,
       })),
     };
     const create = vi.fn().mockResolvedValue(skill);
-    const updateMany = vi.fn(
-      async ({
-        where,
-        data,
-      }: {
-        where: { projectId: string; id: string; verifiedAt: null };
-        data: { verifiedAt: Date };
-      }) => {
-        const blob = blobs.find(
-          (blob) =>
-            blob.projectId === where.projectId &&
-            blob.id === where.id &&
-            blob.verifiedAt === where.verifiedAt,
-        );
-        if (!blob) return { count: 0 };
-        blob.verifiedAt = data.verifiedAt;
-        events.push(`verified:${blob.id}`);
-        return { count: 1 };
-      },
-    );
     const tx = {
       $executeRaw: vi.fn(),
+      skillBlob: {
+        createMany: vi
+          .fn<
+            (input: {
+              data: unknown[];
+              skipDuplicates: boolean;
+            }) => Promise<{ count: number }>
+          >()
+          .mockResolvedValue({ count: 2 }),
+        findMany: vi.fn().mockResolvedValue(blobs),
+      },
       skill: {
         findFirst: vi.fn().mockResolvedValue(null),
         findFirstOrThrow: vi.fn().mockResolvedValue({ version: 1 }),
@@ -172,11 +87,9 @@ describe("SkillService versions", () => {
     };
     const transaction = vi.fn(
       async (callback: (tx: unknown) => Promise<string>) => {
-        events.push("transaction");
         return callback(tx);
       },
     );
-    const findMany = vi.fn().mockResolvedValue(blobs);
     const db = {
       promptProtectedLabels: { findMany: vi.fn().mockResolvedValue([]) },
       apiKey: {
@@ -191,7 +104,7 @@ describe("SkillService versions", () => {
           .mockResolvedValue({ id: "membership", role: "MEMBER" }),
       },
       projectMembership: { findFirst: vi.fn().mockResolvedValue(null) },
-      skillBlob: { findMany, updateMany },
+      skillFile: { findFirst: vi.fn().mockResolvedValue(skill.files[0]) },
       $transaction: transaction,
       skill: {
         findFirst: vi.fn().mockResolvedValue(skill),
@@ -208,10 +121,7 @@ describe("SkillService versions", () => {
       organizationMembership: db.organizationMembership,
       projectMembership: db.projectMembership,
     });
-    const service = new SkillService(
-      db as unknown as PrismaClient,
-      { getObjectSize, downloadBytes } as unknown as StorageService,
-    );
+    const service = new SkillService(db as unknown as PrismaClient);
     const params = {
       projectId: "project",
       createdBy: "user",
@@ -227,13 +137,8 @@ describe("SkillService versions", () => {
       service,
       params,
       blobs,
-      events,
-      getObjectSize,
-      downloadBytes,
       transaction,
       create,
-      updateMany,
-      findMany,
       skill,
       tx,
       db,
@@ -422,35 +327,6 @@ describe("SkillService versions", () => {
     },
   );
 
-  it("rejects creating a new skill when its name already exists", async () => {
-    const test = setup();
-    test.tx.skill.findFirst.mockResolvedValue(test.skill);
-    const params = { ...test.params, target: { kind: "new" as const } };
-
-    await expect(test.service.createVersion(params)).rejects.toThrow(
-      "already exists",
-    );
-    expect(test.create).not.toHaveBeenCalled();
-    expect(test.tx.skill.update).not.toHaveBeenCalled();
-    expect(test.tx.skill.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { projectId: "project", name: "test-skill" },
-      }),
-    );
-  });
-
-  it("rejects renaming an existing skill through version creation", async () => {
-    const test = setup();
-    const params = {
-      ...test.params,
-      target: { kind: "version" as const, name: "original-skill" },
-    };
-    await expect(test.service.createVersion(params)).rejects.toThrow(
-      "must remain",
-    );
-    expect(test.create).not.toHaveBeenCalled();
-  });
-
   it("creates with only latest and leaves deployment labels on the previous version", async () => {
     const test = setup();
     const previous = {
@@ -462,7 +338,6 @@ describe("SkillService versions", () => {
     test.tx.skill.findMany.mockResolvedValue([previous]);
     const params = {
       ...test.params,
-      target: { kind: "version" as const, name: "test-skill" },
       input: { ...test.params.input, labels: ["production"] },
     };
 
@@ -550,70 +425,124 @@ describe("SkillService versions", () => {
     });
   });
 
-  it("verifies every distinct upload before downloading only SKILL.md and publishing its frontmatter", async () => {
+  it("deduplicates text and derives UTF-8 metadata inside the version transaction", async () => {
     const test = setup();
 
     const result = await test.service.createVersion(test.params);
 
-    expect(test.events).toEqual([
-      "size:skills/project/blob-0",
-      "verified:blob-0",
-      "size:skills/project/blob-1",
-      "verified:blob-1",
-      "download:skills/project/blob-0",
-      "transaction",
-    ]);
-    expect(test.findMany).toHaveBeenCalledWith({
-      where: {
-        projectId: "project",
-        id: { in: ["blob-0", "blob-1", "blob-1"] },
-      },
+    expect(test.tx.skillBlob.createMany).toHaveBeenCalledExactlyOnceWith({
+      data: expect.arrayContaining(
+        test.blobs.map(({ content, contentLength, sha256Hash }) =>
+          expect.objectContaining({
+            projectId: "project",
+            content,
+            contentLength,
+            sha256Hash,
+          }),
+        ),
+      ),
+      skipDuplicates: true,
     });
+    expect(test.tx.skillBlob.createMany.mock.calls[0]![0].data).toHaveLength(2);
+    expect(test.tx.skillBlob.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          projectId: "project",
+          sha256Hash: { in: test.blobs.map(({ sha256Hash }) => sha256Hash) },
+        },
+      }),
+    );
     expect(test.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         name: "test-skill",
         description: "A test skill",
         frontmatter: { name: "test-skill", description: "A test skill" },
+        files: {
+          create: [
+            expect.objectContaining({
+              path: "SKILL.md",
+              blob: { connect: { projectId: "project", id: "blob-0" } },
+            }),
+            expect.objectContaining({
+              path: "reference.txt",
+              blob: { connect: { projectId: "project", id: "blob-1" } },
+            }),
+            expect.objectContaining({
+              path: "copy.txt",
+              blob: { connect: { projectId: "project", id: "blob-1" } },
+            }),
+          ],
+        },
       }),
     });
-    expect(test.updateMany).toHaveBeenCalledTimes(2);
-    expect(test.updateMany).toHaveBeenNthCalledWith(1, {
-      where: { projectId: "project", id: "blob-0", verifiedAt: null },
-      data: { verifiedAt: expect.any(Date) },
-    });
-    expect(test.updateMany).toHaveBeenNthCalledWith(2, {
-      where: { projectId: "project", id: "blob-1", verifiedAt: null },
-      data: { verifiedAt: expect.any(Date) },
-    });
     expect(result.name).toBe("test-skill");
+    expect(result.files.every((file) => !("content" in file))).toBe(true);
   });
 
-  it("rejects invalid SKILL.md frontmatter after verifying uploads but before publication", async () => {
+  it("rejects invalid SKILL.md frontmatter before writing anything", async () => {
     const test = setup();
-    const invalidMarkdown = Buffer.from("No frontmatter");
-    test.blobs[0]!.contentLength = invalidMarkdown.byteLength;
-    test.downloadBytes.mockResolvedValue(invalidMarkdown);
+    test.params.input.files[0]!.content = "No frontmatter";
 
     await expect(test.service.createVersion(test.params)).rejects.toThrow(
       "SKILL.md must start with YAML frontmatter",
     );
-    expect(test.getObjectSize).toHaveBeenCalledTimes(2);
-    expect(test.downloadBytes).toHaveBeenCalledOnce();
     expect(test.transaction).not.toHaveBeenCalled();
-    expect(test.blobs.every((blob) => blob.verifiedAt instanceof Date)).toBe(
-      true,
-    );
+    expect(test.create).not.toHaveBeenCalled();
   });
 
-  it("does not publish if SKILL.md cannot be downloaded after uploads are verified", async () => {
+  it.each([
+    { path: "reference.txt", content: "binary\0content" },
+    { path: "reference.txt", content: "invalid\ud800" },
+    { path: "image.svg", content: "<svg />" },
+    { path: "archive.zip", content: "disguised archive" },
+    { path: "resource.unknown", content: "plain text" },
+    { path: "docs.md/README", content: "plain text" },
+    { path: "resource.txt.exe", content: "plain text" },
+    { path: "../secret.txt", content: "hello" },
+    { path: "reference.txt", content: "🌍".repeat(250_001) },
+  ])(
+    "rejects invalid text or paths before creating blobs: $path",
+    async (file) => {
+      const test = setup();
+      test.params.input.files[1] = file;
+
+      await expect(test.service.createVersion(test.params)).rejects.toThrow();
+      expect(test.transaction).not.toHaveBeenCalled();
+    },
+  );
+
+  it("counts every file's UTF-8 bytes toward the version limit before deduplication", async () => {
     const test = setup();
-    test.downloadBytes.mockRejectedValue(new Error("Object not found"));
+    test.params.input.files[1]!.content = "🌍".repeat(125_000);
+    test.params.input.files[2]!.content = test.params.input.files[1]!.content;
 
     await expect(test.service.createVersion(test.params)).rejects.toThrow(
-      "Skill blob blob-0 has not been uploaded",
+      "in total",
     );
-    expect(test.getObjectSize).toHaveBeenCalledTimes(2);
-    expect(test.downloadBytes).toHaveBeenCalledWith("skills/project/blob-0");
     expect(test.transaction).not.toHaveBeenCalled();
+  });
+
+  it("returns persisted text only after a project-scoped file lookup", async () => {
+    const test = setup();
+    await expect(
+      test.service.getFileContent({ projectId: "project", fileId: "file-0" }),
+    ).resolves.toEqual({ content: test.blobs[0]!.content });
+    expect(test.db.skillFile.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { projectId: "project", id: "file-0" },
+      }),
+    );
+    test.db.skillFile.findFirst.mockResolvedValue(null);
+    await expect(
+      test.service.getFileContent({
+        projectId: "other-project",
+        fileId: "file-0",
+      }),
+    ).rejects.toThrow("Skill file not found");
+    expect(test.db.skillFile.findFirst).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: { projectId: "other-project", id: "file-0" },
+      }),
+    );
   });
 });

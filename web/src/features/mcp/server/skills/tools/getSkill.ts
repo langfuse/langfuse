@@ -19,8 +19,8 @@ export const [getSkillTool, handleGetSkill] = defineTool({
   description: [
     "Get a skill version with metadata and its file manifest.",
     "Specify name and either version or label, not both. Defaults to the 'production' label; use label 'latest' for the newest version.",
-    "File contents and download URLs are not included in this response.",
-    "Use loadSkill for SKILL.md or loadSkillResource with a file path to read a text-like resource.",
+    "File contents are not included in this response.",
+    "Use loadSkill for SKILL.md or loadSkillResource with a file path to read a text resource.",
   ].join("\n"),
   action: "skills:read",
   baseSchema: GetSkillBaseSchema,

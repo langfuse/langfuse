@@ -148,7 +148,11 @@ export function ExistingSkillPage() {
           files: skill.data.files.map((file) => ({
             path: file.path,
             contentType: file.contentType,
-            source: { fileId: file.id, blobId: file.blobId },
+            source: {
+              fileId: file.id,
+              contentLength: file.contentLength,
+              sha256Hash: file.sha256Hash,
+            },
           })),
         })}
         canCreate={canCreate}

@@ -7,6 +7,7 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
+  getFileContent: vi.fn(),
   createVersion: vi.fn(),
   setLabels: vi.fn(),
   setTags: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
 vi.mock("@/src/features/skills/server/index", () => ({
   SkillService: class {
     get = mocks.get;
+    getFileContent = mocks.getFileContent;
     createVersion = mocks.createVersion;
     setLabels = mocks.setLabels;
     setTags = mocks.setTags;

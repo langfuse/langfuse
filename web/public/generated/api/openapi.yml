@@ -7449,7 +7449,7 @@ paths:
               schema: {}
       security: *ref_0
     post:
-      description: Verify uploaded files and create an immutable skill version.
+      description: Create skill version
       operationId: skills_createVersion
       tags:
         - Skills
@@ -7493,58 +7493,12 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateSkillVersionRequest'
-  /api/public/v1/skills/blobs:
-    post:
-      description: Prepare content-addressed file uploads for a skill version.
-      operationId: skills_prepareUploads
-      tags:
-        - Skills
-      parameters: []
-      responses:
-        '201':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PrepareSkillUploadsResponse'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      security: *ref_0
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PrepareSkillUploadsRequest'
   /api/public/v1/skills/{skillName}:
     get:
       description: >-
         Resolve a skill's metadata and file manifest by version or label.
         Defaults to the production label. Use each file's id with getFileContent
-        to download its bytes.
+        to read its text content.
       operationId: skills_get
       tags:
         - Skills
@@ -7655,19 +7609,9 @@ paths:
   /api/public/v1/skills/files/{fileId}/content:
     get:
       description: >-
-        Download one file from a persisted skill version using its file id, not
-        its blob id.
-
-        Returns a 307 redirect with a Location header containing a presigned
-        storage URL
-
-        that expires after 15 minutes and Cache-Control: no-store. Follow the
-        redirect
-
-        to download bytes directly from storage; Langfuse does not proxy file
-        contents.
-
-        Do not forward Langfuse API credentials to the storage URL.
+        Read one text file from a persisted skill version using its file id, not
+        its blob id. Returns JSON containing the text content with Cache-Control
+        no-store.
       operationId: skills_getFileContent
       tags:
         - Skills
@@ -7678,12 +7622,12 @@ paths:
           schema:
             type: string
       responses:
-        '307':
+        '200':
           description: ''
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SkillFileRedirectResponse'
+                $ref: '#/components/schemas/SkillFileContentResponse'
         '400':
           description: ''
           content:
@@ -17141,66 +17085,38 @@ components:
         - latestVersionCreatedAt
         - latestVersionLastUpdatedAt
         - productionVersion
-    SkillBlobDescriptor:
-      title: SkillBlobDescriptor
-      type: object
-      properties:
-        sha256Hash:
-          type: string
-        contentType:
-          type: string
-        contentLength:
-          type: integer
-          format: int64
-      required:
-        - sha256Hash
-        - contentType
-        - contentLength
-    PrepareSkillUploadsRequest:
-      title: PrepareSkillUploadsRequest
-      type: object
-      properties:
-        blobs:
-          type: array
-          items:
-            $ref: '#/components/schemas/SkillBlobDescriptor'
-      required:
-        - blobs
-    PreparedSkillUpload:
-      title: PreparedSkillUpload
-      type: object
-      properties:
-        blobId:
-          type: string
-        uploadUrl:
-          type: string
-          nullable: true
-      required:
-        - blobId
-        - uploadUrl
-      allOf:
-        - $ref: '#/components/schemas/SkillBlobDescriptor'
-    PrepareSkillUploadsResponse:
-      title: PrepareSkillUploadsResponse
-      type: object
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/PreparedSkillUpload'
-      required:
-        - data
     SkillVersionFileInput:
       title: SkillVersionFileInput
       type: object
       properties:
         path:
           type: string
-        blobId:
+        content:
           type: string
+          description: UTF-8 text content. The server computes the hash and byte length.
       required:
         - path
-        - blobId
+        - content
+    SkillVersionFileReference:
+      title: SkillVersionFileReference
+      type: object
+      properties:
+        path:
+          type: string
+        sha256Hash:
+          type: string
+          description: >-
+            Canonical base64-encoded SHA-256 from a skill file manifest. The
+            content must already exist in this project.
+      required:
+        - path
+        - sha256Hash
+    SkillVersionFileCreateInput:
+      title: SkillVersionFileCreateInput
+      oneOf:
+        - $ref: '#/components/schemas/SkillVersionFileInput'
+        - $ref: '#/components/schemas/SkillVersionFileReference'
+      description: Provide exactly one of content or sha256Hash for each path.
     CreateSkillVersionRequest:
       title: CreateSkillVersionRequest
       type: object
@@ -17208,7 +17124,7 @@ components:
         files:
           type: array
           items:
-            $ref: '#/components/schemas/SkillVersionFileInput'
+            $ref: '#/components/schemas/SkillVersionFileCreateInput'
         commitMessage:
           type: string
           nullable: true
@@ -17238,17 +17154,14 @@ components:
         - sha256Hash
         - contentType
         - contentLength
-    SkillFileRedirectResponse:
-      title: SkillFileRedirectResponse
+    SkillFileContentResponse:
+      title: SkillFileContentResponse
       type: object
-      description: >-
-        Redirect acknowledgment. Follow the Location response header to download
-        the file bytes.
       properties:
-        message:
+        content:
           type: string
       required:
-        - message
+        - content
     SkillVersion:
       title: SkillVersion
       type: object

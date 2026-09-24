@@ -4,6 +4,7 @@ import { PromptLabelSchema } from "../prompts/types";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "../prompts/constants";
 import {
   MAX_SKILL_FILES,
+  MAX_SKILL_BYTES,
   MAX_SKILL_PATH_LENGTH,
   SKILL_LATEST_LABEL,
 } from "./constants";
@@ -46,33 +47,117 @@ export const SkillFilePathSchema = z
     }
   });
 
-export const SkillBlobDescriptorSchema = z.object({
+export const SkillFileContentSchema = z
+  .string()
+  .transform((content) => content.replace(/^\uFEFF+/, ""))
+  .superRefine((content, ctx) => {
+    if (content.includes("\0")) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Skill files must not contain NUL characters",
+      });
+    }
+    if (!content.isWellFormed()) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Skill files must contain well-formed Unicode text",
+      });
+    }
+    if (new TextEncoder().encode(content).byteLength > MAX_SKILL_BYTES) {
+      ctx.addIssue({
+        code: "custom",
+        message: `Skill files must not exceed ${MAX_SKILL_BYTES} UTF-8 bytes`,
+      });
+    }
+  });
+
+const SKILL_TEXT_FILE_EXTENSIONS = new Set([
+  "md",
+  "markdown",
+  "mdx",
+  "txt",
+  "rst",
+  "adoc",
+  "json",
+  "jsonc",
+  "jsonl",
+  "ndjson",
+  "yaml",
+  "yml",
+  "toml",
+  "xml",
+  "csv",
+  "tsv",
+  "ini",
+  "cfg",
+  "conf",
+  "properties",
+  "log",
+  "html",
+  "htm",
+  "css",
+  "scss",
+  "sass",
+  "less",
+  "js",
+  "jsx",
+  "mjs",
+  "cjs",
+  "ts",
+  "tsx",
+  "py",
+  "pyi",
+  "sh",
+  "bash",
+  "zsh",
+  "fish",
+  "ps1",
+  "rb",
+  "go",
+  "rs",
+  "java",
+  "c",
+  "h",
+  "cc",
+  "cpp",
+  "hpp",
+  "cs",
+  "swift",
+  "kt",
+  "kts",
+  "lua",
+  "r",
+  "pl",
+  "php",
+  "sql",
+  "graphql",
+  "gql",
+  "tex",
+]);
+
+const SkillTextFilePathSchema = SkillFilePathSchema.refine((path) => {
+  const filename = path.split("/").at(-1)!;
+  const extension = filename.includes(".")
+    ? filename.split(".").at(-1)!.toLowerCase()
+    : "";
+  return SKILL_TEXT_FILE_EXTENSIONS.has(extension);
+}, "Skill files must use a supported text file extension");
+
+export const SkillVersionFileInputSchema = z.object({
+  path: SkillTextFilePathSchema,
+  content: SkillFileContentSchema,
+  sha256Hash: z.never().optional(),
+});
+
+export const SkillVersionFileReferenceSchema = z.object({
+  path: SkillTextFilePathSchema,
   sha256Hash: z
     .string()
     .regex(
       /^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$/,
       "Must be a canonical base64 encoded SHA-256 hash",
     ),
-  contentType: z.string().trim().min(1).max(255),
-  contentLength: z.number().int().positive(),
-});
-
-export const PrepareSkillUploadsBodySchema = z.object({
-  blobs: z.array(SkillBlobDescriptorSchema).min(1).max(MAX_SKILL_FILES),
-});
-
-export const PreparedSkillUploadSchema = SkillBlobDescriptorSchema.extend({
-  blobId: z.string(),
-  uploadUrl: z.url().nullable(),
-});
-
-export const PrepareSkillUploadsResponseSchema = z.object({
-  data: z.array(PreparedSkillUploadSchema),
-});
-
-export const SkillVersionFileInputSchema = z.object({
-  path: SkillFilePathSchema,
-  blobId: z.string().min(1),
+  content: z.never().optional(),
 });
 
 export const SkillTagsSchema = z
@@ -81,10 +166,31 @@ export const SkillTagsSchema = z
 
 export const CreateSkillVersionBodySchema = z
   .object({
-    files: z.array(SkillVersionFileInputSchema).min(1).max(MAX_SKILL_FILES),
+    files: z
+      .array(
+        z.union([SkillVersionFileInputSchema, SkillVersionFileReferenceSchema]),
+      )
+      .min(1)
+      .max(MAX_SKILL_FILES),
     commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
   })
   .superRefine(({ files }, ctx) => {
+    if (
+      files.reduce(
+        (total, file) =>
+          total +
+          (file.content !== undefined
+            ? new TextEncoder().encode(file.content).byteLength
+            : 0),
+        0,
+      ) > MAX_SKILL_BYTES
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["files"],
+        message: `A skill must not exceed ${MAX_SKILL_BYTES} UTF-8 bytes in total`,
+      });
+    }
     const paths = files.map((file) => file.path);
     if (new Set(paths).size !== paths.length) {
       ctx.addIssue({
@@ -142,9 +248,8 @@ export const SkillFileSchema = z.object({
   contentLength: z.number().int(),
 });
 
-export const SkillFileDownloadSchema = z.object({
-  downloadUrl: z.url(),
-  downloadUrlExpiresAt: z.iso.datetime({ offset: true }),
+export const SkillFileContentResponseSchema = z.object({
+  content: z.string(),
 });
 
 export const SkillVersionSchema = z.object({
@@ -188,9 +293,6 @@ export const DeleteSkillVersionResponseSchema = z.object({
   deleted: z.boolean(),
 });
 
-export type PrepareSkillUploadsBody = z.infer<
-  typeof PrepareSkillUploadsBodySchema
->;
 export type CreateSkillVersionBody = z.infer<
   typeof CreateSkillVersionBodySchema
 >;

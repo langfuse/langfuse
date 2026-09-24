@@ -22,9 +22,8 @@ const LoadSkillResourceInputSchema = z
 export const [loadSkillResourceTool, handleLoadSkillResource] = defineTool({
   name: "loadSkillResource",
   description: [
-    "Load a text-like file from a skill version as UTF-8 text. Use getSkill to discover file paths and content types.",
+    "Load a text file from a skill version as UTF-8 text. Use getSkill to discover file paths and content types.",
     "Specify name, the file's relative path, and either version or label, not both. Defaults to the 'production' label; use label 'latest' for the newest version.",
-    "Supports text MIME types and common structured-text types such as JSON, XML, YAML, TOML, and JavaScript. Binary or unknown content types are rejected before downloading bytes.",
     "Use loadSkill to read the root SKILL.md instructions directly.",
   ].join("\n"),
   action: "skills:read",

@@ -13,7 +13,11 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { SkillFilePathSchema } from "@langfuse/shared";
+import {
+  MAX_SKILL_FILES,
+  SkillFilePathSchema,
+  SkillVersionFileInputSchema,
+} from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -77,16 +81,33 @@ export function SkillFileExplorer({
 
     const name = pendingEntry.name.trim();
     const path = joinPath(pendingEntry.parentPath, name);
-    const parsed = SkillFilePathSchema.safeParse(path);
+    const parsed =
+      pendingEntry.kind === "folder"
+        ? SkillFilePathSchema.safeParse(path)
+        : SkillVersionFileInputSchema.safeParse({ path, content: "" });
     if (
       !parsed.success ||
       (pendingEntry.kind === "folder" && name.includes("/"))
     ) {
+      const validationMessage = !parsed.success
+        ? parsed.error.issues[0]?.message
+        : "Use a relative file path, such as docs/readme.md.";
       showErrorToast(
         `Invalid ${pendingEntry.kind} name`,
         pendingEntry.kind === "folder"
           ? "Use a single normalized path segment."
-          : "Use a relative file path, such as docs/readme.md.",
+          : validationMessage,
+      );
+      return;
+    }
+
+    if (
+      pendingEntry.kind === "file" &&
+      Object.keys(files).length >= MAX_SKILL_FILES
+    ) {
+      showErrorToast(
+        "Could not add file",
+        `A skill can contain at most ${MAX_SKILL_FILES} files.`,
       );
       return;
     }
@@ -376,7 +397,7 @@ export function SkillFileExplorer({
           <p className="text-muted-foreground border-t px-3 py-2 text-xs leading-4">
             {isImporting
               ? "Adding files to draft…"
-              : "Drop files or folders here to add them at the root. Changes stay local until you create a version."}
+              : "Drop UTF-8 text files, folders, or a ZIP of text files here. Up to 200 files and 1 MB total. Changes stay local until you create a version."}
           </p>
           {isDragActive ? (
             <div className="bg-background/90 pointer-events-none absolute inset-0 flex items-center justify-center p-4 text-center text-sm font-bold">

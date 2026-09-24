@@ -6,13 +6,11 @@ export type SkillDraftFile = {
   path: string;
   contentType: string;
 } & (
-  | { content: string; source?: never; blob?: never }
+  | { content: string; source?: never }
   | {
       content?: never;
-      source: { fileId: string; blobId: string };
-      blob?: never;
+      source: { fileId: string; contentLength: number; sha256Hash: string };
     }
-  | { content?: never; source?: never; blob: Blob }
 );
 
 export type SkillEditorInitialValue = {

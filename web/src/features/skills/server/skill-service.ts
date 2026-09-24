@@ -1,19 +1,14 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { parseDocument } from "yaml";
 import {
   CreateSkillVersionBodySchema,
   InvalidRequestError,
-  LangfuseConflictError,
   LangfuseNotFoundError,
   ListSkillsResponseSchema,
-  MAX_LOADABLE_RESOURCE_SIZE,
-  MAX_SKILL_FILES,
-  MAX_SKILL_FILE_BYTES,
-  PrepareSkillUploadsResponseSchema,
+  MAX_SKILL_BYTES,
   SKILL_LATEST_LABEL,
   SKILL_PRODUCTION_LABEL,
   SkillDescriptionSchema,
-  SkillFileDownloadSchema,
   SkillNameSchema,
   SkillVersionSchema,
   UpdateSkillLabelsBodySchema,
@@ -21,16 +16,9 @@ import {
   type CreateSkillVersionBody,
   type ListSkillsQuery,
   type FilterState,
-  type PrepareSkillUploadsBody,
   type SkillSelector,
-  DOWNLOAD_URL_TTL_SECONDS,
 } from "@langfuse/shared";
-import {
-  Prisma,
-  type PrismaClient,
-  type SkillBlob,
-} from "@langfuse/shared/src/db";
-import type { StorageService } from "@langfuse/shared/src/server";
+import type { Prisma, PrismaClient, SkillBlob } from "@langfuse/shared/src/db";
 import type { ProjectAuthedContext } from "@/src/server/api/trpc";
 import type { AuthorizationContext } from "@/src/features/auth/policy/types";
 import { auditLog } from "@/src/features/audit-logs/server";
@@ -40,52 +28,40 @@ import {
   authorizeProtectedLabelMutation,
   type ApiKeyProjectContext,
 } from "@/src/features/prompts/server/utils/authorizeProtectedLabelMutation";
-import { getSkillStorageClient } from "./getSkillStorageClient";
-import { isTextLike } from "../utils/isTextLike";
 
 type SkillActor =
   | Pick<ProjectAuthedContext, "session">
   | (ApiKeyProjectContext & { ctx?: AuthorizationContext });
 
+const skillFilesInclude = {
+  files: {
+    include: {
+      blob: {
+        select: { sha256Hash: true, contentType: true, contentLength: true },
+      },
+    },
+  },
+} satisfies Prisma.SkillInclude;
+
 type SkillWithRelations = Prisma.SkillGetPayload<{
-  include: {
-    files: { include: { blob: true } };
-  };
+  include: typeof skillFilesInclude;
 }>;
 
-function canonicalSha256(value: string): string | null {
-  try {
-    const bytes = Buffer.from(value, "base64");
-    return bytes.length === 32 && bytes.toString("base64") === value
-      ? value
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function skillBlobPath(params: {
-  projectId: string;
+type HashedSkillFile = {
+  path: string;
   sha256Hash: string;
-}): string {
-  const encodedHash = Buffer.from(params.sha256Hash, "base64").toString(
-    "base64url",
-  );
-  return `skills/${params.projectId}/${encodedHash}`;
-}
+} & ({ content: string } | { content?: never });
 
-function parseSkillFrontmatter(contents: Uint8Array): {
+type ReferencedSkillBlob = Pick<
+  SkillBlob,
+  "id" | "sha256Hash" | "contentLength"
+>;
+
+function parseSkillFrontmatter(text: string): {
   name: string;
   description: string;
   frontmatter: Prisma.InputJsonObject;
 } {
-  let text: string;
-  try {
-    text = new TextDecoder("utf-8", { fatal: true }).decode(contents);
-  } catch {
-    throw new InvalidRequestError("SKILL.md must be valid UTF-8");
-  }
-
   const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text);
   if (!match) {
     throw new InvalidRequestError(
@@ -147,10 +123,7 @@ function serializeVersion(skill: SkillWithRelations) {
 }
 
 export class SkillService {
-  constructor(
-    private readonly prisma: PrismaClient,
-    private readonly storage: StorageService = getSkillStorageClient(),
-  ) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   async skillVersions(params: {
     projectId: string;
@@ -182,112 +155,23 @@ export class SkillService {
     };
   }
 
-  async prepareUploads(params: {
-    projectId: string;
-    input: PrepareSkillUploadsBody;
-  }) {
-    const uniqueHashes = new Set<string>();
-    for (const blob of params.input.blobs) {
-      if (!canonicalSha256(blob.sha256Hash)) {
-        throw new InvalidRequestError("Invalid canonical base64 SHA-256 hash");
-      }
-      if (uniqueHashes.has(blob.sha256Hash)) {
-        throw new InvalidRequestError(
-          "Upload descriptors must have unique hashes",
-        );
-      }
-      uniqueHashes.add(blob.sha256Hash);
-      if (blob.contentLength > MAX_SKILL_FILE_BYTES) {
-        throw new InvalidRequestError(
-          `Skill files must not exceed ${MAX_SKILL_FILE_BYTES} bytes`,
-        );
-      }
-    }
-
-    const prepared = [];
-    for (const descriptor of params.input.blobs) {
-      let blob: SkillBlob;
-      try {
-        blob = await this.prisma.skillBlob.create({
-          data: {
-            id: randomUUID(),
-            projectId: params.projectId,
-            sha256Hash: descriptor.sha256Hash,
-            contentType: descriptor.contentType,
-            contentLength: descriptor.contentLength,
-            bucketPath: skillBlobPath({
-              projectId: params.projectId,
-              sha256Hash: descriptor.sha256Hash,
-            }),
-          },
-        });
-      } catch (error) {
-        if (
-          !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-          error.code !== "P2002"
-        ) {
-          throw error;
-        }
-        blob = await this.prisma.skillBlob.findUniqueOrThrow({
-          where: {
-            projectId_sha256Hash: {
-              projectId: params.projectId,
-              sha256Hash: descriptor.sha256Hash,
-            },
-          },
-        });
-      }
-
-      if (
-        blob.contentLength !== descriptor.contentLength ||
-        blob.contentType !== descriptor.contentType
-      ) {
-        throw new LangfuseConflictError(
-          "A blob with this hash already exists with different metadata",
-        );
-      }
-
-      const uploadUrl = blob.verifiedAt
-        ? null
-        : await this.storage.getSignedUploadUrl({
-            path: blob.bucketPath,
-            ttlSeconds: 60 * 60,
-            sha256Hash: blob.sha256Hash,
-            contentType: blob.contentType,
-            contentLength: blob.contentLength,
-          });
-
-      prepared.push({ ...descriptor, blobId: blob.id, uploadUrl });
-    }
-
-    return PrepareSkillUploadsResponseSchema.parse({ data: prepared });
-  }
-
   async createVersion(params: {
     projectId: string;
     createdBy: string;
     input: CreateSkillVersionBody;
     actor: SkillActor;
-    target?: { kind: "new" } | { kind: "version"; name: string };
   }) {
     const input = CreateSkillVersionBodySchema.parse(params.input);
-    const verifiedBlobs = await this.verifyBlobs({
+    const { files, referencedBlobs } = await this.prepareVersionFiles({
       projectId: params.projectId,
-      blobIds: input.files.map(({ blobId }) => blobId),
+      files: input.files,
     });
-    const verifiedBlobById = new Map(
-      verifiedBlobs.map((blob) => [blob.id, blob]),
-    );
-    const skillMd = verifiedBlobById.get(
-      input.files.find(({ path }) => path === "SKILL.md")!.blobId,
-    )!;
-    const frontmatter = await this.downloadAndParseSkillFrontmatter(skillMd);
+    const frontmatter = await this.loadVersionFrontmatter({
+      projectId: params.projectId,
+      files,
+      referencedBlobs,
+    });
     const name = frontmatter.name;
-    if (params.target?.kind === "version" && params.target.name !== name) {
-      throw new InvalidRequestError(
-        `The skill name must remain "${params.target.name}" when creating a version. Create a new skill to use a different name.`,
-      );
-    }
 
     const skillId = await this.prisma.$transaction(async (tx) => {
       await this.lockSkill(tx, params.projectId, name);
@@ -296,38 +180,20 @@ export class SkillService {
         orderBy: { version: "desc" },
         select: { id: true, version: true, labels: true, tags: true },
       });
-      if (params.target?.kind === "new" && latest) {
-        throw new LangfuseConflictError(
-          `A skill named "${name}" already exists. Choose a different name.`,
-        );
-      }
-      if (params.target?.kind === "version" && !latest) {
-        throw new LangfuseNotFoundError("Skill not found");
-      }
       if (latest) {
-        const labels = latest.labels.filter(
-          (label) => label !== SKILL_LATEST_LABEL,
-        );
-        await tx.skill.update({
-          where: {
-            projectId: params.projectId,
-            id: latest.id,
-          },
-          data: { labels: { set: labels } },
-        });
-        await auditLog(
-          {
-            ...params.actor,
-            resourceType: "skill",
-            action: "setLabel",
-            resourceId: latest.id,
-            projectId: params.projectId,
-            before: latest.labels,
-            after: labels,
-          },
+        await this.removeLatestLabel({
           tx,
-        );
+          projectId: params.projectId,
+          latest,
+          actor: params.actor,
+        });
       }
+      const versionFiles = await this.storeVersionFiles({
+        tx,
+        projectId: params.projectId,
+        files,
+        referencedBlobs,
+      });
       const skill = await tx.skill.create({
         data: {
           id: randomUUID(),
@@ -341,7 +207,7 @@ export class SkillService {
           labels: [SKILL_LATEST_LABEL],
           commitMessage: input.commitMessage,
           files: {
-            create: input.files.map((file) => ({
+            create: versionFiles.map((file) => ({
               project: { connect: { id: params.projectId } },
               path: file.path,
               blob: {
@@ -366,7 +232,7 @@ export class SkillService {
             version: skill.version,
             labels: skill.labels,
             tags: skill.tags,
-            files: input.files.map((file) => ({
+            files: versionFiles.map((file) => ({
               path: file.path,
               blobId: file.blobId,
             })),
@@ -398,47 +264,21 @@ export class SkillService {
     const skill = await this.findSkillVersion(params);
     const file = skill.files.find(({ path }) => path === params.path);
     if (!file) throw new LangfuseNotFoundError("Skill resource not found");
-
-    if (!isTextLike(file.blob.contentType)) {
-      throw new InvalidRequestError(
-        `Only text-like skill resources can be loaded; ${params.path} has content type ${file.blob.contentType}`,
-      );
-    }
-
-    if (file.blob.contentLength > MAX_LOADABLE_RESOURCE_SIZE) {
-      throw new InvalidRequestError(
-        `Skill resources must not exceed ${MAX_LOADABLE_RESOURCE_SIZE} bytes to be loaded`,
-      );
-    }
-
-    const bytes = await this.storage.downloadBytes(file.blob.bucketPath);
-    let text: string;
-    try {
-      text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    } catch {
-      throw new InvalidRequestError("Skill resource must contain UTF-8 text");
-    }
-    return text;
+    return (
+      await this.getFileContent({
+        projectId: params.projectId,
+        fileId: file.id,
+      })
+    ).content;
   }
 
-  async getFileDownload(params: { projectId: string; fileId: string }) {
+  async getFileContent(params: { projectId: string; fileId: string }) {
     const file = await this.prisma.skillFile.findFirst({
       where: { projectId: params.projectId, id: params.fileId },
-      select: { blob: { select: { bucketPath: true } } },
+      select: { blob: { select: { content: true } } },
     });
     if (!file) throw new LangfuseNotFoundError("Skill file not found");
-
-    const expiresAt = new Date(
-      Date.now() + DOWNLOAD_URL_TTL_SECONDS * 1000,
-    ).toISOString();
-    return SkillFileDownloadSchema.parse({
-      downloadUrl: await this.storage.getSignedUrl(
-        file.blob.bucketPath,
-        DOWNLOAD_URL_TTL_SECONDS,
-        false,
-      ),
-      downloadUrlExpiresAt: expiresAt,
-    });
+    return { content: file.blob.content };
   }
 
   async list(params: {
@@ -741,7 +581,7 @@ export class SkillService {
           name: params.name,
           version: params.version,
         },
-        include: { files: { include: { blob: true } } },
+        include: skillFilesInclude,
       });
       if (!target) throw new LangfuseNotFoundError("Skill version not found");
       await this.requireProtectedLabelAccess({
@@ -794,6 +634,159 @@ export class SkillService {
         }
       }
     });
+  }
+
+  private async prepareVersionFiles(params: {
+    projectId: string;
+    files: CreateSkillVersionBody["files"];
+  }): Promise<{
+    files: HashedSkillFile[];
+    referencedBlobs: Map<string, ReferencedSkillBlob>;
+  }> {
+    const files = params.files.map((file) => ({
+      ...file,
+      sha256Hash:
+        file.content !== undefined
+          ? createHash("sha256").update(file.content, "utf8").digest("base64")
+          : file.sha256Hash,
+    }));
+    const referencedHashes = [
+      ...new Set(
+        params.files.flatMap((file) =>
+          file.sha256Hash !== undefined ? [file.sha256Hash] : [],
+        ),
+      ),
+    ];
+    const referencedBlobs = referencedHashes.length
+      ? await this.prisma.skillBlob.findMany({
+          where: {
+            projectId: params.projectId,
+            sha256Hash: { in: referencedHashes },
+          },
+          select: { id: true, sha256Hash: true, contentLength: true },
+        })
+      : [];
+    const referencedBlobByHash = new Map(
+      referencedBlobs.map((blob) => [blob.sha256Hash, blob]),
+    );
+    if (referencedHashes.some((hash) => !referencedBlobByHash.has(hash))) {
+      throw new LangfuseNotFoundError(
+        "One or more referenced skill blobs were not found",
+      );
+    }
+    const totalBytes = files.reduce(
+      (total, file) =>
+        total +
+        (file.content !== undefined
+          ? Buffer.byteLength(file.content, "utf8")
+          : referencedBlobByHash.get(file.sha256Hash)!.contentLength),
+      0,
+    );
+    if (totalBytes > MAX_SKILL_BYTES) {
+      throw new InvalidRequestError(
+        `A skill must not exceed ${MAX_SKILL_BYTES} bytes in total`,
+      );
+    }
+    return { files, referencedBlobs: referencedBlobByHash };
+  }
+
+  private async loadVersionFrontmatter(params: {
+    projectId: string;
+    files: HashedSkillFile[];
+    referencedBlobs: Map<string, ReferencedSkillBlob>;
+  }): Promise<ReturnType<typeof parseSkillFrontmatter>> {
+    const skillMd = params.files.find(({ path }) => path === "SKILL.md")!;
+    let skillMdContent = skillMd.content;
+    if (skillMdContent === undefined) {
+      const blob = await this.prisma.skillBlob.findFirst({
+        where: {
+          projectId: params.projectId,
+          id: params.referencedBlobs.get(skillMd.sha256Hash)!.id,
+        },
+        select: { content: true },
+      });
+      if (!blob)
+        throw new LangfuseNotFoundError("Skill instructions were not found");
+      skillMdContent = blob.content;
+    }
+    return parseSkillFrontmatter(skillMdContent);
+  }
+
+  private async removeLatestLabel(params: {
+    tx: Prisma.TransactionClient;
+    projectId: string;
+    latest: { id: string; labels: string[] };
+    actor: SkillActor;
+  }): Promise<void> {
+    const labels = params.latest.labels.filter(
+      (label) => label !== SKILL_LATEST_LABEL,
+    );
+    await params.tx.skill.update({
+      where: {
+        projectId: params.projectId,
+        id: params.latest.id,
+      },
+      data: { labels: { set: labels } },
+    });
+    await auditLog(
+      {
+        ...params.actor,
+        resourceType: "skill",
+        action: "setLabel",
+        resourceId: params.latest.id,
+        projectId: params.projectId,
+        before: params.latest.labels,
+        after: labels,
+      },
+      params.tx,
+    );
+  }
+
+  private async storeVersionFiles(params: {
+    tx: Prisma.TransactionClient;
+    projectId: string;
+    files: HashedSkillFile[];
+    referencedBlobs: Map<string, ReferencedSkillBlob>;
+  }): Promise<{ path: string; blobId: string }[]> {
+    const uniqueFiles = [
+      ...new Map(
+        params.files
+          .filter((file) => file.content !== undefined)
+          .map((file) => [file.sha256Hash, file]),
+      ).values(),
+    ].sort((a, b) => a.sha256Hash.localeCompare(b.sha256Hash));
+    if (uniqueFiles.length) {
+      await params.tx.skillBlob.createMany({
+        data: uniqueFiles.map((file) => ({
+          id: randomUUID(),
+          projectId: params.projectId,
+          sha256Hash: file.sha256Hash,
+          content: file.content,
+          contentType: "text/plain",
+          contentLength: Buffer.byteLength(file.content, "utf8"),
+        })),
+        skipDuplicates: true,
+      });
+    }
+    const blobs = uniqueFiles.length
+      ? await params.tx.skillBlob.findMany({
+          where: {
+            projectId: params.projectId,
+            sha256Hash: { in: uniqueFiles.map((file) => file.sha256Hash) },
+          },
+          select: { id: true, sha256Hash: true },
+        })
+      : [];
+    const blobIds = new Map(
+      [...params.referencedBlobs.values(), ...blobs].map((blob) => [
+        blob.sha256Hash,
+        blob.id,
+      ]),
+    );
+    return params.files.map((file) => ({
+      path: file.path,
+      blobId: blobIds.get(file.sha256Hash)!,
+    }));
   }
 
   private async requireProtectedLabelAccess(params: {
@@ -849,7 +842,7 @@ export class SkillService {
         projectId: params.projectId,
         id: params.skillId,
       },
-      include: { files: { include: { blob: true } } },
+      include: skillFilesInclude,
     });
     if (!skill) throw new LangfuseNotFoundError("Skill version not found");
     return serializeVersion(skill);
@@ -871,63 +864,9 @@ export class SkillService {
         ...selectorWhere,
       },
       orderBy: { version: "desc" },
-      include: { files: { include: { blob: true } } },
+      include: skillFilesInclude,
     });
     if (!skill) throw new LangfuseNotFoundError("Skill version not found");
     return skill;
-  }
-
-  private async verifyBlobs(params: {
-    projectId: string;
-    blobIds: string[];
-  }): Promise<SkillBlob[]> {
-    if (new Set(params.blobIds).size > MAX_SKILL_FILES) {
-      throw new InvalidRequestError("Too many skill blobs");
-    }
-    const blobs = await this.prisma.skillBlob.findMany({
-      where: { projectId: params.projectId, id: { in: params.blobIds } },
-    });
-    if (blobs.length !== new Set(params.blobIds).size) {
-      throw new LangfuseNotFoundError("One or more skill blobs were not found");
-    }
-    for (const blob of blobs) {
-      let contentLength: number;
-      try {
-        contentLength = await this.storage.getObjectSize(blob.bucketPath);
-      } catch {
-        throw new InvalidRequestError(
-          `Skill blob ${blob.id} has not been uploaded`,
-        );
-      }
-      if (contentLength !== blob.contentLength) {
-        throw new LangfuseConflictError(
-          `Skill blob ${blob.id} does not match its declared length`,
-        );
-      }
-      if (blob.verifiedAt === null) {
-        await this.prisma.skillBlob.updateMany({
-          where: {
-            projectId: params.projectId,
-            id: blob.id,
-            verifiedAt: null,
-          },
-          data: { verifiedAt: new Date() },
-        });
-      }
-    }
-
-    return blobs;
-  }
-
-  private async downloadAndParseSkillFrontmatter(blob: SkillBlob) {
-    let bytes: Uint8Array;
-    try {
-      bytes = await this.storage.downloadBytes(blob.bucketPath);
-    } catch {
-      throw new InvalidRequestError(
-        `Skill blob ${blob.id} has not been uploaded`,
-      );
-    }
-    return parseSkillFrontmatter(bytes);
   }
 }

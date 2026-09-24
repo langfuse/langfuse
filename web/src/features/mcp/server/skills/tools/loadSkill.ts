@@ -19,7 +19,7 @@ export const [loadSkillTool, handleLoadSkill] = defineTool({
   description: [
     "Load a skill's SKILL.md file as Markdown text, including its frontmatter and instructions.",
     "Specify name and either version or label, not both. Defaults to the 'production' label; use label 'latest' for the newest version.",
-    "Returns only SKILL.md, without other files or download URLs.",
+    "Returns only SKILL.md.",
   ].join("\n"),
   action: "skills:read",
   baseSchema: LoadSkillBaseSchema,

@@ -30,8 +30,6 @@ import { saveSkillLabels } from "@/src/features/skills/actions/saveSkillLabels";
 import { saveSkillTags } from "@/src/features/skills/actions/saveSkillTags";
 import { CreateSkillVersionDialog } from "@/src/features/skills/components/CreateSkillVersionDialog";
 import { SkillFileExplorer } from "@/src/features/skills/components/SkillFileExplorer";
-import { SkillImagePreview } from "@/src/features/skills/components/SkillImagePreview";
-import { isSkillImageFile } from "@/src/features/skills/utils/isSkillImageFile";
 import { getSkillFileLanguageExtensions } from "@/src/features/skills/utils/getSkillFileLanguageExtensions";
 import {
   type SkillDraftFile,
@@ -131,7 +129,6 @@ export function SkillEditor({
   ]
     .filter(Boolean)
     .join(" ");
-  const prepareUploads = api.skills.prepareUploads.useMutation();
   const createVersion = api.skills.createVersion.useMutation();
   const setVersionLabels = api.skills.setLabels.useMutation();
   const setVersionTags = api.skills.setTags.useMutation();
@@ -162,8 +159,6 @@ export function SkillEditor({
       const created = await createSkillVersionFromDraft({
         projectId,
         store,
-        target: createNew ? { kind: "new" } : { kind: "version", name },
-        prepareUploads: (input) => prepareUploads.mutateAsync(input),
         createVersion: (input) => createVersion.mutateAsync(input),
       });
       capture("skills:version_create", {
@@ -269,8 +264,7 @@ export function SkillEditor({
         name,
         version: baseVersion,
         getVersion: (input) => utils.client.skills.byName.query(input),
-        getFileDownload: (input) =>
-          utils.client.skills.fileDownload.query(input),
+        getFileContent: (input) => utils.skills.fileContent.fetch(input),
       });
       capture("skills:version_download", { fileCount: result.fileCount });
     } catch {
@@ -511,26 +505,12 @@ function SkillFileEditor({
   );
   const [view, setView] = useState<"edit" | "preview">("edit");
   const fileContents = useSkillFileContents(projectId, activeFile);
-  const content =
-    activeFile.content ??
-    (fileContents.data?.kind === "text" ? fileContents.data.text : undefined);
-  const isImage = isSkillImageFile(activeFile);
-  const imageSource =
-    activeFile.blob ??
-    (fileContents.data?.kind === "image" ? fileContents.data.url : undefined);
-  const canPreview = isImage || /\.(md|markdown)$/i.test(activePath);
-  const isPreview = isImage || view === "preview";
+  const content = activeFile.content ?? fileContents.data?.content;
+  const canPreview = /\.(md|markdown)$/i.test(activePath);
+  const isPreview = canPreview && view === "preview";
 
   let editorContent;
-  if (isImage && imageSource) {
-    editorContent = (
-      <SkillImagePreview
-        key={activePath}
-        source={imageSource}
-        path={activePath}
-      />
-    );
-  } else if (content === undefined && fileContents.isError) {
+  if (content === undefined && fileContents.isError) {
     editorContent = (
       <div className="flex flex-col items-start gap-2 text-sm">
         <p>{fileContents.error.message}</p>
@@ -583,7 +563,6 @@ function SkillFileEditor({
             size="sm"
             variant={!isPreview ? "secondary" : "ghost"}
             onClick={() => setView("edit")}
-            disabled={isImage}
           >
             <FileCode2 className="mr-1 h-3.5 w-3.5" /> Edit
           </Button>
