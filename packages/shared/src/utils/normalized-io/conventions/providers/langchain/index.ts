@@ -15,6 +15,7 @@ import type {
   ConventionResult,
   IOConvention,
   MessageEnvelopeContext,
+  MessageSource,
   PartHandlerContext,
 } from "../../io-convention";
 
@@ -109,8 +110,32 @@ function langchainCollectSiblingParts(
     : [];
 }
 
+function langchainMessages(
+  root: Record<string, unknown>,
+  kind: "input" | "output",
+): MessageSource[] {
+  if (kind !== "output" || !Array.isArray(root.generations)) return [];
+
+  // LLMResult batches generations; ChatResult contains a flat list.
+  const sources: MessageSource[] = [];
+  for (const value of root.generations.flat(1)) {
+    const generation = asRecord(value);
+    if (!generation) return [];
+    const message = asRecord(generation.message);
+    if (!message && typeof generation.text !== "string") return [];
+    sources.push({
+      kind: "single",
+      value: message ?? generation.text,
+      fallbackRole: "assistant",
+      finishReasonCarrier: asRecord(generation.generation_info),
+    });
+  }
+  return sources;
+}
+
 export const langchainProvider = {
   name: "langchain",
+  claimMessages: langchainMessages,
   // Serialized LangChain message classes carry their role as a type string.
   roleByMessageType: {
     human: "user",

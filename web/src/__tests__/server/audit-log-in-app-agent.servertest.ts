@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { prisma, AuditLogRecordType } from "@langfuse/shared/src/db";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";

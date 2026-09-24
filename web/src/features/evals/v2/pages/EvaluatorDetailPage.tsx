@@ -1,8 +1,46 @@
 import { useRouter } from "next/router";
+import type { EvalTemplateType } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { api } from "@/src/utils/api";
-import type { EvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
+import { api, type RouterOutputs } from "@/src/utils/api";
+import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { EvaluatorSetupPage } from "./EvaluatorSetupPage";
+
+type EvaluatorVersionRow = RouterOutputs["evalsV2"]["get"]["versions"][number];
+
+// Stored JSON columns are typed loosely; the setup page owns their parsing.
+function toSetupDefinition(
+  type: EvalTemplateType,
+  latest: EvaluatorVersionRow,
+): NormalizedEvaluatorDefinition {
+  switch (type) {
+    case "LLM_AS_JUDGE":
+      return {
+        type,
+        promptMessages: latest.promptMessages!,
+        provider: latest.provider,
+        model: latest.model,
+        modelParams: latest.modelParams,
+        vars: latest.vars,
+        variableMapping: latest.variableMapping,
+        outputDefinition: latest.outputDefinition,
+      } as NormalizedEvaluatorDefinition;
+    case "DECISION_MODEL":
+      return {
+        type,
+        questions: latest.questions,
+        provider: latest.provider ?? "",
+        model: latest.model ?? "",
+        vars: latest.vars,
+        variableMapping: latest.variableMapping,
+      } as NormalizedEvaluatorDefinition;
+    case "CODE":
+      return {
+        type,
+        sourceCode: latest.sourceCode ?? "",
+        sourceCodeLanguage: latest.sourceCodeLanguage ?? "TYPESCRIPT",
+      };
+  }
+}
 
 export default function EvaluatorDetailPage() {
   const router = useRouter();
@@ -21,24 +59,7 @@ export default function EvaluatorDetailPage() {
   }
 
   const latest = evaluator.data.versions[0];
-  const definition =
-    evaluator.data.type === "LLM_AS_JUDGE"
-      ? {
-          type: "LLM_AS_JUDGE" as const,
-          prompt: latest.prompt ?? "",
-          provider: latest.provider,
-          model: latest.model,
-          modelParams: latest.modelParams,
-          vars: latest.vars,
-          variableMapping: latest.variableMapping,
-          outputDefinition: latest.outputDefinition,
-        }
-      : {
-          type: "CODE" as const,
-          sourceCode: latest.sourceCode ?? "",
-          sourceCodeLanguage: latest.sourceCodeLanguage ?? "TYPESCRIPT",
-        };
-
+  const definition = toSetupDefinition(evaluator.data.type, latest);
   return (
     <EvaluatorSetupPage
       mode="edit"
@@ -49,7 +70,7 @@ export default function EvaluatorDetailPage() {
         name: evaluator.data.name,
         description: evaluator.data.description,
         type: evaluator.data.type,
-        definition: definition as EvaluatorDefinition,
+        definition,
         blockedAt: evaluator.data.blockedAt,
         blockReason: evaluator.data.blockReason,
         blockMessage: evaluator.data.blockMessage,

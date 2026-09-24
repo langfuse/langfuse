@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   ChevronLeft,
   ChevronRight,
@@ -14,8 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Input } from "@/src/components/ui/input";
 import {
   Tooltip,
@@ -79,10 +80,14 @@ export function DataTablePagination<TData>({
   const pageCount = table.getPageCount();
   const setPageIndex = table.setPageIndex;
   useEffect(() => {
+    // Count queries re-key on a filter/pin change and report pageCount as
+    // unknown or 1 while in flight. Snapping back then traps the reader on
+    // page 1 even though more rows exist.
+    if (isLoading) return;
     if (currentPage > pageCount && pageCount > 0) {
       setPageIndex(0);
     }
-  }, [currentPage, pageCount, setPageIndex]);
+  }, [currentPage, pageCount, setPageIndex, isLoading]);
 
   const handlePageNavigation = (newValue: string) => {
     if (newValue === "") {

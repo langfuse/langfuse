@@ -5,6 +5,7 @@ import {
   EventsAggregationQueryBuilder,
   EventsQueryBuilder,
   EventsSessionAggregationQueryBuilder,
+  ExperimentsAggregationQueryBuilder,
 } from "./event-query-builder";
 
 describe("EventsQueryBuilder public API v2 field groups", () => {
@@ -19,6 +20,34 @@ describe("EventsQueryBuilder public API v2 field groups", () => {
         .buildWithParams().query;
 
       expect(query.includes('"is_root_observation"')).toBe(selected);
+    },
+  );
+
+  it.each([
+    {
+      name: "usage vs metadata",
+      orderA: ["core", "basic", "usage", "metadata"] as const,
+      orderB: ["core", "basic", "metadata", "usage"] as const,
+    },
+    {
+      name: "usage vs metrics",
+      orderA: ["core", "basic", "usage", "metrics"] as const,
+      orderB: ["core", "basic", "metrics", "usage"] as const,
+    },
+    {
+      name: "usage vs trace_context",
+      orderA: ["core", "basic", "usage", "trace_context"] as const,
+      orderB: ["core", "basic", "trace_context", "usage"] as const,
+    },
+  ])(
+    "emits identical SQL regardless of field-group order ($name)",
+    ({ orderA, orderB }) => {
+      const queryFor = (sets: typeof orderA | typeof orderB) =>
+        new EventsQueryBuilder({ projectId: "test-project" })
+          .selectFieldSet(...sets)
+          .buildWithParams().query;
+
+      expect(queryFor(orderA)).toBe(queryFor(orderB));
     },
   );
 });
@@ -36,6 +65,21 @@ describe("EventsAggregationQueryBuilder", () => {
     );
     expect(query).toContain(
       "(e.parent_span_id = '' OR e.is_app_root = true) AND e.name <> ''",
+    );
+  });
+
+  it("promotes evaluator execution fields into the trace aggregation", () => {
+    const { query } = new EventsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("all")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "argMaxIf(evaluator_id, event_ts, evaluator_id <> '') AS evaluator_id",
+    );
+    expect(query).toContain(
+      "argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id <> '') AS evaluation_rule_id",
     );
   });
 });
@@ -152,5 +196,43 @@ describe("buildEventsFullTableSplitQuery", () => {
     expect(query).toContain("i.input as input");
     expect(query).toContain("i.output as output");
     expect(query).toContain("i.metadata as metadata");
+  });
+
+  it("bounds the io lane to base's start_time range and keeps the semi-join", () => {
+    const { query } = buildEventsFullTableSplitQuery({
+      projectId: "test-project",
+      baseBuilder: buildBase(),
+      includeIO: true,
+      includeMetadata: false,
+    }).buildWithParams();
+
+    // The bound is derived from base (no re-serialized params) so events_full
+    // can prune partitions/primary key; the semi-join stays for join exactness.
+    // Both bounds read one byte-identical (min, max) scalar subquery so
+    // ClickHouse's scalar cache evaluates base's bounds pass once, not twice.
+    expect(query).not.toContain("io_bounds");
+    expect(query).toContain(
+      "AND e.start_time >= (SELECT (min(start_time), max(start_time)) FROM base).1",
+    );
+    expect(query).toContain(
+      "AND e.start_time <= (SELECT (min(start_time), max(start_time)) FROM base).2",
+    );
+    expect(query).toContain(
+      'AND (e.start_time, e.trace_id, e.span_id) IN (SELECT "start_time", "trace_id", id FROM base)',
+    );
+  });
+});
+
+describe("ExperimentsAggregationQueryBuilder", () => {
+  it("reads non propagated experiment-level attributes from experiment item root spans", () => {
+    const { query } = new ExperimentsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("base")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "anyIf(e.experiment_description, e.span_id = e.experiment_item_root_span_id) AS experiment_description",
+    );
   });
 });

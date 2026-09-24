@@ -1,8 +1,12 @@
+/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { CardDescription } from "@/src/components/ui/card";
-import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
+import {
+  EvaluatorForm,
+  useEvaluatorFormTemplate,
+} from "@/src/features/evals/components/evaluator-form";
 import { usePeekEvalConfigData } from "@/src/components/table/peek/hooks/usePeekEvalConfigData";
 import {
   Tooltip,
@@ -14,10 +18,10 @@ import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { DeactivateEvalConfig } from "@/src/features/evals/components/deactivate-config";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
 import {
@@ -28,7 +32,7 @@ import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useL
 import { TablePeekView } from "@/src/components/table/peek";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 
 const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -45,6 +49,10 @@ const PeekViewEvaluatorConfigDetail = ({
   const { data: evalConfig } = usePeekEvalConfigData({
     jobConfigurationId: peekId,
     projectId,
+  });
+  const evalTemplate = useEvaluatorFormTemplate({
+    evalTemplates: [],
+    evalTemplate: evalConfig?.evalTemplate ?? undefined,
   });
   const lazyExecutionCounts = useLazyEvaluatorExecutionCounts({
     projectId,
@@ -136,23 +144,25 @@ const PeekViewEvaluatorConfigDetail = ({
         </div>
 
         {showLegacyReadOnlyNotice ? (
-          <Alert className="border-light-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Legacy evaluator is read-only</AlertTitle>
-            <AlertDescription>
+          <Alert variant="warning" icon={AlertTriangle}>
+            <Alert.Title>Legacy evaluator is read-only</Alert.Title>
+            <Alert.Description>
               This evaluator uses a legacy target that the current rule editor
               cannot represent safely. You can review or delete it here, but it
               cannot be edited or reactivated.
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         ) : null}
       </div>
 
-      <EvaluatorPausedCallout
-        projectId={projectId}
-        evalConfig={evalConfig}
-        allowReactivation={!readOnly}
-      />
+      {evalConfig.blockedAt && (
+        <EvaluatorPausedCallout
+          projectId={projectId}
+          evalConfig={evalConfig}
+          blockedAt={evalConfig.blockedAt}
+          allowReactivation={!readOnly}
+        />
+      )}
 
       <CardDescription className="flex items-center text-sm">
         <span className="mr-2 text-sm font-bold">Referenced Evaluator</span>
@@ -182,35 +192,36 @@ const PeekViewEvaluatorConfigDetail = ({
       </CardDescription>
       <div className="flex max-h-full w-full flex-col items-start justify-between space-y-2 overflow-y-auto pb-4">
         {evalConfig.evalTemplate ? (
-          <EvaluatorForm
-            key={`${evalConfig.id}-${evalConfig.updatedAt}-${isEditMode}`}
-            projectId={projectId}
-            evalTemplates={[evalConfig.evalTemplate]}
-            existingEvaluator={{
-              ...evalConfig,
-              evalTemplate: evalConfig.evalTemplate,
-            }}
-            mode="edit"
-            disabled={!isEditMode}
-            shouldWrapVariables={true}
-            useDialog={false}
-            onFormSuccess={() => {
-              setIsEditMode(false);
-              utils.evals.invalidate();
-              showSuccessToast({
-                title: "Running Evaluator updated",
-                description: "The evaluator configuration has been updated.",
-              });
-            }}
-          />
+          evalTemplate ? (
+            <EvaluatorForm
+              key={`${evalConfig.id}-${evalConfig.updatedAt}-${isEditMode}`}
+              projectId={projectId}
+              evalTemplate={evalTemplate}
+              existingEvaluator={{
+                ...evalConfig,
+                evalTemplate: evalConfig.evalTemplate,
+              }}
+              mode="edit"
+              disabled={!isEditMode}
+              shouldWrapVariables={true}
+              useDialog={false}
+              onFormSuccess={() => {
+                setIsEditMode(false);
+                utils.evals.invalidate();
+                showSuccessToast({
+                  title: "Running Evaluator updated",
+                  description: "The evaluator configuration has been updated.",
+                });
+              }}
+            />
+          ) : null
         ) : (
-          <Alert>
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Referenced evaluator unavailable</AlertTitle>
-            <AlertDescription>
+          <Alert icon={AlertTriangle}>
+            <Alert.Title>Referenced evaluator unavailable</Alert.Title>
+            <Alert.Description>
               This legacy rule no longer has an evaluator attached, so its
               evaluator configuration cannot be displayed.
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         )}
       </div>

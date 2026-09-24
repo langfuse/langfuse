@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { v4 } from "uuid";
 import { executeQuery } from "@langfuse/shared/query/server";
 import { type QueryType } from "@langfuse/shared/query";
@@ -122,15 +124,15 @@ function buildMatchingEvents(
           input: t.input ?? null,
           output: t.output ?? null,
           metadata: t.metadata ?? {},
-          start_time: t.timestamp * 1000,
+          start_time: t.timestamp,
           end_time: null,
           cost_details: {},
           provided_cost_details: {},
           usage_details: {},
           provided_usage_details: {},
-          created_at: t.created_at * 1000,
-          updated_at: t.updated_at * 1000,
-          event_ts: t.event_ts * 1000,
+          created_at: t.created_at,
+          updated_at: t.updated_at,
+          event_ts: t.event_ts,
         }),
       ),
     );
@@ -176,14 +178,12 @@ function buildMatchingEvents(
           tool_definitions: o.tool_definitions ?? {},
           tool_calls: o.tool_calls ?? [],
           tool_call_names: o.tool_call_names ?? [],
-          start_time: o.start_time * 1000,
-          end_time: o.end_time ? o.end_time * 1000 : null,
-          completion_start_time: o.completion_start_time
-            ? o.completion_start_time * 1000
-            : null,
-          created_at: o.created_at * 1000,
-          updated_at: o.updated_at * 1000,
-          event_ts: o.event_ts * 1000,
+          start_time: o.start_time,
+          end_time: o.end_time ?? null,
+          completion_start_time: o.completion_start_time ?? null,
+          created_at: o.created_at,
+          updated_at: o.updated_at,
+          event_ts: o.event_ts,
         }),
       ),
     );
@@ -512,14 +512,7 @@ describe("dashboard v1 vs v2 consistency", () => {
             ],
           },
         ],
-        featureFlags: {
-          excludeClickhouseRead: false,
-          templateFlag: true,
-          v4BetaToggleVisible: false,
-          observationEvals: false,
-          experimentsV4Enabled: false,
-          searchBar: false,
-        },
+        featureFlags: testFeatureFlags(),
         admin: true,
       },
       environment: {} as any,

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/evaluatorSetupSteps";
 import {
   applyEvaluatorSuggestion,
   getEvaluatorVersionDefinition,
@@ -15,6 +16,16 @@ describe("shouldOfferRuleAttachment", () => {
 
   it("offers rule attachment for an active evaluator", () => {
     expect(shouldOfferRuleAttachment({ blockedAt: null })).toBe(true);
+  });
+});
+
+describe("getEvaluatorNameStep", () => {
+  it.each([
+    ["CODE", 2],
+    ["LLM_AS_JUDGE", 3],
+    ["DECISION_MODEL", 3],
+  ] as const)("%s evaluators use step %i", (type, step) => {
+    expect(getEvaluatorNameStep(type)).toBe(step);
   });
 });
 
@@ -34,7 +45,7 @@ describe("getEvaluatorVersionDefinition", () => {
         createdAt: new Date(),
         createdByUser: null,
         type: "LLM_AS_JUDGE",
-        prompt: "Judge {{output}}",
+        promptMessages: [{ role: "user", content: "Judge {{output}}" }],
         provider: "openai",
         model: "gpt-4.1-mini",
         modelParams: { temperature: 0.2 },
@@ -52,7 +63,7 @@ describe("getEvaluatorVersionDefinition", () => {
       }),
     ).toMatchObject({
       type: "LLM_AS_JUDGE",
-      prompt: "Judge {{output}}",
+      promptMessages: [{ role: "user", content: "Judge {{output}}" }],
       provider: "openai",
       model: "gpt-4.1-mini",
       modelParams: { temperature: 0.2 },
@@ -78,9 +89,9 @@ describe("restoreEvaluatorVersion", () => {
         createdAt: new Date(),
         createdByUser: null,
         type: "CODE",
+        promptMessages: null,
         sourceCode: "return { score: 1 };",
         sourceCodeLanguage: "TYPESCRIPT",
-        prompt: null,
         provider: null,
         model: null,
         modelParams: null,

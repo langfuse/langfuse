@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Mock } from "vitest";
 import type { Session } from "next-auth";
 
@@ -89,14 +90,7 @@ const prepare = async ({
           ],
         },
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin,
     },
     environment: {
@@ -256,6 +250,24 @@ describe("Blob Storage Integration tRPC Router", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
+  });
+
+  describe("region normalization", () => {
+    it("persists a trimmed region", async () => {
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        region: " us-west-2",
+      });
+
+      const integration = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+        select: { region: true },
+      });
+      expect(integration?.region).toBe("us-west-2");
+    });
   });
 
   describe("runNow", () => {

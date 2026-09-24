@@ -8,6 +8,7 @@ import { createBadgeTableColumn } from "./createBadgeTableColumn";
 
 type Row = {
   environment: string | null;
+  status: "success" | "error";
 };
 
 const columns = [
@@ -15,6 +16,15 @@ const columns = [
     id: "environment",
     accessorFn: (row) => row.environment,
     header: "Badge",
+  }),
+  createBadgeTableColumn<Row>({
+    range: "semantic",
+    accessorKey: "status",
+    header: "Semantic badge",
+    getBadge: (status) => ({
+      value: status,
+      variant: status === "success" ? "success" : "error",
+    }),
   }),
 ];
 
@@ -42,7 +52,7 @@ export const Default = meta.story({
     data: {
       isLoading: false,
       isError: false,
-      data: [{ environment: "production" }],
+      data: [{ environment: "production", status: "success" }],
     },
   },
 });
@@ -53,7 +63,7 @@ export const EmptyValue = meta.story({
     data: {
       isLoading: false,
       isError: false,
-      data: [{ environment: null }],
+      data: [{ environment: null, status: "error" }],
     },
   },
 });

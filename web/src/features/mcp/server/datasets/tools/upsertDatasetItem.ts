@@ -1,5 +1,5 @@
-import { createDatasetItemForApi } from "@/src/features/datasets/server/publicDatasetService";
-import { PostDatasetItemsV1Response } from "@/src/features/public-api/types/datasets";
+import { createDatasetItemForApi } from "@/src/features/datasets/server";
+import { PostDatasetItemsV1Response } from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildDatasetItemUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -9,6 +9,7 @@ export const [upsertDatasetItemTool, handleUpsertDatasetItem] = defineTool({
   name: "upsertDatasetItem",
   description:
     "Upsert a dataset item (one example in a dataset) by dataset ID. Item IDs are unique per project across all datasets, so an ID used in one dataset cannot be reused in another.",
+  action: "datasets:CUD",
   baseSchema: PostDatasetItemMcpInput,
   inputSchema: PostDatasetItemMcpInput,
   handler: async (input, context) =>
@@ -18,7 +19,11 @@ export const [upsertDatasetItemTool, handleUpsertDatasetItem] = defineTool({
       attributes: { "mcp.dataset_id": input.datasetId },
       fn: async () => {
         const result = await createDatasetItemForApi({
-          input,
+          input: {
+            ...input,
+            expectedOutput:
+              input.expectedOutput === null ? "" : input.expectedOutput,
+          },
           projectId: context.projectId,
           auditScope: context,
         });

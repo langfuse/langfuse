@@ -3,23 +3,25 @@ import {
   protectedOrganizationProcedure,
   authenticatedProcedure,
 } from "@/src/server/api/trpc";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   organizationFormSchema,
   organizationOptionalNameSchema,
 } from "@/src/features/organizations/utils/organizationNameSchema";
 import * as z from "zod";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
 import { TRPCError } from "@trpc/server";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/features/public-api/server";
 import {
   getLastTraceTimestampsByProjects,
   isLangfuseAITracingConfigured,
   redis,
 } from "@langfuse/shared/src/server";
-import { resolveBillingService } from "@/src/ee/features/billing/server/resolveBillingService";
-import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
-import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
+import {
+  isCloudBillingEnabled,
+  resolveBillingService,
+} from "@/src/ee/features/billing/server";
+import { shouldAutoEnableV4 } from "@/src/features/events/server";
 import {
   CROSS_PROJECT_TRACE_CORRELATION_KEY_MAX_LENGTH,
   CROSS_PROJECT_TRACE_CORRELATION_KEY_PATTERN,
@@ -29,10 +31,9 @@ import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {
   featurePreviewFlags,
   filterFeaturePreviewFlags,
-} from "@/src/features/feature-flags/available-flags";
-import { setOrganizationFeatureFlagDefault } from "@/src/features/feature-flags/server/organizationFeatureFlags";
-import { parseFlags } from "@/src/features/feature-flags/utils";
-
+  setOrganizationFeatureFlagDefault,
+  parseFlags,
+} from "@/src/features/feature-flags/server";
 import { env } from "@/src/env.mjs";
 
 const crossProjectTraceCorrelationKeySchema = z
@@ -441,16 +442,17 @@ export const organizationsRouter = createTRPCRouter({
         }
       }
 
+      // Evict before the delete: ApiKey.organization cascades, so keys are gone
+      // by the time a post-delete eviction would run and it would find nothing.
+      await new ApiAuthService(ctx.prisma, redis).invalidateCachedOrgApiKeys(
+        input.orgId,
+      );
+
       const organization = await ctx.prisma.organization.delete({
         where: {
           id: input.orgId,
         },
       });
-
-      // the api keys contain which org they belong to, so we need to remove them from Redis
-      await new ApiAuthService(ctx.prisma, redis).invalidateCachedOrgApiKeys(
-        input.orgId,
-      );
 
       await auditLog({
         session: ctx.session,

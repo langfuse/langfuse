@@ -41,6 +41,11 @@ import { getSupportedCodeEvalTemplateLanguages } from "@/src/features/evals/serv
 import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
 import type { ManagedTemplate } from "@/src/features/evals/v2/types/templateGallery";
 import type { EvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import {
+  getLegacyEvaluatorPrompt,
+  reconcileEvaluatorPromptMessages,
+  toEvaluatorDefinition,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorService";
 
 const MANAGED_TEMPLATE_ID_PREFIX = "managed:";
 
@@ -86,7 +91,25 @@ function managedTemplateId(key: string) {
   return `${MANAGED_TEMPLATE_ID_PREFIX}${key}`;
 }
 
-function toLegacyManagedTemplate(template: ManagedTemplate) {
+type LegacyManagedTemplate = ManagedTemplate & {
+  evaluator: Exclude<
+    ManagedTemplate["evaluator"],
+    { type: typeof EvalTemplateType.DECISION_MODEL }
+  >;
+};
+
+function isLegacyManagedTemplate(
+  template: ManagedTemplate,
+): template is LegacyManagedTemplate {
+  return template.evaluator.type !== EvalTemplateType.DECISION_MODEL;
+}
+
+function legacyManagedTemplates(): LegacyManagedTemplate[] {
+  const templates: ManagedTemplate[] = MANAGED_TEMPLATES_CATALOG.templates;
+  return templates.filter(isLegacyManagedTemplate);
+}
+
+function toLegacyManagedTemplate(template: LegacyManagedTemplate) {
   const now = new Date(0);
   if (template.evaluator.type === EvalTemplateType.CODE) {
     return {
@@ -116,7 +139,7 @@ function toLegacyManagedTemplate(template: ManagedTemplate) {
     projectId: null,
     name: template.name,
     version: 1,
-    prompt: template.evaluator.prompt,
+    prompt: getLegacyEvaluatorPrompt(template.evaluator.promptMessages),
     type: EvalTemplateType.LLM_AS_JUDGE,
     partner: null,
     model: null,
@@ -140,7 +163,15 @@ function toLegacyEvaluatorTemplate(evaluator: StableEvaluator) {
     projectId: evaluator.projectId,
     name: evaluator.name,
     version: version.version,
-    prompt: version.prompt,
+    prompt:
+      evaluator.type === EvalTemplateType.LLM_AS_JUDGE
+        ? getLegacyEvaluatorPrompt(
+            reconcileEvaluatorPromptMessages({
+              prompt: version.prompt,
+              promptMessages: version.promptMessages,
+            }),
+          )
+        : null,
     type: evaluator.type,
     partner: version.partner,
     model: version.model,
@@ -190,7 +221,7 @@ type LlmEvaluatorVariableMapping = Extract<
 >["variableMapping"];
 
 function definitionFromManagedTemplate(
-  template: ManagedTemplate,
+  template: LegacyManagedTemplate,
   variableMapping: LlmEvaluatorVariableMapping,
 ): EvaluatorDefinition {
   if (template.evaluator.type === EvalTemplateType.CODE) {
@@ -203,7 +234,7 @@ function definitionFromManagedTemplate(
 
   return {
     type: EvalTemplateType.LLM_AS_JUDGE,
-    prompt: template.evaluator.prompt,
+    promptMessages: template.evaluator.promptMessages,
     provider: null,
     model: null,
     modelParams: null,
@@ -227,17 +258,11 @@ function definitionFromEvaluator(
       sourceCodeLanguage: version.sourceCodeLanguage,
     };
   }
-  if (!version.prompt || !version.outputDefinition) return null;
-  return {
-    type: EvalTemplateType.LLM_AS_JUDGE,
-    prompt: version.prompt,
-    provider: version.provider,
-    model: version.model,
-    modelParams: version.modelParams,
-    vars: version.vars,
-    variableMapping,
-    outputDefinition: version.outputDefinition,
-  } as EvaluatorDefinition;
+  if (!version.outputDefinition) return null;
+  const definition = toEvaluatorDefinition(evaluator.type, version);
+  return definition.type === EvalTemplateType.LLM_AS_JUDGE
+    ? { ...definition, variableMapping }
+    : null;
 }
 
 function evaluatorVersionData(
@@ -247,20 +272,35 @@ function evaluatorVersionData(
   const common = {
     createdByUserId,
   };
-  return definition.type === EvalTemplateType.CODE
-    ? {
+  switch (definition.type) {
+    case EvalTemplateType.CODE:
+      return {
         ...common,
         variableMapping: getCodeEvalVariableMapping() as Prisma.InputJsonValue,
         sourceCode: definition.sourceCode,
         sourceCodeLanguage: definition.sourceCodeLanguage,
-      }
-    : {
+      };
+    case EvalTemplateType.DECISION_MODEL:
+      return {
         ...common,
         variableMapping:
           definition.variableMapping === null
             ? Prisma.DbNull
             : (definition.variableMapping as Prisma.InputJsonValue),
-        prompt: definition.prompt,
+        provider: definition.provider,
+        model: definition.model,
+        vars: definition.vars,
+        questions: definition.questions as Prisma.InputJsonValue,
+      };
+    case EvalTemplateType.LLM_AS_JUDGE:
+      return {
+        ...common,
+        variableMapping:
+          definition.variableMapping === null
+            ? Prisma.DbNull
+            : (definition.variableMapping as Prisma.InputJsonValue),
+        prompt: getLegacyEvaluatorPrompt(definition.promptMessages),
+        promptMessages: definition.promptMessages as Prisma.InputJsonValue,
         provider: definition.provider,
         model: definition.model,
         modelParams:
@@ -270,6 +310,7 @@ function evaluatorVersionData(
         vars: definition.vars,
         outputDefinition: definition.outputDefinition as Prisma.InputJsonValue,
       };
+  }
 }
 
 /**
@@ -285,11 +326,22 @@ function definitionsMatch(a: EvaluatorDefinition, b: EvaluatorDefinition) {
     );
   }
   if (
+    a.type === EvalTemplateType.DECISION_MODEL &&
+    b.type === EvalTemplateType.DECISION_MODEL
+  ) {
+    return (
+      isEqual(a.questions, b.questions) &&
+      a.provider === b.provider &&
+      a.model === b.model &&
+      isEqual([...a.vars].sort(), [...b.vars].sort())
+    );
+  }
+  if (
     a.type === EvalTemplateType.LLM_AS_JUDGE &&
     b.type === EvalTemplateType.LLM_AS_JUDGE
   ) {
     return (
-      a.prompt === b.prompt &&
+      isEqual(a.promptMessages, b.promptMessages) &&
       a.provider === b.provider &&
       a.model === b.model &&
       isEqual(a.modelParams, b.modelParams) &&
@@ -374,7 +426,7 @@ type ManagedCatalogEntry = {
 };
 
 function runnableManagedCatalog(): ManagedCatalogEntry[] {
-  return MANAGED_TEMPLATES_CATALOG.templates
+  return legacyManagedTemplates()
     .map((template) => ({
       template: toLegacyManagedTemplate(template),
       definition: definitionFromManagedTemplate(template, null),
@@ -863,7 +915,7 @@ export class LegacyEvalCompatibilityService {
   }
 
   listManagedTemplates() {
-    return MANAGED_TEMPLATES_CATALOG.templates
+    return legacyManagedTemplates()
       .map(toLegacyManagedTemplate)
       .filter(isRunnableTemplate);
   }
@@ -887,7 +939,7 @@ export class LegacyEvalCompatibilityService {
   async getTemplate(projectId: string, templateId: string) {
     if (templateId.startsWith(MANAGED_TEMPLATE_ID_PREFIX)) {
       const key = templateId.slice(MANAGED_TEMPLATE_ID_PREFIX.length);
-      const template = MANAGED_TEMPLATES_CATALOG.templates.find(
+      const template = legacyManagedTemplates().find(
         (candidate) => candidate.key === key,
       );
       if (!template) return null;
@@ -914,7 +966,7 @@ export class LegacyEvalCompatibilityService {
   }) {
     if (params.templateId.startsWith(MANAGED_TEMPLATE_ID_PREFIX)) {
       const key = params.templateId.slice(MANAGED_TEMPLATE_ID_PREFIX.length);
-      const template = MANAGED_TEMPLATES_CATALOG.templates.find(
+      const template = legacyManagedTemplates().find(
         (candidate) => candidate.key === key,
       );
       return template
@@ -1200,9 +1252,7 @@ export class LegacyEvalCompatibilityService {
           ? params.intent.cloneSourceId.slice(MANAGED_TEMPLATE_ID_PREFIX.length)
           : null;
         const source = key
-          ? MANAGED_TEMPLATES_CATALOG.templates.find(
-              (candidate) => candidate.key === key,
-            )
+          ? legacyManagedTemplates().find((candidate) => candidate.key === key)
           : undefined;
         if (!source) {
           throw new LangfuseNotFoundError(

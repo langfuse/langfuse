@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma, type Role } from "@langfuse/shared/src/db";
@@ -59,14 +60,7 @@ function makeSession(
           ],
         },
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: false,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags({ templateFlag: false }),
       admin: false,
     },
     environment: {
@@ -94,7 +88,7 @@ describe("batchExport tRPC – audit_logs table authorization", () => {
     });
   });
 
-  it("blocks a MEMBER (no auditLogs:read) from exporting audit_logs even on cloud:team plan", async () => {
+  it("blocks a MEMBER (no projectAuditLogs:read) from exporting audit_logs even on cloud:team plan", async () => {
     const { project, org } = await createOrgProjectAndApiKey();
     __orgIds.push(org.id);
 
@@ -139,7 +133,7 @@ describe("batchExport tRPC – audit_logs table authorization", () => {
     ["cloud:team", "ADMIN"],
     ["self-hosted:enterprise", "OWNER"],
   ])(
-    "allows plan=%s role=%s (both entitlement and auditLogs:read) to export audit_logs",
+    "allows plan=%s role=%s (both entitlement and projectAuditLogs:read) to export audit_logs",
     async (plan, projectRole) => {
       const { project, org } = await createOrgProjectAndApiKey();
       __orgIds.push(org.id);
@@ -314,7 +308,7 @@ describe("batchExport tRPC – audit_logs download and list authorization", () =
     ).resolves.toEqual({ url: "not-a-valid-url" });
   });
 
-  it("hides audit_logs exports from all for a MEMBER without auditLogs:read", async () => {
+  it("hides audit_logs exports from all for a MEMBER without projectAuditLogs:read", async () => {
     const { project, org } = await createOrgProjectAndApiKey();
     __orgIds.push(org.id);
 

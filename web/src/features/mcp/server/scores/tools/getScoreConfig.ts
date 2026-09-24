@@ -1,12 +1,15 @@
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { getScoreConfig } from "@/src/features/public-api/server/score-configs-api-service";
-import { GetScoreConfigQuery } from "@/src/features/public-api/types/score-configs";
+import {
+  getScoreConfig,
+  GetScoreConfigQuery,
+} from "@/src/features/public-api/server";
 
 export const [getScoreConfigTool, handleGetScoreConfig] = defineTool({
   name: "getScoreConfig",
   description:
     "Fetch one score configuration by ID from the current Langfuse project. Returns the public score config object directly.",
+  action: "scoreConfigs:read",
   baseSchema: GetScoreConfigQuery,
   inputSchema: GetScoreConfigQuery,
   handler: async (input, context) => {

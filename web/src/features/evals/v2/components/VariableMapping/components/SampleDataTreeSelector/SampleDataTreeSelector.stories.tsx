@@ -27,7 +27,7 @@ const meta = preview.meta({ component: SampleDataTreeSelector });
 
 export const Default = meta.story({
   args: {
-    variable: "input",
+    variableLabel: "{{input}}",
     roots,
     currentColumnId: null,
     currentSegments: null,
@@ -37,10 +37,35 @@ export const Default = meta.story({
 
 export const CurrentMapping = meta.story({
   args: {
-    variable: "input",
+    variableLabel: "{{input}}",
     roots,
     currentColumnId: "input",
     currentSegments: ["messages", WILDCARD, "content"],
+    onSelect: fn(),
+  },
+});
+
+export const MediaReference = meta.story({
+  args: {
+    variableLabel: "{{input}}",
+    roots: [
+      {
+        id: "input",
+        label: "Input",
+        value: {
+          attachments: [
+            {
+              filename: "cache-hit-ratio.png",
+              content_type: "image/png",
+              media:
+                "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
+            },
+          ],
+        },
+      },
+    ],
+    currentColumnId: "input",
+    currentSegments: ["attachments", 0, "media"],
     onSelect: fn(),
   },
 });

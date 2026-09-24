@@ -1,11 +1,11 @@
 import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { TraceDataProvider } from "@/src/features/traces/contexts/TraceDataContext";
 import {
-  ViewPreferencesProvider,
-  useViewPreferences,
-} from "@/src/features/traces/contexts/ViewPreferencesContext";
+  TraceDataProvider,
+  useTraceData,
+} from "@/src/features/traces/contexts/TraceDataContext";
+import { ViewPreferencesProvider } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import {
   SelectionProvider,
   useSelection,
@@ -20,6 +20,7 @@ import {
 } from "@/src/features/traces/contexts/TraceGraphDataContext";
 import { TraceLayoutMobile } from "@/src/features/traces/components/TraceLayoutMobile";
 import { TraceLayoutDesktop } from "@/src/features/traces/components/TraceLayoutDesktop";
+import { TraceHeader } from "@/src/features/traces/components/TraceHeader";
 import { TracePanelNavigation } from "@/src/features/traces/components/TracePanelNavigation";
 import { TracePanelDetail } from "@/src/features/traces/components/TracePanelDetail";
 import { TracePanelNavigationLayoutDesktop } from "@/src/features/traces/components/TracePanelNavigationLayoutDesktop/TracePanelNavigationLayoutDesktop";
@@ -29,7 +30,15 @@ import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
+import { useStore } from "zustand";
+import { useRouter } from "next/router";
+import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
+import {
+  TraceReviewPanelProvider,
+  useTraceReviewPanel,
+} from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import { TraceReviewPanel } from "./TraceReviewPanel";
 
 export type TraceProps = {
   observations: Array<ObservationReturnTypeWithMetadata>;
@@ -41,11 +50,12 @@ export type TraceProps = {
   corrections: ScoreDomain[];
   projectId: string;
   context?: "fullscreen" | "peek" | "annotation";
+  layout?: "default" | "observation-focused";
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
 };
 
-const DESKTOP_LAYOUT_BY_CONTEXT = {
+const DESKTOP_LAYOUTS = {
   fullscreen: {
     groupId: "trace-layout-v3",
     defaultNavigationCollapsed: false,
@@ -56,6 +66,11 @@ const DESKTOP_LAYOUT_BY_CONTEXT = {
     defaultNavigationCollapsed: false,
     expandDetailOnMount: false,
   },
+  "peek-observation-focused": {
+    groupId: "trace-layout-peek-navigation-collapsed-v1",
+    defaultNavigationCollapsed: true,
+    expandDetailOnMount: false,
+  },
   annotation: {
     groupId: "trace-layout-annotation-v1",
     defaultNavigationCollapsed: true,
@@ -63,24 +78,25 @@ const DESKTOP_LAYOUT_BY_CONTEXT = {
   },
 } as const;
 
-type DesktopLayout =
-  (typeof DESKTOP_LAYOUT_BY_CONTEXT)[keyof typeof DESKTOP_LAYOUT_BY_CONTEXT];
+type DesktopLayout = (typeof DESKTOP_LAYOUTS)[keyof typeof DESKTOP_LAYOUTS];
 
 /**
  * SelectionProvider sits ABOVE the trace data so the selected observation can be
  * resolved before the tree is built: past the observation cap the selected row is
  * missing from the loaded list and has to be fetched and merged in.
  */
-export function Trace({ context, ...props }: TraceProps) {
+export function Trace({ context, layout = "default", ...props }: TraceProps) {
   const traceContext = context ?? "fullscreen";
+  const desktopLayoutKey =
+    traceContext === "peek" && layout === "observation-focused"
+      ? "peek-observation-focused"
+      : traceContext;
+  const desktopLayout = DESKTOP_LAYOUTS[desktopLayoutKey];
 
   return (
     <ViewPreferencesProvider traceContext={traceContext}>
       <SelectionProvider>
-        <TraceWithSelection
-          {...props}
-          desktopLayout={DESKTOP_LAYOUT_BY_CONTEXT[traceContext]}
-        />
+        <TraceWithSelection {...props} desktopLayout={desktopLayout} />
       </SelectionProvider>
     </ViewPreferencesProvider>
   );
@@ -184,22 +200,23 @@ function TraceWithSelection({
  *
  * Hooks:
  * - useIsMobile() - for responsive platform detection
- * - useViewPreferences() - for graph toggle state
  * - useTraceGraphData() - for graph availability
  */
 function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
-  const { showGraph } = useViewPreferences();
   const { isGraphViewAvailable } = useTraceGraphData();
-  const shouldShowGraph = showGraph && isGraphViewAvailable;
 
-  return isMobile ? (
-    <MobileTraceContent shouldShowGraph={shouldShowGraph} />
+  const panels = isMobile ? (
+    <MobileTraceContent shouldShowGraph={isGraphViewAvailable} />
   ) : (
-    <DesktopTraceContent
-      shouldShowGraph={shouldShowGraph}
-      desktopLayout={desktopLayout}
-    />
+    <DesktopTraceContent desktopLayout={desktopLayout} />
+  );
+
+  return (
+    <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
+      <TraceHeader />
+      <div className="min-h-0 flex-1">{panels}</div>
+    </div>
   );
 }
 
@@ -212,26 +229,75 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
  * - Navigation panel (left) + Detail panel (right)
  */
 function DesktopTraceContent({
-  shouldShowGraph,
   desktopLayout,
 }: {
-  shouldShowGraph: boolean;
   desktopLayout: DesktopLayout;
 }) {
+  const { trace } = useTraceData();
+  const router = useRouter();
+  if (desktopLayout.groupId === DESKTOP_LAYOUTS.annotation.groupId) {
+    return <DesktopTraceWorkspace desktopLayout={desktopLayout} />;
+  }
   return (
-    <TraceLayoutDesktop key={desktopLayout.groupId} {...desktopLayout}>
-      <TraceLayoutDesktop.NavigationPanel>
-        <TracePanelNavigationLayoutDesktop
-          secondaryContent={shouldShowGraph ? <TraceGraphView /> : undefined}
-        >
-          <TracePanelNavigation />
-        </TracePanelNavigationLayoutDesktop>
-      </TraceLayoutDesktop.NavigationPanel>
-      <TraceLayoutDesktop.ResizeHandle />
-      <TraceLayoutDesktop.DetailPanel>
-        <TracePanelDetail />
-      </TraceLayoutDesktop.DetailPanel>
-    </TraceLayoutDesktop>
+    <TraceReviewPanelProvider
+      key={`${trace.projectId}:${trace.id}`}
+      projectId={trace.projectId}
+      initialComments={getCommentDrawerInitialStateFromUrl(router.query)}
+    >
+      <DesktopTraceReviewWorkspace
+        desktopLayout={desktopLayout}
+        projectId={trace.projectId}
+      />
+    </TraceReviewPanelProvider>
+  );
+}
+
+function DesktopTraceReviewWorkspace({
+  desktopLayout,
+  projectId,
+}: {
+  desktopLayout: DesktopLayout;
+  projectId: string;
+}) {
+  const store = useTraceReviewPanel();
+  const reviewOpen = useStore(store, (state) => state.active !== null);
+  return (
+    <DesktopTraceWorkspace
+      desktopLayout={desktopLayout}
+      reviewOpen={reviewOpen}
+      reviewPanel={<TraceReviewPanel projectId={projectId} />}
+    />
+  );
+}
+
+function DesktopTraceWorkspace({
+  desktopLayout,
+  reviewOpen = false,
+  reviewPanel,
+}: {
+  desktopLayout: DesktopLayout;
+  reviewOpen?: boolean;
+  reviewPanel?: ReactNode;
+}) {
+  return (
+    <div className="h-full" data-trace-review-open={reviewOpen || undefined}>
+      <TraceLayoutDesktop
+        key={desktopLayout.groupId}
+        {...desktopLayout}
+        reviewOpen={reviewOpen}
+        reviewPanel={reviewPanel}
+      >
+        <TraceLayoutDesktop.NavigationPanel>
+          <TracePanelNavigationLayoutDesktop>
+            <TracePanelNavigation />
+          </TracePanelNavigationLayoutDesktop>
+        </TraceLayoutDesktop.NavigationPanel>
+        <TraceLayoutDesktop.ResizeHandle />
+        <TraceLayoutDesktop.DetailPanel>
+          <TracePanelDetail />
+        </TraceLayoutDesktop.DetailPanel>
+      </TraceLayoutDesktop>
+    </div>
   );
 }
 

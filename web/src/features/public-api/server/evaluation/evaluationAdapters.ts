@@ -1,7 +1,9 @@
+/* eslint-disable no-nested-ternary */
 import {
   EvalTemplateType,
   extractVariables,
   InternalServerError,
+  InvalidRequestError,
   observationVariableMappingList,
   PersistedEvalOutputDefinitionSchema,
   resolvePersistedEvalOutputDefinition,
@@ -56,6 +58,7 @@ const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
   output: "output",
   metadata: "metadata",
   toolCalls: "tool_calls",
+  tool_calls: "tool_calls",
   expected_output: "expected_output",
   expectedOutput: "expected_output",
   experiment_item_expected_output: "expected_output",
@@ -64,7 +67,31 @@ const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
   experiment_item_metadata: "experiment_item_metadata",
 };
 
-function toStoredMappingList(mappings: PromptVariableMappingInputType[]) {
+export const PUBLIC_API_EVALUATOR_TYPES: EvalTemplateType[] = [
+  EvalTemplateType.LLM_AS_JUDGE,
+  EvalTemplateType.CODE,
+];
+
+export function isPublicApiEvaluatorType(type: EvalTemplateType) {
+  return PUBLIC_API_EVALUATOR_TYPES.includes(type);
+}
+
+export function toPublicEvaluatorType(type: EvalTemplateType) {
+  switch (type) {
+    case EvalTemplateType.CODE:
+      return PUBLIC_EVALUATOR_TYPE_CODE;
+    case EvalTemplateType.LLM_AS_JUDGE:
+      return PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE;
+    case EvalTemplateType.DECISION_MODEL:
+      throw new InvalidRequestError(
+        "Decision-model evaluators are experimental and not available through the public API",
+      );
+  }
+}
+
+export function toStoredMappingList(
+  mappings: PromptVariableMappingInputType[],
+) {
   return observationVariableMappingList.parse(
     mappings.map((mapping) => ({
       templateVariable: mapping.variable,
@@ -75,7 +102,9 @@ function toStoredMappingList(mappings: PromptVariableMappingInputType[]) {
   );
 }
 
-function toApiReadMappings(mappings: unknown): PromptVariableMappingReadType[] {
+export function toApiReadMappings(
+  mappings: unknown,
+): PromptVariableMappingReadType[] {
   const parsed = observationVariableMappingList.safeParse(mappings);
   if (!parsed.success) {
     logger.error("Failed to parse public evaluation rule mappings", {
@@ -226,7 +255,7 @@ export function toEvaluatorServiceDefinition(
         }
       : {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: definition.prompt[0]!.content,
+          promptMessages: definition.prompt,
           modelConfig: definition.modelConfig ?? null,
           variableMapping:
             definition.variableMapping == null
@@ -255,6 +284,12 @@ export function toPublicEvaluatorVersion(
     createdBy: toCreator(version.createdByUser),
   };
 
+  if (evaluatorType === EvalTemplateType.DECISION_MODEL) {
+    throw new InvalidRequestError(
+      "Decision-model evaluators are experimental and not available through the public API",
+    );
+  }
+
   if (evaluatorType === EvalTemplateType.CODE) {
     if (!version.sourceCode || !version.sourceCodeLanguage) {
       throw new InternalServerError("Code evaluator definition is corrupted");
@@ -267,10 +302,10 @@ export function toPublicEvaluatorVersion(
     });
   }
 
-  if (!version.prompt) {
-    throw new InternalServerError("Evaluator prompt is corrupted");
+  if (!version.promptMessages) {
+    throw new InternalServerError("Evaluator prompt messages are corrupted");
   }
-  const prompt = [{ role: "user" as const, content: version.prompt }];
+  const prompt = version.promptMessages;
   return EvaluatorVersion.parse({
     ...common,
     type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,

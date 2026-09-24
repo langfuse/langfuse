@@ -1,8 +1,8 @@
-import { deleteAnnotationQueueItemForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
+import { deleteAnnotationQueueItemForApi } from "@/src/features/annotation-queues/server";
 import {
   DeleteAnnotationQueueItemQuery,
   DeleteAnnotationQueueItemResponse,
-} from "@/src/features/public-api/types/annotation-queues";
+} from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
@@ -11,6 +11,7 @@ export const [deleteAnnotationQueueItemTool, handleDeleteAnnotationQueueItem] =
     name: "deleteAnnotationQueueItem",
     description:
       "Remove an annotation queue item, the queued trace or observation, from a queue.",
+    action: "annotationQueues:CUD",
     baseSchema: DeleteAnnotationQueueItemQuery,
     inputSchema: DeleteAnnotationQueueItemQuery,
     handler: async (input, context) =>

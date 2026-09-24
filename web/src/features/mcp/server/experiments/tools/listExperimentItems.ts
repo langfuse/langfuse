@@ -1,5 +1,5 @@
-import { listExperimentItemsForPublicApi } from "@/src/features/experiments/server/public/service";
-import { GetExperimentItemsV1Response } from "@/src/features/public-api/types/experiments";
+import { listExperimentItemsForPublicApi } from "@/src/features/experiments/server";
+import { GetExperimentItemsV1Response } from "@/src/features/public-api/server";
 import { buildObservationUrl } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -7,7 +7,7 @@ import {
   ListExperimentItemsBaseSchema,
   ListExperimentItemsInputSchema,
 } from "../schema";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 
 export const [listExperimentItemsTool, handleListExperimentItems] = defineTool({
   name: "listExperimentItems",
@@ -17,6 +17,7 @@ export const [listExperimentItemsTool, handleListExperimentItems] = defineTool({
     "Results are sorted newest first by experiment item startTime.",
     "fromStartTime is required. Request io and metadata fields only when needed because they can be large.",
   ].join("\n"),
+  action: "experiments:read",
   baseSchema: ListExperimentItemsBaseSchema,
   inputSchema: ListExperimentItemsInputSchema,
   handler: async (input, context) =>

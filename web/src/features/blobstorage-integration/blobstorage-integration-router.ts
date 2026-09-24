@@ -1,8 +1,9 @@
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -13,7 +14,7 @@ import {
   validateExportFieldGroups,
 } from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
-import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
+import { resolveExportSource } from "@/src/features/analytics-integrations/server";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { env } from "@/src/env.mjs";

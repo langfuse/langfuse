@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -15,11 +16,9 @@ import ReactMarkdown, {
   type ExtraProps as ReactMarkdownExtraProps,
 } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
+import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { useTheme } from "next-themes";
 import { ImageOff, Info } from "lucide-react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { MentionBadge } from "@/src/features/comments/components/MentionBadge";
 import {
   OpenAIUrlImageUrl,
@@ -31,11 +30,12 @@ import {
   isOpenAITextContentPart,
   isOpenAIImageContentPart,
   isMediaReferencePart,
+  isAiSdkFileContentPart,
 } from "@langfuse/shared";
 import { type z } from "zod";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
@@ -314,21 +314,19 @@ const markdownComponents: NonNullable<Options["components"]> = {
   ul({ children }) {
     if (isChecklist(children)) return <ul className="list-none">{children}</ul>;
 
-    return <ul className="list-inside list-disc">{children}</ul>;
+    // Nested items contain a block list after the label. list-outside
+    // plus left padding keeps the marker in the gutter beside that line.
+    return <ul className="list-outside list-disc pl-6">{children}</ul>;
   },
   ol({ children, start }) {
     return (
-      <ol start={start} className="list-inside list-decimal">
+      <ol start={start} className="list-outside list-decimal pl-6">
         {children}
       </ol>
     );
   },
   li({ children }) {
-    return (
-      <li className="mt-1 [&>ol]:pl-4 [&>ul]:pl-4">
-        {transformListItemChildren(children)}
-      </li>
-    );
+    return <li className="mt-1">{transformListItemChildren(children)}</li>;
   },
   pre({ children }) {
     return <pre className="rounded p-2">{children}</pre>;
@@ -508,10 +506,8 @@ export function MarkdownView({
       role. Falls back to matching the title for callers without role data. */
   isSystemPrompt?: boolean;
 }) {
-  const capture = usePostHogClientCapture();
   const { forcedTheme, resolvedTheme } = useTheme();
   const theme = forcedTheme ?? resolvedTheme;
-  const { setIsMarkdownEnabled } = useMarkdownContext();
 
   const markdownContent =
     typeof markdown === "string" ? markdown : parseOpenAIContentParts(markdown);
@@ -542,13 +538,6 @@ export function MarkdownView({
     copyTextToClipboard(markdownContent);
   };
 
-  const handleOnValueChange = () => {
-    setIsMarkdownEnabled(false);
-    capture("trace_detail:io_pretty_format_toggle_group", {
-      renderMarkdown: false,
-    });
-  };
-
   const inlineMediaReferenceStrings =
     typeof markdown === "string"
       ? getStandaloneMediaReferenceStrings(markdown)
@@ -570,35 +559,25 @@ export function MarkdownView({
   ) : null;
 
   return (
-    <div className="overflow-hidden" key={theme}>
+    <div className="group/iosection overflow-hidden" key={theme}>
       {title ? (
         <>
           <MarkdownJsonViewHeader
             title={title}
             titleIcon={titleIcon}
-            handleOnValueChange={handleOnValueChange}
             handleOnCopy={handleOnCopy}
+            hoverRevealControls
             controlButtons={controlButtons}
-            collapseControl={
-              shouldBeCollapsible
-                ? {
-                    isCollapsed,
-                    onToggle: () => toggleCollapsed("header"),
-                  }
-                : undefined
-            }
           />
-          <div className="border-t" />
         </>
       ) : null}
       {afterHeader}
       <div
         className={cn(
-          "io-message-content ph-no-capture grid grid-flow-row gap-2 px-1 py-2",
+          "io-message-content ph-no-capture text-foreground-secondary grid grid-flow-row gap-2 px-1 pt-1 pb-2",
           title === "assistant" || title === "Output" || title === "Model"
-            ? "bg-accent-light-green"
+            ? "bg-accent-light-green overflow-hidden rounded-md"
             : "",
-          title === "system" || title === "Input" ? "bg-card" : "",
           className,
         )}
       >
@@ -677,6 +656,12 @@ export function MarkdownView({
     // A bare reference string is a whole part (LFE-9577).
     if (isMediaReferencePart(content)) {
       return <LangfuseMediaView key={index} mediaReferenceString={content} />;
+    }
+
+    if (isAiSdkFileContentPart(content)) {
+      return (
+        <LangfuseMediaView key={index} mediaReferenceString={content.data} />
+      );
     }
 
     if (isOpenAITextContentPart(content)) {

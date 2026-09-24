@@ -1,5 +1,5 @@
-import { listDatasetRunItemsByRunIdForApi } from "@/src/features/datasets/server/publicDatasetService";
-import { GetDatasetRunItemsV1Response } from "@/src/features/public-api/types/datasets";
+import { listDatasetRunItemsByRunIdForApi } from "@/src/features/datasets/server";
+import { GetDatasetRunItemsV1Response } from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildDatasetRunUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -11,6 +11,7 @@ export const [listDatasetRunItemsTool, handleListDatasetRunItems] = defineTool({
   name: "listDatasetRunItems",
   description:
     "List dataset run items, each linking one dataset item to a trace or observation within a dataset run, by dataset ID and run ID.",
+  action: "datasets:read",
   baseSchema: GetDatasetRunItemsMcpInput,
   inputSchema: GetDatasetRunItemsMcpInput,
   handler: async (input, context) =>

@@ -1,5 +1,5 @@
-import { submitFeedback } from "@/src/features/feedback/server/FeedbackService";
-import { PostFeedbackBody } from "@/src/features/public-api/types/feedback";
+import { submitFeedback } from "@/src/features/feedback/server";
+import { PostFeedbackBody } from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
@@ -11,6 +11,7 @@ export const [submitFeedbackTool, handleSubmitFeedback] = defineTool({
     "If the user wants a reply, ask them to include their email address in the feedback text; only use an address they explicitly provide and show it in the exact payload preview.",
     "Do not include secrets, credentials, customer/project data, trace payloads, or unrelated context; the only contact detail to include is an explicitly provided reply email.",
   ].join("\n"),
+  action: "feedback:create",
   baseSchema: PostFeedbackBody,
   inputSchema: PostFeedbackBody,
   handler: async (input, context) =>

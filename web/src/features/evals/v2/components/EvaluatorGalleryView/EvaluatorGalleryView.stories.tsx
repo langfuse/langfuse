@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { User } from "lucide-react";
-import { expect, fn, userEvent } from "storybook/test";
+import { expect, fn, userEvent, waitFor } from "storybook/test";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 import preview from "../../../../../../.storybook/preview";
 import { EvaluatorGalleryView } from "./EvaluatorGalleryView";
@@ -56,7 +56,12 @@ const managedTemplate = {
   maintainer: "langfuse",
   evaluator: {
     type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
-    prompt: "Rate the relevance of {{generation}} to {{query}}.",
+    promptMessages: [
+      {
+        role: "user",
+        content: "Rate the relevance of {{generation}} to {{query}}.",
+      },
+    ],
     variables: [{ name: "query", defaultMapping: { field: "input" } }],
     outputDefinition: {
       dataType: "NUMERIC",
@@ -71,7 +76,6 @@ const customTemplate = {
   id: "evaluator-1",
   name: "Project exact match",
   type: EvalTemplateTypeEnum.CODE,
-  prompt: null,
   sourceCodeLanguage: "TYPESCRIPT",
   updatedAt: new Date("2026-07-01"),
   version: 2,
@@ -191,10 +195,67 @@ const defaultArgs = {
   onSelectTemplate: fn(),
   onCreateFromScratch: fn(),
   isLoading: false,
+  decisionModelBannerDismissed: true,
+  onDismissDecisionModelBanner: fn(),
 };
 
 export const Default = meta.story({
   args: defaultArgs,
+  render: StatefulEvaluatorGalleryView,
+});
+
+const topicDecisionModel = {
+  source: "managed",
+  key: "topic-decision-model",
+  name: "Assign Input Topic",
+  categories: ["classifier", "recommended"],
+  icon: "tags",
+  description:
+    "Assigns the input to one of your topics with a calibrated probability for each option, in one fast decision-model call.",
+  maintainer: "langfuse",
+  evaluator: {
+    type: EvalTemplateTypeEnum.DECISION_MODEL,
+    questions: [
+      {
+        id: "topic",
+        type: "choice",
+        scoreName: "topic",
+        instructions: "Which topic does `input` belong to?",
+        options: [
+          { value: "support", description: "Product help or troubleshooting." },
+          { value: "billing", description: "Invoices, pricing, payments." },
+          { value: "sales", description: "Purchase, trial, demo, enterprise." },
+          { value: "other", description: "None of the above." },
+        ],
+      },
+    ],
+    state: [{ key: "input", defaultMapping: { field: "input" } }],
+  },
+} satisfies GalleryTemplate;
+
+const sectionsWithDecisionModelCard = sections.map((section) =>
+  section.key === "recommended"
+    ? {
+        ...section,
+        templates: [topicDecisionModel, ...section.templates.slice(0, 2)],
+      }
+    : section,
+);
+
+export const DecisionModels = meta.story({
+  args: {
+    ...defaultArgs,
+    sections: sectionsWithDecisionModelCard,
+    decisionModelBannerDismissed: false,
+  },
+  render: StatefulEvaluatorGalleryView,
+});
+
+export const DecisionModelsBannerDismissed = meta.story({
+  args: {
+    ...defaultArgs,
+    sections: sectionsWithDecisionModelCard,
+  },
   render: StatefulEvaluatorGalleryView,
 });
 
@@ -204,6 +265,28 @@ export const YourTemplates = meta.story({
     activeSection: "custom",
   },
   render: StatefulEvaluatorGalleryView,
+});
+
+export const LoadsMoreYourTemplates = meta.story({
+  name: "(Test) Loads more Your templates",
+  args: {
+    ...defaultArgs,
+    activeSection: "custom",
+    navigationItems: defaultArgs.navigationItems.map((item) =>
+      item.key === "custom" ? { ...item, count: 51 } : item,
+    ),
+    sections: sections.map((section) =>
+      section.key === "custom" ? { ...section, totalCount: 51 } : section,
+    ),
+    hasMoreProjectTemplates: true,
+    onLoadMoreProjectTemplates: fn(),
+  },
+  render: StatefulEvaluatorGalleryView,
+  play: async ({ args }) => {
+    await waitFor(() =>
+      expect(args.onLoadMoreProjectTemplates).toHaveBeenCalledOnce(),
+    );
+  },
 });
 
 export const Loading = meta.story({
@@ -259,6 +342,15 @@ export const SelectsCategory = meta.story({
     ).not.toBeInTheDocument();
     await expect(
       canvas.queryByRole("heading", { name: "Your templates" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: /Quality evaluator 7/ }),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "Show all 7 templates" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "Show fewer" }),
     ).not.toBeInTheDocument();
   },
 });

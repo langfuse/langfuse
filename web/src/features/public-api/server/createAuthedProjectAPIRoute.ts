@@ -1,27 +1,28 @@
-import crypto from "node:crypto";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodType, type z } from "zod";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { prisma } from "@langfuse/shared/src/db";
 import {
-  redis,
+  type ApiAccessScopeWithOptionalApiKeyId,
   type AuthHeaderValidVerificationResult,
-  type ApiAccessLevel,
   traceException,
   logger,
   contextWithLangfuseProps,
 } from "@langfuse/shared/src/server";
 import {
+  BaseError,
+  ForbiddenError,
+  LangfuseNotFoundError,
   PayloadTooLargeError,
+  ServiceUnavailableError,
+  UnauthorizedError,
   type RateLimitResource,
   type ApiDeprecationInfo,
 } from "@langfuse/shared";
+import { verifyGatewayIngestionAuthorization } from "@/src/features/ai-gateway/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
 import { isZodError } from "@/src/features/public-api/server/withMiddlewares";
-import { isPrismaException } from "@/src/utils/exceptions";
 import {
   createStructuredPublicApiAuthError,
   createStructuredPublicApiRequestValidationError,
@@ -31,14 +32,42 @@ import {
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
-
-/** Access levels that can be accepted by project-scoped API routes. */
-type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
+import { applyLegacyApiOrganizationCutoff } from "@/src/features/public-api/server/legacyApiOrganizationCutoff";
+import { type RouteAccessLevel } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import {
+  type AuthorizationContext,
+  type ProjectAction,
+} from "@/src/features/auth/policy/types";
 
 // Next's res.json uses JSON.stringify; V8 throws this when the JSON string
 // exceeds the engine limit. Keep this check scoped to the response write.
 const isJsonStringTooLargeError = (error: unknown): error is RangeError =>
   error instanceof RangeError && error.message === "Invalid string length";
+
+/** toMiddlewareAuthError maps seam auth failures onto the BaseError classes whose `name` withMiddlewares already puts in `{ error }`. */
+function toMiddlewareAuthError(error: BaseError): BaseError {
+  switch (error.httpCode) {
+    case 401:
+      return error instanceof UnauthorizedError
+        ? error
+        : new UnauthorizedError(error.message);
+    case 403:
+      return error instanceof ForbiddenError
+        ? error
+        : new ForbiddenError(error.message);
+    case 404:
+      return error instanceof LangfuseNotFoundError
+        ? error
+        : new LangfuseNotFoundError(error.message);
+    case 503:
+      return error instanceof ServiceUnavailableError
+        ? error
+        : new ServiceUnavailableError(error.message);
+    default:
+      return error;
+  }
+}
 
 export type AuthedProjectAPIRouteConfig<
   TQuery extends ZodType<any>,
@@ -46,6 +75,11 @@ export type AuthedProjectAPIRouteConfig<
   TResponse extends ZodType<any>,
 > = {
   name: string;
+  /**
+   * The project action this route authorizes through the policy core. Required
+   * so a route cannot ship with no authorization.
+   */
+  action: ProjectAction;
   querySchema?: TQuery;
   bodySchema?: TBody;
   responseSchema: TResponse;
@@ -75,9 +109,13 @@ export type AuthedProjectAPIRouteConfig<
   allowedAccessLevels?: RouteAccessLevel[];
   /**
    * Whether in-app agent API keys can call this route without additional confirmation. Defaults to false.
-   * Only set this to true on non-mutating (GET) routes that should be callable by the in-app agent.
    */
   allowInAppAgentKey?: boolean;
+  /**
+   * Whether a signed AI-gateway ingestion token may authorize this route ahead
+   * of the API-key pipeline. Defaults to false.
+   */
+  allowGatewayIngestionToken?: boolean;
   /**
    * When true, this route returns 404 if LANGFUSE_MIGRATION_V4_WRITE_MODE is
    * "events_only". Set this on routes that read from the legacy traces,
@@ -96,213 +134,13 @@ export type AuthedProjectAPIRouteConfig<
     auth: AuthHeaderValidVerificationResult & {
       scope: { projectId: string; accessLevel: RouteAccessLevel };
     };
+    /**
+     * Policy context from the new auth pipeline. Present in shadow and
+     * enforce; absent in legacy and on gateway-token auth.
+     */
+    ctx?: AuthorizationContext;
   }) => Promise<z.infer<TResponse>>;
 };
-
-/**
- * Verifies API key authentication (Basic or Bearer) using ApiAuthService.
- *
- * Delegates to ApiAuthService.verifyAuthHeaderAndReturnScope which handles
- * both Basic auth (public + secret key) and Bearer auth (public key only).
- * The caller controls which access levels are accepted via allowedAccessLevels.
- *
- * @param authHeader - The Authorization header from the request
- * @param allowedAccessLevels - Access levels to accept (default: ["project"])
- * @returns An auth scope object with the verified access level
- * @throws Error with appropriate message if authentication fails
- */
-async function verifyApiKeyAuth(
-  authHeader: string | undefined,
-  allowedAccessLevels: RouteAccessLevel[] = ["project"],
-  allowInAppAgentKey = false,
-): Promise<
-  AuthHeaderValidVerificationResult & {
-    scope: { projectId: string; accessLevel: RouteAccessLevel };
-  }
-> {
-  const regularAuth = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(authHeader, { allowInAppAgentKey });
-
-  if (!regularAuth.validKey) {
-    throw { status: 401, message: regularAuth.error };
-  }
-
-  if (
-    !(allowedAccessLevels as ApiAccessLevel[]).includes(
-      regularAuth.scope.accessLevel,
-    )
-  ) {
-    throw {
-      status: 403,
-      message: "Access denied - insufficient permissions for this endpoint",
-    };
-  }
-
-  if (!regularAuth.scope.projectId) {
-    throw {
-      status: 403,
-      message:
-        "Project ID not found for API token. Are you using an organization key?",
-    };
-  }
-
-  return regularAuth as AuthHeaderValidVerificationResult & {
-    scope: { projectId: string; accessLevel: RouteAccessLevel };
-  };
-}
-
-/**
- * Verifies admin API key authentication for self-hosted instances.
- *
- * This function checks if the request contains valid admin API key credentials:
- * 1. Authorization header must be Bearer token format with ADMIN_API_KEY value
- * 2. x-langfuse-admin-api-key header must match ADMIN_API_KEY env var exactly (for redundancy)
- * 3. x-langfuse-project-id header must be present and specify a valid project ID
- * 4. NEXT_PUBLIC_LANGFUSE_CLOUD_REGION must NOT be set (self-hosted instances only)
- *
- * The ADMIN_API_KEY must be set as an environment variable on the server.
- * This authentication method is intended for administrative operations on self-hosted instances.
- *
- * @param req - The Next.js API request
- * @returns An auth scope object if successful, null if admin auth is not being attempted
- * @throws Error with appropriate status code if admin auth fails
- */
-async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
-  | (AuthHeaderValidVerificationResult & {
-      scope: { projectId: string; accessLevel: "project" };
-    })
-  | null
-> {
-  const authHeader = req.headers.authorization;
-  const adminApiKeyHeader = req.headers["x-langfuse-admin-api-key"];
-  const projectIdHeader = req.headers["x-langfuse-project-id"];
-
-  // If not attempting admin auth, return null to proceed with regular auth
-  if (!authHeader?.startsWith("Bearer ") || !adminApiKeyHeader) return null;
-
-  // Verify this is a self-hosted instance (not Langfuse Cloud)
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-    throw {
-      status: 403,
-      message: "Admin API key auth is not available on Langfuse Cloud",
-    };
-  }
-
-  // Verify ADMIN_API_KEY is configured
-  const adminApiKey = env.ADMIN_API_KEY;
-  if (!adminApiKey) {
-    throw {
-      status: 500,
-      message: "Admin API key is not configured on this instance",
-    };
-  }
-
-  // Extract Bearer token
-  const bearerToken = authHeader.replace("Bearer ", "");
-
-  // Verify both the Bearer token and header match the ADMIN_API_KEY.
-  // Keep this comparison in sync with the admin-key check in
-  // web/src/ee/features/admin-api/server/adminApiAuth.ts.
-  try {
-    // timingSafeEqual throws on different input lengths, handle accordingly
-    const bearerTokenEqual = crypto.timingSafeEqual(
-      Buffer.from(bearerToken),
-      Buffer.from(adminApiKey),
-    );
-    const headerEqual = crypto.timingSafeEqual(
-      Buffer.from(String(adminApiKeyHeader)),
-      Buffer.from(adminApiKey),
-    );
-    const isEqual = bearerTokenEqual && headerEqual;
-
-    if (!isEqual) throw Error();
-  } catch {
-    throw { status: 401, message: "Invalid admin API key" };
-  }
-
-  // Verify project ID header is present
-  if (!projectIdHeader || typeof projectIdHeader !== "string") {
-    throw {
-      status: 400,
-      message:
-        "x-langfuse-project-id header is required for admin API key authentication",
-    };
-  }
-
-  // Verify project exists
-  const project = await prisma.project.findUnique({
-    where: { id: projectIdHeader, deletedAt: null },
-    select: { id: true, orgId: true },
-  });
-
-  if (!project) {
-    throw { status: 404, message: "Project not found" };
-  }
-
-  // Return auth scope matching the regular auth structure
-  return {
-    validKey: true,
-    scope: {
-      projectId: project.id,
-      accessLevel: "project" as const,
-      orgId: project.orgId,
-      plan: "oss",
-      rateLimitOverrides: [],
-      apiKeyId: "ADMIN_API_KEY", // Special identifier for audit logging
-      publicKey: "ADMIN_API_KEY",
-      isIngestionSuspended: false,
-      isInAppAgentKey: false,
-    },
-  };
-}
-
-/**
- * Verifies authentication for API routes with support for both regular API key
- * auth (Basic or Bearer) and admin API key auth.
- *
- * This is the main authentication entry point that delegates to either admin
- * or regular API key auth based on the configuration and request headers.
- *
- * @param req - The Next.js API request
- * @param isAdminApiKeyAuthAllowed - Whether to allow admin API key authentication
- * @param allowedAccessLevels - Access levels to accept for regular API key auth
- * @returns An auth scope object with the verified access level
- * @throws Error with appropriate status code if authentication fails
- */
-export async function verifyAuth(
-  req: NextApiRequest,
-  isAdminApiKeyAuthAllowed: boolean,
-  allowedAccessLevels: RouteAccessLevel[] = ["project"],
-  allowInAppAgentKey = false,
-): Promise<
-  AuthHeaderValidVerificationResult & {
-    scope: { projectId: string; accessLevel: RouteAccessLevel };
-  }
-> {
-  if (isAdminApiKeyAuthAllowed) {
-    // Try admin API key authentication first
-    const adminAuth = await verifyAdminApiKeyAuth(req);
-    if (adminAuth) {
-      // Admin auth succeeded
-      return adminAuth;
-    }
-    // Admin auth not attempted, fall back to regular API key auth
-    return await verifyApiKeyAuth(
-      req.headers.authorization,
-      allowedAccessLevels,
-      allowInAppAgentKey,
-    );
-  }
-
-  // Only regular API key auth is allowed
-  return await verifyApiKeyAuth(
-    req.headers.authorization,
-    allowedAccessLevels,
-    allowInAppAgentKey,
-  );
-}
 
 export const createAuthedProjectAPIRoute = <
   TQuery extends ZodType<any>,
@@ -337,49 +175,82 @@ export const createAuthedProjectAPIRoute = <
       return;
     }
 
-    let auth: AuthHeaderValidVerificationResult & {
-      scope: { projectId: string; accessLevel: RouteAccessLevel };
-    };
-
-    // Verify authentication (API key or admin API key)
-    try {
-      auth = await verifyAuth(
-        req,
-        routeConfig.isAdminApiKeyAuthAllowed || false,
-        routeConfig.allowedAccessLevels || ["project"],
-        routeConfig.allowInAppAgentKey === true,
-      );
-    } catch (error: any) {
-      if (isPrismaException(error)) {
-        traceException(error);
-
-        if (routeConfig.errorContract === structuredPublicApiErrorContract) {
-          return sendStructuredPublicApiErrorResponse(
-            res,
-            createStructuredPublicApiAuthError({
-              statusCode: 503,
-              message: "Service Unavailable",
-            }),
-          );
-        }
-
-        res.status(503).json({ message: "Service Unavailable" });
-        return;
-      }
-
-      const statusCode = error.status ?? 401;
-      const message = error.message ?? "Authentication failed";
-
+    const renderAuthError = (error: BaseError) => {
+      const publicError = toMiddlewareAuthError(error);
       if (routeConfig.errorContract === structuredPublicApiErrorContract) {
         return sendStructuredPublicApiErrorResponse(
           res,
-          createStructuredPublicApiAuthError({ statusCode, message }),
+          createStructuredPublicApiAuthError({
+            statusCode: publicError.httpCode,
+            message: publicError.message,
+          }),
         );
       }
+      res.status(publicError.httpCode).json({
+        message: publicError.message,
+        error: publicError.name,
+      });
+    };
 
-      res.status(statusCode).json({ message });
+    // A signed AI-gateway ingestion token authorizes the project directly,
+    // ahead of the API-key pipeline; an invalid one is a 401.
+    let gatewayAuth: Awaited<
+      ReturnType<typeof verifyGatewayIngestionAuthorization>
+    > = null;
+    if (routeConfig.allowGatewayIngestionToken) {
+      try {
+        gatewayAuth = await verifyGatewayIngestionAuthorization(
+          req.headers.authorization,
+          req.headers["langfuse-gateway-authorization"],
+        );
+      } catch (error) {
+        renderAuthError(
+          error instanceof BaseError
+            ? error
+            : new UnauthorizedError(
+                error instanceof Error
+                  ? error.message
+                  : "Authentication failed",
+              ),
+        );
+        return;
+      }
+    }
 
-      return;
+    // The route's action guarantees a project scope; narrow off the phantom org level.
+    let auth: {
+      validKey: true;
+      scope: ApiAccessScopeWithOptionalApiKeyId & {
+        projectId: string;
+        accessLevel: RouteAccessLevel;
+      };
+    };
+    let authzCtx: AuthorizationContext | undefined;
+
+    if (gatewayAuth) {
+      auth = gatewayAuth;
+    } else {
+      const result = await shadowAuth({
+        req,
+        action: routeConfig.action,
+        isAdminApiKeyAuthAllowed: routeConfig.isAdminApiKeyAuthAllowed || false,
+        allowedAccessLevels: routeConfig.allowedAccessLevels ?? ["project"],
+        allowInAppAgentKey: routeConfig.allowInAppAgentKey === true,
+      });
+
+      if (!result.success) {
+        renderAuthError(result.error);
+        return;
+      }
+
+      auth = {
+        validKey: true,
+        scope: result.scope as ApiAccessScopeWithOptionalApiKeyId & {
+          projectId: string;
+          accessLevel: RouteAccessLevel;
+        },
+      };
+      authzCtx = result.ctx;
     }
 
     const rateLimitResponse =
@@ -393,6 +264,17 @@ export const createAuthedProjectAPIRoute = <
         errorContract: routeConfig.errorContract,
         upgradePath: routeConfig.rateLimitUpgradePath,
       });
+    }
+
+    const cutoffRejection = applyLegacyApiOrganizationCutoff({
+      req,
+      deprecation,
+      scope: auth.scope,
+      routeName: routeConfig.name,
+    });
+    if (cutoffRejection) {
+      res.status(410).json(cutoffRejection.body);
+      return;
     }
 
     logger.debug(
@@ -443,7 +325,7 @@ export const createAuthedProjectAPIRoute = <
       throw error;
     }
 
-    const ctx = contextWithLangfuseProps({
+    const otelCtx = contextWithLangfuseProps({
       headers: req.headers,
       projectId: auth.scope.projectId,
       apiKeyId: auth.scope.apiKeyId,
@@ -452,15 +334,18 @@ export const createAuthedProjectAPIRoute = <
         route: clickHouseRouteForRequest(req),
       },
     });
-    return opentelemetry.context.with(ctx, async () => {
+    return opentelemetry.context.with(otelCtx, async () => {
       const response = await routeConfig.fn({
         query,
         body,
         req,
         res,
+        // A gateway-token scope carries no apiKeyId; route handlers that need
+        // one gate on the api-key path, so narrow to the required shape here.
         auth: auth as AuthHeaderValidVerificationResult & {
           scope: { projectId: string; accessLevel: RouteAccessLevel };
         },
+        ctx: authzCtx,
       });
 
       if (env.NODE_ENV === "development" && routeConfig.responseSchema) {
@@ -471,12 +356,18 @@ export const createAuthedProjectAPIRoute = <
         }
       }
 
-      res.status(
+      const statusCode =
         // Check whether status code was already set inside handler to non default value
         res.statusCode !== 200
           ? res.statusCode
-          : routeConfig.successStatusCode || 200,
-      );
+          : routeConfig.successStatusCode || 200;
+
+      if (statusCode === 204) {
+        res.status(204).end();
+        return;
+      }
+
+      res.status(statusCode);
 
       try {
         res.json(attachDeprecation(response || { message: "OK" }, deprecation));

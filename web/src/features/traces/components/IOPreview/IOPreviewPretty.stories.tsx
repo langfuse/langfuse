@@ -24,6 +24,15 @@ export const Default = meta.story({
   },
 });
 
+export const OversizedSibling = meta.story({
+  args: {
+    input: {
+      attachment: JSON.stringify({ text: "x".repeat(523_000) }),
+      details: JSON.stringify({ status: "ready", count: 2 }),
+    },
+  },
+});
+
 export const LongSystemPrompt = meta.story({
   args: {
     input: {
@@ -81,6 +90,32 @@ const generation = trace.generation({
 
 generation.end({ output: "Your response" });
 \`\`\``,
+    },
+  },
+});
+
+export const NestedMarkdownLists = meta.story({
+  args: {
+    input: {
+      messages: [
+        {
+          role: "user",
+          content: "What is Langfuse useful for?",
+        },
+      ],
+    },
+    output: {
+      role: "assistant",
+      content: `Langfuse is an open-source observability and analytics tool for LLM applications.
+
+In practical terms, it helps you:
+
+- **Track and debug LLM calls**
+  - Log prompts, model responses, latency, errors, and metadata
+- **Evaluate quality**
+  - Run evaluations on outputs (automatic metrics or human feedback)
+- **Monitor in production**
+  - Dashboards for usage, cost, latency, and failure rates`,
     },
   },
 });

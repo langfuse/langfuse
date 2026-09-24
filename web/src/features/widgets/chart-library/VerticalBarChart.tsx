@@ -1,82 +1,58 @@
-import React from "react";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/src/components/ui/chart";
-import { Bar, BarChart, XAxis, YAxis } from "recharts";
+import { useMemo } from "react";
+
+import { BarChart as DesignSystemBarChart } from "@/src/components/design-system/charts/BarChart/BarChart";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { prepareCategoryBars } from "@/src/features/widgets/chart-library/prepareCategoryBars";
 import {
   formatMetric,
   toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
 
-/**
- * VerticalBarChart component
- * @param data - Data to be displayed. Expects an array of objects with dimension and metric properties.
- * @param config - Configuration object for the chart. Can include theme settings for light and dark modes.
- * @param accessibilityLayer - Boolean to enable or disable the accessibility layer. Default is true.
- */
-export const VerticalBarChart: React.FC<ChartProps> = ({
+export function VerticalBarChart({
   data,
-  config = {
-    metric: {
-      theme: {
-        light: "hsl(var(--chart-1))",
-        dark: "hsl(var(--chart-1))",
-      },
-    },
-  },
-  accessibilityLayer = true,
-  metricFormatter = (value, options) => formatMetric(value, options),
+  config,
+  metricFormatter = formatMetric,
   subtleFill = false,
-}) => {
+  hideXAxisLabels = false,
+  colorBarsByCategory = false,
+  legendPosition,
+  zeroBaseline = false,
+}: ChartProps) {
+  const categoryBars = useMemo(
+    () => (colorBarsByCategory ? prepareCategoryBars(data) : null),
+    [colorBarsByCategory, data],
+  );
+  const chartData = useMemo(
+    () =>
+      (categoryBars?.rows ?? data).map((row, index) => ({
+        label: row.dimension ?? "Unknown",
+        value: typeof row.metric === "number" ? row.metric : null,
+        color: categoryBars?.rows[index]?.fill,
+      })),
+    [categoryBars, data],
+  );
   const formatValue = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
 
   return (
-    <ChartContainer
-      config={config}
-      className="[&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
-    >
-      <BarChart accessibilityLayer={accessibilityLayer} data={data}>
-        <XAxis
-          type="category"
-          dataKey="dimension"
-          stroke="hsl(var(--chart-grid))"
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-          niceTicks="auto"
-        />
-        <YAxis
-          type="number"
-          stroke="hsl(var(--chart-grid))"
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-          tickFormatter={(value) => formatValue(Number(value))}
-        />
-        <Bar
-          dataKey="metric"
-          radius={[4, 4, 0, 0]}
-          className="fill-(--color-metric)"
-          fillOpacity={subtleFill ? 0.3 : 1}
-          isAnimationActive={false}
-        />
-        <ChartTooltip
-          cursor={false}
-          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-          content={({ active, payload, label }) => (
-            <ChartTooltipContent
-              active={active}
-              payload={payload}
-              label={label}
-              valueFormatter={(v) => formatValue(Number(v))}
-            />
-          )}
-        />
-      </BarChart>
-    </ChartContainer>
+    <DesignSystemBarChart
+      data={chartData}
+      color={config?.metric?.color ?? "hsl(var(--chart-1))"}
+      valueFormatter={formatValue}
+      variant={subtleFill ? "subtle" : "default"}
+      hideXAxisLabels={hideXAxisLabels}
+      zeroBaseline={zeroBaseline}
+      legend={
+        colorBarsByCategory && legendPosition !== "none"
+          ? {
+              items: (categoryBars?.legend ?? []).map((item) => ({
+                id: item.category,
+                label: item.category,
+                color: item.color,
+              })),
+            }
+          : undefined
+      }
+    />
   );
-};
+}

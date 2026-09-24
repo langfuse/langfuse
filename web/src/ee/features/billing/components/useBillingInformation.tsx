@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { useQueryOrganization } from "@/src/features/organizations/hooks";
+import { useQueryOrganization } from "@/src/features/organizations";
 import { formatLocalIsoDate } from "@/src/utils/dates";
 import { type BillingProvider, type Plan, planLabels } from "@langfuse/shared";
 import { stripeProducts } from "@/src/ee/features/billing/utils/stripeCatalogue";
@@ -126,7 +126,7 @@ export const useBillingInformation = (): UseBillingInformationResult => {
     ),
     hasActiveSubscription: Boolean(
       organization?.cloudConfig?.stripe?.activeSubscriptionId ??
-      organization?.cloudConfig?.clickhouse?.bundleId,
+      organization?.cloudConfig?.clickhouse?.attachedPlanId,
     ),
     hasValidPaymentMethod: subscriptionInfo?.hasValidPaymentMethod ?? false,
     billingProvider,

@@ -1,4 +1,4 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { generateBatchActionId } from "@/src/features/table/server/helpers";
 import {
   ActionId,
@@ -15,7 +15,7 @@ import {
   QueueJobs,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server/legacyIoSearch";
+import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server";
 import { prisma } from "@langfuse/shared/src/db";
 
 type CreateBatchActionJob = {

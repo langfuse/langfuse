@@ -1,6 +1,6 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -43,6 +43,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
               id: true,
               name: true,
               email: true,
+              image: true,
             },
           },
           createdByApiKey: {

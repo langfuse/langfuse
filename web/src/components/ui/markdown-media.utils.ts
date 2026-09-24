@@ -3,11 +3,12 @@ import {
   MediaReferenceStringSchema,
   isOpenAIImageContentPart,
   isMediaReferencePart,
+  isAiSdkFileContentPart,
   type OpenAIContentSchema,
   type OpenAIOutputAudioType,
   type ParsedMediaReferenceType,
 } from "@langfuse/shared";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { type z } from "zod";
 
 const getMediaReferenceId = (
@@ -57,6 +58,11 @@ export const getRenderedInlineMediaIds = ({
     (markdown ?? []).forEach((content) => {
       if (isMediaReferencePart(content)) {
         const mediaId = getMediaReferenceId(content);
+        if (mediaId) {
+          mediaIds.add(mediaId);
+        }
+      } else if (isAiSdkFileContentPart(content)) {
+        const mediaId = getMediaReferenceId(content.data);
         if (mediaId) {
           mediaIds.add(mediaId);
         }

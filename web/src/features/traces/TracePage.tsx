@@ -1,13 +1,13 @@
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+/* eslint-disable no-nested-ternary */
+import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { useRouter } from "next/router";
 import { ErrorPage } from "@/src/components/error-page";
 import { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
 import { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 import Page from "@/src/components/layouts/page";
 import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
-import { traceDetailTitle } from "@/src/features/traces/fns/traceDetailTitle";
 import { useSession } from "next-auth/react";
-import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
@@ -15,6 +15,7 @@ import { Badge } from "@/src/components/ui/badge";
 import {
   RelatedTracesButton,
   RelatedTracesPopoverController,
+  useRelatedTracesEnabled,
 } from "@/src/features/trace-correlation/components/RelatedTracesButton";
 
 export function TracePage({
@@ -38,6 +39,10 @@ export function TracePage({
   const projectIdForAccessCheck = trace.data?.projectId ?? routeProjectId;
   const hasProjectAccess = useIsAuthenticatedAndProjectMember(
     projectIdForAccessCheck,
+  );
+  const showRelatedTraces = useRelatedTracesEnabled(
+    projectIdForAccessCheck,
+    hasProjectAccess,
   );
 
   if (trace.isUnauthorized)
@@ -96,7 +101,7 @@ export function TracePage({
   return (
     <Page
       headerProps={{
-        title: traceDetailTitle(trace.data) ?? trace.data.id,
+        title: trace.data.id,
         itemType: "TRACE",
         breadcrumb: [
           {
@@ -109,19 +114,20 @@ export function TracePage({
         breadcrumbBadges: sharedBadge,
         actionButtonsRight: (
           <>
-            <RelatedTracesPopoverController
-              projectId={trace.data.projectId}
-              traceId={trace.data.id}
-              timestamp={trace.data.timestamp}
-              observations={trace.data.observations}
-              enabled={hasProjectAccess && !showPublicIndicators}
-            >
-              {({ relatedCount, Trigger }) => (
-                <Trigger asChild>
-                  <RelatedTracesButton relatedCount={relatedCount} />
-                </Trigger>
-              )}
-            </RelatedTracesPopoverController>
+            {showRelatedTraces && (
+              <RelatedTracesPopoverController
+                projectId={trace.data.projectId}
+                traceId={trace.data.id}
+                timestamp={trace.data.timestamp}
+                observations={trace.data.observations}
+              >
+                {({ relatedCount, Trigger }) => (
+                  <Trigger asChild>
+                    <RelatedTracesButton relatedCount={relatedCount} />
+                  </Trigger>
+                )}
+              </RelatedTracesPopoverController>
+            )}
             <DetailPageNav
               currentId={traceId}
               path={(entry) => {

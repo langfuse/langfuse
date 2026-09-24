@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React from "react";
 import { FormItem, FormLabel, FormMessage } from "@/src/components/ui/form";
 import {
@@ -7,7 +8,10 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { TemplateSelector } from "@/src/features/evals/components/template-selector";
-import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
+import {
+  EvaluatorForm,
+  useEvaluatorFormTemplate,
+} from "@/src/features/evals/components/evaluator-form";
 import { type EvaluatorsStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
 import { ExperimentEvaluatorAssignments } from "@/src/features/experiments/components/ExperimentEvaluatorAssignments/ExperimentEvaluatorAssignments";
@@ -22,6 +26,14 @@ export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
   permissions,
 }) => {
   const { hasEvalReadAccess, hasEvalWriteAccess } = permissions;
+  const legacyEvaluatorState =
+    evaluatorState.version === "legacy" ? evaluatorState : undefined;
+  const evalTemplate = useEvaluatorFormTemplate({
+    evalTemplates: legacyEvaluatorState?.evalTemplates ?? [],
+    evalTemplate:
+      legacyEvaluatorState?.selectedEvaluatorData?.evaluator.evalTemplate,
+    templateId: legacyEvaluatorState?.selectedEvaluatorData?.templateId,
+  });
   return (
     <div className="space-y-6">
       <StepHeader
@@ -78,7 +90,8 @@ export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
 
       {/* Dialog for configuring evaluators */}
       {evaluatorState.version === "legacy" &&
-        evaluatorState.selectedEvaluatorData && (
+        evaluatorState.selectedEvaluatorData &&
+        evalTemplate && (
           <Dialog
             open={evaluatorState.showEvaluatorForm}
             onOpenChange={(open) => {
@@ -99,8 +112,7 @@ export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
               <EvaluatorForm
                 useDialog={true}
                 projectId={projectId}
-                evalTemplates={evaluatorState.evalTemplates}
-                templateId={evaluatorState.selectedEvaluatorData.templateId}
+                evalTemplate={evalTemplate}
                 existingEvaluator={
                   evaluatorState.selectedEvaluatorData.evaluator
                 }

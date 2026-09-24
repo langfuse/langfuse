@@ -6,7 +6,7 @@
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { ExternalLinkIcon, PlusCircle } from "lucide-react";
 import Link from "next/link";
-import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";
+import { UpsertModelFormDialog } from "@/src/features/models";
 
 export function ModelBadge({
   model,
@@ -14,13 +14,11 @@ export function ModelBadge({
   projectId,
   usageDetails,
 }: {
-  model: string | null;
+  model: string;
   internalModelId: string | null;
   projectId: string;
   usageDetails: Record<string, number> | undefined;
 }) {
-  if (!model) return null;
-
   // Linked model - show link to model settings
   if (internalModelId) {
     return (

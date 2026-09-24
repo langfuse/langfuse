@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-exotic-operators */
 import { isMediaContentType, type MediaContentType } from "../../domain/media";
 
 const MAX_RECURSION_DEPTH = 10;

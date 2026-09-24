@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 /**
  * Full-text search input for the mobile Filters sheet, used when the grammar

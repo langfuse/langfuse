@@ -1,6 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "noUpdateNotifier": true,
+  "cacheMaxSize": "7.5GB",
   "globalDependencies": [".env"],
   "globalEnv": [
     "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF",
@@ -22,7 +23,7 @@
     },
     "build:test": {
       "dependsOn": ["db:generate", "^build"],
-      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
+      "env": ["NEXT_IGNORE_BUILD_ERRORS", "NEXT_DISABLE_BUILD_CACHE"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
       "cache": true,
       "outputLogs": "errors-only"
@@ -128,9 +129,33 @@
       "dependsOn": ["build"],
       "cache": false
     },
+    // Worker tests load the compiled addon, which no install step produces.
+    "worker#test": {
+      "dependsOn": ["^test", "db:generate", "@langfuse/native#build"]
+    },
+    // ESLint does not load the native addon, so avoid compiling it during lint.
+    "worker#lint": {
+      "dependsOn": [
+        "@langfuse/shared#build",
+        "@repo/eslint-config#build",
+        "@repo/eslint-plugin#build",
+        "@repo/langfuse-skills#build",
+        "@repo/typescript-config#build"
+      ]
+    },
     "worker#dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      // The worker loads the Rust addon at startup, so it must be compiled
+      // before tsx starts the process.
+      "dependsOn": ["db:generate", "@langfuse/native#build"]
+    },
+    // `napi build` compiles a host-specific binary and Cargo already caches
+    // incrementally in target/, so never replay this task from the turbo cache.
+    "@langfuse/native#build": {
+      "dependsOn": [],
+      "cache": false,
+      "outputs": []
     }
   }
 }

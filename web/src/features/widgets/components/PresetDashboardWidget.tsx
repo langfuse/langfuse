@@ -1,4 +1,6 @@
-import { useMemo } from "react";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { useEffect, useMemo, useRef } from "react";
 import {
   CopyIcon,
   CopyPlusIcon,
@@ -8,8 +10,7 @@ import {
 } from "lucide-react";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import type { ResolvedReadPath } from "@/src/features/events";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import {
   getHomePreset,
@@ -17,16 +18,8 @@ import {
 } from "@/src/features/dashboard/components/home-preset-registry";
 import { buildPresetExport } from "@/src/features/dashboard/utils/dashboard-import-export";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 
 /**
  * A "preset" dashboard placement: renders a registered curated component by
@@ -46,6 +39,8 @@ export interface PresetPlacement {
 export function PresetDashboardWidget({
   projectId,
   dashboardId,
+  chartSync,
+  readPath,
   placement,
   dateRange,
   filterState,
@@ -55,9 +50,16 @@ export function PresetDashboardWidget({
   onLockedEditAttempt,
   readOnly,
   onDuplicatePreset,
+  heightBehavior,
 }: {
   projectId: string;
   dashboardId: string;
+  chartSync: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
+  /** Resolved by the page controller — the card must not guess the version. */
+  readPath: ResolvedReadPath;
   placement: PresetPlacement;
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
@@ -77,9 +79,14 @@ export function PresetDashboardWidget({
    * Passed only on editable (non-locked) dashboards.
    */
   onDuplicatePreset?: (anchor: PresetPlacement) => void;
+  heightBehavior:
+    | { mode: "fixed" }
+    | {
+        mode: "content";
+        onHeightChange: (placementId: string, height: number) => void;
+      };
 }) {
-  const { isBetaEnabled } = useV4Beta();
-  const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
+  const metricsVersion: ViewVersion = readPath === "v4" ? "v2" : "v1";
 
   // Presets on project-owned dashboards (e.g. a clone of the curated Home)
   // can be moved/removed, but their content stays fixed until extended into a
@@ -96,6 +103,35 @@ export function PresetDashboardWidget({
     Boolean(onLockedEditAttempt);
 
   const renderPreset = getHomePreset(placement.presetId);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const onHeightChange =
+    heightBehavior.mode === "content"
+      ? heightBehavior.onHeightChange
+      : undefined;
+
+  useEffect(() => {
+    if (!onHeightChange) return;
+
+    const element = contentRef.current;
+    if (!element) return;
+
+    const reportHeight = () => {
+      onHeightChange(
+        placement.id,
+        Math.max(element.getBoundingClientRect().height, element.scrollHeight),
+      );
+    };
+    const resizeObserver = new ResizeObserver(reportHeight);
+    const mutationObserver = new MutationObserver(reportHeight);
+    resizeObserver.observe(element);
+    mutationObserver.observe(element, { childList: true, subtree: true });
+    reportHeight();
+
+    return () => {
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+    };
+  }, [onHeightChange, placement.id]);
 
   const ctx: PresetWidgetContext = useMemo(() => {
     const fromTimestamp = dateRange
@@ -132,15 +168,17 @@ export function PresetDashboardWidget({
       metricsVersion,
       schedulerId,
       syncId: dashboardId,
-      // Stretch to the tile; when the card's intrinsic content is taller
-      // (fixed chart min-heights, expanded tables) the wrapper scrolls
-      // instead of clipping.
-      className: "min-h-full",
+      sync: chartSync,
+      // Fixed presets need a definite height so their flex children can grow.
+      // Score Analytics is measured because each selected score adds a row.
+      className: heightBehavior.mode === "content" ? "min-h-full" : "h-full",
     };
   }, [
     dashboardId,
+    chartSync,
     dateRange,
     filterState,
+    heightBehavior.mode,
     metricsVersion,
     projectId,
     schedulerId,
@@ -189,50 +227,73 @@ export function PresetDashboardWidget({
   }
 
   return (
-    <div className="group relative h-full w-full">
-      <div className="h-full w-full overflow-y-auto">{renderPreset(ctx)}</div>
+    <div
+      className={`group relative w-full ${heightBehavior.mode === "content" ? "" : "h-full"}`}
+    >
+      <div
+        ref={contentRef}
+        className={
+          heightBehavior.mode === "content"
+            ? "w-full"
+            : "h-full w-full overflow-y-auto"
+        }
+      >
+        {renderPreset(ctx)}
+      </div>
       {/* The menu (copy) stays available on read-only surfaces like Home —
           only the edit affordances (drag, delete) are gated. */}
-      <div className="bg-background/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex has-data-[state=open]:flex">
+      <div className="bg-background/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex has-aria-expanded:flex">
         {!readOnly && (hasCUDAccess || isLockedEditable) && (
           <GripVerticalIcon
             size={16}
             className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:block"
           />
         )}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        <DropdownMenu
+          placement="bottom-end"
+          items={[
+            {
+              type: "item",
+              id: "copy",
+              title: "Copy card",
+              icon: CopyIcon,
+              onClick: handleCopyToClipboard,
+            },
+            ...(onDuplicatePreset
+              ? [
+                  {
+                    type: "item" as const,
+                    id: "clone",
+                    title: "Clone",
+                    icon: CopyPlusIcon,
+                    onClick: () => onDuplicatePreset(placement),
+                  },
+                ]
+              : []),
+            ...(!readOnly && (hasCUDAccess || isLockedEditable)
+              ? [
+                  { id: "delete-separator", type: "separator" as const },
+                  {
+                    type: "item" as const,
+                    id: "delete",
+                    title: "Delete",
+                    icon: TrashIcon,
+                    variant: "destructive" as const,
+                    onClick: handleDelete,
+                  },
+                ]
+              : []),
+          ]}
+        >
+          {({ getTriggerProps }) => (
             <button
               className="text-muted-foreground hover:text-foreground"
               aria-label="Widget actions"
+              {...getTriggerProps()}
             >
               <MoreVerticalIcon size={16} />
             </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={handleCopyToClipboard}>
-              <CopyIcon className="mr-2 h-4 w-4" />
-              Copy card
-            </DropdownMenuItem>
-            {onDuplicatePreset && (
-              <DropdownMenuItem onClick={() => onDuplicatePreset(placement)}>
-                <CopyPlusIcon className="mr-2 h-4 w-4" />
-                Clone
-              </DropdownMenuItem>
-            )}
-            {!readOnly && (hasCUDAccess || isLockedEditable) && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={handleDelete}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <TrashIcon className="mr-2 h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
+          )}
         </DropdownMenu>
       </div>
     </div>

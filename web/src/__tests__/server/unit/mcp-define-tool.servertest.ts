@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+
+import { __dangerouslySkipAuthz } from "@/src/features/public-api/server";
 import { defineTool } from "../../../features/mcp/core/define-tool";
 
 describe("defineTool", () => {
@@ -15,6 +17,7 @@ describe("defineTool", () => {
       defineTool({
         name: "createScore",
         description: "Create a score",
+        action: __dangerouslySkipAuthz,
         baseSchema: schema,
         inputSchema: schema,
         handler: async (input) => input,
@@ -28,6 +31,7 @@ describe("defineTool", () => {
     const [tool] = defineTool({
       name: "plainTool",
       description: "",
+      action: __dangerouslySkipAuthz,
       baseSchema: schema,
       inputSchema: schema,
       handler: async (input) => input,
@@ -46,6 +50,7 @@ describe("defineTool", () => {
     const [tool] = defineTool({
       name: "combinatorNamedFieldsTool",
       description: "",
+      action: __dangerouslySkipAuthz,
       baseSchema: schema,
       inputSchema: schema,
       handler: async (input) => input,
@@ -67,6 +72,7 @@ describe("defineTool", () => {
       defineTool({
         name: "mixedUnionTool",
         description: "",
+        action: __dangerouslySkipAuthz,
         baseSchema: schema,
         inputSchema: schema,
         handler: async (input) => input,
@@ -83,6 +89,7 @@ describe("defineTool", () => {
       defineTool({
         name: "nestedUnionTool",
         description: "",
+        action: __dangerouslySkipAuthz,
         baseSchema: schema,
         inputSchema: schema,
         handler: async (input) => input,
@@ -99,6 +106,7 @@ describe("defineTool", () => {
       defineTool({
         name: "nestedIntersectionTool",
         description: "",
+        action: __dangerouslySkipAuthz,
         baseSchema: schema,
         inputSchema: schema,
         handler: async (input) => input,
@@ -114,6 +122,7 @@ describe("defineTool", () => {
     const [tool] = defineTool({
       name: "asciiPatternTool",
       description: "",
+      action: __dangerouslySkipAuthz,
       baseSchema: schema,
       inputSchema: schema,
       handler: async (input) => input,

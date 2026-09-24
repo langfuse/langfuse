@@ -99,6 +99,9 @@ const mockEvalExecutionResult = {
   ],
   executionTraceId: "trace-123",
   metadata: {},
+  evaluationContext: {
+    evaluatorExecutionIsTest: false,
+  },
 };
 
 describe("processObservationEval", () => {
@@ -309,7 +312,10 @@ describe("processObservationEval", () => {
             projectId,
             evaluationRuleId: rule.id,
             evaluatorId: evaluator.id,
-            evaluator: { projectId, type: "LLM_AS_JUDGE" },
+            evaluator: {
+              projectId,
+              type: { in: ["LLM_AS_JUDGE", "DECISION_MODEL"] },
+            },
           },
         }),
       );
@@ -323,12 +329,14 @@ describe("processObservationEval", () => {
           }),
           template: expect.objectContaining({ id: version.id }),
           executionMetadata: expect.objectContaining({
-            evaluation_rule_id: rule.id,
-            job_configuration_id: rule.id,
             evaluation_rule_assignment_id: assignment.id,
-            evaluator_id: evaluator.id,
             evaluator_version_id: version.id,
           }),
+          evaluationContext: {
+            evaluatorId: evaluator.id,
+            evaluationRuleId: rule.id,
+            evaluatorExecutionIsTest: false,
+          },
           // Pausing targets the evaluator, not the rule it ran for.
           evaluatorId: evaluator.id,
         }),
@@ -492,8 +500,50 @@ describe("processObservationEval", () => {
         expect.objectContaining({
           config: expect.objectContaining({ id: evaluator.id }),
           executionMetadata: expect.objectContaining({
-            evaluator_id: evaluator.id,
             evaluator_version_id: version.id,
+          }),
+          evaluationContext: {
+            evaluatorId: evaluator.id,
+            evaluationRuleId: evaluator.id,
+            evaluatorExecutionIsTest: false,
+          },
+        }),
+      );
+    });
+
+    it("uses a queue mapping override for a batch-run evaluator without a rule", async () => {
+      const variableMapping = [
+        { templateVariable: "output", selectedColumnId: "input" },
+      ];
+      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(
+        createMockJobExecution({
+          id: jobExecutionId,
+          projectId,
+          jobConfigurationId: evaluator.id,
+          jobTemplateId: null,
+        }),
+      );
+      (prisma.evaluator.findFirst as Mock).mockResolvedValue(evaluator);
+
+      await processObservationEval({
+        event: {
+          ...baseEvent,
+          executionMode: "MANUAL",
+          evaluatorId: evaluator.id,
+          variableMapping,
+        },
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
+        deps: createMockProcessorDeps(),
+      });
+
+      expect(
+        prisma.evaluationRuleEvaluatorAssignment.findFirst,
+      ).not.toHaveBeenCalled();
+      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({ variableMapping }),
+          executionMetadata: expect.not.objectContaining({
+            evaluation_rule_assignment_id: expect.anything(),
           }),
         }),
       );
@@ -569,10 +619,11 @@ describe("processObservationEval", () => {
         expect.objectContaining({
           evaluatorId: evaluator.id,
           config: expect.objectContaining({ id: legacyConfig.id }),
-          executionMetadata: expect.objectContaining({
-            evaluation_rule_id: legacyConfig.id,
-            evaluator_id: evaluator.id,
-          }),
+          evaluationContext: {
+            evaluatorId: evaluator.id,
+            evaluationRuleId: legacyConfig.id,
+            evaluatorExecutionIsTest: false,
+          },
         }),
       );
     });
@@ -865,7 +916,12 @@ describe("processObservationEval", () => {
             evaluationRuleId: config.id,
             evaluator: {
               projectId,
-              type: EvalTemplateType.LLM_AS_JUDGE,
+              type: {
+                in: [
+                  EvalTemplateType.LLM_AS_JUDGE,
+                  EvalTemplateType.DECISION_MODEL,
+                ],
+              },
             },
           }),
         }),

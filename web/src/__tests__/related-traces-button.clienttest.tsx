@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import {
   RelatedTracesButton,
   RelatedTracesPopoverController,
+  useRelatedTracesEnabled,
 } from "@/src/features/trace-correlation/components/RelatedTracesButton";
 import { api } from "@/src/utils/api";
 
@@ -92,25 +93,40 @@ const createSession = ({
 
 const mockUseQuery = vi.mocked(api.traces.relatedAcrossProjects.useQuery);
 
-const renderRelatedTraces = ({
-  observations = [],
+function RelatedTracesHarness({
+  observations,
+  enabled,
 }: {
-  observations?: Array<{ startTime?: Date | string | null }>;
-} = {}) =>
-  render(
+  observations: Array<{ startTime?: Date | string | null }>;
+  enabled: boolean;
+}) {
+  const showRelatedTraces = useRelatedTracesEnabled(projectId, enabled);
+
+  return showRelatedTraces ? (
     <RelatedTracesPopoverController
       projectId={projectId}
       traceId={traceId}
       timestamp={timestamp}
       observations={observations}
-      enabled
     >
       {({ relatedCount, Trigger }) => (
         <Trigger asChild>
           <RelatedTracesButton relatedCount={relatedCount} />
         </Trigger>
       )}
-    </RelatedTracesPopoverController>,
+    </RelatedTracesPopoverController>
+  ) : null;
+}
+
+const renderRelatedTraces = ({
+  observations = [],
+  enabled = true,
+}: {
+  observations?: Array<{ startTime?: Date | string | null }>;
+  enabled?: boolean;
+} = {}) =>
+  render(
+    <RelatedTracesHarness observations={observations} enabled={enabled} />,
   );
 
 describe("RelatedTracesButton", () => {
@@ -143,10 +159,71 @@ describe("RelatedTracesButton", () => {
     const { container } = renderRelatedTraces();
 
     expect(container).toBeEmptyDOMElement();
-    expect(mockUseQuery).toHaveBeenCalledWith(
+    expect(mockUseQuery).not.toHaveBeenCalled();
+  });
+
+  it("does not render for public traces without project access", () => {
+    const { container } = renderRelatedTraces({ enabled: false });
+
+    expect(container).toBeEmptyDOMElement();
+    expect(mockUseQuery).not.toHaveBeenCalled();
+  });
+
+  it("does not render without organization membership for regular users", () => {
+    const session = createSession();
+    session.user!.organizations = [];
+    vi.mocked(useSession).mockReturnValue({
+      data: session,
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    const { container } = renderRelatedTraces();
+
+    expect(container).toBeEmptyDOMElement();
+    expect(mockUseQuery).not.toHaveBeenCalled();
+  });
+
+  it("allows admins without organization membership and queries only after opening", async () => {
+    const session = createSession();
+    session.user!.admin = true;
+    session.user!.organizations = [];
+    vi.mocked(useSession).mockReturnValue({
+      data: session,
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    renderRelatedTraces();
+
+    expect(mockUseQuery).toHaveBeenLastCalledWith(
       expect.objectContaining({ projectId, traceId }),
       expect.objectContaining({ enabled: false }),
     );
+
+    fireEvent.click(screen.getByTitle("Related traces"));
+
+    await waitFor(() =>
+      expect(mockUseQuery).toHaveBeenLastCalledWith(
+        expect.objectContaining({ projectId, traceId }),
+        expect.objectContaining({ enabled: true }),
+      ),
+    );
+  });
+
+  it("keeps the organization setting authoritative for admins with membership", () => {
+    const session = createSession({ trackingEnabled: false });
+    session.user!.admin = true;
+    vi.mocked(useSession).mockReturnValue({
+      data: session,
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    const { container } = renderRelatedTraces();
+
+    expect(container).toBeEmptyDOMElement();
+    expect(mockUseQuery).not.toHaveBeenCalled();
   });
 
   it("queries lazily after opening with the observation time window", async () => {

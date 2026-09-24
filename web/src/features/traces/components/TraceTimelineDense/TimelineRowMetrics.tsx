@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-null-render */
 /**
  * The metrics beside a bar: how long it took, what it cost, whether anyone
  * commented on it, and how it scored.
@@ -56,7 +58,7 @@ function createClusterFitter(budgetPx: number, gapPx: number) {
 }
 
 export type RowMetrics = {
-  /** Already formatted, e.g. `∑ $0.02`. */
+  /** Already formatted, e.g. `$0.02`. */
   costText?: string | null;
 };
 

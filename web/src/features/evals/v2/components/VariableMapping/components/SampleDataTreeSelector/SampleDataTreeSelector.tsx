@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 
@@ -11,6 +12,12 @@ import {
   WILDCARD,
   type PathSegment,
 } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
+import {
+  classifyMediaValue,
+  splitStringByMediaReferences,
+  type MediaDescriptor,
+} from "@/src/components/ui/media/mediaUtils";
 import { cn } from "@/src/utils/tailwind";
 
 const MAX_CONCRETE_ENTRIES = 5;
@@ -34,6 +41,47 @@ function pathKey(columnId: string, segments: PathSegment[]): string {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function MediaAwarePreview({
+  preview,
+  directDescriptor,
+}: {
+  preview: string;
+  directDescriptor: MediaDescriptor | null;
+}) {
+  const segments = directDescriptor
+    ? [{ type: "media" as const, descriptor: directDescriptor }]
+    : splitStringByMediaReferences(preview);
+
+  return (
+    <span
+      className={cn(
+        "text-muted-foreground flex min-w-0 flex-1 items-baseline gap-0.5 overflow-hidden text-xs leading-4",
+        directDescriptor && "self-center",
+      )}
+    >
+      {segments.map((segment, index) =>
+        segment.type === "media" ? (
+          <span
+            key={index}
+            data-tree-row-action=""
+            className="inline-flex shrink-0 self-center"
+          >
+            <MediaReferenceTag descriptor={segment.descriptor} />
+          </span>
+        ) : (
+          <span
+            key={index}
+            className="min-w-0 truncate leading-4 whitespace-pre"
+            title={segment.value}
+          >
+            {segment.value}
+          </span>
+        ),
+      )}
+    </span>
+  );
 }
 
 function wildcardRepresentative(entries: unknown[]) {
@@ -62,7 +110,7 @@ function wildcardRepresentative(entries: unknown[]) {
 }
 
 function TreeRow({
-  variable,
+  variableLabel,
   columnId,
   segments,
   label,
@@ -76,7 +124,8 @@ function TreeRow({
   onSelect,
   currentKey,
 }: {
-  variable: string;
+  /** How the caller names the target, e.g. `{{input}}` or `input`. */
+  variableLabel: string;
   columnId: string;
   segments: PathSegment[];
   label: string;
@@ -98,6 +147,12 @@ function TreeRow({
     ? value.length > 0
     : isPlainObject(value) && Object.keys(value).length > 0;
   const preview = previewOf(value);
+  const directMediaDescriptor = expandable ? null : classifyMediaValue(value);
+  const hasMedia =
+    directMediaDescriptor !== null ||
+    splitStringByMediaReferences(preview).some(
+      (segment) => segment.type === "media",
+    );
 
   const selectOrToggle = () => {
     if (expandable) onToggleExpand(key);
@@ -108,58 +163,84 @@ function TreeRow({
     <>
       <div
         className={cn(
-          "group/row hover:bg-muted/50 flex w-full min-w-0 items-center gap-2 px-2 py-1 text-left text-sm",
+          "group/row hover:bg-muted/50 flex w-full min-w-0 cursor-pointer items-baseline gap-2 px-2 py-1 text-left text-sm",
           isCurrent && "bg-primary-accent/5",
         )}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
+        onClick={(event) => {
+          if (
+            event.target instanceof Element &&
+            event.target.closest("[data-tree-row-action]")
+          ) {
+            return;
+          }
+          selectOrToggle();
+        }}
       >
         <button
           type="button"
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
-          title={expandable ? preview : `Pull {{${variable}}} from here`}
-          onClick={selectOrToggle}
+          className={cn(
+            "flex min-w-0 cursor-pointer items-baseline gap-2 text-left",
+            hasMedia ? "shrink-0" : "flex-1",
+          )}
+          title={
+            hasMedia
+              ? undefined
+              : expandable
+                ? preview
+                : `Pull ${variableLabel} from here`
+          }
         >
           {expandable ? (
             <ChevronDown
               className={cn(
-                "text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform",
+                "text-muted-foreground h-3.5 w-3.5 shrink-0 self-center transition-transform",
                 !isOpen && "-rotate-90",
               )}
             />
           ) : (
-            <span className="h-3.5 w-3.5 shrink-0" />
+            <span className="h-3.5 w-3.5 shrink-0 self-center" />
           )}
           <span className="shrink-0 font-mono font-bold">{label}</span>
-          <span
-            className="text-muted-foreground min-w-0 flex-1 truncate text-xs"
-            title={preview}
-          >
-            {preview}
-          </span>
-          {partial ? (
+          {!hasMedia ? (
             <span
-              className="text-dark-yellow shrink-0 rounded border px-1 py-px text-[10px]"
-              title="Not present in every entry of this list"
+              className="text-muted-foreground min-w-0 flex-1 truncate text-xs leading-4"
+              title={preview}
             >
-              not in every entry
-            </span>
-          ) : null}
-          <span className="text-muted-foreground shrink-0 rounded border px-1 py-px text-[10px] group-focus-within/row:hidden group-hover/row:hidden">
-            {badge ?? typeBadge(value)}
-          </span>
-          {isCurrent ? (
-            <span
-              className="text-primary-accent bg-primary-accent/10 shrink-0 rounded border border-transparent px-1.5 py-px text-[10px] font-bold"
-              title={`{{${variable}}} currently maps to here`}
-            >
-              current
+              {preview}
             </span>
           ) : null}
         </button>
+        {hasMedia ? (
+          <MediaAwarePreview
+            preview={preview}
+            directDescriptor={directMediaDescriptor}
+          />
+        ) : null}
+        {partial ? (
+          <span
+            className="text-dark-yellow shrink-0 self-center rounded border px-1 py-px text-[10px]"
+            title="Not present in every entry of this list"
+          >
+            not in every entry
+          </span>
+        ) : null}
+        <span className="text-muted-foreground shrink-0 self-center rounded border px-1 py-px text-[10px] group-focus-within/row:hidden group-hover/row:hidden">
+          {badge ?? typeBadge(value)}
+        </span>
+        {isCurrent ? (
+          <span
+            className="text-primary-accent bg-primary-accent/10 shrink-0 self-center rounded border border-transparent px-1.5 py-px text-[10px] font-bold"
+            title={`${variableLabel} currently maps to here`}
+          >
+            current
+          </span>
+        ) : null}
         <button
           type="button"
-          className="bg-primary text-primary-foreground hover:bg-primary/90 hidden shrink-0 rounded px-2 py-0.5 text-xs font-bold shadow-sm group-focus-within/row:inline-flex group-hover/row:inline-flex"
-          title={`Pull {{${variable}}} from here`}
+          data-tree-row-action=""
+          className="bg-primary text-primary-foreground hover:bg-primary/90 hidden shrink-0 self-center rounded px-2 py-0.5 text-xs font-bold shadow-sm group-focus-within/row:inline-flex group-hover/row:inline-flex"
+          title={`Pull ${variableLabel} from here`}
           onClick={() => onSelect(columnId, segments)}
         >
           Use
@@ -173,7 +254,7 @@ function TreeRow({
               return (
                 <>
                   <TreeRow
-                    variable={variable}
+                    variableLabel={variableLabel}
                     columnId={columnId}
                     segments={[...segments, WILDCARD]}
                     label="[*]"
@@ -187,7 +268,7 @@ function TreeRow({
                     currentKey={currentKey}
                   />
                   <TreeRow
-                    variable={variable}
+                    variableLabel={variableLabel}
                     columnId={columnId}
                     segments={[...segments, LAST]}
                     label="last"
@@ -202,7 +283,7 @@ function TreeRow({
                   {value.slice(0, MAX_CONCRETE_ENTRIES).map((entry, index) => (
                     <TreeRow
                       key={index}
-                      variable={variable}
+                      variableLabel={variableLabel}
                       columnId={columnId}
                       segments={[...segments, index]}
                       label={`[${index}]`}
@@ -234,7 +315,7 @@ function TreeRow({
                   {entries.map(([childKey, childValue]) => (
                     <TreeRow
                       key={childKey}
-                      variable={variable}
+                      variableLabel={variableLabel}
                       columnId={columnId}
                       segments={[...segments, childKey]}
                       label={childKey}
@@ -265,13 +346,14 @@ function TreeRow({
 
 /** Selects one sample-observation field or nested path for a prompt variable. */
 export function SampleDataTreeSelector({
-  variable,
+  variableLabel,
   roots,
   currentColumnId,
   currentSegments,
   onSelect,
 }: {
-  variable: string;
+  /** How the caller names the target, e.g. `{{input}}` or `input`. */
+  variableLabel: string;
   roots: Array<{ id: string; label: string; value: unknown }>;
   currentColumnId: string | null;
   currentSegments: PathSegment[] | null;
@@ -296,7 +378,7 @@ export function SampleDataTreeSelector({
       {roots.map((root) => (
         <TreeRow
           key={root.id}
-          variable={variable}
+          variableLabel={variableLabel}
           columnId={root.id}
           segments={[]}
           label={root.label}

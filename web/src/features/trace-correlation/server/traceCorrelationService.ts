@@ -23,7 +23,7 @@ const RELATED_TRACE_PROJECT_BATCH_CONCURRENCY = 3;
 const WINDOW_PADDING_MS = 60 * 60 * 1000;
 const MAX_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-export type RelatedTraceLink = {
+type RelatedTraceLink = {
   projectId: string;
   projectName: string;
   traceId: string;

@@ -1,15 +1,9 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { EvaluatorStatus } from "@/src/features/evals/types";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { useState } from "react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import { Button } from "@/src/components/ui/button";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
@@ -30,7 +24,6 @@ export function DeactivateEvalConfig({
     scope: "evaluationRule:CUD",
   });
   const { allowLegacy } = useEvalCapabilities(projectId);
-  const [isOpen, setIsOpen] = useState(false);
   const capture = usePostHogClientCapture();
   const isActive = evalConfig?.status === EvaluatorStatus.ACTIVE;
   // Where new legacy setups are not allowed (cloud), deactivating a legacy
@@ -47,14 +40,12 @@ export function DeactivateEvalConfig({
     },
   });
 
-  const onClick = async () => {
+  const onConfirm = async () => {
     if (!projectId) {
       console.error("Project ID is missing");
       return;
     }
-    // The popover trigger wraps the switch, so guard the action itself too.
     if (reactivationBlocked) {
-      setIsOpen(false);
       return;
     }
 
@@ -68,10 +59,10 @@ export function DeactivateEvalConfig({
           status: isActive ? EvaluatorStatus.INACTIVE : EvaluatorStatus.ACTIVE,
         },
       });
-    } catch {
+    } catch (error) {
       // The default mutation error toast reports the failure; the status is
-      // unchanged, so keep the popover open and skip the change callbacks.
-      return;
+      // unchanged, so keep the dialog open and skip the change callbacks.
+      throw error;
     }
     capture(
       prevStatus === EvaluatorStatus.ACTIVE
@@ -79,12 +70,22 @@ export function DeactivateEvalConfig({
         : "eval_config:activate",
     );
     onStatusChange?.();
-    setIsOpen(false);
   };
 
   return (
-    <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
-      <PopoverTrigger asChild>
+    <ConfirmationDialogController
+      title={isActive ? "Deactivate evaluator?" : "Activate evaluator?"}
+      text={
+        isActive
+          ? "This action will deactivate the evaluator. No more traces will be evaluated based on this evaluator."
+          : "This action will activate the evaluator. New traces will be evaluated based on this evaluator."
+      }
+      confirmLabel={isActive ? "Deactivate" : "Activate"}
+      variant={isActive ? "destructive" : "default"}
+      loading={mutEvaluator.isPending}
+      onConfirm={onConfirm}
+    >
+      {({ openDialog }) => (
         <div className="flex items-center">
           <Switch
             disabled={
@@ -95,33 +96,14 @@ export function DeactivateEvalConfig({
             }
             checked={isActive}
             color="green"
+            onClick={openDialog}
             {...(reactivationBlocked && {
               title:
                 "Deprecated evaluators cannot be reactivated. Migrate to the new evaluators instead.",
             })}
           />
         </div>
-      </PopoverTrigger>
-      <PopoverContent>
-        <h2 className="mb-3 font-bold">Please confirm</h2>
-        <p className="mb-3 text-sm">
-          {evalConfig?.status === "ACTIVE"
-            ? "This action will deactivate the evaluator. No more traces will be evaluated based on this evaluator."
-            : "This action will activate the evaluator. New traces will be evaluated based on this evaluator."}
-        </p>
-        <div className="flex justify-end space-x-4">
-          <Button
-            type="button"
-            variant={
-              evalConfig?.status === "ACTIVE" ? "destructive" : "default"
-            }
-            loading={mutEvaluator.isPending}
-            onClick={onClick}
-          >
-            {evalConfig?.status === "ACTIVE" ? "Deactivate" : "Activate"}
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
+      )}
+    </ConfirmationDialogController>
   );
 }

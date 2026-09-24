@@ -1,8 +1,8 @@
 import {
   GetAnnotationQueueByIdQuery,
   GetAnnotationQueueByIdResponse,
-} from "@/src/features/public-api/types/annotation-queues";
-import { getAnnotationQueueForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
+} from "@/src/features/public-api/server";
+import { getAnnotationQueueForApi } from "@/src/features/annotation-queues/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildAnnotationQueueUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -11,6 +11,7 @@ export const [getAnnotationQueueTool, handleGetAnnotationQueue] = defineTool({
   name: "getAnnotationQueue",
   description:
     "Get an annotation queue, a worklist of trace or observation items for human review and scoring, by ID.",
+  action: "annotationQueues:read",
   baseSchema: GetAnnotationQueueByIdQuery,
   inputSchema: GetAnnotationQueueByIdQuery,
   handler: async (input, context) =>

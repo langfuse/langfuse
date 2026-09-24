@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useId, useState, type ReactNode } from "react";
 import { ChevronDown, Plus, TriangleAlert } from "lucide-react";
 
@@ -68,16 +69,29 @@ function LabelWithTooltip({
   );
 }
 
+export type ScoreOutputConstraints = {
+  dataTypes?: ScoreOutputDataType[];
+  allowMultipleMatches?: boolean;
+};
+
 export function ScoreOutputSection({
   state,
   onChange,
   readOnly = false,
+  constraints,
 }: {
   state: ScoreOutputSelectorState;
   onChange: (next: ScoreOutputSelectorState) => void;
   readOnly?: boolean;
+  constraints?: ScoreOutputConstraints;
 }) {
   const boundsId = useId();
+  const dataTypeOptions = constraints?.dataTypes
+    ? DATA_TYPE_OPTIONS.filter((option) =>
+        constraints.dataTypes?.includes(option.value),
+      )
+    : DATA_TYPE_OPTIONS;
+  const allowMultipleMatches = constraints?.allowMultipleMatches ?? true;
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
   const [editingChoiceIndex, setEditingChoiceIndex] = useState<number | null>(
     null,
@@ -151,7 +165,8 @@ export function ScoreOutputSection({
       </LabelWithTooltip>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span>Return</span>
-        {state.dataType === ScoreDataTypeEnum.CATEGORICAL ? (
+        {state.dataType === ScoreDataTypeEnum.CATEGORICAL &&
+        allowMultipleMatches ? (
           <Select
             value={state.shouldAllowMultipleMatches ? "multiple" : "one"}
             disabled={readOnly}
@@ -174,11 +189,11 @@ export function ScoreOutputSection({
             </SelectContent>
           </Select>
         ) : (
-          <span>a</span>
+          <span>{allowMultipleMatches ? "a" : "one"}</span>
         )}
         <Select
           value={state.dataType}
-          disabled={readOnly}
+          disabled={readOnly || dataTypeOptions.length < 2}
           onValueChange={(value) =>
             handleDataTypeChange(value as ScoreOutputDataType)
           }
@@ -187,7 +202,7 @@ export function ScoreOutputSection({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {DATA_TYPE_OPTIONS.map((option) => (
+            {dataTypeOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.value === ScoreDataTypeEnum.CATEGORICAL &&
                 state.shouldAllowMultipleMatches
@@ -350,11 +365,11 @@ export function ScoreOutputSection({
         {state.dataType === ScoreDataTypeEnum.BOOLEAN && (
           <>
             <span>as</span>
-            <span className="bg-background inline-flex h-8 items-center rounded-md border px-2 font-bold">
+            <span className="bg-muted/50 text-foreground inline-flex h-8 items-center rounded-md border px-3 opacity-50">
               true
             </span>
             <span>or</span>
-            <span className="bg-background inline-flex h-8 items-center rounded-md border px-2 font-bold">
+            <span className="bg-muted/50 text-foreground inline-flex h-8 items-center rounded-md border px-3 opacity-50">
               false
             </span>
           </>

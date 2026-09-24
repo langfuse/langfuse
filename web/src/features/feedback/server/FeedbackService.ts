@@ -11,11 +11,11 @@ import {
   recordIncrement,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import type {
-  PostFeedbackBodyType,
-  PostFeedbackResponseType,
-} from "@/src/features/public-api/types/feedback";
+import {
+  RateLimitService,
+  type PostFeedbackBodyType,
+  type PostFeedbackResponseType,
+} from "@/src/features/public-api/server";
 
 export type FeedbackSource = "langfuse-mcp" | "public-api";
 

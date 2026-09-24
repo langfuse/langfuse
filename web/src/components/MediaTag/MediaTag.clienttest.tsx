@@ -32,6 +32,25 @@ describe("MediaTag", () => {
     );
   });
 
+  it("stops portaled preview actions from triggering parent clicks", () => {
+    const onParentClick = vi.fn();
+
+    render(
+      <div onClick={onParentClick}>
+        <MediaTag
+          contentType="image/png"
+          status="ready"
+          url="data:image/png;base64,"
+          open
+        />
+      </div>,
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: "Open in new tab" }));
+
+    expect(onParentClick).not.toHaveBeenCalled();
+  });
+
   it("opens the preview on click", async () => {
     const onOpenChange = vi.fn();
 

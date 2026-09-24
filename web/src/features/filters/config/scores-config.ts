@@ -49,6 +49,11 @@ const scoreFilterConfig: FilterConfig = {
       label: "Source",
     },
     {
+      type: "boolean" as const,
+      column: "isEvaluatorTest",
+      label: "Evaluator Test",
+    },
+    {
       type: "categorical" as const,
       column: "dataType",
       label: "Data Type",

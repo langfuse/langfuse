@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { type FilterState, type QueryType } from "@langfuse/shared";
 import {
   AGGREGATION_LABELS,
@@ -5,9 +6,11 @@ import {
   GRANULARITIES,
   isTimeSeriesChartType,
 } from "@/src/features/chart-view/vocab";
-import { type ChartWidgetInput } from "@/src/features/chart-view/lib/chartConfigToWidget";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
-import { getWidgetMissingBucketValue } from "@/src/features/widgets/utils";
+import { type ChartWidgetInput } from "@/src/features/chart-view";
+import {
+  type DataPoint,
+  getWidgetMissingBucketValue,
+} from "@/src/features/widgets";
 import { getScoreDimensionsForDataset } from "@/src/features/scores-chart-view/constants/scoreDimensions";
 import {
   getScoreMetricsForDataset,

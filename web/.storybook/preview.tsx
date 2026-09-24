@@ -11,10 +11,10 @@ import {
   type ComponentProps,
   type ReactNode,
 } from "react";
+import { SessionProvider } from "next-auth/react";
 import { TooltipProvider } from "../src/components/ui/tooltip";
+import { LayerProvider } from "../src/context/LayerContext/LayerContext";
 import { ThemeProvider } from "../src/features/theming/ThemeProvider";
-import { MarkdownContextProvider } from "../src/features/theming/useMarkdownContext";
-import { LAYER_ORDER } from "../src/components/ui/layer";
 import "./storybook.css";
 import "./docs.css";
 // Mirror the global CSS that _app.tsx imports so vendored components
@@ -37,30 +37,6 @@ function StorybookThemeProvider({
   fullHeight: boolean;
   theme: "light" | "dark";
 }) {
-  // Overlay layer containers, declared exactly like _document.tsx: a
-  // <div data-overlay-root> holding one <div data-layer={name}/> per
-  // LAYER_ORDER. This is what the layer system (components/ui/layer.tsx)
-  // portals toasts / tooltips / peek into; without it those overlays are
-  // absent in Storybook. Positioning/isolation comes from globals.css.
-  //
-  // Mounted imperatively ON <body>, ONCE — not rendered per decorator:
-  // the docs view runs this decorator for every story block on the page, and
-  // Storybook's preview block carries a CSS transform, which would make it the
-  // containing block for the layers' `position: fixed` — a portaled chart
-  // tooltip would paint relative to the first story block instead of the
-  // viewport (i.e. offscreen). On <body> it behaves exactly like the app.
-  useEffect(() => {
-    if (document.querySelector("[data-overlay-root]")) return;
-    const root = document.createElement("div");
-    root.setAttribute("data-overlay-root", "");
-    for (const name of LAYER_ORDER) {
-      const layer = document.createElement("div");
-      layer.setAttribute("data-layer", name);
-      root.appendChild(layer);
-    }
-    document.body.appendChild(root);
-  }, []);
-
   // Reproduce the app's DOM scaffold so the layout rules in globals.css that are
   // scoped to `div#__next` / `div#__next > div` (height: 100%) and
   // `div#__next { isolation: isolate }` actually apply — the app's tables live
@@ -120,9 +96,14 @@ function ThemedDocsContainer({
   }, []);
 
   return (
-    <DocsContainer context={context} theme={dark ? themes.dark : themes.light}>
-      {children}
-    </DocsContainer>
+    <LayerProvider>
+      <DocsContainer
+        context={context}
+        theme={dark ? themes.dark : themes.light}
+      >
+        {children}
+      </DocsContainer>
+    </LayerProvider>
   );
 }
 
@@ -149,26 +130,36 @@ export default definePreview({
     theme: "light",
   },
   decorators: [
-    (Story, context) => (
-      <StorybookThemeProvider
-        fullHeight={context.viewMode !== "docs"}
-        theme={context.globals.theme === "dark" ? "dark" : "light"}
-      >
-        {/* MarkdownContextProvider mirrors the app: pages render inside it so
-              the JSON/IO viewers (CodeJsonViewer's JSONView calls
-              useMarkdownContext) work identically to production. Without it,
-              multi-line IOTableCell renders (rowHeight m/l) throw. */}
-        <MarkdownContextProvider>
-          <TooltipProvider>
-            <Story />
-          </TooltipProvider>
-        </MarkdownContextProvider>
-      </StorybookThemeProvider>
-    ),
+    (Story, context) => {
+      const story = (
+        <StorybookThemeProvider
+          fullHeight={context.viewMode !== "docs"}
+          theme={context.globals.theme === "dark" ? "dark" : "light"}
+        >
+          {/* SessionProvider mirrors _app.tsx: components reading feature
+              flags call useSession, which throws without a provider. A null
+              session resolves every flag to false (regular-user behavior). */}
+          <SessionProvider session={null}>
+            <TooltipProvider>
+              <Story />
+            </TooltipProvider>
+          </SessionProvider>
+        </StorybookThemeProvider>
+      );
+
+      return context.viewMode === "docs" ? (
+        story
+      ) : (
+        <LayerProvider>{story}</LayerProvider>
+      );
+    },
   ],
   parameters: {
     a11y: {
       test: "todo",
+      config: {
+        rules: [{ id: "color-contrast", enabled: false }],
+      },
     },
     docs: {
       container: ThemedDocsContainer,

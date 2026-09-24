@@ -1,10 +1,9 @@
+/* eslint-disable no-nested-ternary */
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useSession } from "next-auth/react";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
-import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
+import { featurePreviewLabels } from "@/src/features/feature-flags";
 import { api } from "@/src/utils/api";
 
 import {
@@ -23,7 +22,7 @@ export function ControlledFeaturePreviewModal({
   onOpenChange,
 }: ControlledFeaturePreviewModalProps) {
   const authSession = useSession();
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const capture = usePostHogClientCapture();
   const setFeaturePreviewEnabled =
     api.userAccount.setFeaturePreviewEnabled.useMutation({
@@ -46,20 +45,40 @@ export function ControlledFeaturePreviewModal({
   const onToggle = (flag: PreviewFlag) => (enabled: boolean) =>
     setFeaturePreviewEnabled.mutate({ flag, enabled });
 
+  const isModernSessionEnabled =
+    authSession.data?.user?.featureFlags.modernSession === true ||
+    authSession.data?.environment.enableExperimentalFeatures === true;
+
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
     modernSession: {
-      enabled:
-        authSession.data?.user?.featureFlags.modernSession === true ||
-        authSession.data?.environment.enableExperimentalFeatures === true,
+      enabled: isModernSessionEnabled,
       disabled:
-        !isBetaEnabled ||
+        !isV4 ||
         authSession.data?.environment.enableExperimentalFeatures === true,
-      warningReason: !isBetaEnabled
+      warningReason: !isV4
         ? `Compact Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
         : authSession.data?.environment.enableExperimentalFeatures === true
           ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
           : undefined,
       onToggle: onToggle("modernSession"),
+      isToggling: setFeaturePreviewEnabled.isPending,
+    },
+    sessionTimeline: {
+      enabled:
+        authSession.data?.user?.featureFlags.sessionTimeline === true ||
+        authSession.data?.environment.enableExperimentalFeatures === true,
+      disabled:
+        !isV4 ||
+        !isModernSessionEnabled ||
+        authSession.data?.environment.enableExperimentalFeatures === true,
+      warningReason: !isV4
+        ? `Compact Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
+        : !isModernSessionEnabled
+          ? "Enable Compact Session View before enabling the Session Timeline."
+          : authSession.data?.environment.enableExperimentalFeatures === true
+            ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
+            : undefined,
+      onToggle: onToggle("sessionTimeline"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
   };

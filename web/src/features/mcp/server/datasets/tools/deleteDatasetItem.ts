@@ -1,8 +1,8 @@
-import { deleteDatasetItemForApi } from "@/src/features/datasets/server/publicDatasetService";
+import { deleteDatasetItemForApi } from "@/src/features/datasets/server";
 import {
   DeleteDatasetItemV1Query,
   DeleteDatasetItemV1Response,
-} from "@/src/features/public-api/types/datasets";
+} from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
@@ -10,6 +10,7 @@ export const [deleteDatasetItemTool, handleDeleteDatasetItem] = defineTool({
   name: "deleteDatasetItem",
   description:
     "Delete a dataset item, one example in a dataset, and all its run items.",
+  action: "datasets:CUD",
   baseSchema: DeleteDatasetItemV1Query,
   inputSchema: DeleteDatasetItemV1Query,
   handler: async (input, context) =>

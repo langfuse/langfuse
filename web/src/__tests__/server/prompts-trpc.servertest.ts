@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { disconnectQueues } from "@/src/__tests__/test-utils";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -57,14 +58,7 @@ function createCaller({
           ],
         },
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin,
     },
     environment: {
@@ -170,6 +164,20 @@ describe("prompts trpc", () => {
         });
       },
     );
+
+    it("accepts leaked tracing time-column orderBy aliases", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.prompts.all({
+          projectId: project.id,
+          page: 0,
+          limit: 10,
+          filter: [],
+          orderBy: { column: "startTime", order: "DESC" },
+        }),
+      ).resolves.toMatchObject({ prompts: [], totalCount: 0 });
+    });
   });
 
   describe("prompts.importBulk", () => {

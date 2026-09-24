@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-exotic-operators */
 import { randomUUID } from "crypto";
 
 import {
@@ -25,6 +27,7 @@ import {
   normalizeEnvironment,
   DEFAULT_TRACE_ENVIRONMENT,
   LangfuseInternalTraceEnvironment,
+  sanitizeSdkMetricTagValue,
 } from "../";
 
 import {
@@ -270,12 +273,10 @@ export class OtelIngestionProcessor {
   private static readonly MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS = 10_001;
   private static readonly MAX_OTEL_RECONSTRUCTED_PATH_DEPTH = 64;
 
-  private static readonly METADATA_DROP_WARN_CAP = 10;
   private static readonly ARRAY_ATTRIBUTE_DROP_WARN_CAP = 10;
 
   private seenTraces: Set<string> = new Set();
   private reportedMetadataDrops = new WeakMap<object, Set<string>>();
-  private metadataDropWarnCount = 0;
   private arrayAttributeDropWarnCounts = new Map<
     ReconstructedAttributeDropReason,
     number
@@ -495,6 +496,8 @@ export class OtelIngestionProcessor {
                   spanAttributes,
                   span,
                 );
+                const evaluationFields =
+                  this.extractEvaluationFields(spanAttributes);
 
                 const spanContext = {
                   spanId,
@@ -594,13 +597,7 @@ export class OtelIngestionProcessor {
                       null)
                     : null,
                   promptVersion: canLinkPrompt
-                    ? (spanAttributes?.[
-                        LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION
-                      ] ??
-                      spanAttributes["langfuse.prompt.version"] ??
-                      this.parseLangfusePromptFromAISDK(spanAttributes)
-                        ?.version ??
-                      null)
+                    ? this.extractPromptVersion(spanAttributes)
                     : null,
 
                   modelParameters: this.extractModelParameters(
@@ -664,6 +661,9 @@ export class OtelIngestionProcessor {
 
                   // Experiment fields
                   ...experimentFields,
+
+                  // Evaluator execution fields
+                  ...evaluationFields,
 
                   // Tool calling
                   toolDefinitions,
@@ -1278,12 +1278,7 @@ export class OtelIngestionProcessor {
           null)
         : null,
       promptVersion: canLinkPrompt
-        ? (attributes?.[
-            LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION
-          ] ??
-          attributes["langfuse.prompt.version"] ??
-          this.parseLangfusePromptFromAISDK(attributes)?.version ??
-          null)
+        ? this.extractPromptVersion(attributes)
         : null,
       usageDetails: isAiSdkAgentSpan
         ? {}
@@ -1512,7 +1507,10 @@ export class OtelIngestionProcessor {
       }
     }
 
-    logger.warn("OTEL oversized span detected", {
+    // The `langfuse.ingestion.otel.oversized_span` metric below carries the
+    // aggregate signal; keep the detailed line at debug to avoid drowning
+    // warn-level log volume with a per-span customer-data condition.
+    logger.debug("OTEL oversized span detected", {
       spanId: context.spanId,
       traceId: context.traceId,
       projectId: this.projectId,
@@ -1835,13 +1833,22 @@ export class OtelIngestionProcessor {
       "prompt",
       "all_messages_events",
       "events",
-      // LiveKit
+      // LiveKit (livekit-agents >= 1.8 marks content attributes with `lk.pii.`)
       "lk.input_text",
       "lk.user_transcript",
       "lk.chat_ctx",
       "lk.user_input",
       "lk.function_tool.output",
       "lk.response.text",
+      "lk.pii.input_text",
+      "lk.pii.user_transcript",
+      "lk.pii.chat_ctx",
+      "lk.pii.user_input",
+      "lk.pii.instructions",
+      "lk.pii.function_tool.arguments",
+      "lk.pii.function_tool.output",
+      "lk.pii.response.text",
+      "lk.pii.response.function_calls",
       // MLFlow
       "mlflow.spanInputs",
       "mlflow.spanOutputs",
@@ -1883,6 +1890,16 @@ export class OtelIngestionProcessor {
     potentialInputOutputKeys.forEach((key) => {
       delete rawFilteredAttributes[key];
     });
+
+    // Gateway observation attributes are represented by canonical fields.
+    // Keep unknown attributes available for diagnostics.
+    if (instrumentationScopeName === "langfuse-ai-gateway") {
+      for (const key of Object.values(LangfuseOtelSpanAttributes)) {
+        if (key.startsWith("langfuse.observation.")) {
+          delete rawFilteredAttributes[key];
+        }
+      }
+    }
 
     // Delete gen_ai.prompt.*, gen_ai.completion.*, llm.input_messages.*, llm.output_messages.*,
     // and metadata blob keys (already extracted into top-level metadata by extractMetadata())
@@ -2161,13 +2178,42 @@ export class OtelIngestionProcessor {
       return { input, output, filteredAttributes };
     }
 
-    // LiveKit
+    // LiveKit. livekit-agents >= 1.8 marks content attributes with a `pii`
+    // segment (`lk.pii.<name>`); older versions use the bare `lk.<name>`.
+    const livekitInstructions = attributes["lk.pii.instructions"] || undefined;
+    // the agent may speak first, in which case user_input is empty
+    const livekitUserInput =
+      attributes["lk.user_input"] ||
+      attributes["lk.pii.user_input"] ||
+      undefined;
     input =
       attributes["lk.input_text"] ??
+      attributes["lk.pii.input_text"] ??
       attributes["lk.user_transcript"] ??
-      attributes["lk.chat_ctx"];
+      attributes["lk.pii.user_transcript"] ??
+      attributes["lk.chat_ctx"] ??
+      attributes["lk.pii.chat_ctx"] ??
+      // agent_turn spans carry the system instructions and the user message
+      // separately; combine whatever is present into a chat-style input
+      (livekitInstructions
+        ? [
+            { role: "system", content: livekitInstructions },
+            ...(livekitUserInput
+              ? [{ role: "user", content: livekitUserInput }]
+              : []),
+          ]
+        : livekitUserInput) ??
+      attributes["lk.pii.function_tool.arguments"];
+    const livekitFunctionCalls = attributes["lk.pii.response.function_calls"];
     output =
-      attributes["lk.function_tool.output"] || attributes["lk.response.text"];
+      attributes["lk.function_tool.output"] ||
+      attributes["lk.pii.function_tool.output"] ||
+      attributes["lk.response.text"] ||
+      attributes["lk.pii.response.text"] ||
+      // a turn that only produced tool calls has no response text
+      (livekitFunctionCalls && livekitFunctionCalls !== "[]"
+        ? livekitFunctionCalls
+        : undefined);
     if (input || output) {
       return { input, output, filteredAttributes };
     }
@@ -2512,9 +2558,11 @@ export class OtelIngestionProcessor {
     // survive the fallback and are counted by the parser itself.
     const primaryValue = attributes[metadataKeyPrefix];
     if (primaryValue !== undefined && primaryValue !== null && !primaryValue) {
+      const isString = typeof primaryValue === "string";
       this.recordMetadataDropped(
-        typeof primaryValue === "string" ? "parse_failure" : "primitive",
+        isString ? "parse_failure" : "primitive",
         { domain, attributeKey: metadataKeyPrefix, dropScope },
+        isString ? this.classifyParseFailure(primaryValue) : undefined,
       );
     }
 
@@ -3070,6 +3118,7 @@ export class OtelIngestionProcessor {
       rawUsageDetails["input_cached_tokens"];
     const cacheCreationTokens =
       rawUsageDetails["cache_creation.input_tokens"] ??
+      rawUsageDetails["cache_write.input_tokens"] ??
       rawUsageDetails["cache_creation_input_tokens"] ??
       rawUsageDetails["cache_write_tokens"] ??
       rawUsageDetails["details.cache_write_tokens"] ??
@@ -3103,6 +3152,7 @@ export class OtelIngestionProcessor {
             "prompt_details.cache_read",
             "input_cached_tokens",
             "cache_creation.input_tokens",
+            "cache_write.input_tokens",
             "cache_creation_input_tokens",
             "cache_write_tokens",
             "details.cache_write_tokens",
@@ -3274,10 +3324,10 @@ export class OtelIngestionProcessor {
   // pipelines) or the per-resourceSpan attributes object for resource
   // attributes — on (attribute key, reason). Distinct spans/resourceSpans
   // in one job count separately; the first-seen domain wins the tag.
-  // Warns are capped per instance, increments are not.
   private recordMetadataDropped(
     reason: string,
     context: MetadataDropContext,
+    kind?: string,
   ): void {
     const { domain, attributeKey, dropScope } = context;
     let seen = this.reportedMetadataDrops.get(dropScope);
@@ -3291,22 +3341,46 @@ export class OtelIngestionProcessor {
     }
     seen.add(dedupeKey);
 
-    recordIncrement("langfuse.ingestion.metadata_dropped", 1, {
+    // attributeKey is a closed set of Langfuse-defined attribute names
+    // (never a user-supplied key); sdkName/sdkVersion attribute the emitting
+    // client and are sanitized because they originate from raw request
+    // headers; kind sub-classifies parse_failure by the value's shape. None
+    // of these carry the dropped value itself.
+    const tags: Record<string, string> = {
       reason,
       source: "otel",
       domain,
-    });
-    if (
-      this.metadataDropWarnCount < OtelIngestionProcessor.METADATA_DROP_WARN_CAP
-    ) {
-      this.metadataDropWarnCount += 1;
-      logger.warn("OTEL metadata attribute dropped", {
-        projectId: this.projectId,
-        reason,
-        domain,
-        attributeKey,
-      });
+      projectId: this.projectId,
+      attributeKey,
+      sdkName: sanitizeSdkMetricTagValue(this.sdkName),
+      sdkVersion: sanitizeSdkMetricTagValue(this.sdkVersion),
+    };
+    if (kind) {
+      tags.kind = kind;
     }
+    recordIncrement("langfuse.ingestion.metadata_dropped", 1, tags);
+  }
+
+  // Sub-classifies a JSON.parse failure by the failing string's shape,
+  // reading only bounded head/tail windows — never re-parses or copies the
+  // (possibly multi-MB) value, and never logs its content. Slicing first
+  // keeps the trim/regex work off the full string.
+  private classifyParseFailure(value: string): string {
+    const head = value.slice(0, 64).trimStart();
+    if (head.length === 0) {
+      return "empty";
+    }
+    // Python `str(dict)` / `str(list)` — single-quoted, or bare True/False/None.
+    if (/^[{[]\s*'/.test(head) || /^(True|False|None)\b/.test(head)) {
+      return "python_repr";
+    }
+    const first = head[0];
+    if (first === "{" || first === "[") {
+      const expectedClose = first === "{" ? "}" : "]";
+      const last = value.slice(-64).trimEnd().slice(-1);
+      return last === expectedClose ? "loose_json" : "truncated_json";
+    }
+    return "unquoted_string";
   }
 
   private parseMetadataAttribute(
@@ -3326,7 +3400,11 @@ export class OtelIngestionProcessor {
         this.recordMetadataDropped("non_object_top_level", context);
         return {};
       } catch {
-        this.recordMetadataDropped("parse_failure", context);
+        this.recordMetadataDropped(
+          "parse_failure",
+          context,
+          this.classifyParseFailure(value),
+        );
         return {};
       }
     }
@@ -3481,6 +3559,34 @@ export class OtelIngestionProcessor {
     };
   }
 
+  private extractEvaluationFields(attributes: Record<string, unknown>) {
+    const evaluatorId = attributes[LangfuseOtelSpanAttributes.EVALUATOR_ID];
+    const evaluationRuleId =
+      attributes[LangfuseOtelSpanAttributes.EVALUATION_RULE_ID];
+    const evaluatorExecutionIsTest =
+      attributes[LangfuseOtelSpanAttributes.EVALUATOR_EXECUTION_IS_TEST];
+
+    if (
+      evaluatorId == null &&
+      evaluationRuleId == null &&
+      evaluatorExecutionIsTest == null
+    ) {
+      return { evaluationContext: undefined };
+    }
+
+    return {
+      evaluationContext: {
+        evaluatorId: evaluatorId ? String(evaluatorId) : undefined,
+        evaluationRuleId: evaluationRuleId
+          ? String(evaluationRuleId)
+          : undefined,
+        evaluatorExecutionIsTest:
+          evaluatorExecutionIsTest === true ||
+          evaluatorExecutionIsTest === "true",
+      },
+    };
+  }
+
   /**
    * The item version is a pointer to a dataset item version (`valid_from` timestamp),
    * not a free-form label; "v1" or "latest" cannot resolve to one, so we drop them.
@@ -3495,6 +3601,25 @@ export class OtelIngestionProcessor {
       "OTEL invalid experiment item version, dropping. Expected timestamp.",
     );
     return undefined;
+  }
+
+  /**
+   * OTLP exporters may carry the prompt version as a stringValue; downstream
+   * schemas require an integer. Non-integer values become null.
+   */
+  private extractPromptVersion(
+    attributes: Record<string, unknown>,
+  ): number | null {
+    const raw =
+      attributes[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION] ??
+      attributes["langfuse.prompt.version"] ??
+      this.parseLangfusePromptFromAISDK(attributes)?.version;
+
+    if (typeof raw === "number") return Number.isInteger(raw) ? raw : null;
+    if (typeof raw === "string" && /^\d+$/.test(raw.trim())) {
+      return Number(raw);
+    }
+    return null;
   }
 
   private parseLangfusePromptFromAISDK(

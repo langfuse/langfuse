@@ -1,73 +1,99 @@
-import { Drawer } from "@/src/components/ui/drawer";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { DrawerContent, DrawerController } from "@/src/components/ui/drawer";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
-  type AnalyticsData,
   type ScoreTarget,
+  type AnnotationPanelData,
 } from "@/src/features/scores/types";
-import { type ReactNode, useState } from "react";
-import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
+import { useRef, type ReactNode } from "react";
+import { getAnnotationTargetType } from "@/src/features/scores/lib/annotationAnalytics";
 import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { AnnotationPanelContent } from "./AnnotationPanelContent";
+import { useTraceReviewPanelOptional } from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 
 export type AnnotateDrawerControllerProps<Target extends ScoreTarget> = {
-  analyticsData?: AnalyticsData;
   children: (control: {
-    annotationCount: number;
     disabled: boolean;
-    openDrawer: () => void;
+    openDrawer: (payload: AnnotateDrawerPayload<Target>) => void;
   }) => ReactNode;
   projectId: string;
-  scoreMetadata: {
-    projectId: string;
-    queueId?: string;
-    environment?: string;
-  };
-  scoreTarget: Target;
-  scores: WithStringifiedMetadata<ScoreDomain>[];
 };
 
+type AnnotateDrawerState = AnnotationPanelData;
+
+export type AnnotateDrawerPayload<Target extends ScoreTarget> =
+  Target extends Extract<ScoreTarget, { type: "trace" }>
+    ? Omit<AnnotateDrawerState, "scoreTarget" | "scores"> & {
+        scoreTarget: Target;
+        scores?: WithStringifiedMetadata<ScoreDomain>[];
+      }
+    : Omit<AnnotateDrawerState, "scoreTarget" | "scores"> & {
+        scoreTarget: Target;
+        scores: WithStringifiedMetadata<ScoreDomain>[];
+      };
+
 export function AnnotateDrawerController<Target extends ScoreTarget>({
-  analyticsData = {
-    type: "trace",
-    source: "TraceDetail",
-  },
   children,
   projectId,
-  scoreMetadata,
-  scoreTarget,
-  scores,
 }: AnnotateDrawerControllerProps<Target>) {
-  const [isOpen, setIsOpen] = useState(false);
   const capture = usePostHogClientCapture();
+  const reviewPanel = useTraceReviewPanelOptional();
+  const isMobile = useIsMobile();
+  const triggerRef = useRef<HTMLElement | null>(null);
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "scores:CUD",
   });
-  const annotationCount = scores.filter(
-    (score) => score.source === "ANNOTATION",
-  ).length;
   const disabled = !hasAccess;
 
-  const openDrawer = () => {
-    if (disabled) return;
-
-    capture(
-      scores.length ? "score:update_form_open" : "score:create_form_open",
-      analyticsData,
-    );
-    setIsOpen(true);
-  };
-
   return (
-    <Drawer open={isOpen} onOpenChange={setIsOpen}>
-      {children({ annotationCount, disabled, openDrawer })}
-      <AnnotateDrawerContent
-        analyticsData={analyticsData}
-        scoreMetadata={scoreMetadata}
-        scoreTarget={scoreTarget}
-        scores={scores}
-      />
-    </Drawer>
+    <DrawerController<AnnotateDrawerState>
+      renderContent={({ state }) => (
+        <DrawerContent
+          className="[--annotation-surface:var(--modal)]"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            if (triggerRef.current?.isConnected)
+              triggerRef.current.focus({ preventScroll: true });
+          }}
+        >
+          <div className="min-h-0 overflow-y-auto overscroll-contain p-3">
+            <AnnotationPanelContent
+              data={state}
+              actionButtons={null}
+              isActive
+            />
+          </div>
+        </DrawerContent>
+      )}
+    >
+      {({ openDrawer }) =>
+        children({
+          disabled,
+          openDrawer: (payload) => {
+            if (disabled) return;
+
+            capture("annotation:entry_click", {
+              ...payload.analyticsData,
+              targetType: getAnnotationTargetType(payload.scoreTarget),
+              entryPoint: "annotate_button",
+            });
+            triggerRef.current =
+              document.activeElement instanceof HTMLElement
+                ? document.activeElement
+                : null;
+            // A phone uses the bottom sheet, whose height follows the form.
+            if (reviewPanel && !isMobile) {
+              reviewPanel
+                .getState()
+                .actions.rememberTrigger(triggerRef.current);
+              reviewPanel.getState().actions.openAnnotation(payload);
+            } else openDrawer(payload);
+          },
+        })
+      }
+    </DrawerController>
   );
 }

@@ -24,6 +24,34 @@ export const MappedValue = meta.story({
   },
 });
 
+export const MappedMediaValue = meta.story({
+  args: {
+    mappings: [
+      {
+        variable: "input",
+        fieldState: {
+          selectedColumnId: "input",
+          jsonSelector: "$.attachments[0].media",
+        },
+      },
+    ],
+    activeMapping: { variable: "input", state: "preview" },
+    onActiveMappingChange: fn(),
+    onChangeField: fn(),
+    sourceObject: {
+      input: {
+        attachments: [
+          {
+            media:
+              "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
+          },
+        ],
+      },
+    },
+    hasMatchingObservations: true,
+  },
+});
+
 export const EmptySampleWarning = meta.story({
   args: {
     mappings: [

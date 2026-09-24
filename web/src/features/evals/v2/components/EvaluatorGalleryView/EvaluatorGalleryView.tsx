@@ -1,10 +1,12 @@
-import type { RefObject } from "react";
-import { Code2, Search, Sparkles } from "lucide-react";
+/* eslint-disable no-nested-ternary */
+import { useCallback, type RefObject } from "react";
+import { Code2, Scale, Search, Sparkles } from "lucide-react";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { EvaluatorGalleryDecisionModelBanner } from "./components/EvaluatorGalleryDecisionModelBanner/EvaluatorGalleryDecisionModelBanner";
 import { EvaluatorGallerySection } from "./components/EvaluatorGallerySection/EvaluatorGallerySection";
 import { EvaluatorGallerySidebar } from "./components/EvaluatorGallerySidebar/EvaluatorGallerySidebar";
 import type {
@@ -12,7 +14,10 @@ import type {
   GalleryNavigationItem,
   GallerySection,
 } from "../../types/templateGallery";
-import { EVALUATOR_GALLERY_ALL_SECTION_KEY } from "../../constants/evaluatorGallery";
+import {
+  EVALUATOR_GALLERY_ALL_SECTION_KEY,
+  EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
+} from "../../constants/evaluatorGallery";
 import {
   gallerySidebarItems,
   visibleGallerySections,
@@ -45,7 +50,12 @@ export function EvaluatorGalleryView({
   onCreateFromScratch,
   scrollContainerRef,
   isLoading,
+  hasMoreProjectTemplates = false,
+  isLoadingMoreProjectTemplates = false,
+  onLoadMoreProjectTemplates,
   errorMessage,
+  decisionModelBannerDismissed,
+  onDismissDecisionModelBanner,
 }: {
   search: string;
   onSearchChange: (search: string) => void;
@@ -60,7 +70,12 @@ export function EvaluatorGalleryView({
   onCreateFromScratch: (type: EvalTemplateType) => void;
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
   isLoading: boolean;
+  hasMoreProjectTemplates?: boolean;
+  isLoadingMoreProjectTemplates?: boolean;
+  onLoadMoreProjectTemplates?: () => void;
   errorMessage?: string;
+  decisionModelBannerDismissed: boolean;
+  onDismissDecisionModelBanner: () => void;
 }) {
   const sidebarItems = gallerySidebarItems(navigationItems, sections);
   const resolvedSection =
@@ -70,6 +85,44 @@ export function EvaluatorGalleryView({
       : EVALUATOR_GALLERY_ALL_SECTION_KEY;
   const displayedSections = visibleGallerySections(sections, resolvedSection);
   const hasTemplates = displayedSections.length > 0;
+  const isSingleSection = resolvedSection !== EVALUATOR_GALLERY_ALL_SECTION_KEY;
+  const selectSection = (key: string) => {
+    if (key !== resolvedSection) onSearchChange("");
+    onSelectSection(key);
+  };
+  const loadMoreSentinelRef = useCallback(
+    (sentinel: HTMLDivElement | null) => {
+      if (
+        !sentinel ||
+        !hasMoreProjectTemplates ||
+        isLoadingMoreProjectTemplates ||
+        !onLoadMoreProjectTemplates
+      ) {
+        return;
+      }
+
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry?.isIntersecting) {
+            observer.disconnect();
+            onLoadMoreProjectTemplates();
+          }
+        },
+        { root: scrollContainerRef?.current, rootMargin: "200px 0px" },
+      );
+      observer.observe(sentinel);
+      return () => observer.disconnect();
+    },
+    [
+      hasMoreProjectTemplates,
+      isLoadingMoreProjectTemplates,
+      onLoadMoreProjectTemplates,
+      scrollContainerRef,
+    ],
+  );
+  const shouldLoadMoreProjectTemplates =
+    resolvedSection === EVALUATOR_GALLERY_PROJECT_SECTION_KEY &&
+    (hasMoreProjectTemplates || isLoadingMoreProjectTemplates);
 
   return (
     <div className="@container flex flex-1 flex-col overflow-hidden">
@@ -78,10 +131,7 @@ export function EvaluatorGalleryView({
           <EvaluatorGallerySidebar
             items={sidebarItems}
             activeSection={resolvedSection}
-            onSelectSection={(key) => {
-              if (key !== resolvedSection) onSearchChange("");
-              onSelectSection(key);
-            }}
+            onSelectSection={selectSection}
           />
         ) : (
           <div aria-hidden="true" className="w-56 shrink-0 border-r" />
@@ -124,10 +174,30 @@ export function EvaluatorGalleryView({
                   <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
                   New code evaluator
                 </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="flex-1 shrink-0 gap-1.5 @2xl:flex-none"
+                  title="Ask TypeSafe Jev typed questions and get calibrated answers in one call. Experimental."
+                  onClick={() =>
+                    onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
+                  }
+                >
+                  <Scale className="h-3.5 w-3.5" aria-hidden="true" />
+                  New decision model evaluator
+                </Button>
               </div>
             </div>
 
             <div className="flex flex-col gap-10 px-4 py-4">
+              {!decisionModelBannerDismissed ? (
+                <EvaluatorGalleryDecisionModelBanner
+                  onTry={() =>
+                    onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
+                  }
+                  onDismiss={onDismissDecisionModelBanner}
+                />
+              ) : null}
               {isLoading ? <GallerySkeleton /> : null}
               {errorMessage ? (
                 <div className="text-destructive py-8 text-center text-sm">
@@ -140,9 +210,23 @@ export function EvaluatorGalleryView({
                     <EvaluatorGallerySection
                       key={section.key}
                       section={section}
-                      expanded={expandedSections.has(section.key)}
-                      onExpandedChange={(expanded) =>
-                        onExpandedChange(section.key, expanded)
+                      expanded={
+                        isSingleSection || expandedSections.has(section.key)
+                      }
+                      onExpandedChange={
+                        isSingleSection
+                          ? undefined
+                          : (expanded) => {
+                              if (
+                                expanded &&
+                                section.key ===
+                                  EVALUATOR_GALLERY_PROJECT_SECTION_KEY
+                              ) {
+                                selectSection(section.key);
+                                return;
+                              }
+                              onExpandedChange(section.key, expanded);
+                            }
                       }
                       onSelectTemplate={onSelectTemplate}
                     />
@@ -152,6 +236,19 @@ export function EvaluatorGalleryView({
                     No templates match your search.
                   </div>
                 )
+              ) : null}
+              {shouldLoadMoreProjectTemplates ? (
+                <div
+                  ref={
+                    hasMoreProjectTemplates ? loadMoreSentinelRef : undefined
+                  }
+                  className="text-muted-foreground py-2 text-center text-sm"
+                  role={isLoadingMoreProjectTemplates ? "status" : undefined}
+                >
+                  {isLoadingMoreProjectTemplates
+                    ? "Loading more templates…"
+                    : null}
+                </div>
               ) : null}
             </div>
           </div>

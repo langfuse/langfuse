@@ -1,16 +1,13 @@
 import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Plus } from "lucide-react";
 import EvaluatorTable from "@/src/features/evals/components/evaluator-table";
-import {
-  getEvalsTabs,
-  EVALS_TABS,
-} from "@/src/features/navigation/utils/evals-tabs";
+import { getEvalsTabs, EVALS_TABS } from "@/src/features/navigation";
 import { ActionButton } from "@/src/components/ActionButton";
 import { api } from "@/src/utils/api";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
-import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
+import { useEntitlementLimit } from "@/src/features/entitlements";
+import { SupportOrUpgradePage } from "@/src/ee/features/billing";
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";

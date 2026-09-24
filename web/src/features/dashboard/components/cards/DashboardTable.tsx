@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { type ReactNode, useState } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
@@ -97,12 +98,10 @@ export const DashboardTable = ({
               </table>
             </div>
           </div>
-          {collapse ? (
+          {collapse && rows.length > (collapsedCount ?? collapse.collapsed) ? (
             <ExpandListButton
               isExpanded={isExpanded}
               setExpanded={setExpanded}
-              totalLength={rows.length}
-              maxLength={collapsedCount ?? collapse.collapsed}
               expandText={
                 rows.length > collapse.expanded
                   ? `Show top ${collapse.expanded}`

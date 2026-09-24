@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-null-render */
 /**
  * Inline notice above the tree/timeline/search list when the trace has more
  * observations than the detail view loads.

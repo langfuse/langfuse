@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { afterEach, beforeEach, expect, describe, it, vi } from "vitest";
 import { randomUUID } from "crypto";
 import {
@@ -16,6 +17,7 @@ import {
   createScoresCh,
   createTraceScore,
   queryClickhouse,
+  toClickhouseDateTime,
   traceException,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -167,8 +169,8 @@ async function insertRetentionTestRows(
     format: "JSONEachRow",
     values: rows.map((row) => ({
       project_id: row.projectId,
-      start_time: row.startTime,
-      event_ts: Date.now(),
+      start_time: toClickhouseDateTime(row.startTime),
+      event_ts: toClickhouseDateTime(),
     })),
   });
 }

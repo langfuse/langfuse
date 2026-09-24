@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
@@ -8,25 +9,20 @@ import {
   isTraceTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 import { type PartialConfig } from "@/src/features/evals/types";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Button } from "@/src/components/ui/button";
 import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { DismissController } from "@/src/components/DismissController";
 import { Separator } from "@/src/components/ui/separator";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/src/components/ui/dropdown-menu";
-import { BotMessageSquare, ChevronDown, Zap } from "lucide-react";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { BotMessageSquare, Check, ChevronDown, Zap } from "lucide-react";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import {
   useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
-} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+} from "@/src/features/in-app-agent";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useProjectV4SdkData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
@@ -35,7 +31,7 @@ import {
   DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
 } from "@/src/features/evals/utils/evaluator-constants";
 import { buildModernEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const EVAL_MIGRATION_DOCS_URL =
@@ -113,7 +109,7 @@ export default function RemapEvaluatorPage() {
     await router.push(`/project/${projectId}/evals${filterQuery}`);
   };
 
-  const { isBetaEnabled: isV4BetaEnabled } = useV4Beta();
+  const { isV4: isV4BetaEnabled } = useReadPath();
 
   // Map old config to new config with modern target
   // Only copy scoreName - filters and variable mapping will be initialized fresh
@@ -183,29 +179,19 @@ export default function RemapEvaluatorPage() {
               <Callout
                 variant="info"
                 align="top"
-                actions={
-                  <>
-                    {isInAppAgentLauncherVisible ? (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={handleUseAssistant}
-                      >
-                        <BotMessageSquare className="mr-1.5 h-4 w-4" />
-                        Use Assistant to help with upgrade
-                      </Button>
-                    ) : null}
-                    <Button asChild size="sm" variant="secondary">
-                      <a
-                        href={V4_DOCS_URL}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Docs
-                      </a>
-                    </Button>
-                  </>
-                }
+                actions={[
+                  ...(isInAppAgentLauncherVisible
+                    ? [
+                        {
+                          type: "button" as const,
+                          label: "Use Assistant to help with upgrade",
+                          icon: BotMessageSquare,
+                          onClick: handleUseAssistant,
+                        },
+                      ]
+                    : []),
+                  { type: "link", label: "Docs", href: V4_DOCS_URL },
+                ]}
                 onDismiss={onDismiss}
               >
                 <div className="flex items-start gap-2">
@@ -256,9 +242,9 @@ export default function RemapEvaluatorPage() {
             </div>
           ) : !oldConfig || !evalTemplate ? (
             <Alert variant="destructive">
-              <AlertDescription>
+              <Alert.Description>
                 Failed to load eval configuration or template.
-              </AlertDescription>
+              </Alert.Description>
             </Alert>
           ) : (
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_2px_minmax(0,1fr)] items-start">
@@ -331,30 +317,40 @@ export default function RemapEvaluatorPage() {
                             ? "Save & mark legacy inactive"
                             : "Save & delete legacy"}
                         </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
+                        <DropdownMenu
+                          disabled={isLoading}
+                          placement="bottom-end"
+                          items={[
+                            {
+                              type: "item",
+                              id: "mark-inactive",
+                              title: "Save & mark legacy inactive",
+                              icon:
+                                legacyAction === "mark-inactive"
+                                  ? Check
+                                  : undefined,
+                              onClick: () => setLegacyAction("mark-inactive"),
+                            },
+                            {
+                              type: "item",
+                              id: "delete",
+                              title: "Save & delete legacy",
+                              icon:
+                                legacyAction === "delete" ? Check : undefined,
+                              onClick: () => setLegacyAction("delete"),
+                            },
+                          ]}
+                        >
+                          {({ getTriggerProps }) => (
                             <Button
                               type="button"
                               disabled={isLoading}
                               className="mt-3 rounded-l-none rounded-r-md border-l-2"
+                              {...getTriggerProps()}
                             >
                               <ChevronDown className="h-4 w-4" />
                             </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => setLegacyAction("mark-inactive")}
-                            >
-                              {legacyAction === "mark-inactive" && "✓ "}
-                              Save & mark legacy inactive
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => setLegacyAction("delete")}
-                            >
-                              {legacyAction === "delete" && "✓ "}
-                              Save & delete legacy
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
+                          )}
                         </DropdownMenu>
                       </div>
                     </div>

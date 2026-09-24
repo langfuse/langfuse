@@ -4,7 +4,12 @@ import {
   InvalidRequestError,
   observationVariableMappingList,
 } from "@langfuse/shared";
+import {
+  DefaultEvalModelService,
+  isDecisionModelAdapter,
+} from "@langfuse/shared/src/server";
 import { getEvaluatorDefinitionConfigurationError } from "@/src/features/evals/server/evaluator-preflight";
+import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import {
   isCodeEvalEnabled,
   isCodeEvalSourceCodeLanguageSupported,
@@ -16,14 +21,25 @@ import {
 } from "./evaluatorErrors";
 import type { EvaluatorDefinition } from "./evaluatorTypes";
 
+export function extractEvaluatorPromptVariables(
+  promptMessages: Array<{ content: string }>,
+) {
+  return [
+    ...new Set(
+      promptMessages.flatMap(({ content }) => extractVariables(content)),
+    ),
+  ];
+}
+
 export function assertEvaluatorVariablesMatchPrompt(params: {
-  prompt: string;
+  promptVariables: string[];
   variables: string[];
 }) {
-  const promptVariables = extractVariables(params.prompt);
   if (
-    promptVariables.length !== params.variables.length ||
-    promptVariables.some((variable) => !params.variables.includes(variable))
+    params.promptVariables.length !== params.variables.length ||
+    params.promptVariables.some(
+      (variable) => !params.variables.includes(variable),
+    )
   ) {
     throw new InvalidRequestError(
       "Evaluator variables must match the prompt variables",
@@ -32,7 +48,7 @@ export function assertEvaluatorVariablesMatchPrompt(params: {
 }
 
 export function assertCompleteEvaluatorVariableMapping(params: {
-  prompt: string;
+  promptVariables: string[];
   variableMapping: unknown;
 }) {
   const parsed = observationVariableMappingList.safeParse(
@@ -51,7 +67,6 @@ export function assertCompleteEvaluatorVariableMapping(params: {
     }
   }
 
-  const promptVariables = extractVariables(params.prompt);
   const mappedVariables = parsed.data.map(
     ({ templateVariable }) => templateVariable,
   );
@@ -65,7 +80,7 @@ export function assertCompleteEvaluatorVariableMapping(params: {
   }
 
   const unknownVariables = mappedVariables.filter(
-    (variable) => !promptVariables.includes(variable),
+    (variable) => !params.promptVariables.includes(variable),
   );
   if (unknownVariables.length > 0) {
     throw new InvalidRequestError(
@@ -73,7 +88,7 @@ export function assertCompleteEvaluatorVariableMapping(params: {
     );
   }
 
-  const missingVariables = promptVariables.filter(
+  const missingVariables = params.promptVariables.filter(
     (variable) => !mappedVariables.includes(variable),
   );
   if (missingVariables.length > 0) {
@@ -106,15 +121,50 @@ export async function assertEvaluatorConfigurationValid(params: {
     return;
   }
 
+  if (params.definition.type === EvalTemplateType.DECISION_MODEL) {
+    await assertDecisionModelDefinitionValid({
+      projectId: params.projectId,
+      name: params.name,
+      definition: params.definition,
+    });
+    return;
+  }
+
+  const promptMessagesValidationError = getPromptMessagesValidationError(
+    params.definition.promptMessages,
+  );
+  if (promptMessagesValidationError) {
+    throw new InvalidRequestError(promptMessagesValidationError);
+  }
+
+  const promptVariables = extractEvaluatorPromptVariables(
+    params.definition.promptMessages,
+  );
   assertEvaluatorVariablesMatchPrompt({
-    prompt: params.definition.prompt,
+    promptVariables,
     variables: params.definition.vars,
   });
   if (params.definition.variableMapping !== null) {
     assertCompleteEvaluatorVariableMapping({
-      prompt: params.definition.prompt,
+      promptVariables,
       variableMapping: params.definition.variableMapping,
     });
+  }
+
+  if (params.definition.provider !== null) {
+    const connection = await DefaultEvalModelService.fetchValidModelConfig(
+      params.projectId,
+      params.definition.provider,
+      params.definition.model ?? undefined,
+    );
+    if (
+      connection.valid &&
+      isDecisionModelAdapter(connection.config.apiKey.adapter)
+    ) {
+      throw new EvaluatorModelConfigurationError(
+        `Connection "${params.definition.provider}" is a decision-model connection and cannot be used for LLM-as-a-judge. Choose a text-generation model or switch the evaluator type to decision model.`,
+      );
+    }
   }
 
   const error = await getEvaluatorDefinitionConfigurationError({
@@ -128,5 +178,46 @@ export async function assertEvaluatorConfigurationValid(params: {
       outputDefinition: params.definition.outputDefinition,
     },
   });
+  if (error) throw new EvaluatorModelConfigurationError(error);
+}
+
+export async function getDecisionModelConfigurationError(params: {
+  projectId: string;
+  name: string;
+  definition: Pick<
+    Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>,
+    "provider" | "model"
+  >;
+}): Promise<string | null> {
+  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+    params.projectId,
+    params.definition.provider,
+    params.definition.model,
+  );
+  if (!modelConfig.valid) {
+    return `No decision-model connection found for evaluator "${params.name}". ${modelConfig.error}. Add a TypeSafe connection under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) first.`;
+  }
+  if (!isDecisionModelAdapter(modelConfig.config.apiKey.adapter)) {
+    return `Connection "${params.definition.provider}" is not a decision-model connection. Decision-model evaluators need a TypeSafe connection.`;
+  }
+  return null;
+}
+
+async function assertDecisionModelDefinitionValid(params: {
+  projectId: string;
+  name: string;
+  definition: Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>;
+}) {
+  if (params.definition.vars.length === 0) {
+    throw new InvalidRequestError(
+      "Decision-model evaluators need at least one state field",
+    );
+  }
+  assertCompleteEvaluatorVariableMapping({
+    promptVariables: params.definition.vars,
+    variableMapping: params.definition.variableMapping,
+  });
+
+  const error = await getDecisionModelConfigurationError(params);
   if (error) throw new EvaluatorModelConfigurationError(error);
 }

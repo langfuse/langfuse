@@ -1,8 +1,9 @@
+/* eslint-disable @repo/no-null-render */
 import { ChevronRight } from "lucide-react";
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useQueryProject } from "@/src/features/projects";
 import { useProjectV4MigrationActions } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 

@@ -160,7 +160,8 @@ export function usePeekPanelState({
   // lands on the exact same width as expanded — no snap-back jump — and the
   // panel never paints over the sidebar even if a stored fraction is large.
   const maxWidth = `calc(100vw - ${sidebarOffset}px)`;
-  const panelStyle: CSSProperties = {
+  const panelStyle: CSSProperties & { "--peek-max-width": string } = {
+    "--peek-max-width": maxWidth,
     width: effectiveExpanded ? maxWidth : `min(${widgetWidth}, ${maxWidth})`,
   };
 

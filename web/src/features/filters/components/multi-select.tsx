@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import * as React from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Loader2 } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
@@ -48,6 +48,8 @@ export function MultiSelect({
   isCustomSelectEnabled = false,
   labelTruncateCutOff = 2,
   chipsOnly = false,
+  onOpenChange,
+  isLoading = false,
 }: {
   title?: string;
   label?: string;
@@ -60,6 +62,8 @@ export function MultiSelect({
   labelTruncateCutOff?: number;
   /** chipsOnly hides the placeholder/separator once values are selected, showing just the chips and chevron. */
   chipsOnly?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  isLoading?: boolean;
 }) {
   const selectedValues = useMemo(() => new Set(values), [values]);
   const optionValues = new Set(options.map((option) => option.value));
@@ -131,18 +135,15 @@ export function MultiSelect({
   };
 
   function getSelectedOptions() {
-    const selectedOptions = options.filter(({ value }) =>
-      selectedValues.has(value),
+    const selectedOptions = mergedOptions.filter(
+      ({ value }) =>
+        selectedValues.has(value) &&
+        (!freeTextInput || value !== freeTextInput),
     );
+    const liveCustomOption: FilterOption[] =
+      freeTextInput && freeText ? [{ value: freeText }] : [];
 
-    const hasCustomOption =
-      !!freeText &&
-      !!getFreeTextInput(isCustomSelectEnabled, values, optionValues);
-    const customOption: FilterOption[] = hasCustomOption
-      ? [{ value: freeText }]
-      : [];
-
-    return [...selectedOptions, ...customOption];
+    return [...selectedOptions, ...liveCustomOption];
   }
 
   const selectedBadges =
@@ -173,7 +174,7 @@ export function MultiSelect({
     );
 
   return (
-    <Popover>
+    <Popover onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -216,16 +217,33 @@ export function MultiSelect({
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0" align="center">
         <InputCommand>
-          <InputCommandInput placeholder={title} variant="bottom" />
+          <InputCommandInput
+            placeholder={title}
+            variant="bottom"
+            disabled={isLoading}
+          />
           <InputCommandList>
+            {isLoading && (
+              <div
+                role="status"
+                className="text-muted-foreground flex items-center gap-2 px-3 py-2 text-sm"
+              >
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Loading…
+              </div>
+            )}
             {/* if isCustomSelectEnabled we always show custom select hence never empty */}
-            {!isCustomSelectEnabled && (
+            {!isCustomSelectEnabled && !isLoading && (
               <InputCommandEmpty>No results found.</InputCommandEmpty>
             )}
             <InputCommandGroup>
               {showSelectAll && (
                 <>
-                  <InputCommandItem key="select-all" onSelect={handleSelectAll}>
+                  <InputCommandItem
+                    key="select-all"
+                    onSelect={handleSelectAll}
+                    disabled={isLoading}
+                  >
                     <div
                       className={cn(
                         "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
@@ -256,6 +274,7 @@ export function MultiSelect({
                 const commandItem = (
                   <InputCommandItem
                     key={option.value}
+                    disabled={isLoading}
                     onSelect={() => {
                       if (isSelected) {
                         selectedValues.delete(option.value);
@@ -311,6 +330,7 @@ export function MultiSelect({
                 <InputCommandSeparator />
                 <InputCommandItem
                   key="freeTextField"
+                  disabled={isLoading}
                   onSelect={() => {
                     const freeTextInput = getFreeTextInput(
                       isCustomSelectEnabled,
@@ -346,6 +366,7 @@ export function MultiSelect({
                   </div>
                   <Input
                     type="text"
+                    disabled={isLoading}
                     value={freeText}
                     onChange={(e) => {
                       setFreeText(e.target.value);
@@ -370,6 +391,7 @@ export function MultiSelect({
                 <InputCommandSeparator />
                 <InputCommandGroup>
                   <InputCommandItem
+                    disabled={isLoading}
                     onSelect={() => onValueChange([])}
                     className="justify-center text-center"
                   >

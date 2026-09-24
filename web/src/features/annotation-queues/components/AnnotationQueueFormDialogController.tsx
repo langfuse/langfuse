@@ -1,14 +1,15 @@
+/* eslint-disable no-nested-ternary */
+import { showErrorToast } from "@/src/features/notifications";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   type CreateQueueWithAssignments,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { AnnotationQueueFormDialogContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogContent";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import { api } from "@/src/utils/api";
 
@@ -34,7 +35,7 @@ export function AnnotationQueueFormDialogController(
   const queueId = mode === "edit" ? props.queueId : undefined;
 
   const [open, setOpen] = useState(false);
-  const createdQueueIdRef = useRef<string | undefined>(undefined);
+  const [createdQueueId, setCreatedQueueId] = useState<string>();
 
   const hasQueueAccess = useHasProjectAccess({
     projectId,
@@ -49,7 +50,7 @@ export function AnnotationQueueFormDialogController(
 
   const openDialog = () => {
     if (!hasQueueAccess) return;
-    createdQueueIdRef.current = undefined;
+    setCreatedQueueId(undefined);
     setOpen(true);
   };
 
@@ -70,7 +71,7 @@ export function AnnotationQueueFormDialogController(
   );
   const allQueueNamesAndIds = api.annotationQueues.allNamesAndIds.useQuery(
     { projectId },
-    { enabled: hasQueueAccess && mode === "create" && open },
+    { enabled: hasQueueAccess && open },
   );
 
   const utils = api.useUtils();
@@ -83,17 +84,16 @@ export function AnnotationQueueFormDialogController(
     async (data: CreateQueueWithAssignments) => {
       try {
         let targetQueueId: string;
-        if (mode === "edit") {
+        const existingQueueId = queueId ?? createdQueueId;
+        if (existingQueueId) {
           await editQueueMutation.mutateAsync({
             name: data.name,
             description: data.description,
             scoreConfigIds: data.scoreConfigIds,
             projectId,
-            queueId: props.queueId,
+            queueId: existingQueueId,
           });
-          targetQueueId = props.queueId;
-        } else if (createdQueueIdRef.current) {
-          targetQueueId = createdQueueIdRef.current;
+          targetQueueId = existingQueueId;
         } else {
           const queueResponse = await createQueueMutation.mutateAsync({
             name: data.name,
@@ -102,7 +102,7 @@ export function AnnotationQueueFormDialogController(
             projectId,
           });
           targetQueueId = queueResponse.id;
-          createdQueueIdRef.current = targetQueueId;
+          setCreatedQueueId(targetQueueId);
         }
 
         if (data.newAssignmentUserIds.length > 0) {
@@ -117,7 +117,7 @@ export function AnnotationQueueFormDialogController(
           utils.annotationQueues.invalidate(),
           utils.annotationQueueAssignments.invalidate(),
         ]);
-        createdQueueIdRef.current = undefined;
+        setCreatedQueueId(undefined);
         onSuccess(targetQueueId);
         setOpen(false);
       } catch {
@@ -131,10 +131,10 @@ export function AnnotationQueueFormDialogController(
       createQueueAssignmentsMutation,
       createQueueMutation,
       editQueueMutation,
-      mode,
+      createdQueueId,
       onSuccess,
       projectId,
-      props,
+      queueId,
       utils.annotationQueueAssignments,
       utils.annotationQueues,
     ],
@@ -168,11 +168,11 @@ export function AnnotationQueueFormDialogController(
             initialValues={initialValues}
             scoreConfigs={configsQuery.data.configs}
             projectId={projectId}
-            queueId={queueId}
+            queueId={queueId ?? createdQueueId}
             queueNames={
-              mode === "create"
-                ? (allQueueNamesAndIds.data?.map((queue) => queue.name) ?? [])
-                : []
+              allQueueNamesAndIds.data
+                ?.filter((queue) => queue.id !== (queueId ?? createdQueueId))
+                .map((queue) => queue.name) ?? []
             }
             onManageScoreConfigsClick={() => {
               capture("score_configs:manage_configs_item_click", {

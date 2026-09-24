@@ -106,6 +106,66 @@ const EnvSchema = z.object({
   LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_TRACE_BATCH_SAMPLING_RATE: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(1),
+  LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_TRACE_BATCH_READ_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_TRACE_BATCH_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2),
+  LANGFUSE_TRACE_BATCH_MAX_THREADS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2),
+  LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional(),
+  LANGFUSE_TRACE_BATCH_EXPERIMENT_ID: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)
+    .optional(),
+  LANGFUSE_TRACE_BATCH_MAX_SIZE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(10_000)
+    .default(60),
+  LANGFUSE_TRACE_BATCH_STRATEGY: z
+    .enum(["project", "locality"])
+    .default("project"),
+  LANGFUSE_TRACE_BATCH_IDLE_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(600_000),
+  LANGFUSE_TRACE_BATCH_PENDING_TTL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(7_200_000),
+  LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30_000),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
@@ -386,6 +446,23 @@ const EnvSchema = z.object({
     .positive()
     .default(8),
 
+  // Optional propagation-only overrides; unset values use ClickHouse profile settings.
+  LANGFUSE_EVENT_PROPAGATION_MAX_BLOCK_SIZE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional(),
+  LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_ROWS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .optional(),
+  LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_BYTES: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .optional(),
+
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
@@ -407,6 +484,7 @@ const EnvSchema = z.object({
   LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: z
@@ -617,7 +695,7 @@ const EnvSchema = z.object({
   // slot is wedged. The heartbeat is refreshed at the top of every invocation and
   // per-chunk during the experiment backfill, so the threshold only needs to
   // exceed the longest un-heartbeated step — a single CH INSERT (request_timeout
-  // 10 min). 15 min leaves headroom.
+  // 30 min). 35 min leaves headroom.
   //
   // Probes using this flag MUST set initialDelaySeconds >= 60s (one cron cycle):
   // the heartbeat is only refreshed when the minute-boundary cron next runs, so a
@@ -627,7 +705,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .int()
-    .default(15),
+    .default(35),
 
   // Liveness threshold for the opt-in ?failIfQueueConsumptionStuck=true health
   // check: fail once this container's BullMQ workers have neither picked up nor

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 /**
  * HiddenObservationsNotice - Shows notification when observations are filtered by minimum level
  *

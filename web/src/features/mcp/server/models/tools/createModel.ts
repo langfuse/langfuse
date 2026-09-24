@@ -1,8 +1,8 @@
 import {
   PostModelsV1Body,
   PostModelsV1Response,
-} from "@/src/features/public-api/types/models";
-import { createModelForApi } from "@/src/features/models/server/publicApiModelService";
+} from "@/src/features/public-api/server";
+import { createModelForApi } from "@/src/features/models/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildModelUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -32,6 +32,7 @@ export const [createModelTool, handleCreateModel] = defineTool({
   name: "createModel",
   description:
     "Create a custom model definition for cost tracking/tokenization in the current project.",
+  action: "models:CUD",
   baseSchema: CreateModelBaseSchema,
   inputSchema: PostModelsV1Body,
   handler: async (input, context) =>

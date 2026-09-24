@@ -1,4 +1,7 @@
-import { EvalTemplateTypeEnum } from "@langfuse/shared";
+import {
+  EvalTemplateTypeEnum,
+  observationVariableMappingList,
+} from "@langfuse/shared";
 import { formatDistanceToNowStrict } from "date-fns";
 import { RotateCcw } from "lucide-react";
 
@@ -25,9 +28,24 @@ function toEvaluatorDefinition(
     };
   }
 
+  if (version.type === EvalTemplateTypeEnum.DECISION_MODEL) {
+    const variableMapping = observationVariableMappingList.safeParse(
+      version.variableMapping,
+    );
+    return {
+      type: EvalTemplateTypeEnum.DECISION_MODEL,
+      questions: version.questions,
+      selectedModel:
+        version.provider && version.model
+          ? { provider: version.provider, model: version.model }
+          : null,
+      variableMapping: variableMapping.success ? variableMapping.data : [],
+    };
+  }
+
   return {
     type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
-    prompt: version.prompt,
+    promptMessages: version.promptMessages!,
     // Each version pins the model it ran with; the project default only fills
     // in when it never had an explicit one.
     selectedModel:

@@ -94,5 +94,6 @@ declare module "next-auth/jwt" {
     name?: string | null;
     email?: string | null;
     image?: string | null;
+    loginAt?: number;
   }
 }

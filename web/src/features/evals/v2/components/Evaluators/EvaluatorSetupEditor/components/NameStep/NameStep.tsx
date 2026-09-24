@@ -5,8 +5,20 @@ import { Label } from "@/src/components/ui/label";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
 
+const COPY = {
+  default: {
+    description:
+      "Give the evaluator a clear name (it's also used as the score name) and explain when it should be used.",
+  },
+  decisionModel: {
+    description:
+      "Give the evaluator a clear name and explain when it should be used.",
+  },
+} as const;
+
 export function NameStep({
   step,
+  variant,
   open,
   onOpenChange,
   name,
@@ -17,6 +29,7 @@ export function NameStep({
   descriptionAIAssistance,
 }: {
   step: number;
+  variant: keyof typeof COPY;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   name: string;
@@ -32,7 +45,7 @@ export function NameStep({
     <Stepper
       number={step}
       title="Name evaluator"
-      description="Give the evaluator a clear name (it's also used as the score name) and explain when it should be used."
+      description={COPY[variant].description}
       open={open}
       onOpenChange={onOpenChange}
     >
@@ -40,10 +53,12 @@ export function NameStep({
         <div className="space-y-2">
           <Label htmlFor="evaluator-name" className="flex items-center gap-1.5">
             Name
-            <InfoTooltip label="About evaluator names">
-              The evaluator name is also used as the score name for the scores
-              it produces.
-            </InfoTooltip>
+            {variant === "default" ? (
+              <InfoTooltip label="About evaluator names">
+                The evaluator name is also used as the score name for the scores
+                it produces.
+              </InfoTooltip>
+            ) : null}
           </Label>
           <AIAssistedInput
             id="evaluator-name"
@@ -58,8 +73,11 @@ export function NameStep({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="evaluator-description">
-            Description{" "}
+          <Label
+            htmlFor="evaluator-description"
+            className="flex items-center gap-1"
+          >
+            Description
             <span className="text-muted-foreground font-normal">
               (optional)
             </span>

@@ -5,7 +5,7 @@ import { eventsRouter } from "@/src/features/events/server/eventsRouter";
 import { scoresRouter } from "./routers/scores";
 import { scoreAnalyticsRouter } from "@/src/features/score-analytics/server/scoreAnalyticsRouter";
 import { dashboardRouter } from "@/src/features/dashboard/server/dashboard-router";
-import { projectsRouter } from "@/src/features/projects/server/projectsRouter";
+import { projectsRouter } from "@/src/features/projects/server";
 import { projectApiKeysRouter } from "@/src/features/public-api/server/projectApiKeyRouter";
 import { membersRouter } from "@/src/features/rbac/server/membersRouter";
 import { userRouter } from "@/src/server/api/routers/users";
@@ -54,7 +54,6 @@ import { defaultEvalModelRouter } from "@/src/features/evals/server/defaultEvalM
 import { slackRouter } from "@/src/features/slack/server/router";
 import { supportRouter } from "@/src/features/support-chat/trpc/supportRouter";
 import { queueAssignmentRouter } from "@/src/features/annotation-queues/server/annotationQueueAssignmentsRouter";
-import { surveysRouter } from "@/src/server/api/routers/surveys";
 import { naturalLanguageFilterRouter } from "@/src/features/natural-language-filters/server/router";
 import { searchBarRouter } from "@/src/features/search-bar/server/router";
 import { notificationPreferencesRouter } from "@/src/server/api/routers/notificationPreferences";
@@ -62,6 +61,7 @@ import { onboardingRouter } from "@/src/features/onboarding/server/onboardingRou
 import { webCalloutsRouter } from "@/src/features/web-callouts/server/router";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
+import { aiGatewayRouter } from "@/src/features/ai-gateway/server";
 
 /**
  * This is the primary router for your server.
@@ -124,7 +124,6 @@ export const appRouter = createTRPCRouter({
   monitors: monitorsRouter,
   slack: slackRouter,
   supportRouter: supportRouter,
-  surveys: surveysRouter,
   onboarding: onboardingRouter,
   naturalLanguageFilters: naturalLanguageFilterRouter,
   searchBar: searchBarRouter,
@@ -132,6 +131,7 @@ export const appRouter = createTRPCRouter({
   webCallouts: webCalloutsRouter,
   inAppAgent: inAppAgentRouter,
   v4Transition: v4TransitionRouter,
+  aiGateway: aiGatewayRouter,
 });
 
 // export type definition of API

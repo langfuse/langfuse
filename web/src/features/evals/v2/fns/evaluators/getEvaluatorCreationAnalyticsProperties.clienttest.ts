@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { getEvaluatorCreationAnalyticsProperties } from "./getEvaluatorCreationAnalyticsProperties";
+import {
+  getEvaluatorCreationAnalyticsProperties,
+  getJudgePromptAnalyticsProperties,
+} from "./getEvaluatorCreationAnalyticsProperties";
 
 describe("getEvaluatorCreationAnalyticsProperties", () => {
   it("reports all evaluator creation attributes", () => {
@@ -13,6 +16,11 @@ describe("getEvaluatorCreationAnalyticsProperties", () => {
           hasCustomModelParams: true,
           scoreType: "CATEGORICAL",
         },
+        promptMessages: [
+          { role: "system" },
+          { role: "user" },
+          { role: "user" },
+        ],
         variableMapping: [
           {
             templateVariable: "question",
@@ -39,6 +47,8 @@ describe("getEvaluatorCreationAnalyticsProperties", () => {
       usesDefaultModel: false,
       hasCustomModelParams: true,
       scoreType: "CATEGORICAL",
+      promptMessageCount: 3,
+      promptMessageRoles: ["system", "user"],
       hasNarrowedVariableMapping: false,
       variableMappingSources: ["input", "output"],
     });
@@ -54,6 +64,20 @@ describe("getEvaluatorCreationAnalyticsProperties", () => {
       isCustomTemplate: false,
       isFromScratch: true,
       sourceCodeLanguage: "PYTHON",
+    });
+  });
+
+  it("reports judge prompt shape without prompt content", () => {
+    expect(
+      getJudgePromptAnalyticsProperties([
+        { role: "system" },
+        { role: "assistant" },
+        { role: "user" },
+        { role: "assistant" },
+      ]),
+    ).toEqual({
+      promptMessageCount: 4,
+      promptMessageRoles: ["system", "assistant", "user"],
     });
   });
 });

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 /**
  * SpanContent - Pure span/observation content renderer.
@@ -5,7 +6,7 @@
  * Responsibilities:
  * - Render span-specific data (name, metrics, badges, scores)
  * - Apply view preferences (show/hide features)
- * - Format and display metrics with color coding
+ * - Format metrics; a row that is most of the trace reads in foreground
  *
  * Does NOT know about:
  * - Tree structure (indents, lines, collapse buttons)
@@ -24,23 +25,18 @@ import { ObservationLevelBadge } from "@/src/features/traces/components/Observat
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
-import { getSubtreeDurationOverflowMs } from "@/src/features/traces/fns/getSubtreeDurationOverflowMs";
-import { heatMapTextColor } from "@/src/features/traces/fns/heatMapTextColor";
+import { usdFormatter, numberFormatter } from "@/src/utils/numbers";
+import {
+  isEmphasizedShare,
+  type MetricEmphasisContext,
+} from "@/src/features/traces/fns/metricEmphasis";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
-import type Decimal from "decimal.js";
-
-// How many distinct score groups to show inline on a tree/search row before
-// collapsing the rest into a "+N" pill. Keeps dense-score rows compact; the
-// full set is always on the node's Scores tab. (The timeline caps at 3.)
-const MAX_INLINE_SCORE_GROUPS = 3;
 
 interface SpanContentProps {
   node: TreeNode;
-  parentTotalCost?: Decimal;
-  parentTotalDuration?: number;
+  emphasis?: MetricEmphasisContext;
   commentCount?: number;
   onSelect?: () => void;
   onHover?: () => void;
@@ -49,24 +45,20 @@ interface SpanContentProps {
 
 export function SpanContent({
   node,
-  parentTotalCost,
-  parentTotalDuration,
+  emphasis,
   commentCount,
   onSelect,
   onHover,
   className,
 }: SpanContentProps) {
-  const { mergedScores, traceLevelScoreOwnerIds } = useTraceData();
-  const {
-    showDuration,
-    showCostTokens,
-    showScores,
-    colorCodeMetrics,
-    showComments,
-  } = useViewPreferences();
+  const { mergedScores } = useTraceData();
+  const { showDuration, showCostTokens, showScores, showComments } =
+    useViewPreferences();
 
-  // Use pre-computed cost from the TreeNode
-  const totalCost = node.totalCost;
+  // Own cost only; sums over children belong to the detail panel, not the row.
+  const ownCost =
+    node.calculatedTotalCost ??
+    (node.calculatedInputCost ?? 0) + (node.calculatedOutputCost ?? 0);
 
   const duration =
     node.endTime && node.startTime
@@ -75,34 +67,23 @@ export function SpanContent({
         ? node.latency * 1000
         : undefined;
 
-  const shouldRenderDuration =
-    showDuration && Boolean(duration || node.latency);
+  const durationMs = duration || (node.latency ? node.latency * 1000 : 0);
 
-  // Wall-clock duration of the whole subtree, surfaced as a second badge beside
-  // the own-span badge when async descendants outlive the parent span (so the
-  // own-span duration above understates the real elapsed time). See LFE-10475.
-  // It only complements the own-span badge — never renders alone — so a node
-  // with no own-span duration (e.g. an in-flight/crashed observation with no
-  // endTime) shows nothing rather than an orphaned "∑" with no anchor.
-  const subtreeWallClockOverflowMs = showDuration
-    ? getSubtreeDurationOverflowMs(duration, node.subtreeWallClockDurationMs)
-    : null;
-  const shouldRenderSubtreeDuration =
-    shouldRenderDuration && subtreeWallClockOverflowMs != null;
+  const shouldRenderDuration = showDuration && Boolean(durationMs);
+  const emphasizeDuration = isEmphasizedShare(
+    durationMs,
+    emphasis?.traceTotalDurationMs,
+  );
+  const emphasizeCost = isEmphasizedShare(ownCost, emphasis?.traceTotalCost);
 
+  // Tokens stand in for cost only when there is no cost to show.
+  const tokenTotal = ownCost ? 0 : (node.totalUsage ?? 0);
   const shouldRenderCostTokens =
-    showCostTokens &&
-    Boolean(
-      node.inputUsage || node.outputUsage || node.totalUsage || totalCost,
-    );
+    showCostTokens && Boolean(ownCost || tokenTotal);
 
   const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
 
-  const nodeScores = selectNodeScores(
-    mergedScores,
-    node.id,
-    traceLevelScoreOwnerIds,
-  );
+  const nodeScores = selectNodeScores(mergedScores, node.id);
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
 
@@ -131,9 +112,9 @@ export function SpanContent({
 
           <div className="flex items-center gap-x-2">
             {/* Comment count */}
-            {showComments && commentCount !== undefined && (
-              <CommentCountIcon count={commentCount} />
-            )}
+            {showComments &&
+              commentCount !== undefined &&
+              commentCount !== 0 && <CommentCountIcon count={commentCount} />}
 
             {/* Level badge */}
             {node.type !== "TRACE" &&
@@ -148,7 +129,7 @@ export function SpanContent({
         {shouldRenderAnyMetrics && (
           <div className="flex flex-wrap gap-x-2">
             {/* Duration (own span) */}
-            {shouldRenderDuration && (duration || node.latency) ? (
+            {shouldRenderDuration ? (
               <span
                 title={
                   node.type === "TRACE"
@@ -156,80 +137,47 @@ export function SpanContent({
                     : "Own span duration"
                 }
                 className={cn(
-                  "text-foreground-tertiary text-xs",
-                  parentTotalDuration &&
-                    colorCodeMetrics &&
-                    heatMapTextColor({
-                      max: parentTotalDuration,
-                      value:
-                        duration || (node.latency ? node.latency * 1000 : 0),
-                    }),
+                  "text-xs",
+                  emphasizeDuration
+                    ? "text-foreground"
+                    : "text-foreground-tertiary",
                 )}
               >
-                {formatIntervalSeconds(
-                  (duration || (node.latency ? node.latency * 1000 : 0)) / 1000,
-                )}
+                {formatIntervalSeconds(durationMs / 1000)}
               </span>
             ) : null}
 
-            {/* Subtree wall-clock duration — async descendants outlive the parent span */}
-            {shouldRenderSubtreeDuration ? (
+            {/* Tokens, only without a cost */}
+            {shouldRenderCostTokens && tokenTotal ? (
               <span
-                title="Subtree wall-clock duration (first start → last end)"
+                title="Total tokens"
                 className="text-foreground-tertiary text-xs"
               >
-                {"∑ "}
-                {formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}
-              </span>
-            ) : null}
-
-            {/* Token counts */}
-            {shouldRenderCostTokens &&
-            (node.inputUsage || node.outputUsage || node.totalUsage) ? (
-              <span className="text-foreground-tertiary text-xs">
-                {formatTokenCounts(
-                  node.inputUsage,
-                  node.outputUsage,
-                  node.totalUsage,
-                )}
+                {numberFormatter(tokenTotal, 0)} tokens
               </span>
             ) : null}
 
             {/* Cost */}
-            {shouldRenderCostTokens && totalCost ? (
+            {shouldRenderCostTokens && ownCost ? (
               <span
-                title={
-                  node.children.length > 0 || node.type === "TRACE"
-                    ? "Aggregated cost of all child observations"
-                    : undefined
-                }
                 className={cn(
-                  "text-foreground-tertiary text-xs",
-                  parentTotalCost &&
-                    colorCodeMetrics &&
-                    heatMapTextColor({
-                      max: parentTotalCost,
-                      value: totalCost,
-                    }),
+                  "text-xs",
+                  emphasizeCost
+                    ? "text-foreground"
+                    : "text-foreground-tertiary",
                 )}
               >
-                {node.children.length > 0 || node.type === "TRACE" ? "∑ " : ""}
-                {usdFormatter(totalCost.toNumber())}
+                {usdFormatter(ownCost)}
               </span>
             ) : null}
           </div>
         )}
 
-        {/* Scores row. Cap the inline badges and roll the rest into a "+N"
-            pill (hover to see them) so a node with many scores stays a compact
-            one/two-line row instead of a tall wrapping grid. */}
+        {/* Scores row. Inline badges are capped; the rest roll into a "+N"
+            pill that opens a table of all scores. */}
         {showScores && nodeScores.length > 0 && (
           <div className="flex flex-wrap gap-1">
-            <GroupedScoreBadges
-              compact
-              scores={nodeScores}
-              maxVisible={MAX_INLINE_SCORE_GROUPS}
-            />
+            <GroupedScoreBadges compact scores={nodeScores} />
           </div>
         )}
       </div>

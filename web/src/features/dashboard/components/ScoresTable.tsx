@@ -14,12 +14,12 @@ import { LeftAlignedCell } from "@/src/features/dashboard/components/LeftAligned
 import { cn } from "@/src/utils/tailwind";
 import { TotalMetric } from "./TotalMetric";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
-import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import {
+  getScoreDataTypeIcon,
   isBooleanDataType,
   isCategoricalDataType,
   isNumericDataType,
-} from "@/src/features/scores/lib/helpers";
+} from "@/src/features/scores";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
@@ -56,7 +56,7 @@ export const ScoresTable = ({
   projectId: string;
   globalFilterState: FilterState;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
 }) => {
   const localFilters = createTracesTimeFilter(
     globalFilterState,
@@ -88,7 +88,7 @@ export const ScoresTable = ({
       ],
       orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
       queryName: "score-aggregate",
-      version: metricsVersion ?? "v1",
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -133,7 +133,7 @@ export const ScoresTable = ({
         ],
         orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
         queryName: "score-aggregate",
-        version: metricsVersion ?? "v1",
+        version: metricsVersion,
       },
       {
         trpc: {

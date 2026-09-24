@@ -1981,6 +1981,81 @@ describe("OTel Resource Span Mapping", () => {
       },
     );
 
+    it("should build chat input from lk.pii.instructions and lk.pii.user_input on a realtime agent_turn", async () => {
+      const events = await convertOtelSpanToIngestionEvent(
+        createLivekitSpan({
+          name: "agent_turn",
+          scopeName: "livekit-agents",
+          attributes: [
+            {
+              key: "lk.pii.instructions",
+              value: { stringValue: "Your name is Marin." },
+            },
+            {
+              key: "lk.pii.user_input",
+              value: { stringValue: "What is Langfuse?" },
+            },
+            {
+              key: "lk.pii.response.text",
+              value: {
+                stringValue: "Langfuse is an LLM engineering platform.",
+              },
+            },
+            {
+              key: "lk.pii.response.function_calls",
+              value: { stringValue: "[]" },
+            },
+          ],
+        }),
+        new Set([livekitTraceId]),
+      );
+
+      const observation = findObservationCreateEvent(events);
+      expect(observation?.body.input).toEqual([
+        { role: "system", content: "Your name is Marin." },
+        { role: "user", content: "What is Langfuse?" },
+      ]);
+      expect(observation?.body.output).toBe(
+        "Langfuse is an LLM engineering platform.",
+      );
+      expect(
+        observation?.body.metadata?.attributes?.["lk.pii.response.text"],
+      ).toBeUndefined();
+    });
+
+    it("should keep lk.pii.instructions as system input when the agent speaks first", async () => {
+      const events = await convertOtelSpanToIngestionEvent(
+        createLivekitSpan({
+          name: "agent_turn",
+          scopeName: "livekit-agents",
+          attributes: [
+            {
+              key: "lk.pii.instructions",
+              value: { stringValue: "Your name is Marin." },
+            },
+            {
+              key: "lk.pii.user_input",
+              value: { stringValue: "" },
+            },
+            {
+              key: "lk.pii.response.text",
+              value: { stringValue: "Hi, I am Marin." },
+            },
+          ],
+        }),
+        new Set([livekitTraceId]),
+      );
+
+      const observation = findObservationCreateEvent(events);
+      expect(observation?.body.input).toEqual([
+        { role: "system", content: "Your name is Marin." },
+      ]);
+      expect(observation?.body.output).toBe("Hi, I am Marin.");
+      expect(observation?.body.metadata?.attributes ?? {}).not.toHaveProperty(
+        "lk.pii.instructions",
+      );
+    });
+
     it("should not map LiveKit span names without livekit-agents scope", async () => {
       const events = await convertOtelSpanToIngestionEvent(
         createLivekitSpan({
@@ -3944,6 +4019,105 @@ describe("OTel Resource Span Mapping", () => {
           entityAttributeValue: '{"temperature": 75, "condition": "sunny"}',
         },
       ],
+      // livekit-agents >= 1.8 marks content attributes with a `pii` segment
+      [
+        "should map lk.pii.input_text to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.input_text",
+          otelAttributeValue: {
+            stringValue: "What is the weather today?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: "What is the weather today?",
+        },
+      ],
+      [
+        "should map lk.pii.user_transcript to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.user_transcript",
+          otelAttributeValue: {
+            stringValue: "Hey there. What's the weather?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: "Hey there. What's the weather?",
+        },
+      ],
+      [
+        "should map lk.pii.chat_ctx to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.chat_ctx",
+          otelAttributeValue: {
+            stringValue: '{"items": [{"role": "user", "content": ["Hi"]}]}',
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue:
+            '{"items": [{"role": "user", "content": ["Hi"]}]}',
+        },
+      ],
+      [
+        "should map lk.pii.user_input to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.user_input",
+          otelAttributeValue: {
+            stringValue: "What is Langfuse?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: "What is Langfuse?",
+        },
+      ],
+      [
+        "should map lk.pii.function_tool.arguments to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.function_tool.arguments",
+          otelAttributeValue: {
+            stringValue: '{"query": "langfuse sessions"}',
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: '{"query": "langfuse sessions"}',
+        },
+      ],
+      [
+        "should map lk.pii.response.text to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.response.text",
+          otelAttributeValue: {
+            stringValue: "The weather is sunny with a high of 75°F.",
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: "The weather is sunny with a high of 75°F.",
+        },
+      ],
+      [
+        "should map lk.pii.function_tool.output to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.function_tool.output",
+          otelAttributeValue: {
+            stringValue: '{"temperature": 75, "condition": "sunny"}',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: '{"temperature": 75, "condition": "sunny"}',
+        },
+      ],
+      [
+        "should map lk.pii.response.function_calls to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.response.function_calls",
+          otelAttributeValue: {
+            stringValue: '[{"name": "searchLangfuseDocs", "arguments": "{}"}]',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue:
+            '[{"name": "searchLangfuseDocs", "arguments": "{}"}]',
+        },
+      ],
       [
         // OTLP/JSON encodes int64 attribute values as decimal strings (e.g. "100")
         // rather than the Long object produced by the protobuf decoder. See
@@ -4207,6 +4381,38 @@ describe("OTel Resource Span Mapping", () => {
         expect(eventInputs).toHaveLength(1);
         expect(eventInputs[0].promptName).toBe("my-prompt");
         expect(eventInputs[0].promptVersion).toBe(1);
+      });
+
+      it("should map string-encoded prompt version on generation observations", async () => {
+        const resourceSpan = buildResourceSpan([
+          {
+            key: "langfuse.observation.type",
+            value: { stringValue: "generation" },
+          },
+          {
+            key: "langfuse.observation.prompt.name",
+            value: { stringValue: "my-prompt" },
+          },
+          {
+            key: "langfuse.observation.prompt.version",
+            value: { stringValue: "3" },
+          },
+        ]);
+
+        const events = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+        const observation = events.find((e) => e.type !== "trace-create");
+        expect(observation?.type).toBe("generation-create");
+        expect(observation?.body.promptName).toBe("my-prompt");
+        expect(observation?.body.promptVersion).toBe(3);
+
+        const processor = createTestOtelProcessor();
+        const eventInputs = processor.processToEvent([resourceSpan]);
+        expect(eventInputs).toHaveLength(1);
+        expect(eventInputs[0].promptName).toBe("my-prompt");
+        expect(eventInputs[0].promptVersion).toBe(3);
       });
 
       it("should map legacy langfuse.prompt.name attributes on generation observations", async () => {
@@ -8077,6 +8283,77 @@ describe("OTel Resource Span Mapping", () => {
       expect(usageDetails.output_reasoning_tokens).toBe(25);
       expect(usageDetails["reasoning.output_tokens"]).toBeUndefined();
     });
+
+    it("should normalize the official cache-write token attribute", async () => {
+      const traceId = "abcdef1234567890abcdef1234567893";
+      const officialCacheUsageSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "opentelemetry",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde2", "hex"),
+                name: "official-cache-usage",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 300, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read.input_tokens",
+                    value: { intValue: { low: 40, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_write.input_tokens",
+                    value: { intValue: { low: 25, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        officialCacheUsageSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (event) =>
+          event.type === "generation-create" || event.type === "span-create",
+      );
+
+      expect(observationEvent?.body.usageDetails).toEqual({
+        input: 235,
+        input_cached_tokens: 40,
+        input_cache_creation: 25,
+      });
+    });
+
     it("should normalize raw Anthropic cache_read_input_tokens / cache_creation_input_tokens into Langfuse canonical keys", async () => {
       // flat Anthropic cache spellings must map to cache aliases, not opaque passthrough buckets
       const traceId = "abcdef1234567890abcdef1234567893";

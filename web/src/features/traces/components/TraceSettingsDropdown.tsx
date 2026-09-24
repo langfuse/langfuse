@@ -7,10 +7,8 @@
  * - Show Scores
  * - Show Duration
  * - Show Cost/Tokens
- * - Color Code Metrics (dependent on duration or cost being enabled)
  * - Collapse System Prompts
  * - Minimum Observation Level filter
- * - Show Graph (hidden when graph view not available)
  *
  * All preferences are managed via ViewPreferencesContext and persisted to localStorage.
  */
@@ -29,18 +27,11 @@ import {
   DropdownMenuLabel,
 } from "@/src/components/ui/dropdown-menu";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 
-export interface TraceSettingsDropdownProps {
-  isGraphViewAvailable: boolean;
-}
-
-export function TraceSettingsDropdown({
-  isGraphViewAvailable,
-}: TraceSettingsDropdownProps) {
+export function TraceSettingsDropdown() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -57,9 +48,7 @@ export function TraceSettingsDropdown({
         align="center"
         className="w-64 space-y-0 space-x-0 p-0 px-0"
       >
-        <TraceViewOptionsMenuItems
-          isGraphViewAvailable={isGraphViewAvailable}
-        />
+        <TraceViewOptionsMenuItems />
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -70,16 +59,12 @@ export function TraceSettingsDropdown({
  * dropdown shell, so they can be reused inside the navigation header's overflow
  * "⋯" menu when the panel is too narrow for inline toolbar icons.
  */
-export function TraceViewOptionsMenuItems({
-  isGraphViewAvailable,
-}: TraceSettingsDropdownProps) {
+export function TraceViewOptionsMenuItems() {
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
 
   // Get all preferences directly from context
   const {
-    showGraph,
-    setShowGraph,
     showComments,
     setShowComments,
     showScores,
@@ -88,44 +73,15 @@ export function TraceViewOptionsMenuItems({
     setShowDuration,
     showCostTokens,
     setShowCostTokens,
-    colorCodeMetrics,
-    setColorCodeMetrics,
     minObservationLevel,
     setMinObservationLevel,
     collapseSystemPrompt,
     setCollapseSystemPrompt,
   } = useViewPreferences();
 
-  // Color coding is only available when duration or cost metrics are shown
-  const isColorCodeEnabled = showDuration || showCostTokens;
-
   return (
     <>
       <div className="space-y-0 p-0 py-1">
-        {/* Show Graph Toggle (only when available) */}
-        {isGraphViewAvailable && (
-          <DropdownMenuItem
-            asChild
-            onSelect={(e) => e.preventDefault()}
-            className="space-y-0 px-2 py-1"
-          >
-            <div className="flex w-full items-center justify-between">
-              <span className="mr-2">Show Graph</span>
-              <Switch
-                size="sm"
-                checked={showGraph}
-                onCheckedChange={(checked) => {
-                  capture("trace_detail:graph_view_toggle", {
-                    show: checked,
-                    ...analyticsDimensions,
-                  });
-                  setShowGraph(checked);
-                }}
-              />
-            </div>
-          </DropdownMenuItem>
-        )}
-
         {/* Show Comments Toggle */}
         <DropdownMenuItem
           asChild
@@ -187,44 +143,11 @@ export function TraceViewOptionsMenuItems({
           className="px-2 py-1"
         >
           <div className="flex w-full items-center justify-between">
-            <span className="mr-2">Show Cost/Tokens</span>
+            <span className="mr-2">Show Cost</span>
             <Switch
               size="sm"
               checked={showCostTokens}
               onCheckedChange={setShowCostTokens}
-            />
-          </div>
-        </DropdownMenuItem>
-
-        {/* Color Code Metrics Toggle (disabled when no metrics shown) */}
-        <DropdownMenuItem
-          asChild
-          onSelect={(e) => e.preventDefault()}
-          disabled={!isColorCodeEnabled}
-          className={cn([
-            "px-2 py-1",
-            isColorCodeEnabled ? "" : "cursor-not-allowed",
-          ])}
-        >
-          <div
-            className={cn(
-              "flex w-full items-center justify-between",
-              !isColorCodeEnabled && "cursor-not-allowed",
-            )}
-          >
-            <span
-              className={cn(
-                "mr-2",
-                !isColorCodeEnabled && "cursor-not-allowed",
-              )}
-            >
-              Show Color Code Metrics
-            </span>
-            <Switch
-              size="sm"
-              checked={colorCodeMetrics}
-              onCheckedChange={setColorCodeMetrics}
-              disabled={!isColorCodeEnabled}
             />
           </div>
         </DropdownMenuItem>

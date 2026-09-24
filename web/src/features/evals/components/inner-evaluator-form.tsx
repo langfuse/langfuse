@@ -1,5 +1,6 @@
+/* eslint-disable no-nested-ternary */
 import { type UseFormReturn, useForm } from "react-hook-form";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -12,11 +13,11 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/ui/badge";
 import {
   tracesTableColsWithOptions,
-  singleFilter,
+  singleFilterList,
   availableTraceEvalVariables,
   datasetFormFilterColsWithOptions,
   observationEvalFilterColsWithOptions,
@@ -36,13 +37,13 @@ import {
 import { z } from "zod";
 import { useEffect, useMemo, useState, memo, Suspense, lazy } from "react";
 import { api } from "@/src/utils/api";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { InlineFilterBuilder } from "@/src/features/filters";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
 import { reportError } from "@/src/utils/reportError";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
@@ -63,7 +64,10 @@ import {
 } from "@/src/utils/date-range-utils";
 import { type PartialConfig } from "@/src/features/evals/types";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
-import { EvalVersionCallout } from "@/src/features/evals/components/eval-version-callout";
+import {
+  EvalVersionCallout,
+  getEvalVersionCalloutContent,
+} from "@/src/features/evals/components/eval-version-callout";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   Dialog,
@@ -106,7 +110,7 @@ import {
 } from "@/src/features/evals/utils/evaluator-constants";
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
 import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import {
   isCodeEvalTemplate,
@@ -118,11 +122,11 @@ import { cn } from "@/src/utils/tailwind";
 import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 // Lazy load tables
-const TracesTable = lazy(
-  () => import("@/src/components/table/use-cases/traces"),
-);
-const ObservationsTable = lazy(
-  () => import("@/src/components/table/use-cases/observations"),
+const TracesTable = lazy(() => import("@/src/features/traces/TracesTable"));
+const ObservationsTable = lazy(() =>
+  import("@/src/features/tracing-tables").then((m) => ({
+    default: m.ObservationsTable,
+  })),
 );
 
 const EventsTable = lazy(
@@ -135,7 +139,7 @@ const TracesPreview = memo(
     filterState,
   }: {
     projectId: string;
-    filterState: z.infer<typeof singleFilter>[];
+    filterState: z.infer<typeof singleFilterList>[number][];
   }) => {
     const dateRange = useMemo(() => {
       return {
@@ -185,11 +189,11 @@ const ObservationsPreview = memo(
     compatibilityCheckWasPerformed,
   }: {
     projectId: string;
-    filterState: z.infer<typeof singleFilter>[];
+    filterState: z.infer<typeof singleFilterList>[number][];
     isNewCompatible: boolean;
     compatibilityCheckWasPerformed: boolean;
   }) => {
-    const { isBetaEnabled } = useV4Beta();
+    const { isV4 } = useReadPath();
 
     const dateRange = useMemo(() => {
       return {
@@ -241,7 +245,7 @@ const ObservationsPreview = memo(
             ) : (
               // Keep the evaluator preview isolated from the parent route's table state.
               <PeekTableStateProvider>
-                {isBetaEnabled ? (
+                {isV4 ? (
                   <EventsTable
                     projectId={projectId}
                     hideControls
@@ -319,7 +323,7 @@ function CodeEvalSourceLink({
   );
 }
 
-const EMPTY_FILTER_STATE: z.infer<typeof singleFilter>[] = [];
+const EMPTY_FILTER_STATE: z.infer<typeof singleFilterList>[number][] = [];
 
 export const InnerEvaluatorForm = (props: {
   projectId: string;
@@ -351,7 +355,7 @@ export const InnerEvaluatorForm = (props: {
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const [showTraceConfirmDialog, setShowTraceConfirmDialog] = useState(false);
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
   const isCodeEvalConfig =
     isCodeEvalEnabled && isCodeEvalTemplate(props.evalTemplate);
@@ -381,7 +385,7 @@ export const InnerEvaluatorForm = (props: {
     datasetFilterOptions,
   } = useEvalConfigFilterOptions({
     projectId: props.projectId,
-    useEventsTable: isBetaEnabled,
+    useEventsTable: isV4,
     includeLegacyTraceOptions: showLegacyTargetOptions,
   });
 
@@ -451,7 +455,7 @@ export const InnerEvaluatorForm = (props: {
         props.existingEvaluator?.scoreName ?? `${props.evalTemplate.name}`,
       target: defaultTarget,
       filter: props.existingEvaluator?.filter
-        ? z.array(singleFilter).parse(props.existingEvaluator.filter)
+        ? singleFilterList.parse(props.existingEvaluator.filter)
         : defaultTarget === EvalTargetObject.TRACE
           ? // For new trace evaluators, exclude internal environments by default
             DEFAULT_TRACE_FILTER
@@ -560,12 +564,16 @@ export const InnerEvaluatorForm = (props: {
   const watchedScoreName = form.watch("scoreName");
   const watchedFilter = form.watch("filter") ?? EMPTY_FILTER_STATE;
   const shouldShowExperimentEventsPreview =
-    isExperimentTarget(watchedTarget) && isBetaEnabled;
+    isExperimentTarget(watchedTarget) && isV4;
   const shouldShowEventsPreview =
     isEventTarget(watchedTarget) || shouldShowExperimentEventsPreview;
   const previewTableVisible = !props.disabled && !props.hidePreviewTable;
   const previewAlreadyShowsSdkWarning =
     previewTableVisible && shouldShowEventsPreview;
+  const evalVersionCalloutContent = getEvalVersionCalloutContent(
+    watchedTarget,
+    props.evalCapabilities,
+  );
   const eventsPreviewFilterState = useMemo(
     () =>
       shouldShowExperimentEventsPreview
@@ -596,7 +604,7 @@ export const InnerEvaluatorForm = (props: {
       values = props.preprocessFormValues(values);
     }
 
-    const validatedFilter = z.array(singleFilter).safeParse(values.filter);
+    const validatedFilter = singleFilterList.safeParse(values.filter);
 
     if (
       props.existingEvaluator?.timeScope.includes("EXISTING") &&
@@ -810,12 +818,12 @@ export const InnerEvaluatorForm = (props: {
     isCodeEvalConfig &&
     !props.disabled &&
     (isEventTarget(watchedTarget) ||
-      (isExperimentTarget(watchedTarget) && isBetaEnabled));
+      (isExperimentTarget(watchedTarget) && isV4));
   const shouldShowCodeEvalSourceLinkInSettingsCard =
     isCodeEvalConfig &&
     !props.disabled &&
     isExperimentTarget(watchedTarget) &&
-    !isBetaEnabled;
+    !isV4;
 
   const formBody = (
     <div
@@ -843,14 +851,13 @@ export const InnerEvaluatorForm = (props: {
       {!props.hideTargetSection && (
         <Card className="flex max-w-full flex-col gap-2 overflow-y-auto p-4">
           {hasInvalidTraceFilters && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Unsupported filter detected</AlertTitle>
-              <AlertDescription>
+            <Alert variant="destructive" icon={AlertTriangle}>
+              <Alert.Title>Unsupported filter detected</Alert.Title>
+              <Alert.Description>
                 This evaluator has a filter that is not supported for
                 trace-level evaluators. It is effectively paused. Please remove
                 all filters and re-add them from scratch to resume execution.
-              </AlertDescription>
+              </Alert.Description>
             </Alert>
           )}
           <div className="flex flex-col gap-4">
@@ -886,41 +893,43 @@ export const InnerEvaluatorForm = (props: {
                           }
                         }}
                       >
-                        <TabsList className="grid w-fit max-w-fit grid-flow-col gap-4">
-                          <TabsTrigger
-                            value="event"
-                            disabled={props.disabled || props.mode === "edit"}
-                            className="min-w-[100px] gap-1.5"
-                          >
-                            <CircleDot className="h-3.5 w-3.5" />
-                            Observations
-                          </TabsTrigger>
-                          {showLegacyTargetOptions && (
-                            <TabsTrigger
-                              value="trace"
+                        <Tabs.List layout="packed" gap="lg">
+                          <span className="min-w-[100px]">
+                            <Tabs.Trigger
+                              value="event"
                               disabled={props.disabled || props.mode === "edit"}
-                              className="min-w-[100px] gap-1.5"
-                            >
-                              <ListTree className="h-3.5 w-3.5" />
-                              Traces
-                              <Badge
-                                variant="secondary"
-                                size="sm"
-                                className="border-border border font-normal"
+                              icon={CircleDot}
+                              label="Observations"
+                            />
+                          </span>
+                          {showLegacyTargetOptions && (
+                            <span className="min-w-[100px]">
+                              <Tabs.Trigger
+                                value="trace"
+                                disabled={
+                                  props.disabled || props.mode === "edit"
+                                }
+                                icon={ListTree}
                               >
-                                Legacy
-                              </Badge>
-                            </TabsTrigger>
+                                Traces
+                                <Badge
+                                  variant="secondary"
+                                  className="border-border border font-normal"
+                                >
+                                  Legacy
+                                </Badge>
+                              </Tabs.Trigger>
+                            </span>
                           )}
-                          <TabsTrigger
-                            value="offline-experiment"
-                            disabled={props.disabled || props.mode === "edit"}
-                            className="min-w-[100px] gap-1.5"
-                          >
-                            <FlaskConical className="h-3.5 w-3.5" />
-                            Experiments
-                          </TabsTrigger>
-                        </TabsList>
+                          <span className="min-w-[100px]">
+                            <Tabs.Trigger
+                              value="offline-experiment"
+                              disabled={props.disabled || props.mode === "edit"}
+                              icon={FlaskConical}
+                              label="Experiments"
+                            />
+                          </span>
+                        </Tabs.List>
                       </Tabs>
                     </FormControl>
                     <FormMessage />
@@ -967,31 +976,31 @@ export const InnerEvaluatorForm = (props: {
                       );
                     }}
                   >
-                    <TabsList className="grid w-fit max-w-fit grid-flow-col gap-4">
-                      <TabsTrigger
-                        value="otel"
-                        className="min-w-[100px] gap-1.5"
-                        disabled={props.mode === "edit" || props.disabled}
-                      >
-                        <FlaskConical className="h-3.5 w-3.5" />
-                        Experiment Runner SDK
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="non-otel"
-                        className="min-w-[100px] gap-1.5"
-                        disabled={props.mode === "edit" || props.disabled}
-                      >
-                        <BetweenHorizonalStart className="h-3.5 w-3.5" />
-                        Low-level SDK methods
-                        <Badge
-                          variant="secondary"
-                          size="sm"
-                          className="border-border border font-normal"
+                    <Tabs.List layout="packed" gap="lg">
+                      <span className="min-w-[100px]">
+                        <Tabs.Trigger
+                          value="otel"
+                          disabled={props.mode === "edit" || props.disabled}
+                          icon={FlaskConical}
+                          label="Experiment Runner SDK"
+                        />
+                      </span>
+                      <span className="min-w-[100px]">
+                        <Tabs.Trigger
+                          value="non-otel"
+                          disabled={props.mode === "edit" || props.disabled}
+                          icon={BetweenHorizonalStart}
                         >
-                          Legacy
-                        </Badge>
-                      </TabsTrigger>
-                    </TabsList>
+                          Low-level SDK methods
+                          <Badge
+                            variant="secondary"
+                            className="border-border border font-normal"
+                          >
+                            Legacy
+                          </Badge>
+                        </Tabs.Trigger>
+                      </span>
+                    </Tabs.List>
                   </Tabs>
                 </div>
               )}
@@ -999,11 +1008,9 @@ export const InnerEvaluatorForm = (props: {
             {!props.hideTargetSelection &&
               props.mode !== "edit" &&
               !props.disabled &&
-              !previewAlreadyShowsSdkWarning && (
-                <EvalVersionCallout
-                  targetObject={watchedTarget}
-                  evalCapabilities={props.evalCapabilities}
-                />
+              !previewAlreadyShowsSdkWarning &&
+              evalVersionCalloutContent && (
+                <EvalVersionCallout content={evalVersionCalloutContent} />
               )}
 
             {!props.hideAdvancedSettings &&
@@ -1214,7 +1221,9 @@ export const InnerEvaluatorForm = (props: {
                                 columns={getFilterColumns()}
                                 filterState={field.value ?? []}
                                 onChange={(
-                                  value: z.infer<typeof singleFilter>[],
+                                  value: z.infer<
+                                    typeof singleFilterList
+                                  >[number][],
                                 ) => {
                                   field.onChange(value);
                                   if (router.query.traceId) {
@@ -1250,10 +1259,10 @@ export const InnerEvaluatorForm = (props: {
                         {!props.disabled && !hasFilters && (
                           <div className="flex max-w-[500px] gap-1">
                             <AlertTriangle className="text-dark-yellow h-4 w-4" />
-                            <AlertDescription className="text-dark-yellow">
+                            <div className="text-dark-yellow text-sm [&_p]:leading-relaxed">
                               No filters set. This evaluator will run on all{" "}
                               {getTargetDisplayName(target)}.
-                            </AlertDescription>
+                            </div>
                           </div>
                         )}
                         <FormMessage />
@@ -1269,7 +1278,7 @@ export const InnerEvaluatorForm = (props: {
                         is not the v4 user's experience — never show it there. */}
                     {shouldShowLegacyTracePreview(
                       form.watch("target"),
-                      isBetaEnabled,
+                      isV4,
                     ) && (
                       <TracesPreview
                         projectId={props.projectId}
@@ -1355,9 +1364,12 @@ export const InnerEvaluatorForm = (props: {
         <CodeEvalTestRunCard
           projectId={props.projectId}
           evalTemplate={props.evalTemplate}
-          target={watchedTarget}
+          target={
+            isEventTarget(watchedTarget)
+              ? EvalTargetObject.EVENT
+              : EvalTargetObject.EXPERIMENT
+          }
           scoreName={watchedScoreName}
-          disabled={props.disabled}
           enableExecutionTracePeek={!props.existingEvaluator}
         />
       ) : isCodeEvalConfig ? null : (

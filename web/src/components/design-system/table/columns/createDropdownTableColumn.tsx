@@ -2,7 +2,7 @@
 import { type CellContext, type RowData } from "@tanstack/react-table";
 import { MoreVertical } from "lucide-react";
 
-import { Button } from "@/src/components/ui/button";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { DropdownMenuController } from "@/src/components/ui/dropdown-menu";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
@@ -34,9 +34,7 @@ export function createDropdownTableColumn<
           <DropdownMenuController align="end" renderMenu={() => items}>
             {({ Trigger }) => (
               <Trigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Open menu">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
+                <IconButton icon={MoreVertical} label="Open menu" />
               </Trigger>
             )}
           </DropdownMenuController>

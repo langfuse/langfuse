@@ -4,20 +4,9 @@ import {
   isTraceScore,
 } from "@/src/features/scores/lib/helpers";
 import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
-import { type ScoreTarget } from "@langfuse/shared";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 
-export function useScoreMutations({
-  scoreTarget,
-  scoreMetadata,
-}: {
-  scoreTarget: ScoreTarget;
-  scoreMetadata: {
-    projectId: string;
-    queueId?: string;
-    environment?: string;
-  };
-}) {
+export function useScoreMutations() {
   const {
     set: cacheSet,
     get: cacheGet,
@@ -31,6 +20,7 @@ export function useScoreMutations({
   const createMutation = api.scores.createAnnotationScore.useMutation({
     onMutate: (variables) => {
       if (!variables.id) return;
+      const scoreTarget = variables.scoreTarget;
 
       // Write to columns cache
       cacheSetColumn({
@@ -42,8 +32,8 @@ export function useScoreMutations({
       // Write to cache for optimistic update
       cacheSet(variables.id, {
         id: variables.id,
-        projectId: scoreMetadata.projectId,
-        environment: scoreMetadata.environment ?? "default",
+        projectId: variables.projectId,
+        environment: variables.environment ?? "default",
         traceId: isTraceScore(scoreTarget) ? scoreTarget.traceId : null,
         observationId: isTraceScore(scoreTarget)
           ? (scoreTarget.observationId ?? null)
@@ -71,14 +61,15 @@ export function useScoreMutations({
 
   const updateMutation = api.scores.updateAnnotationScore.useMutation({
     onMutate: (variables) => {
+      const scoreTarget = variables.scoreTarget;
       const previousCacheValue = cacheGet(variables.id);
 
       if (!previousCacheValue) {
         // Write to cache for optimistic update
         cacheSet(variables.id, {
           id: variables.id,
-          projectId: scoreMetadata.projectId,
-          environment: scoreMetadata.environment ?? "default",
+          projectId: variables.projectId,
+          environment: variables.environment ?? "default",
           traceId: isTraceScore(scoreTarget) ? scoreTarget.traceId : null,
           observationId: isTraceScore(scoreTarget)
             ? (scoreTarget.observationId ?? null)

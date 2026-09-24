@@ -1,5 +1,5 @@
 import { EvalTemplateType, type ColumnDefinition } from "@langfuse/shared";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import type { FilterConfig } from "@/src/features/filters";
 
 const evaluatorStatusOptions = [
   { value: "ACTIVE", displayValue: "Active" },
@@ -13,6 +13,10 @@ const evaluatorTypeOptions = [
     displayValue: "LLM as a judge",
   },
   { value: EvalTemplateType.CODE, displayValue: "Code" },
+  {
+    value: EvalTemplateType.DECISION_MODEL,
+    displayValue: "Decision model (experimental)",
+  },
 ];
 
 export const evaluatorTableFilterColumns: ColumnDefinition[] = [

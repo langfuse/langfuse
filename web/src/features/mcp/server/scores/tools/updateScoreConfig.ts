@@ -1,7 +1,9 @@
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { updateScoreConfig } from "@/src/features/public-api/server/score-configs-api-service";
-import { PutScoreConfigBodyWithoutArchived } from "@/src/features/public-api/types/score-configs";
+import {
+  updateScoreConfig,
+  PutScoreConfigBodyWithoutArchived,
+} from "@/src/features/public-api/server";
 import { z } from "zod";
 import {
   McpScoreConfigCategoricalCategoriesSchema,
@@ -53,6 +55,7 @@ export const [updateScoreConfigTool, handleUpdateScoreConfig] = defineTool({
   name: "updateScoreConfig",
   description:
     "Update a score configuration. Use this to rename, describe, or adjust allowed numeric/category fields.",
+  action: "scoreConfigs:CUD",
   baseSchema: McpUpdateScoreConfigBaseSchema,
   inputSchema: McpUpdateScoreConfigInputSchema,
   handler: async (input, context) => {

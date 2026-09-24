@@ -24,7 +24,6 @@ type RelatedTracesPopoverControllerProps = {
   observations: Array<{
     startTime?: Date | string | null;
   }>;
-  enabled: boolean;
 };
 
 type RelatedTracesButtonProps = Omit<
@@ -58,8 +57,9 @@ export const RelatedTracesButton = React.forwardRef<
 RelatedTracesButton.displayName = "RelatedTracesButton";
 
 const toValidDate = (value: Date | string | null | undefined) => {
-  const date = value instanceof Date ? value : value ? new Date(value) : null;
-  return date && Number.isFinite(date.getTime()) ? date : null;
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(date.getTime()) ? date : null;
 };
 
 const formatTraceTimestamp = (timestamp: Date) =>
@@ -68,13 +68,26 @@ const formatTraceTimestamp = (timestamp: Date) =>
     timeStyle: "short",
   }).format(timestamp);
 
+export function useRelatedTracesEnabled(projectId: string, enabled: boolean) {
+  const session = useSession();
+  const organization = session.data?.user?.organizations.find((org) =>
+    org.projects.some((project) => project.id === projectId),
+  );
+
+  if (!enabled) return false;
+  if (organization) {
+    return organization.crossProjectTraceTrackingEnabled === true;
+  }
+
+  return session.data?.user?.admin === true;
+}
+
 export function RelatedTracesPopoverController({
   children,
   projectId,
   traceId,
   timestamp,
   observations,
-  enabled,
 }: RelatedTracesPopoverControllerProps) {
   const session = useSession();
   const [isOpen, setIsOpen] = useState(false);
@@ -109,16 +122,6 @@ export function RelatedTracesPopoverController({
     };
   }, [observations]);
 
-  const queryEnabled = useMemo(() => {
-    if (!enabled) return false;
-
-    if (organization) {
-      return organization.crossProjectTraceTrackingEnabled === true;
-    }
-
-    return session.data?.user?.admin === true;
-  }, [enabled, organization, session.data?.user?.admin]);
-
   const relatedTraces = api.traces.relatedAcrossProjects.useQuery(
     {
       projectId,
@@ -128,7 +131,7 @@ export function RelatedTracesPopoverController({
       maxStartTime: observationWindow?.maxStartTime ?? null,
     },
     {
-      enabled: queryEnabled && isOpen,
+      enabled: isOpen,
       staleTime: 60 * 1000,
       retry(failureCount, error) {
         if (
@@ -142,14 +145,12 @@ export function RelatedTracesPopoverController({
   );
 
   const related = relatedTraces.data?.related ?? [];
+  const hasRelatedTraces =
+    related.length > 0 && relatedTraces.data?.enabled === true;
   const correlationKey =
     relatedTraces.data?.correlationKey ??
     organization?.crossProjectTraceCorrelationKey ??
     DEFAULT_CROSS_PROJECT_TRACE_CORRELATION_KEY;
-
-  if (!queryEnabled) {
-    return null;
-  }
 
   return (
     <PopoverController
@@ -167,12 +168,13 @@ export function RelatedTracesPopoverController({
             </div>
           </div>
           <ScrollArea className="max-h-80">
-            {relatedTraces.isLoading ? (
+            {relatedTraces.isLoading && (
               <div className="text-muted-foreground flex items-center gap-2 p-3 text-sm">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Loading related traces
               </div>
-            ) : related.length > 0 && relatedTraces.data?.enabled ? (
+            )}
+            {!relatedTraces.isLoading && hasRelatedTraces && (
               <div className="flex flex-col">
                 {related.map((trace) => {
                   const displayName = trace.traceName || trace.traceId;
@@ -202,7 +204,8 @@ export function RelatedTracesPopoverController({
                   );
                 })}
               </div>
-            ) : (
+            )}
+            {!relatedTraces.isLoading && !hasRelatedTraces && (
               <div className="text-muted-foreground p-3 text-sm">
                 {relatedTraces.data?.correlationStatus === "missing"
                   ? `Current trace has no metadata.${correlationKey} value.`

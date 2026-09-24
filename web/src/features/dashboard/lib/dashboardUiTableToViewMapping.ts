@@ -1,8 +1,8 @@
-import { z } from "zod";
-import { singleFilter } from "@langfuse/shared";
+import type { z } from "zod";
+import { singleFilterList } from "@langfuse/shared";
 import { type views } from "@langfuse/shared/query";
 
-export const FilterArray = z.array(singleFilter);
+export const FilterArray = singleFilterList;
 
 /**
  * Central compatibility layer for dashboard/widget filter columns.
@@ -55,6 +55,23 @@ const defineField = (
   current,
   legacy,
 });
+
+const evaluatorFilterDefinitions = [
+  defineField(
+    "evaluatorId",
+    sourceSpec("Evaluator", {
+      uiTableId: "evaluatorId",
+      aliases: ["Evaluator ID"],
+    }),
+  ),
+  defineField(
+    "isEvaluatorTest",
+    sourceSpec("Evaluator test run", {
+      uiTableId: "isEvaluatorTest",
+      aliases: ["Evaluator execution"],
+    }),
+  ),
+] as const;
 
 const viewFilterDefinitions: Record<
   ViewName,
@@ -145,6 +162,7 @@ const viewFilterDefinitions: Record<
       "environment",
       sourceSpec("Environment", { uiTableId: "environment" }),
     ),
+    ...evaluatorFilterDefinitions,
     defineField(
       "release",
       sourceSpec("Release", {
@@ -220,6 +238,7 @@ const viewFilterDefinitions: Record<
       "traceVersion",
       sourceSpec("Version", { uiTableId: "version" }),
     ),
+    ...evaluatorFilterDefinitions,
   ],
   "scores-boolean": [
     defineField("name", sourceSpec("Score Name", { uiTableId: "scoreName" })),
@@ -267,6 +286,7 @@ const viewFilterDefinitions: Record<
       "traceVersion",
       sourceSpec("Version", { uiTableId: "version" }),
     ),
+    ...evaluatorFilterDefinitions,
   ],
   "scores-categorical": [
     defineField("name", sourceSpec("Score Name", { uiTableId: "scoreName" })),
@@ -314,6 +334,7 @@ const viewFilterDefinitions: Record<
       "traceVersion",
       sourceSpec("Version", { uiTableId: "version" }),
     ),
+    ...evaluatorFilterDefinitions,
   ],
 };
 

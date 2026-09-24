@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * Langfuse seed CLI — one-shot local test data for humans and coding agents.
  *
@@ -294,7 +295,7 @@ const main = async (): Promise<number> => {
     },
   };
 
-  if (!ctx.dryRun) {
+  if (!ctx.dryRun && scenario.target !== "api") {
     await preflight({
       projectId: ctx.projectId,
       needV4: scenario.supportsV4 && params["v4"] === true,

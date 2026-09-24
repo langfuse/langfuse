@@ -19,6 +19,7 @@ import {
   LlmAsJudgeEvaluator,
   PublicApiError,
 } from "@/src/features/public-api";
+import { toApiReadMappings } from "@/src/features/public-api/server";
 
 describe("stable evaluators public API", () => {
   it("creates evaluators", async () => {
@@ -123,36 +124,65 @@ describe("stable evaluators public API", () => {
       { role: "user", content: "Classify updated: {{input}}" },
     ]);
 
-    const tooManyMessages = await makeAPICall(
+    const multiMessageEvaluator = await makeZodVerifiedAPICall(
+      Evaluator,
       "POST",
       "/api/public/v2/evaluators",
       {
-        name: "too many messages",
+        name: "multi-message evaluator",
         type: "llm_as_judge",
         prompt: [
-          { role: "user", content: "First" },
-          { role: "user", content: "Second" },
+          { role: "system", content: "Judge carefully" },
+          { role: "user", content: "Input: {{input}}" },
+          { role: "assistant", content: "I will return a score" },
         ],
         outputDefinition: { dataType: "BOOLEAN" },
       },
       auth,
+      201,
     );
-    expect(tooManyMessages.status).toBe(400);
+    expect(
+      LlmAsJudgeEvaluator.parse(multiMessageEvaluator.body).prompt,
+    ).toEqual([
+      { role: "system", content: "Judge carefully" },
+      { role: "user", content: "Input: {{input}}" },
+      { role: "assistant", content: "I will return a score" },
+    ]);
+    await expect(
+      prisma.evaluatorVersion.findFirstOrThrow({
+        where: { evaluatorId: multiMessageEvaluator.body.id },
+        select: { prompt: true, promptMessages: true },
+      }),
+    ).resolves.toEqual({
+      prompt: "Judge carefully\n\nInput: {{input}}\n\nI will return a score",
+      promptMessages: [
+        { role: "system", content: "Judge carefully" },
+        { role: "user", content: "Input: {{input}}" },
+        { role: "assistant", content: "I will return a score" },
+      ],
+    });
 
-    for (const role of ["assistant", "system", "developer"]) {
-      const invalidRole = await makeAPICall(
+    for (const prompt of [
+      [{ role: "developer", content: "Judge {{input}}" }],
+      [
+        { role: "user", content: "Judge {{input}}" },
+        { role: "system", content: "Too late" },
+      ],
+      [{ role: "user", content: "   " }],
+    ]) {
+      const invalidPrompt = await makeAPICall(
         "POST",
         "/api/public/v2/evaluators",
         {
-          name: "invalid role evaluator",
+          name: "invalid prompt evaluator",
           type: "llm_as_judge",
-          prompt: [{ role, content: "Judge {{input}}" }],
+          prompt,
           outputDefinition: { dataType: "BOOLEAN" },
         },
         auth,
       );
-      expect(invalidRole.status).toBe(400);
-      expect(PublicApiError.parse(invalidRole.body)).toMatchObject({
+      expect(invalidPrompt.status).toBe(400);
+      expect(PublicApiError.parse(invalidPrompt.body)).toMatchObject({
         code: "invalid_body",
       });
     }
@@ -218,7 +248,7 @@ describe("stable evaluators public API", () => {
         description: null,
         definition: {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: "Judge {{input}}",
+          promptMessages: [{ role: "user", content: "Judge {{input}}" }],
           vars: ["input"],
           provider: null,
           model: null,
@@ -360,6 +390,32 @@ describe("stable evaluators public API", () => {
     });
   });
 
+  it("reads snake-case tool call mappings", () => {
+    expect(
+      toApiReadMappings([
+        {
+          templateVariable: "input",
+          selectedColumnId: "input",
+          jsonSelector: null,
+        },
+        {
+          templateVariable: "output",
+          selectedColumnId: "output",
+          jsonSelector: null,
+        },
+        {
+          templateVariable: "tool_calls",
+          selectedColumnId: "tool_calls",
+          jsonSelector: null,
+        },
+      ]),
+    ).toEqual([
+      { variable: "input", source: "input" },
+      { variable: "output", source: "output" },
+      { variable: "tool_calls", source: "tool_calls" },
+    ]);
+  });
+
   it("returns 404 when getting an invalid evaluator ID", async () => {
     const { auth } = await createOrgProjectAndApiKey();
 
@@ -455,7 +511,7 @@ describe("stable evaluators public API", () => {
         description: null,
         definition: {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: "Judge {{input}}",
+          promptMessages: [{ role: "user", content: "Judge {{input}}" }],
           vars: ["input"],
           provider: "openai",
           model: "gpt-4.1-mini",

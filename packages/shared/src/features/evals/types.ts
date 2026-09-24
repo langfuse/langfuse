@@ -15,6 +15,7 @@ import z from "zod";
 export const EvalTemplateTypeEnum = {
   LLM_AS_JUDGE: "LLM_AS_JUDGE",
   CODE: "CODE",
+  DECISION_MODEL: "DECISION_MODEL",
 } as const satisfies Record<EvalTemplateType, EvalTemplateType>;
 
 export const EvalTemplateSourceCodeLanguageEnum = {
@@ -25,8 +26,64 @@ export const EvalTemplateSourceCodeLanguageEnum = {
   EvalTemplateSourceCodeLanguage
 >;
 
+export const EvaluatorPromptMessageRoleSchema = z.enum([
+  "system",
+  "user",
+  "assistant",
+]);
+
+export const EvaluatorPromptMessageSchema = z
+  .object({
+    role: EvaluatorPromptMessageRoleSchema,
+    content: z.string().refine((content) => content.trim().length > 0, {
+      message: "Prompt messages cannot be empty",
+    }),
+  })
+  .strict();
+export type EvaluatorPromptMessage = z.infer<
+  typeof EvaluatorPromptMessageSchema
+>;
+
+export const EvaluatorPromptMessagesSchema = z
+  .array(EvaluatorPromptMessageSchema)
+  .min(1)
+  .refine(
+    (messages) =>
+      !messages.some(
+        (message, index) => index > 0 && message.role === "system",
+      ),
+    {
+      message: "System messages are only allowed as the first prompt message",
+    },
+  );
+export type EvaluatorPromptMessages = z.infer<
+  typeof EvaluatorPromptMessagesSchema
+>;
+
+/** Compatibility alias for messages persisted with the legacy prompt. */
+export type PersistedEvaluatorPromptMessages = EvaluatorPromptMessages;
+
+const LEGACY_EMPTY_PROMPT_PLACEHOLDER = "No prompt provided";
+
+export function getEvaluatorPromptMessages(params: {
+  prompt: string | null;
+  promptMessages?: unknown;
+}): PersistedEvaluatorPromptMessages {
+  const parsed = EvaluatorPromptMessagesSchema.safeParse(params.promptMessages);
+  if (parsed.success) return parsed.data;
+
+  // Historical evaluator rows may contain blank prompts that do not satisfy
+  // the current message schema. Keep those rows readable with valid content.
+  const legacyPrompt = params.prompt?.trim()
+    ? params.prompt
+    : LEGACY_EMPTY_PROMPT_PLACEHOLDER;
+  return [{ role: "user", content: legacyPrompt }];
+}
+
 export type EvalTemplateLlmAsAJudge = EvalTemplate & {
   type: typeof EvalTemplateType.LLM_AS_JUDGE;
+  /** Present when an evaluator-v2 version is adapted to the legacy runtime. */
+  promptMessages?: unknown;
   prompt: string;
   outputDefinition: NonNullable<EvalTemplate["outputDefinition"]>;
   sourceCode: null;
@@ -41,9 +98,19 @@ export type EvalTemplateCodeBased = EvalTemplate & {
   sourceCodeLanguage: EvalTemplateSourceCodeLanguage;
 };
 
+export type EvalTemplateDecisionModel = EvalTemplate & {
+  type: typeof EvalTemplateType.DECISION_MODEL;
+  prompt: null;
+  outputDefinition: null;
+  sourceCode: null;
+  sourceCodeLanguage: null;
+  questions: unknown;
+};
+
 export type EvalTemplateWithType =
   | EvalTemplateLlmAsAJudge
-  | EvalTemplateCodeBased;
+  | EvalTemplateCodeBased
+  | EvalTemplateDecisionModel;
 
 export const EvalTargetObject = {
   TRACE: "trace",
@@ -260,4 +327,17 @@ export const observationVariableMappingList = z.array(
 );
 export type ObservationVariableMapping = z.infer<
   typeof observationVariableMapping
+>;
+
+/**
+ * Per-evaluator mapping override for a one-shot batch evaluation. `null`
+ * inherits the evaluator version's mapping. Absent from the payload means
+ * every selected evaluator inherits.
+ */
+export const BatchEvalEvaluatorMappingSchema = z.object({
+  evaluatorId: z.string().min(1),
+  variableMapping: observationVariableMappingList.nullable(),
+});
+export type BatchEvalEvaluatorMapping = z.infer<
+  typeof BatchEvalEvaluatorMappingSchema
 >;

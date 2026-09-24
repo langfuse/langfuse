@@ -24,7 +24,7 @@ import {
 } from "@prisma/client";
 import { prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
-import { buildEvalExecutionMetadata } from "@langfuse/shared/src/server";
+import { buildEvalExecutionData } from "@langfuse/shared/src/server";
 import {
   completeEvalExecution,
   type EvalExecutionResult,
@@ -35,6 +35,7 @@ import {
 } from "../evalExecutionDeps";
 import { runLLMAsJudgeEvaluation } from "../evalService";
 import { executeCodeBasedEvaluation } from "../codeBased";
+import { runDecisionModelEvaluation } from "../decisionModel/runDecisionModelEvaluation";
 import { getEvalS3StorageClient } from "../s3StorageClient";
 import { type ObservationForEval } from "./types";
 
@@ -74,6 +75,17 @@ function createObservationEvalProcessorDeps(): ObservationEvalProcessorDeps {
 type ObservationEvalExecutionType =
   | typeof EvalTemplateType.LLM_AS_JUDGE
   | typeof EvalTemplateType.CODE;
+
+const EVALUATOR_TYPES_BY_EXECUTION_TYPE: Record<
+  ObservationEvalExecutionType,
+  EvalTemplateType[]
+> = {
+  [EvalTemplateType.LLM_AS_JUDGE]: [
+    EvalTemplateType.LLM_AS_JUDGE,
+    EvalTemplateType.DECISION_MODEL,
+  ],
+  [EvalTemplateType.CODE]: [EvalTemplateType.CODE],
+};
 
 export type ObservationEvalProcessorOutcome =
   | "completed"
@@ -233,7 +245,7 @@ export async function processObservationEval(
     extractedVariables,
     hasExperimentContext: Boolean(observationData.experiment_id),
     environment: observationData.environment ?? DEFAULT_TRACE_ENVIRONMENT,
-    executionMetadata: buildEvalExecutionMetadata({
+    ...buildEvalExecutionData({
       type: "JOB",
       jobExecutionId: event.jobExecutionId,
       jobConfigurationId: job.jobConfigurationId,
@@ -267,6 +279,15 @@ export async function processObservationEval(
       break;
     case EvalTemplateType.CODE:
       executionResult = await executeCodeBasedEvaluation({
+        ...executionParams,
+        template,
+        ...(resolved.type === "v2"
+          ? { evaluatorId: resolved.evaluatorId }
+          : {}),
+      });
+      break;
+    case EvalTemplateType.DECISION_MODEL:
+      executionResult = await runDecisionModelEvaluation({
         ...executionParams,
         template,
         ...(resolved.type === "v2"
@@ -320,6 +341,9 @@ async function resolveObservationEvalExecution(params: {
 }) {
   const { event, job, executionType } = params;
   const { projectId, evaluatorId, evaluationRuleId } = event;
+  const evaluatorTypeFilter = {
+    in: EVALUATOR_TYPES_BY_EXECUTION_TYPE[executionType],
+  };
 
   if (!evaluatorId) {
     const migratedAssignment =
@@ -327,7 +351,7 @@ async function resolveObservationEvalExecution(params: {
         where: {
           projectId,
           evaluationRuleId: job.jobConfigurationId,
-          evaluator: { projectId, type: executionType },
+          evaluator: { projectId, type: evaluatorTypeFilter },
         },
         include: {
           evaluationRule: true,
@@ -355,12 +379,19 @@ async function resolveObservationEvalExecution(params: {
   // the user's selection already authorized the run.
   if (!evaluationRuleId) {
     const evaluator = await prisma.evaluator.findFirst({
-      where: { id: evaluatorId, projectId, type: executionType },
+      where: { id: evaluatorId, projectId, type: evaluatorTypeFilter },
       include: evaluatorInclude,
     });
-    return evaluator
-      ? buildV2Execution({ rule: null, assignment: null, evaluator })
-      : { type: "cancelled" as const, reason: "evaluator-unavailable" };
+    if (!evaluator) {
+      return { type: "cancelled" as const, reason: "evaluator-unavailable" };
+    }
+    // Ruleless batch runs have no assignment row. A mapping on the queue
+    // payload is the override; omitting it inherits the version mapping.
+    const assignment =
+      event.variableMapping !== undefined
+        ? { variableMapping: event.variableMapping }
+        : null;
+    return buildV2Execution({ rule: null, assignment, evaluator });
   }
 
   // The assignment is what authorizes this execution — it is the (rule,
@@ -374,7 +405,7 @@ async function resolveObservationEvalExecution(params: {
       projectId,
       evaluationRuleId,
       evaluatorId,
-      evaluator: { projectId, type: executionType },
+      evaluator: { projectId, type: evaluatorTypeFilter },
     },
     include: {
       evaluationRule: true,
@@ -403,13 +434,13 @@ const evaluatorInclude = {
 } satisfies Prisma.EvaluatorInclude;
 
 function normalizeEvalTemplate(
-  template: EvalTemplate,
-  executionType: ObservationEvalExecutionType,
+  template: EvalTemplate & { promptMessages?: unknown; questions?: unknown },
+  evaluatorType: EvalTemplateType,
 ): EvalTemplateWithType {
-  switch (executionType) {
+  switch (evaluatorType) {
     case EvalTemplateType.LLM_AS_JUDGE:
       if (
-        template.type !== executionType ||
+        template.type !== evaluatorType ||
         template.prompt === null ||
         template.outputDefinition === null
       ) {
@@ -419,7 +450,7 @@ function normalizeEvalTemplate(
       }
       return {
         ...template,
-        type: executionType,
+        type: evaluatorType,
         prompt: template.prompt,
         outputDefinition: template.outputDefinition,
         sourceCode: null,
@@ -427,7 +458,7 @@ function normalizeEvalTemplate(
       };
     case EvalTemplateType.CODE:
       if (
-        template.type !== executionType ||
+        template.type !== evaluatorType ||
         template.sourceCode === null ||
         template.sourceCodeLanguage === null
       ) {
@@ -437,11 +468,30 @@ function normalizeEvalTemplate(
       }
       return {
         ...template,
-        type: executionType,
+        type: evaluatorType,
         prompt: null,
         outputDefinition: null,
         sourceCode: template.sourceCode,
         sourceCodeLanguage: template.sourceCodeLanguage,
+      };
+    case EvalTemplateType.DECISION_MODEL:
+      if (
+        template.type !== evaluatorType ||
+        template.questions === null ||
+        template.questions === undefined
+      ) {
+        throw new UnrecoverableError(
+          "Evaluator template is incomplete for DECISION_MODEL execution",
+        );
+      }
+      return {
+        ...template,
+        type: evaluatorType,
+        prompt: null,
+        outputDefinition: null,
+        sourceCode: null,
+        sourceCodeLanguage: null,
+        questions: template.questions,
       };
   }
 }
@@ -460,10 +510,10 @@ type ResolvedEvaluationRule = Prisma.EvaluationRuleGetPayload<object>;
  */
 function buildV2Execution(params: {
   rule: ResolvedEvaluationRule | null;
-  assignment: Pick<
-    Prisma.EvaluationRuleEvaluatorAssignmentGetPayload<object>,
-    "id" | "variableMapping"
-  > | null;
+  assignment: {
+    id?: string;
+    variableMapping: Prisma.JsonValue;
+  } | null;
   evaluator: ResolvedEvaluator;
 }) {
   const { rule, assignment, evaluator } = params;
@@ -508,6 +558,7 @@ function buildV2Execution(params: {
     name: evaluator.name,
     version: version.version,
     prompt: version.prompt,
+    promptMessages: version.promptMessages,
     type: evaluator.type,
     partner: version.partner,
     model: version.model,
@@ -517,7 +568,8 @@ function buildV2Execution(params: {
     outputDefinition: version.outputDefinition,
     sourceCode: version.sourceCode,
     sourceCodeLanguage: version.sourceCodeLanguage,
-  } satisfies EvalTemplate;
+    questions: version.questions,
+  };
 
   return {
     type: "v2" as const,

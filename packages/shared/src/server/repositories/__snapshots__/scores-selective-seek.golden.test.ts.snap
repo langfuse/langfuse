@@ -1,0 +1,273 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`scores selective-seek: emitted SQL > full SQL text (one representative per branch) > eligible (trace_id =): count 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "seek-project",
+      "param2": "seek-project",
+      "param3": "T2",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+        "CATEGORICAL",
+        "TEXT",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(*) AS count
+FROM
+(
+    SELECT
+        s.id,
+        s.project_id,
+        s.name,
+        argMax(s.timestamp, s.event_ts) AS timestamp,
+        argMax(s.environment, s.event_ts) AS environment,
+        argMax(s.trace_id, s.event_ts) AS trace_id,
+        argMax(s.observation_id, s.event_ts) AS observation_id,
+        argMax(s.session_id, s.event_ts) AS session_id,
+        argMax(s.evaluator_id, s.event_ts) AS evaluator_id,
+        argMax(s.evaluation_rule_id, s.event_ts) AS evaluation_rule_id,
+        argMax(s.value, s.event_ts) AS value,
+        argMax(s.source, s.event_ts) AS source,
+        argMax(s.comment, s.event_ts) AS comment,
+        argMax(s.author_user_id, s.event_ts) AS author_user_id,
+        argMax(s.data_type, s.event_ts) AS data_type,
+        argMax(s.string_value, s.event_ts) AS string_value,
+        argMax(s.metadata, s.event_ts) AS metadata
+    FROM scores AS s
+    WHERE (s.project_id = {param1:String}) AND ((s.project_id, toDate(s.timestamp), s.name, s.id) IN (
+        SELECT DISTINCT
+            s.project_id,
+            toDate(s.timestamp),
+            s.name,
+            s.id
+        FROM scores AS s
+        WHERE (s.project_id = {param1:String}) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})
+    ))
+    GROUP BY
+        s.project_id,
+        toDate(s.timestamp),
+        s.name,
+        s.id
+) AS s
+WHERE (s.data_type IN ({param4:Array(String)})) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})",
+  },
+]
+`;
+
+exports[`scores selective-seek: emitted SQL > full SQL text (one representative per branch) > eligible (trace_id =): rows 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "seek-project",
+      "param2": "seek-project",
+      "param3": "T2",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+        "CATEGORICAL",
+        "TEXT",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    s.id AS id,
+    s.project_id,
+    s.environment,
+    s.name AS name,
+    s.value,
+    s.string_value,
+    s.timestamp,
+    s.source,
+    s.data_type,
+    s.comment,
+    s.evaluator_id,
+    s.trace_id,
+    s.session_id,
+    s.dataset_run_id,
+    s.observation_id,
+    s.author_user_id,
+    s.created_at,
+    s.updated_at,
+    s.config_id,
+    s.queue_id,
+    s.execution_trace_id,
+    s.ingestion_api_key,
+    s.ingestion_sdk_name,
+    s.ingestion_sdk_version,
+    s.is_deleted,
+    s.event_ts,
+    length(mapKeys(s.metadata)) > 0 AS has_metadata
+FROM
+(
+    SELECT s.*
+    FROM scores AS s
+    INNER JOIN
+    (
+        SELECT
+            s.project_id AS latest_project_id,
+            toDate(s.timestamp) AS latest_date,
+            s.name AS latest_name,
+            s.id AS latest_id,
+            max(s.event_ts) AS latest_event_ts
+        FROM scores AS s
+        WHERE (s.project_id = {param1:String}) AND ((s.project_id, toDate(s.timestamp), s.name, s.id) IN (
+            SELECT DISTINCT
+                s.project_id,
+                toDate(s.timestamp),
+                s.name,
+                s.id
+            FROM scores AS s
+            WHERE (s.project_id = {param1:String}) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})
+        ))
+        GROUP BY
+            s.project_id,
+            toDate(s.timestamp),
+            s.name,
+            s.id
+    ) AS latest ON (
+        s.project_id = latest.latest_project_id
+    ) AND (toDate(s.timestamp) = latest.latest_date) AND (s.name = latest.latest_name) AND (s.id = latest.latest_id) AND (s.event_ts = latest.latest_event_ts)
+    WHERE (s.data_type IN ({param4:Array(String)})) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})
+    LIMIT 1 BY
+        s.project_id,
+        toDate(s.timestamp),
+        s.name,
+        s.id
+) AS s
+ORDER BY s.timestamp DESC",
+  },
+]
+`;
+
+exports[`scores selective-seek: emitted SQL > full SQL text (one representative per branch) > ineligible (value range): count 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "seek-project",
+      "param2": [
+        "NUMERIC",
+        "BOOLEAN",
+        "CATEGORICAL",
+        "TEXT",
+      ],
+      "param3": "seek-project",
+      "param4": "0.5",
+    },
+    "route": "unknown",
+    "sql": "SELECT count(*) AS count
+FROM
+(
+    SELECT
+        s.id,
+        s.project_id,
+        s.name,
+        argMax(s.timestamp, s.event_ts) AS timestamp,
+        argMax(s.environment, s.event_ts) AS environment,
+        argMax(s.trace_id, s.event_ts) AS trace_id,
+        argMax(s.observation_id, s.event_ts) AS observation_id,
+        argMax(s.session_id, s.event_ts) AS session_id,
+        argMax(s.evaluator_id, s.event_ts) AS evaluator_id,
+        argMax(s.evaluation_rule_id, s.event_ts) AS evaluation_rule_id,
+        argMax(s.value, s.event_ts) AS value,
+        argMax(s.source, s.event_ts) AS source,
+        argMax(s.comment, s.event_ts) AS comment,
+        argMax(s.author_user_id, s.event_ts) AS author_user_id,
+        argMax(s.data_type, s.event_ts) AS data_type,
+        argMax(s.string_value, s.event_ts) AS string_value,
+        argMax(s.metadata, s.event_ts) AS metadata
+    FROM scores AS s
+    WHERE s.project_id = {param1:String}
+    GROUP BY
+        s.project_id,
+        toDate(s.timestamp),
+        s.name,
+        s.id
+) AS s
+WHERE (s.data_type IN ({param2:Array(String)})) AND (project_id = {param3:String}) AND (s.value > {param4:Decimal64(12)})",
+  },
+]
+`;
+
+exports[`scores selective-seek: emitted SQL > full SQL text (one representative per branch) > ineligible (value range): rows 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "seek-project",
+      "param2": [
+        "NUMERIC",
+        "BOOLEAN",
+        "CATEGORICAL",
+        "TEXT",
+      ],
+      "param3": "seek-project",
+      "param4": "0.5",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    s.id AS id,
+    s.project_id,
+    s.environment,
+    s.name AS name,
+    s.value,
+    s.string_value,
+    s.timestamp,
+    s.source,
+    s.data_type,
+    s.comment,
+    s.evaluator_id,
+    s.trace_id,
+    s.session_id,
+    s.dataset_run_id,
+    s.observation_id,
+    s.author_user_id,
+    s.created_at,
+    s.updated_at,
+    s.config_id,
+    s.queue_id,
+    s.execution_trace_id,
+    s.ingestion_api_key,
+    s.ingestion_sdk_name,
+    s.ingestion_sdk_version,
+    s.is_deleted,
+    s.event_ts,
+    length(mapKeys(s.metadata)) > 0 AS has_metadata
+FROM
+(
+    SELECT s.*
+    FROM scores AS s
+    INNER JOIN
+    (
+        SELECT
+            s.project_id AS latest_project_id,
+            toDate(s.timestamp) AS latest_date,
+            s.name AS latest_name,
+            s.id AS latest_id,
+            max(s.event_ts) AS latest_event_ts
+        FROM scores AS s
+        WHERE s.project_id = {param1:String}
+        GROUP BY
+            s.project_id,
+            toDate(s.timestamp),
+            s.name,
+            s.id
+    ) AS latest ON (
+        s.project_id = latest.latest_project_id
+    ) AND (toDate(s.timestamp) = latest.latest_date) AND (s.name = latest.latest_name) AND (s.id = latest.latest_id) AND (s.event_ts = latest.latest_event_ts)
+    WHERE (s.data_type IN ({param2:Array(String)})) AND (project_id = {param3:String}) AND (s.value > {param4:Decimal64(12)})
+    LIMIT 1 BY
+        s.project_id,
+        toDate(s.timestamp),
+        s.name,
+        s.id
+) AS s
+ORDER BY s.timestamp DESC",
+  },
+]
+`;

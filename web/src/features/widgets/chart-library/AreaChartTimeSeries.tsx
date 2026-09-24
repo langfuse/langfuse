@@ -1,12 +1,7 @@
-import React, { useMemo, useRef, useState } from "react";
-import {
-  ChartActiveReferenceLine,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartTooltipPortal,
-} from "@/src/components/ui/chart";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { useMemo } from "react";
+
+import { AreaChart as DesignSystemAreaChart } from "@/src/components/design-system/charts/AreaChart/AreaChart";
+import { type LineChartLegend } from "@/src/components/design-system/charts/LineChart/LineChart";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
@@ -14,23 +9,19 @@ import {
   groupDataByTimeDimension,
   toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
-import { isolatedPointDot } from "@/src/features/widgets/chart-library/IsolatedPointDot";
-import { useChartTickBudget } from "@/src/features/widgets/chart-library/useChartTickBudget";
+import { prepareDenseSeries } from "@/src/features/widgets/chart-library/prepareDenseSeries";
 import {
-  prepareDenseSeries,
-  prepareIsolatedPoints,
-} from "@/src/features/widgets/chart-library/prepareDenseSeries";
-import { prepareTimeAxis } from "@/src/features/widgets/chart-library/prepareTimeAxis";
-import { temporalAxisTickProp } from "@/src/features/widgets/chart-library/TimeAxisTick";
+  parseChartTimestamp,
+  prepareTimeAxis,
+} from "@/src/features/widgets/chart-library/prepareTimeAxis";
 import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
 import {
   seriesColor,
   SeriesOverflowNote,
-  TimeSeriesLegend,
-  useSeriesLegend,
 } from "@/src/features/widgets/chart-library/TimeSeriesLegend";
+import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 
-export const AreaChartTimeSeries: React.FC<ChartProps> = ({
+export function AreaChartTimeSeries({
   data,
   config = {
     metric: {
@@ -40,22 +31,17 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
       },
     },
   },
-  accessibilityLayer = true,
   metricFormatter = (value, options) => formatMetric(value, options),
   legendPosition = "auto",
   legendSummary = "none",
   legendInteraction = "highlight",
   maxVisibleSeries,
-  syncId,
-  subtleFill = false,
+  sync,
   missingValue = "gap",
   connectNulls = false,
   hideXAxisLabels = false,
-}) => {
-  const [selfHovered, setSelfHovered] = useState(false);
+}: Omit<ChartProps, "subtleFill">) {
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
-  // Make every (bucket, series) cell explicit — 0 for additive metrics, null
-  // (a real gap) otherwise — so areas never draw across no-data buckets. (LFE-10694)
   const groupedData = useMemo(
     () =>
       prepareDenseSeries(
@@ -65,168 +51,122 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
       ),
     [data, allDimensions, missingValue],
   );
-  // A real value with gaps on both sides spans no area segment — mark it with
-  // a dot so honest gaps never hide real data. (LFE-10694)
-  const isolatedPoints = useMemo(
-    () => prepareIsolatedPoints(groupedData, allDimensions),
-    [groupedData, allDimensions],
-  );
-  // Cap how many series we draw (data -> preparer seam): a high-cardinality
-  // breakdown of hundreds of series is both unreadable and slow to hover. (LFE-10549)
-  const series = useMemo(
+  const visibleSeries = useMemo(
     () => prepareVisibleSeries(data, allDimensions),
     [data, allDimensions],
   );
-  const dimensions = series.visible;
-  const { ref: containerRef, maxTicks } = useChartTickBudget();
-  const chartBoxRef = useRef<HTMLDivElement>(null);
+  const dimensions = visibleSeries.visible;
+  const hasNonTimestampBucket = groupedData.some(
+    (datum) => !parseChartTimestamp(datum.time_dimension),
+  );
   const timeAxis = useMemo(
     () =>
       prepareTimeAxis(
-        groupedData.map((d) => d.time_dimension),
-        maxTicks,
+        groupedData.map((datum) => datum.time_dimension),
+        undefined,
         { hideCategoryTickLabels: hideXAxisLabels },
       ),
-    [groupedData, maxTicks, hideXAxisLabels],
+    [groupedData, hideXAxisLabels],
   );
-
-  const { legendItems, onLegendClick, isRendered, isDimmed } = useSeriesLegend({
-    data,
-    dimensions,
-    config,
-    legendSummary,
-    legendInteraction,
-    maxVisibleSeries,
-  });
-
-  const tooltipFormatter = (value: number) =>
+  const dateAxis = useMemo(() => {
+    if (timeAxis.mode !== "category") return timeAxis;
+    const dates = groupedData.flatMap((datum) => {
+      const date = parseChartTimestamp(datum.time_dimension);
+      return date ? [date.getTime()] : [];
+    });
+    return dates.length ? prepareTimeAxis(dates) : timeAxis;
+  }, [groupedData, timeAxis]);
+  const formatValue = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
+  const chartData = useMemo(
+    () =>
+      groupedData.map((datum) => ({
+        x: String(datum.time_dimension ?? ""),
+        values: Object.fromEntries(
+          dimensions.map((dimension) => {
+            const value = datum[dimension];
+            return [dimension, typeof value === "number" ? value : null];
+          }),
+        ),
+      })),
+    [dimensions, groupedData],
+  );
+  const chartSeries = dimensions.map((dimension, index) => ({
+    id: dimension,
+    label:
+      getPlainTextFromReactNode(config?.[dimension]?.label ?? dimension) ??
+      dimension,
+    color: seriesColor(index),
+  }));
+  let chartLegend: LineChartLegend = { visibility: "hidden" };
+  if (legendPosition !== "none" && legendInteraction === "toggle") {
+    chartLegend = {
+      visibility: legendPosition === "auto" ? "auto" : "visible",
+      interaction: "toggle",
+      summary: legendSummary,
+      maxVisibleSeries,
+    };
+  } else if (legendPosition !== "none") {
+    chartLegend = {
+      visibility: legendPosition === "auto" ? "auto" : "visible",
+      interaction: "highlight",
+      summary: legendSummary,
+    };
+  }
+  const chart =
+    timeAxis.mode === "category" || hasNonTimestampBucket ? (
+      <DesignSystemAreaChart
+        data={chartData}
+        series={chartSeries}
+        valueFormatter={formatValue}
+        connectNulls={connectNulls}
+        sync={sync}
+        legend={chartLegend}
+        xAxis={{
+          type: "category",
+          labels: hideXAxisLabels ? "hidden" : "visible",
+          tickFormatter: (value) => {
+            const date = parseChartTimestamp(value);
+            return date
+              ? dateAxis.formatTick(date.getTime())
+              : timeAxis.formatTick(value);
+          },
+          tooltipFormatter: (value) => {
+            const date = parseChartTimestamp(value);
+            return date
+              ? dateAxis.formatTooltip(date.getTime())
+              : timeAxis.formatTooltip(value);
+          },
+        }}
+      />
+    ) : (
+      <DesignSystemAreaChart
+        data={chartData.flatMap((datum) => {
+          const date = parseChartTimestamp(datum.x);
+          return date ? [{ ...datum, x: date }] : [];
+        })}
+        series={chartSeries}
+        valueFormatter={formatValue}
+        connectNulls={connectNulls}
+        sync={sync}
+        legend={chartLegend}
+        xAxis={{
+          type: "time",
+          tickFormatter: (value) => timeAxis.formatTick(value.getTime()),
+          tooltipFormatter: (value) => timeAxis.formatTooltip(value.getTime()),
+        }}
+      />
+    );
 
   return (
-    <div
-      ref={containerRef}
-      className="flex h-full w-full min-w-0 flex-col"
-      // onMouseMove (not just onMouseEnter) so the tooltip un-gates even when the
-      // cursor is already over the chart at mount/refresh (enter never fires). (LFE-10549)
-      onMouseEnter={() => setSelfHovered(true)}
-      onMouseMove={() => setSelfHovered(true)}
-      onMouseLeave={() => setSelfHovered(false)}
-      // Keyboard parity: recharts' accessibilityLayer lets Tab/arrow users move
-      // the crosshair, but that fires no mouse event — un-gate the tooltip on
-      // focus too, and re-gate only when focus leaves the chart. (LFE-10549)
-      onFocus={() => setSelfHovered(true)}
-      onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null))
-          setSelfHovered(false);
-      }}
-    >
-      <SeriesOverflowNote
-        visibleCount={dimensions.length}
-        totalCount={series.total}
-      />
-      <ChartContainer
-        ref={chartBoxRef}
-        config={config}
-        className="min-h-0 flex-1"
-      >
-        <AreaChart
-          accessibilityLayer={accessibilityLayer}
-          data={groupedData}
-          syncId={syncId}
-          syncMethod="value"
-        >
-          {/* syncWithTicks: grid lines sit exactly on the budget-thinned axis
-              ticks (a line per shown day/hour), instead of recharts' default
-              every-bucket grid — density follows the tick budget. (LFE-10576) */}
-          <CartesianGrid
-            stroke="hsl(var(--chart-grid))"
-            vertical={timeAxis.showVerticalGrid}
-            syncWithTicks
-          />
-          <XAxis
-            dataKey="time_dimension"
-            stroke="hsl(var(--chart-grid))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-            interval={timeAxis.interval}
-            tickFormatter={timeAxis.formatTick}
-            {...timeAxis.tickProps}
-            {...temporalAxisTickProp(
-              timeAxis,
-              groupedData.at(-1)?.time_dimension,
-            )}
-          />
-          <YAxis
-            type="number"
-            stroke="hsl(var(--chart-grid))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-            niceTicks="auto"
-            tickFormatter={(value) => tooltipFormatter(Number(value))}
-          />
-          {dimensions.map((dimension, index) => {
-            if (!isRendered(dimension)) return null;
-            const muted = isDimmed(dimension);
-            const isolated = isolatedPoints.get(dimension);
-            return (
-              <Area
-                key={dimension}
-                type="linear"
-                dataKey={dimension}
-                // Neighborless points span no area segment; a dot is the only
-                // thing that keeps them visible. (LFE-10694)
-                dot={
-                  isolated
-                    ? isolatedPointDot(isolated, seriesColor(index), muted)
-                    : false
-                }
-                stroke={seriesColor(index)}
-                fill={seriesColor(index)}
-                fillOpacity={muted ? 0.15 : subtleFill ? 0.3 : 0.75}
-                strokeWidth={2.5}
-                strokeOpacity={muted ? 0.2 : 1}
-                connectNulls={connectNulls}
-                isAnimationActive={false}
-              />
-            );
-          })}
-          <ChartActiveReferenceLine />
-          <ChartTooltip
-            content={({ active, payload, label, coordinate }) =>
-              // Synced siblings show only the crosshair; the tooltip is the
-              // hovered chart's, portaled out of the chart frame. (LFE-10549)
-              selfHovered ? (
-                <ChartTooltipPortal
-                  active={active}
-                  coordinate={coordinate}
-                  anchorRef={chartBoxRef}
-                >
-                  <ChartTooltipContent
-                    active={active}
-                    payload={payload}
-                    label={label}
-                    indicator="line"
-                    labelFormatter={(value) => timeAxis.formatTooltip(value)}
-                    valueFormatter={tooltipFormatter}
-                    sortPayloadByValue="desc"
-                  />
-                </ChartTooltipPortal>
-              ) : null
-            }
-          />
-        </AreaChart>
-      </ChartContainer>
-      {(legendPosition === "below" ||
-        (legendPosition === "auto" && legendItems.length > 1)) && (
-        <TimeSeriesLegend
-          items={legendItems}
-          interaction={legendInteraction}
-          onItemClick={onLegendClick}
-          formatSummary={tooltipFormatter}
+    <div className="flex size-full min-w-0 flex-col">
+      {visibleSeries.total > dimensions.length ? (
+        <SeriesOverflowNote
+          visibleCount={dimensions.length}
+          totalCount={visibleSeries.total}
         />
-      )}
+      ) : null}
+      <div className="min-h-0 flex-1">{chart}</div>
     </div>
   );
-};
+}

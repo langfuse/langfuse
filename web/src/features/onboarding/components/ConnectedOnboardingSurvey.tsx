@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import { api } from "@/src/utils/api";
+import { getDemoCallbackRedirectPath } from "../lib/demoCallbackRedirect";
 import type { SurveyFormData } from "../lib/surveyTypes";
 import { OnboardingSurvey } from "./OnboardingSurvey";
 
@@ -13,6 +14,10 @@ export function ConnectedOnboardingSurvey() {
   const utils = api.useUtils();
   const onboardingStatus = api.onboarding.status.useQuery();
   const completeOnboardingMutation = api.onboarding.complete.useMutation();
+  const queryRedirectPath = router.isReady
+    ? (getDemoCallbackRedirectPath(router.query.targetPath) ??
+      getDemoCallbackRedirectPath(router.query.callbackUrl))
+    : undefined;
   const [hasStartedOnboardingCompletion, setHasStartedOnboardingCompletion] =
     useState(false);
 
@@ -35,12 +40,13 @@ export function ConnectedOnboardingSurvey() {
               }
             : undefined,
         );
+        const redirectTo = queryRedirectPath ?? onboardingResult.redirectTo;
         utils.onboarding.status.setData(undefined, {
           completed: true,
-          redirectTo: onboardingResult.redirectTo,
+          redirectTo,
         });
         await updateSession();
-        await router.replace(onboardingResult.redirectTo);
+        await router.replace(redirectTo);
       } catch (error) {
         setHasStartedOnboardingCompletion(false);
         showErrorToast(
@@ -52,6 +58,7 @@ export function ConnectedOnboardingSurvey() {
     [
       completeOnboardingMutation,
       onboardingStatus.data,
+      queryRedirectPath,
       router,
       updateSession,
       utils,
@@ -77,15 +84,21 @@ export function ConnectedOnboardingSurvey() {
     );
 
   useEffect(() => {
-    if (onboardingStatus.data?.completed && !hasStartedOnboardingCompletion) {
-      redirectCompletedOnboarding(onboardingStatus.data.redirectTo).catch(
-        () => undefined,
-      );
+    if (
+      router.isReady &&
+      onboardingStatus.data?.completed &&
+      !hasStartedOnboardingCompletion
+    ) {
+      redirectCompletedOnboarding(
+        queryRedirectPath ?? onboardingStatus.data.redirectTo,
+      ).catch(() => undefined);
     }
   }, [
     hasStartedOnboardingCompletion,
     onboardingStatus.data,
+    queryRedirectPath,
     redirectCompletedOnboarding,
+    router.isReady,
   ]);
 
   const onSubmit = useCallback(
@@ -99,6 +112,7 @@ export function ConnectedOnboardingSurvey() {
     hasStartedOnboardingCompletion ||
     isFinishingOnboarding ||
     isRedirectingCompletedOnboarding ||
+    !router.isReady ||
     onboardingStatus.isLoading ||
     onboardingStatus.data?.completed === true;
 

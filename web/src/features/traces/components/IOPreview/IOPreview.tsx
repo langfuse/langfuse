@@ -1,12 +1,18 @@
+/* eslint-disable no-nested-ternary */
 import { useEffect } from "react";
 import { type ScoreDomain, type Prisma } from "@langfuse/shared";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePreserveRelativeScroll } from "@/src/features/traces/hooks/usePreserveRelativeScroll";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { type ExpansionState } from "@/src/features/traces/components/AdvancedJsonViewer/types";
 
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
+import {
+  DEFAULT_JSON_VIEW_PREFERENCE,
+  JSON_VIEW_PREFERENCE_STORAGE_KEY,
+  normalizeJsonViewPreference,
+} from "@/src/components/ui/jsonViewPreference";
 import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";
 import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
 import { IOPreviewPretty } from "./IOPreviewPretty";
@@ -155,10 +161,11 @@ export function IOPreview({
 
   // View state management
   const [localCurrentView, setLocalCurrentView] = useLocalStorage<ViewMode>(
-    "jsonViewPreference",
-    "pretty",
+    JSON_VIEW_PREFERENCE_STORAGE_KEY,
+    DEFAULT_JSON_VIEW_PREFERENCE,
   );
-  const selectedView = currentView ?? localCurrentView;
+  const selectedView =
+    currentView ?? normalizeJsonViewPreference(localCurrentView);
   const showViewToggle = currentView === undefined;
 
   const [compensateScrollRef, startPreserveScroll] =
@@ -241,6 +248,7 @@ export function IOPreview({
        */}
       {selectedView === "json-beta" ? (
         <IOPreviewJSON
+          hideMetadata={!showMetadata}
           input={input}
           output={output}
           status={status}
@@ -268,6 +276,7 @@ export function IOPreview({
         />
       ) : selectedView === "json" ? (
         <IOPreviewJSONSimple
+          hideMetadata={!showMetadata}
           input={input}
           output={output}
           status={status}
@@ -297,7 +306,6 @@ export function IOPreview({
       ) : (
         <IOPreviewPretty
           {...sharedProps}
-          observationName={observationName}
           showMetadata={showMetadata}
           contentMode={contentMode}
           showSystemPrompt={showSystemPrompt}

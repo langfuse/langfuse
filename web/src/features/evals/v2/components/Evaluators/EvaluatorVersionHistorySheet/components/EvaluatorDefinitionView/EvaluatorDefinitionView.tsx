@@ -1,13 +1,18 @@
+import { Fragment } from "react";
 import {
   type EvalTemplateSourceCodeLanguage,
   EvalTemplateTypeEnum,
   type EvalTemplateType,
   type ObservationVariableMapping,
+  type EvaluatorPromptMessage,
+  parseDecisionModelQuestions,
 } from "@langfuse/shared";
 
-import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
+import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { Badge } from "@/src/components/ui/badge";
 import { Label } from "@/src/components/ui/label";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
+import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
 import { PopoverTrigger } from "@/src/components/ui/popover";
 import { EvaluatorCodeLanguageSelector } from "@/src/features/evals/v2/components/Evaluators/Code/EvaluatorCodeLanguageSelector/EvaluatorCodeLanguageSelector";
 import { EvaluationTypeConfiguration } from "@/src/features/evals/v2/components/Evaluators/EvaluationTypeConfiguration/EvaluationTypeConfiguration";
@@ -18,6 +23,7 @@ import {
 import { PromptVariableEditor } from "@/src/features/evals/v2/components/Evaluators/Judges/PromptVariableEditor/PromptVariableEditor";
 import { ScoreOutputConfiguration } from "@/src/features/evals/v2/components/Evaluators/Judges/ScoreOutputConfiguration/ScoreOutputConfiguration";
 import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapping/VariableMapping";
+import { DecisionModelQuestionSummary } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/DecisionModelQuestionSummary/DecisionModelQuestionSummary";
 import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
 import { formatMappingLabel } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
 import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
@@ -32,13 +38,19 @@ export type EvaluatorDefinition =
     }
   | {
       type: Extract<EvalTemplateType, "LLM_AS_JUDGE">;
-      prompt: string | null;
+      promptMessages: EvaluatorPromptMessage[];
       selectedModel: JudgeModel | null;
       defaultModel: JudgeModel | null;
       outputDefinition: unknown;
       variableMappings:
         | { state: "hidden" }
         | { state: "visible"; mappings: ObservationVariableMapping[] };
+    }
+  | {
+      type: Extract<EvalTemplateType, "DECISION_MODEL">;
+      questions: unknown;
+      selectedModel: JudgeModel | null;
+      variableMapping: ObservationVariableMapping[];
     };
 
 // A saved version is immutable, so every control below is the live editing
@@ -92,7 +104,7 @@ function LlmEvaluatorDefinitionView({
 }: {
   definition: Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>;
 }) {
-  const { variableMappings } = definition;
+  const { variableMappings, promptMessages } = definition;
   const mappings =
     variableMappings.state === "visible" ? variableMappings.mappings : [];
   // The prompt's {{variable}} tokens name their binding on hover, the same way
@@ -140,13 +152,28 @@ function LlmEvaluatorDefinitionView({
       </EvaluationTypeConfiguration>
       <section className="flex min-w-0 flex-col gap-2">
         <Label>Prompt</Label>
-        <PromptVariableEditor
-          value={definition.prompt ?? ""}
-          onChange={noop}
-          variableMappings={variableLabels}
-          readOnly
-          validateVariableMappings={false}
-        />
+        {promptMessages.map((message, index) => (
+          <PromptVariableEditor
+            key={index}
+            value={message.content}
+            onChange={noop}
+            variableMappings={variableLabels}
+            readOnly
+            validateVariableMappings={false}
+            toolbarStart={
+              <span className="text-muted-foreground px-1.5 text-xs capitalize">
+                {message.role}
+              </span>
+            }
+            previewEnabled
+            preview={{
+              status: "ready",
+              fragments: [{ type: "text", text: message.content }],
+            }}
+            previewSurface="muted"
+            renderPreviewText={renderMediaAwareText}
+          />
+        ))}
       </section>
       {variableMappings.state === "visible" ? (
         <section className="flex flex-col gap-2">
@@ -171,15 +198,85 @@ function LlmEvaluatorDefinitionView({
   );
 }
 
+function DecisionModelDefinitionView({
+  definition,
+}: {
+  definition: Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>;
+}) {
+  const questions = parseDecisionModelQuestions(definition.questions);
+
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      <EvaluationTypeConfiguration
+        mode={EvalTemplateTypeEnum.DECISION_MODEL}
+        onModeChange={noop}
+        disabled
+      >
+        <Badge variant="outline" className="font-mono">
+          {definition.selectedModel
+            ? `${definition.selectedModel.provider}: ${definition.selectedModel.model}`
+            : "No model"}
+        </Badge>
+      </EvaluationTypeConfiguration>
+      <section className="flex min-w-0 flex-col gap-2">
+        <Label>Questions</Label>
+        {questions.success ? (
+          questions.data.map((question, index) => (
+            <DecisionModelQuestionSummary
+              key={question.id}
+              question={question}
+              index={index}
+            />
+          ))
+        ) : (
+          <p className="text-destructive text-xs">{questions.error}</p>
+        )}
+      </section>
+      <section className="flex flex-col gap-2">
+        <Label>State</Label>
+        <VariableMapping
+          mode="read-only"
+          variableDisplay="stateKey"
+          mappings={definition.variableMapping.map((mapping) => ({
+            variable: mapping.templateVariable,
+            fieldState: {
+              selectedColumnId: mapping.selectedColumnId,
+              jsonSelector: mapping.jsonSelector ?? null,
+            },
+          }))}
+        />
+      </section>
+    </div>
+  );
+}
+
+function renderMediaAwareText(value: string) {
+  return splitStringByMediaReferences(value).map((segment, index) =>
+    segment.type === "media" ? (
+      <span
+        key={`${segment.value}-${index}`}
+        className="relative -top-px inline-flex"
+      >
+        <MediaReferenceTag descriptor={segment.descriptor} />
+      </span>
+    ) : (
+      <Fragment key={index}>{segment.value}</Fragment>
+    ),
+  );
+}
+
 /** Read-only evaluator definition with code and LLM states enforced by type. */
 export function EvaluatorDefinitionView({
   definition,
 }: {
   definition: EvaluatorDefinition;
 }) {
-  return definition.type === EvalTemplateTypeEnum.CODE ? (
-    <CodeEvaluatorDefinitionView definition={definition} />
-  ) : (
-    <LlmEvaluatorDefinitionView definition={definition} />
-  );
+  switch (definition.type) {
+    case EvalTemplateTypeEnum.CODE:
+      return <CodeEvaluatorDefinitionView definition={definition} />;
+    case EvalTemplateTypeEnum.DECISION_MODEL:
+      return <DecisionModelDefinitionView definition={definition} />;
+    case EvalTemplateTypeEnum.LLM_AS_JUDGE:
+      return <LlmEvaluatorDefinitionView definition={definition} />;
+  }
 }

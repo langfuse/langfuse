@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -524,18 +525,14 @@ export async function executeInAppAgentRun(params: {
           if (outcome?.reachedStepLimit) {
             recordIncrement("langfuse.in_app_agent.step_limit_reached", 1);
           }
+          if (outcome?.truncatedByOutputLimit) {
+            recordIncrement("langfuse.in_app_agent.output_limit_reached", 1);
+          }
 
           await flushPersistedRunEvents(
             interruptRequest
               ? { status: InAppAgentRunStatus.AWAITING_APPROVAL }
-              : outcome?.truncatedByStepLimit
-                ? {
-                    status: InAppAgentRunStatus.SUCCEEDED,
-                    errorCode: InAppAgentRunErrorCode.STEP_LIMIT,
-                    errorMessage:
-                      "The run reached the step limit before a final answer",
-                  }
-                : { status: InAppAgentRunStatus.SUCCEEDED },
+              : resolveCompletedRunFinish(outcome),
           );
         },
         onAbort: async () => {
@@ -714,6 +711,28 @@ async function resolveUserProjectAccess(params: {
     email: user.email,
     v4BetaEnabled: user.v4BetaEnabled,
   };
+}
+
+function resolveCompletedRunFinish(outcome?: {
+  truncatedByStepLimit: boolean;
+  truncatedByOutputLimit: boolean;
+}): NonNullable<Parameters<typeof flushPendingRunEvents>[0]["finish"]> {
+  if (outcome?.truncatedByOutputLimit) {
+    return {
+      status: InAppAgentRunStatus.SUCCEEDED,
+      errorCode: InAppAgentRunErrorCode.OUTPUT_LIMIT,
+      errorMessage:
+        "The response hit the model's output-token limit before a final answer",
+    };
+  }
+  if (outcome?.truncatedByStepLimit) {
+    return {
+      status: InAppAgentRunStatus.SUCCEEDED,
+      errorCode: InAppAgentRunErrorCode.STEP_LIMIT,
+      errorMessage: "The run reached the step limit before a final answer",
+    };
+  }
+  return { status: InAppAgentRunStatus.SUCCEEDED };
 }
 
 function findPersistedApprovalRequest(

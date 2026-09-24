@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
 import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "@langfuse/shared/in-app-agent/server/systemPrompt";
@@ -265,6 +266,8 @@ type InAppAgentCompleteOutcome = {
   /** The turn reached the step cap, whether or not wrap-up rescued it. */
   reachedStepLimit: boolean;
   truncatedByStepLimit: boolean;
+  /** The last model step ended with a `length` finish. */
+  truncatedByOutputLimit: boolean;
 };
 
 type StepLimitState = {
@@ -276,8 +279,13 @@ type StepLimitState = {
 function isTruncatedByStepLimit(state: StepLimitState): boolean {
   return (
     state.iteration >= IN_APP_AGENT_MAX_STEPS &&
-    state.lastFinishReason !== "stop"
+    state.lastFinishReason !== "stop" &&
+    state.lastFinishReason !== "length"
   );
+}
+
+function isTruncatedByOutputLimit(state: StepLimitState): boolean {
+  return state.lastFinishReason === "length";
 }
 
 type CreateAgUiStreamOptions = {
@@ -897,12 +905,15 @@ export async function createAgUiStream(params: {
                   ? async () => {
                       const truncatedByStepLimit =
                         isTruncatedByStepLimit(stepLimitState);
+                      const truncatedByOutputLimit =
+                        isTruncatedByOutputLimit(stepLimitState);
                       recordInstrumentation("end", (instrumentation) =>
                         instrumentation.end(
-                          truncatedByStepLimit
+                          truncatedByStepLimit || truncatedByOutputLimit
                             ? {
                                 result: {
-                                  truncatedByStepLimit: true,
+                                  truncatedByStepLimit,
+                                  truncatedByOutputLimit,
                                   finishReason: stepLimitState.lastFinishReason,
                                 },
                               }
@@ -915,6 +926,7 @@ export async function createAgUiStream(params: {
                       return params.options.onComplete?.({
                         reachedStepLimit: stepLimitState.wrapUp,
                         truncatedByStepLimit,
+                        truncatedByOutputLimit,
                       });
                     }
                   : async () => {
@@ -1118,7 +1130,7 @@ async function createMastraAdapter(params: {
   onToolExecutionEnd?: (toolCallId: string) => void;
   stepLimitState: StepLimitState;
 }) {
-  const languageModel = createInAppAgentLanguageModel({
+  const languageModel = await createInAppAgentLanguageModel({
     config: params.options.model,
     awsProfile: params.awsProfile,
   });

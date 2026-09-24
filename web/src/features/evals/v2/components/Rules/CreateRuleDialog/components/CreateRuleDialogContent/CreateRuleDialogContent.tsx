@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+import { showSuccessToast } from "@/src/features/notifications";
 import type { EvalTargetObject, FilterState } from "@langfuse/shared";
 import { useRef, useState } from "react";
 import {
@@ -15,18 +17,14 @@ import type {
   RuleDraft,
   RuleEvaluatorOption,
 } from "@/src/features/evals/v2/types/rules";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
-import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useProject } from "@/src/features/projects/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useProject } from "@/src/features/projects";
 import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
-
-function resolveInitialRuleFilters(initialFilter?: FilterState) {
-  return initialFilter ?? EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS;
-}
+import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
+import { resolveInitialRuleFilters } from "./resolveInitialRuleFilters";
 
 export function CreateRuleDialogContent({
   projectId,
@@ -117,7 +115,7 @@ export function CreateRuleDialogContent({
     });
     capture("evaluation_rules:create", {
       assignmentCount: draft.assignments.length,
-      filterCount: draft.filter.length,
+      ...getFilterAnalyticsProperties(draft.filter),
       samplingPercent: Math.round(draft.sampling * 100),
       isEnabled: true,
     });

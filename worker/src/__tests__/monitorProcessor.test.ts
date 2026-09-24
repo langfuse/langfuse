@@ -6,7 +6,11 @@ import {
   createOrgProjectAndApiKey,
   logger,
 } from "@langfuse/shared/src/server";
-import { InvalidRequestError } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  decodeFiltersGeneric,
+  type FilterState,
+} from "@langfuse/shared";
 import {
   MonitorProcessor,
   type MonitorPublisher,
@@ -46,6 +50,7 @@ type SeedOverrides = Partial<{
   windowMs: bigint;
   status: MonitorStatus;
   view: MonitorView;
+  filters: FilterState;
   metric: Metric;
   alertThreshold: number;
   warningThreshold: number | null;
@@ -100,7 +105,7 @@ type ProcessCase = {
   injectError?: {
     stage: InjectErrorStage;
     message: string;
-    errorClass?: "invalid-request" | "resource";
+    errorClass?: "invalid-request" | "resource" | "resource-memory";
   };
   preempt?: { newClaimedAt: Date };
   preemptPause?: { at: Date };
@@ -148,7 +153,7 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
       id: seed.id,
       projectId,
       view: seed.view ?? "OBSERVATIONS",
-      filters: [] as unknown as Prisma.InputJsonValue,
+      filters: (seed.filters ?? []) as unknown as Prisma.InputJsonValue,
       metric: (seed.metric ?? {
         measure: "count",
         aggregation: "count",
@@ -220,7 +225,7 @@ function makeEvent(
   };
 }
 
-/** wrapDbToThrow returns a Proxy over `db` that rejects at the DB seam matching `stage`: claim intercepts `monitor.updateManyAndReturn`, complete intercepts `$executeRaw`. Lets the table inject failures without per-method seams on the processor. */
+/** wrapDbToThrow returns a Proxy over `db` that rejects at the DB seam matching `stage`: claim intercepts `monitor.updateManyAndReturn`, complete intercepts `$transaction`. Lets the table inject failures without per-method seams on the processor. */
 function wrapDbToThrow(
   db: PrismaClient,
   stage: "claim" | "complete",
@@ -229,7 +234,7 @@ function wrapDbToThrow(
   if (stage === "complete") {
     return new Proxy(db, {
       get(target, prop, _receiver) {
-        if (prop === "$executeRaw") {
+        if (prop === "$transaction") {
           return () => Promise.reject(new Error(message));
         }
         return Reflect.get(target, prop, target);
@@ -254,7 +259,7 @@ function wrapDbToThrow(
   }) as PrismaClient;
 }
 
-/** wrapDbPreemptBeforeComplete simulates another worker re-claiming between this worker's claim and complete: the first `$executeRaw` (the complete) first bumps `lastClaimedAt` on the project's monitors so the complete-side CAS owner key no longer matches and the update no-ops. */
+/** wrapDbPreemptBeforeComplete simulates another worker re-claiming between this worker's claim and complete: the complete `$transaction` first bumps `lastClaimedAt` on the project's monitors so the complete-side CAS owner key no longer matches and the update no-ops. */
 function wrapDbPreemptBeforeComplete(
   db: PrismaClient,
   projectId: string,
@@ -263,7 +268,7 @@ function wrapDbPreemptBeforeComplete(
   let preempted = false;
   return new Proxy(db, {
     get(target, prop, _receiver) {
-      if (prop === "$executeRaw") {
+      if (prop === "$transaction") {
         return async (...args: unknown[]) => {
           if (!preempted) {
             preempted = true;
@@ -272,7 +277,7 @@ function wrapDbPreemptBeforeComplete(
               data: { lastClaimedAt: newClaimedAt },
             });
           }
-          return (target.$executeRaw as (...a: unknown[]) => unknown)(...args);
+          return (target.$transaction as (...a: unknown[]) => unknown)(...args);
         };
       }
       return Reflect.get(target, prop, target);
@@ -280,7 +285,7 @@ function wrapDbPreemptBeforeComplete(
   }) as PrismaClient;
 }
 
-/** wrapDbPauseBeforeComplete simulates a user pausing between this worker's claim and complete: the first `$executeRaw` (the complete) first flips the project's monitors to PAUSED without touching `lastClaimedAt`, so the complete-side CAS owner key still matches. */
+/** wrapDbPauseBeforeComplete simulates a user pausing between this worker's claim and complete: the complete `$transaction` first flips the project's monitors to PAUSED without touching `lastClaimedAt`, so the complete-side CAS owner key still matches. */
 function wrapDbPauseBeforeComplete(
   db: PrismaClient,
   projectId: string,
@@ -289,7 +294,7 @@ function wrapDbPauseBeforeComplete(
   let paused = false;
   return new Proxy(db, {
     get(target, prop, _receiver) {
-      if (prop === "$executeRaw") {
+      if (prop === "$transaction") {
         return async (...args: unknown[]) => {
           if (!paused) {
             paused = true;
@@ -302,7 +307,7 @@ function wrapDbPauseBeforeComplete(
               },
             });
           }
-          return (target.$executeRaw as (...a: unknown[]) => unknown)(...args);
+          return (target.$transaction as (...a: unknown[]) => unknown)(...args);
         };
       }
       return Reflect.get(target, prop, target);
@@ -310,7 +315,7 @@ function wrapDbPauseBeforeComplete(
   }) as PrismaClient;
 }
 
-/** wrapDbRescueBeforeComplete simulates the scheduler TTL-rescuing this worker's stale run between claim and complete: the first `$executeRaw` (the complete) first advances `lastPublishedAt` on the project's monitors — leaving `lastClaimedAt` and `lastCompletedAt` untouched, exactly as buildScheduleQuery does — so the complete-side CAS owner key still matches on `lastClaimedAt` but the new publish-identity clause no-ops. */
+/** wrapDbRescueBeforeComplete simulates the scheduler TTL-rescuing this worker's stale run between claim and complete: the complete `$transaction` first advances `lastPublishedAt` on the project's monitors — leaving `lastClaimedAt` and `lastCompletedAt` untouched, exactly as buildScheduleQuery does — so the complete-side CAS owner key still matches on `lastClaimedAt` but the new publish-identity clause no-ops. */
 function wrapDbRescueBeforeComplete(
   db: PrismaClient,
   projectId: string,
@@ -319,7 +324,7 @@ function wrapDbRescueBeforeComplete(
   let rescued = false;
   return new Proxy(db, {
     get(target, prop, _receiver) {
-      if (prop === "$executeRaw") {
+      if (prop === "$transaction") {
         return async (...args: unknown[]) => {
           if (!rescued) {
             rescued = true;
@@ -328,7 +333,7 @@ function wrapDbRescueBeforeComplete(
               data: { lastPublishedAt: newPublishedAt },
             });
           }
-          return (target.$executeRaw as (...a: unknown[]) => unknown)(...args);
+          return (target.$transaction as (...a: unknown[]) => unknown)(...args);
         };
       }
       return Reflect.get(target, prop, target);
@@ -721,6 +726,37 @@ const cases: ProcessCase[] = [
     },
     expect: {
       throws: "Timeout exceeded",
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          status: MonitorStatusSchema.enum.ACTIVE,
+          severity: MonitorSeveritySchema.enum.OK,
+          severityChangedAt: tenMinutesAgo,
+          alertedAt: null,
+          lastClaimedAt: justAfterRunAt,
+          lastCompletedAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "ClickHouse memory limit resource error on executeQuery: rethrows, stays ACTIVE, not ERROR_BAD_QUERY",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: MonitorSeveritySchema.enum.OK,
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedAt: runAt,
+      },
+    ],
+    injectError: {
+      stage: "executeQuery",
+      errorClass: "resource-memory",
+      message: "Memory limit (for query) exceeded: would use 2.25 GiB",
+    },
+    expect: {
+      throws: "Memory limit (for query) exceeded: would use 2.25 GiB",
       publishCallCount: 0,
       rows: [
         {
@@ -1352,6 +1388,11 @@ describe("MonitorProcessor.process (integration)", () => {
             new Error(c.injectError.message),
           );
         }
+        if (c.injectError.errorClass === "resource-memory") {
+          throw ClickHouseResourceError.wrapIfResourceError(
+            new Error(c.injectError.message),
+          );
+        }
         throw new Error(c.injectError.message);
       }
       return c.ch ?? [{ count_count: 0 }];
@@ -1481,8 +1522,19 @@ describe("MonitorProcessor.process evaluation offset", () => {
 
   it("shifts the CH query window back by 30s and stamps it onto the alert payload", async () => {
     const monitorId = `m_off_${v4()}`;
+    const filters: FilterState = [
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["Source verified"],
+      },
+      { column: "value", type: "number", operator: "=", value: 0 },
+    ];
     await seedMonitor(projectId, {
       id: monitorId,
+      view: "SCORES_NUMERIC",
+      filters,
       severity: MonitorSeveritySchema.enum.UNKNOWN,
       lastPublishedAt: runAt,
       triggerIds: ["trig_off"],
@@ -1515,7 +1567,11 @@ describe("MonitorProcessor.process evaluation offset", () => {
       getTriggers,
     );
 
-    const event = makeEvent(projectId, [monitorId]);
+    const event: MonitorQueueEvent = {
+      ...makeEvent(projectId, [monitorId]),
+      view: "scores-numeric",
+      filters,
+    };
     await processor.process(event, justAfterRunAt);
 
     const offsetMs = 30_000;
@@ -1535,6 +1591,14 @@ describe("MonitorProcessor.process evaluation offset", () => {
     if (sent.type !== "monitor-alert") throw new Error("unexpected envelope");
     expect(sent.payload.fromTimestamp.toISOString()).toBe(expectedFrom);
     expect(sent.payload.toTimestamp.toISOString()).toBe(expectedTo);
+    const dataUrl = new URL(sent.payload.dataPermalink!);
+    expect(dataUrl.pathname).toBe(`/project/${projectId}/scores`);
+    expect(dataUrl.searchParams.get("dateRange")).toBe(
+      `${new Date(expectedFrom).getTime()}-${new Date(expectedTo).getTime()}`,
+    );
+    expect(decodeFiltersGeneric(dataUrl.searchParams.get("filter")!)).toEqual(
+      expect.arrayContaining(filters),
+    );
     // The cadence-boundary stamp stays unshifted — alerts say "fired at runAt".
     expect(sent.payload.timestamp.toISOString()).toBe(runAt.toISOString());
   });

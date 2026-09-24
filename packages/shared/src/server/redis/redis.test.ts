@@ -10,7 +10,13 @@ vi.mock("../../env", () => ({
 }));
 
 import { env } from "../../env";
-import { safeMultiGet, scanKeys } from "./redis";
+import {
+  safeMultiGet,
+  scanKeys,
+  redisQueueRetryOptions,
+  redisClusterRetryStrategy,
+} from "./redis";
+import { logger } from "../logger";
 import {
   buildRedisErrorContext,
   formatRedisErrorMessage,
@@ -259,5 +265,107 @@ describe("formatRedisErrorMessage", () => {
     expect(formatRedisErrorMessage("Redis error", context)).toBe(
       "Redis error [connection-closed]: Connection is closed.",
     );
+  });
+});
+describe("redisQueueRetryOptions", () => {
+  const retryStrategy = redisQueueRetryOptions.retryStrategy as (
+    times: number,
+  ) => number;
+
+  describe("retryStrategy", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("stays within 1s–20s for every attempt count", () => {
+      for (const random of [0, 0.5, 1]) {
+        vi.spyOn(Math, "random").mockReturnValue(random);
+        // 5000 is past the attempt count where Math.exp overflows to Infinity.
+        // The cap has to win there: ioredis stops reconnecting for good if the
+        // strategy hands it anything other than a number of milliseconds.
+        for (const times of [1, 5, 8, 10, 50, 5000]) {
+          const delay = retryStrategy(times);
+          expect(delay).toBeGreaterThanOrEqual(1000);
+          expect(delay).toBeLessThanOrEqual(20000);
+        }
+      }
+    });
+
+    it("barely backs off across the first attempts, so a brief Redis restart recovers quickly", () => {
+      vi.spyOn(Math, "random").mockReturnValue(0.5);
+      // Pins the shape of the curve, not its constants: a strategy that
+      // doubled from the floor would already sit at the cap by this attempt.
+      expect(retryStrategy(7)).toBeLessThanOrEqual(retryStrategy(1) * 1.5);
+    });
+
+    it("applies jitter so concurrent connections do not retry in lockstep", () => {
+      vi.spyOn(Math, "random").mockReturnValue(0);
+      const low = retryStrategy(8);
+      vi.spyOn(Math, "random").mockReturnValue(1);
+      const high = retryStrategy(8);
+      expect(low).toBeLessThan(high);
+    });
+  });
+
+  describe("reconnectOnError", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("logs ordinary connection errors and does not reconnect", () => {
+      const warn = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+      const result = redisQueueRetryOptions.reconnectOnError!(
+        new Error("getaddrinfo ENOTFOUND langfuse-redis"),
+      );
+      expect(result).toBe(false);
+      expect(warn).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns 2 for READONLY errors so the command is retried after reconnect", () => {
+      vi.spyOn(logger, "warn").mockImplementation(() => logger);
+      const result = redisQueueRetryOptions.reconnectOnError!(
+        new Error("READONLY You can't write against a read only replica."),
+      );
+      expect(result).toBe(2);
+    });
+
+    it("treats MOVED redirects as debug noise and does not reconnect", () => {
+      const debug = vi.spyOn(logger, "debug").mockImplementation(() => logger);
+      const warn = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+      const result = redisQueueRetryOptions.reconnectOnError!(
+        new Error("MOVED 3999 127.0.0.1:6381"),
+      );
+      expect(result).toBe(false);
+      expect(debug).toHaveBeenCalledTimes(1);
+      expect(warn).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("redisClusterRetryStrategy", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("stays within 100ms–5s for every attempt count", () => {
+    for (const random of [0, 0.5, 1]) {
+      vi.spyOn(Math, "random").mockReturnValue(random);
+      // 5000 is past the attempt count where 2 ** times overflows to Infinity.
+      // The cap has to win there: ioredis stops reconnecting for good if the
+      // strategy hands it anything other than a number of milliseconds.
+      for (const times of [1, 2, 5, 10, 50, 5000]) {
+        const delay = redisClusterRetryStrategy(times);
+        expect(delay).toBeGreaterThanOrEqual(100);
+        expect(delay).toBeLessThanOrEqual(5000);
+      }
+    }
+  });
+
+  it("randomizes the delay so clients do not reconnect in lockstep", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const low = redisClusterRetryStrategy(4);
+    vi.spyOn(Math, "random").mockReturnValue(1);
+    const high = redisClusterRetryStrategy(4);
+    expect(low).toBeLessThan(high);
   });
 });

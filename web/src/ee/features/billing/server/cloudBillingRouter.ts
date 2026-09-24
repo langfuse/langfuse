@@ -1,18 +1,18 @@
 import * as z from "zod";
 
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
 
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { logger } from "@langfuse/shared/src/server";
 import { type BillingProvider } from "@langfuse/shared";
 import { resolveBillingService } from "./resolveBillingService";
-import { isCloudBillingEnabled } from "../utils/isCloudBilling";
+import { isCloudBillingEnabled } from "../utils/isCloudBillingEnabled";
 
 const PROVIDER_LABEL: Record<BillingProvider, string> = {
   stripe: "Stripe",

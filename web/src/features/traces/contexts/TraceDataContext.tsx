@@ -31,8 +31,9 @@ import {
   calculateTraceDuration,
   findEarliestStartTime,
 } from "@/src/features/traces/fns/timelineCalculations";
+import { type TraceMetricEmphasis } from "@/src/features/traces/fns/metricEmphasis";
 import { useViewPreferences } from "./ViewPreferencesContext";
-import { useMergedScores } from "@/src/features/scores/lib/useMergedScores";
+import { useMergedScores } from "@/src/features/scores";
 import { traceLevelScoreOwnerIds } from "@/src/features/traces/fns/nodeScores";
 
 type TraceType = Omit<
@@ -41,6 +42,8 @@ type TraceType = Omit<
 > & {
   input: string | null;
   output: string | null;
+  /** Server-derived, in seconds. */
+  latency?: number;
 };
 
 interface TraceDataContextValue {
@@ -55,6 +58,9 @@ interface TraceDataContextValue {
    * children into `roots`, and a promoted child is not a stand-in for the trace. */
   traceLevelScoreOwnerIds: Set<string>;
   nodeMap: Map<string, TreeNode>;
+  /** Trace-wide cost/duration totals for metric emphasis. Derived from the
+   * UNFILTERED tree so level filtering cannot change which rows read bold. */
+  metricEmphasis: TraceMetricEmphasis;
   searchItems: TraceSearchListItem[];
   hiddenObservationsCount: number;
   /**
@@ -210,6 +216,7 @@ export function TraceDataProvider({
       roots: filteredRoots,
       traceLevelScoreOwnerIds: traceLevelScoreOwnerIdSet,
       nodeMap: uiData.nodeMap,
+      metricEmphasis: uiData.metricEmphasis,
       searchItems: filteredSearchItems,
       hiddenObservationsCount,
       detachedObservationId,
@@ -233,6 +240,7 @@ export function TraceDataProvider({
       detachedObservationIsMisplaced,
       truncatedAtObservations,
       uiData.nodeMap,
+      uiData.metricEmphasis,
       comments,
       traceStartTime,
       traceDuration,

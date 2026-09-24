@@ -5,8 +5,7 @@
 
 import type { Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
-import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { hasProjectAccess, hasOrganizationAccess } from "@/src/features/rbac";
 import type { Session } from "next-auth";
 
 /** Organization type from user session (can be null when not in project/org context) */
@@ -24,7 +23,7 @@ const filters = {
    * Filter routes that require a project ID when none is available
    */
   projectScope: (route: Route, ctx: NavigationFilterContext): Route | null => {
-    if (!ctx.routerProjectId && route.pathname.includes("[projectId]")) {
+    if (!ctx.routerProjectId && route.href.includes("[projectId]")) {
       return null;
     }
     return route;
@@ -37,10 +36,7 @@ const filters = {
     route: Route,
     ctx: NavigationFilterContext,
   ): Route | null => {
-    if (
-      !ctx.routerOrganizationId &&
-      route.pathname.includes("[organizationId]")
-    ) {
+    if (!ctx.routerOrganizationId && route.href.includes("[organizationId]")) {
       return null;
     }
     return route;
@@ -170,6 +166,9 @@ const filters = {
       organization: organization ?? undefined,
       projectId: ctx.routerProjectId,
       isLangfuseCloud: ctx.isLangfuseCloud,
+      hasActiveCloudIncident: ctx.hasActiveCloudIncident,
+      canToggleV4: ctx.session?.user?.canToggleV4 === true,
+      forceV3Experience: ctx.forceV3Experience,
       v4WriteMode: ctx.session?.environment?.v4WriteMode,
       v4UpgradeUiAvailable: ctx.session?.user?.v4UpgradeUiAvailable === true,
     })

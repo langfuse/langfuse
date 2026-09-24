@@ -10,10 +10,6 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import {
-  getInAppAgentModelConfig,
-  isInAppAgentInstanceEnabled,
-} from "@langfuse/shared/in-app-agent/server/modelProvider";
 
 // Interval between jobs in minutes
 const JOB_INTERVAL_MINUTES = Prisma.raw("720"); // 12 hours
@@ -241,14 +237,8 @@ async function posthogTelemetry({
       0,
     );
 
-    // AI features. Organizations opt in individually, so the enabled count
-    // needs the total as its denominator. Runs are counted unconditionally:
-    // zero on an instance that never enabled the Assistant is itself the
-    // answer we are looking for.
-    const totalOrganizations = await prisma.organization.count();
-    const aiFeaturesEnabledOrganizations = await prisma.organization.count({
-      where: { aiFeaturesEnabled: true },
-    });
+    // Count Langfuse Assistant runs. Counted unconditionally: zero on an
+    // instance that never enabled the Assistant is itself the answer.
     const countAssistantRuns = await prisma.inAppAgentRun.count({
       where: {
         createdAt: {
@@ -257,9 +247,6 @@ async function posthogTelemetry({
         },
       },
     });
-    // Resolve through the product config, not env vars, so telemetry cannot
-    // claim an instance is configured when the Assistant refuses to run.
-    const modelConfig = getInAppAgentModelConfig();
 
     // Domains (no PII)
     const domains = await prisma.$queryRaw<Array<{ domain: string }>>`
@@ -287,16 +274,11 @@ async function posthogTelemetry({
         datasetItems: countDatasetItems,
         datasetRuns: countDatasetRuns,
         datasetRunItems: countDatasetRunItems,
+        assistantRuns: countAssistantRuns,
         startTimeframe: startTimeframe?.toISOString(),
         endTimeframe: endTimeframe.toISOString(),
         eeLicenseKey: env.LANGFUSE_EE_LICENSE_KEY,
         langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-        totalOrganizations: totalOrganizations,
-        aiFeaturesEnabledOrganizations: aiFeaturesEnabledOrganizations,
-        assistantRuns: countAssistantRuns,
-        assistantInstanceEnabled: isInAppAgentInstanceEnabled(),
-        langfuseAiModelConfigured: modelConfig !== undefined,
-        langfuseAiProvider: modelConfig?.provider ?? null,
         $set: {
           environment: process.env.NODE_ENV,
           userDomains: domains,

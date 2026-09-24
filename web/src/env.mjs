@@ -354,10 +354,54 @@ export const env = createEnv({
         "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32",
       )
       .optional(),
+    LANGFUSE_AI_GATEWAY_SERVICE_KEY: z.string().min(1).optional(),
+    LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS: z.string().min(1).optional(),
+    LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(",")
+              .map((organizationId) => organizationId.trim())
+              .filter(Boolean)
+          : [],
+      ),
+    LANGFUSE_AI_GATEWAY_JWT_KEY_ID: z.string().min(1).optional(),
+    LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY: z.string().min(1).optional(),
+    LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY: z.string().min(1).optional(),
+    LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID: z.string().min(1).optional(),
+    LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY: z.string().min(1).optional(),
+    LANGFUSE_AI_GATEWAY_JWT_ISSUER: z
+      .string()
+      .min(1)
+      .default("langfuse-control-plane"),
+    LANGFUSE_AI_GATEWAY_JWT_AUDIENCE: z
+      .string()
+      .min(1)
+      .default("langfuse-ingestion"),
 
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("true"),
-    LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(300),
+    // Bounds how long a revoked API key can still authenticate. Entries are
+    // not refreshed on read, so a key stops working at most one TTL after its
+    // last cache write. Shared with the policy-core authz context cache.
+    LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(60),
+
+    // The gateway data plane calls /resolve on every LLM request, so the
+    // lookup is cached. The TTL bounds how long a revoked key or a disabled
+    // connection can still be used if explicit invalidation is missed.
+    LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: z
+      .enum(["true", "false"])
+      .default("true"),
+    LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS: z.coerce
+      .number()
+      .default(60),
+
+    // auth migration; self-host and default stay legacy
+    API_AUTH_MIGRATION: z
+      .enum(["legacy", "shadow", "enforce"])
+      .default("legacy"),
 
     // Multimodal media upload to S3
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH: z.coerce
@@ -369,6 +413,8 @@ export const env = createEnv({
     LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
     LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: z.string().optional(),
+    // Server-reachable storage address when signed URLs use a different browser-facing endpoint.
+    LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: z
@@ -444,6 +490,9 @@ export const env = createEnv({
     // CHB's resource-server identifier. Defaulted because it is the same value
     // in every CHB tenant, and overridable in case that stops being true.
     CLICKHOUSE_BILLING_AUTH0_AUDIENCE: z.string().default("billing-api"),
+    // HMAC secret for inbound CHB webhooks. Unset makes the endpoint 500 rather
+    // than accept unverified events.
+    CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
@@ -484,7 +533,12 @@ export const env = createEnv({
     // apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
     // LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
     // LANGFUSE_AI_USE_RESPONSES_API applies to openai only.
-    LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic", "openai"]).optional(),
+    // LANGFUSE_AI_VERTEX_LOCATION applies to vertex only; like bedrock, vertex
+    // authenticates through the instance credential chain (GCP application
+    // default credentials) and takes no key.
+    LANGFUSE_AI_PROVIDER: z
+      .enum(["bedrock", "anthropic", "openai", "vertex"])
+      .optional(),
     LANGFUSE_AI_MODEL: z.string().optional(),
     LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
     LANGFUSE_AI_API_KEY: z.string().optional(),
@@ -512,7 +566,16 @@ export const env = createEnv({
         },
       ),
     LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
+    LANGFUSE_AI_VERTEX_LOCATION: z.string().optional(),
     LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
+    LANGFUSE_EVALUATOR_MEDIA_TRANSPORT: z
+      .enum(["url", "inline", "disabled"])
+      .optional(),
+    LANGFUSE_EVALUATOR_MEDIA_INLINE_MAX_BYTES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(20_000_000),
 
     // Tracing for Langfuse AI Features
     LANGFUSE_AI_FEATURES_HOST: z.string().optional(),
@@ -526,6 +589,10 @@ export const env = createEnv({
     // Enable Redis-based tracking of projects using OTEL API to optimize ClickHouse queries.
     // When enabled, projects ingesting via OTEL API skip the FINAL modifier on some observations queries for better performance.
     LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
+      .enum(["true", "false"])
+      .default("false"),
+    // Simulate worker admission without changing OTLP request processing.
+    LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED: z
       .enum(["true", "false"])
       .default("false"),
     // Maximum encoded and decompressed OTLP request body size in bytes.
@@ -545,6 +612,15 @@ export const env = createEnv({
       .default("false"),
     LANGFUSE_API_TRACES_DEFAULT_FIELDS: z.string().optional(),
     LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS: z.string().optional(),
+    // Cloud rollout gate for rejecting deprecated GET APIs for organizations
+    // created on or after the cutoff date. Defaults off: the cutoff date is
+    // today, so a date-only gate would start rejecting on deploy.
+    LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_API_ORGANIZATION_CUTOFF_DATE: z.iso
+      .datetime()
+      .default("2026-09-16T00:00:00.000Z"),
 
     // V4 preview opt-in. See LFE-9778. Defaults on for the v4 target state so
     // the events read paths are available out of the box (v3 shipped "false").
@@ -942,6 +1018,8 @@ export const env = createEnv({
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
     LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT:
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
+    LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT:
+      process.env.LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT,
     LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID:
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
     LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY:
@@ -1012,10 +1090,33 @@ export const env = createEnv({
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
     ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
+    LANGFUSE_AI_GATEWAY_SERVICE_KEY:
+      process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
+    LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS:
+      process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS,
+    LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST:
+      process.env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
+    LANGFUSE_AI_GATEWAY_JWT_KEY_ID: process.env.LANGFUSE_AI_GATEWAY_JWT_KEY_ID,
+    LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY:
+      process.env.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY,
+    LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY:
+      process.env.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY,
+    LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID:
+      process.env.LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID,
+    LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY:
+      process.env.LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY,
+    LANGFUSE_AI_GATEWAY_JWT_ISSUER: process.env.LANGFUSE_AI_GATEWAY_JWT_ISSUER,
+    LANGFUSE_AI_GATEWAY_JWT_AUDIENCE:
+      process.env.LANGFUSE_AI_GATEWAY_JWT_AUDIENCE,
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: process.env.LANGFUSE_CACHE_API_KEY_ENABLED,
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS:
       process.env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
+    LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED:
+      process.env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED,
+    LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS:
+      process.env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS,
+    API_AUTH_MIGRATION: process.env.API_AUTH_MIGRATION,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
@@ -1035,6 +1136,8 @@ export const env = createEnv({
       process.env.CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET,
     CLICKHOUSE_BILLING_AUTH0_AUDIENCE:
       process.env.CLICKHOUSE_BILLING_AUTH0_AUDIENCE,
+    CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET:
+      process.env.CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
@@ -1069,7 +1172,12 @@ export const env = createEnv({
     LANGFUSE_AI_USE_RESPONSES_API: process.env.LANGFUSE_AI_USE_RESPONSES_API,
     LANGFUSE_AI_EXTRA_HEADERS: process.env.LANGFUSE_AI_EXTRA_HEADERS,
     LANGFUSE_AI_AWS_BEDROCK_REGION: process.env.LANGFUSE_AI_AWS_BEDROCK_REGION,
+    LANGFUSE_AI_VERTEX_LOCATION: process.env.LANGFUSE_AI_VERTEX_LOCATION,
     LANGFUSE_IN_APP_AGENT_ENABLED: process.env.LANGFUSE_IN_APP_AGENT_ENABLED,
+    LANGFUSE_EVALUATOR_MEDIA_TRANSPORT:
+      process.env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT,
+    LANGFUSE_EVALUATOR_MEDIA_INLINE_MAX_BYTES:
+      process.env.LANGFUSE_EVALUATOR_MEDIA_INLINE_MAX_BYTES,
 
     // Langfuse Tracing AI Features
     LANGFUSE_AI_FEATURES_HOST: process.env.LANGFUSE_AI_FEATURES_HOST,
@@ -1077,6 +1185,8 @@ export const env = createEnv({
     // Api Performance Flags
     LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS:
       process.env.LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS,
+    LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED:
+      process.env.LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED,
     LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES:
       process.env.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES,
 
@@ -1096,6 +1206,10 @@ export const env = createEnv({
       process.env.LANGFUSE_API_TRACES_DEFAULT_FIELDS,
     LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS:
       process.env.LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS,
+    LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED:
+      process.env.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED,
+    LANGFUSE_API_ORGANIZATION_CUTOFF_DATE:
+      process.env.LANGFUSE_API_ORGANIZATION_CUTOFF_DATE,
     LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN:
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:

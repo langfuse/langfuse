@@ -3,6 +3,8 @@ import { agentTimelineScenario } from "./agent-timeline";
 import { annotationQueueScenario } from "./annotation-queue";
 import { customModelsScenario } from "./custom-models";
 import { deepChainScenario } from "./deep-chain";
+import { evaluatorGalleryScenario } from "./evaluator-gallery";
+import { experimentIoScenario } from "./experiment-io";
 import { longSessionScenario } from "./long-session";
 import { manyTracesScenario } from "./many-traces";
 import { outlierTrafficScenario } from "./outlier-traffic";
@@ -23,6 +25,8 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "agent-timeline": agentTimelineScenario,
   "agent-graph": agentGraphScenario,
   "deep-chain": deepChainScenario,
+  "evaluator-gallery": evaluatorGalleryScenario,
+  "experiment-io": experimentIoScenario,
   "long-session": longSessionScenario,
   "many-traces": manyTracesScenario,
   "outlier-traffic": outlierTrafficScenario,

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, type ReactNode } from "react";
 import {
   type FormatMetricOptions,
   type MetricFormatterFunction,
@@ -8,6 +8,7 @@ import {
   type LegendSummaryMode,
   type LegendInteraction,
   type MissingBucketValue,
+  type ChartProps,
 } from "@/src/features/widgets/chart-library/chart-props";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { isChartDataEmpty } from "@/src/features/widgets/chart-library/isChartDataEmpty";
@@ -26,7 +27,6 @@ import { AlertCircle } from "lucide-react";
 import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
 import { PivotTable } from "@/src/features/widgets/chart-library/PivotTable";
 import { type OrderByState } from "@langfuse/shared";
-import { type ChartConfig } from "@/src/components/ui/chart";
 
 const DEFAULT_METRIC_THEME = {
   light: "hsl(var(--chart-1))",
@@ -43,6 +43,7 @@ const EMPTY_STATE_CHART_TYPES = new Set<DashboardWidgetChartType>([
   "LINE_TIME_SERIES",
   "AREA_TIME_SERIES",
   "BAR_TIME_SERIES",
+  "NUMBER",
 ]);
 
 const ChartComponent = ({
@@ -59,11 +60,15 @@ const ChartComponent = ({
   legendInteraction,
   maxVisibleSeries,
   syncId,
+  sync,
   overrideWarning = false,
   metricFormatter: metricFormatterOverride,
   thresholds,
   missingValue,
   hideXAxisLabels,
+  colorBarsByCategory,
+  zeroBaseline,
+  emptyState,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -81,7 +86,7 @@ const ChartComponent = ({
     show_data_point_dots?: boolean;
     subtle_fill?: boolean;
   };
-  config?: ChartConfig;
+  config?: ChartProps["config"];
   sortState?: OrderByState | null;
   onSortChange?: (sortState: OrderByState | null) => void;
   isLoading?: boolean;
@@ -90,6 +95,7 @@ const ChartComponent = ({
   legendInteraction?: LegendInteraction;
   maxVisibleSeries?: number;
   syncId?: string;
+  sync?: ChartProps["sync"];
   overrideWarning?: boolean;
   metricFormatter?: MetricFormatterFunction;
   thresholds?: ChartThreshold[];
@@ -98,10 +104,22 @@ const ChartComponent = ({
   /**
    * Hide x-axis tick labels on a categorical (entity-name) axis; the full name
    * stays in the hover tooltip. Off by default. Consumed by the time-series
-   * charts and forwarded to `prepareTimeAxis`. Used by the experiments /
-   * dataset-compare charts.
+   * charts and forwarded to `prepareTimeAxis`. Used by dataset-compare charts.
    */
   hideXAxisLabels?: boolean;
+  /**
+   * Colour each bar of a categorical axis and name it in a legend below the
+   * plot; see {@link ChartProps.colorBarsByCategory}. Consumed by VERTICAL_BAR.
+   */
+  colorBarsByCategory?: boolean;
+  /** See {@link ChartProps.zeroBaseline}. Consumed by VERTICAL_BAR. */
+  zeroBaseline?: boolean;
+  /**
+   * Replaces the default "No data" card when the chart has nothing to draw.
+   * For a chart in a band too short for that card (the table strips), where it
+   * would clip its own text. Pass a stable node so the memo still holds.
+   */
+  emptyState?: ReactNode;
 }) => {
   const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -137,7 +155,7 @@ const ChartComponent = ({
           },
         ];
       }),
-    ) as ChartConfig;
+    ) as NonNullable<ChartProps["config"]>;
   }, [config]);
 
   const renderChart = () => {
@@ -148,12 +166,15 @@ const ChartComponent = ({
     // isChartDataEmpty); skip while loading so a first paint doesn't flash
     // "No data" before the real result arrives. (LFE-14333, manifesto
     // principle 8)
+    // A caller that supplied its own empty state (a table strip) gets it for
+    // any chart type: its band is too short for the default card, whatever the
+    // mark.
     if (
-      EMPTY_STATE_CHART_TYPES.has(chartType) &&
-      !isLoading &&
+      (EMPTY_STATE_CHART_TYPES.has(chartType) || emptyState !== undefined) &&
+      (chartType === "NUMBER" || !isLoading) &&
       isChartDataEmpty(data)
     ) {
-      return <NoDataOrLoading isLoading={false} />;
+      return emptyState ?? <NoDataOrLoading isLoading={isLoading} />;
     }
 
     switch (chartType) {
@@ -168,6 +189,7 @@ const ChartComponent = ({
             legendInteraction={legendInteraction}
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
+            sync={sync}
             showDataPointDots={chartConfig?.show_data_point_dots ?? false}
             thresholds={thresholds}
             missingValue={missingValue}
@@ -185,7 +207,7 @@ const ChartComponent = ({
             legendInteraction={legendInteraction}
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
-            subtleFill={chartConfig?.subtle_fill}
+            sync={sync}
             missingValue={missingValue}
             hideXAxisLabels={hideXAxisLabels}
           />
@@ -201,7 +223,7 @@ const ChartComponent = ({
             legendInteraction={legendInteraction}
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
-            subtleFill={chartConfig?.subtle_fill}
+            sync={sync}
             hideXAxisLabels={hideXAxisLabels}
           />
         );
@@ -211,7 +233,6 @@ const ChartComponent = ({
             data={renderedData.slice(0, rowLimit)}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
-            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "VERTICAL_BAR":
@@ -221,15 +242,17 @@ const ChartComponent = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            hideXAxisLabels={hideXAxisLabels}
+            colorBarsByCategory={colorBarsByCategory}
+            legendPosition={legendPosition}
+            zeroBaseline={zeroBaseline}
           />
         );
       case "PIE":
         return (
           <PieChart
             data={renderedData.slice(0, rowLimit)}
-            config={resolvedConfig}
             metricFormatter={metricFormatter}
-            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "HISTOGRAM":

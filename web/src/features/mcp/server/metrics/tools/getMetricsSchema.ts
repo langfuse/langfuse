@@ -4,7 +4,7 @@ import {
   viewDeclarations,
 } from "@langfuse/shared/query";
 import { filterOperators } from "@langfuse/shared";
-import { publicGranularities } from "@/src/features/public-api/types/metrics";
+import { publicGranularities } from "@/src/features/public-api/server";
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -60,6 +60,7 @@ const GetMetricsSchemaInput = z.object({
 
 export const [getMetricsSchemaTool, handleGetMetricsSchema] = defineTool({
   name: "getMetricsSchema",
+  action: "metrics:read",
   description:
     "Discover which Langfuse metrics can be analyzed and how to group, filter, aggregate, and time-bucket them before calling queryMetrics.",
   baseSchema: GetMetricsSchemaInput,

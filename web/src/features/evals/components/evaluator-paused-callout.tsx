@@ -1,6 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -18,10 +17,8 @@ import { Fragment } from "react";
 type EvaluatorPausedCalloutProps = {
   projectId: string;
   allowReactivation: boolean;
-  evalConfig: Pick<
-    JobConfiguration,
-    "id" | "blockedAt" | "blockReason" | "blockMessage"
-  > & {
+  blockedAt: NonNullable<JobConfiguration["blockedAt"]>;
+  evalConfig: Pick<JobConfiguration, "id" | "blockReason" | "blockMessage"> & {
     evalTemplate?: Pick<EvalTemplate, "id"> | null;
   };
 };
@@ -52,6 +49,7 @@ function getResolutionActionLabel(params: {
 export function EvaluatorPausedCallout({
   projectId,
   allowReactivation,
+  blockedAt,
   evalConfig,
 }: EvaluatorPausedCalloutProps) {
   const utils = api.useUtils();
@@ -70,10 +68,6 @@ export function EvaluatorPausedCallout({
     },
   });
 
-  if (!evalConfig.blockedAt) {
-    return null;
-  }
-
   const blockReason =
     evalConfig.blockReason ?? EvaluatorBlockReason.EVAL_MODEL_CONFIG_INVALID;
   const blockMetadata = getEvaluatorBlockMetadata(blockReason);
@@ -87,10 +81,10 @@ export function EvaluatorPausedCallout({
     templateId: evalConfig.evalTemplate?.id,
   });
   const blockMessage = evalConfig.blockMessage ?? DEFAULT_BLOCK_MESSAGE;
-  const blockedAt = new Date(evalConfig.blockedAt);
-  const blockedAtLabel = Number.isNaN(blockedAt.getTime())
+  const blockedAtDate = new Date(blockedAt);
+  const blockedAtLabel = Number.isNaN(blockedAtDate.getTime())
     ? null
-    : formatDistanceToNow(blockedAt, { addSuffix: true });
+    : formatDistanceToNow(blockedAtDate, { addSuffix: true });
 
   return (
     <section
@@ -103,25 +97,25 @@ export function EvaluatorPausedCallout({
         <AlertTriangle className="text-dark-yellow mt-0.5 h-4 w-4 shrink-0" />
 
         <div className="min-w-0 flex-1">
-          <h3 className="text-foreground text-base leading-5 font-bold">
+          <h3 className="text-foreground text-base font-bold">
             Evaluator paused
           </h3>
 
-          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-sm leading-5">
+          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted-foreground font-bold">
               {blockMetadata.shortLabel}
             </span>
             {blockedAtLabel ? (
               <Fragment>
                 <span className="bg-border h-1 w-1 rounded-full" />
-                <span title={blockedAt.toLocaleString()}>
+                <span title={blockedAtDate.toLocaleString()}>
                   Paused {blockedAtLabel}
                 </span>
               </Fragment>
             ) : null}
           </div>
 
-          <p className="text-muted-foreground mt-2 max-w-3xl text-sm leading-5">
+          <p className="text-muted-foreground mt-2 max-w-3xl text-sm">
             {blockMessage}
           </p>
 

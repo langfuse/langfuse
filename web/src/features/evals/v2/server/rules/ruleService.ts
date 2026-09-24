@@ -1,6 +1,6 @@
 import {
-  EvalTemplateType,
   EvalTargetObject,
+  EvalTemplateType,
   InvalidRequestError,
   isExperimentEvaluationRule,
   LangfuseConflictError,
@@ -25,7 +25,7 @@ import {
   getRecentRuleExecutionTraces,
   getTotalCostByRule,
 } from "@langfuse/shared/src/server";
-import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server/availability";
+import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server";
 import type {
   CreateOrAttachFromEvaluatorFiltersInput,
   CreateRuleInput,
@@ -35,6 +35,7 @@ import type {
   UpdateRuleInput,
 } from "./ruleTypes";
 import * as evaluatorRepository from "../evaluators/evaluatorRepository";
+import { reconcileEvaluatorPromptMessages } from "../evaluators/evaluatorService";
 import {
   assertActiveRuleLimitNotExceeded,
   assertEnabledRuleHasAssignments,
@@ -42,7 +43,10 @@ import {
 import * as repository from "./ruleRepository";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
-import { assertCompleteEvaluatorVariableMapping } from "../evaluators/evaluatorValidation";
+import {
+  assertCompleteEvaluatorVariableMapping,
+  extractEvaluatorPromptVariables,
+} from "../evaluators/evaluatorValidation";
 import { fallbackRuleName, filterStateKey } from "./ruleFilterMatching";
 
 const MAX_REUSABLE_FILTERS = 10;
@@ -790,8 +794,17 @@ export class RuleService {
       );
       const storedVariableMapping =
         assignment.variableMapping ?? prepared.initialVariableMapping;
+      const requiredVariables =
+        evaluator.type === EvalTemplateType.DECISION_MODEL
+          ? latestVersion.vars
+          : extractEvaluatorPromptVariables(
+              reconcileEvaluatorPromptMessages({
+                prompt: latestVersion.prompt,
+                promptMessages: latestVersion.promptMessages,
+              }),
+            );
       assertCompleteEvaluatorVariableMapping({
-        prompt: latestVersion.prompt ?? "",
+        promptVariables: requiredVariables,
         variableMapping:
           storedVariableMapping ?? prepared.defaultVariableMapping,
       });

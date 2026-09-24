@@ -13,7 +13,7 @@ import { TabComponent } from "@/src/features/dashboard/components/TabsComponent"
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import { useMemo } from "react";
 
 export const TracesAndObservationsTimeSeriesChart = ({
@@ -27,6 +27,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
   metricsVersion,
   schedulerId,
   syncId,
+  sync,
 }: {
   className?: string;
   projectId: string;
@@ -35,9 +36,13 @@ export const TracesAndObservationsTimeSeriesChart = ({
   toTimestamp: Date;
   agg: DashboardDateRangeAggregationOption;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
   syncId?: string;
+  sync?: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
 }) => {
   const isV2 = metricsVersion === "v2";
 
@@ -220,6 +225,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
                       // the card headline. (LFE-10498)
                       legendSummary="sum"
                       syncId={syncId}
+                      sync={sync}
                       // Additive counts: a bucket without data honestly counts 0. (LFE-10694)
                       missingValue="zero"
                     />

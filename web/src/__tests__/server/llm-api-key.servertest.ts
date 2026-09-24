@@ -9,6 +9,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS, LLMAdapter } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
@@ -104,14 +105,7 @@ describe("llmApiKey.all RPC", () => {
             ],
           },
         ],
-        featureFlags: {
-          searchBar: false,
-          templateFlag: true,
-          excludeClickhouseRead: false,
-          observationEvals: false,
-          v4BetaToggleVisible: false,
-          experimentsV4Enabled: false,
-        },
+        featureFlags: testFeatureFlags(),
         admin: true,
       },
       environment: {} as any,
@@ -343,6 +337,122 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys[0].config).toEqual({});
   });
 
+  it("should store a preset upstream as the base URL of a decision-model connection", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: "sk-or-test",
+      provider: "jev-via-openrouter",
+      adapter: LLMAdapter.TypeSafe,
+      baseURL: "https://openrouter.ai/api/v1",
+    });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({
+      projectId,
+      includeDecisionModels: true,
+    });
+
+    expect(llmApiKeys).toHaveLength(1);
+    expect(llmApiKeys[0].baseURL).toBe("https://openrouter.ai/api/v1");
+  });
+
+  it("should store a custom base URL and encrypted extra headers on a decision-model connection", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: "sk-proxy",
+      provider: "jev-via-proxy",
+      adapter: LLMAdapter.TypeSafe,
+      baseURL: "https://example.com/typesafe/v1",
+      extraHeaders: { "x-team": "evals" },
+    });
+
+    const storedKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "jev-via-proxy" },
+    });
+    expect(storedKey.baseURL).toBe("https://example.com/typesafe/v1");
+    expect(storedKey.extraHeaderKeys).toEqual(["x-team"]);
+    expect(JSON.parse(decrypt(storedKey.extraHeaders!))).toEqual({
+      "x-team": "evals",
+    });
+  });
+
+  it("should block decision-model connections with an internal custom base URL", async () => {
+    await expect(
+      caller.llmApiKey.create({
+        projectId,
+        secretKey: "sk-test",
+        provider: "jev-internal",
+        adapter: LLMAdapter.TypeSafe,
+        baseURL: "http://localhost:8080/v1",
+      }),
+    ).rejects.toThrow("Invalid base URL: Blocked hostname detected");
+
+    await expect(
+      caller.llmApiKey.test({
+        projectId,
+        secretKey: "sk-test",
+        provider: "jev-internal",
+        adapter: LLMAdapter.TypeSafe,
+        baseURL: "http://localhost:8080/v1",
+      }),
+    ).resolves.toMatchObject({ success: false });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({
+      projectId,
+      includeDecisionModels: true,
+    });
+    expect(llmApiKeys).toHaveLength(0);
+  });
+
+  it("should require a new secret key when moving a decision-model connection to another upstream", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: "sk-typesafe",
+      provider: "jev",
+      adapter: LLMAdapter.TypeSafe,
+    });
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "jev" },
+    });
+
+    await expect(
+      caller.llmApiKey.update({
+        id: existingKey.id,
+        projectId,
+        provider: "jev",
+        adapter: LLMAdapter.TypeSafe,
+        baseURL: "https://ai-gateway.vercel.sh/typesafe/v1",
+      }),
+    ).rejects.toThrow("Secret key is required when changing the base URL");
+
+    await caller.llmApiKey.update({
+      id: existingKey.id,
+      projectId,
+      provider: "jev",
+      adapter: LLMAdapter.TypeSafe,
+      secretKey: "vck-gateway",
+      baseURL: "https://ai-gateway.vercel.sh/typesafe/v1",
+    });
+
+    const updatedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: { id: existingKey.id, projectId },
+    });
+    expect(updatedKey.baseURL).toBe("https://ai-gateway.vercel.sh/typesafe/v1");
+    expect(decrypt(updatedKey.secretKey)).toBe("vck-gateway");
+
+    await caller.llmApiKey.update({
+      id: existingKey.id,
+      projectId,
+      provider: "jev",
+      adapter: LLMAdapter.TypeSafe,
+      secretKey: "sk-typesafe-2",
+      baseURL: null,
+    });
+
+    const revertedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: { id: existingKey.id, projectId },
+    });
+    expect(revertedKey.baseURL).toBeNull();
+  });
   it("should derive the Bedrock auth method in llmApiKey.all without returning secrets", async () => {
     await prisma.llmApiKeys.createMany({
       data: [
@@ -569,6 +679,67 @@ describe("llmApiKey.all RPC", () => {
     expect(JSON.parse(decrypt(encryptedExtraHeaders))).toEqual(
       existingExtraHeaders,
     );
+  });
+
+  it("should fill masked header values from the stored headers in testUpdate", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-original",
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: { "X-Api-Key": "stored-token", "X-Team": "stored-team" },
+    });
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "openai" },
+    });
+
+    const result = await caller.llmApiKey.testUpdate({
+      id: existingKey.id,
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: { "X-Api-Key": "", "X-Team": "new-team" },
+    });
+
+    expect(result).toEqual({ success: true });
+    const connection = mockGenerateLLMText.mock.calls[0][0].connection;
+    expect(JSON.parse(decrypt(connection.extraHeaders!))).toEqual({
+      "X-Api-Key": "stored-token",
+      "X-Team": "new-team",
+    });
+  });
+
+  it("should not fill masked header values from the stored headers when testUpdate changes the base URL", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-original",
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: { "X-Api-Key": "stored-token" },
+    });
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "openai" },
+    });
+
+    const result = await caller.llmApiKey.testUpdate({
+      id: existingKey.id,
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-rotated",
+      baseURL: "https://example.net/v1",
+      extraHeaders: { "X-Api-Key": "", "X-Team": "new-team" },
+    });
+
+    expect(result).toEqual({ success: true });
+    const connection = mockGenerateLLMText.mock.calls[0][0].connection;
+    expect(connection.baseURL).toBe("https://example.net/v1");
+    expect(JSON.parse(decrypt(connection.extraHeaders!))).toEqual({
+      "X-Team": "new-team",
+    });
   });
 
   it("should allow testUpdate when the base URL changes and a new secret key is provided", async () => {

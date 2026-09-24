@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import {
   EventBridgeClient,
   PutEventsCommand,
@@ -8,6 +9,7 @@ import { env } from "@/src/env.mjs";
 import { parseDbOrg } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger, recordIncrement } from "@langfuse/shared/src/server";
+import { randomUUID } from "crypto";
 
 /**
  * Project lifecycle events for ClickHouse Billing (CHB).
@@ -45,21 +47,49 @@ const EVENT_BUS_REQUEST_TIMEOUT_MS = 5_000;
 // hundred bytes each, so the 256KB per-call limit is never the binding one.
 const EVENT_BUS_MAX_ENTRIES_PER_CALL = 10;
 
-// The envelope (type, CHB organizationId, Langfuse projectId, regionId) still
-// needs a final confirmation from CHB before rollout, so it is isolated here:
-// a contract change stays a one-function edit. `type` is repeated here and in
-// detail-type so a consumer reading either one sees it.
+type CloudCell = NonNullable<typeof env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION>;
+
+// Where each cell runs, mirroring the per-environment AWS region in the
+// infrastructure repo. Exhaustive on purpose: a new cell does not compile until
+// its location is filled in. DEV is a developer machine with no fixed
+// location, so it reports none.
+const CELL_LOCATION: Record<
+  CloudCell,
+  { cloudProvider: "aws"; region: string } | null
+> = {
+  US: { cloudProvider: "aws", region: "us-west-2" },
+  EU: { cloudProvider: "aws", region: "eu-west-1" },
+  HIPAA: { cloudProvider: "aws", region: "us-west-2" },
+  JP: { cloudProvider: "aws", region: "ap-northeast-1" },
+  STAGING: { cloudProvider: "aws", region: "eu-west-1" },
+  DEV: null,
+};
+
+// The envelope is the contract with CHB, so it is isolated here: a contract
+// change stays a one-function edit. `type` is repeated here and in detail-type
+// so a consumer reading either one sees it.
 const buildChbProjectEventPayload = (params: {
   type: ChbProjectEventType;
   chbOrganizationId: string;
   projectId: string;
-}) => ({
-  type: params.type,
-  organizationId: params.chbOrganizationId,
-  projectId: params.projectId,
-  regionId: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-  createdAt: new Date().toISOString(),
-});
+}) => {
+  const cell = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const timestamp = new Date();
+
+  return {
+    id: randomUUID(),
+    source: CHB_EVENT_SOURCE,
+    timestamp: timestamp.getTime(),
+    payload: {
+      eventType: params.type,
+      organizationId: params.chbOrganizationId,
+      projectId: params.projectId,
+      ...(cell ? CELL_LOCATION[cell] : null),
+      cell: cell?.toLowerCase(),
+      createdAt: timestamp.toISOString(),
+    },
+  };
+};
 
 // One bus per deployment, so one client: the ARN comes from env and cannot
 // change at runtime. Lazy so a web instance that never touches CHB billing
@@ -101,21 +131,16 @@ const requireEventBusArn = (): string => {
   return eventBusArn;
 };
 
-const buildChbEventEntry = (
-  eventBusArn: string,
-  params: {
-    type: ChbProjectEventType;
-    chbOrganizationId: string;
-    projectId: string;
-  },
-) => ({
+type ChbProjectEvent = ReturnType<typeof buildChbProjectEventPayload>;
+
+const buildChbEventEntry = (eventBusArn: string, event: ChbProjectEvent) => ({
   EventBusName: eventBusArn,
   // CHB's bus policy whitelists the allowed event types by detail-type, so the
   // type has to travel here, not only in Detail — otherwise the bus rejects
   // the entry.
-  DetailType: params.type,
+  DetailType: event.payload.eventType,
   Source: CHB_EVENT_SOURCE,
-  Detail: JSON.stringify(buildChbProjectEventPayload(params)),
+  Detail: JSON.stringify(event),
 });
 
 /**
@@ -186,7 +211,13 @@ export async function sendChbProjectEvent(params: {
   // segment is present.
   const region = eventBusArn.split(":")[3];
 
-  await putChbEventBatch(region, [buildChbEventEntry(eventBusArn, params)]);
+  const event = buildChbProjectEventPayload(params);
+  await putChbEventBatch(region, [buildChbEventEntry(eventBusArn, event)]);
+
+  logger.info(
+    `[CHB Project Events] Emitted ${params.type} for project ${params.projectId} (CHB org ${params.chbOrganizationId})`,
+    { eventId: event.id },
+  );
 }
 
 /**
@@ -278,8 +309,8 @@ export async function backfillChbProjectEvents(params: {
       select: { id: true },
     });
 
-    const entries = projects.map((project) =>
-      buildChbEventEntry(eventBusArn, {
+    const events = projects.map((project) =>
+      buildChbProjectEventPayload({
         type: "LANGFUSE_PROJECT_CREATED",
         chbOrganizationId,
         projectId: project.id,
@@ -288,17 +319,27 @@ export async function backfillChbProjectEvents(params: {
 
     for (
       let offset = 0;
-      offset < entries.length;
+      offset < events.length;
       offset += EVENT_BUS_MAX_ENTRIES_PER_CALL
     ) {
-      const batch = entries.slice(
+      const batch = events.slice(
         offset,
         offset + EVENT_BUS_MAX_ENTRIES_PER_CALL,
       );
 
       try {
-        await putChbEventBatch(region, batch);
+        await putChbEventBatch(
+          region,
+          batch.map((event) => buildChbEventEntry(eventBusArn, event)),
+        );
         sent += batch.length;
+        logger.info(
+          `[CHB Project Events] Emitted ${batch.length} LANGFUSE_PROJECT_CREATED backfill events for org ${params.orgId} (CHB org ${chbOrganizationId})`,
+          {
+            projectIds: batch.map((event) => event.payload.projectId),
+            eventIds: batch.map((event) => event.id),
+          },
+        );
       } catch (error) {
         // A rejection knows exactly how many entries the bus refused; anything
         // else (timeout, transport) means the whole batch is unaccounted for.

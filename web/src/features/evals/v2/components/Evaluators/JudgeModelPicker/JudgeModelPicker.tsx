@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   Check,
   ChevronDown,
@@ -9,7 +10,7 @@ import {
 } from "lucide-react";
 import { forwardRef, type ReactNode } from "react";
 
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Badge } from "@/src/components/ui/badge";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
@@ -68,6 +69,7 @@ type JudgeModelPickerTriggerProps = Omit<
   selectedModel: JudgeModel | null;
   disabled: boolean;
   missingDefaultLabel?: string;
+  borderVariant?: "default" | "contrast";
 };
 
 export const JudgeModelPickerTrigger = forwardRef<
@@ -86,6 +88,7 @@ export const JudgeModelPickerTrigger = forwardRef<
       loading,
       loadingText,
       disabled,
+      borderVariant = "default",
       ...buttonProps
     },
     forwardedRef,
@@ -114,6 +117,7 @@ export const JudgeModelPickerTrigger = forwardRef<
         className={cn(
           selectTriggerClassName,
           "w-auto max-w-full min-w-0 justify-start",
+          borderVariant === "contrast" && "border-border-contrast",
         )}
       >
         {mode === "default" ? (
@@ -125,7 +129,7 @@ export const JudgeModelPickerTrigger = forwardRef<
               >
                 {defaultModel.provider} / {defaultModel.model}
               </span>
-              <Badge variant="secondary" size="sm" className="shrink-0">
+              <Badge variant="secondary" className="shrink-0">
                 Project default
               </Badge>
             </span>
@@ -143,7 +147,7 @@ export const JudgeModelPickerTrigger = forwardRef<
               {customSelectionLabel}
             </span>
             {customSelectionIsDefault ? (
-              <Badge variant="secondary" size="sm" className="shrink-0">
+              <Badge variant="secondary" className="shrink-0">
                 Project default
               </Badge>
             ) : null}
@@ -222,11 +226,7 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                     >
                       {defaultModel.provider} / {defaultModel.model}
                     </span>
-                    <Badge
-                      variant="secondary"
-                      size="sm"
-                      className="ml-auto shrink-0"
-                    >
+                    <Badge variant="secondary" className="ml-auto shrink-0">
                       Project default
                     </Badge>
                   </CommandItem>
@@ -271,7 +271,6 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                       {isProjectDefault ? (
                         <Badge
                           variant="outline"
-                          size="sm"
                           className="text-muted-foreground font-regular ml-auto shrink-0"
                         >
                           default

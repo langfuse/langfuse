@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-null-render */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -11,7 +13,7 @@ import {
 } from "@/src/components/ui/select";
 import { Slider } from "@/src/components/ui/slider";
 import { CreateLLMApiKeyDialog } from "@/src/features/public-api/components/CreateLLMApiKeyDialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -97,7 +99,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
 
   if (availableProviders.length === 0) {
     return (
-      <div className="flex flex-col space-y-4 pr-1">
+      <div className="flex flex-col pr-1">
         {customHeader ? (
           customHeader
         ) : (
@@ -105,7 +107,6 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
             <p className="font-bold">Model</p>
           </div>
         )}
-        <p className="text-xs">No LLM API key set in project. </p>
         <CreateLLMApiKeyDialog
           open={createLlmApiKeyDialogOpen}
           setOpen={setCreateLlmApiKeyDialogOpen}
@@ -314,7 +315,7 @@ export const ModelParameterSettings = ({
       setModelParamEnabled={setModelParamEnabled}
       value={modelParams.max_tokens.value}
       min={1}
-      max={16384}
+      max={65535}
       step={1}
       tooltip="The maximum number of tokens that can be generated in the chat completion."
       updateModelParam={updateModelParamValue}
