@@ -287,15 +287,16 @@ export const handleBatchExportJob = async (
   } catch (uploadError) {
     // A read/transform stream failure surfaces here as an upload rejection.
     // Re-throw the real cause so the worker failure log and traceException point
-    // at the actual origin (e.g. a CH timeout). Thrown as a plain Error so the
-    // customer-facing `log` stays generic and does not leak internals.
+    // at the actual origin (a ClickHouse or Postgres read, or a transform)
+    // rather than the uploader. Thrown as a plain Error so the customer-facing
+    // `log` stays generic and does not leak internals.
     if (readStreamError) {
       const causeMessage =
         readStreamError instanceof Error
           ? readStreamError.message
           : String(readStreamError);
       throw new Error(
-        `[BATCH EXPORT] Reading data from ClickHouse failed: ${causeMessage}`,
+        `[BATCH EXPORT] Reading export data failed: ${causeMessage}`,
         { cause: readStreamError },
       );
     }
