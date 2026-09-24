@@ -2,7 +2,7 @@
 // count, with a "View N permissions" link below opening a popup for the role.
 
 import { useState } from "react";
-import { SquareArrowOutUpRight } from "lucide-react";
+import { Info } from "lucide-react";
 
 import { Badge } from "@/src/components/ui/badge";
 import {
@@ -94,13 +94,10 @@ export const VariantSingleDialog = ({
                       e.stopPropagation();
                       openPopup(p.key);
                     }}
-                    className="text-muted-foreground hover:text-foreground ml-auto flex shrink-0 items-center gap-1 self-center text-xs underline"
+                    aria-label={`View ${p.label} permissions`}
+                    className="text-muted-foreground hover:bg-accent hover:text-foreground ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-center rounded-full"
                   >
-                    <span className="tabular-nums">
-                      {rolePermissionCount(p.key)}
-                    </span>
-                    permissions
-                    <SquareArrowOutUpRight className="h-3 w-3" />
+                    <Info className="h-4 w-4" />
                   </button>
                 </div>
               </SelectItem>
