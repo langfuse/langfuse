@@ -567,7 +567,14 @@ export const sessionRouter = createTRPCRouter({
             }))
           : [];
       const observationTimestampFilter =
-        timestampFilter?.map((tf) => ({ ...tf, column: "startTime" })) ?? [];
+        timestampFilter?.map((tf) => ({
+          ...tf,
+          column: "startTime",
+          value:
+            tf.operator === ">=" || tf.operator === ">"
+              ? new Date(tf.value.getTime() - 60 * 60 * 1000)
+              : tf.value,
+        })) ?? [];
 
       const [
         userIds,
@@ -601,11 +608,13 @@ export const sessionRouter = createTRPCRouter({
           input.projectId,
           observationTimestampFilter,
           true,
+          timestampFilter,
         ),
         getObservationsGroupedByCalledToolName(
           input.projectId,
           observationTimestampFilter,
           true,
+          timestampFilter,
         ),
       ]);
 

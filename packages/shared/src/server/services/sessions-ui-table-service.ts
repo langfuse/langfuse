@@ -196,9 +196,10 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
   const tracesFilterRes = tracesFilter
     .filter((f) => f.field !== "environment")
     .apply();
-  const hasToolFilter = filter.some((item) =>
-    ["toolNames", "calledToolNames", "toolCalls"].includes(item.column),
-  );
+  const toolColumns = ["toolNames", "calledToolNames", "toolCalls"];
+  const hasToolFilter =
+    filter.some((item) => toolColumns.includes(item.column)) ||
+    (orderBy != null && toolColumns.includes(orderBy.column));
   const scoresFilterRes = scoresFilter.apply();
 
   const traceTimestampFilter: DateTimeFilter | undefined = tracesFilter.find(
