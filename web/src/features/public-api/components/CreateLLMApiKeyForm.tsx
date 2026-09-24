@@ -259,20 +259,17 @@ const createFormSchema = (params: {
         path: ["baseURL"],
       },
     )
-    .superRefine((data, ctx) => {
+    .superrefine((data, ctx) => {
       if (
         data.adapter !== LLMAdapter.TypeSafe ||
         data.typeSafeUpstream !== "custom"
-      ) {
+      )
         return;
-      }
-      const baseURLError = data.baseURL.trim()
-        ? getTypeSafeBaseURLError(data.baseURL)
-        : "A custom base URL is required.";
-      if (baseURLError) {
+
+      if (!data.baseURL.trim()) {
         ctx.addIssue({
           code: "custom",
-          message: baseURLError,
+          message: "A custom base URL is required.",
           path: ["baseURL"],
         });
       }

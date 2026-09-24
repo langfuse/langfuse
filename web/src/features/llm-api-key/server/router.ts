@@ -26,7 +26,6 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
-  getTypeSafeBaseURLError,
   type LLMConnectionConfig,
 } from "@langfuse/shared";
 
