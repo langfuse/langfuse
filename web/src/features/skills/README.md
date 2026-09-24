@@ -29,6 +29,7 @@ Tools at `/api/public/mcp`:
 - `listSkills`
 - `getSkill`
 - `loadSkill`
+- `loadSkillResource`
 
 ### Upload new skill version
 

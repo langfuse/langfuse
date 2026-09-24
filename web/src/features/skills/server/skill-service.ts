@@ -6,6 +6,7 @@ import {
   LangfuseConflictError,
   LangfuseNotFoundError,
   ListSkillsResponseSchema,
+  MAX_LOADABLE_RESOURCE_SIZE,
   MAX_SKILL_FILES,
   MAX_SKILL_FILE_BYTES,
   PrepareSkillUploadsResponseSchema,
@@ -40,6 +41,7 @@ import {
   type ApiKeyProjectContext,
 } from "@/src/features/prompts/server/utils/authorizeProtectedLabelMutation";
 import { getSkillStorageClient } from "./getSkillStorageClient";
+import { isTextLike } from "../utils/isTextLike";
 
 type SkillActor =
   | Pick<ProjectAuthedContext, "session">
@@ -386,17 +388,36 @@ export class SkillService {
     return serializeVersion(skill);
   }
 
-  async load(params: {
+  async loadResource(params: {
     projectId: string;
     name: string;
     selector: SkillSelector;
+    path: string;
   }): Promise<string> {
     const skill = await this.findSkillVersion(params);
-    const file = skill.files.find(({ path }) => path === "SKILL.md");
-    if (!file) throw new LangfuseNotFoundError("SKILL.md not found");
+    const file = skill.files.find(({ path }) => path === params.path);
+    if (!file) throw new LangfuseNotFoundError("Skill resource not found");
+
+    if (!isTextLike(file.blob.contentType)) {
+      throw new InvalidRequestError(
+        `Only text-like skill resources can be loaded; ${params.path} has content type ${file.blob.contentType}`,
+      );
+    }
+
+    if (file.blob.contentLength > MAX_LOADABLE_RESOURCE_SIZE) {
+      throw new InvalidRequestError(
+        `Skill resources must not exceed ${MAX_LOADABLE_RESOURCE_SIZE} bytes to be loaded`,
+      );
+    }
 
     const bytes = await this.storage.downloadBytes(file.blob.bucketPath);
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    let text: string;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+      throw new InvalidRequestError("Skill resource must contain UTF-8 text");
+    }
+    return text;
   }
 
   async getFileDownload(params: { projectId: string; fileId: string }) {

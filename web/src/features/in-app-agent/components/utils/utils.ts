@@ -74,6 +74,7 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   getPromptUnresolved: "Inspecting prompt",
   listDashboardWidgets: "Browsing widgets",
   loadSkill: "Loading skill",
+  loadSkillResource: "Loading skill resource",
   proposeRedirect: "Opening page",
   queryMetrics: "Checking metrics",
   read: "Reading file",

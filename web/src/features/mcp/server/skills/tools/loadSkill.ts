@@ -29,10 +29,11 @@ export const [loadSkillTool, handleLoadSkill] = defineTool({
       spanName: "mcp.skills.load",
       context,
       fn: async () =>
-        new SkillService(prisma).load({
+        new SkillService(prisma).loadResource({
           projectId: context.projectId,
           name,
           selector,
+          path: "SKILL.md",
         }),
     }),
   readOnlyHint: true,
