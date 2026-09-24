@@ -499,6 +499,12 @@ export const TYPESAFE_UPSTREAMS = [
     baseURL: "https://openrouter.ai/api/v1",
     apiKeyLabel: "OpenRouter API key",
   },
+  {
+    id: "router",
+    label: "Router",
+    baseURL: "https://api.router.com/v1",
+    apiKeyLabel: "Router API key",
+  },
 ] as const;
 
 export type TypeSafeUpstream = (typeof TYPESAFE_UPSTREAMS)[number];

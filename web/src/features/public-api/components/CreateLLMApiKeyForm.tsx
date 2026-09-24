@@ -825,9 +825,9 @@ export function CreateLLMApiKeyForm({
                     <FormItem>
                       <FormLabel>Upstream</FormLabel>
                       <FormDescription>
-                        Provider that serves the Jev decision model. OpenRouter
-                        and Vercel AI Gateway expose TypeSafe&apos;s API, so
-                        only the API key changes.
+                        Provider that serves the Jev decision model. The
+                        gateways expose TypeSafe&apos;s API, so only the API key
+                        changes.
                       </FormDescription>
                       <FormControl>
                         <TypeSafeUpstreamCards

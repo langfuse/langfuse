@@ -104,6 +104,7 @@ describe("createTypeSafeDecisionModelClient", () => {
     ["typesafe", "https://api.typesafe.ai/v1/systemone"],
     ["vercel-ai-gateway", "https://ai-gateway.vercel.sh/typesafe/v1/systemone"],
     ["openrouter", "https://openrouter.ai/api/v1/systemone"],
+    ["router", "https://api.router.com/v1/systemone"],
   ])(
     "routes the %s upstream to its TypeSafe-compatible endpoint",
     async (id, expectedUrl) => {
