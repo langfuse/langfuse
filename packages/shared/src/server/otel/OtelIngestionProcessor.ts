@@ -3423,7 +3423,7 @@ export class OtelIngestionProcessor {
     excludedKeys?: Set<string>;
   }): Record<string, unknown> {
     const { attributes, prefixes, excludedKeys = new Set<string>() } = params;
-    const metadata: Record<string, unknown> = {};
+    const metadata: Record<string, unknown> = Object.create(null);
     for (const [key, value] of Object.entries(attributes)) {
       for (const prefix of prefixes) {
         if (!key.startsWith(`${prefix}.`) || excludedKeys.has(key)) {

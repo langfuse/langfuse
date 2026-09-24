@@ -376,6 +376,45 @@ describe("OTel metadata_dropped metric", () => {
     });
   });
 
+  describe("prefixed metadata keys", () => {
+    it.each(["v3", "v4"])(
+      "preserves a dotted __proto__ key as an own value on the %s path",
+      async (path) => {
+        const rawMetadata = JSON.parse(
+          '{"__proto__":"raw-value","retained":"raw-metadata"}',
+        );
+        const batch = buildBatch([
+          {
+            key: "langfuse.observation.type",
+            value: { stringValue: "generation" },
+          },
+          {
+            key: "langfuse.observation.metadata",
+            value: { stringValue: JSON.stringify(rawMetadata) },
+          },
+          {
+            key: "langfuse.observation.metadata.__proto__",
+            value: { stringValue: "dotted-value" },
+          },
+        ]);
+        const processor = createProcessor();
+        const observation =
+          path === "v4"
+            ? processor.processToEvent(batch)[0]
+            : (await processor.processToIngestionEvents(batch)).find(
+                (event) => event.type === "generation-create",
+              )?.body;
+        const metadata = observation?.metadata as Record<string, unknown>;
+
+        expect(
+          Object.prototype.hasOwnProperty.call(metadata, "__proto__"),
+        ).toBe(true);
+        expect(metadata["__proto__"]).toBe("dotted-value");
+        expect(metadata.retained).toBe("raw-metadata");
+      },
+    );
+  });
+
   // Reviewer ruling 1 (round 1): one increment per dropped attribute VALUE
   // per job — deduped across the two pipelines the worker runs on the SAME
   // processor instance, and across domain extractions of a shared attribute
