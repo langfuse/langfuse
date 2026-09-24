@@ -12689,7 +12689,7 @@ components:
             $ref: '#/components/schemas/EvaluationRule'
           description: Evaluation rules for this page.
         meta:
-          $ref: '#/components/schemas/utilsCursorMetaResponse'
+          $ref: '#/components/schemas/CursorMeta'
           description: Cursor pagination metadata.
       required:
         - data
@@ -13331,7 +13331,7 @@ components:
             $ref: '#/components/schemas/Evaluator'
           description: Evaluators for this page.
         meta:
-          $ref: '#/components/schemas/utilsCursorMetaResponse'
+          $ref: '#/components/schemas/CursorMeta'
           description: Cursor pagination metadata.
       required:
         - data
@@ -13346,11 +13346,18 @@ components:
             $ref: '#/components/schemas/EvaluatorVersion'
           description: Evaluator versions for this page in newest-first order.
         meta:
-          $ref: '#/components/schemas/utilsCursorMetaResponse'
+          $ref: '#/components/schemas/CursorMeta'
           description: Cursor pagination metadata.
       required:
         - data
         - meta
+    CursorMeta:
+      title: CursorMeta
+      type: object
+      description: Cursor pagination metadata.
+      properties: {}
+      allOf:
+        - $ref: '#/components/schemas/utilsCursorMetaResponse'
     DeletedEvaluator:
       title: DeletedEvaluator
       type: object
@@ -13370,10 +13377,17 @@ components:
           items:
             $ref: '#/components/schemas/Experiment'
         meta:
-          $ref: '#/components/schemas/utilsCursorMetaResponse'
+          $ref: '#/components/schemas/ExperimentsResponseMeta'
       required:
         - data
         - meta
+    ExperimentsResponseMeta:
+      title: ExperimentsResponseMeta
+      type: object
+      description: Metadata for cursor-based pagination.
+      properties: {}
+      allOf:
+        - $ref: '#/components/schemas/utilsCursorMetaResponse'
     Experiment:
       title: Experiment
       type: object
@@ -13435,7 +13449,7 @@ components:
           items:
             $ref: '#/components/schemas/ExperimentItem'
         meta:
-          $ref: '#/components/schemas/utilsCursorMetaResponse'
+          $ref: '#/components/schemas/ExperimentsResponseMeta'
       required:
         - data
         - meta
@@ -14947,10 +14961,17 @@ components:
             Array of observation objects. Fields included depend on the `fields`
             parameter in the request.
         meta:
-          $ref: '#/components/schemas/utilsCursorMetaResponse'
+          $ref: '#/components/schemas/ObservationsV2Meta'
       required:
         - data
         - meta
+    ObservationsV2Meta:
+      title: ObservationsV2Meta
+      type: object
+      description: Metadata for cursor-based pagination.
+      properties: {}
+      allOf:
+        - $ref: '#/components/schemas/utilsCursorMetaResponse'
     OtelResourceSpan:
       title: OtelResourceSpan
       type: object

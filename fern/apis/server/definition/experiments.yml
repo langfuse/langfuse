@@ -117,7 +117,12 @@ types:
   ExperimentsResponse:
     properties:
       data: list<Experiment>
-      meta: pagination.CursorMetaResponse
+      meta: ExperimentsResponseMeta
+
+  ExperimentsResponseMeta:
+    docs: Metadata for cursor-based pagination.
+    extends:
+      - pagination.CursorMetaResponse
 
   Experiment:
     properties:
@@ -151,7 +156,7 @@ types:
   ExperimentItemsResponse:
     properties:
       data: list<ExperimentItem>
-      meta: pagination.CursorMetaResponse
+      meta: ExperimentsResponseMeta
 
   ExperimentItem:
     properties:

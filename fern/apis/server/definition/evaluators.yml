@@ -510,7 +510,7 @@ types:
         type: list<Evaluator>
         docs: Evaluators for this page.
       meta:
-        type: pagination.CursorMetaResponse
+        type: CursorMeta
         docs: Cursor pagination metadata.
 
   EvaluatorVersionsPage:
@@ -519,8 +519,13 @@ types:
         type: list<EvaluatorVersion>
         docs: Evaluator versions for this page in newest-first order.
       meta:
-        type: pagination.CursorMetaResponse
+        type: CursorMeta
         docs: Cursor pagination metadata.
+
+  CursorMeta:
+    docs: Cursor pagination metadata.
+    extends:
+      - pagination.CursorMetaResponse
 
   DeletedEvaluator:
     docs: Confirmation returned after successful evaluator deletion.

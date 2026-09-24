@@ -229,4 +229,9 @@ types:
       data:
         type: list<commons.ObservationV2>
         docs: Array of observation objects. Fields included depend on the `fields` parameter in the request.
-      meta: pagination.CursorMetaResponse
+      meta: ObservationsV2Meta
+
+  ObservationsV2Meta:
+    docs: Metadata for cursor-based pagination.
+    extends:
+      - pagination.CursorMetaResponse
