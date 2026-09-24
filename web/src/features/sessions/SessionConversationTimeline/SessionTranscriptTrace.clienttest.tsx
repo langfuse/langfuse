@@ -93,6 +93,7 @@ describe("SessionTranscriptTrace", () => {
                       ...timing,
                       role: "assistant",
                       source: "output",
+                      endTime: null,
                       parts: [{ type: "text", text: "Other thread" }],
                     },
                   ],
@@ -111,10 +112,12 @@ describe("SessionTranscriptTrace", () => {
     expect(text.indexOf("Checking weather")).toBeLessThan(
       text.indexOf("Other thread"),
     );
-    fireEvent.click(screen.getByRole("button", { name: /weather · Call/ }));
-    fireEvent.click(screen.getByRole("button", { name: /weather · Result/ }));
-    expect(screen.getByText('{"city":"Berlin"}')).toBeTruthy();
-    expect(screen.getByText('{"temperature":12}')).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Expand weather" }));
+    expect(screen.queryByText("weather · Result")).toBeNull();
+    expect(screen.getByText("Input")).toBeTruthy();
+    expect(screen.getByText("Output")).toBeTruthy();
+    expect(screen.getByText(/"city": "Berlin"/)).toBeTruthy();
+    expect(screen.getByText(/"temperature": 12/)).toBeTruthy();
     expect(screen.getByLabelText("Failed")).toBeTruthy();
     expect(
       container.querySelectorAll('time[datetime="2026-09-24T12:00:00.000Z"]'),
@@ -127,13 +130,13 @@ describe("SessionTranscriptTrace", () => {
     expect(
       screen
         .getByText("Earlier question")
-        .closest("section")
+        .closest(".ph-no-capture")
         ?.classList.contains("ph-no-capture"),
     ).toBe(true);
     expect(
       screen
-        .getByText('{"temperature":12}')
-        .closest("section")
+        .getByText(/"temperature": 12/)
+        .closest(".ph-no-capture")
         ?.classList.contains("ph-no-capture"),
     ).toBe(true);
   });

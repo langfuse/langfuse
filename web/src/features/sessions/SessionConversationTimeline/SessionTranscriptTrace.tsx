@@ -1,3 +1,10 @@
+import { useState } from "react";
+import { type Thread } from "@langfuse/shared/src/server/transcript/types";
+import {
+  groupTranscriptMessages,
+  type TranscriptMessageGroup,
+} from "./fns/groupTranscriptMessages";
+import { SessionTimelineToolRow } from "./components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 import { type SessionTraceTranscriptState } from "./useSessionTraceTranscripts";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -54,55 +61,96 @@ export function SessionTranscriptTrace({
                   Thread {threadIndex + 1}
                 </h3>
               )}
-              {thread.conversationHistory.length > 0 && (
-                <div className="space-y-3">
-                  <div className="text-muted-foreground text-xs">
-                    Conversation history
-                  </div>
-                  {thread.conversationHistory.map((message, index) => (
-                    <SessionTranscriptMessage key={index} message={message} />
-                  ))}
-                </div>
-              )}
-              {thread.conversationHistory.length > 0 &&
-                thread.currentTurn.messages.length > 0 && (
-                  <div className="text-muted-foreground text-xs">
-                    Current turn
-                  </div>
-                )}
-              {thread.currentTurn.messages.map((message, index) => (
-                <div key={index} className="space-y-1">
-                  <div
-                    className="text-muted-foreground flex items-center gap-2 font-mono text-xs"
-                    title="Source observation timing"
-                  >
-                    <time dateTime={message.startTime.toISOString()}>
-                      {message.startTime.toLocaleTimeString()}
-                    </time>
-                    {message.endTime !== null && (
-                      <>
-                        <span>–</span>
-                        <time dateTime={message.endTime.toISOString()}>
-                          {message.endTime.toLocaleTimeString()}
-                        </time>
-                        <span>
-                          {formatIntervalSeconds(
-                            (message.endTime.getTime() -
-                              message.startTime.getTime()) /
-                              1000,
-                          )}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                  <SessionTranscriptMessage message={message} />
-                </div>
-              ))}
+              <SessionTranscriptThread thread={thread} />
             </div>
           ))}
         </>
       )}
     </section>
+  );
+}
+
+type DisplayMessage = NormalizedMessage & {
+  timing: { startTime: Date; endTime: Date | null } | null;
+};
+
+function SessionTranscriptThread({ thread }: { thread: Thread }) {
+  const messages: DisplayMessage[] = [
+    ...thread.conversationHistory.map((message) => ({
+      ...message,
+      timing: null,
+    })),
+    ...thread.currentTurn.messages.map((message) => ({
+      ...message,
+      timing: { startTime: message.startTime, endTime: message.endTime },
+    })),
+  ];
+  const rows = groupTranscriptMessages(messages);
+  return rows.map((row, index) => {
+    const timing = row.message.timing;
+    const showSection =
+      index === 0 ||
+      Boolean(timing) !== Boolean(rows[index - 1]?.message.timing);
+    return (
+      <div key={index} className="space-y-1">
+        {showSection && thread.conversationHistory.length > 0 && (
+          <div className="text-muted-foreground mb-3 text-xs">
+            {timing ? "Current turn" : "Conversation history"}
+          </div>
+        )}
+        {timing && (
+          <div
+            className="text-muted-foreground flex items-center gap-2 font-mono text-xs"
+            title="Source observation timing"
+          >
+            <time dateTime={timing.startTime.toISOString()}>
+              {timing.startTime.toLocaleTimeString()}
+            </time>
+            {timing.endTime !== null && (
+              <>
+                <span>–</span>
+                <time dateTime={timing.endTime.toISOString()}>
+                  {timing.endTime.toLocaleTimeString()}
+                </time>
+                <span>
+                  {formatIntervalSeconds(
+                    (timing.endTime.getTime() - timing.startTime.getTime()) /
+                      1000,
+                  )}
+                </span>
+              </>
+            )}
+          </div>
+        )}
+        {row.type === "tool" ? (
+          <SessionTranscriptTool row={row} />
+        ) : (
+          <SessionTranscriptMessage message={row.message} />
+        )}
+      </div>
+    );
+  });
+}
+
+function SessionTranscriptTool({
+  row,
+}: {
+  row: Extract<TranscriptMessageGroup<DisplayMessage>, { type: "tool" }>;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  return (
+    <SessionTimelineToolRow
+      id={undefined}
+      name={row.call.toolName ?? row.result.toolName ?? "Tool"}
+      input={row.call.input}
+      output={row.result.output}
+      isError={row.result.isError}
+      startTime={null}
+      latency={null}
+      isExpanded={isExpanded}
+      onExpandedChange={setIsExpanded}
+      showRailEnd={false}
+    />
   );
 }
 

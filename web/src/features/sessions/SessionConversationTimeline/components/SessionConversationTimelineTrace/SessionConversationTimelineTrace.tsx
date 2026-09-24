@@ -305,7 +305,7 @@ function TruncatedObservation({
   );
 }
 
-function SessionTimelineToolRow({
+export function SessionTimelineToolRow({
   id,
   name,
   startTime,
@@ -320,10 +320,11 @@ function SessionTimelineToolRow({
   onOpenInTraceView,
   observation,
   actions,
+  isError,
 }: {
-  id: string;
+  id: string | undefined;
   name: string;
-  startTime: Date;
+  startTime: Date | null;
   latency: number | null;
   input: unknown;
   output: unknown;
@@ -332,7 +333,8 @@ function SessionTimelineToolRow({
   isExpanded: boolean;
   showRailEnd: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
-  onOpenInTraceView: () => void;
+  onOpenInTraceView?: () => void;
+  isError?: boolean;
   observation?: SessionObservation;
   actions?: SessionObservationActions;
 }) {
@@ -344,7 +346,7 @@ function SessionTimelineToolRow({
       <div className="flex w-full min-w-0 items-center gap-0.5">
         <button
           type="button"
-          onClick={onOpenInTraceView}
+          onClick={onOpenInTraceView ?? (() => onExpandedChange(!isExpanded))}
           className="group flex min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
         >
           <span className="bg-background relative z-[1] flex shrink-0 rounded-full">
@@ -376,14 +378,22 @@ function SessionTimelineToolRow({
           {observation?.statusMessage && observation.level !== "DEFAULT" ? (
             <SessionTimelineStatusIndicator observation={observation} />
           ) : null}
+          {isError ? (
+            <CircleAlert
+              className="text-destructive h-3 w-3"
+              aria-label="Failed"
+            />
+          ) : null}
           {latency !== null ? (
             <span className="text-muted-foreground font-mono text-[11px]">
               {formatIntervalSeconds(latency)}
             </span>
           ) : null}
-          <time className="text-muted-foreground font-mono text-[10px]">
-            {startTime.toLocaleTimeString()}
-          </time>
+          {startTime ? (
+            <time className="text-muted-foreground font-mono text-[10px]">
+              {startTime.toLocaleTimeString()}
+            </time>
+          ) : null}
           {observation?.name && actions ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -402,7 +412,7 @@ function SessionTimelineToolRow({
                 actions={actions}
               />
             </DropdownMenu>
-          ) : !observation ? (
+          ) : !observation && onOpenInTraceView ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <span
