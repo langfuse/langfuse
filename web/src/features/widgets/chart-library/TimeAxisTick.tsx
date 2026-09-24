@@ -58,14 +58,3 @@ export function timeAxisTick(
     );
   };
 }
-
-/** Visualiser helper: custom tick only on temporal axes (preparer stays React-free). */
-export function temporalAxisTickProp(
-  timeAxis: { mode: string; formatTick: (raw: unknown) => string },
-  lastValue: unknown,
-):
-  | { tick: (props: XAxisTickContentProps) => ReactNode }
-  | Record<string, never> {
-  if (timeAxis.mode === "category") return {};
-  return { tick: timeAxisTick(timeAxis.formatTick, lastValue) };
-}

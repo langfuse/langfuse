@@ -34,6 +34,10 @@ export function ScoreAnalytics(props: {
   schedulerId?: string;
   /** Shared hover-sync group so the per-score line charts join the dashboard crosshair. */
   syncId?: string;
+  sync?: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
 }) {
   // Stale score selections in localStorage are ignored as we only show scores that exist in scoreAnalyticsOptions
   const [selectedDashboardScoreKeys, setSelectedDashboardScoreKeys] =
@@ -203,6 +207,7 @@ export function ScoreAnalytics(props: {
                         metricsVersion={props.metricsVersion}
                         schedulerId={props.schedulerId}
                         syncId={props.syncId}
+                        sync={props.sync}
                       />
                     )}
                   </div>

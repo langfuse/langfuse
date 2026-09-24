@@ -9,16 +9,21 @@ import {
   useClientPoint,
   useFloating,
 } from "@floating-ui/react";
+import { Check } from "lucide-react";
 import {
   Fragment,
+  useEffect,
   useLayoutEffect,
+  useRef,
   useState,
   type FocusEvent,
+  type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
 } from "react";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 type TooltipItem = {
   label: string;
@@ -29,6 +34,8 @@ type TooltipItem = {
 type TooltipData = {
   index: number;
   heading?: string;
+  hint?: string;
+  copyLabel?: string;
   focusPoint?: { x: number; y: number };
 } & (
   | {
@@ -57,21 +64,47 @@ export function ChartTooltip({
   children: (controller: {
     activeIndex: number | undefined;
     getReferenceProps: (data: TooltipData) => {
-      onPointerEnter: (event: PointerEvent<SVGElement>) => void;
-      onPointerMove: (event: PointerEvent<SVGElement>) => void;
+      onPointerEnter: (event: PointerEvent<SVGElement | HTMLElement>) => void;
+      onPointerMove: (event: PointerEvent<SVGElement | HTMLElement>) => void;
       onPointerLeave: () => void;
-      onFocus: (event: FocusEvent<SVGElement>) => void;
+      onFocus: (event: FocusEvent<SVGElement | HTMLElement>) => void;
       onBlur: () => void;
+      onClick: (() => Promise<void>) | undefined;
+      onKeyDown:
+        | ((event: KeyboardEvent<SVGElement | HTMLElement>) => Promise<void>)
+        | undefined;
     };
   }) => ReactNode;
 }) {
   const [activeTooltip, setActiveTooltip] = useState<
     TooltipData & {
-      reference: SVGElement;
+      reference: SVGElement | HTMLElement;
       clientPoint?: { x: number; y: number };
       placement: "left" | "right";
     }
   >();
+  const [copyFeedback, setCopyFeedback] = useState<{
+    index: number;
+    status: "copied" | "error";
+  }>();
+  const feedbackTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => () => clearTimeout(feedbackTimeout.current), []);
+
+  const copyLabel = async (index: number, label: string) => {
+    try {
+      await copyTextToClipboard(label);
+      setCopyFeedback({ index, status: "copied" });
+    } catch (error) {
+      console.error("Unable to copy to clipboard", error);
+      setCopyFeedback({ index, status: "error" });
+    }
+    clearTimeout(feedbackTimeout.current);
+    feedbackTimeout.current = setTimeout(
+      () => setCopyFeedback(undefined),
+      1500,
+    );
+  };
 
   useLayoutEffect(() => {
     if (activeTooltip && !activeTooltip.reference.isConnected) {
@@ -95,10 +128,13 @@ export function ChartTooltip({
   });
 
   const getReferenceProps = (data: TooltipData) => {
-    const showAtPointer = (event: PointerEvent<SVGElement>) => {
+    const labelToCopy = data.copyLabel;
+    const showAtPointer = (event: PointerEvent<SVGElement | HTMLElement>) => {
       const { clientX, clientY, currentTarget } = event;
       const chartBounds =
-        currentTarget.ownerSVGElement?.getBoundingClientRect();
+        currentTarget instanceof SVGElement
+          ? currentTarget.ownerSVGElement?.getBoundingClientRect()
+          : currentTarget.parentElement?.getBoundingClientRect();
       setActiveTooltip({
         ...data,
         reference: currentTarget,
@@ -114,10 +150,15 @@ export function ChartTooltip({
       onPointerEnter: showAtPointer,
       onPointerMove: showAtPointer,
       onPointerLeave: () => setActiveTooltip(undefined),
-      onFocus: (event: FocusEvent<SVGElement>) => {
+      onFocus: (event: FocusEvent<SVGElement | HTMLElement>) => {
         const sliceBounds = event.currentTarget.getBoundingClientRect();
-        const svg = event.currentTarget.ownerSVGElement;
-        const chartBounds = svg?.getBoundingClientRect();
+        const svg =
+          event.currentTarget instanceof SVGElement
+            ? event.currentTarget.ownerSVGElement
+            : undefined;
+        const chartBounds =
+          svg?.getBoundingClientRect() ??
+          event.currentTarget.parentElement?.getBoundingClientRect();
         const focusPoint = svg?.createSVGPoint();
         if (focusPoint && data.focusPoint) {
           focusPoint.x = data.focusPoint.x;
@@ -143,6 +184,19 @@ export function ChartTooltip({
         });
       },
       onBlur: () => setActiveTooltip(undefined),
+      onClick:
+        labelToCopy === undefined
+          ? undefined
+          : async () => copyLabel(data.index, labelToCopy),
+      onKeyDown:
+        labelToCopy === undefined
+          ? undefined
+          : async (event: KeyboardEvent<SVGElement | HTMLElement>) => {
+              if (event.currentTarget instanceof HTMLElement) return;
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              await copyLabel(data.index, labelToCopy);
+            },
     };
   };
 
@@ -181,9 +235,17 @@ export function ChartTooltip({
     );
   }
 
+  const activeCopyStatus =
+    copyFeedback?.index === activeTooltip?.index
+      ? copyFeedback?.status
+      : undefined;
+
   return (
     <>
-      {children({ activeIndex: activeTooltip?.index, getReferenceProps })}
+      {children({
+        activeIndex: activeTooltip?.index,
+        getReferenceProps,
+      })}
       {activeTooltip ? (
         <FloatingPortal root={layerContainer}>
           <div
@@ -220,7 +282,7 @@ export function ChartTooltip({
                   ) : null}
                   <div className="flex min-w-0 flex-1 items-center justify-between gap-x-3">
                     <span
-                      className={`${item.emphasis === "emphasized" ? "text-foreground" : "text-muted-foreground"} truncate`}
+                      className={`${item.kind === "primary" || item.emphasis === "emphasized" ? "text-foreground" : "text-muted-foreground"} truncate`}
                       title={item.label}
                     >
                       {item.label}
@@ -234,6 +296,29 @@ export function ChartTooltip({
                 </div>
               </Fragment>
             ))}
+            {activeTooltip.hint ? (
+              <div
+                className="border-border/50 text-muted-foreground/70 grid border-t pt-1.5 text-[10px]"
+                role="status"
+              >
+                <span
+                  className={`[grid-area:1/1] ${activeCopyStatus ? "invisible" : "visible"}`}
+                >
+                  {activeTooltip.hint}
+                </span>
+                <span
+                  className={`flex items-center gap-1 [grid-area:1/1] ${activeCopyStatus === "copied" ? "visible" : "invisible"}`}
+                >
+                  Label copied to clipboard{" "}
+                  <Check className="size-3" aria-hidden="true" />
+                </span>
+                <span
+                  className={`[grid-area:1/1] ${activeCopyStatus === "error" ? "visible" : "invisible"}`}
+                >
+                  Could not copy label
+                </span>
+              </div>
+            ) : null}
           </div>
         </FloatingPortal>
       ) : null}

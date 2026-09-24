@@ -1,4 +1,3 @@
-//! Public OpenAI-compatible envelope around the opaque resolve/execute flow.
 use std::{error::Error, sync::Arc, time::Duration};
 
 use axum::{
@@ -14,13 +13,14 @@ use tracing::Instrument;
 
 use crate::{
     inference::{InferenceService, RequestPreparationError},
-    providers::openai::{OpenAiRoute, ProviderError},
-    resolution::ResolutionError,
+    providers::{ProviderError, Route, forwarded_query},
+    resolution::{ApiFormat, ResolutionError},
     server::GatewayLifecycleState,
 };
 
-const MAX_REQUEST_BYTES: usize = 4 * 1024 * 1024;
-const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
+const MAX_REQUEST_BYTES: usize = 10 * 1024 * 1024;
+const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(30);
+const MAX_GATEWAY_KEY_BYTES: usize = 8192;
 
 #[derive(Clone)]
 struct InferenceRouteState {
@@ -36,45 +36,72 @@ pub fn router(inference: Option<InferenceService>, lifecycle: GatewayLifecycleSt
             "/openai/v1/responses/compact",
             post(handle_responses_compact),
         )
-        .route("/openai/v1/models", get(handle_models))
+        .route("/openai/v1/models", get(handle_openai_models))
+        .route("/anthropic/v1/messages", post(handle_messages))
+        .route(
+            "/anthropic/v1/messages/count_tokens",
+            post(handle_count_tokens),
+        )
+        .route("/anthropic/v1/models", get(handle_anthropic_models))
         .with_state(InferenceRouteState {
             inference: inference.map(Arc::new),
             lifecycle,
         })
 }
 
-async fn handle_responses(
-    State(state): State<InferenceRouteState>,
-    request: Request,
-) -> Result<Response, InferenceHttpError> {
-    handle_openai(state, request, OpenAiRoute::Responses).await
+async fn handle_responses(State(state): State<InferenceRouteState>, request: Request) -> Response {
+    handle(state, request, Route::OpenAiResponses).await
 }
 
 async fn handle_responses_compact(
     State(state): State<InferenceRouteState>,
     request: Request,
-) -> Result<Response, InferenceHttpError> {
-    handle_openai(state, request, OpenAiRoute::ResponsesCompact).await
+) -> Response {
+    handle(state, request, Route::OpenAiResponsesCompact).await
 }
 
-async fn handle_models(
+async fn handle_openai_models(
     State(state): State<InferenceRouteState>,
     request: Request,
-) -> Result<Response, InferenceHttpError> {
-    handle_openai(state, request, OpenAiRoute::Models).await
+) -> Response {
+    handle(state, request, Route::OpenAiModels).await
 }
 
-async fn handle_openai(
+async fn handle_messages(State(state): State<InferenceRouteState>, request: Request) -> Response {
+    handle(state, request, Route::AnthropicMessages).await
+}
+
+async fn handle_count_tokens(
+    State(state): State<InferenceRouteState>,
+    request: Request,
+) -> Response {
+    handle(state, request, Route::AnthropicCountTokens).await
+}
+
+async fn handle_anthropic_models(
+    State(state): State<InferenceRouteState>,
+    request: Request,
+) -> Response {
+    handle(state, request, Route::AnthropicModels).await
+}
+
+async fn handle(state: InferenceRouteState, request: Request, route: Route) -> Response {
+    relay(state, request, route)
+        .await
+        .unwrap_or_else(|error| error.into_native_response(route.api_format()))
+}
+
+async fn relay(
     state: InferenceRouteState,
     request: Request,
-    route: OpenAiRoute,
+    route: Route,
 ) -> Result<Response, InferenceHttpError> {
     let inference = state
         .inference
         .as_ref()
         .filter(|_| state.lifecycle.is_ready())
         .ok_or(InferenceHttpError::Unavailable)?;
-    let gateway_key = gateway_key(request.headers())?.to_owned();
+    let gateway_key = gateway_key(request.headers(), route.api_format())?.to_owned();
     let (permit, context) = inference
         .resolve_and_admit(&gateway_key, route.api_format())
         .await
@@ -82,13 +109,22 @@ async fn handle_openai(
             RequestPreparationError::Resolution(error) => InferenceHttpError::Resolution(error),
             RequestPreparationError::Provider(error) => InferenceHttpError::Provider(error),
         })?;
+    let query = forwarded_query(route, request.uri().query());
     let (parts, body) = request.into_parts();
-    let bytes = match route {
-        OpenAiRoute::Models => Bytes::new(),
-        OpenAiRoute::Responses | OpenAiRoute::ResponsesCompact => read_request_body(body).await?,
+    let bytes = if route.method() == axum::http::Method::GET {
+        Bytes::new()
+    } else {
+        read_request_body(body).await?
     };
     inference
-        .forward(permit, context, &parts.headers, bytes, route)
+        .forward(
+            permit,
+            context,
+            &parts.headers,
+            bytes,
+            route,
+            query.as_deref(),
+        )
         .await
         .map_err(InferenceHttpError::Provider)
 }
@@ -129,33 +165,59 @@ fn byte_count(len: usize) -> i64 {
     i64::try_from(len).unwrap_or(i64::MAX)
 }
 
-fn gateway_key(headers: &HeaderMap) -> Result<&str, InferenceHttpError> {
-    let mut values = headers.get_all(header::AUTHORIZATION).iter();
-    let value = values
-        .next()
-        .and_then(|value| value.to_str().ok())
-        .ok_or(InferenceHttpError::Credential)?;
-    if values.next().is_some() {
-        return Err(InferenceHttpError::Credential);
-    }
-    let (scheme, token) = value
-        .split_once(' ')
-        .ok_or(InferenceHttpError::Credential)?;
-    if !scheme.eq_ignore_ascii_case("Bearer")
-        || token.is_empty()
-        || token.len() > 8192
-        || !token
+fn gateway_key(headers: &HeaderMap, api_format: ApiFormat) -> Result<&str, InferenceHttpError> {
+    let bearer = single_header(headers, header::AUTHORIZATION.as_str())?
+        .map(|value| {
+            value
+                .split_once(' ')
+                .filter(|(scheme, _)| scheme.eq_ignore_ascii_case("Bearer"))
+                .map(|(_, token)| token)
+                .ok_or(InferenceHttpError::Credential)
+        })
+        .transpose()?;
+    let api_key = match api_format {
+        ApiFormat::OpenAiResponses => None,
+        ApiFormat::AnthropicMessages => single_header(headers, "x-api-key")?,
+    };
+    let key = match (api_key, bearer) {
+        (Some(api_key), Some(bearer)) if api_key != bearer => {
+            return Err(InferenceHttpError::AmbiguousCredential);
+        }
+        (Some(key), _) | (None, Some(key)) => key,
+        (None, None) => return Err(InferenceHttpError::Credential),
+    };
+    if key.is_empty()
+        || key.len() > MAX_GATEWAY_KEY_BYTES
+        || !key
             .bytes()
             .all(|byte| byte.is_ascii_graphic() && byte != b',')
     {
         return Err(InferenceHttpError::Credential);
     }
-    Ok(token)
+    Ok(key)
+}
+
+fn single_header<'a>(
+    headers: &'a HeaderMap,
+    name: &str,
+) -> Result<Option<&'a str>, InferenceHttpError> {
+    let mut values = headers.get_all(name).iter();
+    let Some(value) = values.next() else {
+        return Ok(None);
+    };
+    if values.next().is_some() {
+        return Err(InferenceHttpError::Credential);
+    }
+    value
+        .to_str()
+        .map(Some)
+        .map_err(|_| InferenceHttpError::Credential)
 }
 
 enum InferenceHttpError {
     Unavailable,
     Credential,
+    AmbiguousCredential,
     TooLarge,
     RequestTimeout,
     InvalidBody,
@@ -176,12 +238,26 @@ struct OpenAiErrorDetail {
     code: &'static str,
 }
 
+#[derive(Serialize)]
+struct AnthropicErrorResponse {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    error: AnthropicErrorDetail,
+}
+#[derive(Serialize)]
+struct AnthropicErrorDetail {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    message: &'static str,
+}
+
 impl InferenceHttpError {
     fn category(&self) -> (&'static str, &'static str) {
         use ResolutionError as R;
         match self {
             Self::Unavailable => ("admission", "unavailable"),
             Self::Credential => ("authentication", "invalid_credential"),
+            Self::AmbiguousCredential => ("authentication", "ambiguous_credential"),
             Self::TooLarge => ("request", "body_too_large"),
             Self::RequestTimeout => ("request", "body_timeout"),
             Self::InvalidBody => ("request", "invalid_body"),
@@ -210,18 +286,21 @@ impl InferenceHttpError {
             ),
         }
     }
-}
 
-impl IntoResponse for InferenceHttpError {
-    fn into_response(self) -> Response<Body> {
+    fn classify(&self) -> (StatusCode, &'static str, &'static str, &'static str) {
         use ResolutionError as R;
-        let (phase, reason) = self.category();
-        let (status, message, kind, code) = match self {
+        match self {
             Self::Credential | Self::Resolution(R::InvalidCredential | R::Authentication) => (
                 StatusCode::UNAUTHORIZED,
                 "Invalid gateway credential",
                 "authentication_error",
                 "invalid_api_key",
+            ),
+            Self::AmbiguousCredential => (
+                StatusCode::UNAUTHORIZED,
+                "Conflicting gateway credentials in the Authorization and x-api-key headers",
+                "authentication_error",
+                "ambiguous_api_key",
             ),
             Self::Resolution(R::Forbidden) => (
                 StatusCode::FORBIDDEN,
@@ -274,7 +353,12 @@ impl IntoResponse for InferenceHttpError {
                 "server_error",
                 "upstream_error",
             ),
-        };
+        }
+    }
+
+    fn into_native_response(self, api_format: ApiFormat) -> Response {
+        let (phase, reason) = self.category();
+        let (status, message, kind, code) = self.classify();
         if status.is_server_error() {
             tracing::warn!(
                 phase,
@@ -290,18 +374,43 @@ impl IntoResponse for InferenceHttpError {
                 "gateway request rejected"
             );
         }
-        (
-            status,
-            Json(OpenAiErrorResponse {
-                error: OpenAiErrorDetail {
-                    message,
-                    kind,
-                    param: None,
-                    code,
-                },
-            }),
-        )
-            .into_response()
+        match api_format {
+            ApiFormat::OpenAiResponses => (
+                status,
+                Json(OpenAiErrorResponse {
+                    error: OpenAiErrorDetail {
+                        message,
+                        kind,
+                        param: None,
+                        code,
+                    },
+                }),
+            )
+                .into_response(),
+            ApiFormat::AnthropicMessages => (
+                status,
+                Json(AnthropicErrorResponse {
+                    kind: "error",
+                    error: AnthropicErrorDetail {
+                        kind: anthropic_error_type(status),
+                        message,
+                    },
+                }),
+            )
+                .into_response(),
+        }
+    }
+}
+
+fn anthropic_error_type(status: StatusCode) -> &'static str {
+    match status {
+        StatusCode::UNAUTHORIZED => "authentication_error",
+        StatusCode::FORBIDDEN => "permission_error",
+        StatusCode::NOT_FOUND => "not_found_error",
+        StatusCode::PAYLOAD_TOO_LARGE => "request_too_large",
+        StatusCode::SERVICE_UNAVAILABLE => "overloaded_error",
+        status if status.is_client_error() => "invalid_request_error",
+        _ => "api_error",
     }
 }
 

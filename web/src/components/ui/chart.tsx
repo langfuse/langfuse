@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 "use client";
 
@@ -11,7 +10,6 @@ import type {
 } from "recharts";
 
 import { cn } from "@/src/utils/tailwind";
-import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
@@ -348,94 +346,6 @@ const ChartTooltipContent = React.forwardRef<
 );
 ChartTooltipContent.displayName = "ChartTooltip";
 
-/** Horizontal gap between the hovered point and the tooltip's near edge. */
-const TOOLTIP_GAP_PX = 14;
-/**
- * Upper bound on the tooltip's width. Coordinates the two decisions that used
- * to fight each other: the side choice below guarantees the chosen side has
- * this much room whenever any side does, and the box never asks for more — so
- * hovering across a chart can't hit the "placed left but sized by the space on
- * the right" squeeze. Long series names past this truncate (full name in the
- * row's `title`). (LFE-10576)
- */
-const TOOLTIP_MAX_WIDTH_PX = 448;
-
-/**
- * Renders a chart tooltip into the app's `tooltip` overlay layer (see
- * `components/design-system/Layer/Layer.tsx`) so it escapes the chart card's
- * `overflow` clipping and always
- * paints on top — never cut off at the chart frame. Positioned at the hovered
- * point (recharts' `coordinate`, relative to the chart box) translated to screen
- * coordinates. (LFE-10549)
- *
- * Side placement and sizing are ONE decision: the tooltip goes right of the
- * point unless a full-width tooltip no longer fits there and the left side is
- * larger. Crucially the box is anchored by the edge NEAREST the point (`left`
- * when placed right, `right` when placed left) — never positioned at the point
- * and then translated across it. A translate happens after layout, so a
- * left-flipped tooltip laid out at `left: x` would still shrink-to-fit against
- * the RIGHT viewport edge and ellipsize every row at exactly the x-positions
- * where it flips. Anchoring by the near edge makes the browser size it against
- * the side it actually occupies. (LFE-10576)
- */
-function ChartTooltipPortal({
-  active,
-  coordinate,
-  anchorRef,
-  children,
-}: {
-  active?: boolean;
-  coordinate?: { x?: number; y?: number };
-  anchorRef: React.RefObject<HTMLElement | null>;
-  children: React.ReactNode;
-}) {
-  if (
-    !active ||
-    !coordinate ||
-    coordinate.x == null ||
-    coordinate.y == null ||
-    typeof window === "undefined"
-  ) {
-    return null;
-  }
-  const anchor = anchorRef.current;
-  if (!anchor) return null;
-  const rect = anchor.getBoundingClientRect();
-  const x = rect.left + coordinate.x;
-  const y = rect.top + coordinate.y;
-  const spaceRight = window.innerWidth - x - TOOLTIP_GAP_PX;
-  const spaceLeft = x - TOOLTIP_GAP_PX;
-  const flipLeft = spaceRight < TOOLTIP_MAX_WIDTH_PX && spaceLeft > spaceRight;
-  // Anchor the tooltip's bottom/top to the point near the viewport's
-  // bottom/top so a tall multi-series tooltip can't spill its rows out of view
-  // (the overlay layer no longer clips it). (LFE-10549)
-  const translateY =
-    y > window.innerHeight * 0.65
-      ? "-100%"
-      : y < window.innerHeight * 0.2
-        ? "0%"
-        : "-50%";
-
-  return (
-    <Layer name="tooltip">
-      <div
-        style={{
-          position: "fixed",
-          ...(flipLeft
-            ? { right: window.innerWidth - x + TOOLTIP_GAP_PX }
-            : { left: x + TOOLTIP_GAP_PX }),
-          top: y,
-          maxWidth: TOOLTIP_MAX_WIDTH_PX,
-          transform: `translateY(${translateY})`,
-          pointerEvents: "none",
-        }}
-      >
-        {children}
-      </div>
-    </Layer>
-  );
-}
-
 type ChartLegendProps = React.ComponentProps<typeof RechartsPrimitive.Legend>;
 
 function ChartLegend({ itemSorter = null, ...props }: ChartLegendProps) {
@@ -532,8 +442,6 @@ function getFillColor(
 export {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
-  ChartTooltipPortal,
   ChartLegend,
   ChartActiveReferenceLine,
   useChart,

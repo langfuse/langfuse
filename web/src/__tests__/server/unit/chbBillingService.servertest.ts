@@ -110,6 +110,9 @@ describe("chbBillingService", () => {
     update.mockResolvedValue({});
     // Default: the claim succeeds. Tests that exercise the race override it.
     executeRaw.mockResolvedValue(1);
+    // Default: no pending scheduled change, so the schedule-setting paths have
+    // nothing to clear first. Tests that exercise the clear override it.
+    clientMock.getAttachedPlan.mockResolvedValue({ id: ATTACHED_PLAN_ID });
   });
 
   describe("getSubscriptionInfo", () => {
@@ -260,6 +263,7 @@ describe("chbBillingService", () => {
       expect(url).toBe(session.checkoutUrl);
       expect(clientMock.createCheckoutSession).toHaveBeenCalledWith({
         organizationId: undefined,
+        name: "Org",
         email: "user@example.com",
         planCode: "LANGFUSE_PRO",
         returnUrl: `https://cloud.langfuse.com/organization/${ORG_ID}/settings/billing`,
@@ -471,6 +475,45 @@ describe("chbBillingService", () => {
       });
     });
 
+    it("does not clear a schedule when none is pending", async () => {
+      withOrg(chbConfig({ planCode: "LANGFUSE_CORE" }));
+      // beforeEach stubs getAttachedPlan with no `scheduled` field.
+
+      await service().changePlan(ORG_ID, productIdFor("LANGFUSE_PRO_TEAMS"));
+
+      expect(clientMock.clearScheduledChange).not.toHaveBeenCalled();
+      expect(clientMock.setScheduledChange).toHaveBeenCalledTimes(1);
+    });
+
+    it("clears a pending scheduled change before setting the new one", async () => {
+      withOrg(chbConfig({ planCode: "LANGFUSE_CORE" }));
+      clientMock.getAttachedPlan.mockResolvedValue({
+        id: ATTACHED_PLAN_ID,
+        scheduled: {
+          type: "downgrade",
+          planCode: "LANGFUSE_CORE",
+          startDate: "2026-09-05T00:00:00Z",
+        },
+      });
+
+      await service().changePlan(
+        ORG_ID,
+        productIdFor("LANGFUSE_PRO_TEAMS"),
+        "op-1",
+      );
+
+      // CHB rejects a set while a change is pending, so the clear has to land
+      // first — assert both the call and the order.
+      expect(clientMock.clearScheduledChange).toHaveBeenCalledWith({
+        chOrganizationId: CH_ORG_ID,
+        idempotencyKey:
+          "chb.attachedplan.scheduled.clear:attachedPlanId=plan_1:phase=before-set:op=op-1",
+      });
+      expect(
+        clientMock.clearScheduledChange.mock.invocationCallOrder[0],
+      ).toBeLessThan(clientMock.setScheduledChange.mock.invocationCallOrder[0]);
+    });
+
     it("defers a downgrade to the end of the billing cycle", async () => {
       withOrg(chbConfig({ planCode: "LANGFUSE_PRO_TEAMS" }));
 
@@ -563,6 +606,21 @@ describe("chbBillingService", () => {
       );
     });
 
+    it("clears a pending plan switch before scheduling the cancellation", async () => {
+      withOrg(chbConfig());
+      clientMock.getAttachedPlan.mockResolvedValue({
+        id: ATTACHED_PLAN_ID,
+        scheduled: { type: "downgrade", planCode: "LANGFUSE_CORE" },
+      });
+
+      await service().cancel(ORG_ID, "op-3");
+
+      expect(clientMock.clearScheduledChange).toHaveBeenCalledTimes(1);
+      expect(
+        clientMock.clearScheduledChange.mock.invocationCallOrder[0],
+      ).toBeLessThan(clientMock.setScheduledChange.mock.invocationCallOrder[0]);
+    });
+
     it.each([
       ["reactivate", (s: ChbBillingService) => s.reactivate(ORG_ID, "op-4")],
       [
@@ -593,6 +651,23 @@ describe("chbBillingService", () => {
       );
     });
 
+    it("clears a pending change before cancelling immediately", async () => {
+      withOrg(chbConfig());
+      clientMock.getAttachedPlan.mockResolvedValue({
+        id: ATTACHED_PLAN_ID,
+        scheduled: { type: "cancel", endDate: "2026-09-01T00:00:00Z" },
+      });
+
+      await expect(
+        service().cancelImmediatelyAndInvoice(ORG_ID, "op-5"),
+      ).resolves.toEqual({ status: "success" });
+
+      expect(clientMock.clearScheduledChange).toHaveBeenCalledTimes(1);
+      expect(
+        clientMock.clearScheduledChange.mock.invocationCallOrder[0],
+      ).toBeLessThan(clientMock.setScheduledChange.mock.invocationCallOrder[0]);
+    });
+
     it("no-ops the immediate cancellation for an org without an attached plan", async () => {
       withOrg(null);
 
@@ -601,6 +676,9 @@ describe("chbBillingService", () => {
         service().cancelImmediatelyAndInvoice(ORG_ID),
       ).resolves.toEqual({ status: "noop" });
       expect(clientMock.setScheduledChange).not.toHaveBeenCalled();
+      // No attached plan → nothing read and nothing cleared either.
+      expect(clientMock.getAttachedPlan).not.toHaveBeenCalled();
+      expect(clientMock.clearScheduledChange).not.toHaveBeenCalled();
     });
   });
 

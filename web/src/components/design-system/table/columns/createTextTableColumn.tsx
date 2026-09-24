@@ -1,9 +1,10 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
-import { Check, Copy, type LucideIcon } from "lucide-react";
+import { Check, Copy, InfoIcon, type LucideIcon } from "lucide-react";
 import { type ReactNode } from "react";
 
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import {
@@ -39,11 +40,22 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
   mapValue,
   nullValue,
   trailingAction,
+  tooltip,
   ...options
 }: TextTableColumnOptions<TData, TValue> & {
   nullValue?: string;
-  trailingAction?: TextTableColumnTrailingAction<TData, TValue>;
-}) {
+} & (
+    | {
+        trailingAction?: TextTableColumnTrailingAction<TData, TValue>;
+        tooltip?: never;
+      }
+    | {
+        tooltip: (
+          context: CellContext<TData, TValue | null | undefined>,
+        ) => string | undefined;
+        trailingAction?: never;
+      }
+  )) {
   const loadingCell = <Skeleton className="h-4 w-1/2" />;
 
   return createTableColumn<TData, TValue>({
@@ -68,6 +80,31 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
         );
       }
       if (typeof text !== "string") return loadingCell;
+
+      if (tooltip) {
+        const content = tooltip(context);
+        if (content) {
+          return (
+            <TextWithAction
+              value={text}
+              action={
+                <Tooltip label={content}>
+                  {({ getTriggerProps }) => (
+                    <button
+                      type="button"
+                      {...getTriggerProps()}
+                      aria-label="More information"
+                      className="flex items-center"
+                    >
+                      <InfoIcon className="text-muted-foreground size-3" />
+                    </button>
+                  )}
+                </Tooltip>
+              }
+            />
+          );
+        }
+      }
 
       if (trailingAction?.type === "copy-to-clipboard") {
         return <CopyableText value={text} />;
