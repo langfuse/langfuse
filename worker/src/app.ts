@@ -20,6 +20,7 @@ import { installProcessErrorHandlers } from "@langfuse/shared/src/server";
 import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
 import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
+import { isChbConfigured } from "./ee/cloudSpendAlerts/chbApiClient";
 import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
 import { monitorQueueProcessor } from "./queues/monitorQueue";
 import { inAppAgentRunQueueProcessor } from "./queues/inAppAgentRunQueue";
@@ -40,6 +41,7 @@ import {
   SecondaryOtelIngestionQueue,
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
+  CloudSpendAlertQueue,
   CloudUsageMeteringQueue,
   V4LegacyApiUsageQueue,
   EventPropagationQueue,
@@ -484,11 +486,19 @@ if (
   inAppAgentDlqRetryRunner.start();
 }
 
-// Cloud Spend Alert Queue: Only enable in cloud environment with Stripe
+// Cloud Spend Alert Queue: cloud only, and only where at least one billing
+// provider can be reached — Stripe for legacy orgs, ClickHouse Billing for
+// orgs billed through CHB.
 if (
   env.QUEUE_CONSUMER_CLOUD_SPEND_ALERT_QUEUE_IS_ENABLED === "true" &&
-  env.STRIPE_SECRET_KEY
+  (env.STRIPE_SECRET_KEY || isChbConfigured())
 ) {
+  // Instantiate the queue to trigger scheduled jobs — this is what installs
+  // the hourly CHB fan-out. Without it the schedule only ever appeared as a
+  // side effect of the Stripe metering job touching the same queue, so a
+  // CHB-only deployment produced no fan-out at all.
+  CloudSpendAlertQueue.getInstance();
+
   WorkerManager.register(
     QueueName.CloudSpendAlertQueue,
     cloudSpendAlertQueueProcessor,

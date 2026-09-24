@@ -1,19 +1,12 @@
-import type * as SharedServer from "@langfuse/shared/src/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
-  const actual = await importOriginal<typeof SharedServer>();
-  return { ...actual, logger: mocks.logger };
-});
+vi.mock("../logger", () => ({ logger: mocks.logger }));
 
-import {
-  ChbAccessTokenProvider,
-  ChbAuthError,
-} from "@/src/ee/features/billing/server/chb/chbAccessToken";
+import { ChbAccessTokenProvider, ChbAuthError } from "./chbAccessToken";
 
 const AUTH0_DOMAIN = "chb-tenant.eu.auth0.com";
 const TOKEN_URL = `https://${AUTH0_DOMAIN}/oauth/token`;
