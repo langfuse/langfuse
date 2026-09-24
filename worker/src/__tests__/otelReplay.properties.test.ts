@@ -1,5 +1,6 @@
 import "./helpers/otelReplaySetup";
 
+import { randomInt } from "node:crypto";
 import fc, { type Arbitrary } from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { ResourceSpan } from "@langfuse/shared/src/server";
@@ -812,13 +813,17 @@ describe(
       ],
     ])(
       "persists %s input/output and recursive metadata with identity and precedence intact",
-      async (_name, arbitrary, examples) => {
+      async (name, arbitrary, examples) => {
+        const seed = randomInt(2 ** 31);
+        // Log before running so a Vitest timeout still leaves the input sequence reproducible.
+        process.stderr.write(`OTEL replay ${name}: seed=${seed}\n`);
         await fc.assert(
           fc.asyncProperty(
             arbitrary as Arbitrary<ReplayCase>,
             assertReplayPersists,
           ),
           {
+            seed,
             numRuns: 128,
             ...(examples.length > 0 ? { examples } : {}),
           },
