@@ -72,13 +72,12 @@ async function structuredCall<T>(
 ): Promise<ModelResult<T>> {
   const connection = bedrockConfig();
   // Include the structured-output schema and message framing in the input limit.
-  if (
+  const countedInputTokens =
     countTopicTokens(system + input + JSON.stringify(z.toJSONSchema(schema))) +
-      256 >
-    inputLimit
-  )
+    256;
+  if (countedInputTokens > inputLimit)
     throw new Error(
-      `The shared trace transcript and instructions exceed this run's ${inputLimit}-token input limit. No model call was made; the transcript is never shortened per facet.`,
+      `The shared trace transcript and instructions are ${countedInputTokens} tokens, above this run's ${inputLimit}-token input limit. No model call was made; the transcript is never shortened per facet.`,
     );
   const messages = [
     { role: "system" as const, content: system },
