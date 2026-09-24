@@ -1,12 +1,12 @@
 /* eslint-disable no-nested-ternary */
-import { FileIcon } from "lucide-react";
+import { FileIcon, Wrench } from "lucide-react";
 import { assertUnreachable } from "@langfuse/shared";
 import {
   type FilePart,
   type ReasoningPart,
 } from "@langfuse/shared/src/utils/normalized-io";
 
-import { type SessionTimelineConversationMessage } from "@/src/features/sessions/SessionConversationTimeline/fns/processTimelineMessages";
+import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 import { SessionTimelineCollapsiblePart } from "@/src/features/sessions/SessionConversationTimeline/components/SessionTimelineCollapsiblePart/SessionTimelineCollapsiblePart";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
@@ -113,7 +113,7 @@ function SessionTimelineFile({ part }: { part: FilePart }) {
 export function SessionTimelinePart({
   part,
 }: {
-  part: SessionTimelineConversationMessage["parts"][number];
+  part: NormalizedMessage["parts"][number];
 }) {
   if (part.type === "text") {
     return (
@@ -135,6 +135,26 @@ export function SessionTimelinePart({
 
   if (part.type === "file") {
     return <SessionTimelineFile part={part} />;
+  }
+
+  if (part.type === "tool-call" || part.type === "tool-result") {
+    const isCall = part.type === "tool-call";
+    return (
+      <SessionTimelineCollapsiblePart
+        label={`${part.toolName ?? "Tool"} · ${isCall ? "Call" : "Result"}`}
+        icon={Wrench}
+        status={
+          part.type === "tool-result" && part.isError ? "error" : undefined
+        }
+        variant="plain"
+        alignment="row"
+      >
+        <PrettyJsonView
+          json={part.type === "tool-call" ? part.input : part.output}
+          currentView="pretty"
+        />
+      </SessionTimelineCollapsiblePart>
+    );
   }
 
   if (part.type === "data") {

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Bot, ChevronDown, UserRound, Wrench } from "lucide-react";
 import { type ReasoningPart } from "@langfuse/shared/src/utils/normalized-io";
 
-import { type SessionTimelineConversationMessage } from "@/src/features/sessions/SessionConversationTimeline/fns/processTimelineMessages";
+import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 import { SessionTimelinePart } from "@/src/features/sessions/SessionConversationTimeline/components/SessionTimelinePart/SessionTimelinePart";
 import { cn } from "@/src/utils/tailwind";
 
@@ -26,7 +26,7 @@ const rolePresentation = {
     container: "w-full",
   },
 } satisfies Record<
-  Exclude<SessionTimelineConversationMessage["role"], "system">,
+  Exclude<NormalizedMessage["role"], "system">,
   {
     label: string;
     icon: React.ComponentType<{ className?: string }>;
@@ -40,9 +40,9 @@ export function SessionTimelineContentMessage({
   parts,
   senderName,
 }: {
-  role: Exclude<SessionTimelineConversationMessage["role"], "system">;
-  parts: SessionTimelineConversationMessage["parts"];
-  senderName: SessionTimelineConversationMessage["senderName"];
+  role: Exclude<NormalizedMessage["role"], "system">;
+  parts: NormalizedMessage["parts"];
+  senderName: NormalizedMessage["senderName"];
 }) {
   const presentation = rolePresentation[role];
   const Icon = presentation.icon;
@@ -50,7 +50,7 @@ export function SessionTimelineContentMessage({
   const [expandedJsonGroupIndices, setExpandedJsonGroupIndices] = useState(
     () => new Set<number>(),
   );
-  type MessagePart = SessionTimelineConversationMessage["parts"][number];
+  type MessagePart = NormalizedMessage["parts"][number];
   type ContentPart = Exclude<MessagePart, ReasoningPart>;
   const groups: Array<
     | { type: "reasoning"; parts: ReasoningPart[] }
@@ -102,6 +102,9 @@ export function SessionTimelineContentMessage({
           (part) => part.type === "data" || part.type === "custom",
         );
         const isJsonExpanded = expandedJsonGroupIndices.has(groupIndex);
+        const hasToolParts = group.parts.some(
+          (part) => part.type === "tool-call" || part.type === "tool-result",
+        );
 
         return (
           <div
@@ -112,7 +115,7 @@ export function SessionTimelineContentMessage({
               className={cn(
                 "min-w-0 overflow-hidden",
                 presentation.container,
-                isJsonOnly && isJsonExpanded && "w-full",
+                ((isJsonOnly && isJsonExpanded) || hasToolParts) && "w-full",
               )}
             >
               {showSender && groupIndex === firstContentGroupIndex ? (

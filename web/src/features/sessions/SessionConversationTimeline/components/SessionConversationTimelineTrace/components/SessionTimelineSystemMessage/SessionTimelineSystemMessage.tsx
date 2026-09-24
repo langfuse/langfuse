@@ -1,4 +1,4 @@
-import { type SessionTimelineConversationMessage } from "@/src/features/sessions/SessionConversationTimeline/fns/processTimelineMessages";
+import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 import { SessionTimelineCollapsiblePart } from "@/src/features/sessions/SessionConversationTimeline/components/SessionTimelineCollapsiblePart/SessionTimelineCollapsiblePart";
 import { SessionTimelinePart } from "@/src/features/sessions/SessionConversationTimeline/components/SessionTimelinePart/SessionTimelinePart";
 
@@ -6,8 +6,8 @@ export function SessionTimelineSystemMessage({
   parts,
   senderName,
 }: {
-  parts: SessionTimelineConversationMessage["parts"];
-  senderName: SessionTimelineConversationMessage["senderName"];
+  parts: NormalizedMessage["parts"];
+  senderName: NormalizedMessage["senderName"];
 }) {
   return (
     <div className="ph-no-capture flex w-full">
