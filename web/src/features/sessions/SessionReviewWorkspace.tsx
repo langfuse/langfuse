@@ -12,7 +12,9 @@ const DEFAULT_REVIEW_PANEL_WIDTH_PX = 380;
 function reviewPanelPercent(available: number, preferredPx: number) {
   if (available <= 0) return 28;
   const percent = (preferredPx / available) * 100;
-  return Math.round(Math.min(45, Math.max(16, percent)));
+  // The pixel minSize on the panel keeps a narrow desktop usable. This floor
+  // only stops a huge monitor from rounding the preferred width down to nothing.
+  return Math.round(Math.min(45, Math.max(8, percent)));
 }
 
 export function SessionReviewWorkspace({
@@ -45,7 +47,12 @@ export function SessionReviewWorkspace({
     queueMicrotask(() => {
       if (cancelled) return;
       const bounds = rootRef.current?.getBoundingClientRect();
-      const available = vertical ? (bounds?.height ?? 0) : (bounds?.width ?? 0);
+      const headerHeight = vertical
+        ? (leadingRef.current?.offsetHeight ?? 0)
+        : 0;
+      const available = vertical
+        ? Math.max(0, (bounds?.height ?? 0) - headerHeight)
+        : (bounds?.width ?? 0);
       const preferred = vertical ? 280 : DEFAULT_REVIEW_PANEL_WIDTH_PX;
       const review = open ? reviewPanelPercent(available, preferred) : 0;
       groupRef.current?.setLayout({

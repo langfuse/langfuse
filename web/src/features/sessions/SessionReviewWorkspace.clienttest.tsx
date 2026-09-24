@@ -198,6 +198,22 @@ describe("session review workspace", () => {
     });
   });
 
+  it("keeps a wide workspace near the preferred review width", async () => {
+    width = 3440;
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Annotate session" }));
+
+    await waitFor(() => {
+      const reviewSizes = groupRef.current.setLayout.mock.calls
+        .map((call) => {
+          const layout: { review?: number } = call[0] ?? {};
+          return layout.review ?? 0;
+        })
+        .filter((review) => review > 0);
+      expect(reviewSizes.at(-1)).toBe(11);
+    });
+  });
+
   it("brings an opened stacked editor into its own scrollport", async () => {
     width = 320;
     const { container } = render(<Harness />);
