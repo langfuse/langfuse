@@ -74,7 +74,7 @@ describe("generateTopicText", () => {
         system: [{ text: "Summarize the user's request." }],
         messages: [{ role: "user", content: [{ text: "I cannot sign in." }] }],
         inferenceConfig: { maxTokens: 256 },
-        additionalModelRequestFields: { reasoning_effort: "none" },
+        additionalModelRequestFields: { reasoning: { effort: "none" } },
         toolConfig: {
           tools: [
             {

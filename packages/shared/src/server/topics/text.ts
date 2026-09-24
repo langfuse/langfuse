@@ -28,7 +28,7 @@ export async function generateTopicText<T>(params: {
     maxOutputTokens: params.maxOutputTokens,
     providerOptions: {
       bedrock: {
-        additionalModelRequestFields: { reasoning_effort: "none" },
+        additionalModelRequestFields: { reasoning: { effort: "none" } },
       },
     },
     maxRetries: 0,
