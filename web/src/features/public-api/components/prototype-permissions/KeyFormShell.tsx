@@ -37,8 +37,10 @@ export const KeyFormShell = ({
     <Card className="w-full max-w-[26.44rem] shadow-2xl">
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="flex items-center gap-2">
-            <KeyRound className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2.5">
+            <span className="bg-muted text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+              <KeyRound className="h-4 w-4" />
+            </span>
             Create a new API key
           </CardTitle>
           <Button
