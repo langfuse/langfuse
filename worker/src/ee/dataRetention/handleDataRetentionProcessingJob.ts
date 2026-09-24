@@ -13,7 +13,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
-import { cleanupTerminalRunMcpApiKeys } from "@langfuse/shared/in-app-agent/server/runLifecycle";
+import {
+  clearRunMcpApiKeyPointer,
+  isMissingInAppAgentMcpApiKeyError,
+} from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import { env, v4WritesToEventsTable } from "../../env";
 
@@ -76,35 +79,51 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
       take: 100,
     });
     if (conversations.length === 0) break;
-    for (const { id } of conversations) {
-      // worker/src/features/in-app-agent-integrity-runner/index.ts classifies stale runs in the background;
-      // unfinished runs block deletion until then.
-      await cleanupTerminalRunMcpApiKeys({
-        prisma,
+    const conversationIds = conversations.map(({ id }) => id);
+    const keyRuns = await prisma.inAppAgentRun.findMany({
+      where: {
         projectId,
-        conversationId: id,
-        deleteApiKey: async (apiKeyId) => {
-          await deleteInAppAgentMcpApiKeyFromDb({
-            prisma,
-            id: apiKeyId,
-            projectId,
-            redis,
-          });
-        },
-      });
-      const deleted = await prisma.inAppAgentConversation.deleteMany({
-        where: {
-          id,
+        conversationId: { in: conversationIds },
+        finishedAt: { not: null },
+        mcpApiKeyId: { not: null },
+      },
+      select: { id: true, mcpApiKeyId: true },
+    });
+    for (const run of keyRuns) {
+      // Prisma does not narrow the nullable field type from the `not: null` query filter.
+      if (!run.mcpApiKeyId) continue;
+      try {
+        await deleteInAppAgentMcpApiKeyFromDb({
+          prisma,
+          id: run.mcpApiKeyId,
           projectId,
-          updatedAt: { lt: cutoffDate },
-          AND: [
-            { runs: { none: { finishedAt: null } } },
-            { runs: { none: { mcpApiKeyId: { not: null } } } },
-          ],
-        },
-      });
-      deletedConversations += deleted.count;
+          redis,
+        }).catch((error: unknown) => {
+          if (!isMissingInAppAgentMcpApiKeyError(error)) throw error;
+        });
+        await clearRunMcpApiKeyPointer({ prisma, projectId, runId: run.id });
+      } catch (error) {
+        logger.error("Failed to clean up in-app agent MCP key on reconcile", {
+          projectId,
+          runId: run.id,
+          error,
+        });
+      }
     }
+    // worker/src/features/in-app-agent-integrity-runner/index.ts classifies stale runs in the background;
+    // unfinished runs block deletion until then.
+    const deleted = await prisma.inAppAgentConversation.deleteMany({
+      where: {
+        id: { in: conversationIds },
+        projectId,
+        updatedAt: { lt: cutoffDate },
+        AND: [
+          { runs: { none: { finishedAt: null } } },
+          { runs: { none: { mcpApiKeyId: { not: null } } } },
+        ],
+      },
+    });
+    deletedConversations += deleted.count;
     lastConversationId = conversations.at(-1)?.id;
   }
   logger.info(
