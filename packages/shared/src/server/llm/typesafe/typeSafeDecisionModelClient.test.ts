@@ -1,7 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DecisionModelRequest } from "../../evals/decisionModelEvaluatorExecution";
+import { createSecureLlmFetch } from "../secureLlmFetch";
 import { TYPESAFE_UPSTREAMS } from "../types";
 import { createTypeSafeDecisionModelClient } from "./typeSafeDecisionModelClient";
+
+vi.mock("../secureLlmFetch", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../secureLlmFetch")>();
+  return {
+    ...actual,
+    createSecureLlmFetch: vi.fn(actual.createSecureLlmFetch),
+  };
+});
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -159,6 +168,21 @@ describe("createTypeSafeDecisionModelClient", () => {
     const headers = new Headers(init.headers);
     expect(headers.get("x-team")).toBe("evals");
     expect(headers.get("authorization")).toBe("Bearer sk-test");
+  });
+
+  it("strips the connection's extra headers on cross-origin redirects", () => {
+    createTypeSafeDecisionModelClient({
+      apiKey: "sk-test",
+      model: "jev-latest",
+      baseURL: "https://llm-proxy.example.com/typesafe/v1",
+      extraHeaders: { "X-Api-Key": "proxy-secret", "x-team": "evals" },
+    });
+
+    expect(vi.mocked(createSecureLlmFetch)).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        additionalSensitiveHeaders: ["X-Api-Key", "x-team"],
+      }),
+    );
   });
 
   it("blocks a custom base URL that points at an internal address", async () => {
