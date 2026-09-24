@@ -236,18 +236,25 @@ function resolvePreset(preset: PresetKey): string[] {
   }
 }
 
+// Resources only a dedicated role grants; excluded from admin/viewer.
+const roleExclusiveResources = new Set(["llmGatewayConfig"]);
+
 function allPermissionIds(): string[] {
-  return permissionCatalog.flatMap((k) =>
-    k.actions.map((a) => permissionId(k.domain, k.resource, a)),
-  );
+  return permissionCatalog
+    .filter((k) => !roleExclusiveResources.has(k.resource))
+    .flatMap((k) =>
+      k.actions.map((a) => permissionId(k.domain, k.resource, a)),
+    );
 }
 
 function readPermissionIds(): string[] {
-  return permissionCatalog.flatMap((k) =>
-    k.actions
-      .filter((a) => a === "read")
-      .map((a) => permissionId(k.domain, k.resource, a)),
-  );
+  return permissionCatalog
+    .filter((k) => !roleExclusiveResources.has(k.resource))
+    .flatMap((k) =>
+      k.actions
+        .filter((a) => a === "read")
+        .map((a) => permissionId(k.domain, k.resource, a)),
+    );
 }
 
 /** PermissionDomain is the top-level grouping a resource belongs to. */
