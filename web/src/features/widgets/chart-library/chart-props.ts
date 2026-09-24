@@ -1,4 +1,4 @@
-import { type ChartConfig } from "@/src/components/ui/chart";
+import type { ComponentType, ReactNode } from "react";
 import type tailwindColors from "tailwindcss/colors";
 
 export interface DataPoint {
@@ -110,7 +110,15 @@ export interface ChartThreshold {
 
 export interface ChartProps {
   data: DataPoint[];
-  config?: ChartConfig;
+  config?: {
+    [key: string]: {
+      label?: ReactNode;
+      icon?: ComponentType;
+    } & (
+      | { color?: string; theme?: never }
+      | { color?: never; theme: Record<"light" | "dark", string> }
+    );
+  };
   accessibilityLayer?: boolean;
   metricFormatter?: MetricFormatterFunction;
   legendPosition?: LegendPosition;
