@@ -120,7 +120,7 @@ export const VariantSingleDialog = ({
         onClick={() => setPopupRole(draft.preset)}
         className="text-muted-foreground hover:text-foreground ml-1 w-fit text-xs"
       >
-        Grants{" "}
+        Show all{" "}
         <span className="inline-flex items-center gap-0.5 underline">
           {rolePermissionCount(draft.preset)} permissions
           <ArrowUpRight className="h-3 w-3" />
