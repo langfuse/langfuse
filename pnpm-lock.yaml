@@ -1254,6 +1254,9 @@ importers:
       eslint:
         specifier: 'catalog:'
         version: 10.8.0(jiti@2.7.0)(supports-color@8.1.1)
+      fast-check:
+        specifier: 3.23.2
+        version: 3.23.2
       msw:
         specifier: ^2.6.5
         version: 2.6.5(@types/node@24.3.0)(@typescript/typescript6@6.0.2)
