@@ -104,7 +104,7 @@ const PermissionsDialog = ({ preset }: { preset: PresetKey }) => {
             </DialogTitle>
           </DialogHeader>
           <DialogBody className="p-0">
-            <div className="max-h-[70vh] overflow-y-auto px-5 pb-4">
+            <div className="max-h-[70vh] overflow-y-auto px-5 pb-8">
               <RolePermissionList preset={preset} />
             </div>
           </DialogBody>
