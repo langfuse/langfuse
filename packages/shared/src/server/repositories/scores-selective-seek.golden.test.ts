@@ -233,7 +233,7 @@ const SCORES_DDL = `
     event_ts DateTime64(3),
     is_deleted UInt8,
     INDEX idx_id id TYPE bloom_filter(0.001) GRANULARITY 1,
-    INDEX idx_project_trace_observation (project_id, trace_id, observation_id) TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_project_trace_observation (project_id, trace_id, observation_id) TYPE bloom_filter(0.001) GRANULARITY 2,
     INDEX idx_project_session (project_id, session_id) TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_project_dataset_run (project_id, dataset_run_id) TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_created_at created_at TYPE minmax GRANULARITY 1,
