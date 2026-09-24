@@ -13,10 +13,13 @@ import {
   type PresetKey,
   type ProjectOption,
   presetIcons,
-  presets,
 } from "../prototype/permissionCatalog";
 import { KeyFormShell } from "./KeyFormShell";
-import { RolePermissionList, rolePermissionCount } from "./rolePermissions";
+import {
+  RolePermissionList,
+  presets,
+  rolePermissionCount,
+} from "./rolePermissions";
 
 /** variantSplitMeta labels the split-preview variant in the switcher. */
 export const variantSplitMeta = { key: "C", name: "Split preview menu" };
@@ -85,7 +88,7 @@ export const VariantSplit = ({
                 </Badge>
               </div>
               <ScrollArea className="flex-1">
-                <div className="p-4">
+                <div className="px-4 pt-0 pb-4">
                   <RolePermissionList preset={preview} dense />
                 </div>
               </ScrollArea>

@@ -8,7 +8,11 @@
 import { projectScopes } from "@langfuse/shared";
 
 import { organizationRoleAccessRights } from "@/src/features/rbac/constants/organizationAccessRights";
-import { type PresetKey } from "../prototype/permissionCatalog";
+import {
+  type Preset,
+  type PresetKey,
+  presets as basePresets,
+} from "../prototype/permissionCatalog";
 
 const resourceLabels: Record<string, string> = {
   projects: "Project management",
@@ -116,6 +120,18 @@ const apiScopeList = [
 ];
 
 const projectScopeList = [...projectScopes, ...apiScopeList];
+
+const roleLabelOverrides: Partial<Record<PresetKey, string>> = {
+  llmGateway: "LLM Gateway",
+  otel: "Ingestion",
+  scores: "Scores Ingestion",
+};
+
+/** presets are the API-key role presets with this prototype's display labels. */
+export const presets: Preset[] = basePresets.map((p) => ({
+  ...p,
+  label: roleLabelOverrides[p.key] ?? p.label,
+}));
 
 /** permissionDomains lists the two permission domains in display order. */
 export const permissionDomains: { key: PermissionDomain; label: string }[] = [

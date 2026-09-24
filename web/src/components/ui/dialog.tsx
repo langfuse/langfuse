@@ -183,6 +183,7 @@ type DialogControllerProps = {
     openDialog: () => void;
     Trigger: typeof DialogTrigger;
   }) => React.ReactNode;
+  className?: string;
   closeOnInteractionOutside: boolean;
   renderContent: (control: { closeDialog: () => void }) => React.ReactNode;
   size: React.ComponentProps<typeof DialogContent>["size"];
@@ -190,6 +191,7 @@ type DialogControllerProps = {
 
 const DialogController = ({
   children,
+  className,
   closeOnInteractionOutside,
   renderContent,
   size,
@@ -205,6 +207,7 @@ const DialogController = ({
       })}
       <DialogContent
         size={size}
+        className={className}
         closeOnInteractionOutside={closeOnInteractionOutside}
       >
         {renderContent({ closeDialog: () => setIsOpen(false) })}

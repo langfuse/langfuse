@@ -19,10 +19,13 @@ import {
   type ApiKeyDraft,
   type ProjectOption,
   presetIcons,
-  presets,
 } from "../prototype/permissionCatalog";
 import { KeyFormShell } from "./KeyFormShell";
-import { RolePermissionList, rolePermissionCount } from "./rolePermissions";
+import {
+  RolePermissionList,
+  presets,
+  rolePermissionCount,
+} from "./rolePermissions";
 
 /** variantHoverMeta labels the hover-card variant in the switcher. */
 export const variantHoverMeta = { key: "A", name: "Hover card per role" };
@@ -101,7 +104,7 @@ const RoleOption = ({ preset }: { preset: ApiKeyDraft["preset"] }) => {
               {rolePermissionCount(preset)} permissions
             </Badge>
           </div>
-          <div className="px-3 py-2">
+          <div className="px-3 pt-0 pb-2">
             <RolePermissionList preset={preset} dense />
           </div>
         </HoverCardContent>

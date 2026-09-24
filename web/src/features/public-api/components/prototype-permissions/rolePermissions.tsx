@@ -7,11 +7,12 @@ import { type PresetKey } from "../prototype/permissionCatalog";
 import {
   type RolePermissionGroup,
   permissionDomains,
+  presets,
   rolePermissionCount,
   rolePermissionGroups,
 } from "./permissions";
 
-export { rolePermissionCount };
+export { presets, rolePermissionCount };
 
 /** RolePermissionList renders a role's full permission set, grouped by domain then resource. */
 export const RolePermissionList = ({
@@ -31,19 +32,18 @@ export const RolePermissionList = ({
     );
 
   return (
-    <div className={cn("flex flex-col", dense ? "gap-2.5" : "gap-4")}>
+    <div className="flex flex-col">
       {permissionDomains.map((domain) => {
         const domainGroups = groups.filter((g) => g.domain === domain.key);
         if (domainGroups.length === 0) return null;
         return (
-          <div
-            key={domain.key}
-            className={cn("flex flex-col", dense ? "gap-1" : "gap-2")}
-          >
+          <div key={domain.key} className="flex flex-col">
             <span
               className={cn(
                 "bg-background text-muted-foreground sticky top-0 z-10 font-bold tracking-wider uppercase",
-                dense ? "py-1.5 text-[0.6rem]" : "py-2.5 text-[0.65rem]",
+                dense
+                  ? "pt-3 pb-1.5 text-[0.6rem]"
+                  : "pt-4 pb-2.5 text-[0.65rem]",
               )}
             >
               {domain.label}

@@ -20,10 +20,13 @@ import {
   type PresetKey,
   type ProjectOption,
   presetIcons,
-  presets,
 } from "../prototype/permissionCatalog";
 import { KeyFormShell } from "./KeyFormShell";
-import { RolePermissionList, rolePermissionCount } from "./rolePermissions";
+import {
+  RolePermissionList,
+  presets,
+  rolePermissionCount,
+} from "./rolePermissions";
 
 /** variantSingleDialogMeta labels the single-role popup variant in the switcher. */
 export const variantSingleDialogMeta = { key: "E", name: "Single-role popup" };
@@ -84,6 +87,7 @@ const PermissionsDialog = ({ preset }: { preset: PresetKey }) => {
   return (
     <DialogController
       size="default"
+      className="max-w-[25.6rem]"
       closeOnInteractionOutside={true}
       renderContent={() => (
         <>
@@ -100,7 +104,7 @@ const PermissionsDialog = ({ preset }: { preset: PresetKey }) => {
             </DialogTitle>
           </DialogHeader>
           <DialogBody className="max-h-[70vh] overflow-y-auto p-0">
-            <div className="px-5 py-4">
+            <div className="px-5 pt-0 pb-4">
               <RolePermissionList preset={preset} />
             </div>
           </DialogBody>

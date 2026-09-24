@@ -24,10 +24,13 @@ import {
   type PresetKey,
   type ProjectOption,
   presetIcons,
-  presets,
 } from "../prototype/permissionCatalog";
 import { KeyFormShell } from "./KeyFormShell";
-import { RolePermissionList, rolePermissionCount } from "./rolePermissions";
+import {
+  RolePermissionList,
+  presets,
+  rolePermissionCount,
+} from "./rolePermissions";
 
 /** variantDialogMeta labels the dialog variant in the switcher. */
 export const variantDialogMeta = { key: "D", name: "Compare in dialog" };
@@ -125,7 +128,7 @@ const PermissionsDialog = ({ initial }: { initial: PresetKey }) => {
                 })}
               </div>
               <ScrollArea className="min-h-0 min-w-0 flex-1">
-                <div className="px-5 py-4">
+                <div className="px-5 pt-0 pb-4">
                   <RolePermissionList preset={active} />
                 </div>
               </ScrollArea>
