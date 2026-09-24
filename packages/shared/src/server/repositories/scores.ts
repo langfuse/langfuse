@@ -1682,49 +1682,30 @@ const getScoresUiGenericFromEvents = async <T>(props: {
 
   // ── Dedup without FINAL ───────────────────────────────────────────────────
   // Reads dedup the ReplacingMergeTree by reconstructing each score's latest
-  // version instead of FINAL: both paths group on the sorting key and keep the
-  // latest event_ts. The count path collapses columns with one argMax pass. The
-  // rows path needs every (incl. wide Map/String) column, so the `latest` CTE
-  // groups to each key's max(event_ts), and the hydration scan reselects the raw
-  // rows whose (project_id, toDate(timestamp), name, id, event_ts) tuple is in
-  // that CTE. The tuple's leading columns are the sorting key, so the IN prunes
-  // the wide-column scan to the deduped keys via the primary index. A LIMIT 1 BY
-  // then collapses the rare case where two raw rows share a key's max event_ts —
-  // before any outer filter runs, so a filter can never resurrect a tied row the
-  // retained one would have excluded.
-  //
-  // The seek/date/project restriction (innerScanWhere) lives only inside the CTE.
-  // ClickHouse re-executes a CTE body per reference, so the hydration reuses the
-  // CTE's *output* via the tuple IN rather than repeating innerScanWhere — the
-  // selective-seek scan runs once, not once per side of a join.
+  // version instead of FINAL. The count path collapses columns with one argMax
+  // GROUP BY pass. The rows path needs every (incl. wide Map/String) column, so
+  // it INNER JOINs scores back to a GROUP BY subquery holding each key's
+  // max(event_ts), matching on the full sorting key + that event_ts. Only the
+  // latest version has event_ts = max, so the join *is* the dedup: every joined
+  // row is a latest version.
   //
   // Rule: filter AFTER dedup, never before. value / comment / timestamp /
-  // trace_id are all mutable across a score's versions, so filtering raw rows
-  // can drop the true-latest version and surface a stale one — a result that
-  // disagrees with FINAL. Example, filter `value > 0.5`:
-  //   v1 @10:02 value=0.9,  v2 @10:07 value=0.1 (latest)
-  //   filter-then-dedup -> v1 kept        (WRONG)
-  //   dedup-then-filter -> 0.1 excluded   (matches FINAL)
+  // trace_id are mutable across versions, so filtering raw rows can surface a
+  // stale version (filter value>0.5 on v1=0.9→v2=0.1 keeps v1; FINAL keeps none).
+  // Filtering the join output honours this — filters only ever see latest
+  // versions. The GROUP BY that finds max(event_ts) carries only project scope +
+  // a coarse toDate prune (innerDatePruneQuery) + the seek (when eligible), so
+  // whole buckets are kept/dropped, the latest is never lost pre-dedup, and the
+  // seek scans once.
   //
-  // So every filter and the trace join runs AFTER dedup. The CTE scan carries
-  // only a coarse toDate(timestamp) prune (see innerDatePruneQuery): whole
-  // buckets are kept or dropped, so the latest is never lost pre-dedup. Dedup
-  // granularity is the full sorting key, so different toDate(timestamp) buckets
-  // of one id stay distinct — matching FINAL.
-  const latestCte = `latest AS (
-        SELECT
-          s.project_id AS latest_project_id,
-          toDate(s.timestamp) AS latest_date,
-          s.name AS latest_name,
-          s.id AS latest_id,
-          max(s.event_ts) AS latest_event_ts
-        FROM scores s
-        ${innerScanWhere}
-        GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
-      )`;
-  const rowsWithClause = tracesCTEClause
-    ? `${tracesCTEClause},\n      ${latestCte}`
-    : `WITH ${latestCte}`;
+  // Filters + ORDER BY run INSIDE the join scan so ClickHouse prunes the wide
+  // scan by the real predicates instead of reconstructing the whole project
+  // first (the dominant speedup: ~6s vs ~16s on busy projects). The trailing
+  // LIMIT 1 BY then collapses the only remaining duplicates: two raw rows sharing
+  // a key's max event_ts. That tie is two versions with equal version timestamps,
+  // where FINAL itself keeps an arbitrary row (its answer flips with insert
+  // order), so collapsing the tie before or after the filter is equally
+  // FINAL-consistent.
   const query =
     props.select === "count"
       ? `
@@ -1746,28 +1727,33 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       ${outerWhereClause}
     `
       : `
-      ${rowsWithClause}
-      SELECT
-          ${rowSelect}
+      ${tracesCTEClause}
+      SELECT *
       FROM (
-        SELECT s.*
+        SELECT
+            ${rowSelect}
         FROM scores s
-        WHERE s.project_id = {projectId: String}
-        ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}
-        AND (s.project_id, toDate(s.timestamp), s.name, s.id, s.event_ts) IN (
+        INNER JOIN (
           SELECT
-            latest_project_id,
-            latest_date,
-            latest_name,
-            latest_id,
-            latest_event_ts
-          FROM latest
-        )
-        LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
+            s.project_id AS latest_project_id,
+            toDate(s.timestamp) AS latest_date,
+            s.name AS latest_name,
+            s.id AS latest_id,
+            max(s.event_ts) AS latest_event_ts
+          FROM scores s
+          ${innerScanWhere}
+          GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
+        ) latest
+          ON s.project_id = latest.latest_project_id
+          AND toDate(s.timestamp) = latest.latest_date
+          AND s.name = latest.latest_name
+          AND s.id = latest.latest_id
+          AND s.event_ts = latest.latest_event_ts
+        ${eventsJoin}
+        ${outerWhereClause}
+        ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
       ) s
-      ${eventsJoin}
-      ${outerWhereClause}
-      ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
+      LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 

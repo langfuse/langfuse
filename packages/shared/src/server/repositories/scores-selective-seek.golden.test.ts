@@ -252,8 +252,10 @@ const SCORES_DDL = `
 //  c: two day-buckets (distinct dedup groups), trace_id T3
 //  d: has observation_id O1
 //  e: value mutates 0.9 -> 0.1 (latest) — exercises dedup-then-filter
-//  f: two rows sharing the SAME max event_ts (a tie) — the equality join emits
-//     both, so the dedup must collapse them to one row before any filter runs
+//  f: two identical rows sharing the SAME max event_ts (a tie) — the equality
+//     join emits both, so LIMIT 1 BY must collapse them to one row. Divergent
+//     ties (tied versions differing in a filtered column) are FINAL-arbitrary by
+//     design — FINAL's own pick flips with insert order — so they are not asserted
 const ROWS: Array<
   [string, string, string, string, string | null, number, number]
 > = [

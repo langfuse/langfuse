@@ -74,8 +74,39 @@ exports[`scores selective-seek: emitted SQL > full SQL text (one representative 
       ],
     },
     "route": "unknown",
-    "sql": "WITH
-    latest AS
+    "sql": "SELECT *
+FROM
+(
+    SELECT
+        s.id,
+        s.project_id,
+        s.environment,
+        s.name,
+        s.value,
+        s.string_value,
+        s.timestamp,
+        s.source,
+        s.data_type,
+        s.comment,
+        s.evaluator_id,
+        s.trace_id,
+        s.session_id,
+        s.dataset_run_id,
+        s.observation_id,
+        s.author_user_id,
+        s.created_at,
+        s.updated_at,
+        s.config_id,
+        s.queue_id,
+        s.execution_trace_id,
+        s.ingestion_api_key,
+        s.ingestion_sdk_name,
+        s.ingestion_sdk_version,
+        s.is_deleted,
+        s.event_ts,
+        length(mapKeys(s.metadata)) > 0 AS has_metadata
+    FROM scores AS s
+    INNER JOIN
     (
         SELECT
             s.project_id AS latest_project_id,
@@ -98,56 +129,17 @@ exports[`scores selective-seek: emitted SQL > full SQL text (one representative 
             toDate(s.timestamp),
             s.name,
             s.id
-    )
-SELECT
-    s.id,
-    s.project_id,
-    s.environment,
-    s.name,
-    s.value,
-    s.string_value,
-    s.timestamp,
-    s.source,
-    s.data_type,
-    s.comment,
-    s.evaluator_id,
-    s.trace_id,
-    s.session_id,
-    s.dataset_run_id,
-    s.observation_id,
-    s.author_user_id,
-    s.created_at,
-    s.updated_at,
-    s.config_id,
-    s.queue_id,
-    s.execution_trace_id,
-    s.ingestion_api_key,
-    s.ingestion_sdk_name,
-    s.ingestion_sdk_version,
-    s.is_deleted,
-    s.event_ts,
-    length(mapKeys(s.metadata)) > 0 AS has_metadata
-FROM
-(
-    SELECT s.*
-    FROM scores AS s
-    WHERE (s.project_id = {param1:String}) AND ((s.project_id, toDate(s.timestamp), s.name, s.id, s.event_ts) IN (
-        SELECT
-            latest_project_id,
-            latest_date,
-            latest_name,
-            latest_id,
-            latest_event_ts
-        FROM latest
-    ))
-    LIMIT 1 BY
-        s.project_id,
-        toDate(s.timestamp),
-        s.name,
-        s.id
+    ) AS latest ON (
+        s.project_id = latest.latest_project_id
+    ) AND (toDate(s.timestamp) = latest.latest_date) AND (s.name = latest.latest_name) AND (s.id = latest.latest_id) AND (s.event_ts = latest.latest_event_ts)
+    WHERE (s.data_type IN ({param4:Array(String)})) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})
+    ORDER BY s.timestamp DESC
 ) AS s
-WHERE (s.data_type IN ({param4:Array(String)})) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})
-ORDER BY s.timestamp DESC",
+LIMIT 1 BY
+    s.project_id,
+    toDate(s.timestamp),
+    s.name,
+    s.id",
   },
 ]
 `;
@@ -218,8 +210,39 @@ exports[`scores selective-seek: emitted SQL > full SQL text (one representative 
       "param4": "0.5",
     },
     "route": "unknown",
-    "sql": "WITH
-    latest AS
+    "sql": "SELECT *
+FROM
+(
+    SELECT
+        s.id,
+        s.project_id,
+        s.environment,
+        s.name,
+        s.value,
+        s.string_value,
+        s.timestamp,
+        s.source,
+        s.data_type,
+        s.comment,
+        s.evaluator_id,
+        s.trace_id,
+        s.session_id,
+        s.dataset_run_id,
+        s.observation_id,
+        s.author_user_id,
+        s.created_at,
+        s.updated_at,
+        s.config_id,
+        s.queue_id,
+        s.execution_trace_id,
+        s.ingestion_api_key,
+        s.ingestion_sdk_name,
+        s.ingestion_sdk_version,
+        s.is_deleted,
+        s.event_ts,
+        length(mapKeys(s.metadata)) > 0 AS has_metadata
+    FROM scores AS s
+    INNER JOIN
     (
         SELECT
             s.project_id AS latest_project_id,
@@ -234,56 +257,17 @@ exports[`scores selective-seek: emitted SQL > full SQL text (one representative 
             toDate(s.timestamp),
             s.name,
             s.id
-    )
-SELECT
-    s.id,
-    s.project_id,
-    s.environment,
-    s.name,
-    s.value,
-    s.string_value,
-    s.timestamp,
-    s.source,
-    s.data_type,
-    s.comment,
-    s.evaluator_id,
-    s.trace_id,
-    s.session_id,
-    s.dataset_run_id,
-    s.observation_id,
-    s.author_user_id,
-    s.created_at,
-    s.updated_at,
-    s.config_id,
-    s.queue_id,
-    s.execution_trace_id,
-    s.ingestion_api_key,
-    s.ingestion_sdk_name,
-    s.ingestion_sdk_version,
-    s.is_deleted,
-    s.event_ts,
-    length(mapKeys(s.metadata)) > 0 AS has_metadata
-FROM
-(
-    SELECT s.*
-    FROM scores AS s
-    WHERE (s.project_id = {param1:String}) AND ((s.project_id, toDate(s.timestamp), s.name, s.id, s.event_ts) IN (
-        SELECT
-            latest_project_id,
-            latest_date,
-            latest_name,
-            latest_id,
-            latest_event_ts
-        FROM latest
-    ))
-    LIMIT 1 BY
-        s.project_id,
-        toDate(s.timestamp),
-        s.name,
-        s.id
+    ) AS latest ON (
+        s.project_id = latest.latest_project_id
+    ) AND (toDate(s.timestamp) = latest.latest_date) AND (s.name = latest.latest_name) AND (s.id = latest.latest_id) AND (s.event_ts = latest.latest_event_ts)
+    WHERE (s.data_type IN ({param2:Array(String)})) AND (project_id = {param3:String}) AND (s.value > {param4:Decimal64(12)})
+    ORDER BY s.timestamp DESC
 ) AS s
-WHERE (s.data_type IN ({param2:Array(String)})) AND (project_id = {param3:String}) AND (s.value > {param4:Decimal64(12)})
-ORDER BY s.timestamp DESC",
+LIMIT 1 BY
+    s.project_id,
+    toDate(s.timestamp),
+    s.name,
+    s.id",
   },
 ]
 `;
