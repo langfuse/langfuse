@@ -62,6 +62,24 @@ impl Drop for FakeServer {
     }
 }
 
+/// A JWT-shaped ingestion token for a tenant. The signature segment is a canary that
+/// secret-leak assertions search for.
+pub(crate) fn ingestion_token(organization: &str, project: &str) -> String {
+    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+    let segment = |value: serde_json::Value| URL_SAFE_NO_PAD.encode(value.to_string());
+    format!(
+        "{}.{}.private-ingestion-token",
+        segment(json!({"alg": "ES256", "typ": "JWT"})),
+        segment(json!({
+            "version": 1,
+            "organization_id": organization,
+            "project_id": project,
+            "ingestion_mode": "usage",
+            "scope": "gateway-ingest",
+        })),
+    )
+}
+
 pub(crate) fn resolution_response_for(
     api_format: ApiFormat,
     provider_secret: &str,
@@ -91,7 +109,7 @@ pub(crate) fn resolution_response_for(
             "provider_connection_id": "provider-connection-1"
         },
         "ingestion_mode": "usage",
-        "ingestion": {"access_token": "private-ingestion-token", "token_type": "Bearer", "expires_at": expires_at}
+        "ingestion": {"access_token": ingestion_token("org-1", "project-1"), "token_type": "Bearer", "expires_at": expires_at}
     });
     Response::builder()
         .header("content-type", "application/json")

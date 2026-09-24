@@ -1,4 +1,5 @@
 use super::{ResolutionError, valid_token};
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::{
     Deserialize, Deserializer, Serialize,
     de::{DeserializeOwned, IntoDeserializer},
@@ -240,6 +241,37 @@ impl fmt::Debug for ResolvedRequestContext {
     }
 }
 
+/// The tenant an ingestion JWT authorizes.
+#[derive(Deserialize)]
+struct IngestionClaims {
+    organization_id: String,
+    project_id: String,
+}
+
+/// Web writes uploads into the token's project, while telemetry batches uploads by
+/// `attribution`; any valid grant for a project may carry every record of that project.
+/// A token for another tenant must therefore never be accepted. Web verifies the
+/// signature on ingestion, so reading the payload is enough here.
+fn ingestion_claims_match(token: &str, attribution: &RequestAttribution) -> bool {
+    let mut segments = token.split('.');
+    let (Some(_header), Some(payload), Some(_signature), None) = (
+        segments.next(),
+        segments.next(),
+        segments.next(),
+        segments.next(),
+    ) else {
+        return false;
+    };
+    URL_SAFE_NO_PAD
+        .decode(payload)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<IngestionClaims>(&bytes).ok())
+        .is_some_and(|claims| {
+            claims.organization_id == attribution.organization_id
+                && claims.project_id == attribution.project_id
+        })
+}
+
 pub(super) fn decode(
     bytes: &[u8],
     expected_format: ApiFormat,
@@ -257,6 +289,7 @@ pub(super) fn decode(
         || !provider.accepts(connection.credential())
         || !valid_token(connection.credential().secret())
         || !valid_token(&response.ingestion.access_token)
+        || !ingestion_claims_match(&response.ingestion.access_token, attribution)
         || response.ingestion.expires_at <= now
         || [
             &connection.id,

@@ -684,6 +684,10 @@ including chunked responses. Redirects, automatic retries, ambient proxy setting
 and transparent decompression are disabled. Errors expose fixed categories;
 upstream error bodies and transport details are discarded. A successful response
 must match the strict v1 schema and carry an unexpired project ingestion grant.
+The grant's JWT payload must name the attribution's `organization_id` and
+`project_id`: Web writes uploads into the token's project, and telemetry batches may
+send any record of a project with any of that project's grants. The gateway reads
+these claims without verifying the signature, which Web checks on ingestion.
 Its connection must also be one of the known official pairings: the `provider`
 serves the requested `api_format`, `base_url` is that provider's official origin,
 and `auth` uses that provider's credential scheme. Any other combination is an

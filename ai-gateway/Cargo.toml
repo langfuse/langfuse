@@ -7,6 +7,7 @@ license = "MIT"
 
 [dependencies]
 axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "matched-path", "tokio"] }
+base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 hmac = "0.13"
 http-body-util = "0.1"

@@ -11,7 +11,7 @@ use super::{otlp::ExportError, *};
 use crate::{
     capture::RelayOutcome,
     resolution::signing,
-    test_support::{FakeServer, resolved_request_context},
+    test_support::{FakeServer, ingestion_token, resolved_request_context},
 };
 
 fn facts(project: &str) -> InferenceFacts {
@@ -61,7 +61,8 @@ async fn upload_uses_prefixed_path_signed_grant_and_gateway_sdk_headers() {
         assert_eq!(request.method(), "POST");
         assert_eq!(request.uri().path(), "/app/api/public/otel/v1/traces");
         let headers = request.headers();
-        assert_eq!(headers["authorization"], "Bearer private-ingestion-token");
+        let token = ingestion_token("org-1", "project-1");
+        assert_eq!(headers["authorization"], format!("Bearer {token}").as_str());
         let signature = headers["langfuse-gateway-authorization"].to_str().unwrap();
         let timestamp = signature
             .strip_prefix("HMAC timestamp=")
@@ -73,7 +74,7 @@ async fn upload_uses_prefixed_path_signed_grant_and_gateway_sdk_headers() {
             .unwrap();
         assert_eq!(
             signature,
-            signing::authorization("test-service-key", "private-ingestion-token", timestamp)
+            signing::authorization("test-service-key", &token, timestamp)
         );
         assert_eq!(headers["content-type"], "application/json");
         assert_eq!(headers["x-langfuse-sdk-name"], "langfuse-ai-gateway");

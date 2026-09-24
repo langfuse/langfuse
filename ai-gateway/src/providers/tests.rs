@@ -1,5 +1,7 @@
 use super::*;
-use crate::test_support::{FakeServer, resolved_request_context, resolved_request_context_for};
+use crate::test_support::{
+    FakeServer, ingestion_token, resolved_request_context, resolved_request_context_for,
+};
 use axum::{
     body::to_bytes,
     http::{HeaderName, StatusCode},
@@ -472,7 +474,7 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
             async move {
                 assert_eq!(
                     request.headers()[header::AUTHORIZATION],
-                    "Bearer private-ingestion-token"
+                    format!("Bearer {}", ingestion_token("org-1", "project-1")).as_str()
                 );
                 let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
                 sent.send(serde_json::from_slice::<Value>(&bytes).unwrap())
