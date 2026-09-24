@@ -258,6 +258,16 @@ const createFormSchema = (params: {
         message: "API Base URL is required for Azure connections.",
         path: ["baseURL"],
       },
+    )
+    .refine(
+      (data) =>
+        data.adapter !== LLMAdapter.TypeSafe ||
+        data.typeSafeUpstream !== "custom" ||
+        data.baseURL.trim() !== "",
+      {
+        message: "A base URL is required for a custom upstream.",
+        path: ["baseURL"],
+      },
     );
 
 interface CreateLLMApiKeyFormProps {

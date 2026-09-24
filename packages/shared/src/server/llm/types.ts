@@ -510,15 +510,6 @@ export const TYPESAFE_UPSTREAMS = [
 
 export type TypeSafeUpstream = (typeof TYPESAFE_UPSTREAMS)[number];
 
-export function getTypeSafeBaseURLError(
-  baseURL: string | null | undefined,
-): string | undefined {
-  if (baseURL && /\/systemone\/?$/.test(baseURL.trim())) {
-    return "Remove /systemone from the base URL. Langfuse appends it automatically.";
-  }
-  return undefined;
-}
-
 export function resolveTypeSafeUpstream(
   baseURL: string | null | undefined,
 ): TypeSafeUpstream {
