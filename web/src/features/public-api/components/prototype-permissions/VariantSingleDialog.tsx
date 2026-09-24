@@ -120,9 +120,9 @@ export const VariantSingleDialog = ({
         onClick={() => setPopupRole(draft.preset)}
         className="text-muted-foreground hover:text-foreground ml-1 w-fit text-xs"
       >
-        See the{" "}
+        View{" "}
         <span className="underline">
-          full list of {rolePermissionCount(draft.preset)} permissions
+          {rolePermissionCount(draft.preset)} permissions
         </span>
       </button>
       <PermissionsPopup role={popupRole} onClose={() => setPopupRole(null)} />
