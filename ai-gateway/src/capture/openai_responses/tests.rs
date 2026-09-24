@@ -716,7 +716,7 @@ async fn client_compression_preferences_do_not_disable_capture() {
             let received = received.clone();
             async move {
                 let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
-                *received.lock().unwrap() = serde_json::from_slice(&bytes).unwrap();
+                *received.lock().unwrap() = crate::test_support::upload_json(&bytes);
                 Response::new(Body::from("{}"))
             }
         })
@@ -788,7 +788,7 @@ async fn codex_body_metadata_reaches_the_generation_without_agent_headers() {
         let received = received.clone();
         async move {
             let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
-            *received.lock().unwrap() = serde_json::from_slice(&bytes).unwrap();
+            *received.lock().unwrap() = crate::test_support::upload_json(&bytes);
             Response::new(Body::from("{}"))
         }
     })

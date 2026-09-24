@@ -510,7 +510,7 @@ async fn pre_header_provider_failures_export_the_status_returned_to_the_caller()
             let sent = sent.clone();
             async move {
                 let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
-                sent.send(serde_json::from_slice::<Value>(&bytes).unwrap())
+                sent.send(crate::test_support::upload_json(&bytes))
                     .await
                     .unwrap();
                 Response::new(Body::from("{}"))

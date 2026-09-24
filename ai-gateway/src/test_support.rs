@@ -62,6 +62,19 @@ impl Drop for FakeServer {
     }
 }
 
+<<<<<<< HEAD
+=======
+pub(crate) fn upload_text(body: &[u8]) -> String {
+    let mut text = String::new();
+    std::io::Read::read_to_string(&mut flate2::read::GzDecoder::new(body), &mut text).unwrap();
+    text
+}
+
+pub(crate) fn upload_json(body: &[u8]) -> serde_json::Value {
+    serde_json::from_str(&upload_text(body)).unwrap()
+}
+
+>>>>>>> fbab56e64 (perf(ai-gateway): gzip telemetry uploads)
 pub(crate) fn ingestion_token(organization: &str, project: &str) -> String {
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
     let segment = |value: serde_json::Value| URL_SAFE_NO_PAD.encode(value.to_string());

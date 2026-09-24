@@ -362,7 +362,6 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
         resolution::ControlPlaneConfig, telemetry::Telemetry,
         test_support::resolved_request_context_with_mode,
     };
-    use serde_json::Value;
 
     const JSON: &str = r#"{"id":"resp-1","model":"actual","status":"completed","output":[],"usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3}}"#;
     const SSE: &str = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-1\",\"model\":\"actual\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":2,\"output_tokens\":1,\"total_tokens\":3}}}\n\n";
@@ -379,7 +378,7 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
             let release = sink_release.clone();
             async move {
                 let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
-                sent.send(serde_json::from_slice::<Value>(&bytes).unwrap())
+                sent.send(crate::test_support::upload_json(&bytes))
                     .await
                     .unwrap();
                 release.notified().await;
@@ -477,7 +476,7 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
                     format!("Bearer {}", ingestion_token("org-1", "project-1")).as_str()
                 );
                 let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
-                sent.send(serde_json::from_slice::<Value>(&bytes).unwrap())
+                sent.send(crate::test_support::upload_json(&bytes))
                     .await
                     .unwrap();
                 Response::new(Body::from("{}"))
@@ -554,7 +553,6 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
 #[tokio::test]
 async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
     use crate::{resolution::ControlPlaneConfig, telemetry::Telemetry};
-    use serde_json::Value;
 
     const COMPACT: &[u8] =
         br#"{"model":"gpt-4.1","input":[{"encrypted_content":"opaque-ciphertext"}]}"#;
@@ -567,7 +565,7 @@ async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
         let sent = sent.clone();
         async move {
             let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
-            sent.send(serde_json::from_slice::<Value>(&bytes).unwrap())
+            sent.send(crate::test_support::upload_json(&bytes))
                 .await
                 .unwrap();
             Response::new(Body::from("{}"))

@@ -328,7 +328,8 @@ attempt waits 250–500 ms and the third 1–2 s (the upper half of a 0.5 s × 4
 randomized), or longer when `Retry-After` asks for up to 10 s; a longer
 `Retry-After`, or a wait that would leave under a second of grant lifetime, fails
 the batch instead. Other statuses, expired grants, invalid responses and partial
-OTLP rejections are not retried. Every attempt resends the identical payload: Web
+OTLP rejections are not retried. Each batch is serialized and gzip-compressed once,
+off the async runtime, and every attempt resends the identical payload: Web
 stores spans by span ID, so a span already ingested by a timed-out attempt is
 replaced rather than duplicated. A batch holds an upload slot only while an attempt
 runs, but keeps its retained bytes until its last attempt settles, so a failing
@@ -394,7 +395,8 @@ errors may echo request content.
 
 Provisional upload limits are 32 concurrent uploads, 1024 queued records, 4 MiB
 serialized span and credentials per record, 64 MiB total retained span/credential
-bytes by default (`LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_MIB`), 8 MiB encoded payloads, and
+bytes by default (`LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_MIB`), 8 MiB of OTLP JSON per
+payload before gzip compression, and
 64 KiB ingestion responses. Serialization and mapping have additional bounded memory
 overhead; these byte budgets are not an RSS limit. Uploads have a two-second connect
 timeout and a 30-second total timeout per attempt, enough for a full payload over a

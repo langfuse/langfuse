@@ -247,7 +247,11 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
             web_calls.lock().unwrap().push((
                 if ingestion { "ingestion" } else { "resolver" },
                 parts.headers,
-                serde_json::from_slice::<Value>(&bytes).unwrap(),
+                if ingestion {
+                    crate::test_support::upload_json(&bytes)
+                } else {
+                    serde_json::from_slice::<Value>(&bytes).unwrap()
+                },
             ));
             if ingestion {
                 Response::new(Body::from("{}"))

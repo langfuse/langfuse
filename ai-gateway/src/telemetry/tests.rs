@@ -7,11 +7,16 @@ use axum::{
 use serde_json::{Value, json};
 use tokio::sync::Notify;
 
-use super::{otlp::ExportError, *};
+use super::{
+    otlp::{ExportError, Payload},
+    *,
+};
 use crate::{
     capture::RelayOutcome,
     resolution::signing,
-    test_support::{FakeServer, ingestion_token, resolved_request_context},
+    test_support::{
+        FakeServer, ingestion_token, resolved_request_context, upload_json, upload_text,
+    },
 };
 
 fn facts(project: &str) -> InferenceFacts {
@@ -48,6 +53,10 @@ fn fast_retry() -> RetryPolicy {
     }
 }
 
+fn empty_payload() -> Payload {
+    Payload::encode(&[json!({})]).unwrap()
+}
+
 fn response(status: u16, body: impl Into<Body>) -> Response<Body> {
     Response::builder()
         .status(status)
@@ -77,18 +86,19 @@ async fn upload_uses_prefixed_path_signed_grant_and_gateway_sdk_headers() {
             signing::authorization("test-service-key", &token, timestamp)
         );
         assert_eq!(headers["content-type"], "application/json");
+        assert_eq!(headers["content-encoding"], "gzip");
         assert_eq!(headers["x-langfuse-sdk-name"], "langfuse-ai-gateway");
         assert_eq!(headers["x-langfuse-sdk-version"], env!("CARGO_PKG_VERSION"));
         assert_eq!(headers["x-langfuse-ingestion-version"], "4");
         let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
-        let payload: Value = serde_json::from_slice(&bytes).unwrap();
+        let payload = upload_json(&bytes);
         let spans = payload["resourceSpans"][0]["scopeSpans"][0]["spans"]
             .as_array()
             .unwrap();
         assert_eq!(spans.len(), 1);
         assert_eq!(spans[0]["traceId"].as_str().unwrap().len(), 32);
         assert_eq!(spans[0]["spanId"].as_str().unwrap().len(), 16);
-        let body = String::from_utf8(bytes.to_vec()).unwrap();
+        let body = upload_text(&bytes);
         assert!(!body.contains("provider-secret"));
         assert!(!body.contains("private-ingestion-token"));
         response(200, "{}")
@@ -123,7 +133,7 @@ async fn concurrent_projects_keep_their_original_grants_and_attribution() {
                 .unwrap()
                 .to_owned();
             let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
-            let payload: Value = serde_json::from_slice(&bytes).unwrap();
+            let payload = upload_json(&bytes);
             let attributes = payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"]
                 .as_array()
                 .unwrap();
@@ -205,7 +215,9 @@ async fn upload_response_failures_are_classified_per_attempt() {
     ] {
         let web = FakeServer::start(move |_| async move { response(status, body) }).await;
         assert_eq!(
-            uploader(&web.url).export(&grant.grant, &[json!({})]).await,
+            uploader(&web.url)
+                .export(&grant.grant, &empty_payload())
+                .await,
             expected
         );
         assert_eq!(web.calls(), 1);
@@ -217,7 +229,9 @@ async fn upload_response_failures_are_classified_per_attempt() {
     })
     .await;
     assert_eq!(
-        uploader(&web.url).export(&grant.grant, &[json!({})]).await,
+        uploader(&web.url)
+            .export(&grant.grant, &empty_payload())
+            .await,
         Err(ExportError::Response)
     );
     assert_eq!(web.calls(), 1);
@@ -230,7 +244,9 @@ async fn upload_response_failures_are_classified_per_attempt() {
     })
     .await;
     assert_eq!(
-        uploader(&web.url).export(&grant.grant, &[json!({})]).await,
+        uploader(&web.url)
+            .export(&grant.grant, &empty_payload())
+            .await,
         Err(ExportError::Rejected {
             status: 429,
             retry_after: Some(Duration::from_secs(7)),
@@ -255,7 +271,7 @@ async fn redirects_do_not_forward_the_ingestion_credentials() {
     .await;
     assert_eq!(
         uploader(&web.url)
-            .export(&grant().await.grant, &[json!({})])
+            .export(&grant().await.grant, &empty_payload())
             .await,
         Err(ExportError::Rejected {
             status: 307,
@@ -273,13 +289,13 @@ async fn expired_grants_and_oversized_payloads_never_reach_the_network() {
     let mut expired = grant().await;
     expired.grant.expires_at = 1;
     assert_eq!(
-        uploader.export(&expired.grant, &[json!({})]).await,
+        uploader.export(&expired.grant, &empty_payload()).await,
         Err(ExportError::Expired)
     );
     let oversized = json!({"oversized": "x".repeat(8 * 1024 * 1024)});
     assert_eq!(
-        uploader.export(&grant().await.grant, &[oversized]).await,
-        Err(ExportError::Payload)
+        Payload::encode(&[oversized]).err(),
+        Some(ExportError::Payload)
     );
     assert_eq!(web.calls(), 0);
 }
@@ -311,7 +327,7 @@ async fn records_of_one_project_share_an_upload_with_the_latest_expiring_grant()
                 .unwrap()
                 .to_owned();
             let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
-            let payload: Value = serde_json::from_slice(&bytes).unwrap();
+            let payload = upload_json(&bytes);
             received
                 .lock()
                 .unwrap()
@@ -377,7 +393,7 @@ async fn interleaved_projects_never_share_an_upload_or_a_grant() {
                 .unwrap()
                 .to_owned();
             let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
-            let payload: Value = serde_json::from_slice(&bytes).unwrap();
+            let payload = upload_json(&bytes);
             received
                 .lock()
                 .unwrap()

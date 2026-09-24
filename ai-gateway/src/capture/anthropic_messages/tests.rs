@@ -282,7 +282,7 @@ async fn collector() -> (FakeServer, Arc<Mutex<Value>>) {
         let received = received.clone();
         async move {
             let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
-            *received.lock().unwrap() = serde_json::from_slice(&bytes).unwrap();
+            *received.lock().unwrap() = crate::test_support::upload_json(&bytes);
             Response::new(Body::from("{}"))
         }
     })

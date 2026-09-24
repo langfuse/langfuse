@@ -12,7 +12,7 @@ use tracing_opentelemetry::OpenTelemetrySpanExt;
 use super::{
     Grant, Stats,
     batch::{Batches, Flush, Pending},
-    otlp::Uploader,
+    otlp::{ExportError, Payload, Uploader},
     retry::{RetryPolicy, random},
 };
 
@@ -101,13 +101,16 @@ impl Uploads {
         let retry = self.retry;
         self.tasks.spawn(
             async move {
-                let spans: Vec<_> = flush.items.iter().map(|item| &item.span).collect();
+                let (flush, payload) = match encode(flush).await {
+                    Ok(encoded) => encoded,
+                    Err(error) => return receipt.settle_failed(error.reason()),
+                };
                 let mut attempt = 1;
                 let outcome = loop {
                     let Ok(slot) = slots.acquire().await else {
                         return;
                     };
-                    let result = uploader.export(&flush.grant, &spans).await;
+                    let result = uploader.export(&flush.grant, &payload).await;
                     drop(slot);
                     let Err(error) = result else { break Ok(()) };
                     let Some(delay) =
@@ -149,6 +152,20 @@ impl Uploads {
     }
 }
 
+<<<<<<< HEAD
+=======
+async fn encode(flush: Flush) -> Result<(Flush, Payload), ExportError> {
+    tokio::task::spawn_blocking(move || {
+        let spans: Vec<_> = flush.items.iter().map(|item| &item.span).collect();
+        let payload = Payload::encode(&spans)?;
+        drop(spans);
+        Ok((flush, payload))
+    })
+    .await
+    .unwrap_or(Err(ExportError::Payload))
+}
+
+>>>>>>> fbab56e64 (perf(ai-gateway): gzip telemetry uploads)
 struct Receipt {
     records: u64,
     stats: Arc<Stats>,
