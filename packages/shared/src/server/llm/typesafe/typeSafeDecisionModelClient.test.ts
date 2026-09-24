@@ -104,7 +104,7 @@ describe("createTypeSafeDecisionModelClient", () => {
     ["typesafe", "https://api.typesafe.ai/v1/systemone"],
     ["vercel-ai-gateway", "https://ai-gateway.vercel.sh/typesafe/v1/systemone"],
     ["openrouter", "https://openrouter.ai/api/v1/systemone"],
-    ["router", "https://api.router.com/v1/systemone"],
+    ["ramp-router", "https://api.router.com/v1/systemone"],
   ])(
     "routes the %s upstream to its TypeSafe-compatible endpoint",
     async (id, expectedUrl) => {
@@ -134,6 +134,18 @@ describe("createTypeSafeDecisionModelClient", () => {
       );
     },
   );
+
+  it("blocks internal hosts through the default secure fetch", async () => {
+    const client = createTypeSafeDecisionModelClient({
+      apiKey: "sk-test",
+      model: "jev-latest",
+      baseURL: "http://169.254.169.254/v1",
+    });
+
+    await expect(client.evaluate(request)).rejects.toThrow(
+      /Blocked hostname detected/,
+    );
+  });
 
   it("tolerates the extra routing fields gateways add to the TypeSafe response", async () => {
     // OpenRouter returns its own id/provider and a cost inside usage; the model

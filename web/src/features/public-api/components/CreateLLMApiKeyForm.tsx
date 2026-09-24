@@ -403,11 +403,7 @@ export function CreateLLMApiKeyForm({
   const currentTypeSafePreset = TYPESAFE_UPSTREAMS.find(
     (upstream) => upstream.id === currentTypeSafeUpstream,
   );
-  const customTypeSafeBaseURLDraft = useRef(
-    existingKey?.baseURL && !findTypeSafeUpstream(existingKey.baseURL)
-      ? existingKey.baseURL
-      : "",
-  );
+  const customTypeSafeBaseURLDraft = useRef("");
   const isKeepingCurrentBedrockAuthMethod =
     mode === "update" &&
     currentAdapter === LLMAdapter.Bedrock &&
@@ -825,9 +821,8 @@ export function CreateLLMApiKeyForm({
                     <FormItem>
                       <FormLabel>Upstream</FormLabel>
                       <FormDescription>
-                        Provider that serves the Jev decision model. The
-                        gateways expose TypeSafe&apos;s API, so only the API key
-                        changes.
+                        Provider that serves the Jev decision model. Each option
+                        exposes TypeSafe&apos;s API.
                       </FormDescription>
                       <FormControl>
                         <TypeSafeUpstreamCards

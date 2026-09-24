@@ -500,10 +500,10 @@ export const TYPESAFE_UPSTREAMS = [
     apiKeyLabel: "OpenRouter API key",
   },
   {
-    id: "router",
-    label: "Router",
+    id: "ramp-router",
+    label: "Ramp Router",
     baseURL: "https://api.router.com/v1",
-    apiKeyLabel: "Router API key",
+    apiKeyLabel: "Ramp Router API key",
   },
 ] as const;
 
