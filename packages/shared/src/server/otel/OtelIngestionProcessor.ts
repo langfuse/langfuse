@@ -3007,6 +3007,24 @@ export class OtelIngestionProcessor {
           }
         }
 
+        // Fallback to standardized OTel GenAI semconv cache attributes
+        // (e.g. emitted by AI SDK v7 for Google/Gemini). Use ??= so
+        // provider-specific extraction above keeps precedence. Map to the same
+        // normalized buckets the generic path + cost engine already use.
+        if ("gen_ai.usage.cache_read.input_tokens" in attributes) {
+          usageDetails["input_cached_tokens"] ??= parseInt(
+            attributes["gen_ai.usage.cache_read.input_tokens"]?.toString() ??
+              "0",
+          );
+        }
+        if ("gen_ai.usage.cache_creation.input_tokens" in attributes) {
+          usageDetails["input_cache_creation"] ??= parseInt(
+            attributes[
+              "gen_ai.usage.cache_creation.input_tokens"
+            ]?.toString() ?? "0",
+          );
+        }
+
         // Subtract cached token count from total input and output
         usageDetails["input"] = Math.max(
           (usageDetails["input"] ?? 0) -
