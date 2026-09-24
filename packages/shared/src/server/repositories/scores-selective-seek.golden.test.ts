@@ -127,7 +127,12 @@ if (!clickhouseLocalAvailable()) {
   );
 }
 
-// ── R2 / R4: emitted SQL shape ──────────────────────────────────────────────
+// ── Emitted SQL shape ───────────────────────────────────────────────────────
+// The full matrix asserts *routing* only (does the seek phase fire for this
+// filter?); whether a filter is eligible is unit-tested in
+// score-seek-eligibility.test.ts. The full SQL text is locked by a single
+// eligible + single ineligible snapshot below — snapshotting every shape just
+// duplicates the same query skeleton.
 describeWithFormat("scores selective-seek: emitted SQL", () => {
   beforeEach(() => resetCaptures());
 
@@ -142,42 +147,59 @@ describeWithFormat("scores selective-seek: emitted SQL", () => {
     { name: "no filter", filter: [] as FilterState },
   ];
 
-  describe("eligible → seek phase present (R2)", () => {
+  describe("eligible → seek phase present", () => {
     for (const { name, filter } of eligible) {
       it(`count: ${name}`, async () => {
         const q = await captureCountSql(filter);
         expect(q.query).toContain("SELECT DISTINCT");
         expect(q.query).toMatch(SEEK_TUPLE_IN);
-        expect(normalizeCapturedQueries([q])).toMatchSnapshot();
       });
       it(`rows: ${name}`, async () => {
         const q = await captureRowsSql(filter);
         expect(q.query).toContain("SELECT DISTINCT");
         expect(q.query).toMatch(SEEK_TUPLE_IN);
-        expect(normalizeCapturedQueries([q])).toMatchSnapshot();
       });
     }
   });
 
-  describe("ineligible → fallback unchanged, no seek (R4)", () => {
+  describe("ineligible → fallback unchanged, no seek", () => {
     for (const { name, filter } of ineligible) {
       it(`count: ${name}`, async () => {
         const q = await captureCountSql(filter);
         expect(q.query).not.toContain("SELECT DISTINCT");
         expect(q.query).not.toMatch(SEEK_TUPLE_IN);
-        expect(normalizeCapturedQueries([q])).toMatchSnapshot();
       });
       it(`rows: ${name}`, async () => {
         const q = await captureRowsSql(filter);
         expect(q.query).not.toContain("SELECT DISTINCT");
         expect(q.query).not.toMatch(SEEK_TUPLE_IN);
-        expect(normalizeCapturedQueries([q])).toMatchSnapshot();
       });
     }
   });
+
+  // One representative shape per branch locks the full SQL text; the routing
+  // matrix above covers the remaining shapes structurally.
+  describe("full SQL text (one representative per branch)", () => {
+    it("eligible (trace_id =): count", async () => {
+      const q = await captureCountSql(traceIdEq("T2"));
+      expect(normalizeCapturedQueries([q])).toMatchSnapshot();
+    });
+    it("eligible (trace_id =): rows", async () => {
+      const q = await captureRowsSql(traceIdEq("T2"));
+      expect(normalizeCapturedQueries([q])).toMatchSnapshot();
+    });
+    it("ineligible (value range): count", async () => {
+      const q = await captureCountSql(valueGt(0.5));
+      expect(normalizeCapturedQueries([q])).toMatchSnapshot();
+    });
+    it("ineligible (value range): rows", async () => {
+      const q = await captureRowsSql(valueGt(0.5));
+      expect(normalizeCapturedQueries([q])).toMatchSnapshot();
+    });
+  });
 });
 
-// ── R3: correctness parity vs FINAL over a multi-version fixture ─────────────
+// ── Correctness parity vs FINAL over a multi-version fixture ─────────────────
 
 // scores columns referenced by the count (argMax) and rows (SELECT *) paths.
 const SCORES_DDL = `
@@ -265,7 +287,7 @@ const sortedLines = (out: string) =>
     .filter(Boolean)
     .sort();
 
-describeWithLocal("scores selective-seek: parity vs FINAL (R3)", () => {
+describeWithLocal("scores selective-seek: parity vs FINAL", () => {
   // predicate is the equivalent hand-written SQL for the app filter, applied to
   // the deduped (FINAL) rows.
   const scenarios = [

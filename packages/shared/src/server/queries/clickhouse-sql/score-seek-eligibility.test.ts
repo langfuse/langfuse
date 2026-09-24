@@ -67,6 +67,15 @@ const idEq = (value = "id-1") =>
     tablePrefix: "s",
   });
 
+const nameEq = (value = "accuracy") =>
+  new StringFilter({
+    clickhouseTable: "scores",
+    field: "name",
+    operator: "=",
+    value,
+    tablePrefix: "s",
+  });
+
 const environmentNoneOf = () =>
   new StringOptionsFilter({
     clickhouseTable: "scores",
@@ -89,6 +98,7 @@ describe("isSeekEligibleFilter", () => {
   it("accepts = on id / trace_id / name", () => {
     expect(isSeekEligibleFilter(idEq())).toBe(true);
     expect(isSeekEligibleFilter(traceIdEq())).toBe(true);
+    expect(isSeekEligibleFilter(nameEq())).toBe(true);
   });
 
   it("accepts IN on name / observation_id (no empty member)", () => {
