@@ -103,8 +103,8 @@ const PermissionsDialog = ({ preset }: { preset: PresetKey }) => {
               </Badge>
             </DialogTitle>
           </DialogHeader>
-          <DialogBody className="max-h-[70vh] overflow-y-auto p-0">
-            <div className="px-5 pt-0 pb-4">
+          <DialogBody className="p-0">
+            <div className="max-h-[70vh] overflow-y-auto px-5 pb-4">
               <RolePermissionList preset={preset} />
             </div>
           </DialogBody>

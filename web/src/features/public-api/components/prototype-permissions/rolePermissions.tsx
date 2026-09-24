@@ -40,7 +40,7 @@ export const RolePermissionList = ({
           <div key={domain.key} className="flex flex-col">
             <span
               className={cn(
-                "bg-background text-muted-foreground sticky top-0 z-10 font-bold tracking-wider uppercase",
+                "bg-background text-muted-foreground sticky top-0 z-10 block font-bold tracking-wider uppercase",
                 dense
                   ? "pt-3 pb-1.5 text-[0.6rem]"
                   : "pt-4 pb-2.5 text-[0.65rem]",
