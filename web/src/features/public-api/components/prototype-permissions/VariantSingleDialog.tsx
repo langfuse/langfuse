@@ -17,7 +17,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/src/components/ui/select";
 import {
   type ApiKeyDraft,
@@ -55,6 +54,9 @@ export const VariantSingleDialog = ({
     setPopupRole(role);
   };
 
+  const selected = presets.find((p) => p.key === draft.preset);
+  const SelectedIcon = presetIcons[draft.preset];
+
   return (
     <KeyFormShell projects={projects} draft={draft} setDraft={setDraft}>
       <Select
@@ -66,7 +68,15 @@ export const VariantSingleDialog = ({
         }
       >
         <SelectTrigger className="h-auto" disableValueLineClamp>
-          <SelectValue />
+          <div className="flex items-start gap-2 text-left">
+            <SelectedIcon className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="flex flex-col">
+              <span className="font-bold">{selected?.label}</span>
+              <span className="text-muted-foreground text-xs">
+                {selected?.description}
+              </span>
+            </div>
+          </div>
         </SelectTrigger>
         <SelectContent>
           {roles.map((p) => {
