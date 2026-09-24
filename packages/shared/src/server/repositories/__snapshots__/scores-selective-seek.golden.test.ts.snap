@@ -74,37 +74,37 @@ exports[`scores selective-seek: emitted SQL > full SQL text (one representative 
       ],
     },
     "route": "unknown",
-    "sql": "SELECT *
+    "sql": "SELECT
+    s.id AS id,
+    s.project_id,
+    s.environment,
+    s.name AS name,
+    s.value,
+    s.string_value,
+    s.timestamp,
+    s.source,
+    s.data_type,
+    s.comment,
+    s.evaluator_id,
+    s.trace_id,
+    s.session_id,
+    s.dataset_run_id,
+    s.observation_id,
+    s.author_user_id,
+    s.created_at,
+    s.updated_at,
+    s.config_id,
+    s.queue_id,
+    s.execution_trace_id,
+    s.ingestion_api_key,
+    s.ingestion_sdk_name,
+    s.ingestion_sdk_version,
+    s.is_deleted,
+    s.event_ts,
+    length(mapKeys(s.metadata)) > 0 AS has_metadata
 FROM
 (
-    SELECT
-        s.id AS id,
-        s.project_id,
-        s.environment,
-        s.name AS name,
-        s.value,
-        s.string_value,
-        s.timestamp,
-        s.source,
-        s.data_type,
-        s.comment,
-        s.evaluator_id,
-        s.trace_id,
-        s.session_id,
-        s.dataset_run_id,
-        s.observation_id,
-        s.author_user_id,
-        s.created_at,
-        s.updated_at,
-        s.config_id,
-        s.queue_id,
-        s.execution_trace_id,
-        s.ingestion_api_key,
-        s.ingestion_sdk_name,
-        s.ingestion_sdk_version,
-        s.is_deleted,
-        s.event_ts,
-        length(mapKeys(s.metadata)) > 0 AS has_metadata
+    SELECT s.*
     FROM scores AS s
     INNER JOIN
     (
@@ -133,13 +133,13 @@ FROM
         s.project_id = latest.latest_project_id
     ) AND (toDate(s.timestamp) = latest.latest_date) AND (s.name = latest.latest_name) AND (s.id = latest.latest_id) AND (s.event_ts = latest.latest_event_ts)
     WHERE (s.data_type IN ({param4:Array(String)})) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})
-    ORDER BY s.timestamp DESC
+    LIMIT 1 BY
+        s.project_id,
+        toDate(s.timestamp),
+        s.name,
+        s.id
 ) AS s
-LIMIT 1 BY
-    s.project_id,
-    toDate(s.timestamp),
-    s.name,
-    s.id",
+ORDER BY s.timestamp DESC",
   },
 ]
 `;
@@ -210,37 +210,37 @@ exports[`scores selective-seek: emitted SQL > full SQL text (one representative 
       "param4": "0.5",
     },
     "route": "unknown",
-    "sql": "SELECT *
+    "sql": "SELECT
+    s.id AS id,
+    s.project_id,
+    s.environment,
+    s.name AS name,
+    s.value,
+    s.string_value,
+    s.timestamp,
+    s.source,
+    s.data_type,
+    s.comment,
+    s.evaluator_id,
+    s.trace_id,
+    s.session_id,
+    s.dataset_run_id,
+    s.observation_id,
+    s.author_user_id,
+    s.created_at,
+    s.updated_at,
+    s.config_id,
+    s.queue_id,
+    s.execution_trace_id,
+    s.ingestion_api_key,
+    s.ingestion_sdk_name,
+    s.ingestion_sdk_version,
+    s.is_deleted,
+    s.event_ts,
+    length(mapKeys(s.metadata)) > 0 AS has_metadata
 FROM
 (
-    SELECT
-        s.id AS id,
-        s.project_id,
-        s.environment,
-        s.name AS name,
-        s.value,
-        s.string_value,
-        s.timestamp,
-        s.source,
-        s.data_type,
-        s.comment,
-        s.evaluator_id,
-        s.trace_id,
-        s.session_id,
-        s.dataset_run_id,
-        s.observation_id,
-        s.author_user_id,
-        s.created_at,
-        s.updated_at,
-        s.config_id,
-        s.queue_id,
-        s.execution_trace_id,
-        s.ingestion_api_key,
-        s.ingestion_sdk_name,
-        s.ingestion_sdk_version,
-        s.is_deleted,
-        s.event_ts,
-        length(mapKeys(s.metadata)) > 0 AS has_metadata
+    SELECT s.*
     FROM scores AS s
     INNER JOIN
     (
@@ -261,13 +261,13 @@ FROM
         s.project_id = latest.latest_project_id
     ) AND (toDate(s.timestamp) = latest.latest_date) AND (s.name = latest.latest_name) AND (s.id = latest.latest_id) AND (s.event_ts = latest.latest_event_ts)
     WHERE (s.data_type IN ({param2:Array(String)})) AND (project_id = {param3:String}) AND (s.value > {param4:Decimal64(12)})
-    ORDER BY s.timestamp DESC
+    LIMIT 1 BY
+        s.project_id,
+        toDate(s.timestamp),
+        s.name,
+        s.id
 ) AS s
-LIMIT 1 BY
-    s.project_id,
-    toDate(s.timestamp),
-    s.name,
-    s.id",
+ORDER BY s.timestamp DESC",
   },
 ]
 `;

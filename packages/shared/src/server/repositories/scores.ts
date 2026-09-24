@@ -1701,14 +1701,16 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   // whole buckets are kept/dropped, the latest is never lost pre-dedup, and the
   // seek scans once.
   //
-  // Filters + ORDER BY run INSIDE the join scan so ClickHouse prunes the wide
-  // scan by the real predicates instead of reconstructing the whole project
-  // first (the dominant speedup: ~6s vs ~16s on busy projects). The trailing
-  // LIMIT 1 BY then collapses the only remaining duplicates: two raw rows sharing
-  // a key's max event_ts. That tie is two versions with equal version timestamps,
-  // where FINAL itself keeps an arbitrary row (its answer flips with insert
-  // order), so collapsing the tie before or after the filter is equally
-  // FINAL-consistent.
+  // Filters run INSIDE the dedup subquery (with the join) so ClickHouse prunes
+  // the wide scan by the real predicates before assembling the full join. The
+  // LIMIT 1 BY there collapses the only remaining duplicates: two raw rows
+  // sharing a key's max event_ts. That tie is two versions with equal version
+  // timestamps, where FINAL itself keeps an arbitrary row (its answer flips with
+  // insert order), so an arbitrary tie pick is FINAL-consistent.
+  //
+  // The trace join, ORDER BY, and LIMIT/OFFSET run OUTSIDE the subquery, at one
+  // level, so pagination follows the requested sort (and a traces-column sort can
+  // reference the joined `e`).
   const query =
     props.select === "count"
       ? `
@@ -1731,10 +1733,10 @@ const getScoresUiGenericFromEvents = async <T>(props: {
     `
       : `
       ${tracesCTEClause}
-      SELECT *
+      SELECT
+          ${rowSelect}
       FROM (
-        SELECT
-            ${rowSelect}
+        SELECT s.*
         FROM scores s
         INNER JOIN (
           SELECT
@@ -1752,11 +1754,11 @@ const getScoresUiGenericFromEvents = async <T>(props: {
           AND s.name = latest.latest_name
           AND s.id = latest.latest_id
           AND s.event_ts = latest.latest_event_ts
-        ${eventsJoin}
         ${outerWhereClause}
-        ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
+        LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
       ) s
-      LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
+      ${eventsJoin}
+      ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
