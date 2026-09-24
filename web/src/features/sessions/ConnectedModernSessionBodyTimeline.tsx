@@ -19,6 +19,8 @@ import {
   type ModernSessionSidebarTrace,
 } from "@/src/features/sessions/ModernSessionSidebar";
 import { api, type RouterOutputs } from "@/src/utils/api";
+import { ConnectedSessionTranscriptTimeline } from "./SessionConversationTimeline/ConnectedSessionTranscriptTimeline";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 
 const SIDEBAR_TRACE_CHUNK_SIZE = 20;
 const SIDEBAR_OBSERVATION_PAGE_SIZE = 100;
@@ -85,6 +87,7 @@ export function ConnectedModernSessionBodyTimeline({
       .filter((trace) => !collapsedTraceIds.has(trace.id))
       .map((trace) => trace.id),
   );
+  const transcriptEnabled = useInternalFeaturesEnabled();
 
   const baseFilters: FilterState = [
     ...filterState,
@@ -433,24 +436,32 @@ export function ConnectedModernSessionBodyTimeline({
         />
       )}
       <div className="bg-card dark:bg-background relative min-h-0 min-w-[320px]">
-        <ConnectedSessionConversationTimeline
-          traces={timelineTraces}
-          projectId={projectId}
-          sessionId={sessionId}
-          filterState={filterState}
-          filterMeasurementKey={filterMeasurementKey}
-          viewLabel={viewLabel}
-          openPeek={openPeek}
-          controller={timelineController}
-          scrollTarget={scrollTarget}
-          onClearFilters={sidebarFilterControls.onClearFilters}
-          onFilterObservationByName={onFilterObservationByName}
-          onLoadMoreObservations={
-            hasMoreObservations && !isLoadingMoreObservations
-              ? loadMoreObservations
-              : undefined
-          }
-        />
+        {transcriptEnabled ? (
+          <ConnectedSessionTranscriptTimeline
+            traces={timelineTraces}
+            projectId={projectId}
+            controller={timelineController}
+          />
+        ) : (
+          <ConnectedSessionConversationTimeline
+            traces={timelineTraces}
+            projectId={projectId}
+            sessionId={sessionId}
+            filterState={filterState}
+            filterMeasurementKey={filterMeasurementKey}
+            viewLabel={viewLabel}
+            openPeek={openPeek}
+            controller={timelineController}
+            scrollTarget={scrollTarget}
+            onClearFilters={sidebarFilterControls.onClearFilters}
+            onFilterObservationByName={onFilterObservationByName}
+            onLoadMoreObservations={
+              hasMoreObservations && !isLoadingMoreObservations
+                ? loadMoreObservations
+                : undefined
+            }
+          />
+        )}
       </div>
     </div>
   );
