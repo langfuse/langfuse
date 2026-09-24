@@ -97,18 +97,20 @@ export function VerticalBarChartTimeSeries({
           legend={chartLegend}
           valueFormatter={formatValue}
           tickFormatter={(key) => timeAxis.formatTick(key)}
+          categoryXAxisLabels={timeAxis.mode === "category"}
           tooltipFormatter={(key) => timeAxis.formatTooltip(key)}
           hideXAxisLabels={hideXAxisLabels && timeAxis.mode === "category"}
           sync={
             sync
               ? {
-                  activeKey: groupedData.find(
-                    (datum) =>
+                  activeKey: chartData.find(
+                    (_, index) =>
                       String(
-                        parseChartTimestamp(datum.time_dimension)?.getTime() ??
-                          datum.time_dimension,
+                        parseChartTimestamp(
+                          groupedData[index]?.time_dimension,
+                        )?.getTime() ?? groupedData[index]?.time_dimension,
                       ) === sync.activeKey,
-                  )?.time_dimension,
+                  )?.key,
                   onActiveKeyChange: (key) =>
                     sync.onActiveKeyChange(
                       key === undefined

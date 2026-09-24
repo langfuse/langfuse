@@ -17,6 +17,7 @@ export function StackedBarChart({
   series,
   valueFormatter = (value) => value.toLocaleString(),
   tickFormatter = (value) => value,
+  categoryXAxisLabels = false,
   tooltipFormatter = (value) => value,
   hideXAxisLabels = false,
   sync,
@@ -26,6 +27,7 @@ export function StackedBarChart({
   series: { id: string; label: string; color: string }[];
   valueFormatter?: (value: number) => string;
   tickFormatter?: (value: string) => string;
+  categoryXAxisLabels?: boolean;
   tooltipFormatter?: (value: string) => string;
   hideXAxisLabels?: boolean;
   sync?: {
@@ -149,6 +151,20 @@ export function StackedBarChart({
                   const label = tickFormatter(datum.key);
                   const center = (x(index) ?? plot.left) + x.bandwidth() / 2;
                   const labelWidth = label.length * 7;
+                  if (categoryXAxisLabels) {
+                    const right = Math.min(width - 8, center);
+                    const left = right - labelWidth;
+                    if (left >= 8 && left >= previousTickRight + 16) {
+                      xTicks.push({
+                        key: datum.key,
+                        x: right,
+                        label,
+                        textAnchor: "end",
+                      });
+                      previousTickRight = right;
+                    }
+                    return;
+                  }
                   if (index === data.length - 1) {
                     const right = Math.min(width - 8, center + labelWidth / 2);
                     const left = right - labelWidth;

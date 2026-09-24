@@ -249,3 +249,56 @@ export const SyncedBucket = meta.story({
     );
   },
 });
+
+export const LongCategoryLabels = meta.story({
+  name: "(Test) Long category labels",
+  args: {
+    data: Array.from({ length: 12 }, (_, index) => ({
+      key: `dataset-run-${index + 1}-transcription`,
+      values: { api: index + 1 },
+    })),
+    tickFormatter: (key) => `${key.slice(0, 23)}…`,
+    categoryXAxisLabels: true,
+  },
+  decorators: [
+    (Story) => (
+      <div className="h-48 w-[320px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const labels = canvasElement.querySelectorAll<SVGTextElement>(
+      "[data-x-axis-label]",
+    );
+    await expect(labels.length).toBeGreaterThan(0);
+    for (const label of labels) {
+      await expect(label).not.toHaveAttribute("transform");
+      await expect(label.getBoundingClientRect().left).toBeGreaterThanOrEqual(
+        0,
+      );
+    }
+  },
+});
+
+export const NarrowTemporalTicks = meta.story({
+  name: "(Test) Narrow temporal tick spacing",
+  args: {
+    data: Array.from({ length: 24 }, (_, index) => ({
+      key: `2026-09-${String(index + 1).padStart(2, "0")}`,
+      values: { api: index + 1 },
+    })),
+    tickFormatter: (key) => key.slice(5),
+  },
+  decorators: [
+    (Story) => (
+      <div className="h-40 w-[320px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const labels = canvasElement.querySelectorAll("[data-x-axis-label]");
+    await expect(labels.length).toBeLessThanOrEqual(5);
+  },
+});
