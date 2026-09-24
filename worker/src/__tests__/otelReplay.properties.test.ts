@@ -5,6 +5,11 @@ import fc, { type Arbitrary } from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { ResourceSpan } from "@langfuse/shared/src/server";
 import { runOtelReplay } from "./helpers/otelReplayHarness";
+import {
+  type Json,
+  jsonKeyArbitrary,
+  recursiveJsonArbitrary,
+} from "./helpers/arbitraries/json";
 
 const PROJECT_PREFIX = "otel-replay-property";
 const FILE_KEY = "otel-replay/test.json";
@@ -15,7 +20,6 @@ const SERVICE_NAME = "otel-property-service";
 const RESOURCE_VERSION = "resource-version";
 const RESOURCE_RELEASE = "resource-release";
 
-type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type JsonObject = Record<string, Json>;
 
 type RootPayload =
@@ -57,26 +61,11 @@ type ReplayCase = {
   spanSeeds: SpanSeed[];
 };
 
-type ExpectedSpan = {
-  spanId: string;
-  parentSpanId: string;
-  ordinal: number;
-  name: string;
-  startTimeMillis: number;
-  endTimeMillis: number;
-  promptVersion: number | null;
-  input: string;
-  output: string;
-  metadata: Record<string, unknown>;
-  release: string;
-  version: string;
-  environment: string;
-  modelName: string;
-  traceName: string;
-};
-
-function stringAttribute(key: string, value: string) {
-  return { key, value: { stringValue: value } };
+// Null means the attribute is absent; empty strings are sent verbatim.
+function stringAttributes(values: Record<string, string | null>) {
+  return Object.entries(values).flatMap(([key, value]) =>
+    value === null ? [] : [{ key, value: { stringValue: value } }],
+  );
 }
 
 function typedAttribute(attribute: MetadataAttribute) {
@@ -96,14 +85,14 @@ function typedAttribute(attribute: MetadataAttribute) {
   return {
     key: attribute.key,
     value:
-      "kind" in attribute.value && attribute.value.kind === "array"
+      attribute.value.kind === "array"
         ? { arrayValue: { values: attribute.value.values.map(encodeScalar) } }
         : encodeScalar(attribute.value),
   };
 }
 
 function typedAttributeValue(attribute: MetadataAttribute): unknown {
-  if ("kind" in attribute.value && attribute.value.kind === "array") {
+  if (attribute.value.kind === "array") {
     return attribute.value.values.map((value) => value.value);
   }
   return attribute.value.value;
@@ -117,19 +106,8 @@ function paddedHex(value: bigint, digits: number): string {
   return value.toString(16).padStart(digits, "0");
 }
 
-// JSON-encoded values canonicalize -0 to 0 before transport and comparison.
-function canonicalJson(value: Json): Json {
-  return JSON.parse(JSON.stringify(value)) as Json;
-}
-
-function canonicalObject(value: JsonObject): JsonObject {
-  return canonicalJson(value) as JsonObject;
-}
-
 function rootPayloadText(value: RootPayload): string {
-  return value.kind === "json"
-    ? JSON.stringify(canonicalJson(value.value))
-    : value.value;
+  return value.kind === "json" ? JSON.stringify(value.value) : value.value;
 }
 
 function metadataFromSource(
@@ -145,7 +123,8 @@ function metadataFromSource(
   );
   // OTEL's raw JSON metadata is merged first; prefixed attributes then replace
   // an identical top-level key while leaving literal-dot/nested collisions.
-  return { ...canonicalObject(raw), ...dottedValues };
+  // JSON transport canonicalizes numbers such as -0 before metadata is flattened.
+  return { ...JSON.parse(JSON.stringify(raw)), ...dottedValues };
 }
 
 function expectedMetadata(seed: SpanSeed): Record<string, unknown> {
@@ -187,108 +166,85 @@ function expectedMetadataPairs(
   });
 }
 
-function buildReplayCase(params: ReplayCase): {
-  projectId: string;
-  traceId: string;
-  resourceSpans: ResourceSpan[];
-  expectedSpans: ExpectedSpan[];
-} {
-  const traceId = params.traceId;
+function buildReplayCase(params: ReplayCase) {
+  const { traceId, spanSeeds, baseTimeMillis } = params;
   const projectId = `${PROJECT_PREFIX}-${traceId}`;
-  const spanIds = params.spanSeeds.map((_, ordinal) =>
+  const spanIds = spanSeeds.map((_, ordinal) =>
     paddedHex(params.spanIdBase - BigInt(ordinal), 16),
   );
 
-  const expectedSpans: ExpectedSpan[] = spanIds.map((spanId, ordinal) => {
-    const seed = params.spanSeeds[ordinal];
-    const timestampMillis = params.baseTimeMillis + ordinal * 1_000;
-    const endMillis = timestampMillis + 250;
-    const parentOrdinal =
-      ordinal === 0 ? undefined : seed.parentSelector % ordinal;
+  const cases = spanSeeds.map((seed, ordinal) => {
+    const spanId = spanIds[ordinal];
+    const parentSpanId =
+      ordinal === 0 ? "" : spanIds[seed.parentSelector % ordinal];
     const marker = `${traceId}-${ordinal}`;
-    const modelName =
-      seed.modelPrecedence === "canonical"
-        ? `explicit-model-${marker}`
-        : seed.modelPrecedence === "response"
-          ? `response-model-${marker}`
-          : seed.modelPrecedence === "request"
-            ? `request-model-${marker}`
-            : "";
-
-    return {
-      spanId,
-      ordinal,
-      parentSpanId: parentOrdinal === undefined ? "" : spanIds[parentOrdinal],
+    const start = baseTimeMillis + ordinal * 1_000;
+    const end = start + 250;
+    const modelName = {
+      canonical: `explicit-model-${marker}`,
+      response: `response-model-${marker}`,
+      request: `request-model-${marker}`,
+      none: "",
+    }[seed.modelPrecedence];
+    const metadata = expectedMetadataPairs(expectedMetadata(seed));
+    const expected = {
+      project_id: projectId,
+      trace_id: traceId,
+      span_id: spanId,
+      parent_span_id: parentSpanId,
       name: `property-span-${marker}`,
-      startTimeMillis:
-        seed.timestampPresence === "endOnly" ? endMillis : timestampMillis,
-      endTimeMillis:
-        seed.timestampPresence === "startOnly" ? timestampMillis : endMillis,
-      promptVersion: seed.promptVersion,
+      type: "GENERATION",
       input: rootPayloadText(seed.input),
       output: rootPayloadText(seed.output),
-      metadata: expectedMetadata(seed),
+      start_time: seed.timestampPresence === "endOnly" ? end : start,
+      end_time: seed.timestampPresence === "startOnly" ? start : end,
+      prompt_version: seed.promptVersion,
       release: seed.release ?? RESOURCE_RELEASE,
       version: seed.version ?? RESOURCE_VERSION,
       environment:
         seed.environment === "span"
           ? `span-env-${traceId.slice(-8)}-${ordinal}`
           : RESOURCE_ENVIRONMENT,
-      modelName,
-      traceName: `property-trace-${traceId}`,
+      provided_model_name: modelName,
+      trace_name: `property-trace-${traceId}`,
+      service_name: SERVICE_NAME,
+      service_version: RESOURCE_VERSION,
+      scope_name: SCOPE_NAME,
+      scope_version: "1.0.0",
+      source: "otel",
+      ingestion_sdk_name: "otel-replay",
+      ingestion_sdk_version: "test",
+      blob_storage_file_path: FILE_KEY,
+      metadata_names: metadata.map(([name]) => name),
+      metadata_values: metadata.map(([, value]) => value),
     };
-  });
-
-  const spans = expectedSpans.map((expected, ordinal) => {
-    const seed = params.spanSeeds[ordinal];
-    const marker = `${traceId}-${ordinal}`;
-    const attributes = [
-      stringAttribute("langfuse.observation.type", "generation"),
-      stringAttribute("langfuse.observation.input", expected.input),
-      stringAttribute("langfuse.observation.output", expected.output),
-      stringAttribute(
-        "gen_ai.input.messages",
-        JSON.stringify([{ role: "user", content: `provider-input-${marker}` }]),
-      ),
-      stringAttribute(
-        "gen_ai.output.messages",
-        JSON.stringify([
-          { role: "assistant", content: `provider-output-${marker}` },
-        ]),
-      ),
-      stringAttribute(
-        "gen_ai.request.model",
+    const attributes = stringAttributes({
+      "langfuse.observation.type": "generation",
+      "langfuse.observation.input": expected.input,
+      "langfuse.observation.output": expected.output,
+      "gen_ai.input.messages": JSON.stringify([
+        { role: "user", content: `provider-input-${marker}` },
+      ]),
+      "gen_ai.output.messages": JSON.stringify([
+        { role: "assistant", content: `provider-output-${marker}` },
+      ]),
+      "gen_ai.request.model":
         seed.modelPrecedence === "request"
-          ? expected.modelName
+          ? modelName
           : seed.modelPrecedence === "none"
             ? ""
             : PROVIDER_MODEL,
-      ),
-      ...(seed.promptVersion === null
-        ? []
-        : [
-            stringAttribute(
-              "langfuse.observation.prompt.version",
-              String(seed.promptVersion),
-            ),
-          ]),
-      stringAttribute(
-        "gen_ai.response.model",
+      "langfuse.observation.prompt.version":
+        seed.promptVersion?.toString() ?? null,
+      "gen_ai.response.model":
         seed.modelPrecedence === "request" || seed.modelPrecedence === "none"
           ? ""
-          : seed.modelPrecedence === "response"
-            ? expected.modelName
-            : `response-model-${marker}`,
-      ),
-      stringAttribute("langfuse.trace.name", expected.traceName),
-      stringAttribute(
-        "langfuse.observation.metadata",
-        JSON.stringify(canonicalObject(seed.observationMetadata)),
-      ),
-      stringAttribute(
-        "langfuse.trace.metadata",
-        JSON.stringify(canonicalObject(seed.traceMetadata)),
-      ),
+          : `response-model-${marker}`,
+      "langfuse.trace.name": expected.trace_name,
+      "langfuse.observation.metadata": JSON.stringify(seed.observationMetadata),
+      "langfuse.trace.metadata": JSON.stringify(seed.traceMetadata),
+    });
+    const metadataAttributes = [
       ...seed.observationAttributes.map((attribute) =>
         typedAttribute({
           ...attribute,
@@ -302,54 +258,48 @@ function buildReplayCase(params: ReplayCase): {
         }),
       ),
     ];
-
-    attributes.push(
-      stringAttribute(
-        "langfuse.observation.model.name",
-        seed.modelPrecedence === "canonical" ? expected.modelName : "",
-      ),
-    );
-    if (seed.version !== null) {
-      attributes.push(stringAttribute("langfuse.version", seed.version));
-    }
-    if (seed.release !== null) {
-      attributes.push(stringAttribute("langfuse.release", seed.release));
-    }
-    if (seed.environment === "span") {
-      attributes.push(
-        stringAttribute("langfuse.environment", expected.environment),
-      );
-    } else if (seed.environment === "lower") {
-      attributes.push(
-        stringAttribute("deployment.environment.name", "span-fallback-env"),
-      );
-    } else if (seed.environment === "empty") {
-      attributes.push(stringAttribute("langfuse.environment", ""));
-    }
-
-    const timestampMillis = params.baseTimeMillis + ordinal * 1_000;
-    const timestampFields =
-      seed.timestampPresence === "both"
-        ? {
-            startTimeUnixNano: unixNanos(timestampMillis, 0),
-            endTimeUnixNano: unixNanos(timestampMillis + 250, 1),
-          }
-        : seed.timestampPresence === "endOnly"
-          ? { endTimeUnixNano: unixNanos(timestampMillis + 250, 999_999) }
-          : { startTimeUnixNano: unixNanos(timestampMillis, 999_999) };
-
+    const overrides = stringAttributes({
+      "langfuse.observation.model.name":
+        seed.modelPrecedence === "canonical" ? modelName : "",
+      "langfuse.version": seed.version,
+      "langfuse.release": seed.release,
+      "langfuse.environment":
+        seed.environment === "span"
+          ? expected.environment
+          : seed.environment === "empty"
+            ? ""
+            : null,
+      "deployment.environment.name":
+        seed.environment === "lower" ? "span-fallback-env" : null,
+    });
     return {
+      expected,
       orderKey: seed.orderKey,
       span: {
         traceId: Buffer.from(traceId, "hex"),
-        spanId: Buffer.from(expected.spanId, "hex"),
-        ...(expected.ordinal === 0
+        spanId: Buffer.from(spanId, "hex"),
+        ...(ordinal === 0
           ? {}
-          : { parentSpanId: Buffer.from(expected.parentSpanId, "hex") }),
+          : { parentSpanId: Buffer.from(parentSpanId, "hex") }),
         name: expected.name,
         kind: 1,
-        ...timestampFields,
-        attributes,
+        ...(seed.timestampPresence === "endOnly"
+          ? {}
+          : {
+              startTimeUnixNano: unixNanos(
+                start,
+                seed.timestampPresence === "both" ? 0 : 999_999,
+              ),
+            }),
+        ...(seed.timestampPresence === "startOnly"
+          ? {}
+          : {
+              endTimeUnixNano: unixNanos(
+                end,
+                seed.timestampPresence === "both" ? 1 : 999_999,
+              ),
+            }),
+        attributes: [...attributes, ...metadataAttributes, ...overrides],
         status: { code: 0 },
       },
     };
@@ -357,33 +307,32 @@ function buildReplayCase(params: ReplayCase): {
 
   return {
     projectId,
-    traceId,
-    expectedSpans,
+    expectedRows: cases.map(({ expected }) => expected),
     resourceSpans: [
       {
         resource: {
-          attributes: [
-            stringAttribute("service.name", SERVICE_NAME),
-            stringAttribute("service.version", RESOURCE_VERSION),
-            stringAttribute("langfuse.environment", RESOURCE_ENVIRONMENT),
-            stringAttribute("langfuse.release", RESOURCE_RELEASE),
-          ],
+          attributes: stringAttributes({
+            "service.name": SERVICE_NAME,
+            "service.version": RESOURCE_VERSION,
+            "langfuse.environment": RESOURCE_ENVIRONMENT,
+            "langfuse.release": RESOURCE_RELEASE,
+          }),
         },
         scopeSpans: [
           {
             scope: { name: SCOPE_NAME, version: "1.0.0" },
             // Children are shuffled and the root remains last in the batch.
             spans: [
-              ...spans
+              ...cases
                 .slice(1)
                 .sort((left, right) => left.orderKey - right.orderKey)
                 .map(({ span }) => span),
-              spans[0].span,
+              cases[0].span,
             ],
           },
         ],
       },
-    ],
+    ] satisfies ResourceSpan[],
   };
 }
 
@@ -401,12 +350,6 @@ function persistedMillis(value: unknown): number {
   return millis;
 }
 
-const jsonKeyArbitrary = fc.oneof(
-  { withCrossShrink: true },
-  fc.string({ maxLength: 12, unit: "grapheme" }),
-  fc.constantFrom("", "a.b", "__proto__", "constructor", "prototype", "🌍\n"),
-);
-
 // These top-level keys trigger tool-definition migration in the downstream
 // observation normalizer. That behavior has its own tests; this property owns
 // generic metadata JSON persistence and excludes those two recognized forms.
@@ -418,39 +361,6 @@ const metadataAttributeKeyArbitrary = jsonKeyArbitrary.filter(
     // Empty suffixes are ignored; tool-normalizer reserved forms are out of scope.
     key !== "" && key !== "tools" && key !== "attributes",
 );
-
-function recursiveJsonArbitrary(
-  depth: number,
-  maxWidth: number,
-): Arbitrary<Json> {
-  const leaf = fc.oneof(
-    { withCrossShrink: true },
-    fc.constant(null),
-    fc.boolean(),
-    fc.double({ noNaN: true, noDefaultInfinity: true }),
-    fc.string({ maxLength: 24, unit: "grapheme" }),
-  ) as Arbitrary<Json>;
-  if (depth === 0) return leaf;
-
-  return fc.oneof(
-    { withCrossShrink: true },
-    { weight: 4, arbitrary: leaf },
-    {
-      weight: 2,
-      arbitrary: fc.array(recursiveJsonArbitrary(depth - 1, maxWidth), {
-        maxLength: maxWidth,
-      }),
-    },
-    {
-      weight: 2,
-      arbitrary: fc.dictionary(
-        jsonKeyArbitrary,
-        recursiveJsonArbitrary(depth - 1, maxWidth),
-        { maxKeys: maxWidth },
-      ),
-    },
-  );
-}
 
 const specialJsonValues: Json[] = [
   null,
@@ -470,6 +380,8 @@ const specialJsonValues: Json[] = [
   ],
 ];
 
+// OTLP distinguishes scalar types even when JSON would encode the same value;
+// typed arrays exercise the metadata conversion before flattening.
 function scalarAttributeArbitrary(): Arbitrary<TypedScalar> {
   return fc.oneof(
     { withCrossShrink: true },
@@ -514,6 +426,8 @@ function metadataAttributeArbitrary(
   });
 }
 
+// The Langfuse IO attributes accept both JSON text and raw strings. Whitespace
+// and invalid JSON must survive, independently for input and output.
 function rootPayloadArbitrary(
   jsonValue: Arbitrary<Json>,
 ): Arbitrary<RootPayload> {
@@ -538,6 +452,8 @@ function rootPayloadArbitrary(
   );
 }
 
+// Both campaigns vary every axis independently. The biased campaign adds
+// provider-shaped state and metadata collisions that broad JSON seldom produces.
 function replayCaseArbitrary(
   depth: number,
   maxWidth: number,
@@ -576,28 +492,13 @@ function replayCaseArbitrary(
               deep: recursiveJsonArbitrary(4, maxWidth),
               wide: fc.array(metadataValue, { maxLength: maxWidth }),
             })
-            .map(
-              (witness) =>
-                Object.fromEntries([
-                  ["route", { status: witness.nestedStatus }],
-                  ["route.status", witness.literalStatus],
-                  [
-                    "langgraph",
-                    {
-                      messages: witness.messages,
-                      state: { values: witness.wide },
-                    },
-                  ],
-                  ["resourceAttributes", { custom: { deep: witness.deep } }],
-                  [
-                    "scope",
-                    {
-                      name: "generated-scope",
-                      attributes: { values: witness.wide },
-                    },
-                  ],
-                ]) as JsonObject,
-            ),
+            .map(({ nestedStatus, literalStatus, messages, deep, wide }) => ({
+              route: { status: nestedStatus },
+              "route.status": literalStatus,
+              langgraph: { messages, state: { values: wide } },
+              resourceAttributes: { custom: { deep } },
+              scope: { name: "generated-scope", attributes: { values: wide } },
+            })),
         },
       )
     : broadMetadataRoot;
@@ -746,55 +647,23 @@ async function assertReplayPersists(params: ReplayCase): Promise<void> {
     fileKey: FILE_KEY,
   });
 
-  expect(storedRows).toHaveLength(replay.expectedSpans.length);
+  expect(storedRows).toHaveLength(replay.expectedRows.length);
   const rowsBySpanId = new Map(
     storedRows.map((row) => [String(row.span_id), row]),
   );
   expect([...rowsBySpanId.keys()].sort()).toEqual(
-    replay.expectedSpans.map((span) => span.spanId).sort(),
+    replay.expectedRows.map((row) => row.span_id).sort(),
   );
 
-  for (const expected of replay.expectedSpans) {
-    const row = rowsBySpanId.get(expected.spanId);
-    expect(row).toBeDefined();
-    expect(row).toMatchObject({
-      project_id: replay.projectId,
-      trace_id: replay.traceId,
-      span_id: expected.spanId,
-      parent_span_id: expected.parentSpanId,
-      name: expected.name,
-      type: "GENERATION",
-      environment: expected.environment,
-      version: expected.version,
-      release: expected.release,
-      trace_name: expected.traceName,
-      prompt_version: expected.promptVersion,
-      provided_model_name: expected.modelName,
-      service_name: SERVICE_NAME,
-      service_version: RESOURCE_VERSION,
-      scope_name: SCOPE_NAME,
-      scope_version: "1.0.0",
-      source: "otel",
-      ingestion_sdk_name: "otel-replay",
-      ingestion_sdk_version: "test",
-      blob_storage_file_path: FILE_KEY,
-    });
-    // Langfuse input/output strings, including invalid JSON and whitespace, are preserved.
-    expect(row?.input).toBe(expected.input);
-    expect(row?.output).toBe(expected.output);
-
-    const names = row?.metadata_names;
-    const values = row?.metadata_values;
-    if (!Array.isArray(names) || !Array.isArray(values)) {
-      throw new Error("Persisted metadata names and values must be arrays");
-    }
-    expect(names).toHaveLength(values.length);
-    const expectedPairs = expectedMetadataPairs(expected.metadata);
-    expect(names).toEqual(expectedPairs.map(([name]) => name));
-    expect(values).toEqual(expectedPairs.map(([, value]) => value));
-
-    expect(persistedMillis(row?.start_time)).toBe(expected.startTimeMillis);
-    expect(persistedMillis(row?.end_time)).toBe(expected.endTimeMillis);
+  for (const expected of replay.expectedRows) {
+    const row = rowsBySpanId.get(expected.span_id)!;
+    // Compare every contracted field exactly, including both metadata arrays:
+    // objectContaining permits unrelated stored columns, not extra array elements.
+    expect({
+      ...row,
+      start_time: persistedMillis(row.start_time),
+      end_time: persistedMillis(row.end_time),
+    }).toEqual(expect.objectContaining(expected));
   }
 }
 
