@@ -861,8 +861,10 @@ export function CreateLLMApiKeyForm({
                       <FormItem>
                         <FormLabel>Custom base URL</FormLabel>
                         <FormDescription>
-                          Base URL of a TypeSafe-compatible API, e.g.
+                          Base URL of a TypeSafe-compatible API, e.g.{" "}
                           <code>https://gateway.example.com/typesafe/v1</code>.
+                          Langfuse appends <code>/systemone</code>, so leave it
+                          out.
                         </FormDescription>
                         <FormControl>
                           <Input

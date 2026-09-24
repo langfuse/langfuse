@@ -403,6 +403,57 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys).toHaveLength(0);
   });
 
+  it("should reject decision-model base URLs that already end in /systemone", async () => {
+    const connection = {
+      projectId,
+      secretKey: "sk-proxy",
+      provider: "jev-via-proxy",
+      adapter: LLMAdapter.TypeSafe,
+    };
+
+    await expect(
+      caller.llmApiKey.create({
+        ...connection,
+        baseURL: "https://example.com/typesafe/v1/systemone",
+      }),
+    ).rejects.toThrow("Remove /systemone");
+    await expect(
+      caller.llmApiKey.test({
+        ...connection,
+        baseURL: "https://example.com/typesafe/v1/systemone/",
+      }),
+    ).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining("Remove /systemone"),
+    });
+
+    await caller.llmApiKey.create({
+      ...connection,
+      baseURL: "https://example.com/typesafe/v1",
+    });
+    const { id } = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: connection.provider },
+    });
+
+    await expect(
+      caller.llmApiKey.update({
+        ...connection,
+        id,
+        baseURL: "https://example.com/typesafe/v1/systemone",
+      }),
+    ).rejects.toThrow("Remove /systemone");
+    await expect(
+      caller.llmApiKey.testUpdate({
+        ...connection,
+        id,
+        baseURL: "https://example.com/typesafe/v1/systemone",
+      }),
+    ).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining("Remove /systemone"),
+    });
+  });
+
   it("should require a new secret key when moving a decision-model connection to another upstream", async () => {
     await caller.llmApiKey.create({
       projectId,
