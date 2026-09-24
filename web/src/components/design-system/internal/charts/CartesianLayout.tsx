@@ -75,6 +75,11 @@ export function CartesianLayout({
     measuredPlot,
     maxYTicks: getCartesianTickCount(measuredPlot.height),
     plotForTicks: (yTickLabels) =>
-      getCartesianLayout({ width, height, showXAxisLabels, yTickLabels }),
+      getCartesianLayout({
+        width,
+        height,
+        showXAxisLabels,
+        yTickLabels,
+      }),
   });
 }

@@ -263,6 +263,7 @@ describe("chbBillingService", () => {
       expect(url).toBe(session.checkoutUrl);
       expect(clientMock.createCheckoutSession).toHaveBeenCalledWith({
         organizationId: undefined,
+        name: "Org",
         email: "user@example.com",
         planCode: "LANGFUSE_PRO",
         returnUrl: `https://cloud.langfuse.com/organization/${ORG_ID}/settings/billing`,
