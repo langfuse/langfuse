@@ -32,6 +32,7 @@ describe("recordExportFreshnessLag", () => {
         integration: "blob_storage",
         window: "20m",
         status: "success",
+        catchup: "unknown",
         unit: "seconds",
       },
     );
@@ -57,9 +58,36 @@ describe("recordExportFreshnessLag", () => {
         integration: "posthog",
         window: "1h",
         status: "failure",
+        catchup: "unknown",
         unit: "seconds",
       },
     );
+  });
+
+  it("tags catch-up runs true|false and omitted runs as unknown", () => {
+    recordExportFreshnessLag({
+      integration: "blob_storage",
+      window: "20m",
+      status: "success",
+      runStartTime,
+      maxExportedTimestamp: new Date("2026-09-08T11:40:00.000Z"),
+      catchup: true,
+    });
+    recordExportFreshnessLag({
+      integration: "blob_storage",
+      window: "20m",
+      status: "success",
+      runStartTime,
+      maxExportedTimestamp: new Date("2026-09-08T11:40:00.000Z"),
+      catchup: false,
+    });
+
+    expect(recordDistribution.mock.calls[0][2]).toMatchObject({
+      catchup: "true",
+    });
+    expect(recordDistribution.mock.calls[1][2]).toMatchObject({
+      catchup: "false",
+    });
   });
 
   it("skips when there is no watermark yet", () => {
