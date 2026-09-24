@@ -12,8 +12,9 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   TYPESAFE_UPSTREAMS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
-  findTypeSafeUpstream,
   isDecisionModelAdapter,
+  resolveTypeSafeUpstream,
+  type TypeSafeUpstream,
 } from "@langfuse/shared";
 import { ChevronDown, PlusIcon, TrashIcon } from "lucide-react";
 import { z } from "zod";
@@ -109,6 +110,11 @@ const createFormSchema = (params: {
         ),
       adapter: z.enum(LLMAdapter),
       baseURL: z.union([z.literal(""), z.url()]),
+      typeSafeUpstream: z.enum(
+        TYPESAFE_UPSTREAMS.map(
+          (upstream): TypeSafeUpstream["id"] => upstream.id,
+        ),
+      ),
       withDefaultModels: z.boolean(),
       customModels: z.array(z.object({ value: z.string().min(1) })),
       awsAccessKeyId: z.string().optional(),
@@ -252,7 +258,30 @@ const createFormSchema = (params: {
         message: "API Base URL is required for Azure connections.",
         path: ["baseURL"],
       },
-    );
+    )
+    .superRefine((data, ctx) => {
+      if (
+        data.adapter !== LLMAdapter.TypeSafe ||
+        data.typeSafeUpstream !== "custom"
+      ) {
+        return;
+      }
+      const baseURL = data.baseURL.trim();
+      if (!baseURL) {
+        ctx.addIssue({
+          code: "custom",
+          message: "A custom base URL is required.",
+          path: ["baseURL"],
+        });
+      } else if (/\/systemone\/?$/.test(baseURL)) {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "Remove /systemone from the base URL. Langfuse appends it automatically.",
+          path: ["baseURL"],
+        });
+      }
+    });
 
 interface CreateLLMApiKeyFormProps {
   projectId?: string;
@@ -334,6 +363,7 @@ export function CreateLLMApiKeyForm({
             baseURL:
               existingKey.baseURL ??
               getCustomizedBaseURL(existingKey.adapter as LLMAdapter),
+            typeSafeUpstream: resolveTypeSafeUpstream(existingKey.baseURL).id,
             withDefaultModels: existingKey.withDefaultModels,
             customModels: existingKey.customModels.map((value) => ({ value })),
             extraHeaders:
@@ -365,6 +395,7 @@ export function CreateLLMApiKeyForm({
             provider: "",
             secretKey: "",
             baseURL: getCustomizedBaseURL(defaultAdapter),
+            typeSafeUpstream: TYPESAFE_UPSTREAMS[0].id,
             withDefaultModels: true,
             customModels: [],
             extraHeaders: [],
@@ -382,8 +413,11 @@ export function CreateLLMApiKeyForm({
 
   const currentAdapter = form.watch("adapter");
   const currentAuthMethod = form.watch("authMethod");
+  const currentTypeSafeUpstreamId = form.watch("typeSafeUpstream");
   const currentTypeSafeUpstream =
-    findTypeSafeUpstream(form.watch("baseURL")) ?? TYPESAFE_UPSTREAMS[0];
+    TYPESAFE_UPSTREAMS.find(
+      (upstream) => upstream.id === currentTypeSafeUpstreamId,
+    ) ?? TYPESAFE_UPSTREAMS[0];
   const isKeepingCurrentBedrockAuthMethod =
     mode === "update" &&
     currentAdapter === LLMAdapter.Bedrock &&
@@ -713,6 +747,10 @@ export function CreateLLMApiKeyForm({
                         "baseURL",
                         getCustomizedBaseURL(value as LLMAdapter),
                       );
+                      form.setValue(
+                        "typeSafeUpstream",
+                        TYPESAFE_UPSTREAMS[0].id,
+                      );
                     }
                     field.onChange(value as LLMAdapter);
                   }}
@@ -795,26 +833,29 @@ export function CreateLLMApiKeyForm({
               {currentAdapter === LLMAdapter.TypeSafe && (
                 <FormField
                   control={form.control}
-                  name="baseURL"
+                  name="typeSafeUpstream"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Upstream</FormLabel>
                       <FormDescription>
-                        Provider that serves the Jev decision model. OpenRouter
-                        and Vercel AI Gateway expose TypeSafe&apos;s API, so
-                        only the API key changes.
+                        Provider that serves the Jev decision model. Vercel AI
+                        Gateway, OpenRouter, and custom gateways expose
+                        TypeSafe&apos;s API, so evaluators behave the same on
+                        every upstream.
                       </FormDescription>
                       <FormControl>
                         <TypeSafeUpstreamCards
                           aria-label="Upstream"
-                          value={currentTypeSafeUpstream.id}
-                          onValueChange={(id) =>
-                            field.onChange(
+                          value={field.value}
+                          onValueChange={(id) => {
+                            field.onChange(id);
+                            form.setValue(
+                              "baseURL",
                               TYPESAFE_UPSTREAMS.find(
                                 (upstream) => upstream.id === id,
                               )?.baseURL ?? "",
-                            )
-                          }
+                            );
+                          }}
                         />
                       </FormControl>
                       <FormMessage />
@@ -822,6 +863,37 @@ export function CreateLLMApiKeyForm({
                   )}
                 />
               )}
+
+              {currentAdapter === LLMAdapter.TypeSafe &&
+                currentTypeSafeUpstream.id === "custom" && (
+                  <FormField
+                    control={form.control}
+                    name="baseURL"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Custom base URL</FormLabel>
+                        <FormDescription>
+                          Base URL of a TypeSafe-compatible API, including its
+                          version path such as <code>/v1</code>. Langfuse
+                          appends <code>/systemone</code>, so{" "}
+                          <code>https://llm-proxy.example.com/typesafe/v1</code>{" "}
+                          sends requests to{" "}
+                          <code>
+                            https://llm-proxy.example.com/typesafe/v1/systemone
+                          </code>
+                          .
+                        </FormDescription>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="https://your-gateway.example.com/v1"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
               {/* API Key or AWS Credentials or Vertex AI Credentials */}
               {currentAdapter === LLMAdapter.Bedrock ? (
@@ -1254,8 +1326,10 @@ export function CreateLLMApiKeyForm({
               {isCustomModelsRequired(currentAdapter) &&
                 renderCustomModelsField()}
 
-              {/* Extra headers - show for Azure in main section (Azure has no advanced settings) */}
-              {currentAdapter === LLMAdapter.Azure && renderExtraHeadersField()}
+              {/* Extra headers - main section for adapters without advanced settings */}
+              {[LLMAdapter.Azure, LLMAdapter.TypeSafe].includes(
+                currentAdapter,
+              ) && renderExtraHeadersField()}
 
               {hasAdvancedSettings(currentAdapter) && (
                 <div className="flex items-center">
