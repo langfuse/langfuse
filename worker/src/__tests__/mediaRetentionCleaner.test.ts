@@ -413,9 +413,7 @@ describe("MediaRetentionCleaner", () => {
         },
       });
 
-      // Pending association (null validFrom): an abandoned upload that never
-      // claimed an item. It must not shield the project from the picker, and is
-      // swept along with its media.
+      // An expired pending association is swept along with its media.
       const pendingMedia = await createTestMedia(projectId, daysAgo(11));
       await prisma.datasetItemMedia.create({
         data: {
@@ -424,6 +422,7 @@ describe("MediaRetentionCleaner", () => {
           datasetId: randomUUID(),
           datasetItemId: randomUUID(),
           datasetItemValidFrom: null,
+          createdAt: daysAgo(11),
           mediaId: pendingMedia.id,
           field: "input",
           jsonPath: null,

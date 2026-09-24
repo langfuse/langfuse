@@ -29,7 +29,10 @@ const expiredMediaWorkCondition = (params: {
       FROM dataset_item_media dim
       WHERE dim.project_id = ${params.projectId}
         AND dim.media_id = m.id
-        AND dim.dataset_item_valid_from IS NOT NULL
+        AND (
+          dim.dataset_item_valid_from IS NOT NULL
+          OR dim.created_at > ${params.cutoffDate}
+        )
     )
     AND NOT EXISTS (
       SELECT 1
@@ -44,6 +47,14 @@ const expiredMediaWorkCondition = (params: {
       WHERE om.project_id = ${params.projectId}
         AND om.media_id = m.id
         AND om.created_at > ${params.cutoffDate}
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM dataset_item_media dim
+      WHERE dim.project_id = ${params.projectId}
+        AND dim.media_id = m.id
+        AND dim.dataset_item_valid_from IS NULL
+        AND dim.created_at <= ${params.cutoffDate}
     )
     OR EXISTS (
       SELECT 1
@@ -231,14 +242,21 @@ export async function deleteMediaFiles(params: {
         if (lockedMedia.length === 0) return 0;
 
         const lockedIds = lockedMedia.map((f) => f.id);
-        // Only a claimed association (validFrom set) protects media; pending
-        // rows do not, so abandoned uploads are reclaimed by retention.
+        // Claimed dataset links and pending links within retention protect
+        // their media; expired pending links are reclaimed below.
         const datasetAssociatedMedia = await tx.datasetItemMedia.findMany({
           select: { mediaId: true },
           where: {
             projectId,
             mediaId: { in: lockedIds },
-            datasetItemValidFrom: { not: null },
+            ...(linkCleanupCutoffDate
+              ? {
+                  OR: [
+                    { datasetItemValidFrom: { not: null } },
+                    { createdAt: { gt: linkCleanupCutoffDate } },
+                  ],
+                }
+              : { datasetItemValidFrom: { not: null } }),
           },
           distinct: ["mediaId"],
         });
@@ -306,8 +324,16 @@ export async function deleteMediaFiles(params: {
         await tx.datasetItemMedia.deleteMany({
           where: {
             projectId,
-            mediaId: { in: deletableMediaIds },
+            mediaId: { in: lockedIds },
             datasetItemValidFrom: null,
+            ...(linkCleanupCutoffDate
+              ? {
+                  OR: [
+                    { mediaId: { in: deletableMediaIds } },
+                    { createdAt: { lte: linkCleanupCutoffDate } },
+                  ],
+                }
+              : {}),
           },
         });
         await tx.media.deleteMany({

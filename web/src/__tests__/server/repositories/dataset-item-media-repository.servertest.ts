@@ -4,8 +4,10 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   createDatasetItem,
   createManyDatasetItems,
+  declarePendingDatasetItemMedia,
   deleteDatasetMediaLinksByDatasetId,
   deleteMediaFiles,
+  findExpiredMediaBatchByProjectId,
   findExpiredMediaByProjectId,
   linkDatasetItemMedia,
 } from "@langfuse/shared/src/server";
@@ -499,6 +501,70 @@ describe("Dataset Item Media Associations", () => {
       return result.datasetItem.id;
     };
 
+    it("does not declare or claim dataset media after retention removes it", async () => {
+      const datasetId = await createDataset();
+      const datasetItemId = v4();
+      const media = await createMediaRow();
+      await prisma.media.update({
+        where: { projectId_id: { projectId, id: media.mediaId } },
+        data: { createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000) },
+      });
+      const cutoffDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      let releaseDeletion!: () => void;
+      let deletionStarted!: () => void;
+      const started = new Promise<void>((resolve) => {
+        deletionStarted = resolve;
+      });
+      const released = new Promise<void>((resolve) => {
+        releaseDeletion = resolve;
+      });
+      const deleting = deleteMediaFiles({
+        projectId,
+        mediaFiles: [
+          { id: media.mediaId, bucketPath: `media/${media.mediaId}.png` },
+        ],
+        linkCleanupCutoffDate: cutoffDate,
+        storageClient: {
+          deleteFiles: async () => {
+            deletionStarted();
+            await released;
+          },
+        },
+      });
+      await Promise.race([started, deleting]);
+
+      const declaring = declarePendingDatasetItemMedia({
+        projectId,
+        datasetId,
+        datasetItemId,
+        field: "input",
+        mediaId: media.mediaId,
+      });
+      releaseDeletion();
+      await deleting;
+      await expect(declaring).resolves.toBe(false);
+      await expect(
+        prisma.datasetItemMedia.count({
+          where: { projectId, mediaId: media.mediaId },
+        }),
+      ).resolves.toBe(0);
+
+      await expect(
+        linkDatasetItemMediaForTest({
+          projectId,
+          items: [
+            {
+              datasetId,
+              datasetItemId,
+              datasetItemValidFrom: new Date(),
+              input: { image: media.referenceString },
+            },
+          ],
+          replaceExisting: false,
+        }),
+      ).rejects.toThrow("Dataset item references unknown media");
+    });
+
     it("deletes dataset media associations on dataset deletion", async () => {
       const datasetId = await createDataset();
       const otherDatasetId = await createDataset();
@@ -573,6 +639,10 @@ describe("Dataset Item Media Associations", () => {
           mediaId: pendingMedia.mediaId,
         },
       });
+      await prisma.datasetItemMedia.updateMany({
+        where: { projectId, mediaId: pendingMedia.mediaId },
+        data: { createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3) },
+      });
 
       const mediaIds = [
         associatedMedia.mediaId,
@@ -638,6 +708,43 @@ describe("Dataset Item Media Associations", () => {
           where: { projectId, mediaId: pendingMedia.mediaId },
         }),
       ).resolves.toBe(0);
+    });
+
+    it("keeps reused media while a new dataset upload is pending", async () => {
+      const datasetId = await createDataset();
+      const media = await createMediaRow();
+      const cutoffDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      await prisma.media.update({
+        where: { projectId_id: { projectId, id: media.mediaId } },
+        data: { createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000) },
+      });
+      await expect(
+        declarePendingDatasetItemMedia({
+          projectId,
+          datasetId,
+          datasetItemId: v4(),
+          field: "input",
+          mediaId: media.mediaId,
+        }),
+      ).resolves.toBe(true);
+
+      await expect(
+        findExpiredMediaBatchByProjectId({ projectId, cutoffDate, limit: 100 }),
+      ).resolves.not.toContainEqual(
+        expect.objectContaining({ id: media.mediaId }),
+      );
+      const deleteFiles = vi.fn();
+      await expect(
+        deleteMediaFiles({
+          projectId,
+          mediaFiles: [
+            { id: media.mediaId, bucketPath: `media/${media.mediaId}.png` },
+          ],
+          storageClient: { deleteFiles },
+          linkCleanupCutoffDate: cutoffDate,
+        }),
+      ).resolves.toBe(0);
+      expect(deleteFiles).not.toHaveBeenCalled();
     });
   });
 
