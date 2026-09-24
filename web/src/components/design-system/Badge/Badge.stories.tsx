@@ -27,6 +27,27 @@ const allColors = Object.keys({
 
 export const Default = meta.story({});
 
+export const WithDescenders = meta.story({
+  parameters: {
+    controls: {
+      disable: true,
+    },
+  },
+  render: () => (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Badge
+        text="gpt-5"
+        trailingIcon={ExternalLinkIcon}
+        trailingIconTone="link"
+      />
+      <Badge
+        text="Prompt: langfuse-docs-assistant-chat - v27"
+        trailingIcon={ExternalLinkIcon}
+      />
+    </div>
+  ),
+});
+
 export const WithTrailingIcon = meta.story({
   name: "(Test) With Trailing Icon",
   args: {
