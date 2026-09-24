@@ -239,14 +239,12 @@ export const SyncedBucket = meta.story({
     sync: { activeKey: "Tuesday", onActiveKeyChange: () => undefined },
   },
   play: async ({ canvasElement }) => {
-    const line = canvasElement.querySelector("[data-active-reference-line]");
-    const bar = within(canvasElement).getByRole("graphics-symbol", {
-      name: "API: 18",
-    });
-    if (!line) throw new Error("Active reference line missing");
-    await expect(Number(line.getAttribute("x1"))).toBeCloseTo(
-      Number(bar.getAttribute("x")) + Number(bar.getAttribute("width")) / 2,
-    );
+    await expect(
+      canvasElement.querySelector("[data-active-x-axis-label]"),
+    ).toHaveTextContent("Tuesday");
+    await expect(
+      canvasElement.querySelector("[data-active-reference-line]"),
+    ).not.toBeInTheDocument();
   },
 });
 
