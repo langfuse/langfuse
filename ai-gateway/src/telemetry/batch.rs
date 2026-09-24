@@ -1,4 +1,3 @@
-//! Pure grouping of mapped spans into per-project upload batches.
 use std::{
     collections::{HashMap, hash_map::Entry},
     time::Duration,
@@ -10,15 +9,12 @@ use tokio::{sync::OwnedSemaphorePermit, time::Instant};
 
 use super::Grant;
 
-/// When a project's batch is handed to the uploader.
 #[derive(Clone, Copy)]
 pub(super) struct BatchPolicy {
     pub max_records: usize,
     pub max_bytes: usize,
     pub linger: Duration,
-    /// Uploads start at least this long before the batch's grant expires.
     pub expiry_margin: Duration,
-    /// Opening a batch beyond this many projects flushes the one due soonest.
     pub max_open: usize,
 }
 
@@ -26,7 +22,6 @@ impl Default for BatchPolicy {
     fn default() -> Self {
         Self {
             max_records: 100,
-            // Half the upload payload bound leaves room for one oversized span.
             max_bytes: 4 * 1024 * 1024,
             linger: Duration::from_secs(1),
             expiry_margin: Duration::from_secs(30),
@@ -35,12 +30,9 @@ impl Default for BatchPolicy {
     }
 }
 
-/// A mapped span waiting for upload. Its retained-bytes permit is released when the
-/// span is uploaded, fails, or is dropped.
 pub(super) struct Pending {
     pub span: Value,
     pub bytes: usize,
-    /// The gateway request that produced the span, linked from the upload's trace.
     pub link: SpanContext,
     _retained: OwnedSemaphorePermit,
 }
@@ -61,14 +53,12 @@ impl Pending {
     }
 }
 
-/// A project's spans, ready to upload with one grant.
 pub(super) struct Flush {
     pub grant: Grant,
     pub items: Vec<Pending>,
 }
 
 struct Batch {
-    /// The latest-expiring grant among the batched records; any of them authorizes the project.
     grant: Grant,
     items: Vec<Pending>,
     bytes: usize,
@@ -103,7 +93,6 @@ impl Batch {
     }
 }
 
-/// The earlier of the linger deadline and the last safe moment to use the grant.
 fn due_at(grant: &Grant, opened: Instant, now: Instant, policy: &BatchPolicy) -> Instant {
     let usable = grant.remaining().saturating_sub(policy.expiry_margin);
     (opened + policy.linger).min(now + usable.min(policy.linger))
@@ -122,7 +111,6 @@ impl Batches {
         }
     }
 
-    /// Add a span to its project's batch and return every batch that became ready.
     pub fn push_record(&mut self, grant: Grant, item: Pending, now: Instant) -> Vec<Flush> {
         let mut ready = Vec::new();
         let project = grant.project_id.clone();
@@ -160,7 +148,6 @@ impl Batches {
         ready
     }
 
-    /// Remove every batch whose linger or grant deadline has passed.
     pub fn take_due(&mut self, now: Instant) -> Vec<Flush> {
         self.open
             .extract_if(|_, batch| batch.due <= now)
@@ -175,7 +162,6 @@ impl Batches {
             .collect()
     }
 
-    /// The earliest moment an open batch becomes due, if any batch is open.
     pub fn next_due(&self) -> Option<Instant> {
         self.open.values().map(|batch| batch.due).min()
     }

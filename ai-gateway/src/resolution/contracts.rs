@@ -241,17 +241,12 @@ impl fmt::Debug for ResolvedRequestContext {
     }
 }
 
-/// The tenant an ingestion JWT authorizes.
 #[derive(Deserialize)]
 struct IngestionClaims {
     organization_id: String,
     project_id: String,
 }
 
-/// Web writes uploads into the token's project, while telemetry batches uploads by
-/// `attribution`; any valid grant for a project may carry every record of that project.
-/// A token for another tenant must therefore never be accepted. Web verifies the
-/// signature on ingestion, so reading the payload is enough here.
 fn ingestion_claims_match(token: &str, attribution: &RequestAttribution) -> bool {
     let mut segments = token.split('.');
     let (Some(_header), Some(payload), Some(_signature), None) = (

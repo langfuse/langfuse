@@ -1,15 +1,11 @@
-//! Pure decision of whether and when a failed upload is attempted again.
 use std::time::Duration;
 
 use super::otlp::ExportError;
 
 #[derive(Clone, Copy)]
 pub(super) struct RetryPolicy {
-    /// Total attempts per batch, including the first.
     pub max_attempts: u32,
-    /// Backoff before the second attempt; each later attempt waits four times longer.
     pub base_delay: Duration,
-    /// Longest wait between attempts. A longer `Retry-After` gives up instead.
     pub max_delay: Duration,
 }
 
@@ -24,9 +20,6 @@ impl Default for RetryPolicy {
 }
 
 impl RetryPolicy {
-    /// The wait before the next attempt after `attempt` (1-based) failed, or `None`
-    /// to give up. The wait must end before the grant expires, with time left to send.
-    /// `random` spreads concurrent retries across the upper half of each backoff step.
     pub fn backoff(
         &self,
         attempt: u32,
@@ -53,10 +46,8 @@ impl RetryPolicy {
     }
 }
 
-/// A retry that would leave less than this before grant expiry is not worth sending.
 const MIN_SEND_WINDOW: Duration = Duration::from_secs(1);
 
-/// Randomness for backoff jitter without a dedicated RNG dependency.
 pub(super) fn random() -> u64 {
     use std::hash::BuildHasher;
     std::hash::RandomState::new().hash_one(std::time::Instant::now())

@@ -1,4 +1,3 @@
-//! The delivery actor: routes admitted spans into project batches and uploads them.
 use std::sync::Arc;
 
 use opentelemetry::trace::TraceContextExt;
@@ -19,7 +18,6 @@ use super::{
 
 pub(super) enum Message {
     Record(Grant, Pending),
-    /// Admission closes behind this message; everything queued before it is still delivered.
     Shutdown(Instant),
 }
 
@@ -58,9 +56,6 @@ async fn sleep_until_due(due: Option<Instant>) {
     }
 }
 
-/// In-flight uploads. Each flush becomes a task immediately and waits for an upload
-/// slot there, so a slow ingestion endpoint never stalls batching or shutdown. A
-/// task keeps its spans, and their retained bytes, until its last attempt settles.
 pub(super) struct Uploads {
     uploader: Arc<Uploader>,
     slots: Arc<Semaphore>,
@@ -87,7 +82,6 @@ impl Uploads {
     }
 
     fn start_flush(&mut self, flush: Flush) {
-        // Reap completed handles on submission so the task registry stays bounded.
         while self.tasks.try_join_next().is_some() {}
         let receipt = Receipt::new(flush.items.len(), self.stats.clone());
         let span = tracing::info_span!(
@@ -110,8 +104,6 @@ impl Uploads {
                 let spans: Vec<_> = flush.items.iter().map(|item| &item.span).collect();
                 let mut attempt = 1;
                 let outcome = loop {
-                    // The slot is held per attempt, not across backoff, so a failing
-                    // project does not starve others of upload concurrency.
                     let Ok(slot) = slots.acquire().await else {
                         return;
                     };
@@ -142,7 +134,6 @@ impl Uploads {
         );
     }
 
-    /// Finish in-flight uploads, aborting whatever is still running at `deadline`.
     async fn drain_until(mut self, deadline: Instant) {
         loop {
             match tokio::time::timeout_at(deadline, self.tasks.join_next()).await {
@@ -158,8 +149,6 @@ impl Uploads {
     }
 }
 
-/// Settles the outcome of one upload's records. Records whose upload never settles
-/// (aborted at the shutdown deadline) are counted as dropped.
 struct Receipt {
     records: u64,
     stats: Arc<Stats>,
@@ -184,7 +173,6 @@ impl Receipt {
     fn settle_failed(mut self, reason: &'static str) {
         self.settled = true;
         if self.stats.record_failed(self.records, reason) {
-            // Error categories contain no URLs, credentials, response bodies or content.
             let context = tracing::Span::current().context();
             let span = context.span();
             let context = span.span_context();

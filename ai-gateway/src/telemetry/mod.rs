@@ -41,7 +41,6 @@ const MAX_RECORD_BYTES: usize = 4 * 1024 * 1024;
 const MAX_RETAINED_BYTES: usize = 16 * 1024 * 1024;
 const MAX_QUEUED_RECORDS: usize = 1024;
 
-/// Ingestion credentials for one project. Deliberately not serializable or printable.
 struct Grant {
     project_id: String,
     access_token: String,
@@ -57,8 +56,6 @@ impl Grant {
     }
 }
 
-/// Project attribution stays attached to each execution even when delivery outlives
-/// the response body.
 pub(crate) struct DeliveryContext {
     grant: Grant,
     generation: GenerationContext,
@@ -81,7 +78,6 @@ impl DeliveryContext {
     }
 }
 
-/// Per-record delivery outcomes.
 #[derive(Default)]
 struct Stats {
     accepted: AtomicU64,
@@ -95,7 +91,6 @@ impl Stats {
         crate::observability::delivery("accepted", "success", records);
     }
 
-    /// Returns whether this failure crosses a log reporting threshold.
     fn record_failed(&self, records: u64, reason: &'static str) -> bool {
         let before = self.failed.fetch_add(records, Ordering::Relaxed);
         crate::observability::delivery("failed", reason, records);
@@ -112,7 +107,6 @@ impl Stats {
     }
 }
 
-/// Log the first occurrence and then once per hundred records.
 fn crosses_report_threshold(before: u64, after: u64) -> bool {
     before == 0 || before / 100 != after / 100
 }
@@ -124,12 +118,10 @@ struct Delivery {
     stats: Arc<Stats>,
 }
 
-/// Shared delivery handle. Shutdown closes submission and drains already admitted work.
 #[derive(Clone)]
 pub struct Telemetry(Arc<Delivery>);
 
 impl Telemetry {
-    /// Must be called within a Tokio runtime, which runs the delivery worker.
     pub(crate) fn new(config: &ControlPlaneConfig) -> Result<Self, ResolutionError> {
         Ok(Self::with_uploader(
             Uploader::new(config)?,
@@ -140,8 +132,6 @@ impl Telemetry {
         ))
     }
 
-    /// Uploads open batches after a few milliseconds instead of the production linger,
-    /// in a single attempt.
     #[cfg(test)]
     pub(crate) fn for_test(config: &ControlPlaneConfig) -> Self {
         Self::with_uploader(
@@ -181,7 +171,6 @@ impl Telemetry {
         }))
     }
 
-    /// No waiting and no network work on the caller's response/drop path.
     pub(crate) fn record(&self, context: DeliveryContext, facts: InferenceFacts) {
         let link = tracing::Span::current()
             .context()
