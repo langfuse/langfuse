@@ -93,7 +93,7 @@ export function SessionReviewWorkspace({
       >
         <div
           ref={leadingRef}
-          className="bg-header sticky top-0 z-30 w-full shrink-0 empty:hidden"
+          className="bg-background sticky top-0 z-30 w-full shrink-0 empty:hidden"
         />
         <Group
           groupRef={groupRef}
