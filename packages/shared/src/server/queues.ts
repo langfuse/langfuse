@@ -548,7 +548,6 @@ export type TQueueJobTypes = {
       batchId?: string;
     };
     batchState?: TopicProcessBatchState;
-    pendingEmbeddingBatchIds?: string[];
   };
   [QueueName.TopicsUpdate]: TQueueJobTypes[QueueName.Topics];
   [QueueName.TopicsEmbedding]: {

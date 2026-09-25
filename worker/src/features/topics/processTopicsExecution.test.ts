@@ -791,9 +791,7 @@ describe("Topics execution", () => {
     await updateSelection("first-map");
     const first = [...state.runs.values()].at(-1)!;
     state.deferEmbeddings = true;
-    expect(await processSelection("incoming", 1, ["trace100"])).toEqual({
-      pendingEmbeddingBatchIds: ["batch-0"],
-    });
+    await processSelection("incoming", 1, ["trace100"]);
     expect(state.batches.get("incoming")?.summarized).toBe(true);
     expect(state.executions.get("incoming")?.phase).toBe("embedding");
     await updateSelection("second-map");
@@ -1041,8 +1039,17 @@ describe("Topics execution", () => {
     const first = structuredClone([...state.runs.values()].at(-1)!);
     await processSelection("additional", 1, ["trace100"]);
     for (const summary of state.summaries.values()) summary.embedding[3] = 0;
+    state.assignmentWrites.mockRejectedValueOnce(
+      new Error("Temporary failure"),
+    );
     await updateSelection("second");
+    expect([...state.runs.values()].at(-1)?.status).toBe("failed");
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "second",
+    });
     const second = [...state.runs.values()].at(-1)!;
+    expect(second.status).toBe("completed");
     expect(second.topics).toEqual(first.topics);
     expect(
       second.topics.every((topic) => topic.createdByRunId === first.id),
@@ -1056,19 +1063,6 @@ describe("Topics execution", () => {
       first.topics.find((topic) => topic.centroid[0] > 0.5)?.topicVersionId,
     );
     expect(state.runs.get(first.id)).toEqual(first);
-    state.assignmentWrites.mockRejectedValueOnce(
-      new Error("Temporary failure"),
-    );
-    await updateSelection("retry");
-    expect([...state.runs.values()].at(-1)?.status).toBe("failed");
-    await processTopicsExecution({
-      projectId: "project",
-      executionId: "retry",
-    });
-    const retried = [...state.runs.values()].at(-1)!;
-    expect(retried.status).toBe("completed");
-    expect(retried.topics).toEqual(first.topics);
-    expect(state.name).toHaveBeenCalledTimes(2);
   });
 
   it("retains only populations served by stored geometry when near-tied definitions are reused", async () => {

@@ -1,5 +1,5 @@
 import { UnrecoverableError } from "bullmq";
-import { topicSourceKey, type TopicSummary } from "@langfuse/shared/topics";
+import type { TopicSummary } from "@langfuse/shared/topics";
 import {
   readStagedTopicSummary,
   TOPIC_EMBEDDING_EXPIRED_ERROR,
@@ -68,15 +68,14 @@ export async function processTopicEmbeddingBatch(
           costDetails: mergeDetails(summary.costDetails, result.costDetails),
           processedAt: new Date().toISOString(),
         };
-        metrics.embeddingResult(topicSourceKey(summary), "generated");
+        metrics.result("embedding", "generated");
         // All overlapping attempts must persist the same accepted result.
         const accepted = await updateStagedTopicSummary(batch, ref, summary);
         if (!accepted)
           throw new UnrecoverableError(TOPIC_EMBEDDING_EXPIRED_ERROR);
         pending.push(accepted);
       } else {
-        if (summary.state === "complete")
-          metrics.embeddingResult(topicSourceKey(summary), "cached");
+        if (summary.state === "complete") metrics.result("embedding", "cached");
         pending.push(summary);
       }
     }

@@ -88,7 +88,6 @@ export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
       traceIds: z.array(topicTraceIdSchema).min(1),
       reuseExistingSummaries: z.boolean().default(false),
       ruleId: topicIdSchema.optional(),
-      traceSelection: topicTraceSelectionSnapshotSchema.optional(),
       processingConfig: topicProcessingConfigSchema.default(() =>
         topicProcessingConfigSchema.parse({}),
       ),
@@ -308,9 +307,6 @@ export type TopicExecutionSummary = Omit<
   "input" | "traceErrors"
 > & {
   input:
-    | Omit<
-        Extract<TopicExecutionInput, { operation: "process" }>,
-        "traceIds" | "traceSelection"
-      >
+    | Omit<Extract<TopicExecutionInput, { operation: "process" }>, "traceIds">
     | Extract<TopicExecutionInput, { operation: "update" }>;
 };

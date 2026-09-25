@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { TopicFacet, TopicRule } from "@langfuse/shared/topics";
-import { TopicPipelineForm } from "./TopicPipelineForm";
+import { useTopicPipelineForm } from "./TopicPipelineForm";
 
 const mocks = vi.hoisted(() => ({
   preview: vi.fn(),
@@ -95,6 +95,21 @@ const facets: TopicFacet[] = ["Intent", "Issues"].map((name) => ({
   })),
 }));
 const latestFacets = facets.map((facet) => ({ facetId: facet.id, version: 2 }));
+function PipelineForm() {
+  const { actions, configuration } = useTopicPipelineForm({
+    projectId: "project",
+    facets,
+    canWrite: true,
+    onTriggered: mocks.onTriggered,
+    facetEditor: null,
+  });
+  return (
+    <>
+      {actions}
+      {configuration}
+    </>
+  );
+}
 function setup() {
   render(
     <QueryClientProvider
@@ -102,19 +117,7 @@ function setup() {
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <TopicPipelineForm
-        projectId="project"
-        facets={facets}
-        canWrite
-        onTriggered={mocks.onTriggered}
-        facetEditor={null}
-        render={(actions, configuration) => (
-          <>
-            {actions}
-            {configuration}
-          </>
-        )}
-      />
+      <PipelineForm />
     </QueryClientProvider>,
   );
 }

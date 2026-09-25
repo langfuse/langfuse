@@ -298,10 +298,6 @@ function CurrentTraceTable({
     tableName: "topics-traces",
     isV4: false,
     queryParams: ["observation", "display", "timestamp", "traceId"],
-    expandConfig: {
-      basePath: `/project/${projectId}/traces`,
-      reader: "trace",
-    },
   });
   const peekConfig = { itemType: "TRACE" as const, ...peekNavigation };
   const tableRef = useRef<HTMLDivElement>(null);

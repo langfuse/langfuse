@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
@@ -36,7 +36,7 @@ import {
   type TopicFacetOutcome,
   type TopicOperation,
 } from "@langfuse/shared/topics";
-import { TopicPipelineForm } from "./TopicPipelineForm";
+import { useTopicPipelineForm } from "./TopicPipelineForm";
 import { CurrentTopics } from "./CurrentTopics";
 
 const operationLabels: Record<TopicOperation, string> = {
@@ -90,6 +90,23 @@ export default function TopicsPage() {
 }
 
 function TopicsWorkspace({ projectId }: { projectId: string }) {
+  const facets = api.topics.facets.useQuery({ projectId });
+  return (
+    <TopicsWorkspaceView
+      key={facets.data?.length ? "configured" : "empty"}
+      projectId={projectId}
+      facets={facets}
+    />
+  );
+}
+
+function TopicsWorkspaceView({
+  projectId,
+  facets,
+}: {
+  projectId: string;
+  facets: UseQueryResult<TopicFacet[], { message: string }>;
+}) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
@@ -100,7 +117,6 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
   const router = useRouter();
   const utils = api.useUtils();
   const canWrite = useHasProjectAccess({ projectId, scope: "topics:CUD" });
-  const facets = api.topics.facets.useQuery({ projectId });
   const executions = api.topics.executions.useQuery(
     { projectId },
     {
@@ -145,168 +161,157 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
       shallow: true,
     });
   };
-  const renderWorkspace = (
-    pipelineActions: ReactNode,
-    configuration: ReactNode,
-  ) => {
-    const actions = (
-      <div className="ph-no-capture flex flex-wrap items-center justify-end gap-2">
-        {pipelineActions}
-        <Button
-          text="History"
-          variant="ghost"
-          size="sm"
-          onClick={() => setHistoryOpen(true)}
-        />
-        <Button
-          text="Refresh results"
-          variant="ghost"
-          size="sm"
-          onClick={() => utils.topics.currentResults.invalidate({ projectId })}
-        />
-      </div>
-    );
-    return (
-      <Page
-        headerProps={{
-          title: "Topics",
-          help: {
-            description:
-              "Explore recurring themes across traces, one facet at a time.",
-          },
-          actionButtonsRight: actions,
-          actionButtonsMenu: <PopoverClose asChild>{actions}</PopoverClose>,
-        }}
-        scrollable={Boolean(facets.data?.length)}
-        withPadding
+  const { actions: pipelineActions, configuration } = useTopicPipelineForm({
+    projectId,
+    facets: facets.data ?? [],
+    canWrite,
+    onTriggered: openExecution,
+    facetEditor:
+      canWrite && facets.data?.length ? (
+        <FacetEditor projectId={projectId} facets={facets.data} />
+      ) : null,
+  });
+  const actions = (
+    <div className="ph-no-capture flex flex-wrap items-center justify-end gap-2">
+      {pipelineActions}
+      <Button
+        text="History"
+        variant="ghost"
+        size="sm"
+        onClick={() => setHistoryOpen(true)}
+      />
+      <Button
+        text="Refresh results"
+        variant="ghost"
+        size="sm"
+        onClick={() => utils.topics.currentResults.invalidate({ projectId })}
+      />
+    </div>
+  );
+  return (
+    <Page
+      headerProps={{
+        title: "Topics",
+        help: {
+          description:
+            "Explore recurring themes across traces, one facet at a time.",
+        },
+        actionButtonsRight: actions,
+        actionButtonsMenu: <PopoverClose asChild>{actions}</PopoverClose>,
+      }}
+      scrollable={Boolean(facets.data?.length)}
+      withPadding
+    >
+      {configuration}
+      <Sheet
+        open={historyOpen || executionId !== null}
+        onOpenChange={showExecutionList}
       >
-        {configuration}
-        <Sheet
-          open={historyOpen || executionId !== null}
-          onOpenChange={showExecutionList}
-        >
-          <SheetContent className="ph-no-capture flex w-full flex-col gap-4 sm:max-w-xl">
-            <SheetHeader>
-              <SheetTitle>
-                {executionId ? "Run status" : "Past executions"}
-              </SheetTitle>
-              <SheetDescription>
-                Review progress, errors, and retry interrupted runs.
-              </SheetDescription>
-            </SheetHeader>
-            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
-              {executionId ? (
-                <>
-                  <div className="self-start">
-                    <Button
-                      text="All runs"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => showExecutionList(true)}
-                    />
-                  </div>
-                  <ExecutionPanel
-                    key={executionId}
-                    projectId={projectId}
-                    executionId={executionId}
-                    query={selectedExecution}
-                    facets={facets.data ?? []}
-                    canWrite={canWrite}
+        <SheetContent className="ph-no-capture flex w-full flex-col gap-4 sm:max-w-xl">
+          <SheetHeader>
+            <SheetTitle>
+              {executionId ? "Run status" : "Past executions"}
+            </SheetTitle>
+            <SheetDescription>
+              Review progress, errors, and retry interrupted runs.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+            {executionId ? (
+              <>
+                <div className="self-start">
+                  <Button
+                    text="All runs"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => showExecutionList(true)}
                   />
-                </>
-              ) : (
-                <>
-                  <div className="self-end">
-                    <Button
-                      text="Refresh"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => executions.refetch()}
-                    />
-                  </div>
-                  {executions.error && (
-                    <ErrorMessage message={executions.error.message} />
-                  )}
-                  {!executions.data?.length && (
-                    <p className="text-muted-foreground text-sm">
-                      Your triggered batches will appear here.
-                    </p>
-                  )}
-                  {executions.data?.map((execution) => (
-                    <button
-                      key={execution.id}
-                      onClick={() => openExecution(execution.id)}
-                      className="hover:bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-left text-sm"
-                    >
-                      <span className="capitalize">
-                        {operationLabels[execution.input.operation]} ·{" "}
-                        {new Date(execution.createdAt).toLocaleString()}
-                      </span>
-                      <span>{execution.facets.length} facets</span>
-                      <Badge text={executionLabels[execution.status]} />
-                    </button>
-                  ))}
-                </>
-              )}
-            </div>
-          </SheetContent>
-        </Sheet>
-        <div className="ph-no-capture flex w-full min-w-0 flex-col gap-6 pb-12">
-          <TablePeekViewTraceDetail
-            {...peekNavigation}
-            itemType="TRACE"
-            projectId={projectId}
-          />
-          <CurrentTopics
-            projectId={projectId}
-            refreshAfter={Math.max(
-              executions.dataUpdatedAt,
-              selectedExecution.dataUpdatedAt,
+                </div>
+                <ExecutionPanel
+                  key={executionId}
+                  projectId={projectId}
+                  executionId={executionId}
+                  query={selectedExecution}
+                  facets={facets.data ?? []}
+                  canWrite={canWrite}
+                />
+              </>
+            ) : (
+              <>
+                <div className="self-end">
+                  <Button
+                    text="Refresh"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => executions.refetch()}
+                  />
+                </div>
+                {executions.error && (
+                  <ErrorMessage message={executions.error.message} />
+                )}
+                {!executions.data?.length && (
+                  <p className="text-muted-foreground text-sm">
+                    Your triggered batches will appear here.
+                  </p>
+                )}
+                {executions.data?.map((execution) => (
+                  <button
+                    key={execution.id}
+                    onClick={() => openExecution(execution.id)}
+                    className="hover:bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-left text-sm"
+                  >
+                    <span className="capitalize">
+                      {operationLabels[execution.input.operation]} ·{" "}
+                      {new Date(execution.createdAt).toLocaleString()}
+                    </span>
+                    <span>{execution.facets.length} facets</span>
+                    <Badge text={executionLabels[execution.status]} />
+                  </button>
+                ))}
+              </>
             )}
-            running={
-              Boolean(
-                executions.data?.some((execution) => busy(execution.status)),
-              ) || busy(selectedExecution.data?.status ?? "")
-            }
-          />
-          {facets.isLoading && <p>Loading facets…</p>}
-          {facets.error && <ErrorMessage message={facets.error.message} />}
-          {facets.data?.length === 0 && (
-            <section className="flex flex-col items-start gap-3">
-              <h2 className="font-bold">Start with a question</h2>
-              <p className="text-muted-foreground text-sm">
-                Create starter facets for intent, outcome, and issues. You can
-                edit the questions or add your own.
-              </p>
-              <Button
-                text="Create starter facets"
-                disabled={!canWrite || initialize.isPending}
-                onClick={() => initialize.mutate({ projectId })}
-              />
-              {initialize.error && (
-                <ErrorMessage message={initialize.error.message} />
-              )}
-            </section>
+          </div>
+        </SheetContent>
+      </Sheet>
+      <div className="ph-no-capture flex w-full min-w-0 flex-col gap-6 pb-12">
+        <TablePeekViewTraceDetail
+          {...peekNavigation}
+          itemType="TRACE"
+          projectId={projectId}
+        />
+        <CurrentTopics
+          projectId={projectId}
+          refreshAfter={Math.max(
+            executions.dataUpdatedAt,
+            selectedExecution.dataUpdatedAt,
           )}
-        </div>
-      </Page>
-    );
-  };
-  return facets.data?.length ? (
-    <TopicPipelineForm
-      projectId={projectId}
-      facets={facets.data}
-      canWrite={canWrite}
-      onTriggered={openExecution}
-      facetEditor={
-        canWrite ? (
-          <FacetEditor projectId={projectId} facets={facets.data} />
-        ) : null
-      }
-      render={renderWorkspace}
-    />
-  ) : (
-    renderWorkspace(null, null)
+          running={
+            Boolean(
+              executions.data?.some((execution) => busy(execution.status)),
+            ) || busy(selectedExecution.data?.status ?? "")
+          }
+        />
+        {facets.isLoading && <p>Loading facets…</p>}
+        {facets.error && <ErrorMessage message={facets.error.message} />}
+        {facets.data?.length === 0 && (
+          <section className="flex flex-col items-start gap-3">
+            <h2 className="font-bold">Start with a question</h2>
+            <p className="text-muted-foreground text-sm">
+              Create starter facets for intent, outcome, and issues. You can
+              edit the questions or add your own.
+            </p>
+            <Button
+              text="Create starter facets"
+              disabled={!canWrite || initialize.isPending}
+              onClick={() => initialize.mutate({ projectId })}
+            />
+            {initialize.error && (
+              <ErrorMessage message={initialize.error.message} />
+            )}
+          </section>
+        )}
+      </div>
+    </Page>
   );
 }
 

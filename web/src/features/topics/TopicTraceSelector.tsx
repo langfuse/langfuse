@@ -1,5 +1,5 @@
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { type ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
@@ -35,7 +35,7 @@ export type TopicTraceCriteria = Pick<
   "filter" | "sampling" | "limit"
 >;
 type TracePreview = RouterOutputs["topics"]["previewTraces"]["traces"][number];
-export type TopicTraceSelection = { count: number } & (
+type TopicTraceSelection = { count: number } & (
   | { traceIds: string[] }
   | {
       selection: Extract<
@@ -60,39 +60,43 @@ function calendarRange(from: string, to: string) {
   return { from: new Date(`${from}T00:00:00`), to: end };
 }
 
-export function TopicTraceSelector({
+export function useTopicTraceSelector({
   projectId,
-  initialCriteria,
   onOpenTrace,
-  children,
+  enabled,
 }: {
   projectId: string;
-  initialCriteria?: TopicTraceCriteria;
   onOpenTrace: () => void;
-  children: (
-    selection: TopicTraceSelection | null,
-    criteria: TopicTraceCriteria | null,
-    controls: ReactNode,
-  ) => ReactNode;
+  enabled: boolean;
 }) {
   const [mode, setMode] = useState("filters");
   const [filterMode, setFilterMode] = useState<"builder" | "query">("builder");
-  const [filter, setFilter] = useState<FilterState>(
-    initialCriteria?.filter ?? [],
-  );
+  const [filter, setFilter] = useState<FilterState>([]);
   const [timeWindow, setTimeWindow] = useState("7");
   const [range, setRange] = useState(() => {
     const to = new Date();
     return { from: new Date(to.getTime() - 7 * DAY), to };
   });
-  const [sample, setSample] = useState(initialCriteria?.limit != null);
-  const [limit, setLimit] = useState(String(initialCriteria?.limit ?? 100));
-  const [sampling, setSampling] = useState<"random" | "latest">(
-    initialCriteria?.sampling ?? "random",
-  );
+  const [sample, setSample] = useState(false);
+  const [limit, setLimit] = useState("100");
+  const [sampling, setSampling] = useState<"random" | "latest">("random");
   const [paste, setPaste] = useState("");
   const [request, setRequest] = useState<PreviewInput | null>(null);
   const [excluded, setExcluded] = useState<string[]>([]);
+  const reset = (criteria?: TopicTraceCriteria) => {
+    const to = new Date();
+    setMode("filters");
+    setFilterMode("builder");
+    setFilter(criteria?.filter ?? []);
+    setTimeWindow("7");
+    setRange({ from: new Date(to.getTime() - 7 * DAY), to });
+    setSample(criteria?.limit != null);
+    setLimit(String(criteria?.limit ?? 100));
+    setSampling(criteria?.sampling ?? "random");
+    setPaste("");
+    setRequest(null);
+    setExcluded([]);
+  };
   const validLimit =
     !sample || (Number.isSafeInteger(Number(limit)) && Number(limit) >= 1);
   const validRange =
@@ -109,6 +113,7 @@ export function TopicTraceSelector({
     },
     {
       enabled: (query) =>
+        enabled &&
         request !== null &&
         mode === "filters" &&
         query.state.data === undefined,
@@ -170,7 +175,7 @@ export function TopicTraceSelector({
       "experimentDatasetId",
       "experimentId",
     ],
-    enabled: mode === "filters" && validRange,
+    enabled: enabled && mode === "filters" && validRange,
   });
   const observed = toObservedOptions(
     options.filterOptions,
@@ -466,13 +471,16 @@ export function TopicTraceSelector({
       },
     };
   }
-  return children(
-    selection,
+  const criteria: TopicTraceCriteria | null =
     mode === "filters" && validLimit
       ? { filter, sampling, limit: sample ? Number(limit) : null }
-      : null,
+      : null;
+  return {
+    selection,
+    criteria,
     controls,
-  );
+    reset,
+  };
 }
 
 function TracePreviewTable({

@@ -501,16 +501,6 @@ async function clusterFacet(
             typeof entry[0] === "string" && Array.isArray(entry[1]),
         ),
     );
-    if (numeric.status === "insufficient_data") {
-      metrics.result("clustering", "insufficient_data");
-      await saveTopicRun({
-        ...run,
-        status: "skipped",
-        finishedAt: new Date().toISOString(),
-      });
-      progress.outcome = "insufficient_data";
-      return;
-    }
     const prototypes =
       numeric.status === "no_topics"
         ? []
@@ -1048,7 +1038,7 @@ export async function processTopicsExecution({
   batchId?: string;
   batchState?: TopicProcessBatchState;
   saveBatchState?: (state: TopicProcessBatchState) => Promise<void>;
-}): Promise<{ pendingEmbeddingBatchIds: string[] } | void> {
+}): Promise<void> {
   if (!isTopicsEnabled()) throw new Error("Topics processing is not enabled.");
   const metadata = await readTopicExecutionSummary(projectId, executionId);
   if (!metadata) throw new Error("Topics execution not found.");
@@ -1166,7 +1156,7 @@ export async function processTopicsExecution({
   } catch (error) {
     if (error instanceof PendingTopicEmbeddings) {
       await save("embedding");
-      return { pendingEmbeddingBatchIds: [batchId!] };
+      return;
     }
     metrics.error("execution", error);
     metrics.execution("failed");

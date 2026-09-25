@@ -53,7 +53,6 @@ export function recordTopicTokenUsage(
 /** One instance per execution attempt prevents nested catches counting an error twice. */
 export class TopicMetrics {
   private readonly reportedErrors = new WeakSet<object>();
-  private readonly countedEmbeddings = new Set<string>();
 
   execution(
     outcome: "started" | "completed" | "completed_with_errors" | "failed",
@@ -70,13 +69,6 @@ export class TopicMetrics {
     const tags = { dimensions: String(dimensions) };
     recordIncrement("langfuse.topics.clustering_vectors", vectors, tags);
     recordDistribution("langfuse.topics.clustering_cohort_size", vectors, tags);
-  }
-
-  embeddingResult(sourceKey: string, result: "generated" | "cached"): void {
-    // Count an accepted vector once per attempt.
-    if (result === "cached" && this.countedEmbeddings.has(sourceKey)) return;
-    this.countedEmbeddings.add(sourceKey);
-    this.result("embedding", result);
   }
 
   async measure<T>(
