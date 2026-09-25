@@ -74,8 +74,10 @@ type TooltipData = {
 export function ChartTooltip({
   children,
   direction = "vertical",
+  preferredPlacement = "top",
 }: {
   direction?: "vertical" | "horizontal";
+  preferredPlacement?: "top" | "bottom";
   children: (controller: {
     activeIndex: number | undefined;
     hideTooltip: () => void;
@@ -97,7 +99,9 @@ export function ChartTooltip({
       reference: SVGElement | HTMLElement;
       chart: SVGElement | HTMLElement;
       clientPoint?: { x: number; y: number };
+      pointerY?: number;
       placement?: "left" | "right";
+      side?: "top" | "bottom";
     }
   >();
   const [copyFeedback, setCopyFeedback] = useState<{
@@ -130,25 +134,60 @@ export function ChartTooltip({
   }, [activeTooltip, children]);
 
   const layerContainer = useLayerContainer("tooltip");
-  const fallbackPlacements: Array<"top" | "bottom" | "left" | "right"> =
-    direction === "horizontal"
-      ? ["left", "top", "bottom"]
-      : ["bottom", "left", "right"];
+  const chartAnchored =
+    preferredPlacement === "bottom" &&
+    activeTooltip?.anchor.type === "point-with-pointer-y";
+  let fallbackPlacements: Array<"top" | "bottom" | "left" | "right"> = [
+    "bottom",
+    "left",
+    "right",
+  ];
+  if (direction === "horizontal") {
+    fallbackPlacements = ["left", "top", "bottom"];
+  } else if (chartAnchored) {
+    fallbackPlacements = [activeTooltip.side === "top" ? "bottom" : "top"];
+  }
+  let placement: "top" | "bottom" | "left" | "right" = "top";
+  if (direction === "horizontal") placement = "right";
+  if (chartAnchored) placement = activeTooltip.side ?? "bottom";
+  if (activeTooltip?.placement) placement = activeTooltip.placement;
   const { floatingStyles, refs } = useFloating({
     elements: { reference: activeTooltip?.reference },
-    placement:
-      activeTooltip?.placement ??
-      (direction === "horizontal" ? "right" : "top"),
+    placement,
     strategy: "fixed",
     middleware: [
       offset(({ placement, rects }) => {
-        if (
-          !activeTooltip ||
-          activeTooltip.placement ||
-          activeTooltip.anchor.type === "point-with-pointer-y"
-        ) {
+        if (!activeTooltip || activeTooltip.placement) {
           return 12;
         }
+        if (chartAnchored) {
+          const chartBounds = activeTooltip.chart.getBoundingClientRect();
+          const spaceAbove = chartBounds.top - rects.floating.height - 8;
+          const spaceBelow =
+            window.innerHeight - chartBounds.bottom - rects.floating.height - 8;
+          const fitsAbove = spaceAbove >= 0;
+          const fitsBelow = spaceBelow >= 0;
+          if (
+            !fitsAbove &&
+            !fitsBelow &&
+            activeTooltip.pointerY !== undefined
+          ) {
+            if (placement === "top") {
+              return chartBounds.top - activeTooltip.pointerY + 12;
+            }
+            if (placement === "bottom") {
+              return activeTooltip.pointerY - chartBounds.bottom + 12;
+            }
+          }
+          if (placement === "top") {
+            return Math.min(12, Math.max(0, spaceAbove));
+          }
+          if (placement === "bottom") {
+            return Math.min(12, Math.max(0, spaceBelow));
+          }
+          return 12;
+        }
+        if (preferredPlacement === "bottom") return 12;
         const chartBounds = activeTooltip.chart.getBoundingClientRect();
         if (placement === "top") {
           return rects.reference.y - chartBounds.top + 12;
@@ -166,6 +205,7 @@ export function ChartTooltip({
         fallbackPlacements: activeTooltip?.placement
           ? undefined
           : fallbackPlacements,
+        fallbackStrategy: chartAnchored ? "initialPlacement" : "bestFit",
       }),
       shift({ padding: 8 }),
     ],
@@ -174,7 +214,17 @@ export function ChartTooltip({
   });
   useLayoutEffect(() => {
     if (!activeTooltip) return;
-    const { clientPoint, reference } = activeTooltip;
+    const { clientPoint, reference, chart } = activeTooltip;
+    if (chartAnchored && clientPoint) {
+      refs.setPositionReference({
+        contextElement: reference,
+        getBoundingClientRect: () => {
+          const bounds = chart.getBoundingClientRect();
+          return new DOMRect(clientPoint.x, bounds.top, 0, bounds.height);
+        },
+      });
+      return;
+    }
     if (!clientPoint) {
       refs.setPositionReference(reference);
       return;
@@ -184,16 +234,23 @@ export function ChartTooltip({
       getBoundingClientRect: () =>
         new DOMRect(clientPoint.x, clientPoint.y, 0, 0),
     });
-  }, [activeTooltip, refs]);
+  }, [activeTooltip, chartAnchored, refs]);
 
   const getReferenceProps = (data: TooltipData) => {
     const labelToCopy = data.copyLabel;
     const showAtPointer = (event: PointerEvent<SVGElement | HTMLElement>) => {
       const { currentTarget } = event;
-      const chart =
-        currentTarget instanceof SVGElement
-          ? (currentTarget.ownerSVGElement ?? currentTarget)
-          : (currentTarget.parentElement ?? currentTarget);
+      let chart: SVGElement | HTMLElement = currentTarget;
+      if (
+        preferredPlacement !== "bottom" ||
+        data.anchor.type !== "point-with-pointer-y" ||
+        !(currentTarget instanceof SVGRectElement)
+      ) {
+        chart =
+          currentTarget instanceof SVGElement
+            ? (currentTarget.ownerSVGElement ?? currentTarget)
+            : (currentTarget.parentElement ?? currentTarget);
+      }
       const svg =
         currentTarget instanceof SVGElement
           ? currentTarget.ownerSVGElement
@@ -227,15 +284,26 @@ export function ChartTooltip({
             ? "left"
             : "right";
       }
-      if (data.anchor.type === "point-with-pointer-y" && clientPoint) {
-        clientPoint = { x: clientPoint.x, y: event.clientY };
+      let side: "top" | "bottom" | undefined;
+      if (
+        preferredPlacement === "bottom" &&
+        data.anchor.type === "point-with-pointer-y"
+      ) {
+        const bounds = chart.getBoundingClientRect();
+        side =
+          bounds.top > window.innerHeight - bounds.bottom ? "top" : "bottom";
       }
       setActiveTooltip({
         ...data,
         reference: currentTarget,
         chart,
         clientPoint,
+        pointerY:
+          data.anchor.type === "point-with-pointer-y"
+            ? event.clientY
+            : undefined,
         placement,
+        side,
       });
     };
 
@@ -244,10 +312,17 @@ export function ChartTooltip({
       onPointerMove: showAtPointer,
       onPointerLeave: () => setActiveTooltip(undefined),
       onFocus: (event: FocusEvent<SVGElement | HTMLElement>) => {
-        const chart =
-          event.currentTarget instanceof SVGElement
-            ? (event.currentTarget.ownerSVGElement ?? event.currentTarget)
-            : (event.currentTarget.parentElement ?? event.currentTarget);
+        let chart: SVGElement | HTMLElement = event.currentTarget;
+        if (
+          preferredPlacement !== "bottom" ||
+          data.anchor.type !== "point-with-pointer-y" ||
+          !(event.currentTarget instanceof SVGRectElement)
+        ) {
+          chart =
+            event.currentTarget instanceof SVGElement
+              ? (event.currentTarget.ownerSVGElement ?? event.currentTarget)
+              : (event.currentTarget.parentElement ?? event.currentTarget);
+        }
         const svg =
           event.currentTarget instanceof SVGElement
             ? event.currentTarget.ownerSVGElement
@@ -269,6 +344,15 @@ export function ChartTooltip({
           screenMatrix
             ? focusPoint.matrixTransform(screenMatrix)
             : undefined;
+        let side: "top" | "bottom" | undefined;
+        if (
+          preferredPlacement === "bottom" &&
+          data.anchor.type === "point-with-pointer-y"
+        ) {
+          const bounds = chart.getBoundingClientRect();
+          side =
+            bounds.top > window.innerHeight - bounds.bottom ? "top" : "bottom";
+        }
         setActiveTooltip({
           ...data,
           reference: event.currentTarget,
@@ -276,6 +360,7 @@ export function ChartTooltip({
           clientPoint: transformedFocusPoint
             ? { x: transformedFocusPoint.x, y: transformedFocusPoint.y }
             : undefined,
+          side,
         });
       },
       onBlur: () => setActiveTooltip(undefined),

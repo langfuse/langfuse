@@ -717,7 +717,7 @@ function LineChartContent(
   }
 
   return (
-    <ChartTooltip>
+    <ChartTooltip preferredPlacement="bottom">
       {({ activeIndex, getReferenceProps }) => (
         <CartesianChart
           width={width}

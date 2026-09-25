@@ -152,6 +152,36 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+export const TooltipBelowChart = meta.story({
+  name: "(Test) Tooltip Below Chart",
+  args: { scenario: "time" },
+  decorators: [
+    (Story) => (
+      <div className="h-40 w-[420px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const hoverArea = canvasElement.querySelector<SVGRectElement>(
+      'rect[fill="transparent"]',
+    );
+    if (!hoverArea) throw new Error("Chart hover area not found");
+    fireEvent.pointerMove(hoverArea, {
+      clientX: hoverArea.getBoundingClientRect().left + 4,
+      clientY: hoverArea.getBoundingClientRect().top + 40,
+    });
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await waitFor(() => {
+      expect(tooltip.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+        hoverArea.getBoundingClientRect().bottom,
+      );
+    });
+  },
+});
+
 export const SingleValueAnchor = meta.story({
   name: "(Test) Single Value Anchor",
   play: async ({ canvasElement }) => {

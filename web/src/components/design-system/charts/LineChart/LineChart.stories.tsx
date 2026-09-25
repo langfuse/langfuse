@@ -1,5 +1,5 @@
 import preview from "../../../../../.storybook/preview";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import {
   LineChart,
   type LineChartLegend,
@@ -169,6 +169,35 @@ const meta = preview.meta({
 });
 
 export const Default = meta.story({});
+
+export const TooltipBelowChart = meta.story({
+  name: "(Test) Tooltip Below Chart",
+  decorators: [
+    (Story) => (
+      <div className="h-40 w-[420px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const hoverArea = canvasElement.querySelector<SVGRectElement>(
+      'rect[fill="transparent"]',
+    );
+    if (!hoverArea) throw new Error("Chart hover area not found");
+    fireEvent.pointerMove(hoverArea, {
+      clientX: hoverArea.getBoundingClientRect().left + 4,
+      clientY: hoverArea.getBoundingClientRect().top + 40,
+    });
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await waitFor(() => {
+      expect(tooltip.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+        hoverArea.getBoundingClientRect().bottom,
+      );
+    });
+  },
+});
 
 export const OnCardSurface = meta.story({
   decorators: [
