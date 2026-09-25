@@ -58,7 +58,10 @@ type RenderedEvent = { event: CurrentEvent; text: string };
 const redactInlineMedia = (text: string): string =>
   text.replace(/data:[^:;,\s]+;base64,[A-Za-z0-9+/=_-]+/g, "[media omitted]");
 
-/** Render an assembled trace for Topics without assembling it a second time. */
+/**
+ * Render an assembled trace for Topics without assembling it a second time.
+ * Observations provide root I/O and operation context omitted by assembly.
+ */
 export function renderTranscript(
   transcript: Transcript | null,
   observations: Observation[],
