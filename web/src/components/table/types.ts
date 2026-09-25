@@ -31,6 +31,7 @@ declare module "@tanstack/react-table" {
     cellPadding?: DataTableCellPadding;
     cellBackground?: DataTableCellBackground;
     cellClassName?: string;
+    sensitive?: boolean;
     headerClassName?: string;
     hideBelowMd?: boolean;
   }

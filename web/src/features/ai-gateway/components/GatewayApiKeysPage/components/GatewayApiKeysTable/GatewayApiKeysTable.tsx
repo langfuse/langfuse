@@ -41,6 +41,7 @@ export function GatewayApiKeysTable({
       accessorFn: (row) => row.apiKey.displaySecretKey,
       id: "key",
       header: "Key",
+      sensitive: true,
       enableResizing: false,
     }),
     createTextTableColumn<GatewayApiKey>({
@@ -53,6 +54,7 @@ export function GatewayApiKeysTable({
       accessorFn: (row) => getMetadataEntries(row.metadata),
       id: "metadata",
       header: "Metadata",
+      sensitive: true,
       enableResizing: false,
       shouldWrap: false,
     }),

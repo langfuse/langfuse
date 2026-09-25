@@ -59,9 +59,15 @@ const actions = {
 >;
 
 export const PopulatedMetadata = meta.story({
+  name: "(Test) Populated metadata excludes key data from recordings",
   args: {
     data: { status: "success", data: apiKeys },
     ...actions,
+  },
+  play: async ({ canvas }) => {
+    const cells = canvas.getAllByRole("row")[1]!.querySelectorAll("td");
+    await expect(cells[1]).toHaveClass("ph-no-capture");
+    await expect(cells[3]).toHaveClass("ph-no-capture");
   },
 });
 

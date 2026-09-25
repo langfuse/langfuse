@@ -278,6 +278,7 @@ export function Table<TData extends object>({
                             ? "p-0"
                             : "p-2",
                           column.columnDef.cellClassName,
+                          column.columnDef.sensitive && "ph-no-capture",
                           column.columnDef.hideBelowMd &&
                             "hidden md:table-cell",
                         )}
@@ -342,6 +343,7 @@ export function Table<TData extends object>({
                           "h-full overflow-hidden border-b align-middle text-xs whitespace-nowrap",
                           column.cellPadding === "none" ? "p-0" : "p-2",
                           column.cellClassName,
+                          column.sensitive && "ph-no-capture",
                           column.hideBelowMd && "hidden md:table-cell",
                         )}
                       >
