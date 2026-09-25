@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { scaleLinear } from "d3-scale";
 
 import { ChartContainer } from "@/src/components/design-system/charts/ChartContainer";
@@ -322,19 +322,25 @@ function MultiSeriesBarChart({
 }: MultiSeriesBarChartCoreProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number>();
   const clipId = useId();
-  const summaries = new Map(
-    series.map((item) => {
-      const values = data.flatMap((datum) => {
-        const value = datum.values[item.id];
-        return typeof value === "number" && Number.isFinite(value)
-          ? [value]
-          : [];
-      });
-      return [
-        item.id,
-        values.length ? values.reduce((sum, value) => sum + value, 0) : null,
-      ] as const;
-    }),
+  const summaries = useMemo(
+    () =>
+      new Map(
+        series.map((item) => {
+          const values = data.flatMap((datum) => {
+            const value = datum.values[item.id];
+            return typeof value === "number" && Number.isFinite(value)
+              ? [value]
+              : [];
+          });
+          return [
+            item.id,
+            values.length
+              ? values.reduce((sum, value) => sum + value, 0)
+              : null,
+          ] as const;
+        }),
+      ),
+    [data, series],
   );
   const initialHidden = new Set<string>();
   if (
@@ -375,27 +381,43 @@ function MultiSeriesBarChart({
     if (hidden) hiddenIds.add(id);
     else hiddenIds.delete(id);
   }
-  const visibleSeries = series.filter((item) => !hiddenIds.has(item.id));
+  const hiddenKey = series
+    .map((item) => (hiddenIds.has(item.id) ? "1" : "0"))
+    .join("");
+  const visibleSeries = useMemo(
+    () => series.filter((_, index) => hiddenKey[index] === "0"),
+    [series, hiddenKey],
+  );
   const showLegend =
     legend?.visibility === "visible" ||
     (legend?.visibility === "auto" &&
       (series.length > 1 || hiddenIds.size > 0));
-  const totals = data.map((datum) => {
-    let positive = 0;
-    let negative = 0;
-    for (const item of visibleSeries) {
-      const value = datum.values[item.id];
-      if (typeof value !== "number" || !Number.isFinite(value)) continue;
-      if (value >= 0) positive += value;
-      else negative += value;
-    }
-    return { positive, negative };
-  });
-  const individualValues = data.flatMap((datum) =>
-    visibleSeries.flatMap((item) => {
-      const value = datum.values[item.id];
-      return typeof value === "number" && Number.isFinite(value) ? [value] : [];
-    }),
+  const totals = useMemo(
+    () =>
+      data.map((datum) => {
+        let positive = 0;
+        let negative = 0;
+        for (const item of visibleSeries) {
+          const value = datum.values[item.id];
+          if (typeof value !== "number" || !Number.isFinite(value)) continue;
+          if (value >= 0) positive += value;
+          else negative += value;
+        }
+        return { positive, negative };
+      }),
+    [data, visibleSeries],
+  );
+  const individualValues = useMemo(
+    () =>
+      data.flatMap((datum) =>
+        visibleSeries.flatMap((item) => {
+          const value = datum.values[item.id];
+          return typeof value === "number" && Number.isFinite(value)
+            ? [value]
+            : [];
+        }),
+      ),
+    [data, visibleSeries],
   );
   const min =
     layout === "grouped"

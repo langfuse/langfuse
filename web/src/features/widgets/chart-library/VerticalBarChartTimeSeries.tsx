@@ -48,24 +48,35 @@ export function VerticalBarChartTimeSeries({
       ),
     [groupedData, hideXAxisLabels],
   );
-  const formatValue = (value: number) =>
-    toFullMetricString(metricFormatter(value, { style: "compact" }));
-  const chartData = groupedData.map((datum) => ({
-    key: String(datum.time_dimension ?? ""),
-    values: Object.fromEntries(
-      visibleSeries.visible.map((dimension) => [
-        dimension,
-        typeof datum[dimension] === "number" ? datum[dimension] : null,
-      ]),
-    ),
-  }));
-  const chartSeries = visibleSeries.visible.map((dimension, index) => ({
-    id: dimension,
-    label:
-      getPlainTextFromReactNode(config?.[dimension]?.label ?? dimension) ??
-      dimension,
-    color: seriesColor(index),
-  }));
+  const formatValue = useMemo(
+    () => (value: number) =>
+      toFullMetricString(metricFormatter(value, { style: "compact" })),
+    [metricFormatter],
+  );
+  const chartData = useMemo(
+    () =>
+      groupedData.map((datum) => ({
+        key: String(datum.time_dimension ?? ""),
+        values: Object.fromEntries(
+          visibleSeries.visible.map((dimension) => [
+            dimension,
+            typeof datum[dimension] === "number" ? datum[dimension] : null,
+          ]),
+        ),
+      })),
+    [groupedData, visibleSeries],
+  );
+  const chartSeries = useMemo(
+    () =>
+      visibleSeries.visible.map((dimension, index) => ({
+        id: dimension,
+        label:
+          getPlainTextFromReactNode(config?.[dimension]?.label ?? dimension) ??
+          dimension,
+        color: seriesColor(index),
+      })),
+    [visibleSeries, config],
+  );
   let chartLegend: LineChartLegend = { visibility: "hidden" };
   if (legendPosition !== "none" && legendInteraction === "toggle") {
     chartLegend = {
