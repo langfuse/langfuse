@@ -144,8 +144,10 @@ These distributions use the `langfuse.trace_batch` prefix:
 Topics measurement uses the existing assembled transcript and the inclusive
 Topics preset in `packages/shared/src/server/transcript/topics-renderer-config.ts`. It
 does not call a model or store the text. The preset includes all block types and
-history, caps fallback trace-level input and output at 10,000 characters each, and has no
-total token budget. It omits no middle lines. The rendered text has
+history, caps fallback trace-level input and output at 10,000 characters each,
+and caps each system message at 600 characters. These are separate per-block
+limits, not a combined trace budget. The preset has no total token budget. It
+omits no middle lines. The rendered text has
 `<run_facts>`, optional `<tools>` and `<earlier_conversation source="replayed input">`,
 `<this_run>`, and `<end_of_run>` sections in that order. Observation markers show
 the Langfuse operation type and name in walk order; matched tool results already
@@ -253,12 +255,15 @@ and `langfuse.trace.url` (a peek link using the configured product base URL).
 Under `langfuse.trace_batch`, the span records `transcript_message_tokens`, `transcript_characters`,
 `transcript_json_characters`, `transcript_json_tokens`,
 `generic_transcript_characters`, `generic_transcript_tokens`,
+`topics_transcript_characters`, `topics_transcript_tokens`,
+`transcript_comparison_render_duration_ms`,
+`transcript_comparison_tokenization_duration_ms`,
 `transcript_assembly_duration_ms`, `observation_count` (rows before observation
 deduplication), `has_transcript`, `tokenizer`, and `experiment_id`.
 It also records the token breakdown and content/tool-response character metrics,
 `transcript_thread_count`,
 and each phase as `transcript_assembly_<phase>_duration_ms`.
-It also records each Topics metric above. Block character attributes use
+It also records the remaining Topics metrics above. Block character attributes use
 `topics_transcript_block_<block>_<stage>_characters`. Topics character metrics
 are absent if rendering failed; the token metric can also be absent if its
 estimate failed.

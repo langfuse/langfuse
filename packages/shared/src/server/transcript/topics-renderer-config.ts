@@ -9,6 +9,7 @@ const block = (include: boolean, maxChars: number) =>
     })
     .prefault({});
 
+// Shared defaults use per-block character caps and an optional total token budget.
 export const transcriptRenderConfigSchema = z.object({
   system: block(true, 600),
   user: block(true, 1500),
@@ -30,8 +31,7 @@ export type TranscriptRenderConfig = z.input<
   typeof transcriptRenderConfigSchema
 >;
 
-// The inclusive one-call Topics layout keeps each block's existing cap but
-// measures the full transcript before choosing a total token budget.
+// Topics measures all block types with per-block caps and no total token budget.
 export const topicsTranscriptConfig = {
   system: { maxChars: 600 },
   user: { maxChars: 2000 },
