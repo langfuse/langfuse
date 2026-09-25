@@ -79,7 +79,9 @@ export function TraceDetailActions({
 
   let shareDisabled: { reason: string } | undefined;
   if (!publish.hasAccess) {
-    shareDisabled = { reason: "You don't have permission to share this trace." };
+    shareDisabled = {
+      reason: "You don't have permission to share this trace.",
+    };
   } else if (publish.isPending) {
     shareDisabled = { reason: "Updating sharing status." };
   }
