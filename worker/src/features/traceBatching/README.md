@@ -122,7 +122,13 @@ These distributions use the `langfuse.trace_batch` prefix:
 | Metric | Sample |
 | --- | --- |
 | `transcript_assembly_duration_ms` | One trace's ordering and assembly time, excluding I/O conversion, stream waits and tokenization; `has_transcript:true\|false`. |
-| `transcript_tokens` | Token estimate of the complete transcript JSON (history, current turn and provenance); zero when no transcript can be assembled. |
+| `transcript_message_tokens` | Sum of current-turn and history token estimates; zero when empty, omitted if either estimate is unavailable. Replaces full-transcript JSON tokenization under a different name. |
+| `transcript_current_turn_tokens` | Token estimate of current-turn messages across all threads, using role and parts only; zero when empty. |
+| `transcript_history_tokens` | Token estimate of history messages across all threads, using the same role/parts representation; zero when empty. |
+| `transcript_content_characters` | Sum of JSON-serialized message-part lengths across history and current turn, in UTF-16 code units; excludes message wrappers and provenance. |
+| `transcript_tool_response_characters` | The subset of content characters belonging to tool-role messages or unmatched tool-result parts; zero when absent. |
+| `transcript_thread_count` | Number of assembled conversation threads, or zero for a null transcript. |
+| `transcript_assembly_phase_duration_ms` | Two non-overlapping samples per trace tagged `phase:normalization` or `phase:matching`. Normalization includes initial message-key construction and partitioning; matching covers remaining assembly work, including tool matching, deduplication, any rebuilt keys and finalization. Observation ordering is outside these phases but remains in total assembly time. |
 
 Transcript token counts use the existing local worker-thread pool and bundled
 tiktoken WASM, without a network or model API call. The `gpt-4o` configuration
@@ -130,19 +136,38 @@ selects `o200k_base`, also used by GPT-5 mini and nano
 ([OpenAI mapping](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py)); metrics are tagged
 `tokenizer:o200k_base`. These are serialized-payload estimates, not provider
 billing counts or a model's full request framing.
+Current turn and history use identical `{ messages: [{ role, parts }] }` JSON
+framing, without observation provenance. Only nonempty partitions are tokenized,
+at most twice per trace. Their sum is `transcript_message_tokens`; it is not
+directly comparable to the retired `transcript_tokens` full-transcript JSON metric.
+Empty transcripts report zero. Thread counts are numeric samples, never metric tags.
+
+For rough tool-response size share, divide `transcript_tool_response_characters`
+by `transcript_content_characters` (when nonzero). Both sum serialized parts on
+the same basis, including part JSON syntax but excluding message wrappers and
+provenance. This is a character share, not a token share. For an overall traffic
+share, divide the sums rather than averaging per-trace percentages. These metrics
+are emitted before tokenization, including when it fails; no tool tokenizer runs.
 Unknown estimates are omitted and counted in `token_estimation_unavailable`.
-Rejected estimates increment `token_estimation_failed` and omit the token sample;
-they do not retry the batch. Only the assembled transcript is tokenized.
+Rejected estimates increment `token_estimation_failed` and stop the remaining
+estimates for that trace; successful earlier samples are retained. Unknown
+estimates do not stop later estimates. The summed estimate is omitted unless
+both partitions are known. Neither failure retries the batch.
+Only current-turn and history message projections are tokenized.
 
 The worker submits one transcript for tokenization while streaming the next
 trace's observations. Before submitting another transcript it awaits the previous
-promise, keeping at most one pending token estimate per batch. Success and stream
+promise. Projections are tokenized sequentially, keeping at most one pending
+tokenizer request per batch. Success and stream
 failure both drain accepted promises; a stream failure never assembles its
 partial final trace. Assembly itself remains synchronous. `read_duration_ms`
 includes all this processing.
 
 Memory includes the current trace, the previous transcript being tokenized and
 stream buffers, multiplied by active batch jobs. A single trace remains unbounded.
+The transcript remains referenced until both partitions finish. Each message
+belongs to one partition; there is no additional full-transcript or tool-response
+tokenization pass.
 The default two-thread tokenizer pool is shared with ingestion; overlap hides
 waiting time but does not remove CPU use or contention. Its existing 30-second
 timeout rejects the promise without cancelling queued/running encoding, so the
@@ -164,27 +189,33 @@ Metric delivery and percentile configuration must be verified after deployment.
 Each completed trace emits a `trace-batch-transcript` child span under the batch
 processing span. Its attributes include `langfuse.project.id`, `langfuse.trace.id`,
 and `langfuse.trace.url` (a peek link using the configured product base URL).
-Under `langfuse.trace_batch`, the span records `transcript_tokens`, `transcript_characters`,
+Under `langfuse.trace_batch`, the span records `transcript_message_tokens`, `transcript_characters`,
 `transcript_assembly_duration_ms`, `observation_count` (rows before observation
 deduplication), `has_transcript`, `tokenizer`, and `experiment_id`.
+It also records the token breakdown and content/tool-response character metrics,
+`transcript_thread_count`,
+and each phase as `transcript_assembly_<phase>_duration_ms`.
 No transcript content is attached, and IDs are not distribution metric tags.
 `transcript_characters` measures the complete transcript JSON's JavaScript string
 length (UTF-16 code units, including JSON syntax), or zero for a null transcript.
+This legacy span-only field uses a different basis from the content character
+metrics; use `transcript_content_characters` as the tool-response denominator.
 It is recorded before tokenization, so remains available if token estimation fails.
 Only recording spans serialize this extra temporary copy; it is not retained
 while tokenization runs or included in the assembly-duration measurement.
 
 The span stays open until token estimation settles, so its duration includes
 tokenization and pool waits. Use the assembly-duration attribute for assembly
-performance. Missing estimates have `token_estimation:unavailable|failed` and no
-token count; null transcripts have zero tokens. The child span does not become
+performance. Missing estimates have `token_estimation:unavailable|failed`; their
+counts are omitted while successful earlier estimates remain. Null transcripts
+have zero tokens. The child span does not become
 active while the next trace streams, and failed streams do not emit a span for
 their partial final trace.
 
 In Datadog APM Trace Explorer, search for:
 
 ```text
-env:prod-eu service:worker-cpu resource_name:trace-batch-transcript @langfuse.trace_batch.transcript_tokens:>=100000
+env:prod-eu service:worker-cpu resource_name:trace-batch-transcript @langfuse.trace_batch.transcript_message_tokens:>=100000
 ```
 
 Add token count as a numeric measure to sort largest first, display the project

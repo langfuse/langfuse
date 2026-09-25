@@ -16,9 +16,16 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useCallback,
+  useRef,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AnnotateDrawerController } from "@/src/features/scores";
+import { type AnnotateDrawerPayload } from "@/src/features/scores/components/AnnotateDrawerController";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -317,6 +324,55 @@ const SessionScores = ({
   );
 };
 
+type SessionAnnotatePayload = AnnotateDrawerPayload<{
+  type: "session";
+  sessionId: string;
+}>;
+
+// The mobile overflow menu unmounts its rows when it closes. The annotation
+// sheet has to be owned outside that menu, or it closes with the menu.
+function SessionAnnotateHost({
+  projectId,
+  openRef,
+  onDisabledChange,
+}: {
+  projectId: string;
+  openRef: React.RefObject<(payload: SessionAnnotatePayload) => void>;
+  onDisabledChange: (disabled: boolean) => void;
+}) {
+  return (
+    <AnnotateDrawerController projectId={projectId}>
+      {({ disabled, openDrawer }) => (
+        <SessionAnnotateBridge
+          disabled={disabled}
+          openDrawer={openDrawer}
+          openRef={openRef}
+          onDisabledChange={onDisabledChange}
+        />
+      )}
+    </AnnotateDrawerController>
+  );
+}
+
+function SessionAnnotateBridge({
+  disabled,
+  openDrawer,
+  openRef,
+  onDisabledChange,
+}: {
+  disabled: boolean;
+  openDrawer: (payload: SessionAnnotatePayload) => void;
+  openRef: React.RefObject<(payload: SessionAnnotatePayload) => void>;
+  onDisabledChange: (disabled: boolean) => void;
+}) {
+  useLayoutEffect(() => {
+    openRef.current = openDrawer;
+    onDisabledChange(disabled);
+  }, [disabled, onDisabledChange, openDrawer, openRef]);
+
+  return null;
+}
+
 const CopySessionIdButton: React.FC<{
   sessionId: string;
   /** "menu" renders a full-width labeled row for the mobile ⋯ overflow;
@@ -377,6 +433,10 @@ export const SessionPage: React.FC<{
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const isMobile = useIsMobile();
+  const openAnnotateRef = useRef<(payload: SessionAnnotatePayload) => void>(
+    () => {},
+  );
+  const [annotateDisabled, setAnnotateDisabled] = useState(true);
   const parentRef = useRef<HTMLDivElement>(null);
   const session = api.sessions.byIdWithScores.useQuery(
     {
@@ -539,6 +599,11 @@ export const SessionPage: React.FC<{
             : getCommentDrawerInitialStateFromUrl(router.query)
         }
       >
+        <SessionAnnotateHost
+          projectId={projectId}
+          openRef={openAnnotateRef}
+          onDisabledChange={setAnnotateDisabled}
+        />
         <Page
           headerProps={{
             title: sessionId,
@@ -760,39 +825,35 @@ export const SessionPage: React.FC<{
                     </Button>
                   )}
                 </CommentDrawerController>
-                <AnnotateDrawerController projectId={projectId}>
-                  {({ disabled, openDrawer }) => (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={disabled}
-                      className="w-full justify-start gap-2 font-normal"
-                      onClick={() => {
-                        closeMenu({ handoffFocus: true });
-                        openDrawer({
-                          scoreTarget: { type: "session", sessionId },
-                          scores: session.data?.scores ?? [],
-                          analyticsData: {
-                            type: "session",
-                            source: "SessionDetail",
-                            isV4: false,
-                          },
-                          scoreMetadata: {
-                            projectId,
-                            environment: session.data?.environment,
-                          },
-                        });
-                      }}
-                    >
-                      {disabled ? (
-                        <LockIcon className="h-3 w-3" />
-                      ) : (
-                        <SquarePen className="h-4 w-4" />
-                      )}
-                      <span className="text-sm">Annotate</span>
-                    </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={annotateDisabled}
+                  className="w-full justify-start gap-2 font-normal"
+                  onClick={() => {
+                    closeMenu({ handoffFocus: true });
+                    openAnnotateRef.current({
+                      scoreTarget: { type: "session", sessionId },
+                      scores: session.data?.scores ?? [],
+                      analyticsData: {
+                        type: "session",
+                        source: "SessionDetail",
+                        isV4: false,
+                      },
+                      scoreMetadata: {
+                        projectId,
+                        environment: session.data?.environment,
+                      },
+                    });
+                  }}
+                >
+                  {annotateDisabled ? (
+                    <LockIcon className="h-3 w-3" />
+                  ) : (
+                    <SquarePen className="h-4 w-4" />
                   )}
-                </AnnotateDrawerController>
+                  <span className="text-sm">Annotate</span>
+                </Button>
                 <AnnotationQueueItemDropdownMenuController
                   projectId={projectId}
                   objectId={sessionId}
@@ -1037,6 +1098,10 @@ const LoadedSessionEventsPage: React.FC<{
     projectId,
   });
   const isMobile = useIsMobile();
+  const openAnnotateRef = useRef<(payload: SessionAnnotatePayload) => void>(
+    () => {},
+  );
+  const [annotateDisabled, setAnnotateDisabled] = useState(true);
   const parentRef = useRef<HTMLDivElement>(null);
   const webCalloutAction = useWebCalloutAction(
     {
@@ -1617,6 +1682,11 @@ const LoadedSessionEventsPage: React.FC<{
             : getCommentDrawerInitialStateFromUrl(router.query)
         }
       >
+        <SessionAnnotateHost
+          projectId={projectId}
+          openRef={openAnnotateRef}
+          onDisabledChange={setAnnotateDisabled}
+        />
         <Page
           headerProps={{
             title: sessionId,
@@ -1864,44 +1934,40 @@ const LoadedSessionEventsPage: React.FC<{
                     </Button>
                   )}
                 </CommentDrawerController>
-                <AnnotateDrawerController projectId={projectId}>
-                  {({ disabled, openDrawer }) => (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={disabled}
-                      className="w-full justify-start gap-2 font-normal"
-                      onClick={() => {
-                        closeMenu({ handoffFocus: true });
-                        openDrawer({
-                          scoreTarget: { type: "session", sessionId },
-                          scores: session.scores,
-                          analyticsData: {
-                            type: "session",
-                            source: "SessionDetail",
-                            isV4: true,
-                          },
-                          scoreMetadata: {
-                            projectId,
-                            environment: session.environment,
-                          },
-                        });
-                      }}
-                    >
-                      {disabled ? (
-                        <LockIcon className="h-3 w-3" />
-                      ) : (
-                        <SquarePen className="h-4 w-4" />
-                      )}
-                      <span className="text-sm">Annotate</span>
-                      {isModernSessionEnabled && annotationCount > 0 ? (
-                        <span className="ml-1">
-                          <ActionButtonCountBadge count={annotationCount} />
-                        </span>
-                      ) : null}
-                    </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={annotateDisabled}
+                  className="w-full justify-start gap-2 font-normal"
+                  onClick={() => {
+                    closeMenu({ handoffFocus: true });
+                    openAnnotateRef.current({
+                      scoreTarget: { type: "session", sessionId },
+                      scores: session.scores,
+                      analyticsData: {
+                        type: "session",
+                        source: "SessionDetail",
+                        isV4: true,
+                      },
+                      scoreMetadata: {
+                        projectId,
+                        environment: session.environment,
+                      },
+                    });
+                  }}
+                >
+                  {annotateDisabled ? (
+                    <LockIcon className="h-3 w-3" />
+                  ) : (
+                    <SquarePen className="h-4 w-4" />
                   )}
-                </AnnotateDrawerController>
+                  <span className="text-sm">Annotate</span>
+                  {isModernSessionEnabled && annotationCount > 0 ? (
+                    <span className="ml-1">
+                      <ActionButtonCountBadge count={annotationCount} />
+                    </span>
+                  ) : null}
+                </Button>
                 <AnnotationQueueItemDropdownMenuController
                   projectId={projectId}
                   objectId={sessionId}

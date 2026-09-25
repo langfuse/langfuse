@@ -18,6 +18,7 @@ const actions = {
     openDialog: fn(),
   },
   pagination: {
+    mode: "offset" as const,
     totalCount: 2,
     state: { pageIndex: 0, pageSize: 50 },
     onChange: fn(),

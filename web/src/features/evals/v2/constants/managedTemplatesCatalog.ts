@@ -1547,5 +1547,103 @@ Task text: {{task_text}}`,
         state: [{ key: "input", defaultMapping: { field: "input" } }],
       },
     },
+    {
+      key: "conversation-signals",
+      name: "Detect Conversation Signals",
+      categories: ["conversation"],
+      icon: "messages-square",
+      description:
+        "Flags seven user-side conversation signals—rephrases, corrections, human handoff, retries, quoted errors, frustration, and success—in one decision-model call.",
+      maintainer: "langfuse",
+      evaluator: {
+        type: "DECISION_MODEL",
+        questions: [
+          {
+            id: "user_rephrase_same",
+            type: "noul",
+            scoreName: "user_rephrase_same",
+            instructions:
+              "Does the user rephrase the same question again in `input`?",
+            criteria: {
+              true: "The user restates an earlier question with different wording, without adding a new goal.",
+              false:
+                "The user asks something new, continues the same turn, or does not rephrase a prior question.",
+            },
+          },
+          {
+            id: "user_correct_agent",
+            type: "noul",
+            scoreName: "user_correct_agent",
+            instructions:
+              'Does the user correct the agent in `input` (e.g. "no, I meant the March invoice")?',
+            criteria: {
+              true: "The user rejects or amends the agent's understanding of their intent, entity, or request.",
+              false:
+                "The user answers a clarifying question, adds detail, or continues without correcting the agent.",
+            },
+          },
+          {
+            id: "user_requests_human",
+            type: "noul",
+            scoreName: "user_requests_human",
+            instructions:
+              "Does the user request the hand-off to a human in `input`?",
+            criteria: {
+              true: "The user asks to speak with a person, agent, or representative.",
+              false:
+                "The user stays with the assistant or does not ask for a human.",
+            },
+          },
+          {
+            id: "user_repeats_request",
+            type: "noul",
+            scoreName: "user_repeats_request",
+            instructions:
+              'Does the user in `input` repeat an instruction the agent already received, or say "try again"?',
+            criteria: {
+              true: "The user restates a prior instruction or explicitly asks the agent to try again.",
+              false:
+                "The user makes a new request or continues without repeating an earlier instruction.",
+            },
+          },
+          {
+            id: "user_error_quote_back",
+            type: "noul",
+            scoreName: "user_error_quote_back",
+            instructions:
+              'Does the user in `input` quote back an error back they encountered after having received instructions from the agent("you said X, but...")?',
+            criteria: {
+              true: 'The user pastes or cites an error after following the agent\'s instructions (e.g. "you said X, but...").',
+              false:
+                "The user does not quote an error, or the error is unrelated to agent instructions.",
+            },
+          },
+          {
+            id: "user_express_frustration",
+            type: "noul",
+            scoreName: "user_express_frustration",
+            instructions:
+              'Does the user express frustration in `input` ("this is useless", "you are not listening", using all caps)?',
+            criteria: {
+              true: "The user shows clear frustration through wording, insults, or aggressive capitalization.",
+              false:
+                "The user is neutral, mildly annoyed at most, or does not express frustration.",
+            },
+          },
+          {
+            id: "user_confirm_success",
+            type: "noul",
+            scoreName: "user_confirm_success",
+            instructions:
+              "Does the user confirm success or thanks the agent in `input`?",
+            criteria: {
+              true: "The user indicates the issue is resolved or thanks the agent.",
+              false: "The user does not confirm resolution or thank the agent.",
+            },
+          },
+        ],
+        state: [{ key: "input", defaultMapping: { field: "input" } }],
+      },
+    },
   ],
 } satisfies ManagedTemplatesCatalog;

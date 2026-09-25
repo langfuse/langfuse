@@ -517,49 +517,19 @@ export function getChartAxisFormat(
   }
 }
 
-/**
- * Get the appropriate date-fns format string for chart tooltip timestamps.
- * Tooltip formats provide more context than axis labels (e.g., include date when axis shows time).
- *
- * @param interval - The interval configuration (unit and count)
- * @param timeRange - The time range (relative or absolute)
- * @returns date-fns format string for tooltip timestamps
- */
 export function getChartTooltipFormat(
   interval: IntervalConfig,
   timeRange: TimeRange,
-): string {
-  const { unit } = interval;
-
-  switch (unit) {
-    case "second":
-      // Show date + time with seconds for context
-      return "MMM dd, HH:mm:ss";
-
-    case "minute":
-      // Show date + time
-      return "MMM dd, HH:mm";
-
-    case "hour":
-      // Show date + time
-      return "MMM dd, HH:mm";
-
-    case "day":
-      // Show date with year for extra context
-      return "MMM dd, yyyy";
-
-    case "month":
-      // Show month and year
-      return "MMM yyyy";
-
-    case "year":
-      // Show year
-      return "yyyy";
-
-    default:
-      // Fallback - use axis format
-      return getChartAxisFormat(interval, timeRange);
-  }
+) {
+  const formats = {
+    second: "MMM dd, HH:mm:ss",
+    minute: "MMM dd, HH:mm",
+    hour: "MMM dd, HH:mm",
+    day: "MMM dd, yyyy",
+    month: "MMM yyyy",
+    year: "yyyy",
+  } satisfies Record<IntervalConfig["unit"], string>;
+  return formats[interval.unit] ?? getChartAxisFormat(interval, timeRange);
 }
 
 // Re-export fillTimeSeriesGaps from its own module

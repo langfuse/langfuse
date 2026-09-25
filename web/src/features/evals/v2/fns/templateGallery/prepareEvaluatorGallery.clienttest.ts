@@ -61,6 +61,7 @@ describe("prepareEvaluatorGallery", () => {
       "user-distress",
       "out-of-scope-decision-model",
       "frustration-decision-model",
+      "conversation-signals",
     ]);
   });
 

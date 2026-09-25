@@ -26,7 +26,7 @@ export function createButtonTableColumn<TData extends RowData, TValue>({
     renderCell: (_, context) => {
       const buttonProps = getButton(context);
       return (
-        <div className="ml-auto">
+        <div>
           <Button size="sm" {...buttonProps} />
         </div>
       );

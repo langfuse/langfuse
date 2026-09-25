@@ -115,8 +115,7 @@ export class ApiAuthService {
 
               if (!slowKey) {
                 logger.error(
-                  "No key found for public key",
-                  formatSubmittedPublicKeyForLog(publicKey),
+                  `No key found for public key: ${formatSubmittedPublicKeyForLog(publicKey)}`,
                 );
                 if (this.redis) {
                   logger.info(
@@ -158,15 +157,14 @@ export class ApiAuthService {
 
             if (!finalApiKey) {
               logger.info(
-                "No project id found for key",
-                formatSubmittedPublicKeyForLog(publicKey),
+                `No project id found for key: ${formatSubmittedPublicKeyForLog(publicKey)}`,
               );
               throw new Error("Invalid credentials");
             }
             const plan = finalApiKey.plan;
 
             if (!isPlan(plan)) {
-              logger.error("Invalid plan type for key", finalApiKey.plan);
+              logger.error(`Invalid plan type for key: ${finalApiKey.plan}`);
               throw new Error("Invalid credentials");
             }
 
@@ -325,7 +323,9 @@ export class ApiAuthService {
       },
     });
     if (!dbKey) {
-      logger.info("No api key found for public key:", publicKey);
+      logger.info(
+        `No api key found for public key: ${formatSubmittedPublicKeyForLog(publicKey)}`,
+      );
       throw new Error("Invalid public key");
     }
     return dbKey;

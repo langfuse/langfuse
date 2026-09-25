@@ -39,6 +39,7 @@ export interface PresetPlacement {
 export function PresetDashboardWidget({
   projectId,
   dashboardId,
+  chartSync,
   readPath,
   placement,
   dateRange,
@@ -53,6 +54,10 @@ export function PresetDashboardWidget({
 }: {
   projectId: string;
   dashboardId: string;
+  chartSync: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
   /** Resolved by the page controller — the card must not guess the version. */
   readPath: ResolvedReadPath;
   placement: PresetPlacement;
@@ -163,12 +168,14 @@ export function PresetDashboardWidget({
       metricsVersion,
       schedulerId,
       syncId: dashboardId,
+      sync: chartSync,
       // Fixed presets need a definite height so their flex children can grow.
       // Score Analytics is measured because each selected score adds a row.
       className: heightBehavior.mode === "content" ? "min-h-full" : "h-full",
     };
   }, [
     dashboardId,
+    chartSync,
     dateRange,
     filterState,
     heightBehavior.mode,
