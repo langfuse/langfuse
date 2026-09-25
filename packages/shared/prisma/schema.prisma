@@ -318,6 +318,7 @@ model InAppAgentConversation {
 
   @@id([id, projectId])
   @@index([projectId, createdByUserId, deletedAt, updatedAt, id], map: "in_app_agent_conversations_project_user_list_idx")
+  @@index([projectId, updatedAt], map: "in_app_agent_conversations_project_updated_at_idx")
   @@map("in_app_agent_conversations")
 }
 
