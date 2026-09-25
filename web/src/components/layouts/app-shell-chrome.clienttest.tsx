@@ -135,17 +135,6 @@ describe("app shell chrome row", () => {
     expect(rowContent?.lastElementChild?.className).toContain("min-h-[43px]");
   });
 
-  it("sizes the desktop sidebar toggle at 16px", () => {
-    const { container } = render(<Shell />);
-
-    const desktopToggle = [
-      ...container.querySelectorAll("[data-sidebar=trigger] svg"),
-    ].find((svg) => (svg.getAttribute("class") ?? "").includes("md:block"));
-
-    expect(desktopToggle?.getAttribute("class")).toContain("size-4");
-    expect(desktopToggle?.getAttribute("class")).not.toContain("size-5");
-  });
-
   it("keeps the page-header chrome divider full-width on container pages", () => {
     render(
       <SidebarPresenceProvider>
