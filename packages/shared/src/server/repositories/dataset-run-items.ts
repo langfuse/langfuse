@@ -501,6 +501,7 @@ const getDatasetRunsTableInternal = async <T>(
       ...(limit !== undefined && offset !== undefined ? { limit, offset } : {}),
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return res;
@@ -722,6 +723,7 @@ const getQualifyingDatasetItems = async <T>(opts: {
       ...(limit !== undefined && offset !== undefined ? { limit, offset } : {}),
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return res;
@@ -906,7 +908,7 @@ const getDatasetRunItemsTableInternal = async <
     },
     tags: { projectId },
     clickhouseConfigs: opts.clickhouseConfigs,
-    preferredClickhouseService: opts.preferredClickhouseService,
+    preferredClickhouseService: opts.preferredClickhouseService ?? "ReadOnly",
   });
 
   return res;
@@ -1047,6 +1049,7 @@ export const getDatasetItemIdsByTraceIdCh = async (
       ...appliedFilter.params,
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return res.map((runItem) => {
@@ -1094,6 +1097,7 @@ export const hasAnyDatasetRunItem = async (
     query,
     params: { projectId },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows.length > 0;
