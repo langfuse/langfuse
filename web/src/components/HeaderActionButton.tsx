@@ -36,7 +36,7 @@ export const HeaderActionButton = React.forwardRef<
           size="icon"
           aria-label={label}
           className={cn(
-            "text-foreground-secondary hover:text-foreground-secondary",
+            "text-foreground-secondary hover:text-foreground-secondary h-7 w-7",
             active && "bg-accent/60 ring-primary/20 ring-2",
           )}
           {...props}
