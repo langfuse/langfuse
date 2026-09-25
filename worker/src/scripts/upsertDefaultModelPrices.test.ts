@@ -194,6 +194,31 @@ describe("default OpenAI cache-write prices", () => {
       );
     },
   );
+
+  it.each(["gpt-5.4", "gpt-5.4-2026-03-05", "gpt-5.5-2026-04-23"])(
+    "counts flat cache writes toward the %s large-context threshold",
+    (modelName) => {
+      const model = defaultModelPrices.find(
+        (defaultModel) => defaultModel.modelName === modelName,
+      );
+      expect(model).toBeDefined();
+      if (!model) return;
+
+      const match = matchPricingTier(
+        model.pricingTiers.map((tier) => ({
+          ...tier,
+          conditions:
+            tier.conditions as DefaultModelPrice["pricingTiers"][number]["conditions"],
+          prices: Object.entries(tier.prices).map(([usageType, price]) => ({
+            usageType,
+            price: new Decimal(price),
+          })),
+        })),
+        { input: 100_000, cache_write_tokens: 200_000, output: 1_000 },
+      );
+      expect(match?.pricingTierName).toBe("Large Context (>272K)");
+    },
+  );
 });
 
 describe("default Gemini Pro pricing tiers", () => {

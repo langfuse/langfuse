@@ -5513,7 +5513,7 @@
             "values": ["flex"]
           },
           {
-            "usageDetailPattern": "(input)",
+            "usageDetailPattern": "(input|cache_write)",
             "operator": "gt",
             "value": 272000,
             "caseSensitive": false
@@ -5594,7 +5594,7 @@
         "priority": 4,
         "conditions": [
           {
-            "usageDetailPattern": "(input)",
+            "usageDetailPattern": "(input|cache_write)",
             "operator": "gt",
             "value": 272000,
             "caseSensitive": false
@@ -5760,7 +5760,7 @@
             "values": ["flex"]
           },
           {
-            "usageDetailPattern": "(input)",
+            "usageDetailPattern": "(input|cache_write)",
             "operator": "gt",
             "value": 272000,
             "caseSensitive": false
@@ -5841,7 +5841,7 @@
         "priority": 4,
         "conditions": [
           {
-            "usageDetailPattern": "(input)",
+            "usageDetailPattern": "(input|cache_write)",
             "operator": "gt",
             "value": 272000,
             "caseSensitive": false
@@ -6309,7 +6309,7 @@
             "values": ["flex"]
           },
           {
-            "usageDetailPattern": "(input)",
+            "usageDetailPattern": "(input|cache_write)",
             "operator": "gt",
             "value": 272000,
             "caseSensitive": false
@@ -6390,7 +6390,7 @@
         "priority": 4,
         "conditions": [
           {
-            "usageDetailPattern": "(input)",
+            "usageDetailPattern": "(input|cache_write)",
             "operator": "gt",
             "value": 272000,
             "caseSensitive": false
