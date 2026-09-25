@@ -30,9 +30,10 @@
   and Redis snapshots independently of dispatch/consumption when either role is
   enabled. Global snapshot gauges must not be summed across worker reporters.
   `src/features/traceBatching/traceBatchTranscript.ts` measures per-trace assembly
-  phases, thread count, current-turn/history token estimates and their sum.
-  Token partitions run sequentially; tool-response size uses comparable character
-  counts over message parts, without another tokenizer pass.
+  phases, thread count, current-turn/history token estimates and their sum. An
+  optional, default-off sample renders the assembled transcript for Topics and
+  records plain-text length and block metrics. Token estimates run sequentially;
+  tool-response size uses comparable character counts over message parts.
   Allow one pending tokenization promise per batch while
   buffering the next trace, and drain it even on read failure. Never flush a failed
   stream's partial final trace; completion covers the query window, not future arrivals.

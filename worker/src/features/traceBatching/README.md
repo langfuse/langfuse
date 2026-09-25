@@ -15,6 +15,7 @@ changes. These internal controls are intentionally absent from env templates.
 | `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`   | Register the batch worker.                                                                                 |
 | `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | `false`   | Allow the worker to query ClickHouse; otherwise discard jobs.                                              |
 | `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`          | `1`       | Fraction admitted by ingestion, from 0 to 1.                                                               |
+| `LANGFUSE_TRACE_BATCH_TOPICS_TRANSCRIPT_SAMPLING_RATE` | `0` | Fraction of admitted traces whose plain-text Topics transcript is measured, from 0 to 1. |
 | `LANGFUSE_TRACE_BATCH_STRATEGY`               | `project` | Choose project-order packing or opt-in locality grouping.                                                  |
 | `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`      | Maximum traces per job, up to 10,000.                                                                      |
 | `LANGFUSE_TRACE_BATCH_MAX_THREADS`            | `2`       | ClickHouse threads per query (positive integer).                                                           |
@@ -129,6 +130,27 @@ These distributions use the `langfuse.trace_batch` prefix:
 | `transcript_tool_response_characters` | The subset of content characters belonging to tool-role messages or unmatched tool-result parts; zero when absent. |
 | `transcript_thread_count` | Number of assembled conversation threads, or zero for a null transcript. |
 | `transcript_assembly_phase_duration_ms` | Two non-overlapping samples per trace tagged `phase:normalization` or `phase:matching`. Normalization includes initial message-key construction and partitioning; matching covers remaining assembly work, including tool matching, deduplication, any rebuilt keys and finalization. Observation ordering is outside these phases but remains in total assembly time. |
+| `topics_transcript_characters` | UTF-16 length of the complete rendered Topics text, including labels, section headings and line breaks; sampled traces only. |
+| `topics_transcript_tokens` | o200k estimate of that same text, tagged `tokenizer:o200k_base`; sampled traces only. |
+| `topics_transcript_block_characters` | Present block content length tagged `block:user\|assistant\|system\|reasoning\|tool_calls\|tool_results\|tool_definitions\|errors` and `stage:raw\|clipped`; absent blocks emit no sample. |
+| `topics_transcript_blocks_cut` | Number of content blocks cut by their per-block character caps. |
+| `topics_transcript_history_characters`, `topics_transcript_current_turn_characters`, `topics_transcript_history_share` | Rendered message-line characters from earlier conversation and this trace, plus history divided by their sum (0 when both are empty). |
+
+Topics measurement uses the existing assembled transcript and the inclusive
+Topics preset in `packages/shared/src/server/transcript/render-config.ts`. It
+does not call a model or store the text. The preset includes all block types and
+history, uses the largest current per-block cap for each type, and has no total
+token budget. It omits no middle messages. `raw` block characters are counted
+after media redaction and whitespace collapse but before a block cap; `clipped`
+counts the resulting content including any omission marker. Block values exclude
+role labels, section headings and line breaks; media placeholders can add
+characters to the complete text without adding to a block metric. The history
+share uses message lines including role labels and tool exchanges, excluding
+headings, tool definitions and detached errors. Keep numerator and denominator
+on the same basis when calculating shares. The separate sampler uses a trace-ID
+hash distinct from ingestion's hash, so a rate of `0.1` measures about 10% of
+already admitted traces, even
+when the ingestion rate is below `1`.
 
 Transcript token counts use the existing local worker-thread pool and bundled
 tiktoken WASM, without a network or model API call. The `gpt-4o` configuration
@@ -153,7 +175,12 @@ Rejected estimates increment `token_estimation_failed` and stop the remaining
 estimates for that trace; successful earlier samples are retained. Unknown
 estimates do not stop later estimates. The summed estimate is omitted unless
 both partitions are known. Neither failure retries the batch.
-Only current-turn and history message projections are tokenized.
+Only current-turn and history message projections are tokenized when Topics
+measurement is off. A sampled trace adds one plain-text tokenization call after
+those estimates. Rendering failures increment `topics_transcript_failed` and
+leave the batch successful. An unavailable token estimate increments
+`topics_transcript_token_estimation_unavailable`; a rejected estimate increments
+`topics_transcript_failed`. Character metrics remain available in either case.
 
 The worker submits one transcript for tokenization while streaming the next
 trace's observations. Before submitting another transcript it awaits the previous
@@ -164,10 +191,10 @@ partial final trace. Assembly itself remains synchronous. `read_duration_ms`
 includes all this processing.
 
 Memory includes the current trace, the previous transcript being tokenized and
-stream buffers, multiplied by active batch jobs. A single trace remains unbounded.
-The transcript remains referenced until both partitions finish. Each message
-belongs to one partition; there is no additional full-transcript or tool-response
-tokenization pass.
+stream buffers, multiplied by active batch jobs. A sampled trace also retains
+its rendered text for one sequential tokenizer call. A single trace remains
+unbounded. Each message belongs to one JSON partition; there is no additional
+JSON or tool-response tokenization pass.
 The default two-thread tokenizer pool is shared with ingestion; overlap hides
 waiting time but does not remove CPU use or contention. Its existing 30-second
 timeout rejects the promise without cancelling queued/running encoding, so the
@@ -195,6 +222,9 @@ deduplication), `has_transcript`, `tokenizer`, and `experiment_id`.
 It also records the token breakdown and content/tool-response character metrics,
 `transcript_thread_count`,
 and each phase as `transcript_assembly_<phase>_duration_ms`.
+For sampled traces, it also records each Topics metric above. Block character
+attributes use `topics_transcript_block_<block>_<stage>_characters`; missing
+Topics metrics on a span mean the trace was not sampled or rendering failed.
 No transcript content is attached, and IDs are not distribution metric tags.
 `transcript_characters` measures the complete transcript JSON's JavaScript string
 length (UTF-16 code units, including JSON syntax), or zero for a null transcript.

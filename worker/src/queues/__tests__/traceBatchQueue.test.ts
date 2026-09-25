@@ -50,6 +50,8 @@ vi.mock("../../features/tokenisation/async-usage", () => ({
 const originalReadEnabled = env.LANGFUSE_TRACE_BATCH_READ_ENABLED;
 const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 const originalExperimentId = env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID;
+const originalTopicsSamplingRate =
+  env.LANGFUSE_TRACE_BATCH_TOPICS_TRANSCRIPT_SAMPLING_RATE;
 const processingSpan = trace.wrapSpanContext({
   traceId: "0123456789abcdef0123456789abcdef",
   spanId: "0123456789abcdef",
@@ -70,6 +72,7 @@ afterAll(async () => {
 beforeEach(() => {
   exporter.reset();
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "true";
+  env.LANGFUSE_TRACE_BATCH_TOPICS_TRANSCRIPT_SAMPLING_RATE = 0;
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
   vi.mocked(getCurrentSpan).mockReturnValue(processingSpan);
   vi.spyOn(processingSpan, "setAttributes");
@@ -78,11 +81,106 @@ afterEach(() => {
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = originalReadEnabled;
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID = originalExperimentId;
+  env.LANGFUSE_TRACE_BATCH_TOPICS_TRANSCRIPT_SAMPLING_RATE =
+    originalTopicsSamplingRate;
   vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 
 describe("trace batch queue", () => {
+  it("measures rendered Topics text only for sampled traces", async () => {
+    const observations = [
+      convertObservation(
+        createObservation({
+          type: "GENERATION",
+          trace_id: "topics-sample",
+          input: JSON.stringify([
+            { role: "user", content: "Explain the result" },
+          ]),
+          output: JSON.stringify({ role: "assistant", content: "The answer" }),
+        }),
+      ),
+    ];
+
+    await recordTraceBatchTranscript(observations);
+    expect(recordDistribution).not.toHaveBeenCalledWith(
+      "langfuse.trace_batch.topics_transcript_characters",
+      expect.any(Number),
+    );
+    expect(tokenCountAsync).toHaveBeenCalledTimes(1);
+    expect(exporter.getFinishedSpans()[0].attributes).not.toHaveProperty(
+      "langfuse.trace_batch.topics_transcript_tokens",
+    );
+
+    vi.clearAllMocks();
+    exporter.reset();
+    env.LANGFUSE_TRACE_BATCH_TOPICS_TRANSCRIPT_SAMPLING_RATE = 1;
+    await recordTraceBatchTranscript(observations);
+
+    expect(tokenCountAsync).toHaveBeenCalledTimes(2);
+    const renderedText = vi.mocked(tokenCountAsync).mock.calls[1][0].text;
+    expect(renderedText).toBe(
+      "[user] Explain the result\n[assistant] The answer",
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.topics_transcript_tokens",
+      tokenCount({
+        model: vi.mocked(tokenCountAsync).mock.calls[1][0].model,
+        text: renderedText,
+      }),
+      { tokenizer: "o200k_base" },
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.topics_transcript_block_characters",
+      "Explain the result".length,
+      { block: "user", stage: "raw" },
+    );
+    expect(exporter.getFinishedSpans()[0].attributes).toMatchObject({
+      "langfuse.trace_batch.topics_transcript_characters": renderedText.length,
+      "langfuse.trace_batch.topics_transcript_blocks_cut": 0,
+      "langfuse.trace_batch.topics_transcript_history_share": 0,
+      "langfuse.trace_batch.topics_transcript_tokens": expect.any(Number),
+    });
+  });
+
+  it("keeps the batch successful when Topics token estimation fails", async () => {
+    env.LANGFUSE_TRACE_BATCH_TOPICS_TRANSCRIPT_SAMPLING_RATE = 1;
+    vi.mocked(tokenCountAsync)
+      .mockResolvedValueOnce(10)
+      .mockRejectedValueOnce(new Error("tokenizer unavailable"));
+
+    await expect(
+      recordTraceBatchTranscript([
+        convertObservation(
+          createObservation({
+            type: "GENERATION",
+            trace_id: "topics-failure",
+            input: JSON.stringify([{ role: "user", content: "Question" }]),
+            output: JSON.stringify({ role: "assistant", content: "Answer" }),
+          }),
+        ),
+      ]),
+    ).resolves.toBeUndefined();
+
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.topics_transcript_failed",
+      1,
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.topics_transcript_characters",
+      expect.any(Number),
+    );
+    expect(recordDistribution).not.toHaveBeenCalledWith(
+      "langfuse.trace_batch.topics_transcript_tokens",
+      expect.any(Number),
+      expect.anything(),
+    );
+    expect(exporter.getFinishedSpans()[0].attributes).toMatchObject({
+      "langfuse.trace_batch.topics_transcript": "failed",
+      "langfuse.trace_batch.transcript_message_tokens": 10,
+    });
+  });
+
   it("measures history, current turn, threads and deduplicated tool responses", async () => {
     const history = [
       { role: "user", content: "earlier question" },

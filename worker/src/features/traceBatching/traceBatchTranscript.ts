@@ -8,9 +8,16 @@ import {
   orderObservations,
   recordDistribution,
   recordIncrement,
+  renderTranscript,
+  topicsTranscriptConfig,
+  transcriptBlockTypes,
   type Transcript,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
+import {
+  getDeterministicSamplingValue,
+  shouldSampleEvaluation,
+} from "../evaluation/deterministicSampling";
 import { tokenCountAsync } from "../tokenisation/async-usage";
 
 // A fixed tokenizer makes payload sizes comparable across models and projects.
@@ -122,6 +129,75 @@ async function recordTokenEstimates(transcript: Transcript, span: Span) {
   }
 }
 
+function recordTopicsRendering(
+  transcript: Transcript | null,
+  observations: Observation[],
+  span: Span,
+): string | undefined {
+  try {
+    const { text, stats } = renderTranscript(
+      transcript,
+      observations,
+      topicsTranscriptConfig,
+    );
+    const metric = (name: string, value: number) => {
+      recordDistribution(`langfuse.trace_batch.${name}`, value);
+      span.setAttribute(`langfuse.trace_batch.${name}`, value);
+    };
+    metric("topics_transcript_characters", text.length);
+    metric("topics_transcript_blocks_cut", stats.blocksCut);
+    metric("topics_transcript_history_characters", stats.historyCharacters);
+    metric(
+      "topics_transcript_current_turn_characters",
+      stats.currentTurnCharacters,
+    );
+    const messageCharacters =
+      stats.historyCharacters + stats.currentTurnCharacters;
+    metric(
+      "topics_transcript_history_share",
+      messageCharacters ? stats.historyCharacters / messageCharacters : 0,
+    );
+    for (const block of transcriptBlockTypes) {
+      if (stats.blockCharacters[block].raw === 0) continue;
+      for (const stage of ["raw", "clipped"] as const) {
+        const characters = stats.blockCharacters[block][stage];
+        recordDistribution(
+          "langfuse.trace_batch.topics_transcript_block_characters",
+          characters,
+          { block, stage },
+        );
+        span.setAttribute(
+          `langfuse.trace_batch.topics_transcript_block_${block}_${stage}_characters`,
+          characters,
+        );
+      }
+    }
+    return text;
+  } catch {
+    recordIncrement("langfuse.trace_batch.topics_transcript_failed", 1);
+    span.setAttribute("langfuse.trace_batch.topics_transcript", "failed");
+    return undefined;
+  }
+}
+
+async function recordTopicsTokens(text: string, span: Span) {
+  const tokens = text
+    ? await tokenCountAsync({ model: TOKENIZER_MODEL, text })
+    : 0;
+  if (tokens === undefined) {
+    recordIncrement(
+      "langfuse.trace_batch.topics_transcript_token_estimation_unavailable",
+      1,
+    );
+    span.setAttribute("langfuse.trace_batch.topics_transcript", "unavailable");
+    return;
+  }
+  recordDistribution("langfuse.trace_batch.topics_transcript_tokens", tokens, {
+    tokenizer: "o200k_base",
+  });
+  span.setAttribute("langfuse.trace_batch.topics_transcript_tokens", tokens);
+}
+
 export function recordTraceBatchTranscript(
   observations: Observation[],
 ): Promise<void> {
@@ -149,12 +225,10 @@ export function recordTraceBatchTranscript(
     }
     const startedAt = performance.now();
     let phaseTimings = { normalizationMs: 0, matchingMs: 0 };
-    const transcript = assembleTranscript(
-      orderObservations(observations),
-      (timings) => {
-        phaseTimings = timings;
-      },
-    );
+    const orderedObservations = orderObservations(observations);
+    const transcript = assembleTranscript(orderedObservations, (timings) => {
+      phaseTimings = timings;
+    });
     const assemblyDurationMs = performance.now() - startedAt;
     recordDistribution(
       "langfuse.trace_batch.transcript_assembly_duration_ms",
@@ -198,20 +272,47 @@ export function recordTraceBatchTranscript(
       );
     }
 
+    const traceId = observations[0]?.traceId;
+    const samplingRate =
+      env.LANGFUSE_TRACE_BATCH_TOPICS_TRANSCRIPT_SAMPLING_RATE;
+    const topicsText =
+      traceId &&
+      samplingRate > 0 &&
+      (samplingRate === 1 ||
+        shouldSampleEvaluation({
+          samplingValue: getDeterministicSamplingValue(
+            `topics-transcript:${traceId}`,
+          ),
+          samplingRate,
+        }))
+        ? recordTopicsRendering(transcript, orderedObservations, span)
+        : undefined;
+
     if (transcript === null) {
       for (const metric of TOKEN_METRICS) recordTokens(span, metric, 0);
-      span.end();
-      return Promise.resolve();
     }
 
-    // Callbacks capture only the span, releasing observations while the next trace streams.
-    return recordTokenEstimates(transcript, span)
-      .catch(() => {
-        // A missing experiment metric must not retry all reads in the batch.
-        recordIncrement("langfuse.trace_batch.token_estimation_failed", 1);
-        span.setAttribute("langfuse.trace_batch.token_estimation", "failed");
-      })
-      .finally(() => span.end());
+    // Only the rendered text and span outlive this call, releasing observations
+    // while the next trace streams. Tokenizer requests remain sequential.
+    return (async () => {
+      if (transcript !== null) {
+        try {
+          await recordTokenEstimates(transcript, span);
+        } catch {
+          // A missing experiment metric must not retry all reads in the batch.
+          recordIncrement("langfuse.trace_batch.token_estimation_failed", 1);
+          span.setAttribute("langfuse.trace_batch.token_estimation", "failed");
+        }
+      }
+      if (topicsText !== undefined) {
+        try {
+          await recordTopicsTokens(topicsText, span);
+        } catch {
+          recordIncrement("langfuse.trace_batch.topics_transcript_failed", 1);
+          span.setAttribute("langfuse.trace_batch.topics_transcript", "failed");
+        }
+      }
+    })().finally(() => span.end());
   } catch (error) {
     span.setStatus({
       code: SpanStatusCode.ERROR,

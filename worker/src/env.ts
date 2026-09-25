@@ -114,6 +114,11 @@ const EnvSchema = z.object({
     .min(0)
     .max(1)
     .default(1),
+  LANGFUSE_TRACE_BATCH_TOPICS_TRANSCRIPT_SAMPLING_RATE: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(0),
   LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
