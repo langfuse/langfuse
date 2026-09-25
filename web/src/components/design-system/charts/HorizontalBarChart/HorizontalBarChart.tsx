@@ -3,13 +3,17 @@
 import { scaleLinear } from "d3-scale";
 
 import { ChartContainer } from "@/src/components/design-system/charts/ChartContainer";
-import { INACTIVE_CHART_COLOR_STRENGTH } from "@/src/components/design-system/charts/constants";
+import {
+  CHART_TRANSITION_DURATION,
+  INACTIVE_CHART_COLOR_STRENGTH,
+} from "@/src/components/design-system/charts/constants";
 import type { BarChartDatum } from "@/src/components/design-system/internal/charts/BarChartCore";
 import { CARTESIAN_CHART_INSETS } from "@/src/components/design-system/internal/charts/CartesianLayout";
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
 
 const MIN_ROW_PX = 14;
 const CHARACTER_WIDTH = 7;
+const MAX_GRIDLINE_TO_VALUE_GAP = 24;
 
 export function HorizontalBarChart({
   data,
@@ -83,19 +87,26 @@ export function HorizontalBarChart({
         });
 
         return (
-          <ChartTooltip>
-            {({ activeIndex, getReferenceProps }) => (
+          <ChartTooltip placementStrategy="horizontal">
+            {({ activeIndex, hideTooltip, getReferenceProps }) => (
               <div
                 className="size-full overflow-x-hidden overflow-y-auto"
                 data-testid="top-list-chart"
               >
                 <svg
+                  onPointerLeave={hideTooltip}
                   width={width}
                   height={contentHeight}
                   role="group"
                   aria-label="Horizontal bar chart"
                   className="block"
                 >
+                  <rect
+                    width={width}
+                    height={contentHeight}
+                    fill="transparent"
+                    aria-hidden="true"
+                  />
                   <g aria-hidden="true">
                     {visibleTicks.map((tick) => {
                       const x = left + scale(tick) * plotWidth;
@@ -127,16 +138,17 @@ export function HorizontalBarChart({
                     const barWidth =
                       maxMagnitude > 0 ? scale(Math.abs(value)) * plotWidth : 0;
                     const y = top + gap + index * (rowHeight + gap);
-                    const outsideLabelWidth = Math.min(
-                      datum.label.length * CHARACTER_WIDTH + 8,
-                      Math.max(0, plotWidth - barWidth - 16),
+                    const insideLabelRoom = Math.max(0, barWidth - 16);
+                    const outsideLabelRoom = Math.max(
+                      0,
+                      plotWidth - barWidth - 24,
                     );
                     const labelOutside =
-                      barWidth < datum.label.length * CHARACTER_WIDTH + 16 &&
-                      outsideLabelWidth >= 16;
+                      insideLabelRoom < datum.label.length * CHARACTER_WIDTH &&
+                      outsideLabelRoom > insideLabelRoom;
                     const labelRoom = labelOutside
-                      ? outsideLabelWidth - 8
-                      : Math.max(0, barWidth - 16);
+                      ? outsideLabelRoom
+                      : insideLabelRoom;
                     const maxCharacters = Math.floor(
                       labelRoom / CHARACTER_WIDTH,
                     );
@@ -146,11 +158,6 @@ export function HorizontalBarChart({
                       visibleLabel = `${datum.label.slice(0, Math.max(0, maxCharacters - 1))}…`;
                     }
                     const labelX = left + barWidth + 8;
-                    const leaderStart = labelOutside
-                      ? labelX + outsideLabelWidth + 8
-                      : labelX;
-                    const leaderEnd =
-                      valueRight - formattedValue.length * CHARACTER_WIDTH - 8;
                     const inactive =
                       activeIndex !== undefined && activeIndex !== index;
                     const inactiveTextColor = inactive
@@ -158,6 +165,7 @@ export function HorizontalBarChart({
                       : "hsl(var(--foreground))";
                     const tooltipData = {
                       type: "primary" as const,
+                      anchor: { type: "element" as const },
                       index,
                       label: datum.label,
                       value: formattedValue,
@@ -167,13 +175,48 @@ export function HorizontalBarChart({
                       hint: "Click or press Enter to copy label",
                       copyLabel: datum.label,
                     };
-                    const { onPointerLeave, ...referenceProps } =
-                      getReferenceProps(tooltipData);
+                    const {
+                      onPointerLeave: _onPointerLeave,
+                      ...referenceProps
+                    } = getReferenceProps(tooltipData);
 
                     return (
                       <g
                         key={`${datum.label}-${index}`}
-                        onPointerLeave={onPointerLeave}
+                        ref={(row) => {
+                          if (!row) return;
+                          const label =
+                            row.querySelector<SVGTextElement>(
+                              "[data-row-label]",
+                            );
+                          const value =
+                            row.querySelector<SVGTextElement>(
+                              "[data-row-value]",
+                            );
+                          const leader =
+                            row.querySelector<SVGLineElement>(
+                              "[data-leader-line]",
+                            );
+                          if (!label || !value || !leader) return;
+                          const labelBounds = label.getBBox();
+                          const valueBounds = value.getBBox();
+                          const start = Math.max(
+                            left + barWidth + 4,
+                            labelBounds.x + labelBounds.width + 4,
+                          );
+                          const valueEnd = valueBounds.x - 4;
+                          const gridlineX = left + plotWidth;
+                          const end =
+                            valueEnd - gridlineX > MAX_GRIDLINE_TO_VALUE_GAP
+                              ? valueEnd
+                              : Math.min(valueEnd, gridlineX);
+                          leader.setAttribute("x1", String(start));
+                          leader.setAttribute("x2", String(end));
+                          leader.setAttribute(
+                            "visibility",
+                            end - start > 24 ? "visible" : "hidden",
+                          );
+                        }}
                       >
                         <rect
                           x={left}
@@ -196,6 +239,10 @@ export function HorizontalBarChart({
                               ? `color-mix(in srgb, ${datum.color ?? color} ${INACTIVE_CHART_COLOR_STRENGTH}%, hsl(var(--background)))`
                               : (datum.color ?? color)
                           }
+                          className="transition-[fill]"
+                          style={{
+                            transitionDuration: CHART_TRANSITION_DURATION,
+                          }}
                           pointerEvents="none"
                           aria-hidden="true"
                         />
@@ -209,13 +256,13 @@ export function HorizontalBarChart({
                           tabIndex={0}
                           aria-label={`${datum.label}: ${formattedValue}`}
                           className="outline-hidden focus-visible:outline-2 focus-visible:outline-offset-2"
-                          {...getReferenceProps(tooltipData)}
-                          onPointerLeave={undefined}
+                          {...referenceProps}
                         />
                         <text
+                          data-row-label=""
                           x={labelOutside ? labelX : left + 8}
                           y={y + rowHeight / 2}
-                          dominantBaseline="middle"
+                          dominantBaseline="central"
                           fontSize={12}
                           fill={
                             labelOutside || inactive
@@ -230,24 +277,21 @@ export function HorizontalBarChart({
                         >
                           {visibleLabel}
                         </text>
-                        {leaderEnd - leaderStart > 24 ? (
-                          <line
-                            data-leader-line=""
-                            x1={leaderStart}
-                            x2={leaderEnd}
-                            y1={y + rowHeight / 2}
-                            y2={y + rowHeight / 2}
-                            stroke="hsl(var(--muted-foreground))"
-                            strokeOpacity={inactive ? 0.2 : 0.4}
-                            strokeDasharray="3 3"
-                            aria-hidden="true"
-                          />
-                        ) : null}
+                        <line
+                          data-leader-line=""
+                          y1={y + rowHeight / 2}
+                          y2={y + rowHeight / 2}
+                          stroke="hsl(var(--muted-foreground))"
+                          strokeOpacity={inactive ? 0.2 : 0.4}
+                          strokeDasharray="3 3"
+                          aria-hidden="true"
+                        />
                         <text
+                          data-row-value=""
                           x={valueRight}
                           y={y + rowHeight / 2}
                           textAnchor="end"
-                          dominantBaseline="middle"
+                          dominantBaseline="central"
                           fontSize={12}
                           fill={inactiveTextColor}
                           {...referenceProps}
