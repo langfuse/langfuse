@@ -4,7 +4,7 @@
     "modelName": "gpt-4o",
     "matchPattern": "(?i)^(openai\/)?(gpt-4o)$",
     "createdAt": "2024-05-13T23:15:07.670Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4o",
@@ -23,7 +23,10 @@
           "input_cached_tokens": 1.25e-6,
           "input_cache_read": 1.25e-6,
           "output": 10e-6,
-          "cache_read_input_tokens": 1.25e-6
+          "cache_read_input_tokens": 1.25e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6
         }
       },
       {
@@ -44,7 +47,10 @@
           "input_cached_tokens": 2.125e-6,
           "input_cache_read": 2.125e-6,
           "output": 17e-6,
-          "cache_read_input_tokens": 2.125e-6
+          "cache_read_input_tokens": 2.125e-6,
+          "input_cache_creation": 4.25e-6,
+          "cache_write_tokens": 4.25e-6,
+          "input_cache_write_tokens": 4.25e-6
         }
       }
     ]
@@ -1609,7 +1615,7 @@
     "modelName": "gpt-4o-mini",
     "matchPattern": "(?i)^(openai\/)?(gpt-4o-mini)$",
     "createdAt": "2024-07-18T17:56:09.591Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4o",
@@ -1628,7 +1634,10 @@
           "output": 0.6e-6,
           "input_cached_tokens": 0.075e-6,
           "input_cache_read": 0.075e-6,
-          "cache_read_input_tokens": 0.075e-6
+          "cache_read_input_tokens": 0.075e-6,
+          "input_cache_creation": 0.15e-6,
+          "cache_write_tokens": 0.15e-6,
+          "input_cache_write_tokens": 0.15e-6
         }
       },
       {
@@ -1649,7 +1658,10 @@
           "output": 1e-6,
           "input_cached_tokens": 0.125e-6,
           "input_cache_read": 0.125e-6,
-          "cache_read_input_tokens": 0.125e-6
+          "cache_read_input_tokens": 0.125e-6,
+          "input_cache_creation": 0.25e-6,
+          "cache_write_tokens": 0.25e-6,
+          "input_cache_write_tokens": 0.25e-6
         }
       }
     ]
@@ -1659,7 +1671,7 @@
     "modelName": "gpt-4o-mini-2024-07-18",
     "matchPattern": "(?i)^(openai\/)?(gpt-4o-mini-2024-07-18)$",
     "createdAt": "2024-07-18T17:56:09.591Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4o",
@@ -1678,7 +1690,10 @@
           "input_cached_tokens": 0.075e-6,
           "input_cache_read": 0.075e-6,
           "output": 0.6e-6,
-          "cache_read_input_tokens": 0.075e-6
+          "cache_read_input_tokens": 0.075e-6,
+          "input_cache_creation": 0.15e-6,
+          "cache_write_tokens": 0.15e-6,
+          "input_cache_write_tokens": 0.15e-6
         }
       },
       {
@@ -1699,7 +1714,10 @@
           "input_cached_tokens": 0.125e-6,
           "input_cache_read": 0.125e-6,
           "output": 1e-6,
-          "cache_read_input_tokens": 0.125e-6
+          "cache_read_input_tokens": 0.125e-6,
+          "input_cache_creation": 0.25e-6,
+          "cache_write_tokens": 0.25e-6,
+          "input_cache_write_tokens": 0.25e-6
         }
       }
     ]
@@ -1709,7 +1727,7 @@
     "modelName": "gpt-4o-2024-08-06",
     "matchPattern": "(?i)^(openai\/)?(gpt-4o-2024-08-06)$",
     "createdAt": "2024-08-07T11:54:31.298Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4o",
@@ -1728,7 +1746,10 @@
           "input_cached_tokens": 1.25e-6,
           "input_cache_read": 1.25e-6,
           "output": 10e-6,
-          "cache_read_input_tokens": 1.25e-6
+          "cache_read_input_tokens": 1.25e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6
         }
       },
       {
@@ -1749,7 +1770,10 @@
           "input_cached_tokens": 2.125e-6,
           "input_cache_read": 2.125e-6,
           "output": 17e-6,
-          "cache_read_input_tokens": 2.125e-6
+          "cache_read_input_tokens": 2.125e-6,
+          "input_cache_creation": 4.25e-6,
+          "cache_write_tokens": 4.25e-6,
+          "input_cache_write_tokens": 4.25e-6
         }
       }
     ]
@@ -1759,7 +1783,7 @@
     "modelName": "o1-preview",
     "matchPattern": "(?i)^(openai\/)?(o1-preview)$",
     "createdAt": "2024-09-13T10:01:35.373Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm10ivcdp0000gix7lelmbw80_tier_default",
@@ -1771,6 +1795,9 @@
           "input": 0.000015,
           "input_cached_tokens": 0.0000075,
           "input_cache_read": 0.0000075,
+          "input_cache_creation": 0.000015,
+          "cache_write_tokens": 0.000015,
+          "input_cache_write_tokens": 0.000015,
           "output": 0.00006,
           "output_reasoning_tokens": 0.00006,
           "output_reasoning": 0.00006
@@ -1783,7 +1810,7 @@
     "modelName": "o1-preview-2024-09-12",
     "matchPattern": "(?i)^(openai\/)?(o1-preview-2024-09-12)$",
     "createdAt": "2024-09-13T10:01:35.373Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm10ivo130000n8x7qopcjjcg_tier_default",
@@ -1795,6 +1822,9 @@
           "input": 0.000015,
           "input_cached_tokens": 0.0000075,
           "input_cache_read": 0.0000075,
+          "input_cache_creation": 0.000015,
+          "cache_write_tokens": 0.000015,
+          "input_cache_write_tokens": 0.000015,
           "output": 0.00006,
           "output_reasoning_tokens": 0.00006,
           "output_reasoning": 0.00006
@@ -1807,7 +1837,7 @@
     "modelName": "o1-mini",
     "matchPattern": "(?i)^(openai\/)?(o1-mini)$",
     "createdAt": "2024-09-13T10:01:35.373Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm10ivwo40000r1x7gg3syjq0_tier_default",
@@ -1819,6 +1849,9 @@
           "input": 0.0000011,
           "input_cached_tokens": 5.5e-7,
           "input_cache_read": 5.5e-7,
+          "input_cache_creation": 0.0000011,
+          "cache_write_tokens": 0.0000011,
+          "input_cache_write_tokens": 0.0000011,
           "output": 0.0000044,
           "output_reasoning_tokens": 0.0000044,
           "output_reasoning": 0.0000044
@@ -1831,7 +1864,7 @@
     "modelName": "o1-mini-2024-09-12",
     "matchPattern": "(?i)^(openai\/)?(o1-mini-2024-09-12)$",
     "createdAt": "2024-09-13T10:01:35.373Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm10iw6p20000wgx7it1hlb22_tier_default",
@@ -1843,6 +1876,9 @@
           "input": 0.0000011,
           "input_cached_tokens": 5.5e-7,
           "input_cache_read": 5.5e-7,
+          "input_cache_creation": 0.0000011,
+          "cache_write_tokens": 0.0000011,
+          "input_cache_write_tokens": 0.0000011,
           "output": 0.0000044,
           "output_reasoning_tokens": 0.0000044,
           "output_reasoning": 0.0000044
@@ -2001,7 +2037,7 @@
     "modelName": "gpt-4o-2024-11-20",
     "matchPattern": "(?i)^(openai\/)?(gpt-4o-2024-11-20)$",
     "createdAt": "2024-12-03T10:06:12.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4o",
@@ -2020,7 +2056,10 @@
           "input_cached_tokens": 1.25e-6,
           "input_cache_read": 1.25e-6,
           "output": 10e-6,
-          "cache_read_input_tokens": 1.25e-6
+          "cache_read_input_tokens": 1.25e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6
         }
       },
       {
@@ -2041,7 +2080,10 @@
           "input_cached_tokens": 2.125e-6,
           "input_cache_read": 2.125e-6,
           "output": 17e-6,
-          "cache_read_input_tokens": 2.125e-6
+          "cache_read_input_tokens": 2.125e-6,
+          "input_cache_creation": 4.25e-6,
+          "cache_write_tokens": 4.25e-6,
+          "input_cache_write_tokens": 4.25e-6
         }
       }
     ]
@@ -2151,7 +2193,7 @@
     "modelName": "o1",
     "matchPattern": "(?i)^(openai\/)?(o1)$",
     "createdAt": "2025-01-17T00:01:35.373Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm48cjxtc000108jrcsso3avv_tier_default",
@@ -2163,6 +2205,9 @@
           "input": 0.000015,
           "input_cached_tokens": 0.0000075,
           "input_cache_read": 0.0000075,
+          "input_cache_creation": 0.000015,
+          "cache_write_tokens": 0.000015,
+          "input_cache_write_tokens": 0.000015,
           "output": 0.00006,
           "output_reasoning_tokens": 0.00006,
           "output_reasoning": 0.00006
@@ -2175,7 +2220,7 @@
     "modelName": "o1-2024-12-17",
     "matchPattern": "(?i)^(openai\/)?(o1-2024-12-17)$",
     "createdAt": "2025-01-17T00:01:35.373Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm48cjxtc000208jrcsso3avv_tier_default",
@@ -2187,6 +2232,9 @@
           "input": 0.000015,
           "input_cached_tokens": 0.0000075,
           "input_cache_read": 0.0000075,
+          "input_cache_creation": 0.000015,
+          "cache_write_tokens": 0.000015,
+          "input_cache_write_tokens": 0.000015,
           "output": 0.00006,
           "output_reasoning_tokens": 0.00006,
           "output_reasoning": 0.00006
@@ -2199,7 +2247,7 @@
     "modelName": "o3-mini",
     "matchPattern": "(?i)^(openai\/)?(o3-mini)$",
     "createdAt": "2025-01-31T20:41:35.373Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm6l8j7vs0000tymz9vk7ew8t_tier_default",
@@ -2211,6 +2259,9 @@
           "input": 0.0000011,
           "input_cached_tokens": 5.5e-7,
           "input_cache_read": 5.5e-7,
+          "input_cache_creation": 0.0000011,
+          "cache_write_tokens": 0.0000011,
+          "input_cache_write_tokens": 0.0000011,
           "output": 0.0000044,
           "output_reasoning_tokens": 0.0000044,
           "output_reasoning": 0.0000044
@@ -2223,7 +2274,7 @@
     "modelName": "o3-mini-2025-01-31",
     "matchPattern": "(?i)^(openai\/)?(o3-mini-2025-01-31)$",
     "createdAt": "2025-01-31T20:41:35.373Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm6l8jan90000tymz52sh0ql8_tier_default",
@@ -2235,6 +2286,9 @@
           "input": 0.0000011,
           "input_cached_tokens": 5.5e-7,
           "input_cache_read": 5.5e-7,
+          "input_cache_creation": 0.0000011,
+          "cache_write_tokens": 0.0000011,
+          "input_cache_write_tokens": 0.0000011,
           "output": 0.0000044,
           "output_reasoning_tokens": 0.0000044,
           "output_reasoning": 0.0000044
@@ -2347,7 +2401,7 @@
     "modelName": "gpt-4.5-preview",
     "matchPattern": "(?i)^(openai\/)?(gpt-4.5-preview)$",
     "createdAt": "2025-02-27T21:26:54.132Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm7nusjvk0000tvmz71o85jwg_tier_default",
@@ -2360,6 +2414,9 @@
           "input_cached_tokens": 0.0000375,
           "input_cached_text_tokens": 0.0000375,
           "input_cache_read": 0.0000375,
+          "input_cache_creation": 0.000075,
+          "cache_write_tokens": 0.000075,
+          "input_cache_write_tokens": 0.000075,
           "output": 0.00015
         }
       }
@@ -2370,7 +2427,7 @@
     "modelName": "gpt-4.5-preview-2025-02-27",
     "matchPattern": "(?i)^(openai\/)?(gpt-4.5-preview-2025-02-27)$",
     "createdAt": "2025-02-27T21:26:54.132Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm7nusn640000tvmzf10z2x65_tier_default",
@@ -2383,6 +2440,9 @@
           "input_cached_tokens": 0.0000375,
           "input_cached_text_tokens": 0.0000375,
           "input_cache_read": 0.0000375,
+          "input_cache_creation": 0.000075,
+          "cache_write_tokens": 0.000075,
+          "input_cache_write_tokens": 0.000075,
           "output": 0.00015
         }
       }
@@ -2393,7 +2453,7 @@
     "modelName": "gpt-4.1",
     "matchPattern": "(?i)^(openai\/)?(gpt-4.1)$",
     "createdAt": "2025-04-15T10:26:54.132Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2413,7 +2473,10 @@
           "input_cached_text_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6,
           "output": 8e-6,
-          "cache_read_input_tokens": 0.5e-6
+          "cache_read_input_tokens": 0.5e-6,
+          "input_cache_creation": 2e-6,
+          "cache_write_tokens": 2e-6,
+          "input_cache_write_tokens": 2e-6
         }
       },
       {
@@ -2435,7 +2498,10 @@
           "input_cached_text_tokens": 0.875e-6,
           "input_cache_read": 0.875e-6,
           "output": 14e-6,
-          "cache_read_input_tokens": 0.875e-6
+          "cache_read_input_tokens": 0.875e-6,
+          "input_cache_creation": 3.5e-6,
+          "cache_write_tokens": 3.5e-6,
+          "input_cache_write_tokens": 3.5e-6
         }
       }
     ]
@@ -2445,7 +2511,7 @@
     "modelName": "gpt-4.1-2025-04-14",
     "matchPattern": "(?i)^(openai\/)?(gpt-4.1-2025-04-14)$",
     "createdAt": "2025-04-15T10:26:54.132Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2465,7 +2531,10 @@
           "input_cached_text_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6,
           "output": 8e-6,
-          "cache_read_input_tokens": 0.5e-6
+          "cache_read_input_tokens": 0.5e-6,
+          "input_cache_creation": 2e-6,
+          "cache_write_tokens": 2e-6,
+          "input_cache_write_tokens": 2e-6
         }
       },
       {
@@ -2487,7 +2556,10 @@
           "input_cached_text_tokens": 0.875e-6,
           "input_cache_read": 0.875e-6,
           "output": 14e-6,
-          "cache_read_input_tokens": 0.875e-6
+          "cache_read_input_tokens": 0.875e-6,
+          "input_cache_creation": 3.5e-6,
+          "cache_write_tokens": 3.5e-6,
+          "input_cache_write_tokens": 3.5e-6
         }
       }
     ]
@@ -2497,7 +2569,7 @@
     "modelName": "gpt-4.1-mini-2025-04-14",
     "matchPattern": "(?i)^(openai\/)?(gpt-4.1-mini-2025-04-14)$",
     "createdAt": "2025-04-15T10:26:54.132Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2517,7 +2589,10 @@
           "input_cached_text_tokens": 0.1e-6,
           "input_cache_read": 0.1e-6,
           "output": 1.6e-6,
-          "cache_read_input_tokens": 0.1e-6
+          "cache_read_input_tokens": 0.1e-6,
+          "input_cache_creation": 0.4e-6,
+          "cache_write_tokens": 0.4e-6,
+          "input_cache_write_tokens": 0.4e-6
         }
       },
       {
@@ -2539,7 +2614,10 @@
           "input_cached_text_tokens": 0.175e-6,
           "input_cache_read": 0.175e-6,
           "output": 2.8e-6,
-          "cache_read_input_tokens": 0.175e-6
+          "cache_read_input_tokens": 0.175e-6,
+          "input_cache_creation": 0.7e-6,
+          "cache_write_tokens": 0.7e-6,
+          "input_cache_write_tokens": 0.7e-6
         }
       }
     ]
@@ -2549,7 +2627,7 @@
     "modelName": "gpt-4.1-nano-2025-04-14",
     "matchPattern": "(?i)^(openai\/)?(gpt-4.1-nano-2025-04-14)$",
     "createdAt": "2025-04-15T10:26:54.132Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2569,7 +2647,10 @@
           "input_cached_text_tokens": 0.025e-6,
           "input_cache_read": 0.025e-6,
           "output": 0.4e-6,
-          "cache_read_input_tokens": 0.025e-6
+          "cache_read_input_tokens": 0.025e-6,
+          "input_cache_creation": 0.1e-6,
+          "cache_write_tokens": 0.1e-6,
+          "input_cache_write_tokens": 0.1e-6
         }
       },
       {
@@ -2591,7 +2672,10 @@
           "input_cached_text_tokens": 0.05e-6,
           "input_cache_read": 0.05e-6,
           "output": 0.8e-6,
-          "cache_read_input_tokens": 0.05e-6
+          "cache_read_input_tokens": 0.05e-6,
+          "input_cache_creation": 0.2e-6,
+          "cache_write_tokens": 0.2e-6,
+          "input_cache_write_tokens": 0.2e-6
         }
       }
     ]
@@ -2601,7 +2685,7 @@
     "modelName": "o3",
     "matchPattern": "(?i)^(openai\/)?(o3)$",
     "createdAt": "2025-04-16T23:26:54.132Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm7wmny967124dhjtb95w8f81_tier_default",
@@ -2617,6 +2701,9 @@
           "output_reasoning_tokens": 8e-6,
           "output_reasoning": 8e-6,
           "cache_read_input_tokens": 0.5e-6,
+          "input_cache_creation": 2e-6,
+          "cache_write_tokens": 2e-6,
+          "input_cache_write_tokens": 2e-6,
           "reasoning_tokens": 8e-6
         }
       },
@@ -2641,6 +2728,9 @@
           "output_reasoning_tokens": 14e-6,
           "output_reasoning": 14e-6,
           "cache_read_input_tokens": 0.875e-6,
+          "input_cache_creation": 3.5e-6,
+          "cache_write_tokens": 3.5e-6,
+          "input_cache_write_tokens": 3.5e-6,
           "reasoning_tokens": 14e-6
         }
       },
@@ -2665,6 +2755,9 @@
           "output_reasoning_tokens": 4e-6,
           "output_reasoning": 4e-6,
           "cache_read_input_tokens": 0.25e-6,
+          "input_cache_creation": 1e-6,
+          "cache_write_tokens": 1e-6,
+          "input_cache_write_tokens": 1e-6,
           "reasoning_tokens": 4e-6
         }
       }
@@ -2675,7 +2768,7 @@
     "modelName": "o3-2025-04-16",
     "matchPattern": "(?i)^(openai\/)?(o3-2025-04-16)$",
     "createdAt": "2025-04-16T23:26:54.132Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm7wopq3327124dhjtb95w8f81_tier_default",
@@ -2691,6 +2784,9 @@
           "output_reasoning_tokens": 8e-6,
           "output_reasoning": 8e-6,
           "cache_read_input_tokens": 0.5e-6,
+          "input_cache_creation": 2e-6,
+          "cache_write_tokens": 2e-6,
+          "input_cache_write_tokens": 2e-6,
           "reasoning_tokens": 8e-6
         }
       },
@@ -2715,6 +2811,9 @@
           "output_reasoning_tokens": 14e-6,
           "output_reasoning": 14e-6,
           "cache_read_input_tokens": 0.875e-6,
+          "input_cache_creation": 3.5e-6,
+          "cache_write_tokens": 3.5e-6,
+          "input_cache_write_tokens": 3.5e-6,
           "reasoning_tokens": 14e-6
         }
       },
@@ -2739,6 +2838,9 @@
           "output_reasoning_tokens": 4e-6,
           "output_reasoning": 4e-6,
           "cache_read_input_tokens": 0.25e-6,
+          "input_cache_creation": 1e-6,
+          "cache_write_tokens": 1e-6,
+          "input_cache_write_tokens": 1e-6,
           "reasoning_tokens": 4e-6
         }
       }
@@ -2749,7 +2851,7 @@
     "modelName": "o4-mini",
     "matchPattern": "(?i)^(openai\/)?(o4-mini)$",
     "createdAt": "2025-04-16T23:26:54.132Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm7wqrs1327124dhjtb95w8f81_tier_default",
@@ -2765,6 +2867,9 @@
           "output_reasoning_tokens": 4.4e-6,
           "output_reasoning": 4.4e-6,
           "cache_read_input_tokens": 0.275e-6,
+          "input_cache_creation": 1.1e-6,
+          "cache_write_tokens": 1.1e-6,
+          "input_cache_write_tokens": 1.1e-6,
           "reasoning_tokens": 4.4e-6
         }
       },
@@ -2789,6 +2894,9 @@
           "output_reasoning_tokens": 8e-6,
           "output_reasoning": 8e-6,
           "cache_read_input_tokens": 0.5e-6,
+          "input_cache_creation": 2e-6,
+          "cache_write_tokens": 2e-6,
+          "input_cache_write_tokens": 2e-6,
           "reasoning_tokens": 8e-6
         }
       },
@@ -2813,6 +2921,9 @@
           "output_reasoning_tokens": 2.2e-6,
           "output_reasoning": 2.2e-6,
           "cache_read_input_tokens": 0.138e-6,
+          "input_cache_creation": 0.55e-6,
+          "cache_write_tokens": 0.55e-6,
+          "input_cache_write_tokens": 0.55e-6,
           "reasoning_tokens": 2.2e-6
         }
       }
@@ -2823,7 +2934,7 @@
     "modelName": "o4-mini-2025-04-16",
     "matchPattern": "(?i)^(openai\/)?(o4-mini-2025-04-16)$",
     "createdAt": "2025-04-16T23:26:54.132Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm7zqrs1327124dhjtb95w8f82_tier_default",
@@ -2839,6 +2950,9 @@
           "output_reasoning_tokens": 4.4e-6,
           "output_reasoning": 4.4e-6,
           "cache_read_input_tokens": 0.275e-6,
+          "input_cache_creation": 1.1e-6,
+          "cache_write_tokens": 1.1e-6,
+          "input_cache_write_tokens": 1.1e-6,
           "reasoning_tokens": 4.4e-6
         }
       },
@@ -2863,6 +2977,9 @@
           "output_reasoning_tokens": 8e-6,
           "output_reasoning": 8e-6,
           "cache_read_input_tokens": 0.5e-6,
+          "input_cache_creation": 2e-6,
+          "cache_write_tokens": 2e-6,
+          "input_cache_write_tokens": 2e-6,
           "reasoning_tokens": 8e-6
         }
       },
@@ -2887,6 +3004,9 @@
           "output_reasoning_tokens": 2.2e-6,
           "output_reasoning": 2.2e-6,
           "cache_read_input_tokens": 0.138e-6,
+          "input_cache_creation": 0.55e-6,
+          "cache_write_tokens": 0.55e-6,
+          "input_cache_write_tokens": 0.55e-6,
           "reasoning_tokens": 2.2e-6
         }
       }
@@ -2937,7 +3057,7 @@
     "modelName": "gpt-4.1-nano",
     "matchPattern": "(?i)^(openai\/)?(gpt-4.1-nano)$",
     "createdAt": "2025-04-22T10:11:35.241Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2957,7 +3077,10 @@
           "input_cached_text_tokens": 0.025e-6,
           "input_cache_read": 0.025e-6,
           "output": 0.4e-6,
-          "cache_read_input_tokens": 0.025e-6
+          "cache_read_input_tokens": 0.025e-6,
+          "input_cache_creation": 0.1e-6,
+          "cache_write_tokens": 0.1e-6,
+          "input_cache_write_tokens": 0.1e-6
         }
       },
       {
@@ -2979,7 +3102,10 @@
           "input_cached_text_tokens": 0.05e-6,
           "input_cache_read": 0.05e-6,
           "output": 0.8e-6,
-          "cache_read_input_tokens": 0.05e-6
+          "cache_read_input_tokens": 0.05e-6,
+          "input_cache_creation": 0.2e-6,
+          "cache_write_tokens": 0.2e-6,
+          "input_cache_write_tokens": 0.2e-6
         }
       }
     ]
@@ -2989,7 +3115,7 @@
     "modelName": "gpt-4.1-mini",
     "matchPattern": "(?i)^(openai\/)?(gpt-4.1-mini)$",
     "createdAt": "2025-04-22T10:11:35.241Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3009,7 +3135,10 @@
           "input_cached_text_tokens": 0.1e-6,
           "input_cache_read": 0.1e-6,
           "output": 1.6e-6,
-          "cache_read_input_tokens": 0.1e-6
+          "cache_read_input_tokens": 0.1e-6,
+          "input_cache_creation": 0.4e-6,
+          "cache_write_tokens": 0.4e-6,
+          "input_cache_write_tokens": 0.4e-6
         }
       },
       {
@@ -3031,7 +3160,10 @@
           "input_cached_text_tokens": 0.175e-6,
           "input_cache_read": 0.175e-6,
           "output": 2.8e-6,
-          "cache_read_input_tokens": 0.175e-6
+          "cache_read_input_tokens": 0.175e-6,
+          "input_cache_creation": 0.7e-6,
+          "cache_write_tokens": 0.7e-6,
+          "input_cache_write_tokens": 0.7e-6
         }
       }
     ]
@@ -3419,7 +3551,7 @@
     "modelName": "gpt-5",
     "matchPattern": "(?i)^(openai\/)?(gpt-5)$",
     "createdAt": "2025-08-07T16:00:00.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3441,6 +3573,9 @@
           "output_reasoning_tokens": 10e-6,
           "output_reasoning": 10e-6,
           "cache_read_input_tokens": 0.125e-6,
+          "input_cache_creation": 1.25e-6,
+          "cache_write_tokens": 1.25e-6,
+          "input_cache_write_tokens": 1.25e-6,
           "reasoning_tokens": 10e-6
         }
       },
@@ -3465,6 +3600,9 @@
           "output_reasoning_tokens": 20e-6,
           "output_reasoning": 20e-6,
           "cache_read_input_tokens": 0.25e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6,
           "reasoning_tokens": 20e-6
         }
       },
@@ -3489,6 +3627,9 @@
           "output_reasoning_tokens": 5e-6,
           "output_reasoning": 5e-6,
           "cache_read_input_tokens": 0.0625e-6,
+          "input_cache_creation": 0.625e-6,
+          "cache_write_tokens": 0.625e-6,
+          "input_cache_write_tokens": 0.625e-6,
           "reasoning_tokens": 5e-6
         }
       }
@@ -3499,7 +3640,7 @@
     "modelName": "gpt-5-2025-08-07",
     "matchPattern": "(?i)^(openai\/)?(gpt-5-2025-08-07)$",
     "createdAt": "2025-08-11T08:00:00.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3521,6 +3662,9 @@
           "output_reasoning_tokens": 10e-6,
           "output_reasoning": 10e-6,
           "cache_read_input_tokens": 0.125e-6,
+          "input_cache_creation": 1.25e-6,
+          "cache_write_tokens": 1.25e-6,
+          "input_cache_write_tokens": 1.25e-6,
           "reasoning_tokens": 10e-6
         }
       },
@@ -3545,6 +3689,9 @@
           "output_reasoning_tokens": 20e-6,
           "output_reasoning": 20e-6,
           "cache_read_input_tokens": 0.25e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6,
           "reasoning_tokens": 20e-6
         }
       },
@@ -3569,6 +3716,9 @@
           "output_reasoning_tokens": 5e-6,
           "output_reasoning": 5e-6,
           "cache_read_input_tokens": 0.0625e-6,
+          "input_cache_creation": 0.625e-6,
+          "cache_write_tokens": 0.625e-6,
+          "input_cache_write_tokens": 0.625e-6,
           "reasoning_tokens": 5e-6
         }
       }
@@ -3579,7 +3729,7 @@
     "modelName": "gpt-5-mini",
     "matchPattern": "(?i)^(openai\/)?(gpt-5-mini)$",
     "createdAt": "2025-08-07T16:00:00.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3601,6 +3751,9 @@
           "output_reasoning_tokens": 2e-6,
           "output_reasoning": 2e-6,
           "cache_read_input_tokens": 0.025e-6,
+          "input_cache_creation": 0.25e-6,
+          "cache_write_tokens": 0.25e-6,
+          "input_cache_write_tokens": 0.25e-6,
           "reasoning_tokens": 2e-6
         }
       },
@@ -3625,6 +3778,9 @@
           "output_reasoning_tokens": 3.6e-6,
           "output_reasoning": 3.6e-6,
           "cache_read_input_tokens": 0.045e-6,
+          "input_cache_creation": 0.45e-6,
+          "cache_write_tokens": 0.45e-6,
+          "input_cache_write_tokens": 0.45e-6,
           "reasoning_tokens": 3.6e-6
         }
       },
@@ -3649,6 +3805,9 @@
           "output_reasoning_tokens": 1e-6,
           "output_reasoning": 1e-6,
           "cache_read_input_tokens": 0.0125e-6,
+          "input_cache_creation": 0.125e-6,
+          "cache_write_tokens": 0.125e-6,
+          "input_cache_write_tokens": 0.125e-6,
           "reasoning_tokens": 1e-6
         }
       }
@@ -3659,7 +3818,7 @@
     "modelName": "gpt-5-mini-2025-08-07",
     "matchPattern": "(?i)^(openai\/)?(gpt-5-mini-2025-08-07)$",
     "createdAt": "2025-08-11T08:00:00.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3681,6 +3840,9 @@
           "output_reasoning_tokens": 2e-6,
           "output_reasoning": 2e-6,
           "cache_read_input_tokens": 0.025e-6,
+          "input_cache_creation": 0.25e-6,
+          "cache_write_tokens": 0.25e-6,
+          "input_cache_write_tokens": 0.25e-6,
           "reasoning_tokens": 2e-6
         }
       },
@@ -3705,6 +3867,9 @@
           "output_reasoning_tokens": 3.6e-6,
           "output_reasoning": 3.6e-6,
           "cache_read_input_tokens": 0.045e-6,
+          "input_cache_creation": 0.45e-6,
+          "cache_write_tokens": 0.45e-6,
+          "input_cache_write_tokens": 0.45e-6,
           "reasoning_tokens": 3.6e-6
         }
       },
@@ -3729,6 +3894,9 @@
           "output_reasoning_tokens": 1e-6,
           "output_reasoning": 1e-6,
           "cache_read_input_tokens": 0.0125e-6,
+          "input_cache_creation": 0.125e-6,
+          "cache_write_tokens": 0.125e-6,
+          "input_cache_write_tokens": 0.125e-6,
           "reasoning_tokens": 1e-6
         }
       }
@@ -3739,7 +3907,7 @@
     "modelName": "gpt-5-nano",
     "matchPattern": "(?i)^(openai\/)?(gpt-5-nano)$",
     "createdAt": "2025-08-07T16:00:00.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3761,6 +3929,9 @@
           "output_reasoning_tokens": 0.4e-6,
           "output_reasoning": 0.4e-6,
           "cache_read_input_tokens": 0.005e-6,
+          "input_cache_creation": 0.05e-6,
+          "cache_write_tokens": 0.05e-6,
+          "input_cache_write_tokens": 0.05e-6,
           "reasoning_tokens": 0.4e-6
         }
       },
@@ -3785,6 +3956,9 @@
           "output_reasoning_tokens": 0.2e-6,
           "output_reasoning": 0.2e-6,
           "cache_read_input_tokens": 0.0025e-6,
+          "input_cache_creation": 0.025e-6,
+          "cache_write_tokens": 0.025e-6,
+          "input_cache_write_tokens": 0.025e-6,
           "reasoning_tokens": 0.2e-6
         }
       }
@@ -3795,7 +3969,7 @@
     "modelName": "gpt-5-nano-2025-08-07",
     "matchPattern": "(?i)^(openai\/)?(gpt-5-nano-2025-08-07)$",
     "createdAt": "2025-08-11T08:00:00.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3817,6 +3991,9 @@
           "output_reasoning_tokens": 0.4e-6,
           "output_reasoning": 0.4e-6,
           "cache_read_input_tokens": 0.005e-6,
+          "input_cache_creation": 0.05e-6,
+          "cache_write_tokens": 0.05e-6,
+          "input_cache_write_tokens": 0.05e-6,
           "reasoning_tokens": 0.4e-6
         }
       },
@@ -3841,6 +4018,9 @@
           "output_reasoning_tokens": 0.2e-6,
           "output_reasoning": 0.2e-6,
           "cache_read_input_tokens": 0.0025e-6,
+          "input_cache_creation": 0.025e-6,
+          "cache_write_tokens": 0.025e-6,
+          "input_cache_write_tokens": 0.025e-6,
           "reasoning_tokens": 0.2e-6
         }
       }
@@ -3851,7 +4031,7 @@
     "modelName": "gpt-5-chat-latest",
     "matchPattern": "(?i)^(openai\/)?(gpt-5-chat-latest)$",
     "createdAt": "2025-08-07T16:00:00.000Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3870,6 +4050,9 @@
           "input_cached_tokens": 1.25e-7,
           "output": 0.00001,
           "input_cache_read": 1.25e-7,
+          "input_cache_creation": 0.00000125,
+          "cache_write_tokens": 0.00000125,
+          "input_cache_write_tokens": 0.00000125,
           "output_reasoning_tokens": 0.00001,
           "output_reasoning": 0.00001
         }
@@ -3967,7 +4150,7 @@
     "modelName": "gpt-5.1",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.1)$",
     "createdAt": "2025-11-14T08:57:23.481Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3989,6 +4172,9 @@
           "output_reasoning_tokens": 10e-6,
           "output_reasoning": 10e-6,
           "cache_read_input_tokens": 0.125e-6,
+          "input_cache_creation": 1.25e-6,
+          "cache_write_tokens": 1.25e-6,
+          "input_cache_write_tokens": 1.25e-6,
           "reasoning_tokens": 10e-6
         }
       },
@@ -4013,6 +4199,9 @@
           "output_reasoning_tokens": 20e-6,
           "output_reasoning": 20e-6,
           "cache_read_input_tokens": 0.25e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6,
           "reasoning_tokens": 20e-6
         }
       },
@@ -4037,6 +4226,9 @@
           "output_reasoning_tokens": 5e-6,
           "output_reasoning": 5e-6,
           "cache_read_input_tokens": 0.0625e-6,
+          "input_cache_creation": 0.625e-6,
+          "cache_write_tokens": 0.625e-6,
+          "input_cache_write_tokens": 0.625e-6,
           "reasoning_tokens": 5e-6
         }
       }
@@ -4047,7 +4239,7 @@
     "modelName": "gpt-5.1-2025-11-13",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.1-2025-11-13)$",
     "createdAt": "2025-11-14T08:57:23.481Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4069,6 +4261,9 @@
           "output_reasoning_tokens": 10e-6,
           "output_reasoning": 10e-6,
           "cache_read_input_tokens": 0.125e-6,
+          "input_cache_creation": 1.25e-6,
+          "cache_write_tokens": 1.25e-6,
+          "input_cache_write_tokens": 1.25e-6,
           "reasoning_tokens": 10e-6
         }
       },
@@ -4093,6 +4288,9 @@
           "output_reasoning_tokens": 20e-6,
           "output_reasoning": 20e-6,
           "cache_read_input_tokens": 0.25e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6,
           "reasoning_tokens": 20e-6
         }
       },
@@ -4117,6 +4315,9 @@
           "output_reasoning_tokens": 5e-6,
           "output_reasoning": 5e-6,
           "cache_read_input_tokens": 0.0625e-6,
+          "input_cache_creation": 0.625e-6,
+          "cache_write_tokens": 0.625e-6,
+          "input_cache_write_tokens": 0.625e-6,
           "reasoning_tokens": 5e-6
         }
       }
@@ -4952,7 +5153,7 @@
     "modelName": "gpt-5.2",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.2)$",
     "createdAt": "2025-12-12T09:00:06.513Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4974,6 +5175,9 @@
           "output_reasoning_tokens": 14e-6,
           "output_reasoning": 14e-6,
           "cache_read_input_tokens": 0.175e-6,
+          "input_cache_creation": 1.75e-6,
+          "cache_write_tokens": 1.75e-6,
+          "input_cache_write_tokens": 1.75e-6,
           "reasoning_tokens": 14e-6
         }
       },
@@ -4998,6 +5202,9 @@
           "output_reasoning_tokens": 28e-6,
           "output_reasoning": 28e-6,
           "cache_read_input_tokens": 0.35e-6,
+          "input_cache_creation": 3.5e-6,
+          "cache_write_tokens": 3.5e-6,
+          "input_cache_write_tokens": 3.5e-6,
           "reasoning_tokens": 28e-6
         }
       },
@@ -5022,6 +5229,9 @@
           "output_reasoning_tokens": 7e-6,
           "output_reasoning": 7e-6,
           "cache_read_input_tokens": 0.0875e-6,
+          "input_cache_creation": 0.875e-6,
+          "cache_write_tokens": 0.875e-6,
+          "input_cache_write_tokens": 0.875e-6,
           "reasoning_tokens": 7e-6
         }
       }
@@ -5032,7 +5242,7 @@
     "modelName": "gpt-5.2-2025-12-11",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.2-2025-12-11)$",
     "createdAt": "2025-12-12T09:00:06.513Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -5054,6 +5264,9 @@
           "output_reasoning_tokens": 14e-6,
           "output_reasoning": 14e-6,
           "cache_read_input_tokens": 0.175e-6,
+          "input_cache_creation": 1.75e-6,
+          "cache_write_tokens": 1.75e-6,
+          "input_cache_write_tokens": 1.75e-6,
           "reasoning_tokens": 14e-6
         }
       },
@@ -5078,6 +5291,9 @@
           "output_reasoning_tokens": 28e-6,
           "output_reasoning": 28e-6,
           "cache_read_input_tokens": 0.35e-6,
+          "input_cache_creation": 3.5e-6,
+          "cache_write_tokens": 3.5e-6,
+          "input_cache_write_tokens": 3.5e-6,
           "reasoning_tokens": 28e-6
         }
       },
@@ -5102,6 +5318,9 @@
           "output_reasoning_tokens": 7e-6,
           "output_reasoning": 7e-6,
           "cache_read_input_tokens": 0.0875e-6,
+          "input_cache_creation": 0.875e-6,
+          "cache_write_tokens": 0.875e-6,
+          "input_cache_write_tokens": 0.875e-6,
           "reasoning_tokens": 7e-6
         }
       }
@@ -5168,7 +5387,7 @@
     "modelName": "gpt-5.3-codex",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.3-codex)$",
     "createdAt": "2026-07-27T00:00:00.000Z",
-    "updatedAt": "2026-09-02T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -5187,6 +5406,9 @@
           "input_cached_tokens": 0.175e-6,
           "input_cache_read": 0.175e-6,
           "cache_read_input_tokens": 0.175e-6,
+          "input_cache_creation": 1.75e-6,
+          "cache_write_tokens": 1.75e-6,
+          "input_cache_write_tokens": 1.75e-6,
           "output": 14e-6,
           "output_reasoning_tokens": 14e-6,
           "output_reasoning": 14e-6,
@@ -5214,6 +5436,9 @@
           "input_cached_tokens": 0.35e-6,
           "input_cache_read": 0.35e-6,
           "cache_read_input_tokens": 0.35e-6,
+          "input_cache_creation": 3.5e-6,
+          "cache_write_tokens": 3.5e-6,
+          "input_cache_write_tokens": 3.5e-6,
           "output": 28e-6,
           "output_reasoning_tokens": 28e-6,
           "output_reasoning": 28e-6,
@@ -5227,7 +5452,7 @@
     "modelName": "gpt-5.4",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.4)$",
     "createdAt": "2026-03-05T00:00:00.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -5246,6 +5471,9 @@
           "input_cached_tokens": 0.25e-6,
           "input_cache_read": 0.25e-6,
           "cache_read_input_tokens": 0.25e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6,
           "output": 15e-6,
           "output_reasoning_tokens": 15e-6,
           "output_reasoning": 15e-6,
@@ -5276,6 +5504,9 @@
           "input_cached_tokens": 0.25e-6,
           "input_cache_read": 0.25e-6,
           "cache_read_input_tokens": 0.25e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6,
           "output": 11.25e-6,
           "output_reasoning_tokens": 11.25e-6,
           "output_reasoning": 11.25e-6,
@@ -5300,6 +5531,9 @@
           "input_cached_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6,
           "cache_read_input_tokens": 0.5e-6,
+          "input_cache_creation": 5e-6,
+          "cache_write_tokens": 5e-6,
+          "input_cache_write_tokens": 5e-6,
           "output": 30e-6,
           "output_reasoning_tokens": 30e-6,
           "output_reasoning": 30e-6,
@@ -5324,6 +5558,9 @@
           "input_cached_tokens": 0.13e-6,
           "input_cache_read": 0.13e-6,
           "cache_read_input_tokens": 0.13e-6,
+          "input_cache_creation": 1.25e-6,
+          "cache_write_tokens": 1.25e-6,
+          "input_cache_write_tokens": 1.25e-6,
           "output": 7.5e-6,
           "output_reasoning_tokens": 7.5e-6,
           "output_reasoning": 7.5e-6,
@@ -5348,6 +5585,9 @@
           "input_cached_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6,
           "cache_read_input_tokens": 0.5e-6,
+          "input_cache_creation": 5e-6,
+          "cache_write_tokens": 5e-6,
+          "input_cache_write_tokens": 5e-6,
           "output": 22.5e-6,
           "output_reasoning_tokens": 22.5e-6,
           "output_reasoning": 22.5e-6,
@@ -5459,7 +5699,7 @@
     "modelName": "gpt-5.4-2026-03-05",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.4-2026-03-05)$",
     "createdAt": "2026-03-05T00:00:00.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -5478,6 +5718,9 @@
           "input_cached_tokens": 0.25e-6,
           "input_cache_read": 0.25e-6,
           "cache_read_input_tokens": 0.25e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6,
           "output": 15e-6,
           "output_reasoning_tokens": 15e-6,
           "output_reasoning": 15e-6,
@@ -5508,6 +5751,9 @@
           "input_cached_tokens": 0.25e-6,
           "input_cache_read": 0.25e-6,
           "cache_read_input_tokens": 0.25e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6,
           "output": 11.25e-6,
           "output_reasoning_tokens": 11.25e-6,
           "output_reasoning": 11.25e-6,
@@ -5532,6 +5778,9 @@
           "input_cached_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6,
           "cache_read_input_tokens": 0.5e-6,
+          "input_cache_creation": 5e-6,
+          "cache_write_tokens": 5e-6,
+          "input_cache_write_tokens": 5e-6,
           "output": 30e-6,
           "output_reasoning_tokens": 30e-6,
           "output_reasoning": 30e-6,
@@ -5556,6 +5805,9 @@
           "input_cached_tokens": 0.13e-6,
           "input_cache_read": 0.13e-6,
           "cache_read_input_tokens": 0.13e-6,
+          "input_cache_creation": 1.25e-6,
+          "cache_write_tokens": 1.25e-6,
+          "input_cache_write_tokens": 1.25e-6,
           "output": 7.5e-6,
           "output_reasoning_tokens": 7.5e-6,
           "output_reasoning": 7.5e-6,
@@ -5580,6 +5832,9 @@
           "input_cached_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6,
           "cache_read_input_tokens": 0.5e-6,
+          "input_cache_creation": 5e-6,
+          "cache_write_tokens": 5e-6,
+          "input_cache_write_tokens": 5e-6,
           "output": 22.5e-6,
           "output_reasoning_tokens": 22.5e-6,
           "output_reasoning": 22.5e-6,
@@ -5691,7 +5946,7 @@
     "modelName": "gpt-5.4-mini",
     "matchPattern": "(?i)^(openai\\/)?(gpt-5.4-mini)$",
     "createdAt": "2026-03-18T00:00:00.000Z",
-    "updatedAt": "2026-08-24T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -5713,7 +5968,10 @@
           "output_reasoning_tokens": 4.5e-6,
           "output_reasoning": 4.5e-6,
           "reasoning_tokens": 4.5e-6,
-          "cache_read_input_tokens": 0.075e-6
+          "cache_read_input_tokens": 0.075e-6,
+          "input_cache_creation": 0.75e-6,
+          "cache_write_tokens": 0.75e-6,
+          "input_cache_write_tokens": 0.75e-6
         }
       },
       {
@@ -5737,7 +5995,10 @@
           "output_reasoning_tokens": 9e-6,
           "output_reasoning": 9e-6,
           "reasoning_tokens": 9e-6,
-          "cache_read_input_tokens": 0.15e-6
+          "cache_read_input_tokens": 0.15e-6,
+          "input_cache_creation": 1.5e-6,
+          "cache_write_tokens": 1.5e-6,
+          "input_cache_write_tokens": 1.5e-6
         }
       },
       {
@@ -5761,7 +6022,10 @@
           "output_reasoning_tokens": 2.25e-6,
           "output_reasoning": 2.25e-6,
           "reasoning_tokens": 2.25e-6,
-          "cache_read_input_tokens": 0.0375e-6
+          "cache_read_input_tokens": 0.0375e-6,
+          "input_cache_creation": 0.375e-6,
+          "cache_write_tokens": 0.375e-6,
+          "input_cache_write_tokens": 0.375e-6
         }
       }
     ]
@@ -5771,7 +6035,7 @@
     "modelName": "gpt-5.4-mini-2026-03-17",
     "matchPattern": "(?i)^(openai\\/)?(gpt-5.4-mini-2026-03-17)$",
     "createdAt": "2026-03-18T00:00:00.000Z",
-    "updatedAt": "2026-08-24T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -5793,7 +6057,10 @@
           "output_reasoning_tokens": 4.5e-6,
           "output_reasoning": 4.5e-6,
           "reasoning_tokens": 4.5e-6,
-          "cache_read_input_tokens": 0.075e-6
+          "cache_read_input_tokens": 0.075e-6,
+          "input_cache_creation": 0.75e-6,
+          "cache_write_tokens": 0.75e-6,
+          "input_cache_write_tokens": 0.75e-6
         }
       },
       {
@@ -5817,7 +6084,10 @@
           "output_reasoning_tokens": 9e-6,
           "output_reasoning": 9e-6,
           "reasoning_tokens": 9e-6,
-          "cache_read_input_tokens": 0.15e-6
+          "cache_read_input_tokens": 0.15e-6,
+          "input_cache_creation": 1.5e-6,
+          "cache_write_tokens": 1.5e-6,
+          "input_cache_write_tokens": 1.5e-6
         }
       },
       {
@@ -5841,7 +6111,10 @@
           "output_reasoning_tokens": 2.25e-6,
           "output_reasoning": 2.25e-6,
           "reasoning_tokens": 2.25e-6,
-          "cache_read_input_tokens": 0.0375e-6
+          "cache_read_input_tokens": 0.0375e-6,
+          "input_cache_creation": 0.375e-6,
+          "cache_write_tokens": 0.375e-6,
+          "input_cache_write_tokens": 0.375e-6
         }
       }
     ]
@@ -5851,7 +6124,7 @@
     "modelName": "gpt-5.4-nano",
     "matchPattern": "(?i)^(openai\\/)?(gpt-5.4-nano)$",
     "createdAt": "2026-03-18T00:00:00.000Z",
-    "updatedAt": "2026-08-24T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -5873,7 +6146,10 @@
           "output_reasoning_tokens": 1.25e-6,
           "output_reasoning": 1.25e-6,
           "reasoning_tokens": 1.25e-6,
-          "cache_read_input_tokens": 0.02e-6
+          "cache_read_input_tokens": 0.02e-6,
+          "input_cache_creation": 0.2e-6,
+          "cache_write_tokens": 0.2e-6,
+          "input_cache_write_tokens": 0.2e-6
         }
       },
       {
@@ -5897,7 +6173,10 @@
           "output_reasoning_tokens": 0.625e-6,
           "output_reasoning": 0.625e-6,
           "reasoning_tokens": 0.625e-6,
-          "cache_read_input_tokens": 0.01e-6
+          "cache_read_input_tokens": 0.01e-6,
+          "input_cache_creation": 0.1e-6,
+          "cache_write_tokens": 0.1e-6,
+          "input_cache_write_tokens": 0.1e-6
         }
       }
     ]
@@ -5907,7 +6186,7 @@
     "modelName": "gpt-5.4-nano-2026-03-17",
     "matchPattern": "(?i)^(openai\\/)?(gpt-5.4-nano-2026-03-17)$",
     "createdAt": "2026-03-18T00:00:00.000Z",
-    "updatedAt": "2026-08-24T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -5929,7 +6208,10 @@
           "output_reasoning_tokens": 1.25e-6,
           "output_reasoning": 1.25e-6,
           "reasoning_tokens": 1.25e-6,
-          "cache_read_input_tokens": 0.02e-6
+          "cache_read_input_tokens": 0.02e-6,
+          "input_cache_creation": 0.2e-6,
+          "cache_write_tokens": 0.2e-6,
+          "input_cache_write_tokens": 0.2e-6
         }
       },
       {
@@ -5953,7 +6235,10 @@
           "output_reasoning_tokens": 0.625e-6,
           "output_reasoning": 0.625e-6,
           "reasoning_tokens": 0.625e-6,
-          "cache_read_input_tokens": 0.01e-6
+          "cache_read_input_tokens": 0.01e-6,
+          "input_cache_creation": 0.1e-6,
+          "cache_write_tokens": 0.1e-6,
+          "input_cache_write_tokens": 0.1e-6
         }
       }
     ]
@@ -5963,7 +6248,7 @@
     "modelName": "gpt-5.5-2026-04-23",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.5(-2026-04-23)?)$",
     "createdAt": "2026-04-25T00:00:00.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -5982,6 +6267,9 @@
           "input_cached_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6,
           "cache_read_input_tokens": 0.5e-6,
+          "input_cache_creation": 5e-6,
+          "cache_write_tokens": 5e-6,
+          "input_cache_write_tokens": 5e-6,
           "output": 30e-6,
           "output_reasoning_tokens": 30e-6,
           "output_reasoning": 30e-6,
@@ -6012,6 +6300,9 @@
           "input_cached_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6,
           "cache_read_input_tokens": 0.5e-6,
+          "input_cache_creation": 5e-6,
+          "cache_write_tokens": 5e-6,
+          "input_cache_write_tokens": 5e-6,
           "output": 22.5e-6,
           "output_reasoning_tokens": 22.5e-6,
           "output_reasoning": 22.5e-6,
@@ -6036,6 +6327,9 @@
           "input_cached_tokens": 1.25e-6,
           "input_cache_read": 1.25e-6,
           "cache_read_input_tokens": 1.25e-6,
+          "input_cache_creation": 12.5e-6,
+          "cache_write_tokens": 12.5e-6,
+          "input_cache_write_tokens": 12.5e-6,
           "output": 75e-6,
           "output_reasoning_tokens": 75e-6,
           "output_reasoning": 75e-6,
@@ -6060,6 +6354,9 @@
           "input_cached_tokens": 0.25e-6,
           "input_cache_read": 0.25e-6,
           "cache_read_input_tokens": 0.25e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6,
           "output": 15e-6,
           "output_reasoning_tokens": 15e-6,
           "output_reasoning": 15e-6,
@@ -6084,6 +6381,9 @@
           "input_cached_tokens": 1e-6,
           "input_cache_read": 1e-6,
           "cache_read_input_tokens": 1e-6,
+          "input_cache_creation": 10e-6,
+          "cache_write_tokens": 10e-6,
+          "input_cache_write_tokens": 10e-6,
           "output": 45e-6,
           "output_reasoning_tokens": 45e-6,
           "output_reasoning": 45e-6,
@@ -6168,7 +6468,7 @@
     "modelName": "gpt-5.6-sol",
     "matchPattern": "(?i)^(openai/)?(gpt-5.6-sol)$",
     "createdAt": "2026-07-09T00:00:00.000Z",
-    "updatedAt": "2026-08-24T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -6189,6 +6489,7 @@
           "cache_read_input_tokens": 0.4e-6,
           "input_cache_creation": 5e-6,
           "cache_write_tokens": 5e-6,
+          "input_cache_write_tokens": 5e-6,
           "output": 20e-6,
           "output_reasoning_tokens": 20e-6,
           "output_reasoning": 20e-6,
@@ -6221,6 +6522,7 @@
           "cache_read_input_tokens": 1.6e-6,
           "input_cache_creation": 20e-6,
           "cache_write_tokens": 20e-6,
+          "input_cache_write_tokens": 20e-6,
           "output": 60e-6,
           "output_reasoning_tokens": 60e-6,
           "output_reasoning": 60e-6,
@@ -6253,6 +6555,7 @@
           "cache_read_input_tokens": 0.4e-6,
           "input_cache_creation": 5e-6,
           "cache_write_tokens": 5e-6,
+          "input_cache_write_tokens": 5e-6,
           "output": 15e-6,
           "output_reasoning_tokens": 15e-6,
           "output_reasoning": 15e-6,
@@ -6279,6 +6582,7 @@
           "cache_read_input_tokens": 0.8e-6,
           "input_cache_creation": 10e-6,
           "cache_write_tokens": 10e-6,
+          "input_cache_write_tokens": 10e-6,
           "output": 40e-6,
           "output_reasoning_tokens": 40e-6,
           "output_reasoning": 40e-6,
@@ -6305,6 +6609,7 @@
           "cache_read_input_tokens": 0.2e-6,
           "input_cache_creation": 2.5e-6,
           "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6,
           "output": 10e-6,
           "output_reasoning_tokens": 10e-6,
           "output_reasoning": 10e-6,
@@ -6331,6 +6636,7 @@
           "cache_read_input_tokens": 0.8e-6,
           "input_cache_creation": 10e-6,
           "cache_write_tokens": 10e-6,
+          "input_cache_write_tokens": 10e-6,
           "output": 30e-6,
           "output_reasoning_tokens": 30e-6,
           "output_reasoning": 30e-6,
@@ -6344,7 +6650,7 @@
     "modelName": "gpt-5.6-terra",
     "matchPattern": "(?i)^(openai/)?(gpt-5.6-terra)$",
     "createdAt": "2026-07-09T00:00:00.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -6365,6 +6671,7 @@
           "cache_read_input_tokens": 0.2e-6,
           "input_cache_creation": 2.5e-6,
           "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6,
           "output": 12e-6,
           "output_reasoning_tokens": 12e-6,
           "output_reasoning": 12e-6,
@@ -6397,6 +6704,7 @@
           "cache_read_input_tokens": 0.8e-6,
           "input_cache_creation": 10e-6,
           "cache_write_tokens": 10e-6,
+          "input_cache_write_tokens": 10e-6,
           "output": 36e-6,
           "output_reasoning_tokens": 36e-6,
           "output_reasoning": 36e-6,
@@ -6429,6 +6737,7 @@
           "cache_read_input_tokens": 0.2e-6,
           "input_cache_creation": 2.5e-6,
           "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6,
           "output": 9e-6,
           "output_reasoning_tokens": 9e-6,
           "output_reasoning": 9e-6,
@@ -6455,6 +6764,7 @@
           "cache_read_input_tokens": 0.4e-6,
           "input_cache_creation": 5e-6,
           "cache_write_tokens": 5e-6,
+          "input_cache_write_tokens": 5e-6,
           "output": 24e-6,
           "output_reasoning_tokens": 24e-6,
           "output_reasoning": 24e-6,
@@ -6481,6 +6791,7 @@
           "cache_read_input_tokens": 0.1e-6,
           "input_cache_creation": 1.25e-6,
           "cache_write_tokens": 1.25e-6,
+          "input_cache_write_tokens": 1.25e-6,
           "output": 6e-6,
           "output_reasoning_tokens": 6e-6,
           "output_reasoning": 6e-6,
@@ -6507,6 +6818,7 @@
           "cache_read_input_tokens": 0.4e-6,
           "input_cache_creation": 5e-6,
           "cache_write_tokens": 5e-6,
+          "input_cache_write_tokens": 5e-6,
           "output": 18e-6,
           "output_reasoning_tokens": 18e-6,
           "output_reasoning": 18e-6,
@@ -6520,7 +6832,7 @@
     "modelName": "gpt-5.6-luna",
     "matchPattern": "(?i)^(openai/)?(gpt-5.6-luna)$",
     "createdAt": "2026-07-09T00:00:00.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -6541,6 +6853,7 @@
           "cache_read_input_tokens": 0.02e-6,
           "input_cache_creation": 0.25e-6,
           "cache_write_tokens": 0.25e-6,
+          "input_cache_write_tokens": 0.25e-6,
           "output": 1.2e-6,
           "output_reasoning_tokens": 1.2e-6,
           "output_reasoning": 1.2e-6,
@@ -6573,6 +6886,7 @@
           "cache_read_input_tokens": 0.08e-6,
           "input_cache_creation": 1e-6,
           "cache_write_tokens": 1e-6,
+          "input_cache_write_tokens": 1e-6,
           "output": 3.6e-6,
           "output_reasoning_tokens": 3.6e-6,
           "output_reasoning": 3.6e-6,
@@ -6605,6 +6919,7 @@
           "cache_read_input_tokens": 0.02e-6,
           "input_cache_creation": 0.25e-6,
           "cache_write_tokens": 0.25e-6,
+          "input_cache_write_tokens": 0.25e-6,
           "output": 0.9e-6,
           "output_reasoning_tokens": 0.9e-6,
           "output_reasoning": 0.9e-6,
@@ -6631,6 +6946,7 @@
           "cache_read_input_tokens": 0.04e-6,
           "input_cache_creation": 0.5e-6,
           "cache_write_tokens": 0.5e-6,
+          "input_cache_write_tokens": 0.5e-6,
           "output": 2.4e-6,
           "output_reasoning_tokens": 2.4e-6,
           "output_reasoning": 2.4e-6,
@@ -6657,6 +6973,7 @@
           "cache_read_input_tokens": 0.01e-6,
           "input_cache_creation": 0.125e-6,
           "cache_write_tokens": 0.125e-6,
+          "input_cache_write_tokens": 0.125e-6,
           "output": 0.6e-6,
           "output_reasoning_tokens": 0.6e-6,
           "output_reasoning": 0.6e-6,
@@ -6683,6 +7000,7 @@
           "cache_read_input_tokens": 0.04e-6,
           "input_cache_creation": 0.5e-6,
           "cache_write_tokens": 0.5e-6,
+          "input_cache_write_tokens": 0.5e-6,
           "output": 1.8e-6,
           "output_reasoning_tokens": 1.8e-6,
           "output_reasoning": 1.8e-6,
@@ -6696,7 +7014,7 @@
     "modelName": "gpt-6-astra",
     "matchPattern": "(?i)^(openai/)?(gpt-6-astra)$",
     "createdAt": "2026-09-03T00:00:00.000Z",
-    "updatedAt": "2026-09-03T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -6717,6 +7035,7 @@
           "cache_read_input_tokens": 1e-6,
           "input_cache_creation": 12.5e-6,
           "cache_write_tokens": 12.5e-6,
+          "input_cache_write_tokens": 12.5e-6,
           "output": 50e-6,
           "output_reasoning_tokens": 50e-6,
           "output_reasoning": 50e-6,
@@ -6749,6 +7068,7 @@
           "cache_read_input_tokens": 4e-6,
           "input_cache_creation": 50e-6,
           "cache_write_tokens": 50e-6,
+          "input_cache_write_tokens": 50e-6,
           "output": 150e-6,
           "output_reasoning_tokens": 150e-6,
           "output_reasoning": 150e-6,
@@ -6781,6 +7101,7 @@
           "cache_read_input_tokens": 1e-6,
           "input_cache_creation": 12.5e-6,
           "cache_write_tokens": 12.5e-6,
+          "input_cache_write_tokens": 12.5e-6,
           "output": 37.5e-6,
           "output_reasoning_tokens": 37.5e-6,
           "output_reasoning": 37.5e-6,
@@ -6807,6 +7128,7 @@
           "cache_read_input_tokens": 2e-6,
           "input_cache_creation": 25e-6,
           "cache_write_tokens": 25e-6,
+          "input_cache_write_tokens": 25e-6,
           "output": 100e-6,
           "output_reasoning_tokens": 100e-6,
           "output_reasoning": 100e-6,
@@ -6833,6 +7155,7 @@
           "cache_read_input_tokens": 0.5e-6,
           "input_cache_creation": 6.25e-6,
           "cache_write_tokens": 6.25e-6,
+          "input_cache_write_tokens": 6.25e-6,
           "output": 25e-6,
           "output_reasoning_tokens": 25e-6,
           "output_reasoning": 25e-6,
@@ -6859,6 +7182,7 @@
           "cache_read_input_tokens": 2e-6,
           "input_cache_creation": 25e-6,
           "cache_write_tokens": 25e-6,
+          "input_cache_write_tokens": 25e-6,
           "output": 75e-6,
           "output_reasoning_tokens": 75e-6,
           "output_reasoning": 75e-6,
@@ -6872,7 +7196,7 @@
     "modelName": "gpt-6-sol",
     "matchPattern": "(?i)^(openai/)?(gpt-6-sol)$",
     "createdAt": "2026-09-22T00:00:00.000Z",
-    "updatedAt": "2026-09-22T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -6893,6 +7217,7 @@
           "cache_read_input_tokens": 0.2e-6,
           "input_cache_creation": 2.5e-6,
           "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6,
           "output": 10e-6,
           "output_reasoning_tokens": 10e-6,
           "output_reasoning": 10e-6,
@@ -6925,6 +7250,7 @@
           "cache_read_input_tokens": 0.8e-6,
           "input_cache_creation": 10e-6,
           "cache_write_tokens": 10e-6,
+          "input_cache_write_tokens": 10e-6,
           "output": 30e-6,
           "output_reasoning_tokens": 30e-6,
           "output_reasoning": 30e-6,
@@ -6957,6 +7283,7 @@
           "cache_read_input_tokens": 0.2e-6,
           "input_cache_creation": 2.5e-6,
           "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6,
           "output": 7.5e-6,
           "output_reasoning_tokens": 7.5e-6,
           "output_reasoning": 7.5e-6,
@@ -6983,6 +7310,7 @@
           "cache_read_input_tokens": 0.4e-6,
           "input_cache_creation": 5e-6,
           "cache_write_tokens": 5e-6,
+          "input_cache_write_tokens": 5e-6,
           "output": 20e-6,
           "output_reasoning_tokens": 20e-6,
           "output_reasoning": 20e-6,
@@ -7009,6 +7337,7 @@
           "cache_read_input_tokens": 0.1e-6,
           "input_cache_creation": 1.25e-6,
           "cache_write_tokens": 1.25e-6,
+          "input_cache_write_tokens": 1.25e-6,
           "output": 5e-6,
           "output_reasoning_tokens": 5e-6,
           "output_reasoning": 5e-6,
@@ -7035,6 +7364,7 @@
           "cache_read_input_tokens": 0.4e-6,
           "input_cache_creation": 5e-6,
           "cache_write_tokens": 5e-6,
+          "input_cache_write_tokens": 5e-6,
           "output": 15e-6,
           "output_reasoning_tokens": 15e-6,
           "output_reasoning": 15e-6,
@@ -7048,7 +7378,7 @@
     "modelName": "gpt-6-luna",
     "matchPattern": "(?i)^(openai/)?(gpt-6-luna)$",
     "createdAt": "2026-09-22T00:00:00.000Z",
-    "updatedAt": "2026-09-22T00:00:00.000Z",
+    "updatedAt": "2026-09-25T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -7069,6 +7399,7 @@
           "cache_read_input_tokens": 0.01e-6,
           "input_cache_creation": 0.125e-6,
           "cache_write_tokens": 0.125e-6,
+          "input_cache_write_tokens": 0.125e-6,
           "output": 0.5e-6,
           "output_reasoning_tokens": 0.5e-6,
           "output_reasoning": 0.5e-6,
@@ -7101,6 +7432,7 @@
           "cache_read_input_tokens": 0.04e-6,
           "input_cache_creation": 0.5e-6,
           "cache_write_tokens": 0.5e-6,
+          "input_cache_write_tokens": 0.5e-6,
           "output": 1.5e-6,
           "output_reasoning_tokens": 1.5e-6,
           "output_reasoning": 1.5e-6,
@@ -7133,6 +7465,7 @@
           "cache_read_input_tokens": 0.01e-6,
           "input_cache_creation": 0.125e-6,
           "cache_write_tokens": 0.125e-6,
+          "input_cache_write_tokens": 0.125e-6,
           "output": 0.375e-6,
           "output_reasoning_tokens": 0.375e-6,
           "output_reasoning": 0.375e-6,
@@ -7159,6 +7492,7 @@
           "cache_read_input_tokens": 0.02e-6,
           "input_cache_creation": 0.25e-6,
           "cache_write_tokens": 0.25e-6,
+          "input_cache_write_tokens": 0.25e-6,
           "output": 1e-6,
           "output_reasoning_tokens": 1e-6,
           "output_reasoning": 1e-6,
@@ -7185,6 +7519,7 @@
           "cache_read_input_tokens": 0.005e-6,
           "input_cache_creation": 0.0625e-6,
           "cache_write_tokens": 0.0625e-6,
+          "input_cache_write_tokens": 0.0625e-6,
           "output": 0.25e-6,
           "output_reasoning_tokens": 0.25e-6,
           "output_reasoning": 0.25e-6,
@@ -7211,6 +7546,7 @@
           "cache_read_input_tokens": 0.02e-6,
           "input_cache_creation": 0.25e-6,
           "cache_write_tokens": 0.25e-6,
+          "input_cache_write_tokens": 0.25e-6,
           "output": 0.75e-6,
           "output_reasoning_tokens": 0.75e-6,
           "output_reasoning": 0.75e-6,
