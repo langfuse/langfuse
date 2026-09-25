@@ -4,14 +4,20 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 
 export function SummaryInspector({
   projectId,
-  summaryId,
+  facetId,
+  facetVersion,
+  traceId,
 }: {
   projectId: string;
-  summaryId: string;
+  facetId: string;
+  facetVersion: number;
+  traceId: string;
 }) {
   const query = api.topics.inspect.useQuery({
     projectId,
-    summaryId,
+    facetId,
+    facetVersion,
+    traceId,
   });
   if (query.error)
     return (

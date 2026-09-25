@@ -507,7 +507,6 @@ export const TopicEmbeddingBatchSchema = z.object({
   summaries: z
     .array(
       z.object({
-        summaryId: z.string().min(1),
         facetId: z.string().min(1),
         facetVersion: z.number().int().positive(),
         traceId: z.string().min(1),

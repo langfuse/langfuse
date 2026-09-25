@@ -30,7 +30,7 @@ const mocks = vi.hoisted(() => ({
   getTopicRule: vi.fn(),
   saveTopicRule: vi.fn(),
   getTopicRun: vi.fn(),
-  readTopicSummaries: vi.fn(),
+  listTopicSummaries: vi.fn(),
   readTopicMapAssignments: vi.fn(),
   loadTopicTranscript: vi.fn<typeof topicsServer.loadTopicTranscript>(),
   isTopicsEnabled: vi.fn(),
@@ -55,6 +55,7 @@ const projectId = "project-a";
 const facetId = "facet-a";
 const facetVersion = 1;
 const selectedFacets = [{ facetId, version: facetVersion }];
+const inspectInput = { projectId, facetId, facetVersion, traceId: "trace-a" };
 const input: Extract<TopicExecutionInput, { operation: "process" }> = {
   projectId,
   requestId: "request-a",
@@ -144,7 +145,6 @@ const run = {
   ],
 };
 const summary = {
-  id: "summary-a",
   projectId,
   traceId: "trace-a",
   sessionId: "parent-session",
@@ -178,7 +178,7 @@ beforeEach(() => {
   mocks.readTopicExecutionForRequest.mockResolvedValue(null);
   mocks.createTopicExecution.mockResolvedValue(execution());
   mocks.getTopicRun.mockResolvedValue(run);
-  mocks.readTopicSummaries.mockResolvedValue([summary]);
+  mocks.listTopicSummaries.mockResolvedValue([summary]);
 });
 
 describe("Topics feature access", () => {
@@ -187,9 +187,9 @@ describe("Topics feature access", () => {
     await expect(disabled.facets({ projectId })).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
-    await expect(
-      disabled.inspect({ projectId, summaryId: "summary-a" }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(disabled.inspect(inspectInput)).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
     await expect(disabled.trigger(input)).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
@@ -540,7 +540,6 @@ describe("Topics published scatter map", () => {
     origin: "initial",
     coordinates: [10, 11],
     traceId: "trace-a",
-    summaryId: "summary-a",
     topicId: "topic-a",
   };
   beforeEach(() => {
@@ -548,7 +547,6 @@ describe("Topics published scatter map", () => {
       firstAssignment,
       {
         ...firstAssignment,
-        summaryId: "summary-b",
         traceId: "trace-b",
         topicId: null,
         coordinates: [20, 21],
@@ -556,7 +554,7 @@ describe("Topics published scatter map", () => {
     ]);
     mocks.getLatestFacetSummaries.mockResolvedValue([
       summary,
-      { ...summary, id: "summary-b", traceId: "trace-b" },
+      { ...summary, traceId: "trace-b" },
     ]);
   });
 
@@ -567,7 +565,7 @@ describe("Topics published scatter map", () => {
         summary: "Latest refund summary",
         processedAt: "2026-09-17T00:00:00Z",
       },
-      { ...summary, id: "summary-b", traceId: "trace-b" },
+      { ...summary, traceId: "trace-b" },
     ]);
     const map = await caller("VIEWER").map(mapInput);
     expect(map.status).toBe("ready");
@@ -591,6 +589,7 @@ describe("Topics published scatter map", () => {
     ]);
     expect(mocks.readTopicMapAssignments).toHaveBeenCalledWith(
       projectId,
+      { facetId, version: facetVersion },
       "run-a",
     );
     expect(JSON.stringify(map)).not.toContain("embedding");
@@ -621,14 +620,12 @@ describe("Topics published scatter map", () => {
       summary,
       {
         ...summary,
-        id: "summary-b",
         traceId: "trace-b",
         facetId: "another-facet",
       },
-      { ...summary, id: "summary-c", traceId: "trace-c" },
+      { ...summary, traceId: "trace-c" },
       {
         ...summary,
-        id: "summary-d",
         traceId: "trace-d",
         state: "not_applicable",
         summary: "",
@@ -656,7 +653,7 @@ describe("Topics published scatter map", () => {
         invalid
           ? [
               firstAssignment,
-              { ...firstAssignment, summaryId: "summary-b", ...invalid },
+              { ...firstAssignment, traceId: "trace-b", ...invalid },
             ]
           : [],
       );
@@ -738,13 +735,15 @@ describe("Topics local execution access and publication", () => {
 
   it.each([
     { ...summary, projectId: "foreign-project" },
-    { ...summary, id: "other-summary" },
+    { ...summary, facetId: "another-facet" },
+    { ...summary, facetVersion: 2 },
+    { ...summary, traceId: "another-trace" },
     { ...summary, traceId: null, sessionId: "session-a" },
   ])("rejects a foreign or invalid trace summary", async (invalidSummary) => {
-    mocks.readTopicSummaries.mockResolvedValue([invalidSummary]);
-    await expect(
-      caller().inspect({ projectId, summaryId: "summary-a" }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    mocks.listTopicSummaries.mockResolvedValue([invalidSummary]);
+    await expect(caller().inspect(inspectInput)).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
     expect(mocks.loadTopicTranscript).not.toHaveBeenCalled();
   });
 
@@ -758,9 +757,7 @@ describe("Topics local execution access and publication", () => {
 
   it("returns the current structured transcript including truncation", async () => {
     mocks.loadTopicTranscript.mockResolvedValue(source);
-    expect(
-      await caller().inspect({ projectId, summaryId: "summary-a" }),
-    ).toEqual({
+    expect(await caller().inspect(inspectInput)).toEqual({
       model: summary.summaryModel,
       transcript: source.transcript,
     });
@@ -770,23 +767,45 @@ describe("Topics local execution access and publication", () => {
     });
   });
 
+  it("looks up a custom trace ID within its stored facet version", async () => {
+    const traceId = "client/session:trace 1";
+    mocks.listTopicSummaries.mockResolvedValue([{ ...summary, traceId }]);
+    mocks.loadTopicTranscript.mockResolvedValue(source);
+    await caller().inspect({ ...inspectInput, traceId });
+    expect(mocks.listTopicSummaries).toHaveBeenCalledWith(projectId, {
+      facetId,
+      facetVersion,
+      traceIds: [traceId],
+    });
+    expect(mocks.loadTopicTranscript).toHaveBeenCalledWith({
+      projectId,
+      traceId,
+    });
+    await expect(
+      caller().inspect({ ...inspectInput, projectId: "foreign-project" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(mocks.listTopicSummaries).toHaveBeenCalledOnce();
+  });
+
   it("reports the source unavailable when no conversation can be assembled", async () => {
     mocks.loadTopicTranscript.mockResolvedValue({
       ...source,
       transcript: null,
     });
-    expect(
-      await caller().inspect({ projectId, summaryId: "summary-a" }),
-    ).toEqual({ model: summary.summaryModel, transcript: null });
+    expect(await caller().inspect(inspectInput)).toEqual({
+      model: summary.summaryModel,
+      transcript: null,
+    });
   });
 
   it("retains the stored summary when the source was deleted", async () => {
     mocks.loadTopicTranscript.mockRejectedValue(
       new Error("Trace no longer exists"),
     );
-    expect(
-      await caller().inspect({ projectId, summaryId: "summary-a" }),
-    ).toEqual({ model: summary.summaryModel, transcript: null });
+    expect(await caller().inspect(inspectInput)).toEqual({
+      model: summary.summaryModel,
+      transcript: null,
+    });
   });
 
   it("does not retry terminal partial facets", async () => {
@@ -917,7 +936,7 @@ describe("Topics current results", () => {
     mocks.getLatestFacetSummaries.mockResolvedValue(
       traces.map((traceId) => ({
         ...summary,
-        id: `summary-${traceId}`,
+        facetId: "intent",
         traceId,
       })),
     );
@@ -936,7 +955,10 @@ describe("Topics current results", () => {
     mocks.readLatestTopicAssignments.mockResolvedValue(
       traces.map((traceId) => ({
         traceId,
-        summaryId: `summary-${traceId}`,
+        projectId,
+        facetId: "intent",
+        facetVersion,
+        sessionId: null,
         topicId: traceId.split("-")[0],
         topicVersionId: traceId,
         summaryProcessedAt: summary.processedAt,
@@ -975,7 +997,7 @@ describe("Topics current results", () => {
     );
     expect(result.rows.find((row) => row.traceId === "retained")).toMatchObject(
       {
-        summaryId: "summary-retained",
+        facetVersion,
         outcome: "assigned",
         topicId: "retained",
         topicName: "Old retained",
@@ -1011,24 +1033,22 @@ describe("Topics current results", () => {
       const facetSummary = { ...summary, facetId: "intent", facetVersion: 2 };
       const pending = {
         ...facetSummary,
-        id: "assigned",
         traceId: "trace-a",
         processedAt: "2026-09-17T00:00:00Z",
       };
       const cleared = {
         ...facetSummary,
-        id: "cleared",
         traceId: "trace-b",
         state: "not_applicable",
         summary: "",
       };
       const waiting = {
         ...facetSummary,
-        id: "waiting",
         traceId: "trace-c",
       };
-      const outlier = { ...facetSummary, id: "outlier", traceId: "trace-d" };
-      const latest = [pending, cleared, waiting, outlier];
+      const outlier = { ...facetSummary, traceId: "trace-d" };
+      const staleVersion = { ...facetSummary, traceId: "trace-e" };
+      const latest = [pending, cleared, waiting, outlier, staleVersion];
       mocks.getLatestFacetSummaries.mockImplementation(
         async (_projectId, _facetId, version) =>
           version
@@ -1038,7 +1058,10 @@ describe("Topics current results", () => {
       mocks.readLatestTopicAssignments.mockResolvedValue([
         {
           traceId: "trace-a",
-          summaryId: "assigned",
+          projectId,
+          facetId: "intent",
+          facetVersion: 2,
+          sessionId: null,
           topicId: "stable-topic",
           topicVersionId: "version-old",
           summaryProcessedAt: summary.processedAt,
@@ -1046,11 +1069,20 @@ describe("Topics current results", () => {
           assignedAt: "2026-09-16T00:00:00Z",
         },
         ...[cleared, outlier].map((row) => ({
+          projectId: row.projectId,
+          facetId: row.facetId,
+          facetVersion: row.facetVersion,
           traceId: row.traceId,
-          summaryId: row.id,
+          sessionId: null,
           summaryProcessedAt: row.processedAt,
           topicId: row === cleared ? "stable-topic" : null,
         })),
+        {
+          ...staleVersion,
+          facetVersion: 1,
+          summaryProcessedAt: staleVersion.processedAt,
+          topicId: "stable-topic",
+        },
       ]);
       mocks.getTopicDefinitions.mockResolvedValue([
         {
@@ -1071,13 +1103,14 @@ describe("Topics current results", () => {
       ]);
       expect(result[0]).toMatchObject({
         facetId: "intent",
-        awaitingCount: 2,
-        usableCount: configuredVersion === 2 ? 3 : 0,
+        awaitingCount: 3,
+        usableCount: configuredVersion === 2 ? 4 : 0,
         topics: [],
         rows: expect.arrayContaining([
           expect.objectContaining({
             traceId: "trace-a",
             summary: pending.summary,
+            facetVersion: 2,
             outcome: "awaiting_map",
             topicId: null,
           }),
@@ -1094,6 +1127,11 @@ describe("Topics current results", () => {
           expect.objectContaining({
             traceId: "trace-d",
             outcome: "outlier",
+            topicId: null,
+          }),
+          expect.objectContaining({
+            traceId: "trace-e",
+            outcome: "awaiting_map",
             topicId: null,
           }),
         ]),

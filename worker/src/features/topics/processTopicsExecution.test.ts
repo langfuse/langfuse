@@ -4,6 +4,7 @@ import type {
   TopicEmbeddingConfig,
   TopicExecution,
   TopicFacetVersion,
+  TopicFacetRef,
   TopicRun,
   TopicProcessBatchState,
   TopicSummary,
@@ -11,12 +12,16 @@ import type {
 import {
   TOPICS_TRANSCRIPT_VERSION,
   type TopicEmbeddingBatch,
+  type TopicEmbeddingRef,
 } from "@langfuse/shared/topics/server";
 import {
   assembleTranscript,
   type Transcript,
 } from "@langfuse/shared/src/server";
-import { topicExecutionInputSchema } from "@langfuse/shared/topics";
+import {
+  topicExecutionInputSchema,
+  topicSourceKey,
+} from "@langfuse/shared/topics";
 import { topicProviderError } from "./provider-error";
 
 const state = vi.hoisted(() => ({
@@ -62,22 +67,18 @@ const facet: TopicFacetVersion = {
 };
 
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
-  const {
-    topicSummaryId,
-    TOPICS_TRANSCRIPT_VERSION,
-    TOPIC_EMBEDDING_EXPIRED_ERROR,
-  } = await importOriginal<typeof import("@langfuse/shared/topics/server")>();
+  const { TOPICS_TRANSCRIPT_VERSION, TOPIC_EMBEDDING_EXPIRED_ERROR } =
+    await importOriginal<typeof import("@langfuse/shared/topics/server")>();
   return {
     isTopicsEnabled: () => true,
     TOPICS_TRANSCRIPT_VERSION,
-    topicSummaryId,
     TOPIC_EMBEDDING_EXPIRED_ERROR,
     stageTopicSummary: async (
-      scope: { executionId: string },
+      scope: { projectId: string; executionId: string },
       summary: TopicSummary,
       embeddingConfig: TopicEmbeddingConfig,
     ) => {
-      const key = `${scope.executionId}/${summary.id}`;
+      const key = `${scope.executionId}/${topicSourceKey(summary)}`;
       const accepted = state.staged.get(key);
       if (accepted) return accepted.summary;
       state.staged.set(key, structuredClone({ summary, embeddingConfig }));
@@ -102,15 +103,18 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
             traceIds.includes(row.traceId),
         ),
     readStagedTopicSummary: async (
-      scope: { executionId: string },
-      ref: { summaryId: string },
-    ) => state.staged.get(`${scope.executionId}/${ref.summaryId}`) ?? null,
+      scope: { projectId: string; executionId: string },
+      ref: TopicEmbeddingRef,
+    ) =>
+      state.staged.get(
+        `${scope.executionId}/${topicSourceKey({ ...scope, ...ref, sessionId: null })}`,
+      ) ?? null,
     updateStagedTopicSummary: async (
-      scope: { executionId: string },
-      ref: { summaryId: string },
+      scope: { projectId: string; executionId: string },
+      ref: TopicEmbeddingRef,
       summary: TopicSummary,
     ) => {
-      const key = `${scope.executionId}/${ref.summaryId}`;
+      const key = `${scope.executionId}/${topicSourceKey({ ...scope, ...ref, sessionId: null })}`;
       const row = state.staged.get(key);
       if (!row) return null;
       if (row.summary.state !== "summarized") return row.summary;
@@ -118,10 +122,12 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
       return summary;
     },
     deleteStagedTopicSummary: async (
-      scope: { executionId: string },
-      ref: { summaryId: string },
+      scope: { projectId: string; executionId: string },
+      ref: TopicEmbeddingRef,
     ) => {
-      state.staged.delete(`${scope.executionId}/${ref.summaryId}`);
+      state.staged.delete(
+        `${scope.executionId}/${topicSourceKey({ ...scope, ...ref, sessionId: null })}`,
+      );
     },
     enqueueTopicEmbeddingBatch: async (batch: TopicEmbeddingBatch) => {
       const key = `${batch.projectId}/${batch.executionId}/${batch.batchId}`;
@@ -172,14 +178,11 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
           filter.traceIds.includes(row.traceId),
       );
     },
-    readTopicSummaries: async (_project: string, ids: string[]) => {
-      state.resultReads("summaries");
-      return ids.flatMap((id) => state.summaries.get(id) ?? []);
-    },
     writeTopicSummaries: async (rows: TopicSummary[]) =>
       rows.forEach((row) => {
-        if ((state.summaries.get(row.id)?.processedAt ?? "") <= row.processedAt)
-          state.summaries.set(row.id, row);
+        const key = topicSourceKey(row);
+        if ((state.summaries.get(key)?.processedAt ?? "") <= row.processedAt)
+          state.summaries.set(key, row);
       }),
     createTopicRun: async (
       input: Pick<
@@ -218,13 +221,34 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
         ),
     getTopicRun: async (_project: string, id: string) =>
       state.runs.get(id) ?? null,
-    readTopicRunSummaryIds: async (_project: string, runId: string) =>
+    readTopicRunTraceIds: async (
+      projectId: string,
+      facet: TopicFacetRef,
+      runId: string,
+    ) =>
       [...state.assignments.values()]
-        .filter((row) => row.runId === runId && row.origin === "initial")
-        .map((row) => row.summaryId),
-    readTopicMapAssignments: async (_project: string, runId: string) =>
+        .filter(
+          (row) =>
+            row.projectId === projectId &&
+            row.facetId === facet.facetId &&
+            row.facetVersion === facet.version &&
+            row.runId === runId &&
+            row.origin === "initial" &&
+            row.traceId !== null,
+        )
+        .map((row) => row.traceId),
+    readTopicMapAssignments: async (
+      projectId: string,
+      facet: TopicFacetRef,
+      runId: string,
+    ) =>
       [...state.assignments.values()].filter(
-        (row) => row.runId === runId && row.origin === "initial",
+        (row) =>
+          row.projectId === projectId &&
+          row.facetId === facet.facetId &&
+          row.facetVersion === facet.version &&
+          row.runId === runId &&
+          row.origin === "initial",
       ),
     saveTopicRun: async (run: TopicRun) => {
       state.runs.set(run.id, structuredClone(run));
@@ -234,20 +258,26 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
       await state.assignmentWrites(rows);
       rows.forEach((row) =>
         state.assignments.set(
-          JSON.stringify([row.summaryId, row.runId, row.origin]),
+          JSON.stringify([topicSourceKey(row), row.runId, row.origin]),
           row,
         ),
       );
     },
     readTopicAssignments: async (
-      _project: string,
-      ids: string[],
+      projectId: string,
+      facet: TopicFacetRef,
+      sources: Pick<TopicSummary, "traceId" | "sessionId">[],
       runId: string,
     ) => {
       state.resultReads("assignments");
       if (!state.visible) return [];
       return [...state.assignments.values()].filter(
-        (row) => row.runId === runId && ids.includes(row.summaryId),
+        (row) =>
+          row.projectId === projectId &&
+          row.facetId === facet.facetId &&
+          row.facetVersion === facet.version &&
+          row.runId === runId &&
+          sources.some((source) => source.traceId === row.traceId),
       );
     },
   };
@@ -725,7 +755,7 @@ describe("Topics execution", () => {
     expect(state.name).not.toHaveBeenCalled();
   });
 
-  it("preserves partially accepted summaries after a provider interruption", async () => {
+  it("resumes legacy summary references after a provider interruption", async () => {
     const original = state.summarize.getMockImplementation()!;
     state.summarize
       .mockImplementationOnce(original)
@@ -734,6 +764,10 @@ describe("Topics execution", () => {
     expect(state.batches.get("partial")?.summaries).toHaveLength(1);
     expect(state.executions.get("partial")?.status).toBe("failed");
     const accepted = [...state.staged.values()][0].summary;
+    Object.assign(accepted, { id: "legacy-summary-id" });
+    Object.assign(state.batches.get("partial")!.summaries[0], {
+      summaryId: "legacy-summary-id",
+    });
     accepted.transcriptVersion = "older-transcript";
     state.loadTranscript.mockClear();
     await processTopicsExecution({
@@ -747,9 +781,9 @@ describe("Topics execution", () => {
       projectId: "project",
       traceId: accepted.traceId,
     });
-    expect(state.summaries.get(accepted.id)?.transcriptVersion).toBe(
-      "older-transcript",
-    );
+    expect(
+      state.summaries.get(topicSourceKey(accepted))?.transcriptVersion,
+    ).toBe("older-transcript");
   });
 
   it("resumes pending embeddings with the pinned map and no source or result reads", async () => {
@@ -891,7 +925,7 @@ describe("Topics execution", () => {
         counts: { assigned: outliers ? 0 : 1, outlier: outliers ? 2 : 1 },
       });
       for (const assignment of state.assignments.values()) {
-        const summary = state.summaries.get(assignment.summaryId)!;
+        const summary = state.summaries.get(topicSourceKey(assignment))!;
         expect(assignment).toMatchObject({
           environment: summary.environment,
           traceName: summary.traceName,
@@ -932,6 +966,31 @@ describe("Topics execution", () => {
     expect([...state.runs.values()][0].status).toBe("pending");
     expect(state.numeric).not.toHaveBeenCalled();
     expect(state.name).not.toHaveBeenCalled();
+  });
+
+  it("maps local naming citations back to their scoped source references", async () => {
+    await processSelection("source", 100);
+    await updateSelection("named");
+    const topics = [...state.runs.values()].at(-1)!.topics;
+    expect(topics).toHaveLength(2);
+    for (const [index, [group]] of state.name.mock.calls.entries()) {
+      expect(
+        group.members.every((member: { id: string }) =>
+          /^m\d+$/.test(member.id),
+        ),
+      ).toBe(true);
+      expect(
+        group.contrasts.every((member: { id: string }) =>
+          /^c\d+$/.test(member.id),
+        ),
+      ).toBe(true);
+      const source = [...state.summaries.values()].find(
+        (summary) => summary.summary === group.members[0].summary,
+      )!;
+      expect(topics[index].representativeSummaryIds).toEqual([
+        topicSourceKey(source),
+      ]);
+    }
   });
 
   it.each([0, 3])(

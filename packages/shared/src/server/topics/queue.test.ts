@@ -462,7 +462,6 @@ describe("Topics embedding queue handoff", () => {
     batchId: "batch-1",
     summaries: [
       {
-        summaryId: "summary",
         facetId: "facet",
         facetVersion: 1,
         traceId: "trace",
@@ -504,10 +503,10 @@ describe("Topics embedding queue handoff", () => {
     async (state) => {
       const accepted = {
         projectId: batch.projectId,
-        id: "summary",
         facetId: "facet",
         facetVersion: 1,
         traceId: "trace",
+        sessionId: null,
         state: "complete",
         processedAt: "2026-09-22T10:00:00.000Z",
       } as TopicSummary;
@@ -583,9 +582,31 @@ describe("Topics embedding queue handoff", () => {
     await expect(
       enqueueTopicEmbeddingBatch({
         ...batch,
-        summaries: [{ ...batch.summaries[0]!, summaryId: "different" }],
+        summaries: [{ ...batch.summaries[0]!, traceId: "different" }],
       }),
     ).rejects.toThrow("scope mismatch");
     expect(retry).not.toHaveBeenCalled();
+  });
+
+  it("resumes a persisted embedding batch containing legacy summary IDs", async () => {
+    const getState = vi.fn().mockResolvedValue("completed");
+    vi.spyOn(TopicsEmbeddingQueue, "getInstance").mockReturnValue({
+      getJob: vi.fn(async () => ({
+        data: {
+          payload: {
+            ...batch,
+            summaries: batch.summaries.map((ref) => ({
+              ...ref,
+              summaryId: "legacy-summary-hash",
+            })),
+          },
+        },
+        getState,
+      })),
+    } as unknown as NonNullable<
+      ReturnType<typeof TopicsEmbeddingQueue.getInstance>
+    >);
+    await expect(enqueueTopicEmbeddingBatch(batch)).resolves.toBe("complete");
+    expect(getState).toHaveBeenCalledOnce();
   });
 });

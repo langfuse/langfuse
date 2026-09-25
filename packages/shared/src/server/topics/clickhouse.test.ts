@@ -5,18 +5,17 @@ import type {
   TopicDefinition,
   TopicSummary,
 } from "../../topics";
+import { topicSourceKey } from "../../topics";
 import {
   listTopicSummaries,
-  readTopicSummaries,
   readTopicAssignments,
   readTopicMapAssignments,
-  readTopicRunSummaryIds,
+  readTopicRunTraceIds,
   writeTopicAssignments,
   readLatestTopicAssignments,
   getLatestFacetSummaries,
   getTopicSummaryCounts,
   writeTopicSummaries,
-  topicSummaryId,
   getTopicDefinitions,
   writeTopicDefinitions,
 } from "./clickhouse";
@@ -52,13 +51,6 @@ const clickhouseNumberMap = (values: Record<string, number>) =>
   );
 
 const summaryFixture: TopicSummary = {
-  id: topicSummaryId({
-    projectId: "project-a",
-    facetId: "facet-a",
-    facetVersion: 1,
-    traceId: "trace-a",
-    sessionId: null,
-  }),
   projectId: "project-a",
   facetId: "facet-a",
   facetVersion: 1,
@@ -106,7 +98,6 @@ const assignmentFixture: TopicAssignment = {
   environment: summaryFixture.environment,
   traceName: summaryFixture.traceName,
   unitStartTime: summaryFixture.unitStartTime,
-  summaryId: summaryFixture.id,
   summaryProcessedAt: summaryFixture.processedAt,
   coordinates: null,
   runId: "published-run",
@@ -222,6 +213,33 @@ describe("Topics definition storage", () => {
 });
 
 describe("Topics summary storage", () => {
+  it("keeps trace and session lookups distinct and ignores a trace's parent session", async () => {
+    await listTopicSummaries("project-a", {
+      facetId: "facet-a",
+      facetVersion: 2,
+      sources: [
+        { traceId: "source-a", sessionId: "parent-a" },
+        { traceId: "source-a", sessionId: "parent-b" },
+        { traceId: null, sessionId: "source-a" },
+      ],
+    });
+    expect(mocks.query).toHaveBeenCalledOnce();
+    const { query, params } = mocks.query.mock.calls[0][0];
+    expect(params).toEqual({
+      projectId: "project-a",
+      facetId: "facet-a",
+      facetVersion: 2,
+      traceIds: ["source-a", ""],
+      sessionIds: ["", "source-a"],
+    });
+    expect(query).toContain("project_id = {projectId:String}");
+    expect(query).toContain("facet_id = {facetId:String}");
+    expect(query).toContain("facet_version = {facetVersion:UInt32}");
+    expect(query).toContain(
+      "(trace_id, if(trace_id = '', session_id, '')) IN arrayZip",
+    );
+  });
+
   it.each([
     { traceId: null, sessionId: null },
     { traceId: "", sessionId: "" },
@@ -248,7 +266,6 @@ describe("Topics summary storage", () => {
         summaryFixture,
         {
           ...summaryFixture,
-          id: "unfinished-summary",
           state: "summarized",
           embedding: [],
         },
@@ -264,7 +281,7 @@ describe("Topics summary storage", () => {
         traceId: `trace-${index}`,
         embedding: Array.from({ length: 1536 }, () => 0.123456789),
       };
-      return { ...row, id: topicSummaryId(row) };
+      return row;
     });
     await writeTopicSummaries(rows);
     expect(mocks.insert.mock.calls.length).toBeGreaterThan(1);
@@ -346,59 +363,53 @@ describe("Topics summary storage", () => {
     );
   });
 
-  it("batches scoped trace and summary lookups without dropping any selected IDs", async () => {
+  it("batches source lookups within the selected project and facet version", async () => {
     const traceIds = Array.from(
       { length: 1001 },
       (_, index) => `trace-${index}`,
     );
-    for (const [filter, column] of [
-      [{ traceIds, facetVersion: 1 }, "trace_id"],
-      [{ ids: traceIds, facetVersion: undefined }, "id"],
-    ] as const) {
-      await listTopicSummaries("project-a", { ...filter, facetId: "facet-a" });
+    const sources = traceIds.map((traceId) => ({ traceId, sessionId: null }));
+    const facet = { facetId: "facet-a", version: 2 };
+    for (const read of [
+      () =>
+        listTopicSummaries("project-a", {
+          facetId: facet.facetId,
+          facetVersion: facet.version,
+          traceIds: [...traceIds, traceIds[0]],
+        }),
+      () =>
+        readTopicAssignments(
+          "project-a",
+          facet,
+          [...sources, sources[0]],
+          "run-a",
+        ),
+    ]) {
+      await read();
       expect(
-        mocks.query.mock.calls.flatMap(([request]) => request.params.ids),
+        mocks.query.mock.calls.flatMap(([request]) => request.params.traceIds),
       ).toEqual(traceIds);
       expect(
-        mocks.query.mock.calls.every(
-          ([request]) => request.params.ids.length <= 1000,
+        mocks.query.mock.calls.map(
+          ([request]) => request.params.traceIds.length,
         ),
-      ).toBe(true);
+      ).toEqual([1000, 1]);
       for (const [{ query, params }] of mocks.query.mock.calls) {
-        expect(params).toEqual({
+        expect(params).toMatchObject({
           projectId: "project-a",
           facetId: "facet-a",
-          ids: expect.any(Array),
-          ...(filter.facetVersion ? { facetVersion: filter.facetVersion } : {}),
+          facetVersion: 2,
         });
         expect(query).toContain("project_id = {projectId:String}");
         expect(query).toContain("facet_id = {facetId:String}");
-        expect(query).toContain(`${column} IN ({ids:Array(String)})`);
-        expect(
-          query.includes("AND facet_version = {facetVersion:UInt32}"),
-        ).toBe(Boolean(filter.facetVersion));
+        expect(query).toContain("facet_version = {facetVersion:UInt32}");
+        expect(query).toContain(
+          "LIMIT 1 BY project_id, facet_id, facet_version, trace_id, if(trace_id = '', session_id, '')",
+        );
+        expect(query).not.toContain("SHA256");
       }
       mocks.query.mockClear();
     }
-    const summaryIds = Array.from(
-      { length: 1001 },
-      (_, index) => `summary-${index}`,
-    );
-    await readTopicAssignments("project-a", summaryIds, "run-a");
-    expect(
-      mocks.query.mock.calls.flatMap(([request]) => request.params.summaryIds),
-    ).toEqual(summaryIds);
-    expect(
-      mocks.query.mock.calls.map(
-        ([request]) => request.params.summaryIds.length,
-      ),
-    ).toEqual([1000, 1]);
-    expect(mocks.query.mock.calls[0][0].query).toContain(
-      "ORDER BY assigned_at DESC, origin DESC",
-    );
-    expect(mocks.query.mock.calls[0][0].query).toContain(
-      "LIMIT 1 BY project_id, facet_id, facet_version, trace_id, if(trace_id = '', session_id, '')",
-    );
   });
 
   it.each([
@@ -411,7 +422,6 @@ describe("Topics summary storage", () => {
       const summary: TopicSummary = {
         ...summaryFixture,
         ...identity,
-        id: topicSummaryId({ ...summaryFixture, ...identity }),
       };
       await writeTopicSummaries([summary]);
       const inserted = mocks.insert.mock.calls[0][0].values[0];
@@ -444,43 +454,53 @@ describe("Topics summary storage", () => {
           metadataJson: "{}",
         },
       ]);
-      expect(await readTopicSummaries("project-a", [summary.id])).toEqual([
-        { ...summary, traceName: inserted.trace_name },
-      ]);
+      expect(
+        await listTopicSummaries("project-a", {
+          facetId: summary.facetId,
+          facetVersion: summary.facetVersion,
+          sources: [summary],
+        }),
+      ).toEqual([{ ...summary, traceName: inserted.trace_name }]);
     },
   );
 
   it("scopes source references by project and facet version while ignoring trace parent sessions", () => {
     expect(
-      topicSummaryId({ ...summaryFixture, sessionId: "parent-session" }),
-    ).toBe(summaryFixture.id);
-    expect(topicSummaryId({ ...summaryFixture, facetVersion: 2 })).not.toBe(
-      summaryFixture.id,
+      topicSourceKey({ ...summaryFixture, sessionId: "parent-session" }),
+    ).toBe(topicSourceKey(summaryFixture));
+    expect(topicSourceKey({ ...summaryFixture, facetVersion: 2 })).not.toBe(
+      topicSourceKey(summaryFixture),
     );
     expect(
-      topicSummaryId({ ...summaryFixture, facetId: "another-facet" }),
-    ).not.toBe(summaryFixture.id);
+      topicSourceKey({ ...summaryFixture, facetId: "another-facet" }),
+    ).not.toBe(topicSourceKey(summaryFixture));
     expect(
-      topicSummaryId({ ...summaryFixture, projectId: "another-project" }),
-    ).not.toBe(summaryFixture.id);
+      topicSourceKey({ ...summaryFixture, projectId: "another-project" }),
+    ).not.toBe(topicSourceKey(summaryFixture));
     const session = { ...summaryFixture, traceId: null, sessionId: "trace-a" };
-    expect(topicSummaryId(session)).not.toBe(summaryFixture.id);
+    expect(topicSourceKey(session)).not.toBe(topicSourceKey(summaryFixture));
     expect(
-      topicSummaryId({ ...session, sessionId: "another-session" }),
-    ).not.toBe(topicSummaryId(session));
+      topicSourceKey({ ...session, sessionId: "another-session" }),
+    ).not.toBe(topicSourceKey(session));
   });
 });
 
 describe("Topics classifications", () => {
   it("derives original map membership from project-scoped assignments", async () => {
-    mocks.query.mockResolvedValueOnce([{ summaryId: "discovery-summary" }]);
-    expect(await readTopicRunSummaryIds("project-a", "run-a")).toEqual([
-      "discovery-summary",
-    ]);
+    mocks.query.mockResolvedValueOnce([{ traceId: "discovery-trace" }]);
+    expect(
+      await readTopicRunTraceIds(
+        "project-a",
+        { facetId: "facet-a", version: 1 },
+        "run-a",
+      ),
+    ).toEqual(["discovery-trace"]);
     const discoveryQuery = mocks.query.mock.calls[0][0];
     expect(discoveryQuery.params).toEqual({
       projectId: "project-a",
       runId: "run-a",
+      facetId: "facet-a",
+      facetVersion: 1,
     });
     for (const filter of [
       "project_id = {projectId:String}",
@@ -498,7 +518,6 @@ describe("Topics classifications", () => {
         topicId: "topic-a",
         topicVersionId: "topic-v1",
       };
-      row.summaryId = topicSummaryId(row);
       return row;
     });
     await writeTopicAssignments(rows);
@@ -531,7 +550,6 @@ describe("Topics classifications", () => {
     "serializes and reads a published map outlier's source metadata and summary timestamp: %j",
     async (source) => {
       const row: TopicAssignment = { ...assignmentFixture, ...source };
-      row.summaryId = topicSummaryId(row);
       await writeTopicAssignments([row]);
       const inserted = mocks.insert.mock.calls[0][0].values[0];
       expect(inserted).toMatchObject({
@@ -592,11 +610,17 @@ describe("Topics classifications", () => {
   );
 
   it("reads latest initial membership including rows with missing coordinates", async () => {
-    await readTopicMapAssignments("project-a", "run-a");
+    await readTopicMapAssignments(
+      "project-a",
+      { facetId: "facet-a", version: 1 },
+      "run-a",
+    );
     const { query, params } = mocks.query.mock.calls[0][0];
     expect(params).toEqual({
       projectId: "project-a",
       runId: "run-a",
+      facetId: "facet-a",
+      facetVersion: 1,
     });
     for (const filter of [
       "project_id = {projectId:String}",

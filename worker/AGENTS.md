@@ -25,6 +25,8 @@
   `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`; cleanup remains independent of this list.
   Paid results are staged before retryable
   persistence, and unchanged embedding waits must read only Redis queue state.
+  Summary references use source fields; preserve `summaryProcessedAt` checks
+  when resolving assignments after reprocessing.
   Transcript assembly is shared with web through `loadTopicTranscript`, returning
   `Transcript | null`; serialize it for inference and skip inference on null.
   Token counting and its WASM dependency stay in `src/features/topics/models.ts`.

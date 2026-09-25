@@ -53,9 +53,7 @@ function getRedis() {
 function decodeStagedSummary(
   value: string,
   scope: BatchScope,
-  ref: Pick<TopicEmbeddingRef, "facetId" | "facetVersion" | "traceId"> & {
-    summaryId?: string;
-  },
+  ref: Pick<TopicEmbeddingRef, "facetId" | "facetVersion" | "traceId">,
 ): StagedSummary {
   const staged = JSON.parse(value) as StagedSummary;
   if (
@@ -63,8 +61,7 @@ function decodeStagedSummary(
     staged.executionId !== scope.executionId ||
     staged.summary.facetId !== ref.facetId ||
     staged.summary.facetVersion !== ref.facetVersion ||
-    staged.summary.traceId !== ref.traceId ||
-    (ref.summaryId !== undefined && staged.summary.id !== ref.summaryId)
+    staged.summary.traceId !== ref.traceId
   )
     throw new Error("Topics staged summary scope mismatch.");
   return {
@@ -232,7 +229,7 @@ export async function enqueueTopicEmbeddingBatch(
   const jobId = hash([batch.projectId, batch.executionId, batch.batchId]);
   const job = await queue.getJob(jobId);
   if (job) {
-    if (hash(job.data.payload) !== hash(batch))
+    if (hash(TopicEmbeddingBatchSchema.parse(job.data.payload)) !== hash(batch))
       throw new Error("Topics embedding batch scope mismatch.");
     const state = await job.getState();
     if (state === "completed") return "complete";

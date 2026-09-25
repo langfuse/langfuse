@@ -149,7 +149,6 @@ export const topicSourceSchema = z.union([
 ]);
 
 export type TopicSummary = z.infer<typeof topicSourceSchema> & {
-  id: string;
   projectId: string;
   facetId: string;
   facetVersion: number;
@@ -171,6 +170,22 @@ export type TopicSummary = z.infer<typeof topicSourceSchema> & {
   processedAt: string;
   metadata: Record<string, unknown>;
 };
+
+/** Local references use source identity; a trace's parent session is metadata. */
+export function topicSourceKey(
+  source: Pick<
+    TopicSummary,
+    "projectId" | "facetId" | "facetVersion" | "traceId" | "sessionId"
+  >,
+): string {
+  return JSON.stringify([
+    source.projectId,
+    source.facetId,
+    source.facetVersion,
+    source.traceId !== null ? "trace" : "session",
+    source.traceId ?? source.sessionId,
+  ]);
+}
 export type TopicAssignment = z.infer<typeof topicSourceSchema> & {
   coordinates: [number, number] | null;
   projectId: string;
@@ -179,7 +194,6 @@ export type TopicAssignment = z.infer<typeof topicSourceSchema> & {
   environment: string;
   traceName: string;
   unitStartTime: string;
-  summaryId: string;
   summaryProcessedAt: string;
   runId: string | null;
   topicId: string | null;
@@ -272,7 +286,6 @@ export interface TopicExecution {
 export interface TopicProcessBatchState {
   execution: TopicExecution;
   summaries: {
-    summaryId: string;
     facetId: string;
     facetVersion: number;
     traceId: string;

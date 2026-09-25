@@ -264,6 +264,7 @@ function CurrentFacet({
           </div>
           <CurrentTraceTable
             projectId={projectId}
+            facetId={facet.facetId}
             rows={visible}
             pagination={pagination}
             onPaginationChange={setPagination}
@@ -278,6 +279,7 @@ function CurrentFacet({
 
 function CurrentTraceTable({
   projectId,
+  facetId,
   rows,
   pagination,
   onPaginationChange,
@@ -285,6 +287,7 @@ function CurrentTraceTable({
   split,
 }: {
   projectId: string;
+  facetId: string;
   rows: Facet["rows"];
   pagination: PaginationState;
   onPaginationChange: OnChangeFn<PaginationState>;
@@ -313,7 +316,9 @@ function CurrentTraceTable({
       ?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [selectedTraceId, pageIndex, pagination.pageSize, split]);
   const columns = (
-    openInspector: (summaryId: string) => void,
+    openInspector: (
+      source: Pick<Facet["rows"][number], "traceId" | "facetVersion">,
+    ) => void,
   ): LangfuseColumnDef<Facet["rows"][number]>[] => [
     {
       accessorKey: "traceId",
@@ -354,7 +359,10 @@ function CurrentTraceTable({
             size="sm"
             onClick={(event) => {
               event.stopPropagation();
-              openInspector(row.original.summaryId);
+              openInspector({
+                traceId: row.original.traceId,
+                facetVersion: row.original.facetVersion,
+              });
             }}
           />
         </div>
@@ -362,7 +370,7 @@ function CurrentTraceTable({
     },
   ];
   return (
-    <DialogController<string>
+    <DialogController<Pick<Facet["rows"][number], "traceId" | "facetVersion">>
       renderDialog={({ state }) => (
         <Dialog title="Summary source" size="lg" closeOnInteractionOutside>
           <Dialog.Body>
@@ -370,7 +378,11 @@ function CurrentTraceTable({
               <p className="text-muted-foreground">
                 View the current trace transcript for this summary.
               </p>
-              <SummaryInspector projectId={projectId} summaryId={state} />
+              <SummaryInspector
+                projectId={projectId}
+                facetId={facetId}
+                {...state}
+              />
             </div>
           </Dialog.Body>
         </Dialog>

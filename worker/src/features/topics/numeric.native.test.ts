@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import type { TopicSummary } from "@langfuse/shared/topics";
+import { topicSourceKey, type TopicSummary } from "@langfuse/shared/topics";
 import {
   buildNamingEvidence,
   buildTopicPrototypes,
@@ -37,10 +37,17 @@ it("fits every member through the native child and builds usable serving prototy
   expect(result.labels[0]).not.toBe(result.labels[501]);
 
   const summaries = embeddings.map((embedding, index) => ({
-    id: String(index),
+    projectId: "project",
+    facetId: "facet",
+    facetVersion: 1,
+    traceId: String(index),
+    sessionId: null,
     summary: `Example ${index}`,
     embedding,
   })) as TopicSummary[];
+  const embeddingBySource = new Map(
+    summaries.map((row) => [topicSourceKey(row), row.embedding]),
+  );
   const labels = [...result.labels];
   labels[0] = -1;
   const prototypes = buildTopicPrototypes(summaries, labels);
@@ -52,11 +59,11 @@ it("fits every member through the native child and builds usable serving prototy
     expect(group.members).toHaveLength(group.count);
     for (const member of group.members)
       expect(
-        classifyTopic(embeddings[Number(member.id)], persisted).topicId,
+        classifyTopic(embeddingBySource.get(member.id)!, persisted).topicId,
       ).toBe(group.id);
     for (const contrast of group.contrasts)
       expect(
-        classifyTopic(embeddings[Number(contrast.id)], persisted).topicId,
+        classifyTopic(embeddingBySource.get(contrast.id)!, persisted).topicId,
       ).not.toBe(group.id);
   }
   expect(classifyTopic(embeddings[0], persisted).topicId).not.toBeNull();

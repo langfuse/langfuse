@@ -106,7 +106,7 @@ describe("Current Topics", () => {
         ...facet,
         rows: [
           {
-            summaryId: "summary-a",
+            facetVersion: 1,
             traceId: "trace-a",
             summary: "Result published at completion",
             outcome: "not_applicable",
@@ -149,7 +149,7 @@ describe("Current Topics", () => {
 
   it("switches facets, filters current traces and inspects a summary without opening peek", async () => {
     const rows = Array.from({ length: 21 }, (_, i) => ({
-      summaryId: `summary-${i}`,
+      facetVersion: 1,
       traceId: `trace-${i}`,
       summary: `Summary ${i}`,
       outcome: i === 20 ? "not_applicable" : "assigned",
@@ -214,7 +214,9 @@ describe("Current Topics", () => {
     const inspector = screen.getByRole("dialog", { name: "Summary source" });
     expect(state.inspect).toHaveBeenLastCalledWith({
       projectId: "project",
-      summaryId: "summary-1",
+      facetId: "intent",
+      facetVersion: 1,
+      traceId: "trace-1",
     });
     expect(
       within(inspector).getByText('{"threads":[]}').closest(".ph-no-capture"),
@@ -256,7 +258,7 @@ describe("Current Topics", () => {
         name: "Intent",
         facetVersion: 1,
         rows: Array.from({ length: 26 }, (_, i) => ({
-          summaryId: `summary-${i}`,
+          facetVersion: 1,
           traceId: `trace-${i}`,
           summary: `Summary ${i}`,
           outcome: i < 25 ? "assigned" : "outlier",

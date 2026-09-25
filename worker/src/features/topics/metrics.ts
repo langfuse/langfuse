@@ -49,10 +49,10 @@ export class TopicMetrics {
       recordIncrement("langfuse.topics.results", count, { stage, result });
   }
 
-  embeddingResult(summaryId: string, result: "generated" | "cached"): void {
+  embeddingResult(sourceKey: string, result: "generated" | "cached"): void {
     // Count an accepted vector once per attempt.
-    if (result === "cached" && this.countedEmbeddings.has(summaryId)) return;
-    this.countedEmbeddings.add(summaryId);
+    if (result === "cached" && this.countedEmbeddings.has(sourceKey)) return;
+    this.countedEmbeddings.add(sourceKey);
     this.result("embedding", result);
   }
 

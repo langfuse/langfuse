@@ -145,8 +145,8 @@ These thresholds require quality calibration; they are not universal guarantees.
 
 The ClickHouse tables hold current state. Summaries replace rows with the same
 project, facet version and source using `processed_at`; assignments replace the
-same project/facet version/source/map/origin using `assigned_at`. Summary references
-are derived from their natural key; assignments have no separate ID. Neither table
+same project/facet version/source/map/origin using `assigned_at`. Summaries and
+assignments are addressed by that source identity, without separate IDs. Neither table
 has time partitions: late-arriving
 observations can move the first start time across a month, but the row must keep
 the same replacement identity.
@@ -171,6 +171,10 @@ Processing and fitting use separate `topics` and `topics-update` queues with one
 coordinator slot each. `topics-embedding` has two slots and receives reference-only
 batches of up to 100 traces across facets. This internal batch size is not a
 selected-trace cap.
+
+Deploy coordinator and embedding consumers together for the source-reference
+queue contract. New consumers can resume queued work carrying legacy summary
+hashes; older consumers require those fields and cannot consume new references.
 
 1. Summarization stages accepted results in Redis with a fixed deadline:
    `LANGFUSE_TOPICS_REDIS_TTL_SECONDS` defaults to three hours. Retries never extend it.
@@ -305,6 +309,10 @@ an assignment row.
 ClickHouse stores immutable topic names, descriptions and prototypes, including
 their original creation run. Each Postgres run stores the exact topic-version
 IDs used by its classifier; missing definitions prevent loading that map.
+Naming calls use short member labels; accepted evidence references store the
+project, facet version and source tuple. Those references identify the current
+source result, not a historical summary snapshot. Existing hashed evidence
+references remain readable metadata and are not used for storage lookups.
 Definitions use RowBinary inserts with `Float64` geometry to preserve classifier precision and
 `ReplacingMergeTree(created_at)` keyed by project and version ID to deduplicate
 identical retry writes. They have no time partition or age-based expiry: an old

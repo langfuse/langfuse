@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { TopicSummary } from "@langfuse/shared/topics";
+import { topicSourceKey, type TopicSummary } from "@langfuse/shared/topics";
 
 interface TopicPrototype {
   id: string;
@@ -149,6 +149,7 @@ export function buildNamingEvidence(
 ) {
   const assignments = summaries.map((summary) => ({
     summary,
+    sourceKey: topicSourceKey(summary),
     result: classifyTopic(summary.embedding, prototypes),
   }));
   return prototypes.map((prototype) => {
@@ -157,7 +158,7 @@ export function buildNamingEvidence(
       .sort(
         (a, b) =>
           (a.result.distance ?? 0) - (b.result.distance ?? 0) ||
-          a.summary.id.localeCompare(b.summary.id),
+          a.sourceKey.localeCompare(b.sourceKey),
       );
     const contrasts = assignments
       .filter((item) => item.result.topicId !== prototype.id)
@@ -173,12 +174,12 @@ export function buildNamingEvidence(
           ),
       )
       .slice(0, 3)
-      .map((item) => ({ id: item.summary.id, summary: item.summary.summary }));
+      .map((item) => ({ id: item.sourceKey, summary: item.summary.summary }));
     return {
       id: prototype.id,
       count: members.length,
-      members: members.map(({ summary }) => ({
-        id: summary.id,
+      members: members.map(({ summary, sourceKey }) => ({
+        id: sourceKey,
         summary: summary.summary,
       })),
       contrasts,

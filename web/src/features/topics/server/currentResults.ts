@@ -10,7 +10,10 @@ import {
 function resolveTopicResult(summary: TopicSummary, stored?: TopicAssignment) {
   const assignment =
     summary.state === "complete" &&
-    stored?.summaryId === summary.id &&
+    stored?.projectId === summary.projectId &&
+    stored.facetId === summary.facetId &&
+    stored.facetVersion === summary.facetVersion &&
+    stored.traceId === summary.traceId &&
     stored.summaryProcessedAt === summary.processedAt
       ? stored
       : undefined;
@@ -76,7 +79,7 @@ export async function currentTopicResults(projectId: string) {
             });
           }
           return {
-            summaryId: summary.id,
+            facetVersion: summary.facetVersion,
             traceId: summary.traceId,
             summary: summary.summary,
             outcome,

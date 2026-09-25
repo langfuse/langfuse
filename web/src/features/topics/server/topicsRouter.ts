@@ -6,6 +6,7 @@ import {
   topicEmbeddingConfigSchema,
   topicIdSchema,
   topicFacetRefSchema,
+  topicTraceIdSchema,
   topicRuleConfigSchema,
   type TopicExecutionSummary,
   type TopicFacetRef,
@@ -27,7 +28,7 @@ import {
   getTopicRule,
   saveTopicRule,
   getTopicRun,
-  readTopicSummaries,
+  listTopicSummaries,
   readTopicMapAssignments,
   loadTopicTranscript,
   isTopicsEnabled,
@@ -178,8 +179,12 @@ async function publishedTopicMap(input: {
   };
   if (run.status !== "completed") return unavailable;
   const discoveryAssignments = (
-    await readTopicMapAssignments(input.projectId, run.id)
-  ).sort((a, b) => a.summaryId.localeCompare(b.summaryId));
+    await readTopicMapAssignments(
+      input.projectId,
+      { facetId: run.facetId, version: run.facetVersion },
+      run.id,
+    )
+  ).sort((a, b) => (a.traceId ?? "").localeCompare(b.traceId ?? ""));
   if (!discoveryAssignments.length)
     return {
       ...unavailable,
@@ -209,7 +214,7 @@ async function publishedTopicMap(input: {
     run.facetId,
     run.facetVersion,
   );
-  const byId = new Map(
+  const byTraceId = new Map(
     summaries
       .filter(
         (row) =>
@@ -218,12 +223,12 @@ async function publishedTopicMap(input: {
           row.facetVersion === run.facetVersion &&
           row.traceId !== null,
       )
-      .map((row) => [row.id, row]),
+      .map((row) => [row.traceId, row]),
   );
   const topicIds = new Set(run.topics.map((topic) => topic.topicId));
   const points = discoveryAssignments.flatMap(
     (projected): TopicMap["points"] => {
-      const row = byId.get(projected.summaryId);
+      const row = byTraceId.get(projected.traceId!);
       if (!row || row.traceId === null) return [];
       const [x, y] = projected.coordinates!;
       const assignment =
@@ -250,7 +255,7 @@ async function publishedTopicMap(input: {
     runId: run.id,
     missingSummaryCount: discoveryAssignments.length - points.length,
     points,
-    unpositionedCount: byId.size - points.length,
+    unpositionedCount: byTraceId.size - points.length,
   };
 }
 
@@ -420,16 +425,25 @@ export const topicsRouter = createTRPCRouter({
     .input(mapInput)
     .query(({ input }) => publishedTopicMap(input)),
   inspect: topicsProcedure
-    .input(projectInput.extend({ summaryId: topicIdSchema }))
+    .input(
+      projectInput.extend({
+        facetId: topicIdSchema,
+        facetVersion: topicFacetRefSchema.shape.version,
+        traceId: topicTraceIdSchema,
+      }),
+    )
     .query(async ({ input }) => {
-      const [summary] = await readTopicSummaries(input.projectId, [
-        input.summaryId,
-      ]);
+      const [summary] = await listTopicSummaries(input.projectId, {
+        facetId: input.facetId,
+        facetVersion: input.facetVersion,
+        traceIds: [input.traceId],
+      });
       if (
         !summary ||
-        summary.id !== input.summaryId ||
         summary.projectId !== input.projectId ||
-        summary.traceId === null
+        summary.facetId !== input.facetId ||
+        summary.facetVersion !== input.facetVersion ||
+        summary.traceId !== input.traceId
       )
         throw new LangfuseNotFoundError("Trace summary not found.");
       let transcript: Transcript | null = null;

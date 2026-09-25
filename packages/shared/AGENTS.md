@@ -71,6 +71,8 @@
     Trace inputs and paid outputs belong outside the journal.
   - `embedding-queue.ts`: Redis staging with a fixed expiry; retain accepted
     payloads through assignment and save terminal job state before cleanup.
+    Summary references carry facet/version/source fields within project and
+    execution scope; exact storage reads also require facet/version scope.
   - `text.ts` and `embeddings.ts`: Bedrock model transport using the shared AI SDK;
     worker model calls own usage, cost and vector validation.
   - `loadTopicTranscript`: shared in-memory source assembly for worker and inspector.

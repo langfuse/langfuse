@@ -7,8 +7,7 @@ import {
   listTopicSummaries,
   writeTopicAssignments,
   readTopicAssignments,
-  readTopicRunSummaryIds,
-  readTopicSummaries,
+  readTopicRunTraceIds,
   createTopicRun,
   getTopicRun,
   getPublishedTopicRun,
@@ -21,7 +20,6 @@ import {
   readStagedTopicSummaries,
   readStagedTopicSummary,
   enqueueTopicEmbeddingBatch,
-  topicSummaryId,
   TOPIC_EMBEDDING_EXPIRED_ERROR,
   TOPICS_TRANSCRIPT_VERSION,
   type TopicEmbeddingRef,
@@ -155,7 +153,6 @@ async function summarizeTrace(
   };
   let summary: TopicSummary = {
     ...source,
-    id: topicSummaryId(source),
     triggerType: "manual_poc",
     unitStartTime,
     environment,
@@ -370,7 +367,7 @@ async function assignSummaries(
       const origin =
         execution.input.operation === "process" ? "online" : "initial";
       return {
-        coordinates: coordinates.get(summary.id) ?? null,
+        coordinates: coordinates.get(summary.traceId) ?? null,
         projectId: execution.projectId,
         facetId: facet.facetId,
         facetVersion: facet.version,
@@ -379,7 +376,6 @@ async function assignSummaries(
         environment: summary.environment,
         traceName: summary.traceName,
         unitStartTime: summary.unitStartTime,
-        summaryId: summary.id,
         summaryProcessedAt: summary.processedAt,
         runId: run.id,
         topicId: topic?.topicId ?? null,
@@ -399,17 +395,16 @@ async function assignSummaries(
       execution.input.operation === "update" && rows.length
         ? await readTopicAssignments(
             execution.projectId,
-            summaries.map((summary) => summary.id),
+            { facetId: facet.facetId, version: facet.version },
+            summaries,
             run.id,
           )
         : [];
-    const visibleBySummary = new Map(
-      visible.map((row) => [row.summaryId, row]),
-    );
+    const visibleByTrace = new Map(visible.map((row) => [row.traceId, row]));
     if (
       execution.input.operation === "update" &&
       rows.some((row) => {
-        const persisted = visibleBySummary.get(row.summaryId);
+        const persisted = visibleByTrace.get(row.traceId);
         return (
           !persisted ||
           persisted.topicId !== row.topicId ||
@@ -496,9 +491,10 @@ async function clusterFacet(
     );
     const coordinates = new Map(
       summaries
-        .map((row, index) => [row.id, numeric.coordinates[index]])
-        .filter((entry): entry is [string, [number, number]] =>
-          Array.isArray(entry[1]),
+        .map((row, index) => [row.traceId, numeric.coordinates[index]])
+        .filter(
+          (entry): entry is [string, [number, number]] =>
+            typeof entry[0] === "string" && Array.isArray(entry[1]),
         ),
     );
     if (numeric.status === "insufficient_data") {
@@ -553,24 +549,33 @@ async function clusterFacet(
     const compatiblePrevious =
       previous !== null && compatibleMap(execution, facet, previous);
     if (previous) {
-      const previousSummaryIds = await readTopicRunSummaryIds(
+      const facetRef = { facetId: facet.facetId, version: facet.version };
+      const previousTraceIds = await readTopicRunTraceIds(
         execution.projectId,
+        facetRef,
         previous.id,
       );
       const [previousSummaries, previousAssignments] = await Promise.all([
-        readTopicSummaries(execution.projectId, previousSummaryIds),
+        listTopicSummaries(execution.projectId, {
+          facetId: facet.facetId,
+          facetVersion: facet.version,
+          traceIds: previousTraceIds,
+        }),
         readTopicAssignments(
           execution.projectId,
-          previousSummaryIds,
+          facetRef,
+          previousTraceIds.map((traceId) => ({ traceId, sessionId: null })),
           previous.id,
         ),
       ]);
-      const bySummary = new Map(previousSummaries.map((row) => [row.id, row]));
+      const byTrace = new Map(
+        previousSummaries.map((row) => [row.traceId, row]),
+      );
       candidates = matchTopicContinuity({
         previousTopics: previous.topics,
         candidateTopics: candidates,
         previousMemberships: previousAssignments.flatMap((row) => {
-          const summary = bySummary.get(row.summaryId);
+          const summary = byTrace.get(row.traceId);
           return summary && summary.traceId !== null
             ? [
                 {
@@ -636,7 +641,20 @@ async function clusterFacet(
         continue;
       }
       const label = await metrics.measure("naming", async () => {
-        const { output: label } = await nameTopicGroup(group);
+        const sourceByLabel = new Map(
+          group.members.map((member, index) => [`m${index + 1}`, member.id]),
+        );
+        const { output: label } = await nameTopicGroup({
+          ...group,
+          members: group.members.map((member, index) => ({
+            ...member,
+            id: `m${index + 1}`,
+          })),
+          contrasts: group.contrasts.map((member, index) => ({
+            ...member,
+            id: `c${index + 1}`,
+          })),
+        });
         if (
           !label.name.trim() ||
           !label.description.trim() ||
@@ -647,7 +665,12 @@ async function clusterFacet(
             "naming",
             "Topic names must be concise, non-empty, and distinct.",
           );
-        return label;
+        return {
+          ...label,
+          evidenceSummaryIds: label.evidenceSummaryIds.map(
+            (id) => sourceByLabel.get(id)!,
+          ),
+        };
       });
       names.add(label.name.trim().toLowerCase());
       const candidate = candidates.find(
@@ -776,13 +799,15 @@ async function processTraces(
         await loadCachedSummaries(execution, facet, execution.input.traceIds),
       );
     for (const { facet } of facets) {
-      const available = new Set(cached.get(facet)!.staged.map((row) => row.id));
+      const available = new Set(
+        cached.get(facet)!.staged.map((row) => row.traceId),
+      );
       if (
         state.summaries.some(
           (ref) =>
             ref.facetId === facet.facetId &&
             ref.facetVersion === facet.version &&
-            !available.has(ref.summaryId),
+            !available.has(ref.traceId),
         )
       )
         throw new TopicEmbeddingFailure(TOPIC_EMBEDDING_EXPIRED_ERROR);
@@ -816,7 +841,7 @@ async function processTraces(
         )
           continue;
         try {
-          const summary = await summarizeTrace(
+          await summarizeTrace(
             metrics,
             execution,
             facet,
@@ -825,7 +850,6 @@ async function processTraces(
             getTranscript,
           );
           state.summaries.push({
-            summaryId: summary.id,
             facetId: facet.facetId,
             facetVersion: facet.version,
             traceId,
@@ -946,6 +970,7 @@ async function updateTopics(metrics: TopicMetrics, execution: UpdateExecution) {
       if (accepted?.status === "completed") {
         const assignments = await readTopicMapAssignments(
           execution.projectId,
+          { facetId: facet.facetId, version: facet.version },
           accepted.id,
         );
         progress.counts.requested = assignments.length;
