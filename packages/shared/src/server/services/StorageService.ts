@@ -4,7 +4,6 @@ import { pipeline } from "stream/promises";
 import {
   DeleteObjectsCommand,
   GetObjectCommand,
-  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   PutObjectCommandInput,
@@ -309,9 +308,6 @@ export interface StorageService {
 
   downloadBytes(path: string): Promise<Uint8Array>;
 
-  /** Returns the stored object size in bytes without downloading its contents. */
-  getObjectSize(path: string): Promise<number>;
-
   listFiles(prefix: string): Promise<{ file: string; createdAt: Date }[]>;
 
   getSignedUrl(
@@ -614,28 +610,6 @@ class AzureBlobStorageService implements StorageService {
         err,
       );
       handleStorageError(err, "download bytes from Azure Blob Storage");
-    }
-  }
-
-  public async getObjectSize(path: string): Promise<number> {
-    try {
-      const { contentLength } = await this.client
-        .getBlobClient(path)
-        .getProperties();
-      if (
-        contentLength === undefined ||
-        !Number.isSafeInteger(contentLength) ||
-        contentLength < 0
-      ) {
-        throw new Error("Invalid or missing object size");
-      }
-      return contentLength;
-    } catch (err) {
-      logger.error(
-        `Failed to get object size from Azure Blob Storage ${path}`,
-        err,
-      );
-      handleStorageError(err, "get object size from Azure Blob Storage");
     }
   }
 
@@ -999,25 +973,6 @@ class S3StorageService implements StorageService {
     }
   }
 
-  public async getObjectSize(path: string): Promise<number> {
-    try {
-      const { ContentLength } = await this.client.send(
-        new HeadObjectCommand({ Bucket: this.bucketName, Key: path }),
-      );
-      if (
-        ContentLength === undefined ||
-        !Number.isSafeInteger(ContentLength) ||
-        ContentLength < 0
-      ) {
-        throw new Error("Invalid or missing object size");
-      }
-      return ContentLength;
-    } catch (err) {
-      logger.error(`Failed to get object size from S3 ${path}`, err);
-      handleStorageError(err, "get object size from S3");
-    }
-  }
-
   public async listFiles(
     prefix: string,
   ): Promise<{ file: string; createdAt: Date }[]> {
@@ -1283,23 +1238,6 @@ class GoogleCloudStorageService implements StorageService {
         err,
       );
       handleStorageError(err, "download bytes from Google Cloud Storage");
-    }
-  }
-
-  public async getObjectSize(path: string): Promise<number> {
-    try {
-      const [metadata] = await this.bucket.file(path).getMetadata();
-      const size = Number(metadata.size);
-      if (!Number.isSafeInteger(size) || size < 0) {
-        throw new Error("Invalid or missing object size");
-      }
-      return size;
-    } catch (err) {
-      logger.error(
-        `Failed to get object size from Google Cloud Storage ${path}`,
-        err,
-      );
-      handleStorageError(err, "get object size from Google Cloud Storage");
     }
   }
 
@@ -1788,27 +1726,6 @@ class OCIObjectStorageService implements StorageService {
         err,
       );
       handleStorageError(err, "download bytes from OCI Object Storage");
-    }
-  }
-
-  public async getObjectSize(path: string): Promise<number> {
-    try {
-      const { client, namespaceName } = await this.getClientAndNamespace();
-      const { contentLength } = await client.headObject({
-        namespaceName,
-        bucketName: this.bucketName,
-        objectName: path,
-      });
-      if (!Number.isSafeInteger(contentLength) || contentLength < 0) {
-        throw new Error("Invalid or missing object size");
-      }
-      return contentLength;
-    } catch (err) {
-      logger.error(
-        `Failed to get object size from OCI Object Storage ${path}`,
-        err,
-      );
-      handleStorageError(err, "get object size from OCI Object Storage");
     }
   }
 

@@ -1,4 +1,5 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
+import { SkillFilePathSchema } from "@langfuse/shared";
 import { getParentFolderPaths } from "./skillFileTree";
 import { resetSkillName } from "../utils/resetSkillName";
 
@@ -37,6 +38,8 @@ type SkillEditorState = {
     updateActiveFile: (content: string) => void;
     resetName: () => void;
     addFile: (file: SkillDraftFile) => boolean;
+    moveFile: (path: string, targetFolder: string) => boolean;
+    moveFolder: (path: string, targetFolder: string) => boolean;
     addFolder: (path: string) => boolean;
     deleteFile: (path: string) => void;
     deleteFolder: (path: string) => boolean;
@@ -117,6 +120,78 @@ export function createSkillEditorStore(
           activePath: file.path,
           dirty: true,
         }));
+        return true;
+      },
+      moveFile: (path, targetFolder) => {
+        const state = get();
+        const file = state.files[path];
+        if (
+          !file ||
+          path === "SKILL.md" ||
+          (targetFolder !== "" && !state.folders.includes(targetFolder))
+        ) {
+          return false;
+        }
+        const name = path.split("/").at(-1)!;
+        const nextPath = targetFolder ? `${targetFolder}/${name}` : name;
+        if (nextPath === path) return true;
+        if (
+          !SkillFilePathSchema.safeParse(nextPath).success ||
+          hasFilePathConflict(nextPath, state.files, state.folders)
+        ) {
+          return false;
+        }
+        const { [path]: _, ...remainingFiles } = state.files;
+        set({
+          files: { ...remainingFiles, [nextPath]: { ...file, path: nextPath } },
+          activePath: state.activePath === path ? nextPath : state.activePath,
+          dirty: true,
+        });
+        return true;
+      },
+      moveFolder: (path, targetFolder) => {
+        const state = get();
+        if (
+          !state.folders.includes(path) ||
+          (targetFolder !== "" && !state.folders.includes(targetFolder)) ||
+          targetFolder === path ||
+          targetFolder.startsWith(`${path}/`)
+        )
+          return false;
+
+        const name = path.split("/").at(-1)!;
+        const nextPath = targetFolder ? `${targetFolder}/${name}` : name;
+        if (nextPath === path) return true;
+        if (hasFilePathConflict(nextPath, state.files, state.folders))
+          return false;
+
+        const relocate = (entryPath: string) =>
+          entryPath === path || entryPath.startsWith(`${path}/`)
+            ? `${nextPath}${entryPath.slice(path.length)}`
+            : entryPath;
+        const nextFolders = state.folders.map(relocate).toSorted();
+        const nextFiles = Object.fromEntries(
+          Object.entries(state.files).map(([filePath, file]) => {
+            const movedPath = relocate(filePath);
+            return [
+              movedPath,
+              movedPath === filePath ? file : { ...file, path: movedPath },
+            ];
+          }),
+        );
+        if (
+          [...nextFolders, ...Object.keys(nextFiles)].some(
+            (entryPath) => !SkillFilePathSchema.safeParse(entryPath).success,
+          )
+        )
+          return false;
+
+        set({
+          files: nextFiles,
+          folders: nextFolders,
+          activePath: relocate(state.activePath),
+          dirty: true,
+        });
         return true;
       },
       addFolder: (path) => {

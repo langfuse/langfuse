@@ -95,28 +95,13 @@ export async function importSkillFiles(
   }
   if (!imports.length) return [];
   const state = store.getState();
-  if (Object.keys(state.files).length + imports.length > MAX_SKILL_FILES) {
-    throw new Error(`A skill can contain at most ${MAX_SKILL_FILES} files.`);
-  }
-  const existingBytes = Object.values(state.files).reduce(
-    (total, file) =>
-      total +
-      (file.source?.contentLength ??
-        new TextEncoder().encode(file.content).byteLength),
-    0,
-  );
-  if (existingBytes + importedBytes > MAX_SKILL_BYTES) {
-    throw new Error(`A skill can contain at most ${MAX_SKILL_BYTES} bytes.`);
-  }
   const nextFiles = { ...state.files };
   for (const file of imports) {
     if (
       state.folders.includes(file.path) ||
       Object.keys(nextFiles).some(
         (path) =>
-          path === file.path ||
-          path.startsWith(`${file.path}/`) ||
-          file.path.startsWith(`${path}/`),
+          path.startsWith(`${file.path}/`) || file.path.startsWith(`${path}/`),
       )
     ) {
       throw new Error(
@@ -124,6 +109,19 @@ export async function importSkillFiles(
       );
     }
     nextFiles[file.path] = file;
+  }
+  if (Object.keys(nextFiles).length > MAX_SKILL_FILES) {
+    throw new Error(`A skill can contain at most ${MAX_SKILL_FILES} files.`);
+  }
+  const totalBytes = Object.values(nextFiles).reduce(
+    (total, file) =>
+      total +
+      (file.source?.contentLength ??
+        new TextEncoder().encode(file.content).byteLength),
+    0,
+  );
+  if (totalBytes > MAX_SKILL_BYTES) {
+    throw new Error(`A skill can contain at most ${MAX_SKILL_BYTES} bytes.`);
   }
   const paths = imports.map((file) => file.path);
   store.setState({

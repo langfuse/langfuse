@@ -12,7 +12,7 @@
 
 import { toolRegistry, type McpFeatureModule } from "./registry";
 import { promptsFeature } from "./prompts";
-import { skillsFeature } from "./skills";
+import type { skillsFeature } from "./skills";
 import { observationsFeature } from "./observations";
 import { annotationQueuesFeature } from "./annotationQueues";
 import { commentsFeature } from "./comments";
@@ -31,7 +31,7 @@ import { v4MigrationFeature } from "./v4Migration";
 
 const MCP_FEATURES = [
   promptsFeature,
-  skillsFeature,
+  // skillsFeature,
   observationsFeature,
   annotationQueuesFeature,
   commentsFeature,
@@ -49,7 +49,8 @@ const MCP_FEATURES = [
   v4MigrationFeature,
 ] as const satisfies readonly McpFeatureModule[];
 
-type McpFeature = (typeof MCP_FEATURES)[number];
+// Disabled tools remain valid names in persisted agent tool allowlists.
+type McpFeature = (typeof MCP_FEATURES)[number] | typeof skillsFeature;
 export type McpToolName = McpFeature["tools"][number]["definition"]["name"];
 
 /**

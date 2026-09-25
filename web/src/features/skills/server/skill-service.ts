@@ -78,7 +78,7 @@ function parseSkillFrontmatter(text: string): {
 
   let value: unknown;
   try {
-    value = document.toJS({ maxAliasCount: 50 });
+    value = document.toJS({ maxAliasCount: 0 });
   } catch {
     throw new InvalidRequestError("SKILL.md frontmatter is invalid");
   }

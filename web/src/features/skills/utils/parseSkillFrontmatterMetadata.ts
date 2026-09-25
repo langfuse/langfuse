@@ -34,7 +34,7 @@ export function parseSkillFrontmatterMetadata(
   if (document.errors.length > 0) return invalidFrontmatter;
 
   try {
-    const value: unknown = document.toJS({ maxAliasCount: 50 });
+    const value: unknown = document.toJS({ maxAliasCount: 0 });
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       return null;
     }
