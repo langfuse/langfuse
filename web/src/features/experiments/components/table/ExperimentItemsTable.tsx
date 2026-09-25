@@ -65,6 +65,7 @@ import {
   hasAmbiguousTargetChange,
 } from "@/src/features/experiments/lib/reconcileFilterTargets";
 import { useExperimentItemsTableData } from "../../hooks/useExperimentItemsTableData";
+import { useExpectedOutputVisibility } from "../../hooks/useExpectedOutputVisibility";
 import {
   type ExperimentItemsTableRow,
   type ExperimentItemsTableProps,
@@ -799,7 +800,7 @@ export default function ExperimentItemsTable({
     });
 
   // Running items without an expected output is common, so don't spend a column
-  // on it when nothing has one. Kept while IO loads so it doesn't flash.
+  // on it before loaded IO confirms there is expected output to display.
   //
   // Whether the column exists is a property of the runs being compared, not of
   // the page that happens to be loaded, so a page of items that all lack an
@@ -823,16 +824,11 @@ export default function ExperimentItemsTable({
     () => (experimentSelectionKey ? experimentSelectionKey.split(",") : []),
     [experimentSelectionKey],
   );
-  const [expectedOutputSeenFor, setExpectedOutputSeenFor] = useState<
-    string | null
-  >(null);
-  useEffect(() => {
-    if (expectedOutputOnPage) setExpectedOutputSeenFor(experimentSelectionKey);
-  }, [expectedOutputOnPage, experimentSelectionKey]);
-  const showExpectedOutput =
-    ioLoading ||
-    expectedOutputOnPage ||
-    expectedOutputSeenFor === experimentSelectionKey;
+  const showExpectedOutput = useExpectedOutputVisibility(
+    experimentSelectionKey,
+    expectedOutputOnPage,
+    ioLoading,
+  );
 
   const { selectActionColumn } = TableSelectionManager<ExperimentItemsTableRow>(
     {
@@ -1416,7 +1412,6 @@ export default function ExperimentItemsTable({
         ),
       size: 120,
       enableHiding: true,
-      defaultHidden: true,
       cell: ({ row }) => {
         const experiments = row.original.experiments;
         const baselineCost = baselineExperimentOf(experiments)?.totalCost;

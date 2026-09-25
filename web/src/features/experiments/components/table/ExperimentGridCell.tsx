@@ -36,10 +36,7 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import {
-  decomposeAggregateScoreKey,
-  getScoreDataTypeExplanation,
-} from "@/src/features/scores";
+import { decomposeAggregateScoreKey } from "@/src/features/scores";
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
 import { ScoreTag, type ScoreLevel } from "@/src/components/score-tag";
@@ -138,8 +135,6 @@ const valueColumnsClass = (reserveDiffSpace: boolean) =>
 const ScoreItem = ({
   scoreKey,
   aggregate,
-  baselineAggregate,
-  baselineExperimentName,
   diff,
   projectId,
   level,
@@ -148,8 +143,6 @@ const ScoreItem = ({
 }: {
   scoreKey: string;
   aggregate: AggregatedScoreData | null;
-  baselineAggregate?: AggregatedScoreData | null;
-  baselineExperimentName?: string;
   diff?: BaselineDiff | null;
   projectId: string;
   level: Extract<ScoreLevel, "observation" | "trace">;
@@ -175,22 +168,6 @@ const ScoreItem = ({
       staleTime: Infinity,
     },
   );
-
-  // `true → false` and `+0.07` do not say which side is the baseline.
-  const diffTitle = diff
-    ? describeRunComparison({
-        baselineName: baselineExperimentName,
-        ...(diff.type === "CATEGORICAL"
-          ? {
-              baselineText: diff.from ?? "several values",
-              currentText: diff.to ?? "several values",
-            }
-          : {
-              baselineText: scoreValueOf(baselineAggregate),
-              currentText: scoreValueOf(aggregate),
-            }),
-      })
-    : undefined;
 
   return (
     <HoverCard onOpenChange={setIsOpen}>
@@ -232,7 +209,6 @@ const ScoreItem = ({
                 className="px-0"
                 diff={diff}
                 formatValue={(value) => value.toFixed(2)}
-                title={diffTitle}
               />
             )}
           </div>
@@ -245,7 +221,6 @@ const ScoreItem = ({
       >
         <div className="flex flex-col gap-3">
           <span className="font-bold">{name}</span>
-          {diffTitle && <p className="text-muted-foreground">{diffTitle}</p>}
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
             <dt className="text-muted-foreground">Value</dt>
             <dd>{displayValue}</dd>
@@ -254,9 +229,6 @@ const ScoreItem = ({
             <dt className="text-muted-foreground">Type</dt>
             <dd className="capitalize">{dataType.toLowerCase()}</dd>
           </dl>
-          <p className="text-muted-foreground">
-            {getScoreDataTypeExplanation(dataType)}
-          </p>
           {aggregate?.comment && (
             <div>
               <div className="flex items-center justify-between">
@@ -322,12 +294,6 @@ const getScoreRowDefinition = (
       aggregate={
         level === "trace" ? data.traceScores[scoreKey] : data.scores[scoreKey]
       }
-      baselineAggregate={
-        level === "trace"
-          ? data.baselineTraceScores?.[scoreKey]
-          : data.baselineScores?.[scoreKey]
-      }
-      baselineExperimentName={data.baselineExperimentName}
       diff={
         level === "trace"
           ? data.traceScoreDiffs?.[scoreKey]

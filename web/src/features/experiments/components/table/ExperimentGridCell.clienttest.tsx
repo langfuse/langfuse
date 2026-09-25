@@ -92,7 +92,7 @@ const renderGridCell = (
   );
 
 describe("ExperimentGridCell", () => {
-  it("shows observation and trace score diffs only for comparison cells", () => {
+  it("keeps inline score diffs without explanatory native tooltips", () => {
     const { unmount } = renderGridCell(
       false,
       { output: false, metadata: false },
@@ -101,6 +101,7 @@ describe("ExperimentGridCell", () => {
       false,
     );
     expect(screen.getByText("+0.50")).toBeInTheDocument();
+    expect(screen.getByText("+0.50")).not.toHaveAttribute("title");
     expect(screen.getByText("+0.20")).toBeInTheDocument();
     unmount();
     renderGridCell(false);
