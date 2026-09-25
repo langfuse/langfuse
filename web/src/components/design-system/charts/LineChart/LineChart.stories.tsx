@@ -192,9 +192,10 @@ export const TooltipBelowChart = meta.story({
       "tooltip",
     );
     await waitFor(() => {
-      expect(tooltip.getBoundingClientRect().top).toBeGreaterThanOrEqual(
-        hoverArea.getBoundingClientRect().bottom,
-      );
+      const hoverBottom = hoverArea.getBoundingClientRect().bottom;
+      const tooltipBounds = tooltip.getBoundingClientRect();
+      expect(tooltipBounds.top).toBeLessThan(hoverBottom);
+      expect(tooltipBounds.bottom).toBeGreaterThan(hoverBottom);
     });
   },
 });
