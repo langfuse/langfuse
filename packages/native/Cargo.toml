@@ -2,8 +2,8 @@
 name = "langfuse-native"
 version = "0.0.0"
 edition = "2021"
-# napi-rs 3 needs at least Rust 1.88.
-rust-version = "1.88"
+# holomap requires Rust 1.93.
+rust-version = "1.93"
 license = "MIT"
 publish = false
 
@@ -19,10 +19,13 @@ bytes = "1"
 chrono = { version = "0.4", default-features = false, features = ["alloc", "std"] }
 clickhouse = { version = "=0.15.2", default-features = false }
 clickhouse-types = "=0.1.3"
+hdbscan-rs = { version = "=0.6.1", default-features = false }
+holomap = { version = "=0.3.0", default-features = false }
 metrics = "0.24"
 metrics-exporter-dogstatsd = "0.9"
 napi = { version = "3", default-features = false, features = ["napi9"] }
 napi-derive = "3"
+ndarray = "0.16"
 rust_decimal = { version = "1.37.2", default-features = false, features = ["std"] }
 serde = "1"
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }

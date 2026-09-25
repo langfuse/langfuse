@@ -529,6 +529,17 @@ jobs:
     env:
       VITEST_MAX_WORKERS: "6"
       NODE_ENV: test
+      REDIS_CONNECTION_STRING: redis://127.0.0.1:6379
+    services:
+      redis:
+        image: redis:7.2.4
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1002,6 +1013,8 @@ jobs:
           pnpm --filter=shared ch:dev-tables
       - name: Build
         run: pnpm --filter=worker... run build
+      - name: Setup Topics ClickHouse tables
+        run: pnpm --filter=shared run topics:dev-tables clickhouse --apply
       - name: run native codec tests against ClickHouse
         if: matrix.deploy-mode == ''
         env:

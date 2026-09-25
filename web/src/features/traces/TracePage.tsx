@@ -53,7 +53,8 @@ export function TracePage({
 
   if (!trace.data) return <div className="p-3">Loading...</div>;
 
-  const isSharedTrace = trace.data.public;
+  const traceData = trace.data;
+  const isSharedTrace = traceData.public;
   const showPublicIndicators = isSharedTrace && !hasProjectAccess;
   const encodedTargetPath = encodeURIComponent(
     stripBasePath(router.asPath || "/"),
@@ -92,7 +93,7 @@ export function TracePage({
   return (
     <Page
       headerProps={{
-        title: trace.data.id,
+        title: traceData.id,
         itemType: "TRACE",
         divider: false,
         breadcrumb: [
@@ -133,10 +134,10 @@ export function TracePage({
               size="sm"
             />
             <TraceDetailActions
-              traceId={trace.data.id}
-              projectId={trace.data.projectId}
-              isPublic={trace.data.public}
-              name={trace.data.name}
+              traceId={traceData.id}
+              projectId={traceData.projectId}
+              isPublic={traceData.public}
+              name={traceData.name}
               timestamp={timestamp}
               deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
             />
@@ -147,10 +148,10 @@ export function TracePage({
         // inline icon toolbar. Trace-to-trace nav is desktop-only.
         actionButtonsMenu: (
           <TraceDetailActions
-            traceId={trace.data.id}
-            projectId={trace.data.projectId}
-            isPublic={trace.data.public}
-            name={trace.data.name}
+            traceId={traceData.id}
+            projectId={traceData.projectId}
+            isPublic={traceData.public}
+            name={traceData.name}
             timestamp={timestamp}
             deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
             layout="menu"
@@ -160,7 +161,7 @@ export function TracePage({
     >
       <div className="flex max-h-full min-h-0 flex-1 overflow-hidden">
         <TraceDetailBody
-          trace={trace.data}
+          trace={traceData}
           context={router.query.peek !== undefined ? "peek" : "fullscreen"}
           truncatedAtObservations={trace.truncatedAtObservations}
         />

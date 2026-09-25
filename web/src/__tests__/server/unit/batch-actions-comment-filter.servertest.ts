@@ -36,6 +36,7 @@ import {
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { addToDatasetRouter } from "@/src/features/batch-actions/server/addToDatasetRouter";
 import { runEvaluationRouter } from "@/src/features/batch-actions/server/runEvaluationRouter";
+import { batchActionRouter } from "@/src/features/batch-actions/server/batchActionRouter";
 import { env } from "@/src/env.mjs";
 
 const mutableEnv = env as unknown as {
@@ -572,5 +573,47 @@ describe("batched evaluation version selection", () => {
     });
 
     expect(context.batchActionCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("batch action history", () => {
+  it("keeps Topics processing records behind the Topics API", async () => {
+    const row = {
+      id: "evaluation",
+      projectId,
+      userId: "user-id",
+      actionType: "observation-run-batched-evaluation",
+    };
+    const batchAction = {
+      findMany: vi.fn().mockResolvedValue([row]),
+      count: vi.fn().mockResolvedValue(1),
+      findUnique: vi.fn().mockResolvedValueOnce(null).mockResolvedValue(row),
+    };
+    const caller = batchActionRouter.createCaller({
+      ...createInnerTRPCContext({ session, headers: {} }),
+      prisma: {
+        batchAction,
+        user: { findMany: vi.fn(async () => []) },
+      } as unknown as PrismaClient,
+    });
+
+    const history = await caller.all({ projectId, limit: 10, page: 0 });
+    expect(history.batchActions.map((row) => row.id)).toEqual(["evaluation"]);
+    expect(history.totalCount).toBe(1);
+    const where = { projectId, actionType: { not: "topics" } };
+    for (const query of [batchAction.findMany, batchAction.count])
+      expect(query).toHaveBeenCalledWith(expect.objectContaining({ where }));
+    await expect(
+      caller.byId({ projectId, batchActionId: "topics" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(batchAction.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { ...where, id: "topics" } }),
+    );
+    await expect(
+      caller.byId({ projectId, batchActionId: "evaluation" }),
+    ).resolves.toMatchObject({ id: "evaluation" });
+    expect(batchAction.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { ...where, id: "evaluation" } }),
+    );
   });
 });

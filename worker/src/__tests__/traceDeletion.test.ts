@@ -22,6 +22,7 @@ import {
   toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
+import { createRequire } from "node:module";
 import { processClickhouseTraceDelete } from "../features/traces/processClickhouseTraceDelete";
 import { env } from "../env";
 import { prisma } from "@langfuse/shared/src/db";
@@ -83,6 +84,115 @@ describe("trace deletion", () => {
       traceIds: [traceId],
     });
     expect(scores).toHaveLength(0);
+  });
+
+  it("deletes all Topics results for selected traces without affecting other traces or projects", async ({
+    onTestFinished,
+  }) => {
+    // The built Topics entrypoint reads the CommonJS env singleton.
+    const { env: sharedEnv } = createRequire(import.meta.url)(
+      "@langfuse/shared/src/env",
+    ) as typeof import("@langfuse/shared/src/env");
+    const originalTopicsEnabled = sharedEnv.LANGFUSE_TOPICS_ENABLED;
+    onTestFinished(() => {
+      sharedEnv.LANGFUSE_TOPICS_ENABLED = originalTopicsEnabled;
+    });
+    sharedEnv.LANGFUSE_TOPICS_ENABLED = "true";
+
+    const { projectId } = await createOrgProjectAndApiKey();
+    const otherProjectId = randomUUID();
+    const traceId = randomUUID();
+    const retainedTraceId = randomUUID();
+    const timestamp = toClickhouseDateTime(new Date());
+    const rows = [
+      {
+        project_id: projectId,
+        trace_id: traceId,
+        facet_id: "intent",
+        facet_version: 1,
+      },
+      {
+        project_id: projectId,
+        trace_id: traceId,
+        facet_id: "intent",
+        facet_version: 2,
+      },
+      {
+        project_id: projectId,
+        trace_id: traceId,
+        facet_id: "outcome",
+        facet_version: 1,
+      },
+      {
+        project_id: projectId,
+        trace_id: retainedTraceId,
+        session_id: traceId,
+        facet_id: "intent",
+        facet_version: 1,
+      },
+      {
+        project_id: otherProjectId,
+        trace_id: traceId,
+        facet_id: "intent",
+        facet_version: 1,
+      },
+    ].map((row) => ({
+      session_id: "",
+      ...row,
+      unit_start_time: timestamp,
+    }));
+
+    await Promise.all([
+      clickhouseClient().insert({
+        table: "topic_facet_summaries",
+        format: "JSONEachRow",
+        values: rows.map((row) => ({
+          ...row,
+          processing_state: "complete",
+          summary: "A trace summary.",
+          embedding: [0.25, 0.75],
+        })),
+      }),
+      clickhouseClient().insert({
+        table: "topic_assignments",
+        format: "JSONEachRow",
+        values: rows.map((row) => ({
+          ...row,
+          topic_id: "topic",
+          topic_version_id: "topic-version",
+          coordinates: [0.1, 0.2],
+        })),
+      }),
+    ]);
+
+    await processClickhouseTraceDelete(projectId, [traceId]);
+
+    for (const table of ["topic_facet_summaries", "topic_assignments"]) {
+      const remaining = await queryClickhouse<{
+        project_id: string;
+        trace_id: string;
+        session_id: string;
+      }>({
+        query: `SELECT project_id, trace_id, session_id FROM ${table}
+          WHERE project_id IN ({projectIds: Array(String)})`,
+        params: { projectIds: [projectId, otherProjectId] },
+      });
+      expect(remaining).toHaveLength(2);
+      expect(remaining).toEqual(
+        expect.arrayContaining([
+          {
+            project_id: projectId,
+            trace_id: retainedTraceId,
+            session_id: traceId,
+          },
+          {
+            project_id: otherProjectId,
+            trace_id: traceId,
+            session_id: "",
+          },
+        ]),
+      );
+    }
   });
 
   it("should delete S3 media files for deleted traces", async () => {

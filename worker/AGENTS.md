@@ -16,6 +16,25 @@
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
+- Topics pipeline: `src/features/topics/processTopicsExecution.ts`, registered by
+  `src/queues/topicsQueue.ts`. Read `src/features/topics/README.md` before changing
+  storage, numerical fitting, model configuration or retry behavior.
+  `topics` processes traces; `topics-update` fits stored summaries;
+  `topics-embedding` embeds staged results. `LANGFUSE_TOPICS_ENABLED` gates queue
+  registration and Topics cleanup. Processors also enforce
+  `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`; cleanup remains independent of this list.
+  Paid results are staged before retryable
+  persistence, and unchanged embedding waits must read only Redis queue state.
+  Summary references use source fields; preserve `summaryProcessedAt` checks
+  when resolving assignments after reprocessing.
+  Transcript assembly is shared with web through `loadTopicTranscript`, returning
+  `Transcript | null`; serialize it for inference and skip inference on null.
+  Token counting and its WASM dependency stay in `src/features/topics/models.ts`.
+  Model calls use `generateTopicText` and `generateTopicEmbedding` from
+  `@langfuse/shared/topics/server` to keep Bedrock transport on shared's AI SDK
+  version. Summaries use OpenAI Luna and naming uses Terra via global inference
+  profiles; embeddings use Cohere Embed v4. Local AWS auth uses
+  `LANGFUSE_TOPICS_AWS_PROFILE`; region/setup details live in the Topics README.
 - OTEL event processing:
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation
@@ -42,7 +61,8 @@
 - Service layer: `src/services/*`
 - Rust addon (`@langfuse/native`): telemetry init and the startup hello call live
   in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code
-  records its own metrics and logs; see `../packages/native/AGENTS.md`.
+  records its own metrics and logs; see `../packages/native/AGENTS.md`. Topics runs
+  its synchronous numerical fit in a killable Node child via `src/features/topics/numeric.ts`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
 - Direct-event replay: `pnpm --filter worker run test:otel-replay` exercises the
   production OTEL event phase with isolated ClickHouse tables. Setup and scope:

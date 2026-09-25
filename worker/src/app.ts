@@ -108,6 +108,9 @@ import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
 import { TraceDeleteBatchActionRunner } from "./features/trace-delete-batch-action-runner";
 import { InAppAgentIntegrityRunner } from "./features/in-app-agent-integrity-runner";
 import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runner";
+import { isTopicsEnabled } from "@langfuse/shared/topics/server";
+import { topicsQueueProcessor } from "./queues/topicsQueue";
+import { topicsEmbeddingQueueProcessor } from "./queues/topicsEmbeddingQueue";
 
 const app = express();
 
@@ -462,6 +465,22 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
 
 export let inAppAgentDlqRetryRunner: InAppAgentDlqRetryRunner | null = null;
 
+if (isTopicsEnabled()) {
+  WorkerManager.register(QueueName.Topics, topicsQueueProcessor, {
+    concurrency: 1,
+  });
+  WorkerManager.register(QueueName.TopicsUpdate, topicsQueueProcessor, {
+    concurrency: 1,
+  });
+  WorkerManager.register(
+    QueueName.TopicsEmbedding,
+    topicsEmbeddingQueueProcessor,
+    {
+      concurrency: 2,
+    },
+  );
+}
+
 if (
   isInAppAgentWorkerSurfaceEnabled(
     env.QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED,
@@ -735,6 +754,14 @@ export const batchProjectCleaners: BatchProjectCleaner[] = [];
 
 if (env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true") {
   for (const table of BATCH_DELETION_TABLES) {
+    if (
+      !isTopicsEnabled() &&
+      (table === "topic_facet_summaries" ||
+        table === "topic_assignments" ||
+        table === "topics")
+    ) {
+      continue;
+    }
     // Only start the events table cleaners when V4 write mode targets events_full.
     if (
       (table !== "events_full" && table !== "events_core") ||

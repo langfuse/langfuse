@@ -57,6 +57,36 @@
 
 ## Export Entry Points
 
+- `@langfuse/shared/topics`: client-safe Topics contracts.
+- `@langfuse/shared/topics/server`: Topics persistence, queue handoff and execution
+  progress. See `../../worker/src/features/topics/README.md` for storage and retry
+  invariants before changing this module.
+  - `postgres.ts`: facets/rules and clustering runs. Runs reference immutable
+    ClickHouse definitions; reused definitions retain their original creation run.
+  - `clickhouse.ts`: current summaries/assignments and immutable definitions.
+    Source identity prefers `traceId`; `sessionId` may carry parent context.
+    Facet versions use `(projectId, facetId, version)`. Timestamp replacement
+    excludes mutable source metadata and start time from identity.
+  - `journal.ts`: one BatchAction per request, compact counters and run references.
+    Trace inputs and paid outputs belong outside the journal.
+  - `embedding-queue.ts`: Redis staging with a fixed expiry; retain accepted
+    payloads through assignment and save terminal job state before cleanup.
+    Summary references carry facet/version/source fields within project and
+    execution scope; exact storage reads also require facet/version scope.
+  - `text.ts` and `embeddings.ts`: Bedrock model transport using the shared AI SDK;
+    worker model calls own usage, cost and vector validation.
+  - `loadTopicTranscript`: shared in-memory source assembly for worker and inspector.
+    Returns the shared `Transcript | null`, capped at 10,000 serialized characters.
+    Historical reuse must match `TOPICS_TRANSCRIPT_VERSION`; accepted Redis results
+    retain their original version. Token counting belongs to worker model calls.
+  - `LANGFUSE_TOPICS_ENABLED` defaults to false and gates deployment availability,
+    including cleanup. Processing also requires `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`
+    (empty by default); reads/configuration remain feature-flag/RBAC controlled.
+
+- `src/server/transcript`: `assembleTranscript` accepts minimal
+  `TranscriptObservation` inputs and `{ maxCharacters?, onTimings? }` options.
+  The optional cap bounds `JSON.stringify(result).length`; see its README.
+
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt
   helpers, eval/model-pricing helpers, product path builders, and other
@@ -125,10 +155,15 @@ the same PR.
 - Dev watch build: `pnpm --filter @langfuse/shared run dev`
 - Lint: `pnpm --filter @langfuse/shared run lint`
 - Lint fix: `pnpm --filter @langfuse/shared run lint:fix`
+- Tests: `pnpm --filter @langfuse/shared run test`; Topics queue integration
+  coverage requires Redis configured through the shared environment.
 - Typecheck: `pnpm --filter @langfuse/shared run typecheck`
 - Build: `pnpm --filter @langfuse/shared run build`
 - Prisma generate: `pnpm --filter @langfuse/shared run db:generate`
 - Prisma migrate (dev): `pnpm --filter @langfuse/shared run db:migrate`
+- Topics table preflight: `pnpm run topics:dev-tables`; add `--apply` to create.
+  For deployment targeting and external-table ownership, see
+  `scripts/topics-dev-tables/README.md`.
 - ClickHouse reset: `pnpm --filter @langfuse/shared run ch:reset`
 - Materialize direct-migration trees: `pnpm ch:migrations:materialize`
 - Clean direct-migration trees: `pnpm ch:migrations:clean`
@@ -138,7 +173,9 @@ the same PR.
 ### Postgres schema change
 
 1. Update `prisma/schema.prisma`.
-2. Add migration in `prisma/migrations/*`.
+2. Add migration in `prisma/migrations/*`. Topics tables are externally managed
+   in `prisma.config.ts`; update their provisioning SQL and plan explicit upgrades
+   instead of generating migrations for them.
 3. Regenerate client/types via `db:generate`.
 4. Update affected repository/query code under `src/server/repositories/*`.
 5. Add/adjust `web` and/or `worker` tests for changed behavior.

@@ -7,6 +7,8 @@ import { CloudFreeTierUsageThresholdQueue } from "./cloudFreeTierUsageThresholdQ
 import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
 import { ExperimentCreateQueue } from "./experimentCreateQueue";
 import { TraceDeleteQueue } from "./traceDelete";
+import { TopicsQueue, TopicsUpdateQueue } from "../topics/queue";
+import { TopicsEmbeddingQueue } from "../topics/embedding-queue";
 import { TraceBatchQueue } from "./traceBatch";
 import { ProjectDeleteQueue } from "./projectDelete";
 import { PostHogIntegrationQueue } from "./postHogIntegrationQueue";
@@ -49,6 +51,12 @@ export function getQueue(
   >,
 ): Queue | null {
   switch (queueName) {
+    case QueueName.Topics:
+      return TopicsQueue.getInstance();
+    case QueueName.TopicsUpdate:
+      return TopicsUpdateQueue.getInstance();
+    case QueueName.TopicsEmbedding:
+      return TopicsEmbeddingQueue.getInstance();
     case QueueName.TraceBatch:
       return TraceBatchQueue.getInstance();
     case QueueName.BatchExport:

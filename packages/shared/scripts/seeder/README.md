@@ -62,6 +62,31 @@ Scenarios compose: e.g. a session where one trace has zero observations is
 two `long-session` runs sharing a `--session-id` with different
 `--id-prefix` values.
 
+## Topics
+
+After [local setup](../topics-dev-tables/README.md#local-development), seed either fixture:
+
+```bash
+pnpm run seed -- topics
+pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42
+```
+
+The default batch creates 12 discovery traces across three themes and three
+assignment traces (two familiar themes and one new theme), with v4 events enabled
+by default. `--batch discovery` seeds IDs `-t00` through `-t11`;
+`--batch assignment` seeds `-t12` through `-t14`. Process the `discovery` tag,
+choose **Update topics** with **Small sample mode**, then process the
+held-out `assignment` tag after publishing a map.
+
+The evaluation batch creates 100 traces (`-e00` through `-e99`) with five intent
+themes and cross-cutting tool outcomes: 20 each of timeout, denied access,
+invalid JSON, empty results, and success. Each trace has a generation and a
+child tool. Intent has 100 applicable traces; Issues has 80 and needs **Small
+sample mode** with the default minimum-count settings.
+
+Seeding makes no model calls. Theme/outcome labels remain outside trace metadata
+and I/O.
+
 ## The contract (additive-only)
 
 Scenario names, flag names, JSON summary keys, and exit-code semantics are a

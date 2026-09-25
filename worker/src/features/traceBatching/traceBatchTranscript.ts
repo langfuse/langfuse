@@ -312,8 +312,10 @@ export function recordTraceBatchTranscript(
     const startedAt = performance.now();
     let phaseTimings = { normalizationMs: 0, matchingMs: 0 };
     const orderedObservations = orderObservations(observations);
-    const transcript = assembleTranscript(orderedObservations, (timings) => {
-      phaseTimings = timings;
+    const transcript = assembleTranscript(orderedObservations, {
+      onTimings: (timings) => {
+        phaseTimings = timings;
+      },
     });
     const assemblyDurationMs = performance.now() - startedAt;
     recordDistribution(

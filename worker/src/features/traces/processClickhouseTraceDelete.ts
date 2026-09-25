@@ -1,16 +1,66 @@
 import {
+  commandClickhouse,
   deleteEventsByTraceIds,
   deleteObservationsByTraceIds,
   deleteScoresByTraceIds,
   deleteTraces,
   getS3MediaStorageClient,
   logger,
+  queryClickhouse,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces,
   traceException,
 } from "@langfuse/shared/src/server";
 import { env, v4WritesToEventsTable } from "../../env";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { isTopicsEnabled } from "@langfuse/shared/topics/server";
 import { chunk } from "lodash";
+
+const deleteTopicResultsForTraces = async (
+  projectId: string,
+  traceIds: string[],
+): Promise<void> => {
+  if (!isTopicsEnabled() || !traceIds.length) return;
+
+  await Promise.all(
+    ["topic_facet_summaries", "topic_assignments"].map(async (table) => {
+      const params = { projectId, traceIds };
+      const clickhouseConfigs = {
+        request_timeout: sharedEnv.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+      };
+      const [bounds] = await queryClickhouse<{
+        min_timestamp: string;
+        max_timestamp: string;
+        count: string;
+      }>({
+        query: `SELECT min(unit_start_time) AS min_timestamp,
+            max(unit_start_time) AS max_timestamp, count() AS count
+          FROM ${table}
+          WHERE project_id = {projectId: String}
+            AND trace_id IN ({traceIds: Array(String)})`,
+        params,
+        clickhouseConfigs,
+        tags: { projectId },
+      });
+      if (Number(bounds?.count ?? 0) === 0) return;
+
+      await commandClickhouse({
+        query: `DELETE FROM ${table}
+          WHERE project_id = {projectId: String}
+            AND trace_id IN ({traceIds: Array(String)})
+            AND unit_start_time >= {minTimestamp: DateTime64(3)}
+            AND unit_start_time <= {maxTimestamp: DateTime64(3)}`,
+        params: {
+          ...params,
+          minTimestamp: bounds.min_timestamp,
+          maxTimestamp: bounds.max_timestamp,
+        },
+        clickhouseConfigs,
+        tags: { projectId },
+      });
+    }),
+  );
+};
 
 const deleteMediaItemsForTraces = async (
   projectId: string,
@@ -185,6 +235,7 @@ export const processClickhouseTraceDelete = async (
       deleteTraces(projectId, traceIds),
       deleteObservationsByTraceIds(projectId, traceIds),
       deleteScoresByTraceIds(projectId, traceIds),
+      deleteTopicResultsForTraces(projectId, traceIds),
       v4WritesToEventsTable(env)
         ? deleteEventsByTraceIds(projectId, traceIds)
         : Promise.resolve(),

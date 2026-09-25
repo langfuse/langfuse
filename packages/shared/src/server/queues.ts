@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { TopicProcessBatchState } from "../topics";
 import { eventTypes } from "./ingestion/types";
 import {
   ActionId,
@@ -404,6 +405,9 @@ export const RetryBaggage = z.object({
 export type RetryBaggage = z.infer<typeof RetryBaggage>;
 
 export enum QueueName {
+  Topics = "topics",
+  TopicsUpdate = "topics-update",
+  TopicsEmbedding = "topics-embedding",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
@@ -447,6 +451,8 @@ export enum QueueName {
 }
 
 export enum QueueJobs {
+  Topics = "topics",
+  TopicsEmbedding = "topics-embedding",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
@@ -494,6 +500,21 @@ export const TraceBatchTraceSchema = z.object({
   revision: z.string(),
 });
 
+export const TopicEmbeddingBatchSchema = z.object({
+  projectId: z.string().min(1),
+  executionId: z.string().min(1),
+  batchId: z.string().min(1),
+  summaries: z
+    .array(
+      z.object({
+        facetId: z.string().min(1),
+        facetVersion: z.number().int().positive(),
+        traceId: z.string().min(1),
+      }),
+    )
+    .min(1),
+});
+
 export const TraceBatchEventSchema = z.object({
   timestamp: z.coerce.date(),
   id: z.string(),
@@ -516,6 +537,25 @@ export const TraceBatchEventSchema = z.object({
 });
 
 export type TQueueJobTypes = {
+  [QueueName.Topics]: {
+    timestamp: Date;
+    id: string;
+    name: QueueJobs.Topics;
+    payload: {
+      projectId: string;
+      executionId: string;
+      traceIds?: string[];
+      batchId?: string;
+    };
+    batchState?: TopicProcessBatchState;
+  };
+  [QueueName.TopicsUpdate]: TQueueJobTypes[QueueName.Topics];
+  [QueueName.TopicsEmbedding]: {
+    timestamp: Date;
+    id: string;
+    name: QueueJobs.TopicsEmbedding;
+    payload: z.infer<typeof TopicEmbeddingBatchSchema>;
+  };
   [QueueName.TraceBatch]: z.infer<typeof TraceBatchEventSchema>;
   [QueueName.TraceUpsert]: {
     timestamp: Date;

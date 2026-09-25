@@ -314,6 +314,7 @@ const EnvSchema = z.object({
   // so local developer credentials win when both are configured.
   AWS_PROFILE: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
+  LANGFUSE_TOPICS_AWS_PROFILE: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
     .enum(["dangerous-docker", "lambda-microvm"])
     .optional(),

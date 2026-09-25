@@ -169,7 +169,7 @@ export function SingleSelect({
       </PopoverTrigger>
       <PopoverContent
         className={cn(
-          "max-w-[calc(100vw-2rem)] p-0",
+          "ph-no-capture max-w-[calc(100vw-2rem)] p-0",
           showOptionValue ? "w-[400px]" : "w-[200px]",
         )}
         align="start"

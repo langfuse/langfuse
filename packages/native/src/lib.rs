@@ -12,6 +12,9 @@ pub mod native_codec;
 #[allow(dead_code)]
 pub(crate) mod native_schema;
 mod telemetry;
+mod topics;
+
+pub use topics::{cluster_topic_embeddings, TopicClusteringResult, TopicClusteringSettings};
 
 use std::time::Duration;
 

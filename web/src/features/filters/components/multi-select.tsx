@@ -215,7 +215,7 @@ export function MultiSelect({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0" align="center">
+      <PopoverContent className="ph-no-capture w-[200px] p-0" align="center">
         <InputCommand>
           <InputCommandInput
             placeholder={title}

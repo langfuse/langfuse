@@ -1,9 +1,13 @@
-import type { Observation } from "../../domain";
 import type { NormalizedMessage } from "../../utils/normalized-io";
-import type { Thread, ThreadMessage, Turn } from "./types";
+import type {
+  Thread,
+  ThreadMessage,
+  Turn,
+  TranscriptObservation as InputObservation,
+} from "./types";
 import type { createToolCallRegistry } from "./tool-calls";
 
-export type TranscriptObservation = Observation & { traceId: string };
+export type TranscriptObservation = InputObservation & { traceId: string };
 
 export type KeyedMessage = {
   message: NormalizedMessage;
