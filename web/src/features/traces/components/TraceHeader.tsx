@@ -49,7 +49,7 @@ export function TraceHeader() {
         traceContext === "fullscreen" ? "pt-0 pb-1.5" : "py-2",
       )}
     >
-      <div className="flex flex-wrap items-center gap-6">
+      <div className="flex flex-wrap items-center gap-4">
         <LatencyBadge latencySeconds={trace.latency ?? null} />
         {aggregatedMetrics.totalCost != null &&
           aggregatedMetrics.costDetails && (
