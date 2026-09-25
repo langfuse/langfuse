@@ -64,6 +64,8 @@ import {
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
+import { prepareNativeEvent } from "./prepareNativeEvent";
+import { env } from "../../env";
 import {
   convertJsonSchemaToRecord,
   convertPostgresJsonToMetadataRecord,
@@ -143,6 +145,8 @@ type PricingTierMatchAttributeValues = {
   metadata?: unknown;
 };
 
+const NATIVE_PREPARATION_SLICE_MS = 5;
+
 /**
  * Returns a new event record whose `event_bytes` value is the UTF-8 size of
  * the final JSONEachRow payload, excluding the self-referential accounting
@@ -212,6 +216,10 @@ const immutableEntityKeys: {
 
 export class IngestionService {
   private promptService: PromptService;
+  // Queue processors construct one service per job, so Native preparation must
+  // share a single process-wide budget across those concurrent jobs.
+  private static nativePreparationTail: Promise<void> = Promise.resolve();
+  private static nativePreparationSliceStartedAt: number | undefined;
 
   constructor(
     private redis: Redis | Cluster,
@@ -506,12 +514,50 @@ export class IngestionService {
   public async writeEventRecord(
     eventRecord: EventRecordInsertType,
   ): Promise<number> {
-    const persistedRecord = withSerializedEventByteLength(
-      await applyObservationFieldOverflow(eventRecord),
-    );
+    const overflowedRecord = await applyObservationFieldOverflow(eventRecord);
 
+    if (env.LANGFUSE_NATIVE_CLICKHOUSE_ENCODING_ENABLED === "true") {
+      return this.enqueueNativeEventRecord(overflowedRecord);
+    }
+
+    const persistedRecord = withSerializedEventByteLength(overflowedRecord);
     this.clickHouseWriter.addToQueue(TableName.EventsFull, persistedRecord);
     return persistedRecord.event_bytes;
+  }
+
+  private enqueueNativeEventRecord(
+    eventRecord: EventRecordInsertType,
+  ): Promise<number> {
+    const write = IngestionService.nativePreparationTail.then(async () => {
+      if (
+        IngestionService.nativePreparationSliceStartedAt !== undefined &&
+        performance.now() - IngestionService.nativePreparationSliceStartedAt >=
+          NATIVE_PREPARATION_SLICE_MS
+      ) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        IngestionService.nativePreparationSliceStartedAt = performance.now();
+      }
+      if (IngestionService.nativePreparationSliceStartedAt === undefined) {
+        IngestionService.nativePreparationSliceStartedAt = performance.now();
+      }
+
+      // Keep accounting next to Native preparation so concurrent callers cannot
+      // all resume after a yield and start another unbounded synchronous burst.
+      const persistedRecord = withSerializedEventByteLength(eventRecord);
+      const preparedEvent = prepareNativeEvent(persistedRecord);
+      ClickhouseWriter.getNativeInstance().addToQueue(
+        TableName.EventsFull,
+        preparedEvent,
+      );
+      return persistedRecord.event_bytes;
+    });
+
+    IngestionService.nativePreparationTail = write.then(
+      () => undefined,
+      () => undefined,
+    );
+
+    return write;
   }
 
   private async processDatasetRunItemEventList(params: {
