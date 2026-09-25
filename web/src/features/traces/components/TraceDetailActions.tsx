@@ -1,38 +1,23 @@
-import {
-  Download,
-  Globe,
-  Link,
-  Loader2,
-  MoreVertical,
-  Share2,
-  TrashIcon,
-} from "lucide-react";
+import { Download, Loader2, MoreVertical, TrashIcon } from "lucide-react";
 
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
+import {
+  HeaderActionMenuRow,
+  HeaderActionMenuRows,
+} from "@/src/components/HeaderActionMenuRow";
 import {
   DropdownMenu,
   type DropdownMenuItemDefinition,
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import {
-  getShareUrl,
-  usePublishTrace,
-} from "@/src/components/publish-object-switch";
-import { Button } from "@/src/components/ui/button";
+import { useShareMenuItems } from "@/src/components/useShareMenuItems";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { DeleteTraceDialogController } from "@/src/features/traces/components/DeleteTraceDialogController";
 import { useDownloadTraceAsJson } from "@/src/features/traces/hooks/useDownloadTraceAsJson";
 import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
-import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { cn } from "@/src/utils/tailwind";
 
 type TraceDetailData = NonNullable<
   ReturnType<typeof useTraceDetailData>["data"]
 >;
-
-type MenuItem = Extract<DropdownMenuItemDefinition, { type: "item" }>;
-
-const isMenuItem = (item: DropdownMenuItemDefinition): item is MenuItem =>
-  item.type === "item";
 
 /**
  * Trace-level header actions shared by the peek and the standalone trace page.
@@ -66,9 +51,12 @@ export function TraceDetailActions({
   onAfterDelete?: (deletedTraceId: string) => void;
   layout?: "toolbar" | "menu";
 }) {
-  const publish = usePublishTrace({
-    traceId: trace.id,
+  const shareItems = useShareMenuItems({
+    kind: "trace",
     projectId: trace.projectId,
+    objectId: trace.id,
+    isPublic: trace.public,
+    shareUrl,
     timestamp,
   });
   const [handleDownload, isDownloading] = useDownloadTraceAsJson({
@@ -76,50 +64,6 @@ export function TraceDetailActions({
     observations: trace.observations,
     traceContext,
   });
-
-  let shareDisabled: { reason: string } | undefined;
-  if (!publish.hasAccess) {
-    shareDisabled = {
-      reason: "You don't have permission to share this trace.",
-    };
-  } else if (publish.isPending) {
-    shareDisabled = { reason: "Updating sharing status." };
-  }
-
-  const shareItems: DropdownMenuItemDefinition[] = trace.public
-    ? [
-        {
-          type: "item",
-          id: "copy-share-link",
-          title: "Copy share link",
-          icon: Link,
-          onClick: () => {
-            copyTextToClipboard(getShareUrl(shareUrl));
-          },
-        },
-        {
-          type: "item",
-          id: "unshare",
-          title: "Unshare (make private)",
-          icon: Globe,
-          disabled: shareDisabled,
-          onClick: () => {
-            publish.toggle(false).catch(() => undefined);
-          },
-        },
-      ]
-    : [
-        {
-          type: "item",
-          id: "share",
-          title: "Share (make public)",
-          icon: Share2,
-          disabled: shareDisabled,
-          onClick: () => {
-            publish.toggle(true).catch(() => undefined);
-          },
-        },
-      ];
 
   const idItems = [
     { id: trace.id, name: "trace ID" },
@@ -163,37 +107,13 @@ export function TraceDetailActions({
             if (layout === "menu") {
               return (
                 <div className="flex w-full flex-col gap-0.5">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-start gap-2 font-normal"
+                  <HeaderActionMenuRow
+                    label="Download JSON"
+                    icon={downloadIcon}
                     disabled={isDownloading}
                     onClick={() => handleDownload()}
-                  >
-                    {downloadIcon}
-                    Download JSON
-                  </Button>
-                  {items.filter(isMenuItem).map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <Button
-                        key={item.id}
-                        variant="ghost"
-                        size="sm"
-                        className={cn(
-                          "w-full justify-start gap-2 font-normal",
-                          item.variant === "destructive" &&
-                            "text-destructive hover:text-destructive",
-                        )}
-                        disabled={item.disabled !== undefined}
-                        title={item.disabled?.reason}
-                        onClick={item.onClick}
-                      >
-                        {Icon && <Icon className="h-4 w-4" />}
-                        {item.title}
-                      </Button>
-                    );
-                  })}
+                  />
+                  <HeaderActionMenuRows items={items} />
                 </div>
               );
             }

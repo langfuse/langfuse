@@ -43,7 +43,6 @@ import {
   LockIcon,
   MessageSquare,
   MessageSquareOff,
-  MoreVertical,
   Plus,
   SquarePen,
 } from "lucide-react";
@@ -114,8 +113,7 @@ import { SessionDetailStoreProvider } from "@/src/features/sessions/SessionDetai
 import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/features/sessions/sessionDetailStore";
 import { ModernSession } from "@/src/features/sessions/ModernSession";
-import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
-import { HeaderActionButton } from "@/src/components/HeaderActionButton";
+import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
 import { ConnectedSessionAddToDropdownMenuController } from "@/src/features/sessions/ConnectedSessionAddToDropdownMenuController";
 import { useIsFeatureEnabled } from "@/src/features/feature-flags";
@@ -1854,14 +1852,7 @@ const LoadedSessionEventsPage: React.FC<{
                             setShowSystemPromptForSession,
                         }
                       : {})}
-                  >
-                    <DropdownMenuTrigger asChild>
-                      <HeaderActionButton
-                        label="Session actions"
-                        icon={<MoreVertical className="h-4 w-4" />}
-                      />
-                    </DropdownMenuTrigger>
-                  </ModernSessionHeaderActionsController>
+                  />
                 )}
               </>
             ),
@@ -1870,62 +1861,64 @@ const LoadedSessionEventsPage: React.FC<{
             // inline icon toolbar. Session-to-session nav stays desktop-only.
             actionButtonsMenu: ({ closeMenu }) => (
               <>
-                <PublishSessionSwitch
+                <ModernSessionHeaderActionsController
                   projectId={projectId}
                   sessionId={sessionId}
                   isPublic={session.public}
-                  label="Share"
+                  layout="menu"
                 />
-                <CopySessionIdButton sessionId={sessionId} layout="menu" />
                 <CommentDrawerController
                   projectId={projectId}
                   count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
                 >
-                  {({ disabled, openDrawer }) => (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      disabled={disabled}
-                      onClick={() => {
-                        closeMenu({ handoffFocus: true });
-                        openDrawer({
-                          type: "comments",
-                          objectId: sessionId,
-                          objectType: "SESSION",
-                        });
-                      }}
-                      className="w-full justify-start gap-2 font-normal"
-                    >
-                      {disabled ? (
-                        <MessageSquareOff className="text-muted-foreground h-4 w-4" />
-                      ) : (
-                        <MessageSquare className="h-4 w-4" />
-                      )}
-                      <span className="text-sm">
-                        {getNumberFromMap(sessionCommentCounts.data, sessionId)
-                          ? "Comments"
-                          : "Comment"}
-                      </span>
-                      {!disabled &&
-                      getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
-                        <ActionButtonCountBadge
-                          count={
-                            getNumberFromMap(
-                              sessionCommentCounts.data,
-                              sessionId,
-                            ) ?? 0
-                          }
-                        />
-                      ) : null}
-                    </Button>
-                  )}
+                  {({ disabled, openDrawer }) => {
+                    const commentCount = getNumberFromMap(
+                      sessionCommentCounts.data,
+                      sessionId,
+                    );
+                    return (
+                      <HeaderActionMenuRow
+                        label={commentCount ? "Comments" : "Comment"}
+                        icon={
+                          disabled ? (
+                            <MessageSquareOff className="h-4 w-4" />
+                          ) : (
+                            <MessageSquare className="h-4 w-4" />
+                          )
+                        }
+                        badge={
+                          !disabled && commentCount ? (
+                            <ActionButtonCountBadge count={commentCount} />
+                          ) : null
+                        }
+                        disabled={disabled}
+                        onClick={() => {
+                          closeMenu({ handoffFocus: true });
+                          openDrawer({
+                            type: "comments",
+                            objectId: sessionId,
+                            objectType: "SESSION",
+                          });
+                        }}
+                      />
+                    );
+                  }}
                 </CommentDrawerController>
-                <Button
-                  variant="ghost"
-                  size="sm"
+                <HeaderActionMenuRow
+                  label="Score"
+                  icon={
+                    annotateDisabled ? (
+                      <LockIcon className="h-4 w-4" />
+                    ) : (
+                      <Plus className="h-4 w-4" />
+                    )
+                  }
+                  badge={
+                    isModernSessionEnabled && annotationCount > 0 ? (
+                      <ActionButtonCountBadge count={annotationCount} />
+                    ) : null
+                  }
                   disabled={annotateDisabled}
-                  className="w-full justify-start gap-2 font-normal"
                   onClick={() => {
                     closeMenu({ handoffFocus: true });
                     openAnnotateRef.current({
@@ -1942,45 +1935,25 @@ const LoadedSessionEventsPage: React.FC<{
                       },
                     });
                   }}
-                >
-                  {annotateDisabled ? (
-                    <LockIcon className="h-3 w-3" />
-                  ) : (
-                    <SquarePen className="h-4 w-4" />
-                  )}
-                  <span className="text-sm">Annotate</span>
-                  {isModernSessionEnabled && annotationCount > 0 ? (
-                    <span className="ml-1">
-                      <ActionButtonCountBadge count={annotationCount} />
-                    </span>
-                  ) : null}
-                </Button>
-                <AnnotationQueueItemDropdownMenuController
+                />
+                <ConnectedSessionAddToDropdownMenuController
                   projectId={projectId}
-                  objectId={sessionId}
-                  objectType="SESSION"
+                  sessionId={sessionId}
                   analyticsData={{ source: "SessionDetail", isV4: true }}
                 >
-                  {({ disabled, totalCount, Trigger }) => (
-                    <Trigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={disabled !== undefined}
-                        className="w-full justify-start gap-2 font-normal"
-                      >
-                        <Plus className="h-4 w-4" />
-                        <span className="text-sm">Add to</span>
-                        {totalCount > 0 && (
-                          <AnnotationQueueItemCountBadge
-                            totalCount={totalCount}
-                            layout="menu"
-                          />
-                        )}
-                      </Button>
-                    </Trigger>
+                  {({ getTriggerProps, totalCount }) => (
+                    <HeaderActionMenuRow
+                      label="Add to"
+                      icon={<Plus className="h-4 w-4" />}
+                      badge={
+                        totalCount > 0 ? (
+                          <ActionButtonCountBadge count={totalCount} />
+                        ) : null
+                      }
+                      {...getTriggerProps()}
+                    />
                   )}
-                </AnnotationQueueItemDropdownMenuController>
+                </ConnectedSessionAddToDropdownMenuController>
                 {webCalloutAction && (
                   <WebCalloutButton action={webCalloutAction} layout="menu" />
                 )}
