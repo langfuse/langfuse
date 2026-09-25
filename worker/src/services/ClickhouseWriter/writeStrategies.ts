@@ -85,22 +85,18 @@ export function createNativeWriteStrategy(): ClickhouseWriteStrategy<PreparedEve
       // Successful Native INSERTs return no body. Drain fully, but keep only a short excerpt so
       // ClickHouse exceptions returned with HTTP 200 still reach the writer's retry/requeue path.
       let responseExcerpt = "";
-      for await (const chunk of response.stream) {
+      // Decode across chunk boundaries so split UTF-8 characters remain intact.
+      for await (const chunk of response.stream.setEncoding("utf8")) {
         const remainingLength =
           MAX_NATIVE_RESPONSE_EXCERPT_LENGTH - responseExcerpt.length;
         if (remainingLength <= 0) continue;
 
-        if (typeof chunk === "string") {
-          responseExcerpt += chunk.slice(0, remainingLength);
-          continue;
-        }
-
-        if (!Buffer.isBuffer(chunk)) {
+        if (typeof chunk !== "string") {
           throw new Error(
-            "ClickHouse Native response contained a non-byte chunk",
+            "ClickHouse Native response contained a non-text chunk",
           );
         }
-        responseExcerpt += chunk.subarray(0, remainingLength).toString("utf8");
+        responseExcerpt += chunk.slice(0, remainingLength);
       }
 
       if (responseExcerpt.length > 0) {

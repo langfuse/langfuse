@@ -291,10 +291,15 @@ describe("ClickhouseWriter", () => {
 
   it("requeues Native rows when ClickHouse returns exception text", async () => {
     const event = preparedEvent("event-1");
-    const exceptionText = "Code: 60. DB::Exception: Table doesn't exist";
+    const exceptionText = "Code: 60. DB::Exception: Table '表🔥' doesn't exist";
+    const responseBytes = Buffer.from(`${exceptionText}${"x".repeat(10_000)}`);
+    const splitOffset =
+      Buffer.byteLength("Code: 60. DB::Exception: Table '") + 1;
+    // Split inside both the three-byte character and the four-byte emoji.
     const responseStream = Readable.from([
-      Buffer.from(exceptionText.slice(0, 12)),
-      Buffer.from(`${exceptionText.slice(12)}${"x".repeat(10_000)}`),
+      responseBytes.subarray(0, splitOffset),
+      responseBytes.subarray(splitOffset, splitOffset + 3),
+      responseBytes.subarray(splitOffset + 3),
     ]);
     vi.spyOn(clickhouseClientMock, "exec").mockResolvedValue({
       stream: responseStream,
