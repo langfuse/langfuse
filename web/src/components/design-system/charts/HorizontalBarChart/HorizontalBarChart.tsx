@@ -88,18 +88,25 @@ export function HorizontalBarChart({
 
         return (
           <ChartTooltip>
-            {({ activeIndex, getReferenceProps }) => (
+            {({ activeIndex, hideTooltip, getReferenceProps }) => (
               <div
                 className="size-full overflow-x-hidden overflow-y-auto"
                 data-testid="top-list-chart"
               >
                 <svg
+                  onPointerLeave={hideTooltip}
                   width={width}
                   height={contentHeight}
                   role="group"
                   aria-label="Horizontal bar chart"
                   className="block"
                 >
+                  <rect
+                    width={width}
+                    height={contentHeight}
+                    fill="transparent"
+                    aria-hidden="true"
+                  />
                   <g aria-hidden="true">
                     {visibleTicks.map((tick) => {
                       const x = left + scale(tick) * plotWidth;
@@ -167,13 +174,14 @@ export function HorizontalBarChart({
                       hint: "Click or press Enter to copy label",
                       copyLabel: datum.label,
                     };
-                    const { onPointerLeave, ...referenceProps } =
-                      getReferenceProps(tooltipData);
+                    const {
+                      onPointerLeave: _onPointerLeave,
+                      ...referenceProps
+                    } = getReferenceProps(tooltipData);
 
                     return (
                       <g
                         key={`${datum.label}-${index}`}
-                        onPointerLeave={onPointerLeave}
                         ref={(row) => {
                           if (!row) return;
                           const label =
@@ -247,8 +255,7 @@ export function HorizontalBarChart({
                           tabIndex={0}
                           aria-label={`${datum.label}: ${formattedValue}`}
                           className="outline-hidden focus-visible:outline-2 focus-visible:outline-offset-2"
-                          {...getReferenceProps(tooltipData)}
-                          onPointerLeave={undefined}
+                          {...referenceProps}
                         />
                         <text
                           data-row-label=""

@@ -46,6 +46,53 @@ export const HoverTransition = meta.story({
   },
 });
 
+export const HoverAcrossRowGap = meta.story({
+  name: "(Test) Hover Across Row Gap",
+  play: async ({ canvasElement }) => {
+    const bars =
+      canvasElement.querySelectorAll<SVGRectElement>("[data-bar-fill]");
+    const first = bars[0];
+    const second = bars[1];
+    const svg = canvasElement.querySelector<SVGSVGElement>(
+      "svg[aria-label='Horizontal bar chart']",
+    );
+    if (!first || !second || !svg) throw new Error("Chart bars not found");
+    const hoverArea = first.parentElement?.querySelector<SVGRectElement>(
+      'rect[fill="transparent"][aria-hidden="true"]',
+    );
+    if (!hoverArea) throw new Error("Hover area not found");
+    await userEvent.hover(hoverArea);
+    const firstBounds = first.getBoundingClientRect();
+    const secondBounds = second.getBoundingClientRect();
+    const gapTarget = canvasElement.ownerDocument.elementFromPoint(
+      firstBounds.left + 20,
+      (firstBounds.bottom + secondBounds.top) / 2,
+    );
+    if (!gapTarget || !svg.contains(gapTarget)) {
+      throw new Error("Gap is not part of the chart hit area");
+    }
+    await userEvent.hover(gapTarget);
+    await expect(second).toHaveAttribute(
+      "fill",
+      expect.stringContaining("20%"),
+    );
+    await expect(
+      within(canvasElement.ownerDocument.body).getByRole("tooltip"),
+    ).toHaveTextContent("Alpha");
+    const secondHoverArea = second.parentElement?.querySelector<SVGRectElement>(
+      'rect[fill="transparent"][aria-hidden="true"]',
+    );
+    if (!secondHoverArea) throw new Error("Second hover area not found");
+    await userEvent.hover(secondHoverArea);
+    await expect(first).toHaveAttribute("fill", expect.stringContaining("20%"));
+    await userEvent.unhover(secondHoverArea);
+    await expect(first).not.toHaveAttribute(
+      "fill",
+      expect.stringContaining("20%"),
+    );
+  },
+});
+
 export const FillsAvailableHeight = meta.story({
   name: "(Test) Fills Available Height",
   play: async ({ canvasElement }) => {

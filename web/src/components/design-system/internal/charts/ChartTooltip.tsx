@@ -73,6 +73,7 @@ export function ChartTooltip({
 }: {
   children: (controller: {
     activeIndex: number | undefined;
+    hideTooltip: () => void;
     getReferenceProps: (data: TooltipData) => {
       onPointerEnter: (event: PointerEvent<SVGElement | HTMLElement>) => void;
       onPointerMove: (event: PointerEvent<SVGElement | HTMLElement>) => void;
@@ -254,6 +255,7 @@ export function ChartTooltip({
     <>
       {children({
         activeIndex: activeTooltip?.index,
+        hideTooltip: () => setActiveTooltip(undefined),
         getReferenceProps,
       })}
       {activeTooltip ? (
