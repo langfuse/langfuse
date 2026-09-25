@@ -185,10 +185,6 @@ export const ManyCategories = meta.story({
   },
 });
 
-export const SubtleFill = meta.story({
-  args: { variant: "subtle" },
-});
-
 export const LongLabels = meta.story({
   name: "(Test) Long Labels",
   args: {

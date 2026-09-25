@@ -40,7 +40,7 @@ export function AreaChartTimeSeries({
   missingValue = "gap",
   connectNulls = false,
   hideXAxisLabels = false,
-}: Omit<ChartProps, "subtleFill">) {
+}: ChartProps) {
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
   const groupedData = useMemo(
     () =>

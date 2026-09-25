@@ -26,7 +26,6 @@ export type SingleBarChartCoreProps = {
   data: BarChartDatum[];
   valueFormatter?: (value: number) => string;
   color?: string;
-  variant?: "default" | "subtle";
   hideXAxisLabels?: boolean;
   zeroBaseline?: boolean;
   ariaLabel?: string;
@@ -67,7 +66,6 @@ function SingleBarChart({
   data,
   valueFormatter = (value) => value.toLocaleString(),
   color = "hsl(var(--chart-1))",
-  variant = "default",
   hideXAxisLabels = false,
   zeroBaseline = true,
   ariaLabel = "Bar chart",
@@ -208,16 +206,10 @@ function SingleBarChart({
                           const barTop = Math.min(y, baseline);
                           const barHeight = Math.abs(y - baseline);
                           const active = activeIndex === index;
-                          let colorStrength = 100;
-                          if (variant === "subtle") {
-                            colorStrength = active ? 60 : 30;
-                          }
-                          if (activeIndex !== undefined && !active) {
-                            colorStrength =
-                              variant === "subtle"
-                                ? 15
-                                : INACTIVE_CHART_COLOR_STRENGTH;
-                          }
+                          const colorStrength =
+                            activeIndex !== undefined && !active
+                              ? INACTIVE_CHART_COLOR_STRENGTH
+                              : 100;
                           const fill =
                             colorStrength === 100
                               ? barColor

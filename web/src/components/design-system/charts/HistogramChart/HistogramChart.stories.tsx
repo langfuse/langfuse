@@ -38,10 +38,6 @@ export const HistogramBinSpacing = meta.story({
   },
 });
 
-export const SubtleFill = meta.story({
-  args: { variant: "subtle" },
-});
-
 export const ManyBins = meta.story({
   args: {
     data: Array.from({ length: 20 }, (_, index) => ({
