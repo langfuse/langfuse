@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use Langfuse in your research, please cite it using the metadata below."
-title: "Langfuse — Open-Source AI Engineering Platform"
+title: "Langfuse — Open source AI agent evaluations and observability platform"
 type: software
 authors:
   - family-names: Rawert
@@ -25,7 +25,7 @@ keywords:
   - llmops
 preferred-citation:
   type: software
-  title: "Langfuse — Open-Source AI Engineering Platform"
+  title: "Langfuse — Open source AI agent evaluations and observability platform"
   authors:
     - family-names: Rawert
       given-names: Clemens
