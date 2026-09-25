@@ -7,6 +7,7 @@ import { area, line } from "d3-shape";
 import { ChartContainer } from "@/src/components/design-system/charts/ChartContainer";
 import { CartesianChart } from "@/src/components/design-system/internal/charts/CartesianChart";
 import { CartesianLayout } from "@/src/components/design-system/internal/charts/CartesianLayout";
+import { getSpacedLinearAxisTicks } from "@/src/components/design-system/internal/charts/fns/getLinearAxisTicks";
 import { ChartLegend } from "@/src/components/design-system/internal/charts/ChartLegend";
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
 
@@ -492,7 +493,7 @@ function LineChartContent(
     yRangePadding,
   ]);
 
-  const yTicks = yScale.ticks(maxYTicks);
+  const yTicks = getSpacedLinearAxisTicks(yScale, maxYTicks);
   const plot = plotForTicks(yTicks.map(valueFormatter));
   const LEFT_MARGIN = plot.left;
   const TOP_MARGIN = plot.top;

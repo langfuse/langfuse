@@ -13,6 +13,7 @@ import {
 } from "@/src/components/design-system/internal/charts/ChartLegend";
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
 import { createBarBandScale } from "@/src/components/design-system/internal/charts/fns/createBarBandScale";
+import { getSpacedLinearAxisTicks } from "@/src/components/design-system/internal/charts/fns/getLinearAxisTicks";
 import type { LineChartLegend } from "@/src/components/design-system/charts/LineChart/LineChart";
 
 export type BarChartDatum = {
@@ -115,7 +116,7 @@ function SingleBarChart({
                   )
                   .nice(maxYTicks)
                   .range([measuredPlot.top + plotHeight, measuredPlot.top]);
-                const yTicks = yScale.ticks(maxYTicks);
+                const yTicks = getSpacedLinearAxisTicks(yScale, maxYTicks);
                 const plot = plotForTicks(yTicks.map(valueFormatter));
                 const leftMargin = plot.left;
                 const plotWidth = plot.width;
@@ -405,7 +406,7 @@ function MultiSeriesBarChart({
                     measuredPlot.top + measuredPlot.height,
                     measuredPlot.top,
                   ]);
-                const yTicks = y.ticks(maxYTicks);
+                const yTicks = getSpacedLinearAxisTicks(y, maxYTicks);
                 const plot = plotForTicks(yTicks.map(valueFormatter));
                 const x = createBarBandScale(
                   data.length,

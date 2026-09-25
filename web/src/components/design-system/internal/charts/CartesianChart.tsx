@@ -212,6 +212,7 @@ function ChartYAxis({
     return (
       <text
         key={tick}
+        data-y-axis-label=""
         x={left - 8}
         y={y(tick)}
         textAnchor="end"
