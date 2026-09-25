@@ -76,6 +76,16 @@ export const StackingAndTooltip = meta.story({
     await expect(tooltip).toHaveTextContent("API");
     await expect(tooltip).toHaveTextContent("Worker");
     await expect(canvas.getAllByRole("graphics-symbol")).toHaveLength(5);
+    const workerPosition = tooltip.getBoundingClientRect();
+    api.focus();
+    await expect(tooltip.getBoundingClientRect().left).toBeCloseTo(
+      workerPosition.left,
+      0,
+    );
+    await expect(tooltip.getBoundingClientRect().top).toBeCloseTo(
+      workerPosition.top,
+      0,
+    );
   },
 });
 

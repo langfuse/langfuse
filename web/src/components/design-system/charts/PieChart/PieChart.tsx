@@ -194,6 +194,7 @@ function PieChartContent({
                     {...getReferenceProps({
                       type: "primary",
                       index,
+                      anchor: { type: "pointer" },
                       label: slice.data.label,
                       value: `${valueFormatter(slice.data.value)} (${percentageFormatter.format(slice.data.value / totalValue)})`,
                       color,

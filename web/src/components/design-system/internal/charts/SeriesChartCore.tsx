@@ -944,9 +944,14 @@ function LineChartContent(
                     type: "items",
                     index,
                     heading,
-                    focusPoint: {
+                    anchor: {
+                      type:
+                        values.length === 1 ? "point" : "point-with-pointer-y",
                       x: currentX,
-                      y: TOP_MARGIN + plotHeight / 2,
+                      y: yScale(
+                        stackedValues[index]?.get(first.item.id)?.top ??
+                          first.value,
+                      ),
                     },
                     emphasizedItemId:
                       series.find((item) => item.emphasis === "emphasized")
@@ -958,7 +963,8 @@ function LineChartContent(
                     type: "empty",
                     index,
                     heading,
-                    focusPoint: {
+                    anchor: {
+                      type: "point-with-pointer-y",
                       x: currentX,
                       y: TOP_MARGIN + plotHeight / 2,
                     },
@@ -1001,7 +1007,7 @@ function LineChartContent(
                     type: "items",
                     index,
                     heading,
-                    focusPoint: { x: currentX, y: pointY },
+                    anchor: { type: "point", x: currentX, y: pointY },
                     emphasizedItemId: item.id,
                     items: tooltipItems,
                   });

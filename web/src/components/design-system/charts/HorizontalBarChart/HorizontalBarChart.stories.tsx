@@ -24,6 +24,27 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+export const SideTooltip = meta.story({
+  name: "(Test) Side Tooltip",
+  play: async ({ canvasElement }) => {
+    const bar = within(canvasElement).getByRole("graphics-symbol", {
+      name: "Alpha: 12",
+    });
+    bar.focus();
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await waitFor(() => {
+      const barBounds = bar.getBoundingClientRect();
+      const tooltipBounds = tooltip.getBoundingClientRect();
+      expect(
+        tooltipBounds.left >= barBounds.right ||
+          tooltipBounds.right <= barBounds.left,
+      ).toBe(true);
+    });
+  },
+});
+
 export const HoverTransition = meta.story({
   name: "(Test) Hover Transition",
   play: async ({ canvasElement }) => {

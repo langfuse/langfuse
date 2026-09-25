@@ -1,6 +1,13 @@
 import { type ComponentProps } from "react";
 import preview from "../../../../.storybook/preview";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import {
+  expect,
+  fireEvent,
+  spyOn,
+  userEvent,
+  waitFor,
+  within,
+} from "storybook/test";
 
 import { ChartTooltip } from "../internal/charts/ChartTooltip";
 
@@ -49,6 +56,7 @@ async function focusTooltip(canvasElement: HTMLElement) {
 const itemsData: ChartTooltipDemoProps["data"] = {
   type: "items",
   index: 0,
+  anchor: { type: "element" },
   items: [
     { id: "api", label: "API", value: "$18.42", color: "#6366f1" },
     { id: "worker", label: "Worker", value: "$12.08", color: "#06b6d4" },
@@ -87,6 +95,7 @@ export const NoData = meta.story({
     data: {
       type: "empty",
       index: 0,
+      anchor: { type: "element" },
       heading: "September 22, 2026",
     },
   },
@@ -103,6 +112,7 @@ export const WithHeading = meta.story({
     data: {
       type: "items",
       index: 0,
+      anchor: { type: "element" },
       heading: "September 22, 2026",
       items: [
         { id: "api", label: "API", value: "1,240", color: "#6366f1" },
@@ -122,6 +132,7 @@ export const Emphasis = meta.story({
     data: {
       type: "items",
       index: 0,
+      anchor: { type: "element" },
       emphasizedItemId: "emphasized",
       items: [
         {
@@ -159,6 +170,7 @@ export const Primary = meta.story({
     data: {
       type: "primary",
       index: 0,
+      anchor: { type: "element" },
       label: "Claude Sonnet",
       value: "31 (31%)",
       color: "#6366f1",
@@ -180,6 +192,7 @@ export const PrimaryWithDetails = meta.story({
     data: {
       type: "primary",
       index: 0,
+      anchor: { type: "element" },
       heading: "Other",
       label: "Combined slices",
       value: "8 (8%)",
@@ -205,6 +218,7 @@ export const WithCopyHint = meta.story({
     data: {
       type: "primary",
       index: 0,
+      anchor: { type: "element" },
       label: "Alpha",
       value: "12",
       copyLabel: "Alpha",
@@ -251,6 +265,7 @@ export const LongContent = meta.story({
     data: {
       type: "items",
       index: 0,
+      anchor: { type: "element" },
       heading: "A deliberately long heading for a dense chart tooltip",
       items: [
         {
@@ -279,5 +294,84 @@ export const PointerHover = meta.story({
       "tooltip",
     );
     await expect(tooltip).toBeVisible();
+    const bounds = tooltip.getBoundingClientRect();
+    await expect(bounds.left).toBeGreaterThanOrEqual(0);
+    await expect(bounds.right).toBeLessThanOrEqual(window.innerWidth);
+    await expect(bounds.top).toBeGreaterThanOrEqual(0);
+    await expect(bounds.bottom).toBeLessThanOrEqual(window.innerHeight);
+  },
+});
+
+export const OutsideChart = meta.story({
+  name: "(Test) Outside Chart",
+  args: { data: itemsData },
+  decorators: [
+    (Story) => (
+      <div className="mx-auto mt-48 h-60 w-120">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const tooltip = await focusTooltip(canvasElement);
+    const chart = within(canvasElement).getByLabelText("Tooltip story chart");
+    const chartBounds = chart.getBoundingClientRect();
+    const tooltipBounds = tooltip.getBoundingClientRect();
+    await expect(
+      tooltipBounds.bottom <= chartBounds.top ||
+        tooltipBounds.top >= chartBounds.bottom,
+    ).toBe(true);
+  },
+});
+
+export const ValuePointFallback = meta.story({
+  name: "(Test) Value Point Fallback",
+  args: {
+    data: { ...itemsData, anchor: { type: "point", x: 240, y: 40 } },
+  },
+  play: async ({ canvasElement }) => {
+    const tooltip = await focusTooltip(canvasElement);
+    const chart = within(canvasElement).getByLabelText("Tooltip story chart");
+    await expect(tooltip.getBoundingClientRect().top).toBeLessThan(
+      chart.getBoundingClientRect().top +
+        chart.getBoundingClientRect().height / 2,
+    );
+  },
+});
+
+export const PointerYAboveChart = meta.story({
+  name: "(Test) Pointer Y Above Chart",
+  args: {
+    data: {
+      ...itemsData,
+      anchor: { type: "point-with-pointer-y", x: 240, y: 40 },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const trigger = within(canvasElement).getByLabelText("Tooltip trigger");
+    const chart = within(canvasElement).getByLabelText("Tooltip story chart");
+    const chartBounds = chart.getBoundingClientRect();
+    fireEvent.pointerMove(trigger, {
+      clientX: chartBounds.left + chartBounds.width / 2,
+      clientY: chartBounds.top + 120,
+    });
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await waitFor(() => {
+      expect(tooltip.getBoundingClientRect().bottom).toBeLessThan(
+        chartBounds.top + 120,
+      );
+    });
+    const firstTop = tooltip.getBoundingClientRect().top;
+    fireEvent.pointerMove(trigger, {
+      clientX: chartBounds.left + chartBounds.width / 2,
+      clientY: chartBounds.top + 200,
+    });
+    await waitFor(() => {
+      expect(tooltip.getBoundingClientRect().top).toBeGreaterThan(
+        firstTop + 40,
+      );
+    });
   },
 });

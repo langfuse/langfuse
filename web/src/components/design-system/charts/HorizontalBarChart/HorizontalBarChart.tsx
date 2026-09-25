@@ -87,7 +87,7 @@ export function HorizontalBarChart({
         });
 
         return (
-          <ChartTooltip>
+          <ChartTooltip direction="horizontal">
             {({ activeIndex, hideTooltip, getReferenceProps }) => (
               <div
                 className="size-full overflow-x-hidden overflow-y-auto"
@@ -165,6 +165,7 @@ export function HorizontalBarChart({
                       : "hsl(var(--foreground))";
                     const tooltipData = {
                       type: "primary" as const,
+                      anchor: { type: "element" as const },
                       index,
                       label: datum.label,
                       value: formattedValue,

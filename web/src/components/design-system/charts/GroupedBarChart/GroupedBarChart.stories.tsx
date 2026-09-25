@@ -45,6 +45,16 @@ export const SideBySide = meta.story({
     await expect(tooltip).toHaveTextContent("False");
     await expect(tooltip).toHaveTextContent("First");
     await expect(tooltip).toHaveTextContent("Second");
+    const firstPosition = tooltip.getBoundingClientRect();
+    second.focus();
+    await expect(tooltip.getBoundingClientRect().left).toBeCloseTo(
+      firstPosition.left,
+      0,
+    );
+    await expect(tooltip.getBoundingClientRect().top).toBeCloseTo(
+      firstPosition.top,
+      0,
+    );
   },
 });
 

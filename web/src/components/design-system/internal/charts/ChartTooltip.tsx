@@ -6,7 +6,6 @@ import {
   FloatingPortal,
   offset,
   shift,
-  useClientPoint,
   useFloating,
 } from "@floating-ui/react";
 import { Check } from "lucide-react";
@@ -37,7 +36,11 @@ type TooltipData = {
   heading?: string;
   hint?: string;
   copyLabel?: string;
-  focusPoint?: { x: number; y: number };
+  anchor:
+    | { type: "element" }
+    | { type: "point"; x: number; y: number }
+    | { type: "point-with-pointer-y"; x: number; y: number }
+    | { type: "pointer" };
 } & (
   | {
       type: "items";
@@ -70,7 +73,9 @@ type TooltipData = {
 
 export function ChartTooltip({
   children,
+  direction = "vertical",
 }: {
+  direction?: "vertical" | "horizontal";
   children: (controller: {
     activeIndex: number | undefined;
     hideTooltip: () => void;
@@ -90,8 +95,9 @@ export function ChartTooltip({
   const [activeTooltip, setActiveTooltip] = useState<
     TooltipData & {
       reference: SVGElement | HTMLElement;
+      chart: SVGElement | HTMLElement;
       clientPoint?: { x: number; y: number };
-      placement: "left" | "right";
+      placement?: "left" | "right";
     }
   >();
   const [copyFeedback, setCopyFeedback] = useState<{
@@ -124,36 +130,112 @@ export function ChartTooltip({
   }, [activeTooltip, children]);
 
   const layerContainer = useLayerContainer("tooltip");
-  const { context, floatingStyles, refs } = useFloating({
+  const fallbackPlacements: Array<"top" | "bottom" | "left" | "right"> =
+    direction === "horizontal"
+      ? ["left", "top", "bottom"]
+      : ["bottom", "left", "right"];
+  const { floatingStyles, refs } = useFloating({
     elements: { reference: activeTooltip?.reference },
-    placement: activeTooltip?.placement ?? "right",
+    placement:
+      activeTooltip?.placement ??
+      (direction === "horizontal" ? "right" : "top"),
     strategy: "fixed",
-    middleware: [offset(12), flip(), shift({ padding: 8 })],
+    middleware: [
+      offset(({ placement, rects }) => {
+        if (
+          !activeTooltip ||
+          activeTooltip.placement ||
+          activeTooltip.anchor.type === "point-with-pointer-y"
+        ) {
+          return 12;
+        }
+        const chartBounds = activeTooltip.chart.getBoundingClientRect();
+        if (placement === "top") {
+          return rects.reference.y - chartBounds.top + 12;
+        }
+        if (placement === "bottom") {
+          return (
+            chartBounds.bottom -
+            (rects.reference.y + rects.reference.height) +
+            12
+          );
+        }
+        return 12;
+      }),
+      flip({
+        fallbackPlacements: activeTooltip?.placement
+          ? undefined
+          : fallbackPlacements,
+      }),
+      shift({ padding: 8 }),
+    ],
     transform: false,
     whileElementsMounted: autoUpdate,
   });
-  useClientPoint(context, {
-    enabled: activeTooltip?.clientPoint !== undefined,
-    x: activeTooltip?.clientPoint?.x,
-    y: activeTooltip?.clientPoint?.y,
-  });
+  useLayoutEffect(() => {
+    if (!activeTooltip) return;
+    const { clientPoint, reference } = activeTooltip;
+    if (!clientPoint) {
+      refs.setPositionReference(reference);
+      return;
+    }
+    refs.setPositionReference({
+      contextElement: reference,
+      getBoundingClientRect: () =>
+        new DOMRect(clientPoint.x, clientPoint.y, 0, 0),
+    });
+  }, [activeTooltip, refs]);
 
   const getReferenceProps = (data: TooltipData) => {
     const labelToCopy = data.copyLabel;
     const showAtPointer = (event: PointerEvent<SVGElement | HTMLElement>) => {
-      const { clientX, clientY, currentTarget } = event;
-      const chartBounds =
+      const { currentTarget } = event;
+      const chart =
         currentTarget instanceof SVGElement
-          ? currentTarget.ownerSVGElement?.getBoundingClientRect()
-          : currentTarget.parentElement?.getBoundingClientRect();
+          ? (currentTarget.ownerSVGElement ?? currentTarget)
+          : (currentTarget.parentElement ?? currentTarget);
+      const svg =
+        currentTarget instanceof SVGElement
+          ? currentTarget.ownerSVGElement
+          : undefined;
+      const focusPoint = svg?.createSVGPoint();
+      if (
+        focusPoint &&
+        (data.anchor.type === "point" ||
+          data.anchor.type === "point-with-pointer-y")
+      ) {
+        focusPoint.x = data.anchor.x;
+        focusPoint.y = data.anchor.y;
+      }
+      const screenMatrix = svg?.getScreenCTM();
+      const transformedFocusPoint =
+        focusPoint &&
+        (data.anchor.type === "point" ||
+          data.anchor.type === "point-with-pointer-y") &&
+        screenMatrix
+          ? focusPoint.matrixTransform(screenMatrix)
+          : undefined;
+      let clientPoint = transformedFocusPoint
+        ? { x: transformedFocusPoint.x, y: transformedFocusPoint.y }
+        : undefined;
+      let placement: "left" | "right" | undefined;
+      if (data.anchor.type === "pointer") {
+        clientPoint = { x: event.clientX, y: event.clientY };
+        const chartBounds = chart.getBoundingClientRect();
+        placement =
+          event.clientX < chartBounds.left + chartBounds.width / 2
+            ? "left"
+            : "right";
+      }
+      if (data.anchor.type === "point-with-pointer-y" && clientPoint) {
+        clientPoint = { x: clientPoint.x, y: event.clientY };
+      }
       setActiveTooltip({
         ...data,
         reference: currentTarget,
-        clientPoint: { x: clientX, y: clientY },
-        placement:
-          chartBounds && clientX < chartBounds.left + chartBounds.width / 2
-            ? "left"
-            : "right",
+        chart,
+        clientPoint,
+        placement,
       });
     };
 
@@ -162,36 +244,38 @@ export function ChartTooltip({
       onPointerMove: showAtPointer,
       onPointerLeave: () => setActiveTooltip(undefined),
       onFocus: (event: FocusEvent<SVGElement | HTMLElement>) => {
-        const sliceBounds = event.currentTarget.getBoundingClientRect();
+        const chart =
+          event.currentTarget instanceof SVGElement
+            ? (event.currentTarget.ownerSVGElement ?? event.currentTarget)
+            : (event.currentTarget.parentElement ?? event.currentTarget);
         const svg =
           event.currentTarget instanceof SVGElement
             ? event.currentTarget.ownerSVGElement
             : undefined;
-        const chartBounds =
-          svg?.getBoundingClientRect() ??
-          event.currentTarget.parentElement?.getBoundingClientRect();
         const focusPoint = svg?.createSVGPoint();
-        if (focusPoint && data.focusPoint) {
-          focusPoint.x = data.focusPoint.x;
-          focusPoint.y = data.focusPoint.y;
+        if (
+          focusPoint &&
+          (data.anchor.type === "point" ||
+            data.anchor.type === "point-with-pointer-y")
+        ) {
+          focusPoint.x = data.anchor.x;
+          focusPoint.y = data.anchor.y;
         }
         const screenMatrix = svg?.getScreenCTM();
         const transformedFocusPoint =
-          focusPoint && data.focusPoint && screenMatrix
+          focusPoint &&
+          (data.anchor.type === "point" ||
+            data.anchor.type === "point-with-pointer-y") &&
+          screenMatrix
             ? focusPoint.matrixTransform(screenMatrix)
             : undefined;
-        const referenceX =
-          transformedFocusPoint?.x ?? sliceBounds.left + sliceBounds.width / 2;
         setActiveTooltip({
           ...data,
           reference: event.currentTarget,
+          chart,
           clientPoint: transformedFocusPoint
             ? { x: transformedFocusPoint.x, y: transformedFocusPoint.y }
             : undefined,
-          placement:
-            chartBounds && referenceX < chartBounds.left + chartBounds.width / 2
-              ? "left"
-              : "right",
         });
       },
       onBlur: () => setActiveTooltip(undefined),

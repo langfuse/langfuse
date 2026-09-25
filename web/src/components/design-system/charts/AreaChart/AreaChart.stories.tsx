@@ -1,6 +1,6 @@
 import { useState } from "react";
 import preview from "../../../../../.storybook/preview";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import { AreaChart } from "./AreaChart";
 import { type LineChartLegend } from "../LineChart/LineChart";
 import { AreaChartTimeSeries } from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
@@ -152,7 +152,39 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+export const SingleValueAnchor = meta.story({
+  name: "(Test) Single Value Anchor",
+  play: async ({ canvasElement }) => {
+    const hoverArea = canvasElement.querySelector<SVGRectElement>(
+      'rect[fill="transparent"]',
+    );
+    if (!hoverArea) throw new Error("Missing hover area");
+    const chartBounds = hoverArea.ownerSVGElement?.getBoundingClientRect();
+    if (!chartBounds) throw new Error("Chart bounds missing");
+    const clientX = hoverArea.getBoundingClientRect().left + 4;
+    fireEvent.pointerMove(hoverArea, {
+      clientX,
+      clientY: chartBounds.top + 120,
+    });
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await waitFor(() => {
+      expect(tooltip.getBoundingClientRect().top).toBeGreaterThan(0);
+    });
+    const firstTop = tooltip.getBoundingClientRect().top;
+    fireEvent.pointerMove(hoverArea, {
+      clientX,
+      clientY: chartBounds.top + 200,
+    });
+    await waitFor(() => {
+      expect(tooltip.getBoundingClientRect().top).toBeCloseTo(firstTop, 0);
+    });
+  },
+});
+
 export const Intermittent = meta.story({
+  name: "(Test) Intermittent",
   args: { scenario: "gaps" },
   play: async ({ canvasElement }) => {
     const labelsBeforeHover = canvasElement.querySelectorAll(
@@ -166,6 +198,27 @@ export const Intermittent = meta.story({
     const tooltip = within(document.body).getByRole("tooltip");
     await expect(tooltip).toHaveTextContent("No data available");
     await expect(tooltip).toHaveTextContent("Sep 2, 2026");
+    const chartBounds = hoverArea.ownerSVGElement?.getBoundingClientRect();
+    if (!chartBounds) throw new Error("Chart bounds missing");
+    fireEvent.pointerMove(hoverArea, {
+      clientX: hoverArea.getBoundingClientRect().left + 4,
+      clientY: chartBounds.top + 120,
+    });
+    await waitFor(() => {
+      expect(tooltip.getBoundingClientRect().bottom).toBeLessThan(
+        chartBounds.top + 120,
+      );
+    });
+    const firstTop = tooltip.getBoundingClientRect().top;
+    fireEvent.pointerMove(hoverArea, {
+      clientX: hoverArea.getBoundingClientRect().left + 4,
+      clientY: chartBounds.top + 200,
+    });
+    await waitFor(() => {
+      expect(tooltip.getBoundingClientRect().top).toBeGreaterThan(
+        firstTop + 40,
+      );
+    });
     const labels = Array.from(
       canvasElement.querySelectorAll('[data-x-axis-label=""]'),
       (label) => label.textContent,

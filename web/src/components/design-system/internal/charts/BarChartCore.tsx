@@ -231,6 +231,7 @@ function SingleBarChart({
                               : (centerX + nextX + xScale.bandwidth() / 2) / 2;
                           const tooltipData = {
                             type: "primary" as const,
+                            anchor: { type: "element" as const },
                             index,
                             label: tooltipValueLabel ?? datum.label,
                             value: valueFormatter(datum.value ?? 0),
@@ -573,6 +574,23 @@ function MultiSeriesBarChart({
                             type: "items",
                             index,
                             heading: tooltipFormatter(datum.key),
+                            anchor: {
+                              type: "point",
+                              x: left + x.bandwidth() / 2,
+                              y:
+                                layout === "grouped"
+                                  ? Math.min(
+                                      y(0),
+                                      ...visibleSeries.flatMap((item) => {
+                                        const value = datum.values[item.id];
+                                        return typeof value === "number" &&
+                                          Number.isFinite(value)
+                                          ? [y(value)]
+                                          : [];
+                                      }),
+                                    )
+                                  : y(totals[index]?.positive ?? 0),
+                            },
                             items: items.sort(
                               (a, b) =>
                                 (datum.values[b.id] ?? 0) -
