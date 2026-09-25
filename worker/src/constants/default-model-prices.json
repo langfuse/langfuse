@@ -1795,12 +1795,14 @@
           "input": 0.000015,
           "input_cached_tokens": 0.0000075,
           "input_cache_read": 0.0000075,
+          "cache_read_input_tokens": 0.0000075,
           "input_cache_creation": 0.000015,
           "cache_write_tokens": 0.000015,
           "input_cache_write_tokens": 0.000015,
           "output": 0.00006,
           "output_reasoning_tokens": 0.00006,
-          "output_reasoning": 0.00006
+          "output_reasoning": 0.00006,
+          "reasoning_tokens": 0.00006
         }
       }
     ]
@@ -1822,12 +1824,14 @@
           "input": 0.000015,
           "input_cached_tokens": 0.0000075,
           "input_cache_read": 0.0000075,
+          "cache_read_input_tokens": 0.0000075,
           "input_cache_creation": 0.000015,
           "cache_write_tokens": 0.000015,
           "input_cache_write_tokens": 0.000015,
           "output": 0.00006,
           "output_reasoning_tokens": 0.00006,
-          "output_reasoning": 0.00006
+          "output_reasoning": 0.00006,
+          "reasoning_tokens": 0.00006
         }
       }
     ]
@@ -1849,12 +1853,14 @@
           "input": 0.0000011,
           "input_cached_tokens": 5.5e-7,
           "input_cache_read": 5.5e-7,
+          "cache_read_input_tokens": 5.5e-7,
           "input_cache_creation": 0.0000011,
           "cache_write_tokens": 0.0000011,
           "input_cache_write_tokens": 0.0000011,
           "output": 0.0000044,
           "output_reasoning_tokens": 0.0000044,
-          "output_reasoning": 0.0000044
+          "output_reasoning": 0.0000044,
+          "reasoning_tokens": 0.0000044
         }
       }
     ]
@@ -1876,12 +1882,14 @@
           "input": 0.0000011,
           "input_cached_tokens": 5.5e-7,
           "input_cache_read": 5.5e-7,
+          "cache_read_input_tokens": 5.5e-7,
           "input_cache_creation": 0.0000011,
           "cache_write_tokens": 0.0000011,
           "input_cache_write_tokens": 0.0000011,
           "output": 0.0000044,
           "output_reasoning_tokens": 0.0000044,
-          "output_reasoning": 0.0000044
+          "output_reasoning": 0.0000044,
+          "reasoning_tokens": 0.0000044
         }
       }
     ]
@@ -2205,12 +2213,14 @@
           "input": 0.000015,
           "input_cached_tokens": 0.0000075,
           "input_cache_read": 0.0000075,
+          "cache_read_input_tokens": 0.0000075,
           "input_cache_creation": 0.000015,
           "cache_write_tokens": 0.000015,
           "input_cache_write_tokens": 0.000015,
           "output": 0.00006,
           "output_reasoning_tokens": 0.00006,
-          "output_reasoning": 0.00006
+          "output_reasoning": 0.00006,
+          "reasoning_tokens": 0.00006
         }
       }
     ]
@@ -2232,12 +2242,14 @@
           "input": 0.000015,
           "input_cached_tokens": 0.0000075,
           "input_cache_read": 0.0000075,
+          "cache_read_input_tokens": 0.0000075,
           "input_cache_creation": 0.000015,
           "cache_write_tokens": 0.000015,
           "input_cache_write_tokens": 0.000015,
           "output": 0.00006,
           "output_reasoning_tokens": 0.00006,
-          "output_reasoning": 0.00006
+          "output_reasoning": 0.00006,
+          "reasoning_tokens": 0.00006
         }
       }
     ]
@@ -2259,12 +2271,14 @@
           "input": 0.0000011,
           "input_cached_tokens": 5.5e-7,
           "input_cache_read": 5.5e-7,
+          "cache_read_input_tokens": 5.5e-7,
           "input_cache_creation": 0.0000011,
           "cache_write_tokens": 0.0000011,
           "input_cache_write_tokens": 0.0000011,
           "output": 0.0000044,
           "output_reasoning_tokens": 0.0000044,
-          "output_reasoning": 0.0000044
+          "output_reasoning": 0.0000044,
+          "reasoning_tokens": 0.0000044
         }
       }
     ]
@@ -2286,12 +2300,14 @@
           "input": 0.0000011,
           "input_cached_tokens": 5.5e-7,
           "input_cache_read": 5.5e-7,
+          "cache_read_input_tokens": 5.5e-7,
           "input_cache_creation": 0.0000011,
           "cache_write_tokens": 0.0000011,
           "input_cache_write_tokens": 0.0000011,
           "output": 0.0000044,
           "output_reasoning_tokens": 0.0000044,
-          "output_reasoning": 0.0000044
+          "output_reasoning": 0.0000044,
+          "reasoning_tokens": 0.0000044
         }
       }
     ]
@@ -2414,6 +2430,7 @@
           "input_cached_tokens": 0.0000375,
           "input_cached_text_tokens": 0.0000375,
           "input_cache_read": 0.0000375,
+          "cache_read_input_tokens": 0.0000375,
           "input_cache_creation": 0.000075,
           "cache_write_tokens": 0.000075,
           "input_cache_write_tokens": 0.000075,
@@ -2440,6 +2457,7 @@
           "input_cached_tokens": 0.0000375,
           "input_cached_text_tokens": 0.0000375,
           "input_cache_read": 0.0000375,
+          "cache_read_input_tokens": 0.0000375,
           "input_cache_creation": 0.000075,
           "cache_write_tokens": 0.000075,
           "input_cache_write_tokens": 0.000075,
@@ -4050,11 +4068,13 @@
           "input_cached_tokens": 1.25e-7,
           "output": 0.00001,
           "input_cache_read": 1.25e-7,
+          "cache_read_input_tokens": 1.25e-7,
           "input_cache_creation": 0.00000125,
           "cache_write_tokens": 0.00000125,
           "input_cache_write_tokens": 0.00000125,
           "output_reasoning_tokens": 0.00001,
-          "output_reasoning": 0.00001
+          "output_reasoning": 0.00001,
+          "reasoning_tokens": 0.00001
         }
       }
     ]
