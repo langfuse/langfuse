@@ -190,6 +190,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(3),
+  // Prepare direct event rows in Rust; the writer encodes Native batches at flush.
+  LANGFUSE_NATIVE_CLICKHOUSE_ENCODING_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
 
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
 

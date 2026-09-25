@@ -1,10 +1,17 @@
-import { beforeEach, expect, describe, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, describe, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   applyObservationFieldOverflow: vi.fn(),
+  prepareEvent: vi.fn(),
   validateAndInflateScoreOverride: undefined as
     | ((...args: unknown[]) => unknown)
     | undefined,
+}));
+
+vi.mock("@langfuse/native", () => ({
+  PreparedEvent: vi.fn(function (row: object) {
+    return mocks.prepareEvent(row);
+  }),
 }));
 
 vi.mock(
@@ -32,18 +39,192 @@ import { IngestionService } from "../../IngestionService";
 import {
   convertDateToClickhouseDateTime,
   createTraceScore,
+  type EventRecordInsertType,
   type ObservationEvent,
   type ScoreEventType,
 } from "@langfuse/shared/src/server";
-import { TableName } from "../../ClickhouseWriter";
+import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
+import { env } from "../../../env";
 
 describe("IngestionService unit tests", () => {
+  const nativeEncoding = env.LANGFUSE_NATIVE_CLICKHOUSE_ENCODING_ENABLED;
   beforeEach(() => {
+    env.LANGFUSE_NATIVE_CLICKHOUSE_ENCODING_ENABLED = "false";
+    mocks.prepareEvent.mockReset();
     mocks.applyObservationFieldOverflow.mockReset();
     mocks.applyObservationFieldOverflow.mockImplementation(
       async (eventRecord) => eventRecord,
     );
     mocks.validateAndInflateScoreOverride = undefined;
+  });
+
+  afterEach(() => {
+    env.LANGFUSE_NATIVE_CLICKHOUSE_ENCODING_ENABLED = nativeEncoding;
+  });
+
+  it("yields between concurrent and sequential Native preparation bursts", async () => {
+    env.LANGFUSE_NATIVE_CLICKHOUSE_ENCODING_ENABLED = "true";
+    const nativeEnqueue = vi.fn();
+    const getNativeWriter = vi
+      .spyOn(ClickhouseWriter, "getNativeInstance")
+      .mockReturnValue({
+        addToQueue: nativeEnqueue,
+      } as unknown as ReturnType<typeof ClickhouseWriter.getNativeInstance>);
+    const services = [
+      new IngestionService({} as never, {} as never, {} as never, {} as never),
+      new IngestionService({} as never, {} as never, {} as never, {} as never),
+    ];
+    const eventRecord = {
+      id: "span",
+      project_id: "project",
+      model_parameters: {},
+      event_bytes: 1,
+    } as EventRecordInsertType;
+    const burstSize = 64;
+    const realPerformanceNow = performance.now.bind(performance);
+    let simulatedWorkMs = realPerformanceNow();
+    const performanceNow = vi
+      .spyOn(performance, "now")
+      .mockImplementation(() => simulatedWorkMs);
+    let preparedCount = 0;
+    mocks.applyObservationFieldOverflow.mockImplementation(
+      async (record) => record,
+    );
+    mocks.prepareEvent.mockImplementation(() => {
+      preparedCount += 1;
+      if (preparedCount === 1 || preparedCount === burstSize + 1) {
+        simulatedWorkMs += 6;
+      }
+      return {};
+    });
+
+    const runBurst = async (mode: "concurrent" | "sequential") => {
+      const preparedBeforeBurst = preparedCount;
+      const heartbeatsDuringBurst: number[] = [];
+      let burstFinished = false;
+      const scheduleHeartbeat = () =>
+        setImmediate(() => {
+          heartbeatsDuringBurst.push(preparedCount - preparedBeforeBurst);
+          if (!burstFinished) scheduleHeartbeat();
+        });
+      scheduleHeartbeat();
+      const writes =
+        mode === "concurrent"
+          ? Promise.all(
+              Array.from({ length: burstSize }, (_, index) =>
+                services[index % services.length]!.writeEventRecord(
+                  eventRecord,
+                ),
+              ),
+            )
+          : (async () => {
+              const acceptedBytes: number[] = [];
+              for (let index = 0; index < burstSize; index += 1) {
+                acceptedBytes.push(
+                  await services[index % services.length]!.writeEventRecord(
+                    eventRecord,
+                  ),
+                );
+              }
+              return acceptedBytes;
+            })();
+      let acceptedBytes: number[];
+      try {
+        acceptedBytes = await writes;
+      } finally {
+        burstFinished = true;
+      }
+
+      expect(
+        heartbeatsDuringBurst.some(
+          (preparedCountAtHeartbeat) =>
+            preparedCountAtHeartbeat > 0 &&
+            preparedCountAtHeartbeat < burstSize,
+        ),
+      ).toBe(true);
+      expect(acceptedBytes).toHaveLength(burstSize);
+    };
+
+    try {
+      await runBurst("concurrent");
+      await runBurst("sequential");
+      expect(nativeEnqueue).toHaveBeenCalledTimes(burstSize * 2);
+    } finally {
+      performanceNow.mockRestore();
+      getNativeWriter.mockRestore();
+    }
+  });
+
+  it("serializes model parameters and queues an owned prepared handle", async () => {
+    env.LANGFUSE_NATIVE_CLICKHOUSE_ENCODING_ENABLED = "true";
+    const jsonEnqueue = vi.fn();
+    const nativeEnqueue = vi.fn();
+    const getNativeWriter = vi
+      .spyOn(ClickhouseWriter, "getNativeInstance")
+      .mockReturnValue({
+        addToQueue: nativeEnqueue,
+      } as unknown as ReturnType<typeof ClickhouseWriter.getNativeInstance>);
+    const prepared = {
+      ids: { project_id: "project", trace_id: "trace", id: "span" },
+    };
+    mocks.prepareEvent.mockReturnValue(prepared);
+    const service = new IngestionService(
+      {} as never,
+      {} as never,
+      { addToQueue: jsonEnqueue } as unknown as ClickhouseWriter,
+      {} as never,
+    );
+    try {
+      const record = await service.createEventRecord(
+        {
+          projectId: "project",
+          traceId: "trace",
+          spanId: "span",
+          name: "native",
+          type: "SPAN",
+          startTimeISO: "2026-09-25T00:00:00.000Z",
+          endTimeISO: "2026-09-25T00:00:01.000Z",
+          modelParameters: { temperature: 0.2, nested: ["🔥", null] },
+          metadata: {},
+          source: "otel",
+          eventBytes: 99,
+        },
+        "test.json",
+      );
+      const original = structuredClone(record);
+      const acceptedBytes = await service.writeEventRecord(record);
+      const encodedRow = mocks.prepareEvent.mock.calls[0][0];
+      expect(encodedRow.model_parameters).toBe(
+        JSON.stringify(original.model_parameters),
+      );
+      expect(encodedRow.event_bytes).toBe(acceptedBytes);
+      expect(record).toEqual(original);
+      expect(jsonEnqueue).not.toHaveBeenCalled();
+      expect(nativeEnqueue).toHaveBeenCalledExactlyOnceWith(
+        TableName.EventsFull,
+        prepared,
+      );
+      expect(nativeEnqueue.mock.calls[0][1]).toBe(prepared);
+
+      nativeEnqueue.mockClear();
+      mocks.prepareEvent.mockImplementationOnce(() => {
+        throw new Error("preparation failed");
+      });
+      await expect(service.writeEventRecord(record)).rejects.toThrow(
+        "preparation failed",
+      );
+      expect(nativeEnqueue).not.toHaveBeenCalled();
+      expect(jsonEnqueue).not.toHaveBeenCalled();
+      await expect(service.writeEventRecord(record)).resolves.toBeGreaterThan(
+        0,
+      );
+      expect(nativeEnqueue).toHaveBeenCalledExactlyOnceWith(
+        TableName.EventsFull,
+        prepared,
+      );
+    } finally {
+      getNativeWriter.mockRestore();
+    }
   });
 
   it("writes the final serialized event size instead of the raw OTEL span size", async () => {
