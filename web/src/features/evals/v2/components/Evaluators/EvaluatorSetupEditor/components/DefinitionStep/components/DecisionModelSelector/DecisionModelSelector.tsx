@@ -37,9 +37,14 @@ export function DecisionModelSelector({
   const connectionOptions = (connections.data?.data ?? [])
     .filter((connection) => isDecisionModelAdapter(connection.adapter))
     .flatMap((connection) => {
-      const models = connection.withDefaultModels
-        ? [...connection.customModels, ...supportedModels[connection.adapter]]
-        : connection.customModels;
+      const models = Array.from(
+        new Set([
+          ...connection.customModels,
+          ...(connection.withDefaultModels
+            ? supportedModels[connection.adapter]
+            : []),
+        ]),
+      );
       return models.map((model) => toOption(connection.provider, model));
     });
   const selectedOption = selectedModel
