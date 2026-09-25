@@ -22,7 +22,7 @@ export function assertFipsMode(envOverride?: SharedEnv): void {
 
   if (!isEnterpriseLicenseAvailable(e)) {
     throw new Error(
-      "LANGFUSE_REQUIRE_FIPS=true requires a Langfuse enterprise license (LANGFUSE_EE_LICENSE_KEY starting with langfuse_ee_).",
+      "LANGFUSE_REQUIRE_FIPS=true requires a Langfuse enterprise license (LANGFUSE_EE_LICENSE_KEY).",
     );
   }
 
