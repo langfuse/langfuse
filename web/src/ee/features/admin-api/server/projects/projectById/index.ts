@@ -5,9 +5,9 @@ import {
   redis,
   QueueJobs,
   ProjectDeleteQueue,
-  revokeRolesForOwner,
   type ApiAccessScope,
 } from "@langfuse/shared/src/server";
+import { revokeRolesForOwner } from "@langfuse/shared/rbac/server";
 import { ProjectId } from "@langfuse/shared/rbac";
 import { randomUUID } from "crypto";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";

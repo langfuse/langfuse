@@ -19,9 +19,11 @@ import {
   ProjectDeleteQueue,
   getEnvironmentsForProject,
   invalidateCachedOrgApiKeys,
+} from "@langfuse/shared/src/server";
+import {
   revokeRolesForOwner,
   transferRoleAssignments,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/rbac/server";
 import { ProjectId } from "@langfuse/shared/rbac";
 import { randomUUID } from "crypto";
 import { LangfuseConflictError, StringNoHTMLNonEmpty } from "@langfuse/shared";

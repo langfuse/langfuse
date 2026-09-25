@@ -11,9 +11,8 @@ import {
   type OwnerId,
   type PrincipalId,
   type RoleAssignment,
-  type RoleId,
   type TenantId,
-} from "../../features/rbac/types";
+} from "./types";
 
 type Tx = PrismaClient | Prisma.TransactionClient;
 
@@ -24,22 +23,6 @@ export async function assignRole(
 ): Promise<void> {
   const tenantId = await resolveTenant(tx, ra.ownerId);
   await createRoleAssignment(tx, { ...ra, tenantId });
-}
-
-/** revokeRole deletes system-role assignments matching the given filters. */
-export async function revokeRole(
-  tx: Tx,
-  p: { principalId: PrincipalId; ownerId?: OwnerId; roleId?: RoleId },
-): Promise<void> {
-  await tx.systemRoleAssignment.deleteMany({
-    where: {
-      principalId: p.principalId,
-      ...(p.ownerId ? { ownerId: p.ownerId } : {}),
-      ...(p.roleId && hasSystemRoleKind(p.roleId)
-        ? { systemRole: toSystemRole(p.roleId) }
-        : {}),
-    },
-  });
 }
 
 /** revokeRolesForOwner deletes every assignment hanging off an owner, e.g. when a project or organization is deleted. */

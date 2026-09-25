@@ -6,10 +6,10 @@ import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { CloudConfigSchema } from "@langfuse/shared";
 import { ApiKeyId } from "@langfuse/shared/rbac";
+import { revokeRolesForPrincipals } from "@langfuse/shared/rbac/server";
 import {
   initializeClickhouseCompatibility,
   logger,
-  revokeRole,
 } from "@langfuse/shared/src/server";
 
 await initializeClickhouseCompatibility();
@@ -131,7 +131,7 @@ if (env.LANGFUSE_INIT_ORG_ID) {
       if (existingApiKey && existingApiKey.projectId !== projectId) {
         await prisma.$transaction(async (tx) => {
           await tx.apiKey.delete({ where: { publicKey } });
-          await revokeRole(tx, { principalId: ApiKeyId(existingApiKey.id) });
+          await revokeRolesForPrincipals(tx, [ApiKeyId(existingApiKey.id)]);
         });
       }
 

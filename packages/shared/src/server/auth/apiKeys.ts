@@ -11,7 +11,10 @@ import {
   SystemRoleId,
 } from "../../features/rbac/types";
 import { logger } from "../logger";
-import { assignRole, revokeRole } from "./assignRole";
+import {
+  assignRole,
+  revokeRolesForPrincipals,
+} from "../../features/rbac/roleAssignmentRepository";
 import { invalidateCachedApiKeys } from "./invalidateApiKeys";
 
 export function getDisplaySecretKey(secretKey: string) {
@@ -184,7 +187,7 @@ export async function deleteApiKeyFromDb(p: {
   // does not need the row to still exist.
   await p.prisma.$transaction(async (tx) => {
     await tx.apiKey.delete({ where: { id: apiKey.id } });
-    await revokeRole(tx, { principalId: ApiKeyId(apiKey.id) });
+    await revokeRolesForPrincipals(tx, [ApiKeyId(apiKey.id)]);
   });
 
   await invalidateCachedApiKeys([apiKey], `key ${p.id}`, p.redis);

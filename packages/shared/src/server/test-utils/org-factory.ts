@@ -3,7 +3,7 @@ import { prisma } from "../../db";
 import { env } from "../../env";
 import { ApiKeyId, ProjectId, SystemRoleId } from "../../features/rbac/types";
 import { CloudConfigSchema } from "../../interfaces/cloudConfigSchema";
-import { assignRole } from "../auth/assignRole";
+import { assignRole } from "../../features/rbac/roleAssignmentRepository";
 import { createShaHash, getDisplaySecretKey } from "../auth/apiKeys";
 
 export function createBasicAuthHeader(

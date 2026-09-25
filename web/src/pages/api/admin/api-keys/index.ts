@@ -5,8 +5,8 @@ import {
   invalidateAllCachedApiKeys,
   logger,
   redis,
-  revokeRolesForPrincipals,
 } from "@langfuse/shared/src/server";
+import { revokeRolesForPrincipals } from "@langfuse/shared/rbac/server";
 import { ApiKeyId } from "@langfuse/shared/rbac";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server";
