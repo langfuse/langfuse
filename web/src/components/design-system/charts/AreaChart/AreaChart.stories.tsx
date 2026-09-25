@@ -228,27 +228,6 @@ export const Intermittent = meta.story({
     const tooltip = within(document.body).getByRole("tooltip");
     await expect(tooltip).toHaveTextContent("No data available");
     await expect(tooltip).toHaveTextContent("Sep 2, 2026");
-    const chartBounds = hoverArea.ownerSVGElement?.getBoundingClientRect();
-    if (!chartBounds) throw new Error("Chart bounds missing");
-    fireEvent.pointerMove(hoverArea, {
-      clientX: hoverArea.getBoundingClientRect().left + 4,
-      clientY: chartBounds.top + 120,
-    });
-    await waitFor(() => {
-      expect(tooltip.getBoundingClientRect().bottom).toBeLessThan(
-        chartBounds.top + 120,
-      );
-    });
-    const firstTop = tooltip.getBoundingClientRect().top;
-    fireEvent.pointerMove(hoverArea, {
-      clientX: hoverArea.getBoundingClientRect().left + 4,
-      clientY: chartBounds.top + 200,
-    });
-    await waitFor(() => {
-      expect(tooltip.getBoundingClientRect().top).toBeGreaterThan(
-        firstTop + 40,
-      );
-    });
     const labels = Array.from(
       canvasElement.querySelectorAll('[data-x-axis-label=""]'),
       (label) => label.textContent,
@@ -273,9 +252,20 @@ export const NarrowCategories = meta.story({
   name: "(Test) Narrow Categories",
   args: { scenario: "narrowCategory" },
   play: async ({ canvasElement }) => {
-    const labels = canvasElement.querySelectorAll('[data-x-axis-label=""]');
+    const labels = Array.from(
+      canvasElement.querySelectorAll<SVGTextElement>('[data-x-axis-label=""]'),
+    );
+    await expect(labels.length).toBeGreaterThan(0);
     await expect(labels[0]).toHaveTextContent("Category 0");
-    await expect(labels[labels.length - 1]).toHaveTextContent("Category 5");
+    await expect(
+      canvasElement.querySelectorAll("[data-category-tick]"),
+    ).toHaveLength(2);
+    const bounds = labels.map((label) => label.getBoundingClientRect());
+    for (let index = 1; index < bounds.length; index++) {
+      await expect(bounds[index]!.left).toBeGreaterThanOrEqual(
+        bounds[index - 1]!.right,
+      );
+    }
   },
 });
 

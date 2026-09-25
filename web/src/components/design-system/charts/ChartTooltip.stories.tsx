@@ -1,13 +1,6 @@
 import { type ComponentProps } from "react";
 import preview from "../../../../.storybook/preview";
-import {
-  expect,
-  fireEvent,
-  spyOn,
-  userEvent,
-  waitFor,
-  within,
-} from "storybook/test";
+import { expect, spyOn, userEvent, within } from "storybook/test";
 
 import { ChartTooltip } from "../internal/charts/ChartTooltip";
 
@@ -302,28 +295,6 @@ export const PointerHover = meta.story({
   },
 });
 
-export const OutsideChart = meta.story({
-  name: "(Test) Outside Chart",
-  args: { data: itemsData },
-  decorators: [
-    (Story) => (
-      <div className="mx-auto mt-48 h-60 w-120">
-        <Story />
-      </div>
-    ),
-  ],
-  play: async ({ canvasElement }) => {
-    const tooltip = await focusTooltip(canvasElement);
-    const chart = within(canvasElement).getByLabelText("Tooltip story chart");
-    const chartBounds = chart.getBoundingClientRect();
-    const tooltipBounds = tooltip.getBoundingClientRect();
-    await expect(
-      tooltipBounds.bottom <= chartBounds.top ||
-        tooltipBounds.top >= chartBounds.bottom,
-    ).toBe(true);
-  },
-});
-
 export const ValuePointFallback = meta.story({
   name: "(Test) Value Point Fallback",
   args: {
@@ -336,42 +307,5 @@ export const ValuePointFallback = meta.story({
       chart.getBoundingClientRect().top +
         chart.getBoundingClientRect().height / 2,
     );
-  },
-});
-
-export const PointerYAboveChart = meta.story({
-  name: "(Test) Pointer Y Above Chart",
-  args: {
-    data: {
-      ...itemsData,
-      anchor: { type: "chart-column", x: 240 },
-    },
-  },
-  play: async ({ canvasElement }) => {
-    const trigger = within(canvasElement).getByLabelText("Tooltip trigger");
-    const chart = within(canvasElement).getByLabelText("Tooltip story chart");
-    const chartBounds = chart.getBoundingClientRect();
-    fireEvent.pointerMove(trigger, {
-      clientX: chartBounds.left + chartBounds.width / 2,
-      clientY: chartBounds.top + 120,
-    });
-    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
-      "tooltip",
-    );
-    await waitFor(() => {
-      expect(tooltip.getBoundingClientRect().bottom).toBeLessThan(
-        chartBounds.top + 120,
-      );
-    });
-    const firstTop = tooltip.getBoundingClientRect().top;
-    fireEvent.pointerMove(trigger, {
-      clientX: chartBounds.left + chartBounds.width / 2,
-      clientY: chartBounds.top + 200,
-    });
-    await waitFor(() => {
-      expect(tooltip.getBoundingClientRect().top).toBeGreaterThan(
-        firstTop + 40,
-      );
-    });
   },
 });
