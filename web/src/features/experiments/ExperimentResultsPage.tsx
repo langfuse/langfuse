@@ -10,7 +10,6 @@ import {
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useCallback, useEffect } from "react";
 import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
-import { ExperimentFormatSetting } from "@/src/features/experiments/components/ExperimentFormatSetting";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { ExperimentSelectionControls } from "@/src/features/experiments/components/ExperimentSelectionControls";
@@ -148,23 +147,10 @@ export default function ExperimentResultsPage() {
           />
         ),
         actionButtonsRight: (
-          <>
-            <ExperimentDisplaySettings
-              layout={layout}
-              onLayoutChange={handleLayoutChange}
-              diffMode={diffMode}
-              onDiffModeChange={handleDiffModeChange}
-              itemVisibility={itemVisibility}
-              onItemVisibilityChange={setItemVisibility}
-              hasComparisons={comparisonIds.length > 0}
-              hasBaseline={hasBaseline}
-            />
-
-            <OverviewPanelToggle
-              open={isOverviewOpen}
-              onOpenChange={setIsOverviewOpen}
-            />
-          </>
+          <OverviewPanelToggle
+            open={isOverviewOpen}
+            onOpenChange={setIsOverviewOpen}
+          />
         ),
       }}
     >
@@ -180,7 +166,15 @@ export default function ExperimentResultsPage() {
             projectId={projectId}
             ioRenderMode={ioRenderMode}
             toolbarSettings={
-              <ExperimentFormatSetting
+              <ExperimentDisplaySettings
+                layout={layout}
+                onLayoutChange={handleLayoutChange}
+                diffMode={diffMode}
+                onDiffModeChange={handleDiffModeChange}
+                itemVisibility={itemVisibility}
+                onItemVisibilityChange={setItemVisibility}
+                hasComparisons={comparisonIds.length > 0}
+                hasBaseline={hasBaseline}
                 ioRenderMode={ioRenderMode}
                 onIoRenderModeChange={setIoRenderMode}
               />

@@ -62,6 +62,12 @@ const ChbWebhookEventTypeSchema = z.enum([
   "BILLING_ATTACHEDPLAN_CANCELLED",
 ]);
 
+// Event-bus timestamps arrive as Unix milliseconds or as a string (ISO-8601 or
+// numeric). Nothing reads them -- ordering runs on `occurredAt` -- so any of
+// these shapes is accepted rather than failing a signed event over a field the
+// handler ignores.
+const ChbEventBusTimestampSchema = z.union([z.number(), z.string()]).nullish();
+
 const ChbWebhookEventSchema = z.object({
   eventId: z.string().min(1),
   type: ChbWebhookEventTypeSchema,
@@ -70,16 +76,14 @@ const ChbWebhookEventSchema = z.object({
     // Event-bus record id, not the attached plan id
     id: z.string().nullish(),
     source: z.string().nullish(),
-    // Unix milliseconds
-    timestamp: z.number().nullish(),
+    timestamp: ChbEventBusTimestampSchema,
     version: z.number().nullish(),
     payload: z.object({
       eventType: ChbWebhookEventTypeSchema,
       // ClickHouse Organization ID owning the attached plan
       organizationId: z.uuid(),
       planCode: z.string().nullish(),
-      // Unix milliseconds
-      createdAt: z.number().nullish(),
+      createdAt: ChbEventBusTimestampSchema,
     }),
   }),
 });

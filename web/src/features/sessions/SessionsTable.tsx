@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
+import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/data-table-pagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
@@ -938,6 +939,7 @@ export default function SessionsTable({
                 totalCount,
                 onChange: setPaginationState,
                 state: paginationState,
+                options: TRACING_PAGE_SIZE_OPTIONS,
               }}
               setOrderBy={handleOrderByChange}
               orderBy={orderByState}

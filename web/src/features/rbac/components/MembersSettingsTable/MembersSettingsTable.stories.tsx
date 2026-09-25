@@ -79,6 +79,7 @@ export const Default = meta.story({
       { id: "add-member", label: "Add new member", onClick: fn() },
     ],
     pagination: {
+      mode: "offset",
       totalCount: 5,
       state: { pageIndex: 0, pageSize: 10 },
       onChange: fn(),
@@ -105,6 +106,7 @@ export const FilteredByRole = meta.story({
       { id: "add-member", label: "Add new member", onClick: fn() },
     ],
     pagination: {
+      mode: "offset",
       totalCount: 2,
       state: { pageIndex: 0, pageSize: 10 },
       onChange: fn(),
@@ -134,6 +136,7 @@ export const Loading = meta.story({
       { id: "add-member", label: "Add new member", onClick: fn() },
     ],
     pagination: {
+      mode: "offset",
       totalCount: null,
       state: { pageIndex: 0, pageSize: 10 },
       onChange: fn(),

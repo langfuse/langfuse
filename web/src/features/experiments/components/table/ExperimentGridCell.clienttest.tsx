@@ -9,11 +9,13 @@ import type { VisibilityState } from "@tanstack/react-table";
 import { ExperimentGridCell } from "./ExperimentGridCell";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 
+const metadataQuery = vi.hoisted(() => vi.fn(() => ({ data: undefined })));
+
 vi.mock("@/src/utils/api", () => ({
   api: {
     scores: {
       getScoreMetadataById: {
-        useQuery: () => ({ data: undefined }),
+        useQuery: metadataQuery,
       },
     },
   },
@@ -31,6 +33,7 @@ const renderGridCell = (
   columnVisibility: VisibilityState = { output: false, metadata: false },
   output: unknown = null,
   onExperimentClick?: (event: React.MouseEvent) => void,
+  isBaseline = true,
 ) =>
   render(
     <TooltipProvider>
@@ -49,6 +52,8 @@ const renderGridCell = (
             type: "NUMERIC",
             values: [0.8],
             average: 0.8,
+            id: "score-id",
+            hasMetadata: true,
             comment: "Evaluator comment",
             executionTraceId: "execution-trace-id",
           },
@@ -58,11 +63,28 @@ const renderGridCell = (
             type: "NUMERIC",
             values: [0.9],
             average: 0.9,
+            id: "trace-score-id",
           },
         }}
         observationScoreOrder={[observationScoreKey]}
         traceScoreOrder={[traceScoreKey]}
-        isBaseline
+        isBaseline={isBaseline}
+        baselineScores={{
+          [observationScoreKey]: {
+            type: "NUMERIC",
+            values: [0.3],
+            average: 0.3,
+            id: "baseline-score-id",
+          },
+        }}
+        baselineTraceScores={{
+          [traceScoreKey]: {
+            type: "NUMERIC",
+            values: [0.7],
+            average: 0.7,
+            id: "baseline-trace-score-id",
+          },
+        }}
         columnVisibility={columnVisibility}
         showScoreLevelLabels={showScoreLevelLabels}
       />
@@ -70,6 +92,23 @@ const renderGridCell = (
   );
 
 describe("ExperimentGridCell", () => {
+  it("keeps inline score diffs without explanatory native tooltips", () => {
+    const { unmount } = renderGridCell(
+      false,
+      { output: false, metadata: false },
+      null,
+      undefined,
+      false,
+    );
+    expect(screen.getByText("+0.50")).toBeInTheDocument();
+    expect(screen.getByText("+0.50")).not.toHaveAttribute("title");
+    expect(screen.getByText("+0.20")).toBeInTheDocument();
+    unmount();
+    renderGridCell(false);
+    expect(screen.queryByText("+0.50")).not.toBeInTheDocument();
+    expect(screen.queryByText("+0.20")).not.toBeInTheDocument();
+  });
+
   it("shows full labels for every score when both levels are present", () => {
     renderGridCell(true);
 
@@ -86,23 +125,55 @@ describe("ExperimentGridCell", () => {
     expect(screen.getByText("correctness")).toBeInTheDocument();
   });
 
-  it("keeps cost and latency on the metadata line", () => {
+  it("shows separate labelled metrics", () => {
     renderGridCell(false, { output: false });
 
+    expect(screen.getByText("Latency")).toBeInTheDocument();
+    expect(screen.getByText("Cost")).toBeInTheDocument();
+    expect(screen.getByText("Status")).toBeInTheDocument();
     // Neither is recorded in this fixture, so both render the affordance.
     expect(screen.getAllByText("not recorded")).toHaveLength(2);
   });
 
-  it("keeps the ids reachable behind the metadata line instead of listing them", () => {
+  it("hides metadata when only scores are selected", () => {
+    renderGridCell(false, {
+      output: false,
+      totalCost: false,
+      latencyMs: false,
+      level: false,
+      itemId: false,
+      observationId: false,
+      startTime: false,
+    });
+
+    expect(screen.getByText("quality")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "IDs" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("omits identifiers even when old visibility preferences enable them", () => {
     renderGridCell(false, { output: false });
 
     expect(screen.queryByText("item-id")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "IDs" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "IDs" }),
+    ).not.toBeInTheDocument();
   });
 
   it("lets the output section take the row's spare height", () => {
-    renderGridCell(false, { metadata: false });
+    renderGridCell(false, {});
 
+    expect(
+      screen
+        .getByText("quality")
+        .compareDocumentPosition(screen.getByText("Cost")),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(
+      screen
+        .getByText("Cost")
+        .compareDocumentPosition(screen.getByText("Output")),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     const outputContent =
       screen.getByText("Output").parentElement?.nextElementSibling;
 
@@ -113,9 +184,11 @@ describe("ExperimentGridCell", () => {
   it("links evaluator score comments to their execution trace", async () => {
     renderGridCell(false);
 
-    fireEvent.pointerEnter(
-      screen.getByRole("button", { name: "View score comment" }),
+    expect(metadataQuery).toHaveBeenCalledWith(
+      { projectId: "project-id", id: "score-id" },
+      expect.objectContaining({ enabled: false }),
     );
+    fireEvent.pointerEnter(screen.getByText("quality"));
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 750));
     });
@@ -124,6 +197,14 @@ describe("ExperimentGridCell", () => {
       screen.getByRole("link", { name: "View execution trace" }),
     );
 
+    expect(metadataQuery).toHaveBeenCalledWith(
+      { projectId: "project-id", id: "score-id" },
+      expect.objectContaining({ enabled: true }),
+    );
+    expect(screen.getByText("Evaluator comment")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "View score comment" }),
+    ).not.toBeInTheDocument();
     expect(executionTraceLink).toHaveAttribute(
       "href",
       "/project/project-id/traces/execution-trace-id",
