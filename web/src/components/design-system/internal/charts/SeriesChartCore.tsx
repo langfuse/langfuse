@@ -5,6 +5,7 @@ import { scaleLinear, scalePoint, scaleUtc } from "d3-scale";
 import { area, line } from "d3-shape";
 
 import { ChartContainer } from "@/src/components/design-system/charts/ChartContainer";
+import { CHART_TRANSITION_DURATION } from "@/src/components/design-system/charts/constants";
 import { CartesianChart } from "@/src/components/design-system/internal/charts/CartesianChart";
 import { CartesianLayout } from "@/src/components/design-system/internal/charts/CartesianLayout";
 import { ChartLegend } from "@/src/components/design-system/internal/charts/ChartLegend";
@@ -827,7 +828,8 @@ function LineChartContent(
             return (
               <g
                 key={item.id}
-                className="transition-opacity duration-150"
+                className="transition-opacity"
+                style={{ transitionDuration: CHART_TRANSITION_DURATION }}
                 opacity={areaVariant || !dimmed ? 1 : 0.2}
               >
                 {areaVariant ? (

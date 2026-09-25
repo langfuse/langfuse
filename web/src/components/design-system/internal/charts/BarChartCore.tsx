@@ -4,7 +4,10 @@ import { useId, useState } from "react";
 import { scaleLinear } from "d3-scale";
 
 import { ChartContainer } from "@/src/components/design-system/charts/ChartContainer";
-import { INACTIVE_CHART_COLOR_STRENGTH } from "@/src/components/design-system/charts/constants";
+import {
+  CHART_TRANSITION_DURATION,
+  INACTIVE_CHART_COLOR_STRENGTH,
+} from "@/src/components/design-system/charts/constants";
 import { CartesianChart } from "@/src/components/design-system/internal/charts/CartesianChart";
 import { CartesianLayout } from "@/src/components/design-system/internal/charts/CartesianLayout";
 import {
@@ -271,7 +274,11 @@ function SingleBarChart({
                                     role="graphics-symbol"
                                     tabIndex={0}
                                     aria-label={`${datum.label}: ${valueFormatter(datum.value)}`}
-                                    className="outline-hidden transition-[fill] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2"
+                                    className="outline-hidden transition-[fill] focus-visible:outline-2 focus-visible:outline-offset-2"
+                                    style={{
+                                      transitionDuration:
+                                        CHART_TRANSITION_DURATION,
+                                    }}
                                     {...getReferenceProps(tooltipData)}
                                     onPointerLeave={undefined}
                                   />
@@ -683,7 +690,11 @@ function MultiSeriesBarChart({
                                   tabIndex: 0,
                                   "aria-label": `${item.label}: ${valueFormatter(value)}`,
                                   className:
-                                    "outline-hidden transition-[fill] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2",
+                                    "outline-hidden transition-[fill] focus-visible:outline-2 focus-visible:outline-offset-2",
+                                  style: {
+                                    transitionDuration:
+                                      CHART_TRANSITION_DURATION,
+                                  },
                                   ...referenceProps,
                                   onPointerEnter: (
                                     event: React.PointerEvent<SVGElement>,

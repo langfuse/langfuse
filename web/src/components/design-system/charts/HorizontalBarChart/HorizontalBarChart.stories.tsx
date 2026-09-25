@@ -24,6 +24,28 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+export const HoverTransition = meta.story({
+  name: "(Test) Hover Transition",
+  play: async ({ canvasElement }) => {
+    const bars =
+      canvasElement.querySelectorAll<SVGRectElement>("[data-bar-fill]");
+    const first = bars[0];
+    const second = bars[1];
+    if (!first || !second) throw new Error("Bars not found");
+    const hoverArea = first.parentElement?.querySelector<SVGRectElement>(
+      'rect[fill="transparent"][aria-hidden="true"]',
+    );
+    if (!hoverArea) throw new Error("Hover area not found");
+    await userEvent.hover(hoverArea);
+    await expect(second).toHaveAttribute(
+      "fill",
+      expect.stringContaining("20%"),
+    );
+    await expect(getComputedStyle(second).transitionProperty).toContain("fill");
+    await expect(getComputedStyle(second).transitionDuration).toBe("0.15s");
+  },
+});
+
 export const FillsAvailableHeight = meta.story({
   name: "(Test) Fills Available Height",
   play: async ({ canvasElement }) => {

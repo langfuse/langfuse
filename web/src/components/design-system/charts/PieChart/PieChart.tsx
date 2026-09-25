@@ -9,6 +9,7 @@ import { ChartTooltip } from "@/src/components/design-system/internal/charts/Cha
 import {
   chartColors,
   INACTIVE_CHART_COLOR_STRENGTH,
+  CHART_TRANSITION_DURATION,
 } from "@/src/components/design-system/charts/constants";
 import { cn } from "@/src/utils/tailwind";
 
@@ -183,7 +184,10 @@ function PieChartContent({
                     fill={fill}
                     stroke="hsl(var(--background))"
                     strokeWidth={isActive ? 4 : 3}
-                    className="outline-hidden transition-[fill] duration-100 focus-visible:outline-2 focus-visible:outline-offset-2"
+                    className="outline-hidden transition-[fill] focus-visible:outline-2 focus-visible:outline-offset-2"
+                    style={{
+                      transitionDuration: CHART_TRANSITION_DURATION,
+                    }}
                     role="graphics-symbol"
                     tabIndex={0}
                     aria-label={`${slice.data.label}: ${valueFormatter(slice.data.value)}`}

@@ -10,3 +10,4 @@ export const chartColors = [
 ] as const;
 
 export const INACTIVE_CHART_COLOR_STRENGTH = 20;
+export const CHART_TRANSITION_DURATION = "150ms";

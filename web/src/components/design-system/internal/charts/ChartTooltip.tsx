@@ -23,6 +23,7 @@ import {
 } from "react";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { CHART_TRANSITION_DURATION } from "@/src/components/design-system/charts/constants";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 type TooltipItem = {
@@ -275,7 +276,8 @@ export function ChartTooltip({
                   <div role="separator" className="border-border/50 border-t" />
                 ) : null}
                 <div
-                  className={`flex min-w-0 items-center gap-2 leading-tight transition-opacity duration-150 ${item.emphasis === "dimmed" ? "opacity-30" : "opacity-100"}`}
+                  className={`flex min-w-0 items-center gap-2 leading-tight transition-opacity ${item.emphasis === "dimmed" ? "opacity-30" : "opacity-100"}`}
+                  style={{ transitionDuration: CHART_TRANSITION_DURATION }}
                 >
                   {item.kind !== "detail" && item.color ? (
                     <svg
