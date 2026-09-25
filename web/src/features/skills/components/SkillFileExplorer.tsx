@@ -56,9 +56,11 @@ type PendingEntry = {
 export function SkillFileExplorer({
   store,
   disabled = false,
+  readOnly = false,
 }: {
   store: SkillEditorStore;
   disabled?: boolean;
+  readOnly?: boolean;
 }) {
   const files = useStore(store, (state) => state.files);
   const folders = useStore(store, (state) => state.folders);
@@ -75,7 +77,7 @@ export function SkillFileExplorer({
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor),
   );
-  const moveDisabled = disabled || isImporting;
+  const moveDisabled = readOnly || disabled || isImporting;
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
     const path = active.data.current?.path;
@@ -124,6 +126,7 @@ export function SkillFileExplorer({
   };
 
   const startEntry = (kind: PendingEntry["kind"]) => {
+    if (moveDisabled) return;
     const parentPath = selectedFolder;
     if (parentPath) {
       setExpandedFolders((current) => new Set([...current, parentPath]));
@@ -132,7 +135,7 @@ export function SkillFileExplorer({
   };
 
   const submitEntry = () => {
-    if (!pendingEntry) return;
+    if (!pendingEntry || moveDisabled) return;
 
     const name = pendingEntry.name.trim();
     const path = joinPath(pendingEntry.parentPath, name);
@@ -224,6 +227,7 @@ export function SkillFileExplorer({
             if (event.key === "Escape") setPendingEntry(null);
           }}
           aria-label={`New ${label} name${parentPath ? ` in ${parentPath}` : ""}`}
+          disabled={moveDisabled}
           placeholder={
             pendingEntry.kind === "folder" ? "folder-name" : "docs/readme.md"
           }
@@ -234,6 +238,7 @@ export function SkillFileExplorer({
           variant="ghost"
           size="icon-sm"
           aria-label={`Create new ${label}`}
+          disabled={moveDisabled}
         >
           <Check className="h-3.5 w-3.5" />
         </Button>
@@ -313,7 +318,7 @@ export function SkillFileExplorer({
         <DropzoneController
           noClick
           noKeyboard
-          isDisabled={disabled || isImporting}
+          isDisabled={moveDisabled}
           onError={(error) =>
             showErrorToast("Could not add files", error.message)
           }
@@ -358,57 +363,61 @@ export function SkillFileExplorer({
                     <FolderOpen className="h-4 w-4" /> Files
                   </button>
                 </SkillFolderDropTarget>
-                <div className="flex items-center gap-0.5">
-                  <DropdownMenu
-                    disabled={disabled || isImporting}
-                    items={[
-                      {
-                        id: "files",
-                        type: "item",
-                        title: "Add files",
-                        icon: FilePlus2,
-                        onClick: open,
-                      },
-                      {
-                        id: "folder",
-                        type: "item",
-                        title: "Add folder",
-                        icon: FolderPlus,
-                        onClick: openDirectory,
-                      },
-                    ]}
-                  >
-                    {({ getTriggerProps }) => (
-                      <IconButton
-                        {...getTriggerProps()}
-                        icon={Upload}
-                        label="Upload files or folder"
-                        size="sm"
-                        disabled={disabled || isImporting}
-                      />
-                    )}
-                  </DropdownMenu>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    title="New file"
-                    aria-label="New file"
-                    onClick={() => startEntry("file")}
-                  >
-                    <FilePlus2 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    title="New folder"
-                    aria-label="New folder"
-                    onClick={() => startEntry("folder")}
-                  >
-                    <FolderPlus className="h-4 w-4" />
-                  </Button>
-                </div>
+                {!readOnly ? (
+                  <div className="flex items-center gap-0.5">
+                    <DropdownMenu
+                      disabled={disabled || isImporting}
+                      items={[
+                        {
+                          id: "files",
+                          type: "item",
+                          title: "Add files",
+                          icon: FilePlus2,
+                          onClick: open,
+                        },
+                        {
+                          id: "folder",
+                          type: "item",
+                          title: "Add folder",
+                          icon: FolderPlus,
+                          onClick: openDirectory,
+                        },
+                      ]}
+                    >
+                      {({ getTriggerProps }) => (
+                        <IconButton
+                          {...getTriggerProps()}
+                          icon={Upload}
+                          label="Upload files or folder"
+                          size="sm"
+                          disabled={disabled || isImporting}
+                        />
+                      )}
+                    </DropdownMenu>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      title="New file"
+                      aria-label="New file"
+                      disabled={moveDisabled}
+                      onClick={() => startEntry("file")}
+                    >
+                      <FilePlus2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      title="New folder"
+                      aria-label="New folder"
+                      disabled={moveDisabled}
+                      onClick={() => startEntry("folder")}
+                    >
+                      <FolderPlus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : null}
               </div>
               <div className="flex flex-1 flex-col overflow-y-auto p-2">
                 {renderTree(tree, "")}
@@ -511,7 +520,7 @@ function DraggableSkillFile({
           {name}
         </span>
       </button>
-      {movable ? (
+      {movable && !disabled ? (
         <Button
           type="button"
           variant="ghost"
@@ -598,7 +607,7 @@ function DraggableSkillFolder({
             {name}
           </span>
         </button>
-        {empty ? (
+        {empty && !disabled ? (
           <Button
             type="button"
             variant="ghost"

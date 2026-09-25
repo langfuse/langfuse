@@ -28,6 +28,7 @@ export function SkillVersionHistory(
         loadMoreError: boolean;
         onLoadMore: () => void;
         dirty: boolean;
+        isDraft: boolean;
         canEdit: boolean;
         labelOptions: string[];
         isSavingLabels: boolean;
@@ -42,10 +43,14 @@ export function SkillVersionHistory(
           (left, right) => right.version - left.version,
         )
       : [];
-  const showDraft = props.kind === "new" || props.dirty;
+  const showDraft = props.kind === "new" || props.isDraft;
 
   const selectVersion = async (version: number) => {
-    if (props.kind !== "versions" || version === props.selectedVersion) return;
+    if (
+      props.kind !== "versions" ||
+      (!props.isDraft && version === props.selectedVersion)
+    )
+      return;
     if (
       props.dirty &&
       !window.confirm("Discard this unsaved draft and open another version?")
@@ -124,7 +129,7 @@ export function SkillVersionHistory(
                       key={version}
                       className="group/skill-version"
                       isActive={
-                        !props.dirty && version === props.selectedVersion
+                        !props.isDraft && version === props.selectedVersion
                       }
                     >
                       <div className="flex flex-wrap items-center gap-1">
@@ -132,7 +137,7 @@ export function SkillVersionHistory(
                           type="button"
                           aria-label={`Open version ${version}`}
                           aria-current={
-                            !props.dirty && version === props.selectedVersion
+                            !props.isDraft && version === props.selectedVersion
                               ? "page"
                               : undefined
                           }
@@ -160,7 +165,7 @@ export function SkillVersionHistory(
                         type="button"
                         className="flex w-full flex-col gap-1 text-left"
                         aria-current={
-                          !props.dirty && version === props.selectedVersion
+                          !props.isDraft && version === props.selectedVersion
                             ? "page"
                             : undefined
                         }

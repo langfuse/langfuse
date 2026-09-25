@@ -9,6 +9,7 @@ import {
   Plus,
   TriangleAlert,
   RotateCcw,
+  Save,
 } from "lucide-react";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -136,6 +137,8 @@ export function SkillEditor({
   const capture = usePostHogClientCapture();
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDraft, setIsDraft] = useState(baseVersion === null);
+  const canEditFiles = isDraft && canCreate && !isSaving;
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
   const createButtonTitle = canCreate
     ? (createDisabledReason ??
@@ -147,6 +150,7 @@ export function SkillEditor({
   const save = async (createNew: boolean): Promise<boolean> => {
     if (
       !canCreate ||
+      !isDraft ||
       isSaving ||
       store.getState().isImporting ||
       createDisabledReason ||
@@ -342,66 +346,57 @@ export function SkillEditor({
               )}
             </Tooltip>
           ) : null}
-          <DialogController<boolean>
-            closeOnInteractionOutside={false}
-            size="default"
-            renderContent={({ state: createNew, closeDialog }) => (
-              <CreateSkillVersionDialog
-                store={store}
-                name={createNew ? draftName : name}
-                isFirstVersion={createNew}
-                isSaving={isSaving}
-                disabled={
-                  isImporting ||
-                  Boolean(createDisabledReason) ||
-                  isCheckingName ||
-                  (!createNew && (hasNameChanged || !dirty))
-                }
-                onCancel={closeDialog}
-                onConfirm={async () => {
-                  if (await save(createNew)) closeDialog();
-                }}
-              />
-            )}
-          >
-            {({ openDialog }) => (
-              <>
-                {!hasNameChanged ? (
-                  <Button
-                    onClick={() => openDialog(baseVersion === null)}
-                    disabled={
-                      !canCreate ||
-                      isSaving ||
-                      isImporting ||
-                      (baseVersion !== null && !dirty) ||
-                      Boolean(createDisabledReason) ||
-                      isCheckingName
-                    }
-                    title={createButtonTitle}
-                  >
-                    <Plus className="mr-1.5 h-4 w-4" />
-                    {baseVersion === null ? "Create skill" : "New version"}
-                  </Button>
-                ) : null}
-                {hasNameChanged ? (
-                  <Button
-                    onClick={() => openDialog(true)}
-                    disabled={
-                      !canCreate ||
-                      isSaving ||
-                      isImporting ||
-                      Boolean(createDisabledReason) ||
-                      isCheckingName
-                    }
-                    title={createButtonTitle}
-                  >
-                    <Plus className="mr-1.5 h-4 w-4" />
-                    Create as new skill
-                  </Button>
-                ) : null}
-              </>
-            )}
-          </DialogController>
+          {!isDraft ? (
+            <Button
+              disabled={!canCreate}
+              title={!canCreate ? "You do not have write access" : undefined}
+              onClick={() => setIsDraft(true)}
+            >
+              <Plus className="mr-1.5 h-4 w-4" />
+              New version
+            </Button>
+          ) : (
+            <DialogController<boolean>
+              closeOnInteractionOutside={false}
+              size="default"
+              renderContent={({ state: createNew, closeDialog }) => (
+                <CreateSkillVersionDialog
+                  store={store}
+                  name={createNew ? draftName : name}
+                  isFirstVersion={createNew}
+                  isSaving={isSaving}
+                  disabled={
+                    isImporting ||
+                    Boolean(createDisabledReason) ||
+                    isCheckingName ||
+                    (!createNew && (hasNameChanged || !dirty))
+                  }
+                  onCancel={closeDialog}
+                  onConfirm={async () => {
+                    if (await save(createNew)) closeDialog();
+                  }}
+                />
+              )}
+            >
+              {({ openDialog }) => (
+                <Button
+                  onClick={() => openDialog(createsNewSkill)}
+                  disabled={
+                    !canCreate ||
+                    isSaving ||
+                    isImporting ||
+                    (!createsNewSkill && !dirty) ||
+                    Boolean(createDisabledReason) ||
+                    isCheckingName
+                  }
+                  title={createButtonTitle}
+                >
+                  <Save className="mr-1.5 h-4 w-4" />
+                  Save
+                </Button>
+              )}
+            </DialogController>
+          )}
         </div>
       </PageHeaderActionsPortal>
       <div className="flex min-h-[720px] flex-1 flex-col overflow-hidden border-t md:min-h-[560px] md:flex-row">
@@ -409,6 +404,7 @@ export function SkillEditor({
           <SkillVersionHistory
             {...history}
             dirty={dirty}
+            isDraft={isDraft}
             canEdit={canCreate}
             labelOptions={metadataOptions.labels}
             isSavingLabels={setVersionLabels.isPending}
@@ -427,14 +423,23 @@ export function SkillEditor({
               minSize={isDesktop ? "20%" : "24%"}
               maxSize={isDesktop ? "42%" : "50%"}
             >
-              <SkillFileExplorer store={store} disabled={isSaving} />
+              <SkillFileExplorer
+                store={store}
+                readOnly={!isDraft || !canCreate}
+                disabled={isSaving}
+              />
             </ResizablePanel>
             <ResizableHandle withHandle />
             <ResizablePanel
               defaultSize={isDesktop ? "72%" : "68%"}
               minSize={isDesktop ? "45%" : "42%"}
             >
-              <SkillFileEditor projectId={projectId} store={store} />
+              <SkillFileEditor
+                projectId={projectId}
+                store={store}
+                isDraft={isDraft}
+                editable={canEditFiles}
+              />
             </ResizablePanel>
           </ResizablePanelGroup>
         </div>
@@ -493,9 +498,13 @@ function SkillMetadataFields({
 function SkillFileEditor({
   projectId,
   store,
+  isDraft,
+  editable,
 }: {
   projectId: string;
   store: SkillEditorStore;
+  isDraft: boolean;
+  editable: boolean;
 }) {
   const activePath = useStore(store, (state) => state.activePath);
   const activeFile = useStore(store, (state) => state.files[state.activePath]!);
@@ -507,7 +516,7 @@ function SkillFileEditor({
   const fileContents = useSkillFileContents(projectId, activeFile);
   const content = activeFile.content ?? fileContents.data?.content;
   const canPreview = /\.(md|markdown)$/i.test(activePath);
-  const isPreview = canPreview && view === "preview";
+  const isPreview = canPreview && (!isDraft || view === "preview");
 
   let editorContent;
   if (content === undefined && fileContents.isError) {
@@ -531,7 +540,7 @@ function SkillFileEditor({
         <Loader2 className="h-4 w-4 animate-spin" /> Loading file…
       </div>
     );
-  } else if (view === "preview" && canPreview) {
+  } else if (isPreview) {
     editorContent = (
       <div className="prose dark:prose-invert mx-auto max-w-4xl">
         <MarkdownView markdown={content} />
@@ -542,7 +551,8 @@ function SkillFileEditor({
       <CodeMirrorEditor
         key={activePath}
         value={content}
-        onChange={updateActiveFile}
+        onChange={editable ? updateActiveFile : undefined}
+        editable={editable}
         mode="text"
         extensions={getSkillFileLanguageExtensions(activePath)}
         minHeight="500px"
@@ -558,23 +568,25 @@ function SkillFileEditor({
         <span className="min-w-0 truncate font-mono text-xs" title={activePath}>
           {activePath}
         </span>
-        <div className="flex gap-1">
-          <Button
-            size="sm"
-            variant={!isPreview ? "secondary" : "ghost"}
-            onClick={() => setView("edit")}
-          >
-            <FileCode2 className="mr-1 h-3.5 w-3.5" /> Edit
-          </Button>
-          <Button
-            size="sm"
-            variant={isPreview ? "secondary" : "ghost"}
-            onClick={() => setView("preview")}
-            disabled={!canPreview}
-          >
-            <Eye className="mr-1 h-3.5 w-3.5" /> Preview
-          </Button>
-        </div>
+        {isDraft ? (
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant={!isPreview ? "secondary" : "ghost"}
+              onClick={() => setView("edit")}
+            >
+              <FileCode2 className="mr-1 h-3.5 w-3.5" /> Edit
+            </Button>
+            <Button
+              size="sm"
+              variant={isPreview ? "secondary" : "ghost"}
+              onClick={() => setView("preview")}
+              disabled={!canPreview}
+            >
+              <Eye className="mr-1 h-3.5 w-3.5" /> Preview
+            </Button>
+          </div>
+        ) : null}
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-3">{editorContent}</div>
     </section>

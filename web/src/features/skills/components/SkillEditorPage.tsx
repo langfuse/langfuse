@@ -81,6 +81,7 @@ export function NewSkillPage() {
 
 export function ExistingSkillPage() {
   const router = useRouter();
+  const [editorSession, setEditorSession] = useState(0);
   const projectId = useProjectIdFromURL();
   const skillName =
     typeof router.query.skillName === "string" ? router.query.skillName : "";
@@ -141,7 +142,7 @@ export function ExistingSkillPage() {
   } else if (skill.data && history.data) {
     content = (
       <SkillEditorForInitialValue
-        key={skill.data.id}
+        key={`${skill.data.id}:${editorSession}`}
         projectId={projectId ?? ""}
         initialValue={toSkillEditorInitialValue({
           ...skill.data,
@@ -181,6 +182,7 @@ export function ExistingSkillPage() {
               pathname: router.pathname,
               query: { projectId, skillName, version: selectedVersion },
             });
+            setEditorSession((session) => session + 1);
           },
         }}
         onCreated={async (created) => {

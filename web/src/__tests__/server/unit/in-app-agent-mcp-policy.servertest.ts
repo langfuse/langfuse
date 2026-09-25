@@ -9,8 +9,15 @@ import {
   type McpToolName,
 } from "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
+import { skillsFeature } from "@/src/features/mcp/server/skills";
 
 describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
+  it("keeps Skills MCP tools unregistered", () => {
+    for (const { definition } of skillsFeature.tools) {
+      expect(toolRegistry.getTool(definition.name)).toBeUndefined();
+    }
+  });
+
   it("classifies every Langfuse MCP tool exactly once", () => {
     expect(bootstrapMcpFeatures).toBeTypeOf("function");
     expectTypeOf<InAppAgentLangfuseMcpToolName>().toEqualTypeOf<McpToolName>();
