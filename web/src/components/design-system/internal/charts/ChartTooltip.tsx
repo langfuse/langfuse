@@ -175,14 +175,14 @@ export function ChartTooltip({
               return chartBounds.top - activeTooltip.pointerY + 12;
             }
             if (placement === "bottom") {
-              return activeTooltip.pointerY - chartBounds.bottom + 12;
+              return activeTooltip.pointerY - chartBounds.bottom - 2;
             }
           }
           if (placement === "top") {
             return Math.min(12, Math.max(0, spaceAbove));
           }
           if (placement === "bottom") {
-            return Math.min(12, Math.max(0, spaceBelow));
+            return -2;
           }
           return 12;
         }
