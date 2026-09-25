@@ -200,6 +200,24 @@ export const NarrowWithLongValues = meta.story({
     await expect(value.getBoundingClientRect().right).toBeLessThanOrEqual(
       canvasElement.getBoundingClientRect().right,
     );
+    const rightGridline = canvasElement.querySelector<SVGLineElement>(
+      "[data-axis-tick]:last-child line",
+    );
+    const nothing = within(canvasElement).getByRole("graphics-symbol", {
+      name: "Nothing: 0 units",
+    });
+    const row = nothing.parentElement;
+    const leader = row?.querySelector<SVGLineElement>("[data-leader-line]");
+    const rowValue = row?.querySelector<SVGTextElement>("[data-row-value]");
+    if (!rightGridline || !leader || !rowValue) {
+      throw new Error("Leader or gridline not found");
+    }
+    await expect(Number(leader.getAttribute("x2"))).toBeGreaterThan(
+      Number(rightGridline.getAttribute("x1")),
+    );
+    await expect(Number(leader.getAttribute("x2"))).toBeCloseTo(
+      rowValue.getBBox().x - 4,
+    );
   },
 });
 
@@ -315,6 +333,66 @@ export const TinyBarsBesideOutlier = meta.story({
       expect(label).toHaveAttribute("fill", expect.stringContaining("40%"));
       expect(value).toHaveAttribute("fill", expect.stringContaining("40%"));
     });
+  },
+});
+
+export const LeaderEndpoints = meta.story({
+  name: "(Test) Leader Endpoints",
+  args: {
+    data: [
+      { label: "niklas@langfuse.com", value: 2032.81 },
+      { label: "tobias.wo...", value: 1762 },
+      { label: "valeriy.meleshkin@clickhouse.com", value: 442.94 },
+      { label: "n/a", value: 77.15 },
+      { label: "fair-regression", value: 0.191997 },
+    ],
+    valueFormatter: (value: number) => `$${value.toLocaleString()}`,
+  },
+  decorators: [
+    (Story) => (
+      <div className="h-72 w-[800px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const bars =
+      canvasElement.querySelectorAll<SVGRectElement>("[data-bar-fill]");
+    const rightTick = canvasElement.querySelector<SVGLineElement>(
+      "[data-axis-tick]:last-child line",
+    );
+    if (!rightTick) throw new Error("Right gridline not found");
+    const gridlineX = Number(rightTick.getAttribute("x1"));
+    let visibleLeaders = 0;
+    let leadersAtGridline = 0;
+    for (const bar of bars) {
+      const row = bar.parentElement;
+      const label = row?.querySelector<SVGTextElement>("[data-row-label]");
+      const value = row?.querySelector<SVGTextElement>("[data-row-value]");
+      const leader = row?.querySelector<SVGLineElement>("[data-leader-line]");
+      if (!label || !value || !leader) throw new Error("Row not found");
+      const labelBounds = label.getBBox();
+      const valueBounds = value.getBBox();
+      const barBounds = bar.getBBox();
+      const start = Math.max(
+        labelBounds.x + labelBounds.width,
+        barBounds.x + barBounds.width,
+      );
+      const end = valueBounds.x;
+      await expect(Number(leader.getAttribute("x1"))).toBeCloseTo(start + 4);
+      const valueEnd = end - 4;
+      const expectedEnd =
+        valueEnd - gridlineX > 24 ? valueEnd : Math.min(valueEnd, gridlineX);
+      await expect(Number(leader.getAttribute("x2"))).toBeCloseTo(expectedEnd);
+      if (leader.getAttribute("visibility") === "visible") {
+        visibleLeaders++;
+        if (Number(leader.getAttribute("x2")) === gridlineX) {
+          leadersAtGridline++;
+        }
+      }
+    }
+    await expect(visibleLeaders).toBeGreaterThan(0);
+    await expect(leadersAtGridline).toBeGreaterThan(0);
   },
 });
 

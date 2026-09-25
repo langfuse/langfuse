@@ -10,6 +10,7 @@ import { ChartTooltip } from "@/src/components/design-system/internal/charts/Cha
 
 const MIN_ROW_PX = 14;
 const CHARACTER_WIDTH = 7;
+const MAX_GRIDLINE_TO_VALUE_GAP = 24;
 
 export function HorizontalBarChart({
   data,
@@ -146,11 +147,6 @@ export function HorizontalBarChart({
                       visibleLabel = `${datum.label.slice(0, Math.max(0, maxCharacters - 1))}…`;
                     }
                     const labelX = left + barWidth + 8;
-                    const leaderStart = labelOutside
-                      ? labelX + outsideLabelWidth + 8
-                      : labelX;
-                    const leaderEnd =
-                      valueRight - formattedValue.length * CHARACTER_WIDTH - 8;
                     const inactive =
                       activeIndex !== undefined && activeIndex !== index;
                     const inactiveTextColor = inactive
@@ -174,6 +170,40 @@ export function HorizontalBarChart({
                       <g
                         key={`${datum.label}-${index}`}
                         onPointerLeave={onPointerLeave}
+                        ref={(row) => {
+                          if (!row) return;
+                          const label =
+                            row.querySelector<SVGTextElement>(
+                              "[data-row-label]",
+                            );
+                          const value =
+                            row.querySelector<SVGTextElement>(
+                              "[data-row-value]",
+                            );
+                          const leader =
+                            row.querySelector<SVGLineElement>(
+                              "[data-leader-line]",
+                            );
+                          if (!label || !value || !leader) return;
+                          const labelBounds = label.getBBox();
+                          const valueBounds = value.getBBox();
+                          const start = Math.max(
+                            left + barWidth + 4,
+                            labelBounds.x + labelBounds.width + 4,
+                          );
+                          const valueEnd = valueBounds.x - 4;
+                          const gridlineX = left + plotWidth;
+                          const end =
+                            valueEnd - gridlineX > MAX_GRIDLINE_TO_VALUE_GAP
+                              ? valueEnd
+                              : Math.min(valueEnd, gridlineX);
+                          leader.setAttribute("x1", String(start));
+                          leader.setAttribute("x2", String(end));
+                          leader.setAttribute(
+                            "visibility",
+                            end - start > 24 ? "visible" : "hidden",
+                          );
+                        }}
                       >
                         <rect
                           x={left}
@@ -213,6 +243,7 @@ export function HorizontalBarChart({
                           onPointerLeave={undefined}
                         />
                         <text
+                          data-row-label=""
                           x={labelOutside ? labelX : left + 8}
                           y={y + rowHeight / 2}
                           dominantBaseline="central"
@@ -230,20 +261,17 @@ export function HorizontalBarChart({
                         >
                           {visibleLabel}
                         </text>
-                        {leaderEnd - leaderStart > 24 ? (
-                          <line
-                            data-leader-line=""
-                            x1={leaderStart}
-                            x2={leaderEnd}
-                            y1={y + rowHeight / 2}
-                            y2={y + rowHeight / 2}
-                            stroke="hsl(var(--muted-foreground))"
-                            strokeOpacity={inactive ? 0.2 : 0.4}
-                            strokeDasharray="3 3"
-                            aria-hidden="true"
-                          />
-                        ) : null}
+                        <line
+                          data-leader-line=""
+                          y1={y + rowHeight / 2}
+                          y2={y + rowHeight / 2}
+                          stroke="hsl(var(--muted-foreground))"
+                          strokeOpacity={inactive ? 0.2 : 0.4}
+                          strokeDasharray="3 3"
+                          aria-hidden="true"
+                        />
                         <text
+                          data-row-value=""
                           x={valueRight}
                           y={y + rowHeight / 2}
                           textAnchor="end"
