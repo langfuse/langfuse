@@ -273,7 +273,7 @@ ClickHouse uses CLICKHOUSE_URL (HTTP/HTTPS), not CLICKHOUSE_MIGRATION_URL. Self-
         ? required("CLICKHOUSE_DB")
         : config.CLICKHOUSE_DB || "default";
       console.log(
-        `ClickHouse: ${url.protocol}//${url.host}, database=${database}`,
+        `ClickHouse: ${url.protocol}//${url.host}, database=[REDACTED]`,
       );
       clickhouse = createClient({
         url: url.href,
