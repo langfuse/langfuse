@@ -87,7 +87,7 @@ export function HorizontalBarChart({
         });
 
         return (
-          <ChartTooltip direction="horizontal">
+          <ChartTooltip placementStrategy="horizontal">
             {({ activeIndex, hideTooltip, getReferenceProps }) => (
               <div
                 className="size-full overflow-x-hidden overflow-y-auto"

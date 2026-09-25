@@ -40,7 +40,7 @@ type TooltipData = {
     | { type: "element" }
     | { type: "point"; x: number; y: number }
     | { type: "bar"; x: number; y: number }
-    | { type: "point-with-pointer-y"; x: number; y: number }
+    | { type: "chart-column"; x: number }
     | { type: "pointer" };
 } & (
   | {
@@ -74,11 +74,9 @@ type TooltipData = {
 
 export function ChartTooltip({
   children,
-  direction = "vertical",
-  preferredPlacement = "top",
+  placementStrategy = "chart-top",
 }: {
-  direction?: "vertical" | "horizontal";
-  preferredPlacement?: "top" | "bottom";
+  placementStrategy?: "chart-top" | "chart-bottom" | "horizontal";
   children: (controller: {
     activeIndex: number | undefined;
     hideTooltip: () => void;
@@ -136,20 +134,20 @@ export function ChartTooltip({
 
   const layerContainer = useLayerContainer("tooltip");
   const chartAnchored =
-    preferredPlacement === "bottom" &&
-    activeTooltip?.anchor.type === "point-with-pointer-y";
+    placementStrategy === "chart-bottom" &&
+    activeTooltip?.anchor.type === "chart-column";
   let fallbackPlacements: Array<"top" | "bottom" | "left" | "right"> = [
     "bottom",
     "left",
     "right",
   ];
-  if (direction === "horizontal") {
+  if (placementStrategy === "horizontal") {
     fallbackPlacements = ["left", "top", "bottom"];
   } else if (chartAnchored) {
     fallbackPlacements = [activeTooltip.side === "top" ? "bottom" : "top"];
   }
   let placement: "top" | "bottom" | "left" | "right" = "top";
-  if (direction === "horizontal") placement = "right";
+  if (placementStrategy === "horizontal") placement = "right";
   if (chartAnchored) placement = activeTooltip.side ?? "bottom";
   if (activeTooltip?.placement) placement = activeTooltip.placement;
   const { floatingStyles, refs } = useFloating({
@@ -188,7 +186,7 @@ export function ChartTooltip({
           }
           return 12;
         }
-        if (preferredPlacement === "bottom") return 12;
+        if (placementStrategy === "chart-bottom") return 12;
         if (activeTooltip.anchor.type === "bar") return 12;
         const chartBounds = activeTooltip.chart.getBoundingClientRect();
         if (placement === "top") {
@@ -244,8 +242,8 @@ export function ChartTooltip({
       const { currentTarget } = event;
       let chart: SVGElement | HTMLElement = currentTarget;
       if (
-        preferredPlacement !== "bottom" ||
-        data.anchor.type !== "point-with-pointer-y" ||
+        placementStrategy !== "chart-bottom" ||
+        data.anchor.type !== "chart-column" ||
         !(currentTarget instanceof SVGRectElement)
       ) {
         chart =
@@ -262,17 +260,17 @@ export function ChartTooltip({
         focusPoint &&
         (data.anchor.type === "point" ||
           data.anchor.type === "bar" ||
-          data.anchor.type === "point-with-pointer-y")
+          data.anchor.type === "chart-column")
       ) {
         focusPoint.x = data.anchor.x;
-        focusPoint.y = data.anchor.y;
+        focusPoint.y = data.anchor.type === "chart-column" ? 0 : data.anchor.y;
       }
       const screenMatrix = svg?.getScreenCTM();
       const transformedFocusPoint =
         focusPoint &&
         (data.anchor.type === "point" ||
           data.anchor.type === "bar" ||
-          data.anchor.type === "point-with-pointer-y") &&
+          data.anchor.type === "chart-column") &&
         screenMatrix
           ? focusPoint.matrixTransform(screenMatrix)
           : undefined;
@@ -290,8 +288,8 @@ export function ChartTooltip({
       }
       let side: "top" | "bottom" | undefined;
       if (
-        preferredPlacement === "bottom" &&
-        data.anchor.type === "point-with-pointer-y"
+        placementStrategy === "chart-bottom" &&
+        data.anchor.type === "chart-column"
       ) {
         const bounds = chart.getBoundingClientRect();
         side =
@@ -303,9 +301,7 @@ export function ChartTooltip({
         chart,
         clientPoint,
         pointerY:
-          data.anchor.type === "point-with-pointer-y"
-            ? event.clientY
-            : undefined,
+          data.anchor.type === "chart-column" ? event.clientY : undefined,
         placement,
         side,
       });
@@ -318,8 +314,8 @@ export function ChartTooltip({
       onFocus: (event: FocusEvent<SVGElement | HTMLElement>) => {
         let chart: SVGElement | HTMLElement = event.currentTarget;
         if (
-          preferredPlacement !== "bottom" ||
-          data.anchor.type !== "point-with-pointer-y" ||
+          placementStrategy !== "chart-bottom" ||
+          data.anchor.type !== "chart-column" ||
           !(event.currentTarget instanceof SVGRectElement)
         ) {
           chart =
@@ -336,24 +332,25 @@ export function ChartTooltip({
           focusPoint &&
           (data.anchor.type === "point" ||
             data.anchor.type === "bar" ||
-            data.anchor.type === "point-with-pointer-y")
+            data.anchor.type === "chart-column")
         ) {
           focusPoint.x = data.anchor.x;
-          focusPoint.y = data.anchor.y;
+          focusPoint.y =
+            data.anchor.type === "chart-column" ? 0 : data.anchor.y;
         }
         const screenMatrix = svg?.getScreenCTM();
         const transformedFocusPoint =
           focusPoint &&
           (data.anchor.type === "point" ||
             data.anchor.type === "bar" ||
-            data.anchor.type === "point-with-pointer-y") &&
+            data.anchor.type === "chart-column") &&
           screenMatrix
             ? focusPoint.matrixTransform(screenMatrix)
             : undefined;
         let side: "top" | "bottom" | undefined;
         if (
-          preferredPlacement === "bottom" &&
-          data.anchor.type === "point-with-pointer-y"
+          placementStrategy === "chart-bottom" &&
+          data.anchor.type === "chart-column"
         ) {
           const bounds = chart.getBoundingClientRect();
           side =

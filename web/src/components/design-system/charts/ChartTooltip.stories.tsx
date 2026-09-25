@@ -344,7 +344,7 @@ export const PointerYAboveChart = meta.story({
   args: {
     data: {
       ...itemsData,
-      anchor: { type: "point-with-pointer-y", x: 240, y: 40 },
+      anchor: { type: "chart-column", x: 240 },
     },
   },
   play: async ({ canvasElement }) => {

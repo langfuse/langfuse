@@ -141,7 +141,9 @@ function SingleBarChart({
                         tick.label.length > 1,
                     ))
                 ) {
-                  plot = plotForTicks(yTicks.map(valueFormatter), false);
+                  plot = plotForTicks(yTicks.map(valueFormatter), {
+                    showXAxisLabels: false,
+                  });
                   plotHeight = plot.height;
                   yScale.range([plot.top + plotHeight, plot.top]);
                 }
@@ -538,7 +540,9 @@ function MultiSeriesBarChart({
                   xTicks.push({ key: datum.key, x: center, label });
                 });
                 if (!hideXAxisLabels && xTicks.length === 0) {
-                  plot = plotForTicks(yTicks.map(valueFormatter), false);
+                  plot = plotForTicks(yTicks.map(valueFormatter), {
+                    showXAxisLabels: false,
+                  });
                   y.range([plot.top + plot.height, plot.top]);
                 }
 
@@ -645,9 +649,8 @@ function MultiSeriesBarChart({
                                   index,
                                   heading: tooltipFormatter(datum.key),
                                   anchor: {
-                                    type: "point-with-pointer-y",
+                                    type: "chart-column",
                                     x: left + x.bandwidth() / 2,
-                                    y: plot.top + plot.height / 2,
                                   },
                                 },
                           );

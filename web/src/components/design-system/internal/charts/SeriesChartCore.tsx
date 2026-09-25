@@ -706,7 +706,7 @@ function LineChartContent(
   }
 
   return (
-    <ChartTooltip preferredPlacement="bottom">
+    <ChartTooltip placementStrategy="chart-bottom">
       {({ activeIndex, getReferenceProps }) => (
         <CartesianChart
           width={width}
@@ -920,15 +920,17 @@ function LineChartContent(
                     type: "items",
                     index,
                     heading,
-                    anchor: {
-                      type:
-                        values.length === 1 ? "point" : "point-with-pointer-y",
-                      x: currentX,
-                      y: yScale(
-                        stackedValues[index]?.get(first.item.id)?.top ??
-                          first.value,
-                      ),
-                    },
+                    anchor:
+                      values.length === 1
+                        ? {
+                            type: "point" as const,
+                            x: currentX,
+                            y: yScale(
+                              stackedValues[index]?.get(first.item.id)?.top ??
+                                first.value,
+                            ),
+                          }
+                        : { type: "chart-column" as const, x: currentX },
                     emphasizedItemId:
                       series.find((item) => item.emphasis === "emphasized")
                         ?.id ??
@@ -940,9 +942,8 @@ function LineChartContent(
                     index,
                     heading,
                     anchor: {
-                      type: "point-with-pointer-y",
+                      type: "chart-column",
                       x: currentX,
-                      y: TOP_MARGIN + plotHeight / 2,
                     },
                   },
             );
