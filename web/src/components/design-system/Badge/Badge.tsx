@@ -92,7 +92,7 @@ export function Badge({
           interactive &&
             "decoration-border-contrast underline decoration-dashed underline-offset-[3px]",
         )}
-        title={title ?? text}
+        title={title ?? (interactive ? undefined : text)}
       >
         {text}
       </span>
