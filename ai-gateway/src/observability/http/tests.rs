@@ -438,6 +438,7 @@ fn generation_request() -> HttpRequest<Body> {
         .header("langfuse-trace-name", "caller trace")
         .header("langfuse-user-id", "caller-user")
         .header("langfuse-session-id", "caller-session")
+        .header("langfuse-environment", "production")
         .header("langfuse-tags", "one,two")
         .header("langfuse-metadata", "team:search")
         .body(Body::from(GENERATION_REQUEST))
@@ -468,6 +469,7 @@ fn assert_outbound_context(headers: &HeaderMap, span: Option<&opentelemetry_sdk:
         "langfuse-trace-name",
         "langfuse-user-id",
         "langfuse-session-id",
+        "langfuse-environment",
         "langfuse-tags",
         "langfuse-metadata",
     ] {
@@ -499,6 +501,7 @@ fn assert_generation_context(payload: &Value) {
         ("langfuse.trace.name", "caller trace"),
         ("user.id", "caller-user"),
         ("session.id", "caller-session"),
+        ("langfuse.environment", "production"),
         ("langfuse.trace.tags", r#"["one","two"]"#),
     ] {
         assert_eq!(attributes[key], expected);
