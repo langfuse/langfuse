@@ -1,16 +1,13 @@
 /* eslint-disable no-nested-ternary */
 import { ItemBadge } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
+import { MobilePageActionsContent } from "@/src/components/layouts/mobile-page-actions-content";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { PageTabs } from "@/src/components/layouts/page-tabs";
 import { type PageHeaderProps } from "@/src/components/layouts/page-header";
 import { Button } from "@/src/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
+import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 import {
   Tooltip,
   TooltipContent,
@@ -162,9 +159,7 @@ export const MobilePageTitle = ({
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent
-              align="end"
-              className="w-auto min-w-44 p-1"
+            <MobilePageActionsContent
               onCloseAutoFocus={(event) => {
                 if (!restoreFocus.current) event.preventDefault();
                 restoreFocus.current = true;
@@ -180,7 +175,7 @@ export const MobilePageTitle = ({
                       </>
                     ))}
               </div>
-            </PopoverContent>
+            </MobilePageActionsContent>
           </Popover>
         )}
       </div>
