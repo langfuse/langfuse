@@ -10,10 +10,12 @@ import { ListFilter, ChevronsUpDown, X, Check } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type FilterCondition, type FilterState } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
+import { getExperimentColorStyles } from "./types";
 
 interface ExperimentFilterPillsProps {
   filtersByExperiment: { runId: string; filters: FilterState }[];
   selectedExperimentNames: { experimentId: string; experimentName: string }[];
+  colorExperimentIds: string[];
   onFilterTargetChange: (
     fromExperimentId: string,
     toExperimentId: string,
@@ -69,6 +71,7 @@ interface FilterPillWithTargetProps {
   experimentId: string;
   experimentName: string;
   selectedExperimentNames: { experimentId: string; experimentName: string }[];
+  colorExperimentIds: string[];
   onTargetChange: (toExperimentId: string) => void;
   onRemove: () => void;
 }
@@ -78,6 +81,7 @@ function FilterPillWithTarget({
   experimentId,
   experimentName,
   selectedExperimentNames,
+  colorExperimentIds,
   onTargetChange,
   onRemove,
 }: FilterPillWithTargetProps) {
@@ -100,13 +104,20 @@ function FilterPillWithTarget({
             className="flex shrink-0 items-center gap-0.5 font-bold hover:underline"
             title={experimentName}
           >
-            <span className="max-w-[100px] truncate" title={experimentName}>
+            <span
+              className={cn(
+                "max-w-25 truncate",
+                getExperimentColorStyles(experimentId, colorExperimentIds)
+                  .textClass,
+              )}
+              title={experimentName}
+            >
               {experimentName}
             </span>
             <ChevronsUpDown className="h-3 w-3 opacity-50" />
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-1" align="start">
+        <PopoverContent className="w-50 p-1" align="start">
           <div className="text-muted-foreground px-2 py-1.5 text-xs font-bold">
             Target Experiment
           </div>
@@ -156,6 +167,7 @@ function FilterPillWithTarget({
 export function ExperimentFilterPills({
   filtersByExperiment,
   selectedExperimentNames,
+  colorExperimentIds,
   onFilterTargetChange,
   onFilterRemove,
   className,
@@ -191,6 +203,7 @@ export function ExperimentFilterPills({
           experimentId={item.experimentId}
           experimentName={item.experimentName}
           selectedExperimentNames={selectedExperimentNames}
+          colorExperimentIds={colorExperimentIds}
           onTargetChange={(toExperimentId) =>
             onFilterTargetChange(
               item.experimentId,

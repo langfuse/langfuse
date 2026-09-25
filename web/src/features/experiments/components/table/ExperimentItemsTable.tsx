@@ -2070,6 +2070,7 @@ export default function ExperimentItemsTable({
         {/* Filter Pills with Experiment Targeting */}
         {filtersByExperiment.length > 0 && (
           <ExperimentFilterPills
+            colorExperimentIds={colorExperimentIds}
             selectedExperimentNames={selectedExperimentNames}
             filtersByExperiment={filtersByExperiment}
             onFilterTargetChange={handleFilterTargetChange}
