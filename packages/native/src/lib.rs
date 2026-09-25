@@ -45,6 +45,9 @@ pub struct PreparedEvent {
 
 #[napi]
 impl PreparedEvent {
+    /// Read a storage-ready row into owned Rust fields. JSON-valued String columns such as
+    /// `model_parameters` must already be serialized by TypeScript; `event_bytes` must be supplied
+    /// after overflow handling and accounting. This constructor never serializes the JS row.
     #[napi(constructor, ts_args_type = "row: object")]
     pub fn new(row: Unknown<'_>) -> Result<Self> {
         let row = native_schema::PreparedEventRow::from_js(row)
@@ -102,9 +105,11 @@ impl Task for EncodeClickhouseEventsTask {
             .map(|block| {
                 let row_count = u32::try_from(block.row_count)
                     .map_err(|_| Error::from_reason("Native block row count exceeds UInt32"))?;
-                // `Bytes` produced by clickhouse-rs can transfer its Vec allocation into napi's
-                // external Buffer. If Node cannot create external buffers, napi-rs falls back to
-                // one copy; the normal path does not copy the Native payload here.
+                // The encoder returns a fresh, uniquely owned allocation. Vec takes it over,
+                // then napi wraps the same memory in a JS Buffer whose GC finalizer frees it.
+                // This handoff does not copy the payload. If the runtime forbids external
+                // buffers, napi-rs copies it into Node-owned memory instead. Shared or sliced
+                // Bytes would not have the same no-copy guarantee when converted to Vec.
                 Ok(NativeEventBlock {
                     bytes: Buffer::from(Vec::from(block.bytes)),
                     row_count,
@@ -144,6 +149,10 @@ pub fn encode_clickhouse_events(
 ) -> Result<AsyncTask<EncodeClickhouseEventsTask>> {
     let max_rows_per_block = checked_max_rows_per_block(max_rows_per_block)?;
     let mut prepared_rows = Vec::with_capacity(rows.len() as usize);
+    // napi's Array is a JS handle with indexed access, not a Rust slice with an iterator.
+    // Retain each immutable Rust row for the background task before leaving the JS thread:
+    // Arc::clone increments a reference count without copying fields, and keeps the row alive
+    // even if Node collects its PreparedEvent wrapper. No JS handles enter the task.
     for index in 0..rows.len() {
         let event = rows
             .get::<ClassInstance<'_, PreparedEvent>>(index)?

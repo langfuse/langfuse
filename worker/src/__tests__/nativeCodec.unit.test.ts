@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PreparedEvent, encodeClickhouseEvents } from "@langfuse/native";
+import { createEvent } from "@langfuse/shared/src/server";
+import { prepareNativeEvent } from "../services/IngestionService/prepareNativeEvent";
 
 const preparedRow = () => ({
   project_id: "native-boundary",
@@ -22,6 +24,34 @@ const preparedRow = () => ({
 });
 
 describe("Native codec NAPI boundary", () => {
+  it("prepares structured model parameters without mutating the TS row or double-encoding strings", async () => {
+    const serialized = '{"temperature":0.2,"nested":["🔥",null]}';
+    for (const [parameters, expected] of [
+      [
+        { temperature: 0.2, nested: ["🔥", null], omitted: undefined },
+        serialized,
+      ],
+      [serialized, serialized],
+      [null, ""],
+      [undefined, ""],
+    ] as const) {
+      const row = {
+        ...createEvent(preparedRow()),
+        model_parameters: parameters,
+      };
+      const original = structuredClone(row);
+
+      const prepared = prepareNativeEvent(row);
+      expect(row).toEqual(original);
+      expect(await encodeClickhouseEvents([prepared], 1)).toEqual(
+        await encodeClickhouseEvents(
+          [new PreparedEvent({ ...row, model_parameters: expected })],
+          1,
+        ),
+      );
+    }
+  });
+
   it("owns its snapshot before async encoding, without calling toJSON", async () => {
     const row = preparedRow();
     const original = structuredClone(row);

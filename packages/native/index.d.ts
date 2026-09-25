@@ -2,6 +2,11 @@
 /* eslint-disable */
 /** A snapshot of one finalized event row, retained until its JS handle and any encoder tasks drop it. */
 export declare class PreparedEvent {
+  /**
+   * Read a storage-ready row into owned Rust fields. JSON-valued String columns such as
+   * `model_parameters` must already be serialized by TypeScript; `event_bytes` must be supplied
+   * after overflow handling and accounting. This constructor never serializes the JS row.
+   */
   constructor(row: object)
   get ids(): PreparedEventIds
   static columns(): Array<PreparedEventColumn>
