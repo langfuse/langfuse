@@ -8,8 +8,7 @@
  * apply reductions in least-painful order until it fits:
  *   1. fold the trace actions into the "…" menu (still one click away),
  *   2. shrink the type badge to icon-only (never truncate it to "Tr…"),
- *   3. compact the prev/next nav (icon-only arrows, K/J in the tooltip),
- *   4. fold open-in-tab into "…".
+ *   3. fold open-in-tab into "…".
  * Anything still over budget just lets the title truncate (its natural state).
  */
 
@@ -17,7 +16,6 @@ export type PeekHeaderPlan = {
   foldActions: boolean;
   foldOpenInTab: boolean;
   badgeShowLabel: boolean;
-  navCompact: boolean;
 };
 
 export type PlanPeekHeaderArgs = {
@@ -27,10 +25,8 @@ export type PlanPeekHeaderArgs = {
   minTitle: number;
   badgeLabelWidth: number;
   badgeIconWidth: number;
-  /** Prev/next nav width with K/J chips, px (0 when no nav). */
-  navFullWidth: number;
-  /** Prev/next nav width as compact icon arrows, px (0 when no nav). */
-  navCompactWidth: number;
+  /** Prev/next nav width (icon arrows), px (0 when no nav). */
+  navWidth: number;
   /** Pinned controls other than nav (expand + close + divider), px. */
   otherPinnedWidth: number;
   /** Width of the "…" overflow trigger, counted once anything folds, px. */
@@ -48,8 +44,7 @@ export function planPeekHeaderLayout({
   minTitle,
   badgeLabelWidth,
   badgeIconWidth,
-  navFullWidth,
-  navCompactWidth,
+  navWidth,
   otherPinnedWidth,
   moreWidth,
   actionsWidth,
@@ -62,12 +57,10 @@ export function planPeekHeaderLayout({
   let foldActions = false;
   let foldOpenInTab = false;
   let badgeShowLabel = true;
-  let navCompact = false;
 
-  const pinnedWidth = () =>
-    (navCompact ? navCompactWidth : navFullWidth) + otherPinnedWidth;
   const clusterWidth = () =>
-    pinnedWidth() +
+    navWidth +
+    otherPinnedWidth +
     (foldActions || foldOpenInTab ? moreWidth : 0) +
     (hasActions && !foldActions ? (actionsWidth ?? 0) : 0) +
     (hasOpenInTab && !foldOpenInTab ? (openInTabWidth ?? 0) : 0) +
@@ -83,9 +76,6 @@ export function planPeekHeaderLayout({
       badgeShowLabel = false;
     },
     () => {
-      navCompact = true;
-    },
-    () => {
       if (hasOpenInTab) foldOpenInTab = true;
     },
   ];
@@ -95,5 +85,5 @@ export function planPeekHeaderLayout({
     reduce();
   }
 
-  return { foldActions, foldOpenInTab, badgeShowLabel, navCompact };
+  return { foldActions, foldOpenInTab, badgeShowLabel };
 }

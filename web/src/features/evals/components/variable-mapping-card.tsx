@@ -210,8 +210,8 @@ export const VariableMappingCard = ({
               />
             ) : (
               <div className="flex flex-row gap-1">
-                <Skeleton className="h-8 w-[54px]" />
-                <Skeleton className="h-8 w-[54px]" />
+                <Skeleton className="h-6 w-6" />
+                <Skeleton className="h-6 w-6" />
               </div>
             ))}
         </>
