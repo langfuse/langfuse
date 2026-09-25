@@ -194,6 +194,17 @@ export const MissingBuckets = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Hide Worker" }),
     ).toHaveTextContent("Sum: 5");
+    const emptyBucket = canvasElement.querySelectorAll<SVGRectElement>(
+      'rect[fill="transparent"]',
+    )[0];
+    if (!emptyBucket) throw new Error("Missing empty bucket hover area");
+    await userEvent.hover(emptyBucket);
+    await expect(
+      within(canvasElement.ownerDocument.body).getByRole("tooltip"),
+    ).toHaveTextContent("No data available");
+    await expect(
+      canvasElement.querySelector("[data-active-reference-line]"),
+    ).toBeInTheDocument();
   },
 });
 
@@ -256,7 +267,7 @@ export const SyncedBucket = meta.story({
     ).toHaveTextContent("Tuesday");
     await expect(
       canvasElement.querySelector("[data-active-reference-line]"),
-    ).not.toBeInTheDocument();
+    ).toBeInTheDocument();
   },
 });
 

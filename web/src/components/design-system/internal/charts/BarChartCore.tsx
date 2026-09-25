@@ -184,15 +184,21 @@ function SingleBarChart({
                         y={yScale}
                         valueFormatter={valueFormatter}
                         zeroY={min < 0 ? yScale(0) : undefined}
+                        activeX={
+                          activeIndex === undefined ||
+                          barSpacing === "histogram"
+                            ? undefined
+                            : {
+                                key: String(activeIndex),
+                                x: xTicks[activeIndex]?.x ?? plot.left,
+                                label: data[activeIndex]?.label ?? "",
+                              }
+                        }
                         xAxis={
                           hideXAxisLabels
                             ? undefined
                             : {
                                 ticks: xTicks,
-                                activeKey:
-                                  activeIndex === undefined
-                                    ? undefined
-                                    : String(activeIndex),
                                 showCategoryTicks: true,
                                 alignment: "center",
                               }
@@ -537,15 +543,22 @@ function MultiSeriesBarChart({
                         y={y}
                         valueFormatter={valueFormatter}
                         zeroY={min < 0 ? y(0) : undefined}
+                        activeX={
+                          activeIndex >= 0 && data[activeIndex]
+                            ? {
+                                key: data[activeIndex].key,
+                                x:
+                                  (x(activeIndex) ?? plot.left) +
+                                  x.bandwidth() / 2,
+                                label: tickFormatter(data[activeIndex].key),
+                              }
+                            : undefined
+                        }
                         xAxis={
                           hideXAxisLabels
                             ? undefined
                             : {
                                 ticks: xTicks,
-                                activeKey:
-                                  activeIndex >= 0
-                                    ? data[activeIndex]?.key
-                                    : undefined,
                                 showCategoryTicks: layout === "grouped",
                                 alignment: "center",
                               }
@@ -570,33 +583,48 @@ function MultiSeriesBarChart({
                                 ]
                               : [];
                           });
-                          const referenceProps = getReferenceProps({
-                            type: "items",
-                            index,
-                            heading: tooltipFormatter(datum.key),
-                            anchor: {
-                              type: "point",
-                              x: left + x.bandwidth() / 2,
-                              y:
-                                layout === "grouped"
-                                  ? Math.min(
-                                      y(0),
-                                      ...visibleSeries.flatMap((item) => {
-                                        const value = datum.values[item.id];
-                                        return typeof value === "number" &&
-                                          Number.isFinite(value)
-                                          ? [y(value)]
-                                          : [];
-                                      }),
-                                    )
-                                  : y(totals[index]?.positive ?? 0),
-                            },
-                            items: items.sort(
-                              (a, b) =>
-                                (datum.values[b.id] ?? 0) -
-                                (datum.values[a.id] ?? 0),
-                            ),
-                          });
+                          const referenceProps = getReferenceProps(
+                            items.length
+                              ? {
+                                  type: "items",
+                                  index,
+                                  heading: tooltipFormatter(datum.key),
+                                  anchor: {
+                                    type: "point",
+                                    x: left + x.bandwidth() / 2,
+                                    y:
+                                      layout === "grouped"
+                                        ? Math.min(
+                                            y(0),
+                                            ...visibleSeries.flatMap((item) => {
+                                              const value =
+                                                datum.values[item.id];
+                                              return typeof value ===
+                                                "number" &&
+                                                Number.isFinite(value)
+                                                ? [y(value)]
+                                                : [];
+                                            }),
+                                          )
+                                        : y(totals[index]?.positive ?? 0),
+                                  },
+                                  items: items.sort(
+                                    (a, b) =>
+                                      (datum.values[b.id] ?? 0) -
+                                      (datum.values[a.id] ?? 0),
+                                  ),
+                                }
+                              : {
+                                  type: "empty",
+                                  index,
+                                  heading: tooltipFormatter(datum.key),
+                                  anchor: {
+                                    type: "point-with-pointer-y",
+                                    x: left + x.bandwidth() / 2,
+                                    y: plot.top + plot.height / 2,
+                                  },
+                                },
+                          );
                           return (
                             <g key={`${datum.key}-${index}`}>
                               <defs>

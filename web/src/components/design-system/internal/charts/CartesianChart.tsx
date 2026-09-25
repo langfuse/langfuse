@@ -51,7 +51,7 @@ function ChartGrid({
 
 function ChartXAxis({
   ticks,
-  activeKey,
+  activeTick,
   y,
   width,
   showCategoryTicks = false,
@@ -64,7 +64,7 @@ function ChartXAxis({
     maxWidth?: number;
     textAnchor?: "end";
   }[];
-  activeKey?: string;
+  activeTick?: { key: string; x: number; label: string };
   y: number;
   width: number;
   showCategoryTicks?: boolean;
@@ -79,7 +79,12 @@ function ChartXAxis({
         Math.floor(tick.maxWidth / characterWidth) <= 1 &&
         tick.label.length > 1,
     );
-  const labels = ticks.map((tick, index) => {
+  const axisTicks: typeof ticks = activeTick
+    ? [...ticks.filter((tick) => tick.key !== activeTick.key), activeTick].sort(
+        (left, right) => left.x - right.x,
+      )
+    : ticks;
+  const labels = axisTicks.map((tick, index) => {
     let textAnchor: "start" | "middle" | "end" = "middle";
     if (alignment === "endpoints" && ticks.length > 1) {
       if (index === 0) textAnchor = "start";
@@ -103,21 +108,21 @@ function ChartXAxis({
           : x;
     return { tick, index, active: false, anchor, label, labelWidth, x, left };
   });
-  const activeTick = labels.find(({ tick }) => tick.key === activeKey);
-  const activeLabelWidth = activeTick
-    ? Math.min(width - 32, activeTick.tick.label.length * characterWidth)
+  const active = labels.find(({ tick }) => tick.key === activeTick?.key);
+  const activeLabelWidth = active
+    ? Math.min(width - 32, active.tick.label.length * characterWidth)
     : 0;
-  const activeX = activeTick
+  const activeX = active
     ? Math.max(
         16 + activeLabelWidth / 2,
-        Math.min(width - 16 - activeLabelWidth / 2, activeTick.x),
+        Math.min(width - 16 - activeLabelWidth / 2, active.x),
       )
     : 0;
-  const activeLabel = activeTick
+  const activeLabel = active
     ? {
-        ...activeTick,
+        ...active,
         active: true,
-        label: activeTick.tick.label,
+        label: active.tick.label,
         labelWidth: activeLabelWidth,
         x: activeX,
         left: activeX - activeLabelWidth / 2,
@@ -125,9 +130,10 @@ function ChartXAxis({
     : undefined;
   const baseLabels = labels
     .sort((left, right) => {
-      const leftEndpoint = left.index === 0 || left.index === ticks.length - 1;
+      const leftEndpoint =
+        left.index === 0 || left.index === axisTicks.length - 1;
       const rightEndpoint =
-        right.index === 0 || right.index === ticks.length - 1;
+        right.index === 0 || right.index === axisTicks.length - 1;
       return Number(rightEndpoint) - Number(leftEndpoint);
     })
     .reduce<typeof labels>((visible, label) => {
@@ -247,6 +253,7 @@ export function CartesianChart({
   categoryBoundaries = false,
   zeroY,
   xAxis,
+  activeX,
   children,
 }: {
   width: number;
@@ -267,10 +274,10 @@ export function CartesianChart({
       maxWidth?: number;
       textAnchor?: "end";
     }[];
-    activeKey?: string;
     showCategoryTicks?: boolean;
     alignment?: "endpoints" | "center";
   };
+  activeX?: { key: string; x: number; label: string };
   children: ReactNode;
 }) {
   return (
@@ -314,10 +321,23 @@ export function CartesianChart({
         valueFormatter={valueFormatter}
       />
       {children}
+      {activeX ? (
+        <line
+          data-active-reference-line=""
+          x1={activeX.x}
+          x2={activeX.x}
+          y1={plot.top}
+          y2={plot.top + plot.height}
+          stroke="hsl(var(--foreground))"
+          strokeDasharray="3 3"
+          opacity={0.35}
+          pointerEvents="none"
+        />
+      ) : null}
       {xAxis ? (
         <ChartXAxis
           ticks={xAxis.ticks}
-          activeKey={xAxis.activeKey}
+          activeTick={activeX}
           y={plot.top + plot.height}
           width={width}
           showCategoryTicks={xAxis.showCategoryTicks}

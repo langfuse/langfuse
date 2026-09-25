@@ -516,11 +516,6 @@ function LineChartContent(
     datum.x instanceof Date
       ? timeScale(datum.x)
       : (categoryScale(datum.key) ?? LEFT_MARGIN);
-  const getXFromKey = (key: string) =>
-    xAxis.type === "time"
-      ? timeScale(new Date(Number(key)))
-      : (categoryScale(key) ?? LEFT_MARGIN);
-
   const timeDataDates = data.flatMap((datum) =>
     datum.x instanceof Date ? [datum.x] : [],
   );
@@ -619,12 +614,6 @@ function LineChartContent(
         label: formatXAxisTick(activeDatum),
       }
     : undefined;
-  const candidateXTicks = activeXAxisTick
-    ? [
-        ...xTicks.filter((tick) => tick.key !== activeXAxisTick.key),
-        { ...activeXAxisTick, maxWidth: undefined },
-      ].sort((left, right) => left.x - right.x)
-    : xTicks;
   const showTooltipTime = timeDataDates.some(
     (date, index) =>
       date.getUTCHours() !== 0 ||
@@ -736,11 +725,11 @@ function LineChartContent(
               ? yScale(0)
               : undefined
           }
+          activeX={activeXAxisTick}
           xAxis={
             showXAxisLabels
               ? {
-                  ticks: candidateXTicks,
-                  activeKey,
+                  ticks: xTicks,
                   showCategoryTicks: xAxis.type === "category",
                 }
               : undefined
@@ -900,19 +889,6 @@ function LineChartContent(
               </g>
             );
           })}
-
-          {activeKey !== undefined ? (
-            <line
-              x1={getXFromKey(activeKey)}
-              x2={getXFromKey(activeKey)}
-              y1={TOP_MARGIN}
-              y2={TOP_MARGIN + plotHeight}
-              stroke="hsl(var(--foreground))"
-              strokeDasharray="3 3"
-              opacity={0.35}
-              pointerEvents="none"
-            />
-          ) : null}
 
           {data.map((datum, index) => {
             const currentX = getX(datum);
