@@ -104,6 +104,13 @@ export const TooltipFollowsBar = meta.story({
       const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
         "tooltip",
       );
+      const referenceLine = canvasElement.querySelector(
+        "[data-active-reference-line]",
+      );
+      if (!referenceLine) throw new Error("Reference line not found");
+      await expect(referenceLine.compareDocumentPosition(bar)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
       const areaTop = tooltip.getBoundingClientRect().top;
       await userEvent.hover(bar);
       await expect(tooltip.getBoundingClientRect().top).toBeCloseTo(areaTop, 0);

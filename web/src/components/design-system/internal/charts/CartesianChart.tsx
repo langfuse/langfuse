@@ -320,7 +320,6 @@ export function CartesianChart({
         left={plot.left}
         valueFormatter={valueFormatter}
       />
-      {children}
       {activeX ? (
         <line
           data-active-reference-line=""
@@ -334,6 +333,7 @@ export function CartesianChart({
           pointerEvents="none"
         />
       ) : null}
+      {children}
       {xAxis ? (
         <ChartXAxis
           ticks={xAxis.ticks}
