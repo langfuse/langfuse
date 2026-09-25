@@ -309,6 +309,43 @@ export const LongAndDuplicateLabels = meta.story({
   },
 });
 
+export const LabelOnRoomierSide = meta.story({
+  name: "(Test) Label On Roomier Side",
+  args: {
+    data: [
+      { label: "A long label that cannot fit in this bar", value: 100 },
+      { label: "A long label that cannot fit in this bar", value: 70 },
+      { label: "A long label that cannot fit in this bar", value: 10 },
+    ],
+  },
+  decorators: [
+    (Story) => (
+      <div className="h-40 w-[440px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const bars =
+      canvasElement.querySelectorAll<SVGRectElement>("[data-bar-fill]");
+    const labels =
+      canvasElement.querySelectorAll<SVGTextElement>("[data-row-label]");
+    const large = bars[1];
+    const largeLabel = labels[1];
+    const small = bars[2];
+    const smallLabel = labels[2];
+    if (!large || !largeLabel || !small || !smallLabel) {
+      throw new Error("Chart rows not found");
+    }
+    await expect(largeLabel.getBoundingClientRect().left).toBeLessThan(
+      large.getBoundingClientRect().right,
+    );
+    await expect(
+      smallLabel.getBoundingClientRect().left,
+    ).toBeGreaterThanOrEqual(small.getBoundingClientRect().right);
+  },
+});
+
 export const TinyBarsBesideOutlier = meta.story({
   name: "(Test) Tiny Bars Beside Outlier",
   args: {

@@ -131,16 +131,17 @@ export function HorizontalBarChart({
                     const barWidth =
                       maxMagnitude > 0 ? scale(Math.abs(value)) * plotWidth : 0;
                     const y = top + gap + index * (rowHeight + gap);
-                    const outsideLabelWidth = Math.min(
-                      datum.label.length * CHARACTER_WIDTH + 8,
-                      Math.max(0, plotWidth - barWidth - 16),
+                    const insideLabelRoom = Math.max(0, barWidth - 16);
+                    const outsideLabelRoom = Math.max(
+                      0,
+                      plotWidth - barWidth - 24,
                     );
                     const labelOutside =
-                      barWidth < datum.label.length * CHARACTER_WIDTH + 16 &&
-                      outsideLabelWidth >= 16;
+                      insideLabelRoom < datum.label.length * CHARACTER_WIDTH &&
+                      outsideLabelRoom > insideLabelRoom;
                     const labelRoom = labelOutside
-                      ? outsideLabelWidth - 8
-                      : Math.max(0, barWidth - 16);
+                      ? outsideLabelRoom
+                      : insideLabelRoom;
                     const maxCharacters = Math.floor(
                       labelRoom / CHARACTER_WIDTH,
                     );
