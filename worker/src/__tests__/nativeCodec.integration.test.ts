@@ -88,6 +88,7 @@ describe.runIf(
     let writer:
       | ClickhouseWriter
       | ReturnType<typeof ClickhouseWriter.getNativeInstance>;
+    let writerShutdown = false;
     try {
       if (native) {
         writer = ClickhouseWriter.getNativeInstance(adapter);
@@ -108,11 +109,12 @@ describe.runIf(
           );
         }
       }
-      await writer.shutdown();
+      await ClickhouseWriter.shutdownAll();
+      writerShutdown = true;
       expect(writer.queue[TableName.EventsFull]).toHaveLength(0);
       expect(inserts).toBeGreaterThan(0);
     } finally {
-      await ClickhouseWriter.shutdownAll();
+      if (!writerShutdown) await ClickhouseWriter.shutdownAll();
     }
   };
 
@@ -238,16 +240,19 @@ describe.runIf(
         // from the integer obtained by a direct f64-to-u64 cast.
         aboveSignedRange: 2 ** 63,
         zero: -0,
+        "\u0000": 0,
       },
       cost_details: {
         precise: 510407.65505697404,
         tiny: 1e-13,
         negative: -1.9999999999999,
         overflow: 1e6,
+        "\u0000": 0,
       },
       tool_definitions: Object.fromEntries([
         ["__proto__", "tool"],
         ["é", "🔥"],
+        ["\u0000", "nul-key-tool"],
       ]),
       tags: ["", "🔥", "line\nbreak"],
     };
