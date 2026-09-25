@@ -137,3 +137,43 @@ export const Empty = meta.story({
     plan: { stage: "value", from: 0, to: 0, loading: false, sections: [] },
   },
 });
+
+export const ExperimentTargets = meta.story({
+  args: {
+    highlightedId: "target:comparison-a",
+    plan: {
+      stage: "value",
+      from: 16,
+      to: 17,
+      loading: false,
+      sections: [
+        {
+          title: "Target",
+          options: [
+            {
+              id: "baseline",
+              label: "baseline",
+              textClassName: "text-foreground",
+            },
+            {
+              id: "comparison-a",
+              label: "GPT experiment",
+              textClassName: "text-pink-500",
+            },
+            {
+              id: "comparison-b",
+              label: "Claude experiment",
+              textClassName: "text-teal-500",
+            },
+          ].map(({ id, label, textClassName }) => ({
+            id: `target:${id}`,
+            kind: "pattern" as const,
+            label,
+            textClassName,
+            insert: id === "baseline" ? "@baseline" : `@"${label}"`,
+          })),
+        },
+      ],
+    },
+  },
+});

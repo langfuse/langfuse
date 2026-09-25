@@ -67,6 +67,7 @@ export type CompletionOption =
       id: string;
       kind: "pattern";
       label: string;
+      textClassName?: string;
       detail?: string;
       insert: string;
       /** When set, the pick replaces THIS span instead of the plan's — used by
@@ -1348,6 +1349,7 @@ export function planInputCompletions(
               id: `target:${target.id}`,
               kind: "pattern" as const,
               label: target.label,
+              textClassName: target.textClassName,
               insert: serializeTarget(targetReference(target.id, registry)),
             })),
         },
