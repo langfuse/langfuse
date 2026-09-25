@@ -76,7 +76,6 @@ const FULL: PeekHeaderPlan = {
 
 // Header tooltips appear quickly and share one style (Radix Tooltip, not the
 // slow/inconsistent native `title`).
-const TOOLTIP_DELAY_MS = 300;
 
 /**
  * Visible peek chrome shared by the desktop sheet and the mobile drawer. The
@@ -186,7 +185,7 @@ export function PeekHeader({
   const anyFolded = plan.foldActions || plan.foldOpenInTab;
 
   return (
-    <TooltipProvider delayDuration={TOOLTIP_DELAY_MS}>
+    <TooltipProvider>
       <div
         ref={headerRef}
         className="bg-muted flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
