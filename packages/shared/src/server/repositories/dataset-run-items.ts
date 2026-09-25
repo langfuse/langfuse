@@ -1049,7 +1049,9 @@ export const getDatasetItemIdsByTraceIdCh = async (
       ...appliedFilter.params,
     },
     tags: { projectId },
-    preferredClickhouseService: "ReadOnly",
+    // Read-after-write: createEvalJobs re-reads the just-written run item by
+    // trace_id to schedule evaluators; a replica miss silently drops the eval
+    // (no run-item-not-found retry exists). Keep on the writer.
   });
 
   return res.map((runItem) => {
@@ -1097,7 +1099,8 @@ export const hasAnyDatasetRunItem = async (
     query,
     params: { projectId },
     tags: { projectId },
-    preferredClickhouseService: "ReadOnly",
+    // Keep on the writer: a stale replica could report no rows and skip the
+    // cleanup DELETE, orphaning run items after the project is gone.
   });
 
   return rows.length > 0;
