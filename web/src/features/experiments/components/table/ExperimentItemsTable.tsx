@@ -50,10 +50,7 @@ import {
 } from "@/src/features/column-visibility";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
-import {
-  type RowSelectionState,
-  type VisibilityState,
-} from "@tanstack/react-table";
+import { type RowSelectionState } from "@tanstack/react-table";
 import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
@@ -86,7 +83,6 @@ import {
   collectPresentScoreKeys,
   composeAggregateScoreKey,
   createScoreColumns,
-  revealScoreColumns,
   withPresentScoreKeys,
 } from "@/src/features/scores";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -622,12 +618,9 @@ export default function ExperimentItemsTable({
     limit: "pageSize",
   });
 
-  // Medium by default: with the ids out of the cell a row no longer needs the
-  // tallest option to show its output, and two rows per screen was the
-  // complaint. Large stays one click away for reading long outputs.
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
-    "experiment-items",
-    "m",
+    "experiment-items-compact",
+    "s",
   );
   const ioSingleLine = ioRenderMode === "text";
 
@@ -1088,6 +1081,7 @@ export default function ExperimentItemsTable({
 
         return {
           ...scoreCol,
+          defaultHidden: false,
           // The header holds this column's analysis, so it also sets the
           // column's floor: the shared table's default lets a column be dragged
           // to 20px, which is narrower than `−0.12 ↗1 ↘14` and would clip a
@@ -1299,6 +1293,7 @@ export default function ExperimentItemsTable({
     header: "Expected Output",
     size: 300,
     enableHiding: true,
+    defaultHidden: true,
     // An empty expected output used to render as two literal quote characters.
     getCell: (value) => (ioLoading ? { type: "loading" } : value || undefined),
     singleLine: ioSingleLine,
@@ -1349,12 +1344,14 @@ export default function ExperimentItemsTable({
       header: "Item ID",
       size: 150,
       enableHiding: true,
+      defaultHidden: true,
     }),
     createIOTableColumn<ExperimentItemsTableRow>({
       accessorKey: "input",
       header: "Input",
       size: 300,
       enableHiding: true,
+      defaultHidden: true,
       getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
       singleLine: ioSingleLine,
     }),
@@ -1394,6 +1391,7 @@ export default function ExperimentItemsTable({
       header: "Output",
       size: 300,
       enableHiding: true,
+      defaultHidden: true,
       cell: ({ row }) => {
         const outputs = row.original.outputs ?? [];
         return (
@@ -1428,6 +1426,7 @@ export default function ExperimentItemsTable({
         ),
       size: 120,
       enableHiding: true,
+      defaultHidden: true,
       cell: ({ row }) => {
         const experiments = row.original.experiments;
         const baselineCost = baselineExperimentOf(experiments)?.totalCost;
@@ -1471,6 +1470,7 @@ export default function ExperimentItemsTable({
         ),
       size: 120,
       enableHiding: true,
+      defaultHidden: true,
       cell: ({ row }) => {
         const experiments = row.original.experiments;
         const baselineLatency = baselineExperimentOf(experiments)?.latencyMs;
@@ -1508,6 +1508,7 @@ export default function ExperimentItemsTable({
       header: () => renderExperimentSpecificHeader("Observation ID"),
       size: 180,
       enableHiding: true,
+      defaultHidden: true,
       cell: ({ row }) => {
         const experiments = row.original.experiments;
         return (
@@ -1585,7 +1586,7 @@ export default function ExperimentItemsTable({
       headerLabel: "Experiment",
       header: () => renderExperimentSpecificHeader("Experiment"),
       size: 150,
-      defaultHidden: true,
+      defaultHidden: false,
       enableHiding: true,
       cell: ({ row }) => {
         const experiments = row.original.experiments;
@@ -1614,38 +1615,10 @@ export default function ExperimentItemsTable({
     },
   ];
 
-  const scoreColumnIds = useMemo(
-    () =>
-      [...observationScoreColumns, ...traceScoreColumns].map(
-        (column) => column.accessorKey,
-      ),
-    [observationScoreColumns, traceScoreColumns],
-  );
-
-  // Score columns are now visible by default. A returning user has `false`
-  // persisted for every one of them from the previous default, so this one-time
-  // migration reaches them too — see `revealScoreColumns` for how a user who
-  // picked their own score columns is left alone. It is consumed once and for
-  // good, so it waits for the score columns to be known rather than running
-  // against an empty or half-loaded set.
-  const columnVisibilityMigrations = useMemo(
-    () => [
-      {
-        versionKey: `experimentItemsColumnVisibility-scoresVisible-v1-${projectId}`,
-        apply: (visibility: VisibilityState) =>
-          isFilterOptionsLoading
-            ? null
-            : revealScoreColumns(visibility, scoreColumnIds),
-      },
-    ],
-    [projectId, scoreColumnIds, isFilterOptionsLoading],
-  );
-
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<ExperimentItemsTableRow>(
-      `experimentItemsColumnVisibility-${projectId}`,
+      `experimentItemsColumnVisibility-compare-${projectId}`,
       columns,
-      columnVisibilityMigrations,
     );
 
   // the score columns moved ahead of the metrics and ids so their
@@ -1655,7 +1628,7 @@ export default function ExperimentItemsTable({
   const columnOrderMigrations = useMemo(
     () => [
       {
-        versionKey: `experimentItemsColumnOrder-scoresEarlier-v2-${projectId}`,
+        versionKey: `experimentItemsColumnOrder-compare-${projectId}`,
         apply: resetStaleDefaultColumnOrder,
       },
     ],

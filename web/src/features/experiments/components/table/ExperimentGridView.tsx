@@ -1,7 +1,4 @@
-import {
-  ExperimentGridSummaryLabels,
-  ExperimentGridSummaryValues,
-} from "./ExperimentGridSummary";
+import { ExperimentGridSummaryValues } from "./ExperimentGridSummary";
 import { DataTable } from "@/src/components/table/data-table";
 import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -153,6 +150,8 @@ export const ExperimentGridView = ({
             </div>
             <ExperimentGridSummaryValues
               expanded={summaryExpanded}
+              showScoreNames={index === 0}
+              onToggle={() => setSummaryExpanded((expanded) => !expanded)}
               comparisonIndex={
                 isBaseline || !baselineExperimentId
                   ? null
@@ -259,18 +258,8 @@ export const ExperimentGridView = ({
         : []),
       createIOTableColumn<ExperimentItemsTableRow>({
         accessorKey: "input",
-        headerLabel: "Input",
-        headerBlock: true,
-        headerClassName: "align-top",
-        header: () => (
-          <div>
-            <div className="flex h-9 items-center">Input</div>
-            <ExperimentGridSummaryLabels
-              expanded={summaryExpanded}
-              onToggle={() => setSummaryExpanded((expanded) => !expanded)}
-            />
-          </div>
-        ),
+        header: "Input",
+        headerClassName: "align-top pt-3",
         size: 200,
         getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
         singleLine,
@@ -294,7 +283,6 @@ export const ExperimentGridView = ({
       ...experimentColumns,
     ],
     [
-      summaryExpanded,
       experimentColumns,
       ioLoading,
       selectActionColumn,

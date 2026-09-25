@@ -93,6 +93,23 @@ describe("ExperimentGridCell", () => {
     expect(screen.getAllByText("not recorded")).toHaveLength(2);
   });
 
+  it("hides metadata when only scores are selected", () => {
+    renderGridCell(false, {
+      output: false,
+      totalCost: false,
+      latencyMs: false,
+      level: false,
+      itemId: false,
+      observationId: false,
+      startTime: false,
+    });
+
+    expect(screen.getByText("quality")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "IDs" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps the ids reachable behind the metadata line instead of listing them", () => {
     renderGridCell(false, { output: false });
 

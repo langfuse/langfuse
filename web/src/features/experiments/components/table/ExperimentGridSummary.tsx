@@ -18,56 +18,39 @@ const SUMMARY_SCORES = [
   },
 ] as const;
 
-export function ExperimentGridSummaryLabels({
+export function ExperimentGridSummaryValues({
+  comparisonIndex,
   expanded,
+  showScoreNames,
   onToggle,
 }: {
+  comparisonIndex: number | null;
   expanded: boolean;
+  showScoreNames: boolean;
   onToggle: () => void;
 }) {
   return (
     <div className="border-t py-1">
-      <button
-        type="button"
-        aria-expanded={expanded}
-        onClick={(event) => {
-          event.stopPropagation();
-          onToggle();
-        }}
-        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex h-6 w-full items-center gap-1 rounded text-left text-[10px] font-normal focus-visible:ring-2 focus-visible:outline-none"
-      >
-        {expanded ? (
-          <ChevronDown className="size-3" />
-        ) : (
-          <ChevronRight className="size-3" />
-        )}
-        SUMMARY · sample data
-      </button>
-      {expanded &&
-        SUMMARY_SCORES.map((score) => (
-          <div
-            key={score.name}
-            className="flex h-7 min-w-0 items-center px-1 text-xs font-normal"
+      <div className="h-6">
+        {showScoreNames && (
+          <button
+            type="button"
+            aria-expanded={expanded}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggle();
+            }}
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex h-6 items-center gap-1 rounded text-left text-[10px] font-normal focus-visible:ring-2 focus-visible:outline-none"
           >
-            <span className="truncate" title={score.name}>
-              {score.name}
-            </span>
-          </div>
-        ))}
-    </div>
-  );
-}
-
-export function ExperimentGridSummaryValues({
-  comparisonIndex,
-  expanded,
-}: {
-  comparisonIndex: number | null;
-  expanded: boolean;
-}) {
-  return (
-    <div className="border-t py-1">
-      <div className="h-6" />
+            {expanded ? (
+              <ChevronDown className="size-3" />
+            ) : (
+              <ChevronRight className="size-3" />
+            )}
+            SUMMARY · sample data
+          </button>
+        )}
+      </div>
       {expanded &&
         SUMMARY_SCORES.map((score) => {
           const fixtureIndex =
@@ -81,10 +64,18 @@ export function ExperimentGridSummaryValues({
           return (
             <div
               key={score.name}
-              className="flex h-7 items-center gap-4 px-1 font-normal tabular-nums"
+              className="flex h-7 min-w-0 items-center gap-4 px-1 font-normal tabular-nums"
               aria-label={`${score.name}: ${value}`}
             >
-              <div className="flex items-baseline gap-2 whitespace-nowrap">
+              {showScoreNames && (
+                <span
+                  className="min-w-0 flex-1 truncate text-xs"
+                  title={score.name}
+                >
+                  {score.name}
+                </span>
+              )}
+              <div className="flex shrink-0 items-baseline gap-2 whitespace-nowrap">
                 <span className="text-foreground text-xs">{value}</span>
                 <span
                   className="text-muted-foreground text-xs"
