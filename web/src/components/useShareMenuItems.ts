@@ -45,8 +45,9 @@ export function useShareMenuItems({
       .then(() => {
         if (!nextPublic) return;
         showSuccessToast({
-          title: `${label} is now public`,
-          description: "Link copied to clipboard.",
+          title: `${label} shared`,
+          description:
+            "Anyone with the link can view it. Link copied to clipboard.",
         });
       })
       .catch(() => undefined);
