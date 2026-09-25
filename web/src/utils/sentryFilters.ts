@@ -405,6 +405,26 @@ function isSafariAddMoreClickMessage(value: string): boolean {
 }
 
 /**
+ * Firefox wording when page-world JS does `JSON.stringify(x).substring(…)`
+ * and stringify returned `undefined` (`x` was undefined, a function, or a
+ * symbol). Firefox includes the expression in the TypeError. Langfuse has
+ * no `JSON.stringify(…).substring` chain. Observed as a stackless
+ * unhandled rejection (LANGFUSE-62C) beside a console breadcrumb our app
+ * never logs and public-API observation fetches the session UI does not
+ * make. `denyUrls` cannot match — there are no frames.
+ *
+ * Whole-message only. An app error that quotes the phrase is longer and
+ * is KEPT. Chromium's generic `reading 'substring'` is a different
+ * string and is KEPT.
+ */
+const FIREFOX_JSON_STRINGIFY_SUBSTRING_MESSAGE =
+  'can\'t access property "substring", JSON.stringify(...) is undefined';
+
+function isFirefoxJsonStringifySubstringMessage(value: string): boolean {
+  return coreMessage(value) === FIREFOX_JSON_STRINGIFY_SUBSTRING_MESSAGE;
+}
+
+/**
  * True when any stack frame is a first-party Next.js chunk. Used as a
  * negative guard so a future first-party throw that happens to share
  * WebKit's wording still reaches Sentry.
@@ -676,7 +696,12 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // All three are anchored to a Sentry browser-API / global-handler
+    // Firefox `JSON.stringify(…).substring` is the same class: Firefox's
+    // exact TypeError for `JSON.stringify(x).substring` when stringify
+    // returned `undefined`. Stackless unhandled rejection, so denyUrls
+    // cannot match.
+    //
+    // All four are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
     // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
@@ -695,6 +720,13 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       if (
         exceptionType === "TypeError" &&
         isSafariAddMoreClickMessage(exceptionValue) &&
+        !hasFirstPartyChunkFrame(event)
+      ) {
+        return true;
+      }
+      if (
+        exceptionType === "TypeError" &&
+        isFirefoxJsonStringifySubstringMessage(exceptionValue) &&
         !hasFirstPartyChunkFrame(event)
       ) {
         return true;

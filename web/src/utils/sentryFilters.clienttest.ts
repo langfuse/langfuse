@@ -1124,6 +1124,75 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("L. drops Firefox JSON.stringify(...).substring (stackless)", () => {
+    // Real shape: Firefox 156 unhandled rejection on sessions. Injected
+    // page-world JS does `JSON.stringify(x).substring(...)` when stringify
+    // returned undefined. No stack, so denyUrls cannot match. Langfuse has
+    // no JSON.stringify(...).substring chain.
+    const FIREFOX_STRINGIFY_SUBSTRING =
+      'can\'t access property "substring", JSON.stringify(...) is undefined';
+
+    const firefoxStringifySubstringEvent = (
+      value: string,
+      mechanismType = "auto.browser.global_handlers.onunhandledrejection",
+      frames?: { filename: string; function?: string }[],
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+              ...(frames
+                ? {
+                    stacktrace: {
+                      frames: frames.map((frame) => ({
+                        filename: frame.filename,
+                        function: frame.function ?? "?",
+                      })),
+                    },
+                  }
+                : {}),
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the Firefox JSON.stringify substring TypeError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          firefoxStringifySubstringEvent(FIREFOX_STRINGIFY_SUBSTRING),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          firefoxStringifySubstringEvent(`${FIREFOX_STRINGIFY_SUBSTRING}.`),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with document-attributed frames", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          firefoxStringifySubstringEvent(
+            FIREFOX_STRINGIFY_SUBSTRING,
+            "auto.browser.global_handlers.onunhandledrejection",
+            [
+              {
+                filename: "app:///project/example/sessions/session",
+                function: "global code",
+              },
+            ],
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1778,6 +1847,114 @@ describe("isDenylistedNoiseEvent", () => {
                     filename:
                       "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/settings/[page]-abc.js",
                     function: "onClick",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes JSON.stringify substring", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                'Failed to copy payload: can\'t access property "substring", JSON.stringify(...) is undefined',
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a different Firefox JSON.stringify property TypeError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                'can\'t access property "slice", JSON.stringify(...) is undefined',
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps Chromium's generic undefined.substring TypeError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Cannot read properties of undefined (reading 'substring')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured Firefox JSON.stringify substring TypeError", () => {
+      const value =
+        'can\'t access property "substring", JSON.stringify(...) is undefined';
+      expect(isDenylistedNoiseEvent(exceptionEvent(value, "TypeError"))).toBe(
+        false,
+      );
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value,
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps the Firefox JSON.stringify substring TypeError when a first-party chunk is on the stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                'can\'t access property "substring", JSON.stringify(...) is undefined',
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/sessions/[sessionId]-abc.js",
+                    function: "onCopy",
                   },
                 ],
               },
