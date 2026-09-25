@@ -700,5 +700,7 @@ if (!nativeBinding) {
 }
 
 module.exports = nativeBinding
+module.exports.PreparedEvent = nativeBinding.PreparedEvent
+module.exports.encodeClickhouseEvents = nativeBinding.encodeClickhouseEvents
 module.exports.hello = nativeBinding.hello
 module.exports.initTelemetry = nativeBinding.initTelemetry
