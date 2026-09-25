@@ -100,12 +100,9 @@ function ChartXAxis({
         : tick.label;
     const labelWidth = label.length * characterWidth;
     const x = tick.x;
-    const left =
-      anchor === "middle"
-        ? x - labelWidth / 2
-        : anchor === "end"
-          ? x - labelWidth
-          : x;
+    let left = x;
+    if (anchor === "middle") left = x - labelWidth / 2;
+    else if (anchor === "end") left = x - labelWidth;
     return { tick, index, active: false, anchor, label, labelWidth, x, left };
   });
   const active = labels.find(({ tick }) => tick.key === activeTick?.key);

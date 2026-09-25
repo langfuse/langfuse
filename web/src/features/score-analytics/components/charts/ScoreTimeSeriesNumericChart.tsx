@@ -1,9 +1,5 @@
 import { useMemo } from "react";
 import { LineChart } from "@/src/components/design-system/charts/LineChart/LineChart";
-import {
-  type IntervalConfig,
-  type TimeRange,
-} from "@/src/utils/date-range-utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 
 export interface NumericTimeSeriesChartProps {
@@ -15,8 +11,6 @@ export interface NumericTimeSeriesChartProps {
   }>;
   score1Name: string;
   score2Name?: string;
-  interval: IntervalConfig;
-  timeRange: TimeRange;
   colors: { score1: string; score2?: string };
 }
 

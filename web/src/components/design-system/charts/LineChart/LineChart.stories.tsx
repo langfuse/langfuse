@@ -200,6 +200,7 @@ export const TooltipBelowChart = meta.story({
 });
 
 export const OnCardSurface = meta.story({
+  name: "(Test) On Card Surface",
   decorators: [
     (Story) => (
       <div className="bg-card h-dvh w-full">
@@ -275,6 +276,7 @@ export const Empty = meta.story({
 });
 
 export const Intermittent = meta.story({
+  name: "(Test) Intermittent",
   args: { variant: "intermittent" },
   play: async ({ canvasElement }) => {
     const tickLabels = Array.from(
@@ -309,6 +311,7 @@ export const Intermittent = meta.story({
 });
 
 export const Intraday = meta.story({
+  name: "(Test) Intraday",
   args: { variant: "intraday" },
   play: async ({ canvasElement }) => {
     const labels = Array.from(
@@ -330,6 +333,7 @@ export const Intraday = meta.story({
 });
 
 export const YearBoundary = meta.story({
+  name: "(Test) Year Boundary",
   args: { variant: "year-boundary" },
   play: async ({ canvasElement }) => {
     const labels = Array.from(
@@ -342,6 +346,7 @@ export const YearBoundary = meta.story({
 });
 
 export const Monthly = meta.story({
+  name: "(Test) Monthly",
   args: { variant: "monthly" },
   play: async ({ canvasElement }) => {
     const labels = Array.from(
