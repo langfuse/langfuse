@@ -4,12 +4,12 @@ export {
   renderTranscript,
   renderTranscriptFromObservations,
   transcriptBlockTypes,
-} from "./render";
-export { renderGenericTranscript } from "./render-generic";
+} from "./topics-renderer";
+export { renderGenericTranscript } from "./generic-renderer";
 export {
   topicsTranscriptConfig,
   transcriptRenderConfigSchema,
-} from "./render-config";
-export type { TranscriptRenderConfig } from "./render-config";
-export type { TranscriptBlockType } from "./render";
+} from "./topics-renderer-config";
+export type { TranscriptRenderConfig } from "./topics-renderer-config";
+export type { TranscriptBlockType } from "./topics-renderer";
 export type * from "./types";

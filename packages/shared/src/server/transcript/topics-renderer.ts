@@ -10,7 +10,7 @@ import type { Transcript } from "./types";
 import {
   transcriptRenderConfigSchema,
   type TranscriptRenderConfig,
-} from "./render-config";
+} from "./topics-renderer-config";
 
 export const transcriptBlockTypes = [
   "user",
@@ -267,10 +267,33 @@ export function renderTranscript(
   const root = observations.find(
     (observation) => observation.parentObservationId === null,
   );
-  const rootInput =
-    config.runIO.include && !requestMessage && root?.input != null
+  const rootInputValue =
+    config.runIO.include && root?.input != null
       ? rootContent(root, "input")
       : null;
+  let rootInput = rootInputValue;
+  if (rootInput) {
+    const comparableRootInput = comparable(rootInput);
+    const inputMessages = [
+      ...new Set(
+        [...historyEvents, ...currentEvents]
+          .filter((event) => event.message.source === "input")
+          .map((event) => event.message),
+      ),
+    ];
+    const inputContents = inputMessages
+      .map((message) =>
+        message.parts.map(partContent).filter(Boolean).join("\n"),
+      )
+      .filter(Boolean);
+    if (
+      inputContents.some(
+        (content) => comparable(content) === comparableRootInput,
+      ) ||
+      comparable(inputContents.join("\n")) === comparableRootInput
+    )
+      rootInput = null;
+  }
   const rootOutput =
     config.runIO.include && root?.output != null
       ? rootContent(root, "output")
@@ -454,7 +477,14 @@ export function renderTranscript(
     .filter((event): event is RenderedEvent => event !== null);
 
   const rootInputLine = rootInput
-    ? labeled("input · request", rootInput, config.runIO.maxChars, "run_io")
+    ? labeled(
+        requestMessage ? "trace input · context" : "input · request",
+        rootInput,
+        requestMessage
+          ? Math.min(config.runIO.maxChars, config.user.maxChars)
+          : config.runIO.maxChars,
+        "run_io",
+      )
     : null;
   const rootOutputLine =
     rootOutput && !outputMatchesMessage

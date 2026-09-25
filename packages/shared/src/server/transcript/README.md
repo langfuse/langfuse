@@ -205,7 +205,11 @@ and observation provenance are excluded. All fields inside parts are included.
 ```
 transcript/
 ├── README.md
-├── index.ts               public surface: assembleTranscript, orderObservations, types
+├── index.ts               public surface: assembly, renderers, types
+├── topics-renderer.ts     Topics trace-level layout
+├── topics-renderer-config.ts  Topics block caps and inclusions
+├── topics-renderer.test.ts    Topics layout behavior
+├── generic-renderer.ts    preserved plain-text comparison layout
 ├── ordering.ts            orderObservations, the trace tree walk
 ├── ordering.test.ts       ordering rules
 ├── transcript.ts          assembleTranscript

@@ -135,20 +135,25 @@ These distributions use the `langfuse.trace_batch` prefix:
 | `transcript_assembly_phase_duration_ms` | Two non-overlapping samples per trace tagged `phase:normalization` or `phase:matching`. Normalization includes initial message-key construction and partitioning; matching covers remaining assembly work, including tool matching, deduplication, any rebuilt keys and finalization. Observation ordering is outside these phases but remains in total assembly time. |
 | `topics_transcript_characters` | UTF-16 length of the complete rendered Topics text, including labels, section headings and line breaks; admitted traces only. |
 | `topics_transcript_tokens` | o200k estimate of that same text, tagged `tokenizer:o200k_base`; admitted traces only. |
+| `transcript_comparison_render_duration_ms` | Time to serialize assembled JSON and render generic and Topics text, excluding tokenization. |
+| `transcript_comparison_tokenization_duration_ms` | Wall time for the three sequential JSON, generic and Topics token estimates, excluding the existing current-turn/history estimates. |
 | `topics_transcript_block_characters` | Present block content length tagged `block:user\|assistant\|system\|reasoning\|tool_calls\|tool_results\|tool_definitions\|errors\|run_io\|observations` and `stage:raw\|clipped`; absent blocks emit no sample. |
 | `topics_transcript_blocks_cut` | Number of content blocks cut by their per-block character caps. |
 | `topics_transcript_history_characters`, `topics_transcript_current_turn_characters`, `topics_transcript_history_share` | Rendered content-line characters from replayed input and this run, plus replayed input divided by their sum (0 when both are empty). This-run content includes fallback trace-level I/O, observation markers, and inline errors. |
 
 Topics measurement uses the existing assembled transcript and the inclusive
-Topics preset in `packages/shared/src/server/transcript/render-config.ts`. It
+Topics preset in `packages/shared/src/server/transcript/topics-renderer-config.ts`. It
 does not call a model or store the text. The preset includes all block types and
 history, caps fallback trace-level input and output at 10,000 characters each, and has no
 total token budget. It omits no middle lines. The rendered text has
 `<run_facts>`, optional `<tools>` and `<earlier_conversation source="replayed input">`,
 `<this_run>`, and `<end_of_run>` sections in that order. Observation markers show
 the Langfuse operation type and name in walk order; matched tool results already
-identify their operation. Trace input appears only when no current-run user
-message exists. A trace output matching the last assistant message or tool
+identify their operation. Trace input appears as the request when no current-run
+user message exists. If it differs from the rendered input messages, it appears
+as trace context alongside the user request, capped at the user block limit
+(2,000 characters in this preset). A trace output matching the last assistant
+message or tool
 result labels that message as final output; distinct application output appears
 once as `[final output]`. Thread segments follow observation
 order; the replayed prefix does not claim to come from a previous trace. Tool

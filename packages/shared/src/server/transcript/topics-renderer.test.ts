@@ -4,8 +4,11 @@ import { createObservation } from "../test-utils";
 import { inheritedConversationHistoryFixture } from "./fixtures/trace/inherited-conversation-history";
 import { standaloneToolObservationFixture } from "./fixtures/trace/standalone-tool-observation";
 import { orderObservations } from "./ordering";
-import { renderTranscript, renderTranscriptFromObservations } from "./render";
-import { topicsTranscriptConfig } from "./render-config";
+import {
+  renderTranscript,
+  renderTranscriptFromObservations,
+} from "./topics-renderer";
+import { topicsTranscriptConfig } from "./topics-renderer-config";
 import { assembleTranscript } from "./transcript";
 import type { Transcript } from "./types";
 
@@ -344,7 +347,7 @@ describe("Topics transcript renderer", () => {
   it("marks the request after supplied context without repeating trace input", () => {
     const root = {
       ...observation("root", "SPAN", 0),
-      input: "Context and request",
+      input: "System instructions",
       output: "Done",
     };
     const generation = observation("generation", "GENERATION", 1);
@@ -354,6 +357,13 @@ describe("Topics transcript renderer", () => {
           conversationHistory: [],
           currentTurn: {
             messages: [
+              {
+                role: "system",
+                source: "input",
+                parts: [{ type: "text", text: "System instructions" }],
+                observationId: generation.id,
+                traceId: "trace",
+              },
               {
                 role: "user",
                 source: "input",
@@ -393,6 +403,50 @@ describe("Topics transcript renderer", () => {
     expect(text).not.toContain("[input · request]");
     expect(text).toContain("[assistant · final output] Done");
     expect(text).not.toContain("[final output] Done");
+  });
+
+  it("keeps distinct trace input alongside a user request", () => {
+    const root = {
+      ...observation("root", "SPAN", 0),
+      input: "Triggered by a scheduled import",
+    };
+    const generation = observation("generation", "GENERATION", 1);
+    const transcript: Transcript = {
+      threads: [
+        {
+          conversationHistory: [],
+          currentTurn: {
+            messages: [
+              {
+                role: "user",
+                source: "input",
+                parts: [{ type: "text", text: "Summarize the import" }],
+                observationId: generation.id,
+                traceId: "trace",
+              },
+              {
+                role: "assistant",
+                source: "output",
+                parts: [{ type: "text", text: "Summary" }],
+                observationId: generation.id,
+                traceId: "trace",
+              },
+            ],
+            observations: [{ id: generation.id, traceId: "trace" }],
+          },
+        },
+      ],
+    };
+
+    const text = renderTranscript(
+      transcript,
+      [root, generation],
+      topicsTranscriptConfig,
+    ).text;
+    expect(text).toContain(
+      "[trace input · context] Triggered by a scheduled import",
+    );
+    expect(text).toContain("[user · request] Summarize the import");
   });
 
   it("marks observation kinds and attributes a matching final output to a tool", () => {

@@ -7,7 +7,7 @@ import { normalizeIO } from "../normalized-io";
 import {
   topicsTranscriptConfig,
   transcriptRenderConfigSchema,
-} from "./render-config";
+} from "./topics-renderer-config";
 import type { Transcript } from "./types";
 
 /** Preserve the original plain-text layout as a measurement baseline. */

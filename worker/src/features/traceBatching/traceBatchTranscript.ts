@@ -319,6 +319,7 @@ export function recordTraceBatchTranscript(
       threadCount,
     );
     recordCharacterCounts(transcript, span);
+    const comparisonRenderStart = performance.now();
     const transcriptJson =
       transcript === null ? null : JSON.stringify(transcript);
     const transcriptJsonCharacters = transcriptJson?.length ?? 0;
@@ -347,6 +348,16 @@ export function recordTraceBatchTranscript(
       orderedObservations,
       span,
     );
+    const comparisonRenderDurationMs =
+      performance.now() - comparisonRenderStart;
+    recordDistribution(
+      "langfuse.trace_batch.transcript_comparison_render_duration_ms",
+      comparisonRenderDurationMs,
+    );
+    span.setAttribute(
+      "langfuse.trace_batch.transcript_comparison_render_duration_ms",
+      comparisonRenderDurationMs,
+    );
 
     if (transcript === null) {
       for (const metric of TOKEN_METRICS) recordTokens(span, metric, 0);
@@ -363,6 +374,7 @@ export function recordTraceBatchTranscript(
           span.setAttribute("langfuse.trace_batch.token_estimation", "failed");
         }
       }
+      const comparisonTokenizationStart = performance.now();
       try {
         await recordTranscriptJsonTokens(transcriptJson, span);
       } catch {
@@ -388,6 +400,16 @@ export function recordTraceBatchTranscript(
           span.setAttribute("langfuse.trace_batch.topics_transcript", "failed");
         }
       }
+      const comparisonTokenizationDurationMs =
+        performance.now() - comparisonTokenizationStart;
+      recordDistribution(
+        "langfuse.trace_batch.transcript_comparison_tokenization_duration_ms",
+        comparisonTokenizationDurationMs,
+      );
+      span.setAttribute(
+        "langfuse.trace_batch.transcript_comparison_tokenization_duration_ms",
+        comparisonTokenizationDurationMs,
+      );
     })().finally(() => span.end());
   } catch (error) {
     span.setStatus({
