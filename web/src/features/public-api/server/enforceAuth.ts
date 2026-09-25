@@ -8,6 +8,12 @@ import {
 } from "@langfuse/shared";
 import { type ApiAccessScope } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  OrganizationId,
+  ProjectId,
+  type ResourceId,
+  type TenantId,
+} from "@langfuse/shared/rbac";
 
 import { authorize } from "@/src/features/auth/policy/authorize";
 import { authenticator } from "@/src/features/apiKey/server";
@@ -22,7 +28,6 @@ import {
   type Decision,
   type ErrorResult,
   type Principal,
-  type Resource,
   type Success,
 } from "@/src/features/auth/policy/types";
 
@@ -74,7 +79,12 @@ async function enforceAdminAuthz(
   const org = await lookupProjectOrgId(projectId);
   if (!org.success) return org;
 
-  const decision = authorizeAction(context, action, { projectId });
+  const decision = authorizeAction(
+    context,
+    OrganizationId(org.orgId),
+    action,
+    ProjectId(projectId),
+  );
   if (!decision.success) return decision;
 
   return access(context, org.orgId, projectId);
@@ -89,7 +99,12 @@ function enforceOrgAuthz(
   const org = getOrgId(context, req);
   if (!org.success) return org;
 
-  const decision = authorizeAction(context, action, { orgId: org.orgId });
+  const decision = authorizeAction(
+    context,
+    OrganizationId(org.orgId),
+    action,
+    OrganizationId(org.orgId),
+  );
   if (!decision.success) return decision;
 
   return access(context, org.orgId);
@@ -108,25 +123,29 @@ function enforceProjectAuthz(
     return notFoundError("Project not found or you don't have access to it");
   }
 
-  const decision = authorizeAction(context, action, {
-    projectId: project.projectId,
-  });
-  if (!decision.success) return decision;
-
   const orgId = getBoundOrgId(context);
   if (!orgId) return internalServerError(`Missing bound org on api-key`);
+
+  const decision = authorizeAction(
+    context,
+    OrganizationId(orgId),
+    action,
+    ProjectId(project.projectId),
+  );
+  if (!decision.success) return decision;
 
   return access(context, orgId, project.projectId);
 }
 
-/** authorizeAction authorizes against a given action, or passes when the route skips authz and authorizes each call itself. */
+/** authorizeAction authorizes against a given action within a tenant, or passes when the route skips authz and authorizes each call itself. */
 function authorizeAction(
   context: AuthorizationContext,
+  tenant: TenantId,
   action: ApiAction,
-  resource: Resource,
+  resource: ResourceId,
 ): Decision {
   if (action === __dangerouslySkipAuthz) return { success: true };
-  return authorize(context, action, resource);
+  return authorize(context, tenant, action, resource);
 }
 
 /** getOrgId resolves the target org the key's bound org and the header agree on. */

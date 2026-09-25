@@ -2,7 +2,7 @@ import {
   allOrganizationActions,
   allProjectActions,
   type ProjectAction,
-  type SystemPolicy,
+  type SystemRolePolicy,
 } from "@/src/features/auth/policy/types";
 
 /** ApiKeyRole is the policy layer's role vocabulary for an API key, decoupled from the DB `ApiKeyScope` enum. */
@@ -25,49 +25,43 @@ const projectKeyActions: ProjectAction[] = allProjectActions.filter(
     action === "project:read" || !orgKeyProjectActions.includes(action),
 );
 
-/** apiKeyAccessRights maps each `ApiKeyRole` to its resource-less grants; the resolver binds each to the key's project/org, or the wildcard for ADMIN. */
-export const apiKeyAccessRights: Record<ApiKeyRole, SystemPolicy[]> = {
+/** apiKeyAccessRights maps each `ApiKeyRole` to its resource-less grants; the resolver binds each to the key's project/org. */
+export const apiKeyAccessRights: Record<ApiKeyRole, SystemRolePolicy[]> = {
   PROJECT: [
     {
-      kind: "project",
-      source: { kind: "role", id: "PROJECT" },
-      effect: "allow",
+      resourceKind: "project",
+      effect: "ALLOW",
       actions: projectKeyActions,
     },
   ],
   ORGANIZATION: [
     {
-      kind: "organization",
-      source: { kind: "role", id: "ORGANIZATION" },
-      effect: "allow",
+      resourceKind: "organization",
+      effect: "ALLOW",
       actions: allOrganizationActions,
     },
     {
-      kind: "project",
-      source: { kind: "role", id: "ORGANIZATION" },
-      effect: "allow",
+      resourceKind: "project",
+      effect: "ALLOW",
       actions: orgKeyProjectActions,
     },
   ],
   SCORES_INGEST: [
     {
-      kind: "project",
-      source: { kind: "role", id: "SCORES_INGEST" },
-      effect: "allow",
+      resourceKind: "project",
+      effect: "ALLOW",
       actions: ["scores:create"],
     },
   ],
   ADMIN: [
     {
-      kind: "project",
-      source: { kind: "role", id: "ADMIN" },
-      effect: "allow",
+      resourceKind: "project",
+      effect: "ALLOW",
       actions: allProjectActions,
     },
     {
-      kind: "organization",
-      source: { kind: "role", id: "ADMIN" },
-      effect: "allow",
+      resourceKind: "organization",
+      effect: "ALLOW",
       actions: allOrganizationActions,
     },
   ],

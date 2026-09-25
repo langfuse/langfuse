@@ -1,28 +1,26 @@
 import { projectRoleAccessRights } from "@langfuse/shared";
 import { type Role, type SystemRole } from "@langfuse/shared/src/db";
 
-import { type SystemPolicy } from "@/src/features/auth/policy/types";
+import { type SystemRolePolicy } from "@/src/features/auth/policy/types";
 import { apiKeyAccessRights } from "@/src/features/rbac/constants/apiKeyAccessRights";
 import { organizationRoleAccessRights } from "@/src/features/rbac/constants/organizationAccessRights";
 
 /** userRoleAccessRights builds a user role's org- and project-kind policies from the per-role access-right tables. */
-const userRoleAccessRights = (role: Role): SystemPolicy[] => [
+const userRoleAccessRights = (role: Role): SystemRolePolicy[] => [
   {
-    kind: "organization",
-    source: { kind: "role", id: role },
-    effect: "allow",
+    resourceKind: "organization",
+    effect: "ALLOW",
     actions: organizationRoleAccessRights[role],
   },
   {
-    kind: "project",
-    source: { kind: "role", id: role },
-    effect: "allow",
+    resourceKind: "project",
+    effect: "ALLOW",
     actions: projectRoleAccessRights[role],
   },
 ];
 
 /** systemRoleAccessRights maps each `SystemRole` to its resource-less grants; a later ticket binds them to concrete org/project resources. */
-export const systemRoleAccessRights: Record<SystemRole, SystemPolicy[]> = {
+export const systemRoleAccessRights: Record<SystemRole, SystemRolePolicy[]> = {
   OWNER: userRoleAccessRights("OWNER"),
   ADMIN: userRoleAccessRights("ADMIN"),
   MEMBER: userRoleAccessRights("MEMBER"),
@@ -33,17 +31,15 @@ export const systemRoleAccessRights: Record<SystemRole, SystemPolicy[]> = {
   SCORES_INGEST: apiKeyAccessRights.SCORES_INGEST,
   INGEST: [
     {
-      kind: "project",
-      source: { kind: "role", id: "INGEST" },
-      effect: "allow",
+      resourceKind: "project",
+      effect: "ALLOW",
       actions: ["traces:create", "scores:create", "media:create"],
     },
   ],
   LLM_GATEWAY: [
     {
-      kind: "organization",
-      source: { kind: "role", id: "LLM_GATEWAY" },
-      effect: "allow",
+      resourceKind: "organization",
+      effect: "ALLOW",
       actions: ["gateway:invoke"],
     },
   ],

@@ -4,6 +4,7 @@ import {
   hashSecretKey,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 
 import { Authenticator } from "@/src/features/apiKey/server";
 import { authorize } from "@/src/features/auth/policy/authorize";
@@ -34,9 +35,12 @@ describe("policy authenticate() composition", () => {
     if (!result.success) return;
     expect(result.context.principal.kind).toBe("apiKey");
     expect(
-      authorize(result.context, "traces:read", {
-        projectId: fixture.projectId,
-      }).success,
+      authorize(
+        result.context,
+        OrganizationId(fixture.orgId),
+        "traces:read",
+        ProjectId(fixture.projectId),
+      ).success,
     ).toBe(true);
   });
 
@@ -46,9 +50,12 @@ describe("policy authenticate() composition", () => {
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(
-      authorize(result.context, "traces:read", {
-        projectId: fixture.projectId,
-      }).success,
+      authorize(
+        result.context,
+        OrganizationId(fixture.orgId),
+        "traces:read",
+        ProjectId(fixture.projectId),
+      ).success,
     ).toBe(true);
   });
 
@@ -57,14 +64,20 @@ describe("policy authenticate() composition", () => {
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(
-      authorize(result.context, "scores:create", {
-        projectId: fixture.projectId,
-      }).success,
+      authorize(
+        result.context,
+        OrganizationId(fixture.orgId),
+        "scores:create",
+        ProjectId(fixture.projectId),
+      ).success,
     ).toBe(true);
     expect(
-      authorize(result.context, "traces:read", {
-        projectId: fixture.projectId,
-      }).success,
+      authorize(
+        result.context,
+        OrganizationId(fixture.orgId),
+        "traces:read",
+        ProjectId(fixture.projectId),
+      ).success,
     ).toBe(false);
   });
 

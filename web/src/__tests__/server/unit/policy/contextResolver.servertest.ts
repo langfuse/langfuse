@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { type ApiKey, type PrismaClient } from "@langfuse/shared/src/db";
 import { InternalServerError } from "@langfuse/shared";
+import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 
 import { authorize } from "@/src/features/auth/policy/authorize";
 import {
@@ -18,6 +19,7 @@ const ORG = "org_1";
 const PRJ = "prj_1";
 const OTHER_PRJ = "prj_2";
 const USER = "user_1";
+const TENANT = OrganizationId(ORG);
 const ORGANIZATION_CREATED_AT = new Date("2026-09-16T00:00:00.000Z");
 
 const orgRow = (
@@ -103,12 +105,18 @@ describe("resolves the admin key", () => {
   it("grants admin over any project and org", async () => {
     const ctx = await contextFor({ authorization: "admin" });
     expect(ctx.principal.kind).toBe("admin");
-    expect(authorize(ctx, "prompts:read", { projectId: "any" }).success).toBe(
-      true,
-    );
-    expect(authorize(ctx, "projects:create", { orgId: "any" }).success).toBe(
-      true,
-    );
+    expect(
+      authorize(ctx, OrganizationId("any"), "prompts:read", ProjectId("any"))
+        .success,
+    ).toBe(true);
+    expect(
+      authorize(
+        ctx,
+        OrganizationId("any"),
+        "projects:create",
+        OrganizationId("any"),
+      ).success,
+    ).toBe(true);
   });
 });
 
@@ -122,13 +130,13 @@ describe("presentation rides in the input", () => {
       authorization: "publicKey",
       apiKey: apiKey(),
     });
-    expect(authorize(priv, "traces:read", { projectId: PRJ }).success).toBe(
+    expect(authorize(priv, TENANT, "traces:read", ProjectId(PRJ)).success).toBe(
       true,
     );
-    expect(authorize(pub, "scores:create", { projectId: PRJ }).success).toBe(
-      true,
-    );
-    expect(authorize(pub, "traces:read", { projectId: PRJ }).success).toBe(
+    expect(
+      authorize(pub, TENANT, "scores:create", ProjectId(PRJ)).success,
+    ).toBe(true);
+    expect(authorize(pub, TENANT, "traces:read", ProjectId(PRJ)).success).toBe(
       false,
     );
   });
@@ -140,20 +148,20 @@ describe("expansion table: scope PROJECT, privateKey", () => {
       authorization: "privateKey",
       apiKey: apiKey(),
     });
-    expect(authorize(ctx, "prompts:read", { projectId: PRJ }).success).toBe(
+    expect(authorize(ctx, TENANT, "prompts:read", ProjectId(PRJ)).success).toBe(
       true,
     );
-    expect(authorize(ctx, "project:read", { projectId: PRJ }).success).toBe(
+    expect(authorize(ctx, TENANT, "project:read", ProjectId(PRJ)).success).toBe(
       true,
     );
-    expect(authorize(ctx, "apiKeys:CUD", { projectId: PRJ }).success).toBe(
-      false,
-    );
-    expect(authorize(ctx, "project:update", { projectId: PRJ }).success).toBe(
+    expect(authorize(ctx, TENANT, "apiKeys:CUD", ProjectId(PRJ)).success).toBe(
       false,
     );
     expect(
-      authorize(ctx, "prompts:read", { projectId: OTHER_PRJ }).success,
+      authorize(ctx, TENANT, "project:update", ProjectId(PRJ)).success,
+    ).toBe(false);
+    expect(
+      authorize(ctx, TENANT, "prompts:read", ProjectId(OTHER_PRJ)).success,
     ).toBe(false);
   });
   it("does not satisfy org-level actions", async () => {
@@ -161,27 +169,39 @@ describe("expansion table: scope PROJECT, privateKey", () => {
       authorization: "privateKey",
       apiKey: apiKey(),
     });
-    expect(authorize(ctx, "project:read", { orgId: ORG }).success).toBe(false);
+    expect(
+      authorize(ctx, TENANT, "project:read", OrganizationId(ORG)).success,
+    ).toBe(false);
   });
 });
 
 describe("expansion table: scope ORGANIZATION, privateKey", () => {
-  it("grants the org vocabulary plus project administration over its own projects only", async () => {
+  it("grants the org vocabulary plus project administration over any project of its own tenant", async () => {
     const ctx = await contextFor({
       authorization: "privateKey",
       apiKey: orgKey(),
     });
-    expect(authorize(ctx, "projects:read", { orgId: ORG }).success).toBe(true);
-    expect(authorize(ctx, "project:read", { projectId: PRJ }).success).toBe(
-      true,
-    );
-    expect(authorize(ctx, "apiKeys:CUD", { projectId: PRJ }).success).toBe(
-      true,
-    );
     expect(
-      authorize(ctx, "project:read", { projectId: "prj_foreign" }).success,
+      authorize(ctx, TENANT, "projects:read", OrganizationId(ORG)).success,
+    ).toBe(true);
+    expect(authorize(ctx, TENANT, "project:read", ProjectId(PRJ)).success).toBe(
+      true,
+    );
+    // The org key binds project actions to the project-kind wildcard, so any
+    // project of its own tenant is covered, not only the seeded ones.
+    expect(
+      authorize(ctx, TENANT, "apiKeys:CUD", ProjectId(OTHER_PRJ)).success,
+    ).toBe(true);
+    // The wildcard is tenant-scoped: a project of another org is not covered.
+    expect(
+      authorize(
+        ctx,
+        OrganizationId("org_foreign"),
+        "project:read",
+        ProjectId("prj_foreign"),
+      ).success,
     ).toBe(false);
-    expect(authorize(ctx, "traces:read", { projectId: PRJ }).success).toBe(
+    expect(authorize(ctx, TENANT, "traces:read", ProjectId(PRJ)).success).toBe(
       false,
     );
   });
@@ -228,9 +248,9 @@ describe("org suspension rides as a boolean, not a policy", () => {
     const org =
       ctx.principal.kind === "apiKey" ? ctx.principal.organizations[0] : null;
     expect(org?.isIngestionSuspended).toBe(true);
-    expect(authorize(ctx, "traces:create", { projectId: PRJ }).success).toBe(
-      true,
-    );
+    expect(
+      authorize(ctx, TENANT, "traces:create", ProjectId(PRJ)).success,
+    ).toBe(true);
   });
 });
 

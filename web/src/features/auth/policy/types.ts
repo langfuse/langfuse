@@ -13,12 +13,14 @@ import {
   type ProjectScope,
 } from "@langfuse/shared";
 import {
+  type ResourceId,
+  type RoleId,
+  type TenantId,
+} from "@langfuse/shared/rbac";
+import {
   organizationScopes,
   type OrganizationScope,
 } from "@/src/features/rbac/constants/organizationAccessRights";
-
-/** wildcard matches any resource in a policy. */
-export const wildcard = "*" as const;
 
 /** allProjectActions is the full project action vocabulary. */
 export const allProjectActions: ProjectAction[] = [...projectScopes];
@@ -35,8 +37,8 @@ const organizationActionSet: ReadonlySet<string> = new Set(organizationScopes);
 export const isOrgAction = (action: Action): action is OrganizationAction =>
   organizationActionSet.has(action);
 
-/** Wildcard is the type of the wildcard resource matcher literal. */
-type Wildcard = typeof wildcard;
+/** Effect is whether a policy grants or denies its actions. */
+export type Effect = "ALLOW" | "DENY";
 
 /** ProjectAction is an action assignable to a project policy. */
 export type ProjectAction = ProjectScope;
@@ -73,9 +75,6 @@ export type Principal =
       boundResource: BoundResource;
     };
 
-/** Source describes where a policy came from: a role or an explicit grant. */
-type Source = { kind: "role"; id: string } | { kind: "grant" };
-
 /** ProjectResource identifies a project by its globally-unique id. */
 type ProjectResource = { projectId: string };
 
@@ -88,29 +87,24 @@ export type Resource = ProjectResource | OrgResource;
 /** BoundResource is what a credential is bound to: its organization, narrowed to one project when the credential is project-scoped. */
 export type BoundResource = OrgResource & { projectId?: string };
 
-/** BasePolicy carries the origin and effect every policy shares. */
-type BasePolicy = {
-  source: Source;
-  effect: "allow" | "deny";
+/** SystemRolePolicy is a catalog policy before its resource is bound. */
+export type SystemRolePolicy =
+  | {
+      resourceKind: "organization";
+      actions: OrganizationAction[];
+      effect: Effect;
+    }
+  | { resourceKind: "project"; actions: ProjectAction[]; effect: Effect };
+
+/** Policy is a role's effect on a set of actions over tagged resources within one tenant. */
+export type Policy = {
+  id: string;
+  tenantId: TenantId;
+  roleId: RoleId;
+  effect: Effect;
+  actions: Action[];
+  resources: ResourceId[];
 };
-
-/** OrganizationSystemPolicy is a resource-less org-level policy. */
-type OrganizationSystemPolicy = BasePolicy & {
-  kind: "organization";
-  actions: OrganizationAction[];
-};
-
-/** ProjectSystemPolicy is a resource-less project-level policy. */
-type ProjectSystemPolicy = BasePolicy & {
-  kind: "project";
-  actions: ProjectAction[];
-};
-
-/** SystemPolicy is a policy before its resource is bound. */
-export type SystemPolicy = OrganizationSystemPolicy | ProjectSystemPolicy;
-
-/** Policy is a SystemPolicy bound to the flat ids its kind targets, or the wildcard. */
-export type Policy = SystemPolicy & { resources: string[] | Wildcard };
 
 /** AuthorizationContext is the PIP output and PDP input for one principal. */
 export type AuthorizationContext = {

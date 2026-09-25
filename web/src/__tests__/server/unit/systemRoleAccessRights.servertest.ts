@@ -17,9 +17,8 @@ describe("systemRoleAccessRights", () => {
   it("grants INGEST exactly the ingestion project actions", () => {
     expect(systemRoleAccessRights.INGEST).toEqual([
       {
-        kind: "project",
-        source: { kind: "role", id: "INGEST" },
-        effect: "allow",
+        resourceKind: "project",
+        effect: "ALLOW",
         actions: ["traces:create", "scores:create", "media:create"],
       },
     ]);
@@ -28,9 +27,8 @@ describe("systemRoleAccessRights", () => {
   it("grants LLM_GATEWAY exactly gateway:invoke at org scope", () => {
     expect(systemRoleAccessRights.LLM_GATEWAY).toEqual([
       {
-        kind: "organization",
-        source: { kind: "role", id: "LLM_GATEWAY" },
-        effect: "allow",
+        resourceKind: "organization",
+        effect: "ALLOW",
         actions: ["gateway:invoke"],
       },
     ]);
@@ -41,15 +39,13 @@ describe("systemRoleAccessRights", () => {
     (role) => {
       expect(systemRoleAccessRights[role]).toEqual([
         {
-          kind: "organization",
-          source: { kind: "role", id: role },
-          effect: "allow",
+          resourceKind: "organization",
+          effect: "ALLOW",
           actions: organizationRoleAccessRights[role],
         },
         {
-          kind: "project",
-          source: { kind: "role", id: role },
-          effect: "allow",
+          resourceKind: "project",
+          effect: "ALLOW",
           actions: projectRoleAccessRights[role],
         },
       ]);

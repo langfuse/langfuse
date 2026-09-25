@@ -1,48 +1,69 @@
 import {
+  hasProjectKind,
+  type ProjectId,
+  type ResourceId,
+  type TenantId,
+} from "@langfuse/shared/rbac";
+
+import {
   forbiddenError,
-  wildcard,
   type Action,
   type AuthorizationContext,
   type Decision,
+  type Effect,
   type Policy,
-  type Resource,
 } from "./types";
 
-/** authorize evaluates the policies for action on resource: a matching deny 403s, else a matching allow succeeds, else implicit-deny 403. */
+/** wildcardProjectId is the project-kind wildcard an org role binds to; it matches every project of its tenant but is never a valid authorization target. */
+const wildcardProjectId: ProjectId = "project/*";
+
+/** authorize evaluates the tenant's policies for action on resource: with no matching grant, or any matching deny, it 403s; otherwise it succeeds. Admin is the self-host superuser, authorized on every tenant. */
 export function authorize(
   ctx: AuthorizationContext,
+  tenant: TenantId,
   action: Action,
-  resource: Resource,
+  resource: ResourceId,
 ): Decision {
-  const matches = ctx.policies
-    .filter(hasResourceKind(resource))
-    .filter(hasAction(action))
-    .filter(hasResourceId(resource));
+  if (ctx.principal.kind === "admin") return { success: true };
+  if (hasWildcard(resource)) return forbiddenError();
 
-  if (matches.some(hasEffect("deny"))) {
+  const policiesForResource = matchesResource(ctx, tenant, resource);
+  const grant = policiesForResource.filter(byAction(action));
+  if (grant.length === 0 || grant.some(byEffect("DENY"))) {
     return forbiddenError();
   }
-  if (matches.some(hasEffect("allow"))) {
-    return { success: true };
-  }
-  return forbiddenError();
+  return { success: true };
 }
 
-/** hasResourceKind matches a policy of the kind that governs the checked resource. */
-const hasResourceKind = (resource: Resource) => (p: Policy) =>
-  p.kind === ("projectId" in resource ? "project" : "organization");
+/** matchesResource scopes the context to the resource's tenant, preferring an exact-resource match over the project-kind wildcard; org resources need an exact match. */
+function matchesResource(
+  ctx: AuthorizationContext,
+  tenant: TenantId,
+  resource: ResourceId,
+): Policy[] {
+  const owning = ctx.policies.filter(byTenant(tenant));
+  const exact = owning.filter(byResource(resource));
+  if (exact.length > 0) return exact;
+  if (hasProjectKind(resource)) {
+    return owning.filter((p) => p.resources.includes(wildcardProjectId));
+  }
+  return [];
+}
 
-/** hasResourceId matches a policy whose resources cover the checked resource's id, by wildcard or listing. */
-const hasResourceId = (resource: Resource) => (p: Policy) =>
-  p.resources === wildcard ||
-  p.resources.includes(
-    "projectId" in resource ? resource.projectId : resource.orgId,
-  );
+/** hasWildcard reports whether resource is the project-kind wildcard, never authorizable in itself. */
+const hasWildcard = (resource: ResourceId): boolean =>
+  resource === wildcardProjectId;
 
-/** hasAction matches a policy granting the action explicitly; actions are never wildcarded. */
-const hasAction = (action: Action) => (p: Policy) =>
+/** byTenant matches a policy scoped to the resource's tenant. */
+const byTenant = (tenant: TenantId) => (p: Policy) => p.tenantId === tenant;
+
+/** byResource matches a policy listing the exact resource. */
+const byResource = (resource: ResourceId) => (p: Policy) =>
+  p.resources.includes(resource);
+
+/** byAction matches a policy granting the action explicitly; actions are never wildcarded. */
+const byAction = (action: Action) => (p: Policy) =>
   (p.actions as readonly string[]).includes(action);
 
-/** hasEffect matches a policy of the given effect. */
-const hasEffect = (effect: Policy["effect"]) => (p: Policy) =>
-  p.effect === effect;
+/** byEffect matches a policy of the given effect. */
+const byEffect = (effect: Effect) => (p: Policy) => p.effect === effect;
