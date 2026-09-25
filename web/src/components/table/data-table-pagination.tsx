@@ -27,6 +27,9 @@ import {
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { useEffect, useState } from "react";
 
+/** Tracing lists accept a limit of 100. Other tables keep the 50 default. */
+export const TRACING_PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 100];
+
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
   isLoading: boolean;
@@ -45,7 +48,7 @@ interface DataTablePaginationProps<TData> {
 export function DataTablePagination<TData>({
   table,
   isLoading,
-  paginationOptions = [10, 20, 30, 40, 50, 100],
+  paginationOptions = [10, 20, 30, 40, 50],
   hideTotalCount = false,
   canJumpPages = true,
   approxTotalCount,
