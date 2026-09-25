@@ -80,8 +80,7 @@ services:
       LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG: ${LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG:-}
     restart: always
     healthcheck:
-      # node-based probe: the UBI9-micro runtime images ship no wget/curl.
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/public/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/public/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -111,8 +110,7 @@ services:
       LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: ${LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION:-}
     restart: always
     healthcheck:
-      # node-based probe: the UBI9-micro runtime images ship no wget/curl.
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3030/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3030/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
