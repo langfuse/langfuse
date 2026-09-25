@@ -71,17 +71,20 @@ export const DatasetItemField = ({
 }: DatasetItemFieldProps) => {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const showMediaUpload = isFormField && editable && !!onUploadMedia;
-  const showPrettyView =
-    !isFormField && !editable && renderMode === "pretty" && value !== "";
-  // Parsed once so the viewer's large-text gate sees the data, not the
-  // indented text.
-  const prettyJson = useMemo(() => {
-    if (!showPrettyView) return value;
+  const showPrettyView = !isFormField && !editable && renderMode === "pretty";
+  // Objects and arrays go to the JSON table; scalars and empty values render
+  // as one framed mono line so all three fields share the same frame.
+  const pretty = useMemo<{ json: unknown; scalar: string | null }>(() => {
+    if (!showPrettyView) return { json: value, scalar: null };
+    if (value.trim() === "") return { json: null, scalar: "" };
     try {
       const parsed: unknown = JSON.parse(value);
-      return typeof parsed === "object" && parsed !== null ? parsed : value;
+      if (typeof parsed === "object" && parsed !== null) {
+        return { json: parsed, scalar: null };
+      }
+      return { json: parsed, scalar: String(parsed) };
     } catch {
-      return value;
+      return { json: value, scalar: value };
     }
   }, [showPrettyView, value]);
   const schemaHoverCard = schema && schemaType && (
@@ -153,31 +156,38 @@ export const DatasetItemField = ({
           />
         </FormControl>
       )}
-      {!isFormField && showPrettyView && (
-        <PrettyJsonView
-          json={prettyJson}
+      {!isFormField && (
+        <MarkdownJsonViewHeader
           title={label}
-          currentView="pretty"
-          className="w-full"
+          handleOnCopy={() => copyTextToClipboard(value)}
           controlButtons={schemaHoverCard}
+          hoverRevealControls
         />
       )}
+      {!isFormField && showPrettyView && pretty.scalar === null && (
+        <PrettyJsonView
+          json={pretty.json}
+          currentView="pretty"
+          className="w-full"
+        />
+      )}
+      {!isFormField && showPrettyView && pretty.scalar !== null && (
+        <div className="rounded-sm border py-1 pr-2 pl-4 font-mono text-xs/5 wrap-break-word whitespace-pre-wrap">
+          {pretty.scalar === "" ? (
+            <span className="text-muted-foreground">empty</span>
+          ) : (
+            pretty.scalar
+          )}
+        </div>
+      )}
       {!isFormField && !showPrettyView && (
-        <>
-          <MarkdownJsonViewHeader
-            title={label}
-            handleOnCopy={() => copyTextToClipboard(value)}
-            controlButtons={schemaHoverCard}
-            hoverRevealControls
-          />
-          <CodeMirrorEditor
-            mode="json"
-            value={value}
-            editable={editable}
-            minHeight={200}
-            extensions={editorExtensions}
-          />
-        </>
+        <CodeMirrorEditor
+          mode="json"
+          value={value}
+          editable={editable}
+          minHeight={200}
+          extensions={editorExtensions}
+        />
       )}
       {mediaChipPortals}
       {isFormField && <FormMessage />}
