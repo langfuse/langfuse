@@ -39,6 +39,7 @@ type TooltipData = {
   anchor:
     | { type: "element" }
     | { type: "point"; x: number; y: number }
+    | { type: "bar"; x: number; y: number }
     | { type: "point-with-pointer-y"; x: number; y: number }
     | { type: "pointer" };
 } & (
@@ -188,6 +189,7 @@ export function ChartTooltip({
           return 12;
         }
         if (preferredPlacement === "bottom") return 12;
+        if (activeTooltip.anchor.type === "bar") return 12;
         const chartBounds = activeTooltip.chart.getBoundingClientRect();
         if (placement === "top") {
           return rects.reference.y - chartBounds.top + 12;
@@ -259,6 +261,7 @@ export function ChartTooltip({
       if (
         focusPoint &&
         (data.anchor.type === "point" ||
+          data.anchor.type === "bar" ||
           data.anchor.type === "point-with-pointer-y")
       ) {
         focusPoint.x = data.anchor.x;
@@ -268,6 +271,7 @@ export function ChartTooltip({
       const transformedFocusPoint =
         focusPoint &&
         (data.anchor.type === "point" ||
+          data.anchor.type === "bar" ||
           data.anchor.type === "point-with-pointer-y") &&
         screenMatrix
           ? focusPoint.matrixTransform(screenMatrix)
@@ -331,6 +335,7 @@ export function ChartTooltip({
         if (
           focusPoint &&
           (data.anchor.type === "point" ||
+            data.anchor.type === "bar" ||
             data.anchor.type === "point-with-pointer-y")
         ) {
           focusPoint.x = data.anchor.x;
@@ -340,6 +345,7 @@ export function ChartTooltip({
         const transformedFocusPoint =
           focusPoint &&
           (data.anchor.type === "point" ||
+            data.anchor.type === "bar" ||
             data.anchor.type === "point-with-pointer-y") &&
           screenMatrix
             ? focusPoint.matrixTransform(screenMatrix)

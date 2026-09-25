@@ -87,6 +87,34 @@ export const CategoryHoverArea = meta.story({
   },
 });
 
+export const TooltipFollowsBar = meta.story({
+  name: "(Test) Tooltip Follows Bar",
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const bars = canvas.getAllByRole("graphics-symbol");
+    const areas = canvasElement.querySelectorAll<SVGRectElement>(
+      "[data-bar-hover-area]",
+    );
+    for (let index = 0; index < bars.length; index++) {
+      const bar = bars[index];
+      const area = areas[index];
+      if (!bar || !area) throw new Error("Bar or hover area not found");
+      await userEvent.hover(area);
+      const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+        "tooltip",
+      );
+      const areaTop = tooltip.getBoundingClientRect().top;
+      await userEvent.hover(bar);
+      await expect(tooltip.getBoundingClientRect().top).toBeCloseTo(areaTop, 0);
+      if (index === 0) {
+        await expect(
+          tooltip.getBoundingClientRect().bottom,
+        ).toBeLessThanOrEqual(bar.getBoundingClientRect().top);
+      }
+    }
+  },
+});
+
 export const CategoryColors = meta.story({
   args: {
     data: data.map((item, index) => ({

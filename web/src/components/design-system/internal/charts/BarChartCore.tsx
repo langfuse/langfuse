@@ -237,7 +237,11 @@ function SingleBarChart({
                               : (centerX + nextX + xScale.bandwidth() / 2) / 2;
                           const tooltipData = {
                             type: "primary" as const,
-                            anchor: { type: "element" as const },
+                            anchor: {
+                              type: "bar" as const,
+                              x: centerX,
+                              y: barTop,
+                            },
                             index,
                             label: tooltipValueLabel ?? datum.label,
                             value: valueFormatter(datum.value ?? 0),
