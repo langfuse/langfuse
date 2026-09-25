@@ -45,7 +45,7 @@ interface DataTablePaginationProps<TData> {
 export function DataTablePagination<TData>({
   table,
   isLoading,
-  paginationOptions = [10, 20, 30, 40, 50],
+  paginationOptions = [10, 20, 30, 40, 50, 100],
   hideTotalCount = false,
   canJumpPages = true,
   approxTotalCount,

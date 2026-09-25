@@ -77,7 +77,7 @@ export function PaginationBar({
   totalCount,
   state,
   onChange,
-  pageSizeOptions = [10, 20, 30, 40, 50],
+  pageSizeOptions = [10, 20, 30, 40, 50, 100],
 }: PaginationBarProps) {
   const pageCount = Math.max(1, Math.ceil((totalCount ?? 0) / state.pageSize));
   const currentPage = state.pageIndex + 1;
