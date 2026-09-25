@@ -120,7 +120,7 @@ export async function ensureDefaultTopicFacets(
 ): Promise<TopicFacet[]> {
   const presets = [
     {
-      name: "Task",
+      name: "Intent",
       description: "What the run was asked to do.",
       prompt: `Describe what the user, or the calling application, wanted from this run as a whole.
 

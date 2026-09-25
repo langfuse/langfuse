@@ -93,7 +93,7 @@ Existing topic names remain until their definitions change during **Update topic
 
 ## Run the experiment
 
-1. Initialize facets and inspect/edit their instructions. `Task`, `Sentiment`,
+1. Initialize facets and inspect/edit their instructions. `Intent`, `Sentiment`,
    `Outcome`, and `Issues` are editable starting points; a facet is not a list of topic classes.
 2. Choose **Process traces** and select traces through filters or pasted IDs.
    The request freezes the selection and selected facet versions. It generates
@@ -427,7 +427,7 @@ the Topics tables (`pnpm run topics:dev-tables clickhouse --apply`).
 
 ## Default facet extraction
 
-Task names the goals of the whole run, earliest first, even when execution
+Intent names the goals of the whole run, earliest first, even when execution
 fails; follow-up checks belong to the goal they serve. Sentiment labels the end
 user's attitude toward the interaction (`Positive`, `Negative`, `Mixed`,
 `Neutral`) and what it was directed at; runs without end-user text are not
