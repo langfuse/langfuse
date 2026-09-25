@@ -68,7 +68,9 @@ const SupportDrawerContent = ({
                       </button>
                     </BreadcrumbLink>
                   </BreadcrumbItem>
-                  <BreadcrumbSeparator />
+                  <BreadcrumbSeparator className="text-foreground-tertiary">
+                    /
+                  </BreadcrumbSeparator>
                   <BreadcrumbItem>
                     <BreadcrumbPage>Email Engineer</BreadcrumbPage>
                   </BreadcrumbItem>

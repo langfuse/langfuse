@@ -37,7 +37,12 @@ export const FolderBreadcrumb = ({
           {createBreadcrumbItems(currentFolderPath).flatMap(
             (item, index, array) => [
               index > 0 && (
-                <BreadcrumbSeparator key={`sep-${item.folderPath}`} />
+                <BreadcrumbSeparator
+                  key={`sep-${item.folderPath}`}
+                  className="text-foreground-tertiary"
+                >
+                  /
+                </BreadcrumbSeparator>
               ),
               <BreadcrumbItem key={item.folderPath}>
                 {index === array.length - 1 ? (

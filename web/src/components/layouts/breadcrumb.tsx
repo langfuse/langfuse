@@ -71,7 +71,9 @@ const BreadcrumbComponent = ({
         )}
         {organization && project && (
           <>
-            <BreadcrumbSeparator />
+            <BreadcrumbSeparator className="text-foreground-tertiary">
+              /
+            </BreadcrumbSeparator>
             <ProjectDropdownMenu
               organizationId={organization.id}
               {...(organizations
@@ -100,7 +102,9 @@ const BreadcrumbComponent = ({
         )}
         {items?.map((item, index) => (
           <Fragment key={index}>
-            <BreadcrumbSeparator />
+            <BreadcrumbSeparator className="text-foreground-tertiary">
+              /
+            </BreadcrumbSeparator>
             <BreadcrumbItem key={index}>
               {item.href ? (
                 <BreadcrumbLink asChild>
