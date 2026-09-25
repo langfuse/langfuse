@@ -119,6 +119,7 @@ export function ConnectedAuditLogsTable(props: AuditLogsTableProps) {
       onRowHeightChange={setRowHeight}
       toolbarActions={toolbarActions}
       pagination={{
+        mode: "offset",
         totalCount: auditLogs.data?.totalCount ?? 0,
         onChange: setPaginationState,
         state: paginationState,

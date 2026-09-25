@@ -88,6 +88,7 @@ export function ConnectedBatchExportsTable({
         <BatchExportsTable
           data={tableData}
           pagination={{
+            mode: "offset",
             totalCount: batchExports.data?.totalCount ?? null,
             onChange: setPaginationState,
             state: paginationState,
