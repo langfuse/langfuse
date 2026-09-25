@@ -26,15 +26,13 @@ import {
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   type AggregatedScoreData,
-  type FilterState,
-  type FilterCondition,
   TableViewPresetTableName,
   BatchExportTableName,
   ActionId,
   BatchActionType,
   EXPERIMENT_IO_TRUNCATE_LENGTH,
 } from "@langfuse/shared";
-import { ExperimentFilterPills } from "./ExperimentFilterPills";
+import { groupExperimentFilters } from "../../lib/experimentFilterTargets";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   COMPARISON_OPERATOR_PROPERTY,
@@ -60,10 +58,7 @@ import { useTableViewFilterChange } from "@/src/components/table/table-view-pres
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
 
 import { EXPERIMENT_ITEMS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentItemsSearchRegistry";
-import {
-  reconcileFilterTargets,
-  hasAmbiguousTargetChange,
-} from "@/src/features/experiments/lib/reconcileFilterTargets";
+
 import { useExperimentItemsTableData } from "../../hooks/useExperimentItemsTableData";
 import { useExpectedOutputVisibility } from "../../hooks/useExpectedOutputVisibility";
 import {
@@ -221,11 +216,6 @@ function buildScoreColumnSummaries({
 
   return summaries;
 }
-
-const getDefaultExperimentFilterTarget = (props: {
-  baselineId?: string;
-  comparisonIds: string[];
-}) => props.baselineId ?? props.comparisonIds[0];
 
 const shouldEnableExperimentPeek = (props: {
   hasBaseline: boolean;
@@ -551,10 +541,6 @@ export default function ExperimentItemsTable({
   const showComparisonDiff = diffMode !== "off";
   const isExpectedDiff = diffMode === "expected";
 
-  const defaultFilterTargetExperimentId = getDefaultExperimentFilterTarget({
-    baselineId,
-    comparisonIds,
-  });
   const hasSelectedRuns = allExperimentIds.length > 0;
   const canUsePeek = shouldEnableExperimentPeek({
     hasBaseline,
@@ -643,148 +629,30 @@ export default function ExperimentItemsTable({
   const capture = usePostHogClientCapture();
   const { viewControllersRef, onExplicitFilterStateChange } =
     useTableViewFilterChange();
-  const [filterTargetState, setFilterTargetState] = useState<{
-    filters: FilterState;
-    targets: Record<number, string>;
-  }>({ filters: [], targets: {} });
   const queryFilter = useSidebarFilterState(
     experimentItemsFilterConfig,
     scoreFilterOptions,
     {
       stateLocation: "url",
-      onExplicitFilterStateChange: (change) => {
-        setFilterTargetState((state) => ({
-          filters: change.nextFilters,
-          targets:
-            change.origin === "saved_view"
-              ? {}
-              : reconcileFilterTargets(
-                  change.previousFilters,
-                  change.nextFilters,
-                  reconcileFilterTargets(
-                    state.filters,
-                    change.previousFilters,
-                    state.targets,
-                  ),
-                ),
-        }));
-        onExplicitFilterStateChange(change);
-      },
+      onExplicitFilterStateChange,
       loading: isFilterOptionsLoading,
       // v4-only surface — drives `isV4` on filters:* analytics.
       isV4: true,
     },
   );
 
-  // The assignment carries its condition so URL navigation cannot attach a
-  // previous index's experiment to an unrelated condition.
-  const filterTargets = reconcileFilterTargets(
-    filterTargetState.filters,
+  const groupedFilters = groupExperimentFilters(
     queryFilter.filterState,
-    filterTargetState.targets,
+    baselineId,
+    allExperimentIds,
   );
-
-  // Create ref-based wrapper to avoid stale closure when queryFilter updates
-  const queryFilterRef = useRef(queryFilter);
-  queryFilterRef.current = queryFilter;
-
-  // Build filter list for pills display
-  // Group filters by their target experiment (defaults to baseline)
-  const filtersByExperiment = useMemo(() => {
-    const filterState = queryFilter.filterState;
-    if (filterState.length === 0) return [];
-    if (!defaultFilterTargetExperimentId) return [];
-
-    // Group filters by target experiment
-    const grouped: Record<string, FilterState> = {};
-    filterState.forEach((filter, index) => {
-      const targetExp = filterTargets[index] ?? defaultFilterTargetExperimentId;
-      if (!grouped[targetExp]) {
-        grouped[targetExp] = [];
-      }
-      grouped[targetExp].push(filter);
-    });
-
-    // Convert to array format expected by ExperimentFilterPills
-    return Object.entries(grouped).map(([runId, filters]) => ({
-      runId,
-      filters,
-    }));
-  }, [queryFilter.filterState, filterTargets, defaultFilterTargetExperimentId]);
-
-  // Handler for changing filter target experiment
-  const handleFilterTargetChange = useCallback(
-    (
-      _fromExperimentId: string,
-      toExperimentId: string,
-      _filter: FilterCondition,
-      filterIndex: number,
-    ) => {
-      // Find the original filter index in queryFilter.filterState
-      // We need to map from the grouped index back to the original index
-      const filterState = queryFilterRef.current.filterState;
-
-      // Count filters up to the current group to find original index
-      let originalIndex = -1;
-      let currentGroupIndex = 0;
-
-      for (let i = 0; i < filterState.length; i++) {
-        const target = filterTargets[i] ?? defaultFilterTargetExperimentId;
-        if (target === _fromExperimentId) {
-          if (currentGroupIndex === filterIndex) {
-            originalIndex = i;
-            break;
-          }
-          currentGroupIndex++;
-        }
-      }
-
-      if (originalIndex < 0) return;
-      viewControllersRef.current?.handleUserStateChange(
-        filterTargets[originalIndex] ?? defaultFilterTargetExperimentId,
-        toExperimentId,
-      );
-      // Update the target for this filter
-      setFilterTargetState({
-        filters: filterState,
-        targets: { ...filterTargets, [originalIndex]: toExperimentId },
-      });
-    },
-    [filterTargets, defaultFilterTargetExperimentId, viewControllersRef],
-  );
-
-  // Handler for removing a filter via pill
-  const handleFilterRemove = useCallback(
-    (experimentIdToRemoveFrom: string, filterIndex: number) => {
-      const filterState = queryFilterRef.current.filterState;
-
-      // Find the original filter index
-      let originalIndex = -1;
-      let currentGroupIndex = 0;
-
-      for (let i = 0; i < filterState.length; i++) {
-        const target = filterTargets[i] ?? defaultFilterTargetExperimentId;
-        if (target === experimentIdToRemoveFrom) {
-          if (currentGroupIndex === filterIndex) {
-            originalIndex = i;
-            break;
-          }
-          currentGroupIndex++;
-        }
-      }
-
-      if (originalIndex < 0) return;
-      // Remove the filter from queryFilter
-      const newFilters = filterState.filter((_, idx) => idx !== originalIndex);
-      queryFilterRef.current.setFilterState(newFilters);
-    },
-    [filterTargets, defaultFilterTargetExperimentId],
-  );
+  const filtersByExperiment = groupedFilters.groups;
 
   // Use the custom hook for experiment items data fetching
   const { items, totalCount, dataUpdatedAt, ioLoading, isTotalCountLoading } =
     useExperimentItemsTableData({
       projectId,
+      filtersValid: !groupedFilters.error,
       baseExperimentId: baselineId,
       compExperimentIds: comparisonIds,
       filterByExperiment: filtersByExperiment.map((filter) => ({
@@ -1734,17 +1602,33 @@ export default function ExperimentItemsTable({
   };
   const searchRegistry = {
     ...EXPERIMENT_ITEMS_FIELD_REGISTRY,
-    filterStateErrors: (filters: FilterState) =>
-      hasAmbiguousTargetChange(
-        queryFilter.searchBarFilterState,
-        filters,
-        filterTargets,
-        defaultFilterTargetExperimentId,
-      )
-        ? [
-            "These edits cannot preserve the filters’ experiment targets. Edit one condition at a time or use its experiment pill.",
-          ]
-        : [],
+    targeting: {
+      defaultTarget: "baseline",
+      targets: [
+        ...(baselineId
+          ? [
+              {
+                id: "baseline",
+                label: "baseline",
+                keyword: true,
+                textClassName: getExperimentColorStyles(
+                  baselineId,
+                  colorExperimentIds,
+                ).textClass,
+              },
+            ]
+          : []),
+        ...selectedExperimentNames.map((experiment) => ({
+          id: experiment.experimentId,
+          label: experiment.experimentName,
+          textClassName: getExperimentColorStyles(
+            experiment.experimentId,
+            colorExperimentIds,
+          ).textClass,
+        })),
+      ],
+      supports: (field: { type: string }) => field.type === "scores",
+    },
   };
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
@@ -1998,15 +1882,7 @@ export default function ExperimentItemsTable({
             viewConfig={{
               tableName: TableViewPresetTableName.ExperimentItems,
               projectId,
-              controllers: {
-                ...viewControllers,
-                applyViewState: (
-                  ...args: Parameters<typeof viewControllers.applyViewState>
-                ) => {
-                  setFilterTargetState({ filters: [], targets: {} });
-                  viewControllers.applyViewState(...args);
-                },
-              },
+              controllers: viewControllers,
             }}
             tableName={experimentItemsFilterConfig.tableName}
             isV4={true}
@@ -2067,16 +1943,10 @@ export default function ExperimentItemsTable({
           />
         )}
 
-        {/* Filter Pills with Experiment Targeting */}
-        {filtersByExperiment.length > 0 && (
-          <ExperimentFilterPills
-            colorExperimentIds={colorExperimentIds}
-            selectedExperimentNames={selectedExperimentNames}
-            filtersByExperiment={filtersByExperiment}
-            onFilterTargetChange={handleFilterTargetChange}
-            onFilterRemove={handleFilterRemove}
-            className="border-b"
-          />
+        {groupedFilters.error && (
+          <p role="alert" className="text-destructive px-2 py-2 text-sm">
+            {groupedFilters.error}
+          </p>
         )}
 
         {/* Content area with sidebar and table */}

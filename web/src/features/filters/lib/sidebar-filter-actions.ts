@@ -44,6 +44,7 @@ export type SidebarFilterActionContext = {
 // Represents one active filter row in the key-value facet UI
 // Example: key="accuracy", operator="any of", value=["good", "excellent"]
 export type KeyValueFilterEntry = {
+  target?: string;
   key: string;
   operator: "any of" | "none of";
   value: string[];
@@ -52,12 +53,14 @@ export type KeyValueFilterEntry = {
 // Represents one active numeric filter row in the numeric key-value facet UI
 // Example: key="accuracy", operator=">=", value=0.8
 export type NumericKeyValueFilterEntry = {
+  target?: string;
   key: string;
   operator: "=" | ">" | "<" | ">=" | "<=";
   value: number | "";
 };
 
 export type BooleanKeyValueFilterEntry = {
+  target?: string;
   key: string;
   operator: "=" | "<>";
   value: boolean | "";
@@ -67,6 +70,7 @@ export type BooleanKeyValueFilterEntry = {
 // Example: key="environment", operator="=", value="production". `is set` /
 // `is not set` are value-less key-presence operators (value stays "").
 export type StringKeyValueFilterEntry = {
+  target?: string;
   key: string;
   operator: "=" | "contains" | "does not contain" | "is set" | "is not set";
   value: string;
@@ -614,6 +618,7 @@ export function applyKeyedFilterEntries(
             type: "categoryOptions" as const,
             operator: entry.operator,
             key: entry.key,
+            ...(entry.target ? { target: entry.target } : {}),
             value: entry.value,
           })),
       ];
@@ -627,6 +632,7 @@ export function applyKeyedFilterEntries(
             type: "numberObject" as const,
             operator: entry.operator,
             key: entry.key,
+            ...(entry.target ? { target: entry.target } : {}),
             value: entry.value as number,
           })),
       ];
@@ -640,6 +646,7 @@ export function applyKeyedFilterEntries(
             type: "booleanObject" as const,
             operator: entry.operator,
             key: entry.key,
+            ...(entry.target ? { target: entry.target } : {}),
             value: entry.value as boolean,
           })),
       ];
@@ -658,6 +665,7 @@ export function applyKeyedFilterEntries(
             type: "stringObject" as const,
             operator: entry.operator,
             key: entry.key,
+            ...(entry.target ? { target: entry.target } : {}),
             // Presence operators carry no value.
             value: isStringPresenceOperator(entry.operator) ? "" : entry.value,
           })),

@@ -78,6 +78,17 @@ export type SearchScope = {
   description: string;
 };
 
+export type FilterTargeting = {
+  defaultTarget: string;
+  targets: readonly {
+    id: string;
+    label: string;
+    keyword?: boolean;
+    textClassName?: string;
+  }[];
+  supports: (field: FieldRef) => boolean;
+};
+
 export type FieldRegistry = {
   id:
     | "events"
@@ -104,6 +115,7 @@ export type FieldRegistry = {
   fields: readonly FieldDef[];
   columns: readonly ColumnDefinition[];
   allowFreeText: boolean;
+  targeting?: FilterTargeting;
   /** View-specific backend constraints beyond individual column operators. */
   filterStateErrors?: (filters: FilterState) => readonly string[];
   metadata: boolean;
@@ -283,6 +295,7 @@ export function extendFieldRegistryWithColumns(
     defaultSearchType: registry.defaultSearchType,
     searchScopes: registry.searchScopes,
     filterStateErrors: registry.filterStateErrors,
+    targeting: registry.targeting,
     defaultTextField: registry.defaultTextField,
     freeTextScopeLabel: registry.freeTextScopeLabel,
     searchExamples: registry.searchExamples,
@@ -329,6 +342,7 @@ export function withFieldOptions(
     defaultSearchType: registry.defaultSearchType,
     searchScopes: registry.searchScopes,
     filterStateErrors: registry.filterStateErrors,
+    targeting: registry.targeting,
     defaultTextField: registry.defaultTextField,
     freeTextScopeLabel: registry.freeTextScopeLabel,
     searchExamples: registry.searchExamples,
@@ -453,6 +467,7 @@ export function createFieldRegistry({
   defaultSearchType = ["id", "content"],
   searchScopes = {},
   filterStateErrors,
+  targeting,
   defaultTextField,
   freeTextScopeLabel,
   searchExamples,
@@ -470,6 +485,7 @@ export function createFieldRegistry({
   allowFreeText: boolean;
   defaultSearchType?: readonly TracingSearchType[];
   searchScopes?: Readonly<Record<string, SearchScope>>;
+  targeting?: FilterTargeting;
   /** View-specific backend constraints beyond individual column operators. */
   filterStateErrors?: (filters: FilterState) => readonly string[];
   defaultTextField: string | null;
@@ -508,6 +524,7 @@ export function createFieldRegistry({
     defaultSearchType,
     searchScopes,
     filterStateErrors,
+    targeting,
     metadata,
     scores,
     traceScores,

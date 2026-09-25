@@ -26,6 +26,7 @@ import {
 } from "./fields";
 import { serialize } from "./langQ";
 import { quoteIfNeeded } from "./quoting";
+import { targetReference } from "./targeting";
 
 function filterNode(
   key: string,
@@ -258,6 +259,8 @@ export type FilterStateToQueryResult = {
 };
 
 export type FilterStateToQueryOptions = {
+  /** Stable target references for persisted query text, such as recent searches. */
+  targetIds?: boolean;
   /** Global full-text query — rendered as bare text or a scoped field token. */
   searchQuery?: string | null;
   /** Exact backend search lanes, projected through the host's registry. */
@@ -285,6 +288,29 @@ export function filterStateToQueryText(
     const node = lowerSingle(filter, registry);
     if (node === null) {
       skipped.push(`${filter.column} (${filter.type} ${filter.operator})`);
+      skippedFilters.push(filter);
+      continue;
+    }
+    const condition =
+      node.kind === "filter"
+        ? node
+        : node.kind === "not" && node.child.kind === "filter"
+          ? node.child
+          : null;
+    const field = condition ? registry.resolveField(condition.key) : null;
+    if (condition && field && registry.targeting?.supports(field)) {
+      condition.target = targetReference(
+        filter.target ?? registry.targeting.defaultTarget,
+        registry,
+      );
+      if (options.targetIds && condition.target.kind === "name") {
+        condition.target = {
+          kind: "id",
+          value: filter.target ?? registry.targeting.defaultTarget,
+        };
+      }
+    } else if (filter.target) {
+      skipped.push(`${filter.column} (target not supported)`);
       skippedFilters.push(filter);
       continue;
     }

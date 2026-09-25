@@ -16,6 +16,7 @@ import {
   indexOfOutsideQuotes,
   lexTokens,
   parseGlob,
+  parse,
   serializeValue,
   splitOutsideQuotes,
   termAt,
@@ -27,7 +28,8 @@ import {
   type FieldRegistry,
   type FieldRef,
 } from "./fields";
-import { quoteIfNeeded } from "./quoting";
+import { quoteIfNeeded, unquote } from "./quoting";
+import { serializeTarget, targetReference } from "./targeting";
 import { validateQuery } from "./validate";
 import { rankFilter } from "./rank";
 import type { ObservedOptions } from "./observed-options";
@@ -1295,6 +1297,48 @@ export function planInputCompletions(
   const term = termAt(input, caret);
   const start = term?.from ?? caret;
   const token = term?.raw ?? "";
+
+  if (registry.targeting && token.startsWith("@")) {
+    const prefix = parse(input.slice(0, start), registry);
+    const parsed =
+      prefix.ast?.kind === "and" ? prefix.ast.children.at(-1) : prefix.ast;
+    const condition =
+      parsed?.kind === "filter"
+        ? parsed
+        : parsed?.kind === "not" && parsed.child.kind === "filter"
+          ? parsed.child
+          : null;
+    const field = condition ? registry.resolveField(condition.key) : null;
+    if (
+      !prefix.valid ||
+      condition?.target ||
+      !field ||
+      !registry.targeting.supports(field)
+    )
+      return null;
+    const query = unquote(
+      token.slice(1).replace(/^"/, "").replace(/"$/, ""),
+    ).value.toLowerCase();
+    return {
+      stage: "value",
+      from: start,
+      to: term?.to ?? caret,
+      loading: false,
+      sections: [
+        {
+          title: "Target",
+          options: registry.targeting.targets
+            .filter((target) => target.label.toLowerCase().includes(query))
+            .map((target) => ({
+              id: `target:${target.id}`,
+              kind: "pattern" as const,
+              label: target.label,
+              insert: serializeTarget(targetReference(target.id, registry)),
+            })),
+        },
+      ],
+    };
+  }
 
   const negated = token.startsWith("-");
   const tokenBody = negated ? token.slice(1) : token;

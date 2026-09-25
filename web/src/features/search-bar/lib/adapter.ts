@@ -21,6 +21,7 @@
 // - NOT lowers at this boundary (none-of / does-not-contain / inverted
 //   comparisons / inverted booleans); gaps error via fields.negationIssue.
 
+import { resolveFilterTarget } from "./targeting";
 import { type FilterState, type TracingSearchType } from "@langfuse/shared";
 
 import type { ASTNode, FilterNode } from "./ast";
@@ -115,7 +116,7 @@ function isObservedBooleanScore(
 function collapseSameFieldOr(node: ASTNode): FilterNode | null {
   if (node.kind !== "or") return null;
   const filters = node.children.filter(
-    (c): c is FilterNode => c.kind === "filter",
+    (c): c is FilterNode => c.kind === "filter" && !c.target,
   );
   if (filters.length !== node.children.length || filters.length < 2)
     return null;
@@ -302,6 +303,10 @@ function lowerFilterNode(
     ref?.type === "searchScope" ||
     (ref?.type === "pseudo" && ref.id === "in")
   ) {
+    if (node.target) {
+      ctx.errors.push("Search scopes do not support a target");
+      return;
+    }
     if (node.values.length === 0) return;
     const issue =
       operatorIssue(ref, node.op, node.valueOp ?? "or") ??
@@ -365,6 +370,38 @@ function lowerFilterNode(
 }
 
 function lowerFilter(
+  node: FilterNode,
+  negated: boolean,
+  out: SingleEventsFilter[],
+  errors: string[],
+  scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): void {
+  const field = registry.resolveField(node.key);
+  const targeted =
+    node.target || (field && registry.targeting?.supports(field));
+  const target = targeted ? resolveFilterTarget(node, registry) : undefined;
+  if (target && "error" in target) {
+    errors.push(target.error);
+    return;
+  }
+  const conditions: SingleEventsFilter[] = [];
+  lowerUntargetedFilter(
+    node,
+    negated,
+    conditions,
+    errors,
+    scoreTypes,
+    registry,
+  );
+  out.push(
+    ...conditions.map((condition) =>
+      target ? { ...condition, target: target.id } : condition,
+    ),
+  );
+}
+
+function lowerUntargetedFilter(
   node: FilterNode,
   negated: boolean,
   out: SingleEventsFilter[],

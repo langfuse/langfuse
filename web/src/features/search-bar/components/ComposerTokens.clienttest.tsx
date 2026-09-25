@@ -4,6 +4,8 @@ import {
   WORD_JOINER,
 } from "@/src/features/search-bar/components/ComposerTokens";
 
+import { EVENTS_FIELD_REGISTRY } from "../lib/fields";
+
 /** Rendered text of the draft, with the layout-only word joiners stripped. */
 function renderedText(draft: string): string {
   const { container } = render(
@@ -25,6 +27,32 @@ describe("ComposerTokens", () => {
     expect(renderedText('scores."Rouge Score":>=1')).toBe(
       'scores."Rouge Score":>=1',
     );
+  });
+
+  it("keeps target text and whitespace intact inside the editable chip", () => {
+    const draft = '-scores.quality:>0.8   @"Claude Sonnet"';
+    const { container } = render(
+      <ComposerTokens
+        draft={draft}
+        showDiagnostics={true}
+        registry={{
+          ...EVENTS_FIELD_REGISTRY,
+          targeting: {
+            defaultTarget: "baseline",
+            supports: (field) => field.type === "scores",
+            targets: [
+              {
+                id: "run-b",
+                label: "Claude Sonnet",
+                textClassName: "text-pink-500",
+              },
+            ],
+          },
+        }}
+      />,
+    );
+    expect(container.textContent?.split(WORD_JOINER).join("")).toBe(draft);
+    expect(container.querySelectorAll('[data-kind="filter"]')).toHaveLength(1);
   });
 
   it("renders whitespace and trailing plain text as elements, not raw text nodes", () => {

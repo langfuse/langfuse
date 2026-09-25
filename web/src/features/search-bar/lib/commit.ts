@@ -17,6 +17,7 @@ import {
   type ScoreTypeContext,
 } from "./adapter";
 import { serialize, type Diagnostic } from "./langQ";
+import { filterStateToQueryText } from "./filter-state-to-query";
 import { validateQuery } from "./validate";
 
 // The full Events default. Other hosts declare their own defaultSearchType
@@ -76,7 +77,13 @@ export function planCommit(
     filters,
     searchQuery,
     searchType: searchType ?? [...registry.defaultSearchType],
-    canonical: serialize(res.ast, registry),
+    canonical: registry.targeting
+      ? filterStateToQueryText(
+          filters,
+          { searchQuery, searchType, targetIds: true },
+          registry,
+        ).text
+      : serialize(res.ast, registry),
   };
 }
 
