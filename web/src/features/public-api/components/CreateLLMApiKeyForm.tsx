@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useFieldArray, useForm } from "react-hook-form";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   type BedrockApiKey,
@@ -405,6 +405,7 @@ export function CreateLLMApiKeyForm({
     TYPESAFE_UPSTREAMS.find(
       (upstream) => upstream.id === currentTypeSafeUpstreamId,
     ) ?? TYPESAFE_UPSTREAMS[0];
+  const customTypeSafeBaseURLDraft = useRef("");
   const isKeepingCurrentBedrockAuthMethod =
     mode === "update" &&
     currentAdapter === LLMAdapter.Bedrock &&
@@ -739,6 +740,7 @@ export function CreateLLMApiKeyForm({
                         "typeSafeUpstream",
                         TYPESAFE_UPSTREAMS[0].id,
                       );
+                      customTypeSafeBaseURLDraft.current = "";
                     }
                     field.onChange(value as LLMAdapter);
                   }}
@@ -836,12 +838,18 @@ export function CreateLLMApiKeyForm({
                           aria-label="Upstream"
                           value={field.value}
                           onValueChange={(id) => {
+                            if (field.value === "custom") {
+                              customTypeSafeBaseURLDraft.current =
+                                form.getValues("baseURL");
+                            }
                             field.onChange(id);
                             form.setValue(
                               "baseURL",
-                              TYPESAFE_UPSTREAMS.find(
-                                (upstream) => upstream.id === id,
-                              )?.baseURL ?? "",
+                              id === "custom"
+                                ? customTypeSafeBaseURLDraft.current
+                                : (TYPESAFE_UPSTREAMS.find(
+                                    (upstream) => upstream.id === id,
+                                  )?.baseURL ?? ""),
                             );
                           }}
                         />
