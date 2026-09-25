@@ -600,6 +600,7 @@ function TracePreviewTable({
       </div>
       {pageCount > 1 && (
         <PaginationBar
+          mode="offset"
           totalCount={traces.length}
           state={{ pageIndex: page, pageSize: 20 }}
           onChange={(next) => setPage(next.pageIndex)}
