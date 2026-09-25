@@ -1412,6 +1412,7 @@ export default function ExperimentItemsTable({
         ),
       size: 120,
       enableHiding: true,
+      defaultHidden: true,
       cell: ({ row }) => {
         const experiments = row.original.experiments;
         const baselineCost = baselineExperimentOf(experiments)?.totalCost;
@@ -1580,7 +1581,7 @@ export default function ExperimentItemsTable({
 
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<ExperimentItemsTableRow>(
-      `experimentItemsColumnVisibility-compare-${projectId}`,
+      `experimentItemsColumnVisibility-compare-v2-${projectId}`,
       columns,
     );
 
