@@ -105,7 +105,14 @@ const BreadcrumbComponent = ({
             <BreadcrumbSeparator className="text-foreground-tertiary">
               /
             </BreadcrumbSeparator>
-            <BreadcrumbItem key={index}>
+            <BreadcrumbItem
+              key={index}
+              className={
+                index === items.length - 1
+                  ? "text-foreground"
+                  : "text-muted-foreground"
+              }
+            >
               {item.href ? (
                 <BreadcrumbLink asChild>
                   <Link href={item.href}>{item.name}</Link>
