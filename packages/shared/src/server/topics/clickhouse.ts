@@ -90,15 +90,24 @@ export async function getTopicDefinitions(
   const definitions: TopicDefinition[] = [];
   for (const ids of chunk([...new Set(topicVersionIds)], LOOKUP_BATCH_SIZE)) {
     const rows = await queryClickhouse<
-      Omit<TopicDefinition, "createdAt" | "metadata"> & {
+      Omit<
+        TopicDefinition,
+        "createdAt" | "metadata" | "representativeSummaries"
+      > & {
         createdAtMs: string;
         metadataJson: string;
+        representativeSummaries: {
+          facet_id: string;
+          facet_version: number;
+          trace_id: string;
+          session_id: string;
+        }[];
       }
     >({
       query: `SELECT project_id AS projectId, id AS topicVersionId,
         stable_id AS topicId, created_by_run_id AS createdByRunId,
         toUnixTimestamp64Milli(created_at) AS createdAtMs, name, description,
-        centroid, radius, tags, representative_summary_ids AS representativeSummaryIds,
+        centroid, radius, tags, representative_summaries AS representativeSummaries,
         metadata AS metadataJson
         FROM topics
         WHERE project_id = {projectId:String} AND id IN {ids:Array(String)}
@@ -110,6 +119,12 @@ export async function getTopicDefinitions(
       ...rows.map(({ createdAtMs, metadataJson, ...row }) => ({
         ...row,
         createdAt: new Date(Number(createdAtMs)).toISOString(),
+        representativeSummaries: row.representativeSummaries.map((source) => ({
+          facetId: source.facet_id,
+          facetVersion: source.facet_version,
+          traceId: source.trace_id || null,
+          sessionId: source.session_id || null,
+        })),
         metadata: JSON.parse(metadataJson) as Record<string, unknown>,
       })),
     );
@@ -157,7 +172,15 @@ function encodeTopicDefinition(row: TopicDefinition): Buffer {
   radius.writeDoubleLE(row.radius);
   parts.push(radius);
   strings(row.tags);
-  strings(row.representativeSummaryIds);
+  length(row.representativeSummaries.length);
+  for (const source of row.representativeSummaries) {
+    string(source.facetId);
+    const facetVersion = Buffer.allocUnsafe(4);
+    facetVersion.writeUInt32LE(source.facetVersion);
+    parts.push(facetVersion);
+    string(source.traceId ?? "");
+    string(source.traceId === null ? source.sessionId! : "");
+  }
   string(JSON.stringify(row.metadata));
   return Buffer.concat(parts);
 }
@@ -187,7 +210,7 @@ export async function writeTopicDefinitions(
     const result = await clickhouseClient().exec({
       query: `INSERT INTO topics (project_id, id, stable_id, created_by_run_id,
         created_at, name, description, centroid, radius, tags,
-        representative_summary_ids, metadata) FORMAT RowBinary`,
+        representative_summaries, metadata) FORMAT RowBinary`,
       values: Readable.from(values),
       clickhouse_settings: {
         async_insert: 1,

@@ -305,7 +305,7 @@ describe("Topics immutable definitions and run membership", () => {
     description: "Invoice requests",
     centroid: [1, 0],
     radius: 0.1,
-    representativeSummaryIds: [],
+    representativeSummaries: [],
     metadata: { count: 0 },
   };
 

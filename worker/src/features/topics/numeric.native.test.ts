@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { topicSourceKey, type TopicSummary } from "@langfuse/shared/topics";
+import type { TopicSummary } from "@langfuse/shared/topics";
 import {
   buildNamingEvidence,
   buildTopicPrototypes,
@@ -45,9 +45,6 @@ it("fits every member through the native child and builds usable serving prototy
     summary: `Example ${index}`,
     embedding,
   })) as TopicSummary[];
-  const embeddingBySource = new Map(
-    summaries.map((row) => [topicSourceKey(row), row.embedding]),
-  );
   const labels = [...result.labels];
   labels[0] = -1;
   const prototypes = buildTopicPrototypes(summaries, labels);
@@ -58,13 +55,11 @@ it("fits every member through the native child and builds usable serving prototy
     expect(group.count).toBeGreaterThan(450);
     expect(group.members).toHaveLength(group.count);
     for (const member of group.members)
-      expect(
-        classifyTopic(embeddingBySource.get(member.id)!, persisted).topicId,
-      ).toBe(group.id);
+      expect(classifyTopic(member.embedding, persisted).topicId).toBe(group.id);
     for (const contrast of group.contrasts)
-      expect(
-        classifyTopic(embeddingBySource.get(contrast.id)!, persisted).topicId,
-      ).not.toBe(group.id);
+      expect(classifyTopic(contrast.embedding, persisted).topicId).not.toBe(
+        group.id,
+      );
   }
   expect(classifyTopic(embeddings[0], persisted).topicId).not.toBeNull();
   expect(

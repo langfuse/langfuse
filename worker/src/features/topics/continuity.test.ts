@@ -13,7 +13,7 @@ const topic = (id: string, centroid = [1, 0]): TopicDefinition => ({
   description: id,
   centroid,
   radius: 0.3,
-  representativeSummaryIds: [],
+  representativeSummaries: [],
   metadata: { retained: true },
 });
 

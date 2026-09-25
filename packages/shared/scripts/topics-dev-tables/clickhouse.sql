@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS topics
     centroid Array(Float64),
     radius Float64,
     tags Array(String) DEFAULT [],
-    representative_summary_ids Array(String),
+    representative_summaries Array(Tuple(facet_id String, facet_version UInt32, trace_id String, session_id String)),
     metadata String CODEC(ZSTD(3))
 )
 ENGINE = ReplacingMergeTree(created_at)

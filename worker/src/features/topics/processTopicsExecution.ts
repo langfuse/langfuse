@@ -480,6 +480,10 @@ async function clusterFacet(
     error: null,
   });
   try {
+    metrics.clusteringWorkload(
+      summaries.length,
+      execution.input.embeddingConfig.embeddingDimensions,
+    );
     const numeric = await metrics.measure(
       "clustering",
       () =>
@@ -641,18 +645,18 @@ async function clusterFacet(
         continue;
       }
       const label = await metrics.measure("naming", async () => {
-        const sourceByLabel = new Map(
-          group.members.map((member, index) => [`m${index + 1}`, member.id]),
+        const members = new Map(
+          group.members.map((summary, index) => [`m${index + 1}`, summary]),
         );
         const { output: label } = await nameTopicGroup({
           ...group,
-          members: group.members.map((member, index) => ({
-            ...member,
-            id: `m${index + 1}`,
+          members: Array.from(members, ([id, { summary }]) => ({
+            id,
+            summary,
           })),
           contrasts: group.contrasts.map((member, index) => ({
-            ...member,
             id: `c${index + 1}`,
+            summary: member.summary,
           })),
         });
         if (
@@ -667,9 +671,16 @@ async function clusterFacet(
           );
         return {
           ...label,
-          evidenceSummaryIds: label.evidenceSummaryIds.map(
-            (id) => sourceByLabel.get(id)!,
-          ),
+          representativeSummaries: label.evidenceSummaryIds.map((id) => {
+            const { facetId, facetVersion, traceId, sessionId } =
+              members.get(id)!;
+            return {
+              facetId,
+              facetVersion,
+              traceId,
+              sessionId: traceId === null ? sessionId : null,
+            };
+          }),
         };
       });
       names.add(label.name.trim().toLowerCase());
@@ -684,7 +695,7 @@ async function clusterFacet(
         tags: [],
         name: label.name.trim(),
         description: label.description.trim(),
-        representativeSummaryIds: label.evidenceSummaryIds,
+        representativeSummaries: label.representativeSummaries,
         metadata: {
           ...candidate.metadata,
           effectiveMemberCount: group.count,

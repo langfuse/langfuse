@@ -33,6 +33,23 @@ type TopicErrorReason =
   | "numerical"
   | "unknown";
 
+/** Provider usage is counted per call, before local validation or persistence. */
+export function recordTopicTokenUsage(
+  stage: "summary" | "embedding" | "naming",
+  usage: { input?: number; output?: number },
+): void {
+  for (const [direction, tokens] of Object.entries(usage)) {
+    const tags = { stage, direction };
+    if (
+      typeof tokens === "number" &&
+      Number.isSafeInteger(tokens) &&
+      tokens >= 0
+    )
+      recordIncrement("langfuse.topics.tokens", tokens, tags);
+    else recordIncrement("langfuse.topics.token_usage_missing", 1, tags);
+  }
+}
+
 /** One instance per execution attempt prevents nested catches counting an error twice. */
 export class TopicMetrics {
   private readonly reportedErrors = new WeakSet<object>();
@@ -47,6 +64,12 @@ export class TopicMetrics {
   result(stage: TopicStage, result: TopicResult, count = 1): void {
     if (count > 0)
       recordIncrement("langfuse.topics.results", count, { stage, result });
+  }
+
+  clusteringWorkload(vectors: number, dimensions: number): void {
+    const tags = { dimensions: String(dimensions) };
+    recordIncrement("langfuse.topics.clustering_vectors", vectors, tags);
+    recordDistribution("langfuse.topics.clustering_cohort_size", vectors, tags);
   }
 
   embeddingResult(sourceKey: string, result: "generated" | "cached"): void {

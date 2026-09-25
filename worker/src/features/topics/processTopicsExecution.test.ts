@@ -974,21 +974,26 @@ describe("Topics execution", () => {
     const topics = [...state.runs.values()].at(-1)!.topics;
     expect(topics).toHaveLength(2);
     for (const [index, [group]] of state.name.mock.calls.entries()) {
-      expect(
-        group.members.every((member: { id: string }) =>
-          /^m\d+$/.test(member.id),
-        ),
-      ).toBe(true);
-      expect(
-        group.contrasts.every((member: { id: string }) =>
-          /^c\d+$/.test(member.id),
-        ),
-      ).toBe(true);
+      for (const member of group.members)
+        expect(member).toEqual({
+          id: expect.stringMatching(/^m\d+$/),
+          summary: expect.any(String),
+        });
+      for (const contrast of group.contrasts)
+        expect(contrast).toEqual({
+          id: expect.stringMatching(/^c\d+$/),
+          summary: expect.any(String),
+        });
       const source = [...state.summaries.values()].find(
         (summary) => summary.summary === group.members[0].summary,
       )!;
-      expect(topics[index].representativeSummaryIds).toEqual([
-        topicSourceKey(source),
+      expect(topics[index].representativeSummaries).toEqual([
+        {
+          facetId: source.facetId,
+          facetVersion: source.facetVersion,
+          traceId: source.traceId,
+          sessionId: null,
+        },
       ]);
     }
   });
@@ -1147,7 +1152,7 @@ describe("Topics execution", () => {
       output: {
         name: unchanged.name,
         description: "A colliding name.",
-        evidenceSummaryIds: unchanged.representativeSummaryIds,
+        evidenceSummaryIds: ["m1"],
       },
     });
     await updateSelection("second");

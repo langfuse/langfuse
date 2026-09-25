@@ -121,7 +121,7 @@ describe("Topics definition storage", () => {
     description: "Invoice requests",
     centroid: [0.123456789012345, 1],
     radius: 0.123456789012345,
-    representativeSummaryIds: ["summary-a"],
+    representativeSummaries: [],
     metadata: {},
   };
 

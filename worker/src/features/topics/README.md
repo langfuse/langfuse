@@ -309,10 +309,10 @@ an assignment row.
 ClickHouse stores immutable topic names, descriptions and prototypes, including
 their original creation run. Each Postgres run stores the exact topic-version
 IDs used by its classifier; missing definitions prevent loading that map.
-Naming calls use short member labels; accepted evidence references store the
-project, facet version and source tuple. Those references identify the current
-source result, not a historical summary snapshot. Existing hashed evidence
-references remain readable metadata and are not used for storage lookups.
+Naming calls use short member labels; accepted evidence references store typed
+facet-version and trace-or-session fields under the definition's project.
+A trace reference omits its parent session. Those references identify the current
+source result, not a historical summary snapshot.
 Definitions use RowBinary inserts with `Float64` geometry to preserve classifier precision and
 `ReplacingMergeTree(created_at)` keyed by project and version ID to deduplicate
 identical retry writes. They have no time partition or age-based expiry: an old
@@ -369,7 +369,44 @@ emit no attempt/result metrics. Model durations exclude cache hits.
 
 Metrics are best effort, not an exactly-once ledger or heartbeat. Queue backlog,
 waiting time and BullMQ outcomes use `langfuse.queue.topics.*`,
-`langfuse.queue.topics-update.*` and `langfuse.queue.topics-embedding.*`.
+`langfuse.queue.topics_update.*` and `langfuse.queue.topics_embedding.*`.
+Queue `.depth` includes `type:delayed`. Topics `.pending_head_age_ms` samples one
+entry from each waiting, paused, delayed and active state without loading job
+payloads. Retries can re-enter behind newer jobs, so this is head age, not the
+oldest creation time anywhere in the backlog.
+
+`langfuse.topics.tokens{stage:summary|embedding|naming,direction:input|output}`
+counts available provider-reported usage immediately after each model response,
+before local validation or persistence. Embeddings have input tokens only.
+Cached results and persistence retries do not add tokens; new provider calls do.
+Missing or invalid usage increments `.token_usage_missing` with the same tags;
+configured token budgets are never reported as measured usage. Responses rejected
+inside the provider SDK may not expose usage, so these counters are not a bill.
+Clustering consumes vectors rather than tokens: `.clustering_vectors` counts
+attempted input vectors and `.clustering_cohort_size` records each fit's size,
+both tagged by `dimensions`. Existing stage durations measure elapsed time, not CPU.
+
+The queue metrics runner also reports `.staged_results` (unexpired retained
+payloads), `.staged_expiry_remaining_ms` (earliest remaining Redis TTL, zero when
+empty), and `.staged_expired` (expiry counter). Alert on low remaining TTL only
+while staged results are present. The shared staging helper maintains a best-effort
+Redis index of original deadlines; embedding completion retains tracking until
+assignment acknowledgement removes the payload. Retries never renew its deadline.
+Expiry means a retained payload expired, not necessarily lost work: cleanup may
+have failed after durable persistence. `.staging_tracking_errors{operation:track|release}`
+exposes index failures without rejecting accepted results.
+Telemetry commands have a one-second wait deadline so Redis retries cannot stall
+the paid-result handoff or completion. Timed-out commands may finish later; the
+index and expiry counters remain best effort.
+
+Collection runs independently of consumer progress while Topics and
+`LANGFUSE_QUEUE_METRICS_ENABLED` are enabled. Global snapshot gauges must not be
+summed across worker reporters: use max for counts/age and min for remaining TTL.
+Expired index entries are removed and counted atomically in batches of at most
+1,000, preventing duplicate expiry counts across reporters. Entries older than
+one day past expiry may be discarded during indexing; the index itself expires
+one day after its latest deadline. Existing payloads become visible only when
+staged through the instrumented helper; deployment does not scan/backfill Redis.
 
 ## Offline verification
 

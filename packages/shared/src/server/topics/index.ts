@@ -3,6 +3,7 @@ export * from "./postgres";
 export * from "./clickhouse";
 export * from "./queue";
 export * from "./embedding-queue";
+export { emitTopicStagingMetrics } from "./staging-metrics";
 export * from "./embeddings";
 export * from "./text";
 export * from "./config";

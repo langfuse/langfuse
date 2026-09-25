@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   call: vi.fn(),
+  embed: vi.fn(),
+  increment: vi.fn(),
   region: vi.fn(),
 }));
 vi.mock("../../env", () => ({
@@ -10,12 +12,18 @@ vi.mock("../../env", () => ({
 vi.mock("@langfuse/shared/src/server", () => ({
   getLangfuseAIBedrockRegion: () => state.region(),
   logger: { warn: vi.fn() },
+  recordIncrement: state.increment,
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
   generateTopicText: (...args: unknown[]) => state.call(...args),
+  generateTopicEmbedding: (...args: unknown[]) => state.embed(...args),
 }));
 
-import { nameTopicGroup, summarizeTopicTrace } from "./models";
+import {
+  embedTopicSummary,
+  nameTopicGroup,
+  summarizeTopicTrace,
+} from "./models";
 import { topicProcessingConfigSchema } from "@langfuse/shared/topics";
 
 const facet = {
@@ -36,6 +44,8 @@ const evidence = {
 
 beforeEach(() => {
   state.call.mockReset();
+  state.embed.mockReset();
+  state.increment.mockReset();
   state.region.mockReset().mockReturnValue("eu-west-1");
 });
 
@@ -101,6 +111,14 @@ describe("Topics naming boundary", () => {
       config,
     );
     expect(result.providedUsageDetails).toEqual({ summary_input: 100 });
+    expect(state.increment.mock.calls).toEqual([
+      ["langfuse.topics.tokens", 100, { stage: "summary", direction: "input" }],
+      [
+        "langfuse.topics.token_usage_missing",
+        1,
+        { stage: "summary", direction: "output" },
+      ],
+    ]);
     expect(result.usageDetails).toEqual({
       summary_input: 100,
       summary_output: config.maxOutputTokens,
@@ -159,6 +177,53 @@ describe("Topics naming boundary", () => {
         usage: { inputTokens: 100, outputTokens: 30 },
       });
       await expect(nameTopicGroup(evidence)).rejects.toThrow();
+      // Provider work is billable even when local output validation rejects it.
+      expect(state.increment.mock.calls).toEqual([
+        [
+          "langfuse.topics.tokens",
+          100,
+          { stage: "naming", direction: "input" },
+        ],
+        [
+          "langfuse.topics.tokens",
+          30,
+          { stage: "naming", direction: "output" },
+        ],
+      ]);
+    },
+  );
+
+  it("records embedding input usage even when the returned vector is invalid", async () => {
+    state.embed.mockResolvedValue({ embedding: [], tokens: 12 });
+    await expect(
+      embedTopicSummary("An invoice request.", 256),
+    ).rejects.toMatchObject({
+      reason: "invalid_output",
+    });
+    expect(state.increment.mock.calls).toEqual([
+      [
+        "langfuse.topics.tokens",
+        12,
+        { stage: "embedding", direction: "input" },
+      ],
+    ]);
+  });
+
+  it.each([undefined, -1, Number.NaN])(
+    "does not invent missing embedding usage: %s",
+    async (tokens) => {
+      state.embed.mockResolvedValue({
+        embedding: Array(256).fill(0.25),
+        tokens,
+      });
+      await embedTopicSummary("An invoice request.", 256);
+      expect(state.increment.mock.calls).toEqual([
+        [
+          "langfuse.topics.token_usage_missing",
+          1,
+          { stage: "embedding", direction: "input" },
+        ],
+      ]);
     },
   );
 });

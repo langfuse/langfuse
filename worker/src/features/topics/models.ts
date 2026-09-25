@@ -17,6 +17,7 @@ import {
   type TopicSummary,
 } from "@langfuse/shared/topics";
 import { env } from "../../env";
+import { recordTopicTokenUsage } from "./metrics";
 import {
   TopicsProviderUnavailable,
   topicProviderError,
@@ -107,6 +108,10 @@ async function structuredCall<T>(
   });
   const actualRates = rates(result.usage.inputTokens ?? inputLimit);
   const stage = isNaming ? "naming" : "summary";
+  recordTopicTokenUsage(stage, {
+    input: result.usage.inputTokens,
+    output: result.usage.outputTokens,
+  });
   const inputKey = `${stage}_input`;
   const outputKey = `${stage}_output`;
   const inputTokens = result.usage.inputTokens ?? inputLimit;
@@ -233,6 +238,7 @@ export async function embedTopicSummary(
   }).catch((error: unknown) => {
     throw topicProviderError(error);
   });
+  recordTopicTokenUsage("embedding", { input: result.tokens });
   // ClickHouse stores Float32; calibration and future classification must use those same vectors.
   const embedding = Array.from(new Float32Array(result.embedding));
   if (

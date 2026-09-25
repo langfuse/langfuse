@@ -214,7 +214,10 @@ export interface TopicDefinition {
   description: string;
   centroid: number[];
   radius: number;
-  representativeSummaryIds: string[];
+  representativeSummaries: Pick<
+    TopicSummary,
+    "facetId" | "facetVersion" | "traceId" | "sessionId"
+  >[];
   metadata: Record<string, unknown>;
 }
 

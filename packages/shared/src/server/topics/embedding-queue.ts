@@ -15,6 +15,10 @@ import {
 } from "../queues";
 import { createBullMQQueueOptionsWithRedis, redis } from "../redis/redis";
 import { isTopicsEnabled } from "./config";
+import {
+  forgetTopicStagingExpiry,
+  trackTopicStagingExpiry,
+} from "./staging-metrics";
 
 export type TopicEmbeddingBatch =
   TQueueJobTypes[QueueName.TopicsEmbedding]["payload"];
@@ -95,7 +99,10 @@ export async function stageTopicSummary(
     env.LANGFUSE_TOPICS_REDIS_TTL_SECONDS,
     "NX",
   );
-  if (inserted) return summary;
+  if (inserted) {
+    await trackTopicStagingExpiry(key);
+    return summary;
+  }
   const existing = await client.get(key);
   if (!existing) throw new Error(TOPIC_EMBEDDING_EXPIRED_ERROR);
   const staged = decodeStagedSummary(existing, scope, summary);
@@ -105,6 +112,7 @@ export async function stageTopicSummary(
       embeddingConfig.embeddingDimensions
   )
     throw new Error("Topics staged summary embedding configuration mismatch.");
+  await trackTopicStagingExpiry(key);
   return staged.summary;
 }
 
@@ -174,9 +182,12 @@ export async function deleteStagedTopicSummary(
   const client = getRedis();
   const key = summaryKey(scope, ref);
   const value = await client.get(key);
-  if (!value) return;
+  if (!value) {
+    await forgetTopicStagingExpiry(key);
+    return;
+  }
   decodeStagedSummary(value, scope, ref);
-  await client.eval(
+  const deleted = await client.eval(
     `if redis.call('GET', KEYS[1]) == ARGV[1] then
        return redis.call('DEL', KEYS[1])
      end
@@ -185,6 +196,7 @@ export async function deleteStagedTopicSummary(
     key,
     value,
   );
+  if (deleted === 1) await forgetTopicStagingExpiry(key);
 }
 
 export class TopicsEmbeddingQueue {

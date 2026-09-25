@@ -140,7 +140,7 @@ const run = {
       description: "Refund requests",
       radius: 0.2,
       centroid: [0.1, 0.9],
-      representativeSummaryIds: ["summary-a"],
+      representativeSummaries: [],
     },
   ],
 };

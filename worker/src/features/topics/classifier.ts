@@ -174,14 +174,11 @@ export function buildNamingEvidence(
           ),
       )
       .slice(0, 3)
-      .map((item) => ({ id: item.sourceKey, summary: item.summary.summary }));
+      .map((item) => item.summary);
     return {
       id: prototype.id,
       count: members.length,
-      members: members.map(({ summary, sourceKey }) => ({
-        id: sourceKey,
-        summary: summary.summary,
-      })),
+      members: members.map((item) => item.summary),
       contrasts,
     };
   });
