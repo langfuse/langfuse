@@ -4,6 +4,7 @@ import {
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
+  BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Fragment } from "react";
@@ -100,29 +101,28 @@ const BreadcrumbComponent = ({
             </ProjectDropdownMenu>
           </>
         )}
-        {items?.map((item, index) => (
-          <Fragment key={index}>
-            <BreadcrumbSeparator className="text-foreground-tertiary">
-              /
-            </BreadcrumbSeparator>
-            <BreadcrumbItem
-              key={index}
-              className={
-                index === items.length - 1
-                  ? "text-foreground"
-                  : "text-muted-foreground"
-              }
-            >
-              {item.href ? (
-                <BreadcrumbLink asChild>
-                  <Link href={item.href}>{item.name}</Link>
-                </BreadcrumbLink>
-              ) : (
-                <span>{item.name}</span>
-              )}
-            </BreadcrumbItem>
-          </Fragment>
-        ))}
+        {items?.map((item, index) => {
+          const isCurrentPage = index === items.length - 1;
+          const name = item.href ? (
+            <Link href={item.href}>{item.name}</Link>
+          ) : (
+            item.name
+          );
+          return (
+            <Fragment key={index}>
+              <BreadcrumbSeparator className="text-foreground-tertiary">
+                /
+              </BreadcrumbSeparator>
+              <BreadcrumbItem key={index}>
+                {isCurrentPage && <BreadcrumbPage>{name}</BreadcrumbPage>}
+                {!isCurrentPage && item.href && (
+                  <BreadcrumbLink asChild>{name}</BreadcrumbLink>
+                )}
+                {!isCurrentPage && !item.href && <span>{name}</span>}
+              </BreadcrumbItem>
+            </Fragment>
+          );
+        })}
       </BreadcrumbList>
     </Breadcrumb>
   );
