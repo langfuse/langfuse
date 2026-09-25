@@ -27,6 +27,8 @@ export const [listAnnotationQueuesTool, handleListAnnotationQueues] =
             projectId: context.projectId,
             page: input.page,
             limit: input.limit,
+            fromTimestamp: input.fromTimestamp,
+            toTimestamp: input.toTimestamp,
           });
 
           const parsed = GetAnnotationQueuesResponse.parse(result);

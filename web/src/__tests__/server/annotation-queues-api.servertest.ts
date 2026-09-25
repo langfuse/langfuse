@@ -196,12 +196,25 @@ describe("Annotation Queues API Endpoints", () => {
       expect(response.status).toBe(200);
       expect(response.body.data.length).toBeGreaterThanOrEqual(0);
       response.body.data.forEach((queue) => {
-        expect(new Date(queue.createdAt).getTime()).toBeGreaterThanOrEqual(new Date(from).getTime());
-        expect(new Date(queue.createdAt).getTime()).toBeLessThan(new Date(to).getTime());
+        expect(new Date(queue.createdAt).getTime()).toBeGreaterThanOrEqual(
+          new Date(from).getTime(),
+        );
+        expect(new Date(queue.createdAt).getTime()).toBeLessThan(
+          new Date(to).getTime(),
+        );
       });
     });
-  });
 
+    it("should reject non-ISO timestamp filters", async () => {
+      const response = await makeAPICall(
+        "GET",
+        "/api/public/annotation-queues?fromTimestamp=2024%2F01%2F01",
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    });
   });
 
   describe("POST /annotation-queues", () => {

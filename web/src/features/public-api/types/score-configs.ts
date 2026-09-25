@@ -31,6 +31,11 @@ const CategoriesWithCustomError = jsonSchema.superRefine((categories, ctx) => {
 /**
  * Endpoints
  */
+const queryDateTime = z.iso
+  .datetime({ offset: true })
+  .transform((value) => new Date(value))
+  .nullish();
+
 const ScoreConfigBase = z.object({
   id: z.string(),
   projectId: z.string(),
@@ -150,8 +155,8 @@ export const PutScoreConfigResponse = APIScoreConfig;
 // GET /score-configs
 export const GetScoreConfigsQuery = z.object({
   ...publicApiPaginationZod,
-  fromTimestamp: z.coerce.date().nullish(),
-  toTimestamp: z.coerce.date().nullish(),
+  fromTimestamp: queryDateTime,
+  toTimestamp: queryDateTime,
 });
 
 export const GetScoreConfigsResponse = z.object({
