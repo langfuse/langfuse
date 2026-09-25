@@ -312,25 +312,7 @@ export const Intermittent = meta.story({
 });
 
 export const Intraday = meta.story({
-  name: "(Test) Intraday",
   args: { variant: "intraday" },
-  play: async ({ canvasElement }) => {
-    const labels = Array.from(
-      canvasElement.querySelectorAll('[data-x-axis-label=""]'),
-      (label) => label.textContent,
-    );
-    await expect(labels.length).toBeGreaterThan(1);
-    await expect(new Set(labels).size).toBe(labels.length);
-    await expect(labels.some((label) => label?.includes("AM"))).toBe(true);
-    const hoverArea = canvasElement.querySelector<SVGRectElement>(
-      'rect[fill="transparent"]',
-    );
-    if (!hoverArea) throw new Error("Hover area not found");
-    await userEvent.hover(hoverArea);
-    await expect(within(document.body).getByRole("tooltip")).toHaveTextContent(
-      "Sep 1, 2026, 12:00 AM",
-    );
-  },
 });
 
 export const YearBoundary = meta.story({

@@ -528,17 +528,33 @@ function LineChartContent(
     const distance = time - (sortedTimes[index - 1] ?? time);
     return distance > 0 ? Math.min(gap, distance) : gap;
   }, Infinity);
+  // UTC-midnight date buckets must keep their calendar date; intraday instants use local time.
+  const showTooltipTime = timeDataDates.some(
+    (date, index) =>
+      date.getUTCHours() !== 0 ||
+      date.getUTCMinutes() !== 0 ||
+      date.getUTCSeconds() !== 0 ||
+      (index > 0 &&
+        date.getTime() - timeDataDates[index - 1]!.getTime() <
+          24 * 60 * 60 * 1000),
+  );
   const crossesYear =
-    timeTickDates[0]?.getUTCFullYear() !==
-    timeTickDates[timeTickDates.length - 1]?.getUTCFullYear();
+    (showTooltipTime
+      ? timeTickDates[0]?.getFullYear()
+      : timeTickDates[0]?.getUTCFullYear()) !==
+    (showTooltipTime
+      ? timeTickDates[timeTickDates.length - 1]?.getFullYear()
+      : timeTickDates[timeTickDates.length - 1]?.getUTCFullYear());
   const distinctTickMonths = new Set(
-    timeTickDates.map(
-      (date) => `${date.getUTCFullYear()}-${date.getUTCMonth()}`,
+    timeTickDates.map((date) =>
+      showTooltipTime
+        ? `${date.getFullYear()}-${date.getMonth()}`
+        : `${date.getUTCFullYear()}-${date.getUTCMonth()}`,
     ),
   ).size;
   const formatTimeTick = (value: Date) =>
     value.toLocaleString("en-US", {
-      timeZone: "UTC",
+      ...(!showTooltipTime ? { timeZone: "UTC" } : {}),
       ...(Number.isFinite(minTickGap) &&
       minTickGap >= 28 * 24 * 60 * 60 * 1000 &&
       distinctTickMonths === timeTickDates.length
@@ -614,22 +630,13 @@ function LineChartContent(
         label: formatXAxisTick(activeDatum),
       }
     : undefined;
-  const showTooltipTime = timeDataDates.some(
-    (date, index) =>
-      date.getUTCHours() !== 0 ||
-      date.getUTCMinutes() !== 0 ||
-      date.getUTCSeconds() !== 0 ||
-      (index > 0 &&
-        date.getTime() - timeDataDates[index - 1]!.getTime() <
-          24 * 60 * 60 * 1000),
-  );
   const showTooltipSeconds = timeDataDates.some(
     (date) => date.getUTCSeconds() !== 0,
   );
   const formatXTooltip = (datum: NormalizedDatum) => {
     if (xAxis.type === "time" && datum.x instanceof Date) {
       return datum.x.toLocaleString("en-US", {
-        timeZone: "UTC",
+        ...(!showTooltipTime ? { timeZone: "UTC" } : {}),
         month: "short",
         day: "numeric",
         year: "numeric",

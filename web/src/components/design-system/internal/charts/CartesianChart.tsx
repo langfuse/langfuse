@@ -86,9 +86,9 @@ function ChartXAxis({
     : ticks;
   const labels = axisTicks.map((tick, index) => {
     let textAnchor: "start" | "middle" | "end" = "middle";
-    if (alignment === "endpoints" && ticks.length > 1) {
+    if (alignment === "endpoints" && axisTicks.length > 1) {
       if (index === 0) textAnchor = "start";
-      else if (index === ticks.length - 1) textAnchor = "end";
+      else if (index === axisTicks.length - 1) textAnchor = "end";
     }
     const anchor = tick.textAnchor ?? textAnchor;
     const maxCharacters = tick.maxWidth
