@@ -8,6 +8,12 @@
     "node": "24",
     "pnpm": "12.6.0"
   },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.6.0"
+    }
+  },
   "scripts": {
     "agents:check": "node scripts/agents/sync-agent-shims.mjs --check --check-paths",
     "agents:sync": "node scripts/agents/sync-agent-shims.mjs",
@@ -108,6 +114,5 @@
         "pr": ":rocket: _This pull request is included in v${version}. See [${releaseName}](${releaseUrl}) for release notes._"
       }
     }
-  },
-  "packageManager": "pnpm@12.6.0"
+  }
 }

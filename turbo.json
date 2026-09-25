@@ -1,5 +1,9 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "futureFlags": {
+    "errorsOnlyShowHash": true,
+    "watchUsingTaskInputs": true
+  },
   "noUpdateNotifier": true,
   "cacheMaxSize": "7.5GB",
   "globalDependencies": [".env"],
@@ -17,14 +21,14 @@
       // with and without it must not share a cache entry — a cached
       // unchecked build would otherwise replay as a "type-checked" one.
       "env": ["NEXT_IGNORE_BUILD_ERRORS"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "!.next/dev/**"],
       "cache": true,
       "outputLogs": "errors-only"
     },
     "build:test": {
       "dependsOn": ["db:generate", "^build"],
       "env": ["NEXT_IGNORE_BUILD_ERRORS", "NEXT_DISABLE_BUILD_CACHE"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "!.next/dev/**"],
       "cache": true,
       "outputLogs": "errors-only"
     },
@@ -67,12 +71,11 @@
     // Prisma generate writes client types into node_modules. Turbo cache hits
     // only replay logs and do not restore those side effects on fresh CI runners.
     "db:generate": {
-      "inputs": ["packages/shared/prisma/schema.prisma"],
       "cache": false,
       "dependsOn": ["^db:generate"]
     },
     "@langfuse/shared#db:generate": {
-      "inputs": ["packages/shared/prisma/schema.prisma"],
+      "inputs": ["prisma/schema.prisma"],
       "cache": false,
       "dependsOn": ["^db:generate"],
       "outputLogs": "errors-only"
@@ -100,7 +103,11 @@
     "build:check": {
       "dependsOn": ["db:generate", "^build"],
       "env": ["NEXT_IGNORE_BUILD_ERRORS"],
-      "outputs": [".next-check/**", "!.next-check/cache/**"],
+      "outputs": [
+        ".next-check/**",
+        "!.next-check/cache/**",
+        "!.next-check/dev/**"
+      ],
       "cache": true,
       "outputLogs": "errors-only"
     },

@@ -37,6 +37,11 @@ Current shape:
     "devTerminalDescription": "Main development terminal running the development server"
   },
   "mcpServers": {
+    "next-devtools": {
+      "transport": "stdio",
+      "command": "pnpm",
+      "args": ["dlx", "next-devtools-mcp@0.4.0"]
+    },
     "playwright": {
       "transport": "stdio",
       "command": "npx",
@@ -102,6 +107,18 @@ Current shape:
   }
 }
 ```
+
+## Next.js Runtime Diagnostics
+
+The shared `next-devtools` MCP connects to a running Next.js development server.
+Start `pnpm run dev:web`, then use `nextjs_index` to identify this checkout's
+server and `nextjs_call` to query its errors, routes, or logs. With Turbopack,
+`compile_route` checks a route's compilation without executing its HTTP handler.
+
+The connector is pinned to `next-devtools-mcp@0.4.0`. Its documentation gateway
+points to the installed Next.js docs; use the existing Playwright MCP for browser
+interaction. Reload the agent's MCP configuration after running `agents:sync`.
+See the [Next.js MCP guide](https://nextjs.org/docs/app/guides/mcp).
 
 ## How Shims Are Generated
 

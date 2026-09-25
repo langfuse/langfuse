@@ -23,6 +23,8 @@
   mirrors dd-trace and the winston logger (`DD_*`, `LANGFUSE_LOG_*`).
 - The worker calls `initTelemetry()` once in `worker/src/initialize.ts` and
   imports functions from `@langfuse/native` directly; keep call sites few.
+- Keep finite Rust commands behind the package's `rust:*` scripts so pnpm's
+  shared `langfuse-rust` concurrency group also covers builds launched by Turbo.
 
 ## Verification
 

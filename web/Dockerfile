@@ -42,7 +42,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS pruner
 WORKDIR /app
 
 COPY . .
-RUN turbo prune --scope=web --docker
+RUN turbo prune web --docker
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS builder
 
