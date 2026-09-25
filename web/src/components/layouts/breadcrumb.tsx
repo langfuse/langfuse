@@ -7,7 +7,7 @@ import {
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Fragment } from "react";
-import { ChevronDownIcon, Slash } from "lucide-react";
+import { ChevronDownIcon } from "lucide-react";
 import { env } from "@/src/env.mjs";
 import {
   useOrgProjectSwitchPaths,
@@ -64,16 +64,14 @@ const BreadcrumbComponent = ({
                       {planLabels[organization.plan]}
                     </Badge>
                   )}
-                <ChevronDownIcon className="h-4 w-4" />
+                <ChevronDownIcon className="text-foreground-tertiary size-3" />
               </button>
             )}
           </OrganizationDropdownMenu>
         )}
         {organization && project && (
           <>
-            <BreadcrumbSeparator>
-              <Slash />
-            </BreadcrumbSeparator>
+            <BreadcrumbSeparator />
             <ProjectDropdownMenu
               organizationId={organization.id}
               {...(organizations
@@ -94,7 +92,7 @@ const BreadcrumbComponent = ({
                   {...getTriggerProps()}
                 >
                   {project.name}
-                  <ChevronDownIcon className="h-4 w-4" />
+                  <ChevronDownIcon className="text-foreground-tertiary size-3" />
                 </button>
               )}
             </ProjectDropdownMenu>
@@ -102,9 +100,7 @@ const BreadcrumbComponent = ({
         )}
         {items?.map((item, index) => (
           <Fragment key={index}>
-            <BreadcrumbSeparator>
-              <Slash />
-            </BreadcrumbSeparator>
+            <BreadcrumbSeparator />
             <BreadcrumbItem key={index}>
               {item.href ? (
                 <BreadcrumbLink asChild>

@@ -7,7 +7,7 @@ import {
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { createBreadcrumbItems } from "@/src/features/folders/utils";
-import { Home, Slash } from "lucide-react";
+import { Home } from "lucide-react";
 
 /**
  * Breadcrumb navigation for folders.
@@ -37,9 +37,7 @@ export const FolderBreadcrumb = ({
           {createBreadcrumbItems(currentFolderPath).flatMap(
             (item, index, array) => [
               index > 0 && (
-                <BreadcrumbSeparator key={`sep-${item.folderPath}`}>
-                  <Slash />
-                </BreadcrumbSeparator>
+                <BreadcrumbSeparator key={`sep-${item.folderPath}`} />
               ),
               <BreadcrumbItem key={item.folderPath}>
                 {index === array.length - 1 ? (
