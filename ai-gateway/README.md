@@ -384,9 +384,9 @@ historical traces are not rewritten.
 headers arrive. After headers arrive it retains the relayed status, even if a
 stream subsequently fails; cancellation before headers leaves the status unknown.
 Relay outcome, provider status, completeness flags and first-byte timing remain
-internal facts rather than generation metadata. Ingestion removes mapped observation-attribute
-duplicates for the gateway scope while preserving custom attributes, scope and
-resources.
+internal facts rather than generation metadata. For the gateway scope, ingestion removes
+Langfuse attributes already mapped to trace and observation fields, such as user, session,
+trace name, tags and environment, while preserving custom attributes, scope and resources.
 
 Provider HTTP failures and failed SSE responses set the generation level to `ERROR`
 with the available HTTP status in its status message. Full mode also includes a

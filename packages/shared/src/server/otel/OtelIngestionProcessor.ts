@@ -1891,13 +1891,12 @@ export class OtelIngestionProcessor {
       delete rawFilteredAttributes[key];
     });
 
-    // Gateway observation attributes are represented by canonical fields.
-    // Keep unknown attributes available for diagnostics.
+    // Gateway spans only use known Langfuse attributes for values that are
+    // represented by canonical trace and observation fields. Keep unknown
+    // attributes available for diagnostics.
     if (instrumentationScopeName === "langfuse-ai-gateway") {
       for (const key of Object.values(LangfuseOtelSpanAttributes)) {
-        if (key.startsWith("langfuse.observation.")) {
-          delete rawFilteredAttributes[key];
-        }
+        delete rawFilteredAttributes[key];
       }
     }
 
