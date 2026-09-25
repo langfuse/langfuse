@@ -159,6 +159,17 @@ function withSerializedEventByteLength(
   };
 }
 
+// Models priced before TTL-split cache writes existed (e.g. custom models)
+// only carry an aggregate cache-write price; TTL-split usage falls back to it.
+const TTL_CACHE_CREATION_USAGE_TYPES = new Set([
+  "input_cache_creation_5m",
+  "input_cache_creation_1h",
+]);
+const AGGREGATE_CACHE_CREATION_USAGE_TYPES = [
+  "cache_creation_input_tokens",
+  "input_cache_creation",
+];
+
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
   [TableName.Scores]: (keyof ScoreRecordInsertType)[];
@@ -1706,7 +1717,13 @@ export class IngestionService {
     const finalCostEntries: [string, number][] = [];
 
     for (const [key, units] of Object.entries(usageUnits)) {
-      const price = modelPrices?.find((price) => price.usageType === key);
+      const price =
+        modelPrices?.find((price) => price.usageType === key) ??
+        (TTL_CACHE_CREATION_USAGE_TYPES.has(key)
+          ? AGGREGATE_CACHE_CREATION_USAGE_TYPES.map((usageType) =>
+              modelPrices?.find((price) => price.usageType === usageType),
+            ).find(Boolean)
+          : undefined);
 
       if (units != null && price) {
         finalCostEntries.push([key, price.price.mul(units).toNumber()]);
