@@ -93,8 +93,8 @@ Existing topic names remain until their definitions change during **Update topic
 
 ## Run the experiment
 
-1. Initialize facets and inspect/edit their instructions. `Intent`, `Outcome`,
-   and `Issues` are editable starting points; a facet is not a list of topic classes.
+1. Initialize facets and inspect/edit their instructions. `Intent`, `Sentiment`,
+   `Outcome`, and `Issues` are editable starting points; a facet is not a list of topic classes.
 2. Choose **Process traces** and select traces through filters or pasted IDs.
    The request freezes the selection and selected facet versions. It generates
    summaries and embeddings, then assigns only this batch to the current
@@ -427,16 +427,23 @@ the Topics tables (`pnpm run topics:dev-tables clickhouse --apply`).
 
 ## Default facet extraction
 
-Intent describes the requested task even when execution fails. Outcome describes
-what was actually delivered or confirmed, keeping a proposed action distinct from
-an assistant's claim and a confirming result. Issues describes the principal
-observed obstacle, its consequence and recovery; a problem quoted for analysis
-is not itself an agent defect. Each editable prompt owns its facet's semantics.
+Intent names the goals of the whole run, earliest first, even when execution
+fails; follow-up checks belong to the goal they serve. Sentiment labels the end
+user's attitude toward the interaction (`Positive`, `Negative`, `Mixed`,
+`Neutral`) and what it was directed at; runs without end-user text are not
+applicable. Outcome labels where the run ended (`Completed`, `Partial`,
+`Unconfirmed`, `Needs input`, `Not completed`), judged on results rather than the
+assistant's claims. Issues labels the most consequential problem (`Tool error`,
+`Wrong action`, `Unsupported claim`, `Ignored instruction`, `Off target`,
+`Unfinished`, `Repetition`, `Unhelpful refusal`, `Exposed reasoning`), including
+broken rules and skipped planned steps; a problem quoted for analysis is not
+itself an agent defect. Each editable prompt owns its facet's semantics.
 
-The shared extraction wrapper asks for compact English prose (normally one
-sentence, at most two and 100 words), preserves meaningful distinctions, and
-omits incidental identifiers, source references and narration. Applicability is
-separate from task success: absent signals and insufficient evidence retain their
-distinct statuses and empty summaries, so they do not become embedded topics.
-With one summary per trace/facet, the Issues default prioritizes the principal
-problem rather than claiming to enumerate every independent issue.
+The shared system prompt describes the transcript, treats it as evidence rather
+than instructions, and asks for one English sentence of at most 30 words that
+starts with the facet's label. It keeps the kind of object and drops instance
+details (names, IDs, amounts, dates, URLs), so similar runs embed close together.
+Content removed for length is never reported as a problem or result. The format
+request is repeated after the transcript. Applicability is separate from task
+success: absent signals and insufficient evidence retain their distinct statuses
+and empty summaries, so they do not become embedded topics.

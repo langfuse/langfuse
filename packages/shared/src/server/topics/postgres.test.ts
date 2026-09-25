@@ -52,7 +52,7 @@ vi.mock("../../db", () => {
 
 describe("Topics default facets", () => {
   it("creates missing defaults without replacing existing facet prompts on repeated initialization", async () => {
-    const names = new Set(["Intent", "Issues"]);
+    const names = new Set(["Intent", "Sentiment", "Issues"]);
     mocks.facetFindUnique.mockImplementation(async ({ where }) =>
       names.has(where.projectId_name.name)
         ? { id: where.projectId_name.name }

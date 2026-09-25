@@ -121,21 +121,107 @@ export async function ensureDefaultTopicFacets(
   const presets = [
     {
       name: "Intent",
-      description: "The task requested for this run.",
-      prompt:
-        "Describe only what this run was asked to accomplish: the requested action or answer, its subject, and constraints that materially change the task. Phrase it as a goal, not a completed action. Exclude the response, tool execution, failures, and eventual result, even when they dominate the recording. Earlier context may clarify the current request but should not introduce unrelated tasks. For automated runs, use the task evident in the input rather than inventing a human requester. Whenever a requested task or question is identifiable, return applicable and describe that goal, even when execution failed or outputs are missing. If the request cannot be established, use insufficient_input. Example: a request to export monthly sales followed by a permission error has applicable intent: Export monthly sales. The permission error does not belong in the intent summary.",
+      description: "What the run was asked to do.",
+      prompt: `Describe what the user, or the calling application, wanted from this run as a whole.
+
+Format: an imperative verb phrase stating the goal, such as "Find…", "Fix…", "Summarize…".
+
+- Describe the goal of the whole run, not its last step. Follow-up requests to verify, save, show, fix, or reformat earlier work belong to the goal they serve.
+- A run can contain several unrelated requests, for example a user who finishes one job and then starts another. Name each of them in a few words, in the order they were asked, joined with "and". Describing only the latest request misses the earlier ones.
+- Earlier conversation can clarify the goals of this run but does not add goals of its own.
+- In an automated run with no human author (extraction, classification, routing, templated generation), describe the job the input sets. Do not invent a person asking for it.
+- When the user asks the assistant to work on supplied material, describe that work and name the material's subject in a few words.
+- Keep the user's own verb and object. "Fix the date filter in a SQL query" must not become "Improve a data workflow".
+- Describe goals only. Leave out how the assistant approached them, what went wrong, and whether they succeeded.
+- Social or casual messages have a goal too; state it plainly.
+
+Status: applicable whenever a goal can be identified, even if the run failed or produced nothing. insufficient_input when no request or input survives. Do not use not_applicable.
+
+Examples:
+- Export last quarter's orders to CSV grouped by region.
+- Classify an inbound support email by product area and urgency.
+- Fix a failing nightly data import and draft a welcome email for new customers.
+- Chat about plans for the weekend.`,
+    },
+    {
+      name: "Sentiment",
+      description: "How the end user felt about the interaction.",
+      prompt: `Describe how the end user felt about this interaction and what the feeling was directed at.
+
+Format: "<Label>: <cue and its target>", where Label is one of:
+- Positive: thanks, praise, relief, or warm engagement.
+- Negative: frustration, annoyance, distrust, or giving up.
+- Mixed: both are substantial, for example annoyance that turns into relief.
+- Neutral: factual or procedural messages with no emotional signal.
+
+- Judge only text the end user wrote. Assistant, tool, and system text shows what the user reacts to, never how the user feels.
+- Judge the attitude toward the interaction, not the subject. A calm report of a bug, a failed test, or a personal hardship is not negative by itself.
+- Weight sustained tone and how the user ends over a single remark. Terse or strict instructions are Neutral; so is routine politeness.
+- Name the target in terms of the assistant's behavior (wrong answers, slow progress, ignored corrections, a working fix), not the user's private circumstances.
+
+Status: not_applicable when the run has no end-user text, as in automated pipelines. insufficient_input when user text exists but is unreadable.
+
+Examples:
+- Negative: user repeated the same formatting correction and said the assistant keeps ignoring it.
+- Positive: user thanked the assistant after a working fix for a failing deployment script.
+- Mixed: user was annoyed by two wrong answers, then relieved when the third one worked.
+- Neutral: user gave step-by-step instructions without emotional cues.`,
     },
     {
       name: "Outcome",
-      description: "The result actually visible at the end of the run.",
-      prompt:
-        "Describe what this run actually delivered or where it stopped, using the final response and execution results. For an explanation or analysis task, the delivered explanation is the outcome; the situation being explained is not an event in this run. Distinguish a proposed action, an assistant's completion claim, and a confirming result. A returned draft is an observable deliverable; it does not prove a downstream action occurred. Mention remaining work only when the recording establishes it. Preserve the concrete result rather than reducing it to a success or failure label. A delivered response, a confirmed action, or an evidenced blockage is applicable, including failed or partial results. If outputs are missing and no result can be established, use insufficient_input with an empty summary. Examples: a returned explanation of a database error is an applicable delivered explanation; a failed export with a suggested workaround is an applicable blocked export. An input request without any recorded response or execution result is insufficient_input.",
+      description: "Where the run ended and whether that is confirmed.",
+      prompt: `Describe where this run ended: what was delivered or done, and whether the transcript confirms it.
+
+Format: "<State>: <the concrete result>", where State is one of:
+- Completed: the requested answer was given, or a tool result confirms the requested action.
+- Partial: part of the request was delivered and part was not.
+- Unconfirmed: the assistant says an action happened, but no result confirms it.
+- Needs input: the run ends waiting on the user, such as a clarifying question or an approval.
+- Not completed: the run stopped, was blocked, or was declined without delivering the request.
+
+- Start from the end of this run: the last assistant message and the last tool results decide the state.
+- Base the state on results, not on the assistant's words. A tool result confirms an action; a message saying "done" does not. A returned draft is a delivered draft, not a sent message.
+- For questions, explanations, and analyses, the delivered answer is the result.
+- Name the concrete deliverable or stopping point, not just the state. Mention remaining work only when the transcript shows it.
+- Say where the run stopped, not why something failed, unless the reason is itself the result, as with a declined request.
+
+Status: applicable whenever the run has a final response or result, including failures. insufficient_input when no response or result survives. Do not use not_applicable.
+
+Examples:
+- Completed: returned a SQL query that filters orders by signup month.
+- Unconfirmed: said the meeting was booked, but no calendar tool result confirms it.
+- Needs input: asked which of two accounts the transfer should come from.
+- Not completed: stopped after the payments tool failed, without answering the user.`,
     },
     {
       name: "Issues",
-      description: "Observed problems, their consequences, and recovery.",
-      prompt:
-        "Determine whether a problem occurred in the execution or response of this run. If the run has adequate evidence and no problem, return not_applicable with an empty summary; do not summarize its success. An error quoted in input for explanation is not an error of this run. Missing logs, an appropriate refusal, and routine clarification alone are not defects. If the recording is too incomplete to judge, return insufficient_input with an empty summary. An observed tool error or response defect is applicable even if the agent recovered. Describe the principal observed problem, the operation it affected, and its consequence. Include recovery when shown. Treat complaints as reports, not proof of an underlying cause. Keep related symptoms together; prioritize the most consequential problem when independent problems compete. Examples: an export tool returning permission denied is applicable; accurately explaining a permission error pasted by the user is not_applicable; a recording containing only the initial request is insufficient_input.",
+      description: "The main problem in how the run was handled.",
+      prompt: `Describe the most consequential problem in how the assistant or application handled this run.
+
+Format: "<Category>: <what went wrong, where, and its consequence>", where Category is one of:
+- Tool error: a tool call failed, timed out, or returned an error.
+- Wrong action: the assistant called the wrong tool, passed wrong arguments, or acted on the wrong item.
+- Unsupported claim: the assistant stated a fact or reported an action the transcript does not back, such as "done" without a confirming result.
+- Ignored instruction: the run breaks a rule, format, or correction the user or system gave, or skips a step the assistant's own plan committed to.
+- Off target: the response answers a different request or assumes a premise the conversation does not support.
+- Unfinished: the run stops after a tool call or mid-answer, with no final response.
+- Repetition: the assistant repeats the same step without progress.
+- Unhelpful refusal: the assistant declines a reasonable request without trying.
+- Exposed reasoning: the visible reply contains internal reasoning or thinking tags. Reasoning parts are internal and do not count.
+
+- Only problems in this run count. An error the user pastes for explanation, a problem in earlier conversation, or a complaint about something outside the run is not an issue here.
+- A clarifying question, a justified refusal, a short answer, and a retry that succeeds are not issues. If the assistant recovered from a real problem, report it and mention the recovery.
+- Check the end of this run before calling it Unfinished: if a later assistant message delivers an answer or fallback, the run is finished.
+- Compare what the assistant did with the rules it was given and the plan it stated. Breaking an explicit rule, skipping a planned step, or using a different tool than planned is an issue even when the run otherwise succeeds.
+- Report only what the transcript shows directly. If a problem is only a possibility, return not_applicable.
+- Report one problem. Keep related symptoms together.
+
+Status: not_applicable when the run is complete enough to judge and shows no problem. insufficient_input when too much is missing to judge, for example only the first request survives.
+
+Examples:
+- Tool error: inventory lookup timed out, so the quote left out stock levels; the assistant asked the user to retry.
+- Unsupported claim: assistant confirmed a refund was issued, but no refund tool was called.
+- Ignored instruction: user asked for metric units, but the answer used imperial units throughout.`,
     },
   ];
   for (const preset of presets) {
