@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Readable } from "node:stream";
 import type {
   TopicAssignment,
   TopicDefinition,
@@ -22,6 +23,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   insert: vi.fn(),
+  exec: vi.fn(),
   query: vi.fn(),
   publishedRuns: vi.fn(),
 }));
@@ -29,7 +31,7 @@ vi.mock("../../db", () => ({
   prisma: { topicClusteringRun: { findMany: mocks.publishedRuns } },
 }));
 vi.mock("../clickhouse/client", () => ({
-  clickhouseClient: () => ({ insert: mocks.insert }),
+  clickhouseClient: () => ({ insert: mocks.insert, exec: mocks.exec }),
   convertDateToClickhouseDateTime: (date: Date) => date.toISOString(),
 }));
 vi.mock("../clickhouse/queryTags", () => ({
@@ -40,6 +42,7 @@ vi.mock("../repositories/clickhouse", () => ({ queryClickhouse: mocks.query }));
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.query.mockResolvedValue([]);
+  mocks.exec.mockImplementation(async () => ({ stream: Readable.from([]) }));
   mocks.publishedRuns.mockResolvedValue([{ id: "published-run" }]);
 });
 
@@ -131,26 +134,65 @@ describe("Topics definition storage", () => {
     metadata: {},
   };
 
-  it("round-trips the immutable definition, creation provenance and double precision", async () => {
-    await writeTopicDefinitions([topic]);
-    const inserted = mocks.insert.mock.calls[0][0];
-    expect(inserted.table).toBe("topics");
-    expect(inserted.values[0]).toMatchObject({
-      created_by_run_id: topic.createdByRunId,
-      centroid: topic.centroid,
-      radius: topic.radius,
+  it.each([
+    { count: 10_001, dimensions: 1 },
+    { count: 1024, dimensions: 1024 },
+  ])(
+    "bounds binary definition batches by rows and bytes: %j",
+    async ({ count, dimensions }) => {
+      const batches: Buffer[][] = [];
+      mocks.exec.mockImplementation(async ({ values }) => {
+        const batch: Buffer[] = [];
+        for await (const value of values) batch.push(value);
+        batches.push(batch);
+        return { stream: Readable.from([]) };
+      });
+      await writeTopicDefinitions(
+        Array.from({ length: count }, (_, i) => ({
+          ...topic,
+          topicVersionId: `definition-${i}`,
+          centroid: Array.from({ length: dimensions }, () => 0.123456789012345),
+        })),
+      );
+      expect(batches).toHaveLength(2);
+      expect(batches.flat()).toHaveLength(count);
+      for (const batch of batches) {
+        expect(batch.length).toBeLessThanOrEqual(10_000);
+        expect(
+          batch.reduce((bytes, row) => bytes + row.length, 0),
+        ).toBeLessThanOrEqual(8 * 1024 * 1024);
+      }
+      for (const [request] of mocks.exec.mock.calls) {
+        expect(request.query).toContain("FORMAT RowBinary");
+        expect(request.clickhouse_settings).toMatchObject({
+          async_insert: 1,
+          wait_for_async_insert: 1,
+        });
+      }
+    },
+  );
+
+  it("propagates a failure while consuming the insert response", async () => {
+    mocks.exec.mockResolvedValue({
+      stream: Readable.from(
+        (async function* () {
+          yield Buffer.from("");
+          throw new Error("Insert response failed");
+        })(),
+      ),
     });
-    const { createdAt, metadata, ...columns } = topic;
-    mocks.query.mockResolvedValue([
-      {
-        ...columns,
-        createdAtMs: String(Date.parse(createdAt)),
-        metadataJson: JSON.stringify(metadata),
-      },
-    ]);
-    expect(
-      await getTopicDefinitions(topic.projectId, [topic.topicVersionId]),
-    ).toEqual([topic]);
+    await expect(writeTopicDefinitions([topic])).rejects.toThrow(
+      "Insert response failed",
+    );
+  });
+
+  it("rejects a definition larger than an insert batch", async () => {
+    await expect(
+      writeTopicDefinitions([
+        { ...topic, description: "x".repeat(8 * 1024 * 1024) },
+      ]),
+    ).rejects.toThrow("maximum insert row size");
+    expect(mocks.exec).not.toHaveBeenCalled();
   });
 
   it("bounds exact definition lookups and scopes every batch to its project", async () => {
@@ -175,7 +217,7 @@ describe("Topics definition storage", () => {
     await expect(
       writeTopicDefinitions([topic, { ...topic, radius: NaN }]),
     ).rejects.toThrow("Invalid topic definition");
-    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.exec).not.toHaveBeenCalled();
   });
 });
 

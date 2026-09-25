@@ -271,7 +271,9 @@ text. Updates match final memberships to the previous published map for that fac
 version. Changed embedding spaces use membership evidence without comparing
 centroids. Continuing topics retain their stable topic IDs. When the embedding
 space, centroid and radius are unchanged, the existing definition is reused
-without another naming call. Changed definitions receive new topic version IDs. Material
+without another naming call. Geometry comparisons allow bounded Float64 roundoff;
+reused definitions keep their stored centroid and radius for naming and assignment.
+Changed definitions receive new topic version IDs. Material
 splits/merges receive new IDs with predecessor lineage in topic metadata.
 
 ## Cost and recovery
@@ -303,7 +305,7 @@ an assignment row.
 ClickHouse stores immutable topic names, descriptions and prototypes, including
 their original creation run. Each Postgres run stores the exact topic-version
 IDs used by its classifier; missing definitions prevent loading that map.
-Definitions use `Float64` geometry to preserve classifier precision and
+Definitions use RowBinary inserts with `Float64` geometry to preserve classifier precision and
 `ReplacingMergeTree(created_at)` keyed by project and version ID to deduplicate
 identical retry writes. They have no time partition or age-based expiry: an old
 definition may still be in use by the current map. Transcripts stay in memory.
@@ -373,6 +375,10 @@ real UMAP/HDBSCAN through the worker's child process on more than 1,000 syntheti
 vectors and checks serving prototypes, cold-start, identical-input and invalid
 vector behavior. Rust tests cover deterministic fitting and validation. Neither
 command calls a paid model.
+
+`storage.integration.test.ts` checks exact definition roundtrips against real
+ClickHouse, including Float64 values affected by decimal parsing. It requires
+the Topics tables (`pnpm run topics:dev-tables clickhouse --apply`).
 
 ## Default facet extraction
 

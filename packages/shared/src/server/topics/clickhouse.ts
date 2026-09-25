@@ -15,6 +15,8 @@ import { topicSourceSchema } from "../../topics";
 import { prisma } from "../../db";
 import { chunk } from "lodash";
 import { createHash } from "node:crypto";
+import { Readable } from "node:stream";
+import { finished } from "node:stream/promises";
 
 /** Opaque application references derived from the source key; no ID column is stored. */
 export function topicSummaryId(
@@ -47,7 +49,7 @@ const INSERT_BATCH_SIZE = 10_000;
 const INSERT_BATCH_BYTES = 8 * 1024 * 1024;
 
 async function insertTopicRows<T extends { projectId: string }>(
-  table: "topic_facet_summaries" | "topic_assignments" | "topics",
+  table: "topic_facet_summaries" | "topic_assignments",
   rows: T[],
   serialize: (row: T) => Record<string, unknown>,
 ): Promise<void> {
@@ -67,7 +69,6 @@ async function insertTopicRows<T extends { projectId: string }>(
           route: {
             topic_facet_summaries: "topics-summaries",
             topic_assignments: "topics-assignments",
-            topics: "topics-definitions",
           }[table],
           projectId: rows[0].projectId,
         }),
@@ -123,6 +124,51 @@ export async function getTopicDefinitions(
   return definitions;
 }
 
+/** RowBinary column order matches the explicit definition INSERT below. */
+function encodeTopicDefinition(row: TopicDefinition): Buffer {
+  const parts: Buffer[] = [];
+  const length = (value: number) => {
+    const bytes: number[] = [];
+    do {
+      const byte = value % 128;
+      value = Math.floor(value / 128);
+      bytes.push(byte + (value ? 128 : 0));
+    } while (value);
+    parts.push(Buffer.from(bytes));
+  };
+  const string = (value: string) => {
+    const bytes = Buffer.from(value, "utf8");
+    length(bytes.length);
+    parts.push(bytes);
+  };
+  const strings = (values: string[]) => {
+    length(values.length);
+    for (const value of values) string(value);
+  };
+
+  string(row.projectId);
+  string(row.topicVersionId);
+  string(row.topicId);
+  string(row.createdByRunId);
+  const createdAt = Buffer.allocUnsafe(8);
+  createdAt.writeBigInt64LE(BigInt(Date.parse(row.createdAt)));
+  parts.push(createdAt);
+  string(row.name);
+  string(row.description);
+  length(row.centroid.length);
+  const centroid = Buffer.allocUnsafe(row.centroid.length * 8);
+  for (let index = 0; index < row.centroid.length; index++)
+    centroid.writeDoubleLE(row.centroid[index], index * 8);
+  parts.push(centroid);
+  const radius = Buffer.allocUnsafe(8);
+  radius.writeDoubleLE(row.radius);
+  parts.push(radius);
+  strings(row.tags);
+  strings(row.representativeSummaryIds);
+  string(JSON.stringify(row.metadata));
+  return Buffer.concat(parts);
+}
+
 export async function writeTopicDefinitions(
   rows: TopicDefinition[],
 ): Promise<void> {
@@ -134,26 +180,49 @@ export async function writeTopicDefinitions(
       !row.createdByRunId ||
       !Number.isFinite(Date.parse(row.createdAt)) ||
       !row.centroid.length ||
-      !row.centroid.every(Number.isFinite) ||
       !Number.isFinite(row.radius) ||
       row.radius < 0
     )
       throw new Error("Invalid topic definition.");
+    for (const value of row.centroid)
+      if (!Number.isFinite(value)) throw new Error("Invalid topic definition.");
   }
-  await insertTopicRows("topics", rows, (row) => ({
-    project_id: row.projectId,
-    id: row.topicVersionId,
-    stable_id: row.topicId,
-    created_by_run_id: row.createdByRunId,
-    created_at: convertDateToClickhouseDateTime(new Date(row.createdAt)),
-    name: row.name,
-    description: row.description,
-    centroid: row.centroid,
-    radius: row.radius,
-    tags: row.tags,
-    representative_summary_ids: row.representativeSummaryIds,
-    metadata: JSON.stringify(row.metadata),
-  }));
+  let values: Buffer[] = [];
+  let bytes = 0;
+  const flush = async () => {
+    if (!values.length) return;
+    const result = await clickhouseClient().exec({
+      query: `INSERT INTO topics (project_id, id, stable_id, created_by_run_id,
+        created_at, name, description, centroid, radius, tags,
+        representative_summary_ids, metadata) FORMAT RowBinary`,
+      values: Readable.from(values),
+      clickhouse_settings: {
+        async_insert: 1,
+        wait_for_async_insert: 1,
+        log_comment: buildClickHouseLogComment({
+          surface: "worker",
+          route: "topics-definitions",
+          projectId: rows[0].projectId,
+        }),
+      },
+    });
+    await finished(result.stream.resume(), { cleanup: true });
+    values = [];
+    bytes = 0;
+  };
+  for (const row of rows) {
+    const value = encodeTopicDefinition(row);
+    if (value.length > INSERT_BATCH_BYTES)
+      throw new Error("A Topics result exceeds the maximum insert row size.");
+    if (
+      values.length >= INSERT_BATCH_SIZE ||
+      bytes + value.length > INSERT_BATCH_BYTES
+    )
+      await flush();
+    values.push(value);
+    bytes += value.length;
+  }
+  await flush();
 }
 
 const summaryColumns = `${summaryIdSql} AS id, project_id AS projectId, facet_id AS facetId,

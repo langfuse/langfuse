@@ -966,10 +966,14 @@ describe("Topics execution", () => {
     },
   );
 
-  it("reuses unchanged definitions and naming as membership grows and updates retry", async () => {
+  it("reuses stored definitions despite roundoff as membership grows and updates retry", async () => {
     await processSelection("source", 100);
     for (const summary of state.summaries.values()) summary.embedding[3] = 0;
     await updateSelection("first");
+    for (const topic of [...state.runs.values()].at(-1)!.topics) {
+      topic.centroid[0] += Number.EPSILON;
+      topic.radius += Number.EPSILON;
+    }
     const first = structuredClone([...state.runs.values()].at(-1)!);
     await processSelection("additional", 1, ["trace100"]);
     for (const summary of state.summaries.values()) summary.embedding[3] = 0;
@@ -985,7 +989,7 @@ describe("Topics execution", () => {
         (row) => row.runId === second.id && row.traceId === "trace100",
       )?.topicVersionId,
     ).toBe(
-      first.topics.find((topic) => topic.centroid[0] === 1)?.topicVersionId,
+      first.topics.find((topic) => topic.centroid[0] > 0.5)?.topicVersionId,
     );
     expect(state.runs.get(first.id)).toEqual(first);
     state.assignmentWrites.mockRejectedValueOnce(
@@ -1001,6 +1005,40 @@ describe("Topics execution", () => {
     expect(retried.status).toBe("completed");
     expect(retried.topics).toEqual(first.topics);
     expect(state.name).toHaveBeenCalledTimes(2);
+  });
+
+  it("retains only populations served by stored geometry when near-tied definitions are reused", async () => {
+    await processSelection("source", 100);
+    for (const summary of state.summaries.values()) {
+      const second = summary.embedding[1] > 0.5;
+      summary.embedding.fill(0);
+      summary.embedding[0] = 1;
+      summary.embedding[1] = second ? 3e-8 : 0;
+    }
+    state.numeric.mockImplementation(async (vectors: number[][]) => ({
+      status: "complete",
+      labels: vectors.map((vector) => (vector[1] ? 1 : 0)),
+      coordinates: vectors.map((vector) => vector.slice(0, 2)),
+    }));
+    await updateSelection("first");
+    const first = [...state.runs.values()].at(-1)!;
+    expect(first.topics).toHaveLength(2);
+    first.topics.find((topic) => topic.centroid[1] === 0)!.centroid[0] -=
+      4 * Number.EPSILON;
+    const retained = first.topics.find((topic) => topic.centroid[1] > 0)!;
+    await updateSelection("second");
+    const second = [...state.runs.values()].at(-1)!;
+    expect(second.topics).toEqual([retained]);
+    expect(state.name).toHaveBeenCalledTimes(2);
+    const assignments = [...state.assignments.values()].filter(
+      (row) => row.runId === second.id,
+    );
+    expect(assignments).toHaveLength(100);
+    expect(
+      assignments.every(
+        (row) => row.topicVersionId === retained.topicVersionId,
+      ),
+    ).toBe(true);
   });
 
   it.each(["centroid", "radius"] as const)(

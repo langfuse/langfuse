@@ -1,6 +1,7 @@
 import { prisma, Prisma } from "../../db";
 import {
   topicRuleConfigSchema,
+  sameTopicGeometry,
   type TopicFacet,
   type TopicFacetRef,
   type TopicFacetVersion,
@@ -356,6 +357,17 @@ export async function createTopicRun(input: {
   return runResult(row, new Map());
 }
 
+function sameTopicDefinition(
+  stored: TopicDefinition | undefined,
+  candidate: TopicDefinition,
+): boolean {
+  if (!stored || !sameTopicGeometry(stored, candidate)) return false;
+  return isEqual(
+    { ...stored, centroid: candidate.centroid, radius: candidate.radius },
+    candidate,
+  );
+}
+
 export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
   const stored = await prisma.topicClusteringRun.findFirst({
     where: { projectId: run.projectId, id: run.id },
@@ -386,7 +398,7 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
       throw new Error("Invalid topic definition.");
     const existing = saved.get(topic.topicVersionId);
     if (existing) {
-      if (!isEqual(existing, topic))
+      if (!sameTopicDefinition(existing, topic))
         throw new Error("Topic definitions cannot change.");
     } else {
       if (topic.createdByRunId !== run.id)
@@ -403,7 +415,7 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
     );
     for (const topic of inserted) saved.set(topic.topicVersionId, topic);
     for (const topic of missing) {
-      if (!isEqual(saved.get(topic.topicVersionId), topic))
+      if (!sameTopicDefinition(saved.get(topic.topicVersionId), topic))
         throw new Error("Topic definition readback did not match.");
     }
   }

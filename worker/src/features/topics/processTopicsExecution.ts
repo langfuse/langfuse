@@ -37,6 +37,7 @@ import {
   type TopicProcessBatchState,
   TOPICS_SUMMARY_MODEL,
   TOPICS_EMBEDDING_MODEL,
+  sameTopicGeometry,
 } from "@langfuse/shared/topics";
 import {
   summarizeTopicTrace,
@@ -597,17 +598,14 @@ async function clusterFacet(
       const old = previous?.topics.find(
         (topic) => topic.topicId === candidate.topicId,
       );
-      if (
-        compatiblePrevious &&
-        old &&
-        old.radius === candidate.radius &&
-        old.centroid.length === candidate.centroid.length &&
-        old.centroid.every(
-          (value, index) => value === candidate.centroid[index],
-        )
-      ) {
+      if (compatiblePrevious && old && sameTopicGeometry(old, candidate)) {
         reused.set(old.topicVersionId, old);
-        return { ...candidate, topicVersionId: old.topicVersionId };
+        return {
+          ...candidate,
+          topicVersionId: old.topicVersionId,
+          centroid: old.centroid,
+          radius: old.radius,
+        };
       }
       return candidate;
     });

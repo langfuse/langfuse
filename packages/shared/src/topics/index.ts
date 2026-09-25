@@ -203,6 +203,29 @@ export interface TopicDefinition {
   representativeSummaryIds: string[];
   metadata: Record<string, unknown>;
 }
+
+/** Compares finite classifier geometry with a bounded Float64 roundoff tolerance. */
+export function sameTopicGeometry(
+  left: Pick<TopicDefinition, "centroid" | "radius">,
+  right: Pick<TopicDefinition, "centroid" | "radius">,
+): boolean {
+  const sameNumber = (a: number, b: number) =>
+    Number.isFinite(a) &&
+    Number.isFinite(b) &&
+    Math.abs(a - b) <=
+      8 * Number.EPSILON * Math.max(1, Math.abs(a), Math.abs(b));
+  if (
+    !left.centroid.length ||
+    left.centroid.length !== right.centroid.length ||
+    !sameNumber(left.radius, right.radius)
+  )
+    return false;
+  for (let index = 0; index < left.centroid.length; index++) {
+    if (!sameNumber(left.centroid[index], right.centroid[index])) return false;
+  }
+  return true;
+}
+
 export interface TopicRun {
   id: string;
   projectId: string;

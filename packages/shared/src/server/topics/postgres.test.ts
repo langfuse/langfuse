@@ -306,7 +306,7 @@ describe("Topics immutable definitions and run membership", () => {
     centroid: [1, 0],
     radius: 0.1,
     representativeSummaryIds: [],
-    metadata: {},
+    metadata: { count: 0 },
   };
 
   it("reuses a definition across runs and preserves the historical set when removing current membership", async () => {
@@ -330,7 +330,16 @@ describe("Topics immutable definitions and run membership", () => {
       return updated;
     });
     const run = (await getTopicRun("project-a", "run-b"))!;
-    const saved = await saveTopicRun({ ...run, topics: [topic] });
+    const saved = await saveTopicRun({
+      ...run,
+      topics: [
+        {
+          ...topic,
+          centroid: topic.centroid.map((value) => value + Number.EPSILON),
+          radius: topic.radius + Number.EPSILON,
+        },
+      ],
+    });
     expect(saved).toMatchObject({
       id: "run-b",
       projectId: "project-a",
@@ -349,9 +358,18 @@ describe("Topics immutable definitions and run membership", () => {
     expect(mocks.topicWrite).not.toHaveBeenCalled();
   });
 
-  it("inserts and verifies a new definition before publishing membership", async () => {
+  it("verifies a new definition despite numeric roundoff and returns stored geometry before publishing membership", async () => {
     const row = runRow({ id: "run-b" });
-    const created = { ...topic, createdByRunId: row.id };
+    const created = {
+      ...topic,
+      createdByRunId: row.id,
+      centroid: [-0.003662027125082599, 1],
+    };
+    const persisted = {
+      ...created,
+      centroid: [-0.0036620271250825988, 1],
+      radius: created.radius + Number.EPSILON,
+    };
     mocks.runFind.mockResolvedValue(row);
     let definitionInserted = false;
     mocks.topicWrite.mockImplementation(async () => {
@@ -359,7 +377,7 @@ describe("Topics immutable definitions and run membership", () => {
     });
     mocks.topicFind.mockImplementation(async (_project, ids: string[]) =>
       definitionInserted && ids.includes(created.topicVersionId)
-        ? [created]
+        ? [persisted]
         : [],
     );
     mocks.runUpdate.mockImplementation(async ({ data }) => ({
@@ -372,7 +390,7 @@ describe("Topics immutable definitions and run membership", () => {
       topics: [created],
       status: "completed",
     });
-    expect(saved.topics).toEqual([created]);
+    expect(saved.topics).toEqual([persisted]);
     expect(mocks.topicWrite).toHaveBeenCalledWith([created]);
     expect(mocks.runUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -391,21 +409,35 @@ describe("Topics immutable definitions and run membership", () => {
 
   it.each([
     "missing",
-    "changed",
+    "changed-name",
+    "changed-metadata",
+    "changed-centroid",
+    "changed-radius",
+    "changed-dimensions",
+    "nonfinite-centroid",
+    "nonfinite-radius",
+    "empty-centroid",
+    "sparse-centroid",
     "wrong-project",
     "insert-failed",
     "readback-missing",
   ])("does not publish a run when its definition is %s", async (failure) => {
     const row = runRow({ id: "run-b" });
     mocks.runFind.mockResolvedValue(row);
-    mocks.topicFind.mockResolvedValue(failure === "changed" ? [topic] : []);
-    mocks.topicWrite.mockImplementation(async () => {
-      if (failure === "insert-failed") throw new Error("Insert failed");
-    });
-    const run = (await getTopicRun("project-a", row.id))!;
+    const changes: Record<string, Partial<typeof topic>> = {
+      "changed-name": { name: "Changed" },
+      "changed-metadata": { metadata: { count: Number.EPSILON } },
+      "changed-centroid": { centroid: [1, 1e-8] },
+      "changed-radius": { radius: topic.radius + 1e-8 },
+      "changed-dimensions": { centroid: [1] },
+      "nonfinite-centroid": { centroid: [1, Number.NaN] },
+      "nonfinite-radius": { radius: Number.POSITIVE_INFINITY },
+      "empty-centroid": { centroid: [] },
+      "sparse-centroid": { centroid: new Array<number>(2) },
+    };
     const candidate = {
       ...topic,
-      name: failure === "changed" ? "Changed" : topic.name,
+      ...changes[failure],
       projectId:
         failure === "wrong-project" ? "other-project" : topic.projectId,
       createdByRunId:
@@ -413,6 +445,15 @@ describe("Topics immutable definitions and run membership", () => {
           ? row.id
           : topic.createdByRunId,
     };
+    if (failure.startsWith("changed")) {
+      mocks.topicFind.mockResolvedValue([topic]);
+    } else {
+      mocks.topicFind.mockResolvedValue(changes[failure] ? [candidate] : []);
+    }
+    mocks.topicWrite.mockImplementation(async () => {
+      if (failure === "insert-failed") throw new Error("Insert failed");
+    });
+    const run = (await getTopicRun("project-a", row.id))!;
     await expect(
       saveTopicRun({
         ...run,
