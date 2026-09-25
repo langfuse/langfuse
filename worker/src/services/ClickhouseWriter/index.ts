@@ -9,12 +9,15 @@ import {
   buildClickHouseLogComment,
 } from "@langfuse/shared/src/server";
 
+import type { PreparedEvent } from "@langfuse/native";
+
 import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 import { backOff } from "exponential-backoff";
 import {
   jsonWriteStrategy,
+  createNativeWriteStrategy,
   type ClickhouseWriteStrategy,
 } from "./writeStrategies";
 import { TableName, type RecordInsertType } from "./types";
@@ -26,10 +29,13 @@ export class ClickhouseWriter<
   PayloadMap extends WriterPayloadMap = JsonWriterPayloadMap,
 > {
   private static instance: ClickhouseWriter<JsonWriterPayloadMap> | null = null;
+  private static nativeInstance: ClickhouseWriter<NativeWriterPayloadMap> | null =
+    null;
   private client: ClickhouseClientType | null;
   private readonly strategyFactory: () => ClickhouseWriteStrategy<
     PayloadMap[TableName]
   >;
+  private readonly allowedTable: TableName | undefined;
   private readonly activeFlushes = new Set<Promise<void>>();
   batchSize: number;
   writeInterval: number;
@@ -42,9 +48,11 @@ export class ClickhouseWriter<
   private constructor(
     client: ClickhouseClientType | undefined,
     strategyFactory: () => ClickhouseWriteStrategy<PayloadMap[TableName]>,
+    allowedTable?: TableName,
   ) {
     this.client = client ?? null;
     this.strategyFactory = strategyFactory;
+    this.allowedTable = allowedTable;
     this.batchSize = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE;
     this.writeInterval = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS;
     this.maxAttempts = env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS;
@@ -80,6 +88,34 @@ export class ClickhouseWriter<
       instance.client = client;
     }
     return instance;
+  }
+
+  /** Get the singleton Native writer, which accepts only prepared events for events_full. */
+  public static getNativeInstance(
+    client?: ClickhouseClientType,
+  ): ClickhouseWriter<NativeWriterPayloadMap> {
+    let instance = ClickhouseWriter.nativeInstance;
+    if (!instance) {
+      instance = new ClickhouseWriter<NativeWriterPayloadMap>(
+        client,
+        createNativeWriteStrategy,
+        TableName.EventsFull,
+      );
+      ClickhouseWriter.nativeInstance = instance;
+    } else if (client) {
+      instance.client = client;
+    }
+    return instance;
+  }
+
+  /** Stop every writer instance created in this process. */
+  public static async shutdownAll(): Promise<void> {
+    await Promise.all([
+      ClickhouseWriter.instance?.shutdown(),
+      ClickhouseWriter.nativeInstance?.shutdown(),
+    ]);
+    ClickhouseWriter.instance = null;
+    ClickhouseWriter.nativeInstance = null;
   }
 
   private start() {
@@ -446,6 +482,12 @@ export class ClickhouseWriter<
   }
 
   public addToQueue<T extends TableName>(tableName: T, data: PayloadMap[T]) {
+    if (this.allowedTable && tableName !== this.allowedTable) {
+      throw new Error(
+        `Native ClickHouse writer only accepts ${this.allowedTable}, got ${tableName}`,
+      );
+    }
+
     const entityQueue = this.queue[tableName];
     entityQueue.push({
       createdAt: Date.now(),
@@ -497,6 +539,10 @@ type WriterPayloadMap = { [T in TableName]: object };
 
 type JsonWriterPayloadMap = {
   [T in TableName]: RecordInsertType<T>;
+};
+
+type NativeWriterPayloadMap = {
+  [T in TableName]: T extends TableName.EventsFull ? PreparedEvent : never;
 };
 
 type ClickhouseQueue<PayloadMap extends WriterPayloadMap> = {
