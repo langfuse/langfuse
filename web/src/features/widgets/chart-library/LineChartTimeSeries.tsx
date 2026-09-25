@@ -97,6 +97,9 @@ export function LineChartTimeSeries({
     [data, allDimensions],
   );
   const dimensions = visibleSeries.visible;
+  const hasNonTimestampBucket = groupedData.some(
+    (datum) => !parseChartTimestamp(datum.time_dimension),
+  );
   const timeAxis = useMemo(
     () =>
       prepareTimeAxis(
@@ -106,6 +109,14 @@ export function LineChartTimeSeries({
       ),
     [groupedData, hideXAxisLabels],
   );
+  const dateAxis = useMemo(() => {
+    if (timeAxis.mode !== "category") return timeAxis;
+    const dates = groupedData.flatMap((datum) => {
+      const date = parseChartTimestamp(datum.time_dimension);
+      return date ? [date.getTime()] : [];
+    });
+    return dates.length ? prepareTimeAxis(dates) : timeAxis;
+  }, [groupedData, timeAxis]);
   const formatValue = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
   const chartData = useMemo(
@@ -144,7 +155,7 @@ export function LineChartTimeSeries({
     };
   }
   const chart =
-    timeAxis.mode === "category" ? (
+    timeAxis.mode === "category" || hasNonTimestampBucket ? (
       <DesignSystemLineChart
         data={chartData}
         series={chartSeries}
@@ -157,8 +168,18 @@ export function LineChartTimeSeries({
         xAxis={{
           type: "category",
           labels: hideXAxisLabels ? "hidden" : "visible",
-          tickFormatter: (value) => timeAxis.formatTick(value),
-          tooltipFormatter: (value) => timeAxis.formatTooltip(value),
+          tickFormatter: (value) => {
+            const date = parseChartTimestamp(value);
+            return date
+              ? dateAxis.formatTick(date.getTime())
+              : timeAxis.formatTick(value);
+          },
+          tooltipFormatter: (value) => {
+            const date = parseChartTimestamp(value);
+            return date
+              ? dateAxis.formatTooltip(date.getTime())
+              : timeAxis.formatTooltip(value);
+          },
         }}
       />
     ) : (

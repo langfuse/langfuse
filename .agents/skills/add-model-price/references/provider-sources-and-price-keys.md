@@ -12,6 +12,7 @@ Always fetch pricing from the provider's official docs before editing.
 | Google Gemini (Vertex AI) | `https://cloud.google.com/vertex-ai/generative-ai/pricing#gemini-models`         |
 | AWS Bedrock               | `https://aws.amazon.com/bedrock/pricing/`                                        |
 | Azure OpenAI              | `https://azure.microsoft.com/pricing/details/cognitive-services/openai-service/` |
+| TypeSafe (Jev)            | `https://docs.typesafe.ai/models`                                                |
 
 ### Known source quirks (as of 2026-06)
 
@@ -789,6 +790,23 @@ Formula:
 ```text
 price_per_token = price_per_mtok / 1_000_000
 ```
+
+- **TypeSafe Jev pricing (documented September 24 2026)** — `jev` is
+  TypeSafe's decision model, not an LLM from the other covered providers. Its
+  official price table is `https://docs.typesafe.ai/models` ("Price (per Btok /
+  per Mtok) $42 / $0.042"; "Charged per input token. Output tokens are free."),
+  and the `https://typesafe.ai/` homepage repeats "$42 Per Billion input
+  tokens". Convert per billion tokens: `$42 / 1_000_000_000 = 4.2e-8` for
+  `input`, with `output` at `0`. The entry keeps a single Standard tier: the
+  models page documents no cache, batch, context-size, or modality tiers.
+  Jev's usage object has only `input_tokens` and `output_tokens`, which
+  Langfuse stores as `input` and `output`. Verify against TypeSafe's own docs
+  only; Vercel AI Gateway and OpenRouter can proxy Jev (`TYPESAFE_UPSTREAMS`
+  in `types.ts`), but their resale prices are not official evidence. Versioned
+  IDs (`jev-1.13.0`) and the `jev-latest`/`jev-preview` aliases listed on the
+  models page are already covered by the `matchPattern`. `typeSafeModels` in
+  `types.ts` is not one of the selectable arrays the audit may edit; report a
+  newly released Jev version that should become selectable as unresolved.
 
 ## Provider Usage Keys
 

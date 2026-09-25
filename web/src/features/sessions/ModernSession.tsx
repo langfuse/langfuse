@@ -5,6 +5,7 @@ import { ConnectedModernSessionBodyLegacy } from "@/src/features/sessions/Connec
 import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/ConnectedModernSessionBodyTimeline";
 import { ModernSessionFilterControls } from "@/src/features/sessions/ModernSessionFilterControls";
 import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader";
+import { SessionReviewLeading } from "@/src/features/sessions/sessionReviewLeading";
 import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionMetadataJsonPathControl";
 import {
   type EventSession,
@@ -91,19 +92,21 @@ export function ModernSession({
         filterState={filterState}
       >
         {(metadataJsonPaths) => (
-          <ModernSessionHeader
-            projectId={projectId}
-            countTraces={session.countTraces}
-            traces={headerTraces}
-            tokensIn={session.inputUsage}
-            tokensOut={session.outputUsage}
-            totalTokens={session.totalTokens}
-            totalCost={session.totalCost ?? 0}
-            environment={session.environment ?? null}
-            users={session.users ?? []}
-            metadataJsonPaths={metadataJsonPaths}
-            scores={session.scores}
-          />
+          <SessionReviewLeading>
+            <ModernSessionHeader
+              projectId={projectId}
+              countTraces={session.countTraces}
+              traces={headerTraces}
+              tokensIn={session.inputUsage}
+              tokensOut={session.outputUsage}
+              totalTokens={session.totalTokens}
+              totalCost={session.totalCost ?? 0}
+              environment={session.environment ?? null}
+              users={session.users ?? []}
+              metadataJsonPaths={metadataJsonPaths}
+              scores={session.scores}
+            />
+          </SessionReviewLeading>
         )}
       </SessionMetadataJsonPathControl>
       <ModernSessionFilterControls {...filterControlsProps}>

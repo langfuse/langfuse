@@ -9,7 +9,10 @@ use std::{
     task::{Context, Poll},
 };
 
-use crate::capture::{ExecutionCapture, RelayOutcome};
+use crate::{
+    capture::{ExecutionCapture, RelayOutcome},
+    resolution::ApiFormat,
+};
 use axum::{
     body::{Body, Bytes},
     http::{HeaderMap, header},
@@ -44,48 +47,79 @@ impl std::error::Error for ProviderError {}
 
 // An allowlist prevents gateway credentials, tenant routing overrides and cookies
 // from crossing the boundary. Headers nominated by `Connection` are never end-to-end.
-fn selected_headers(source: &HeaderMap, allowed: &[&'static str]) -> HeaderMap {
-    let mut selected = HeaderMap::new();
-    for &name in allowed {
-        let hop_by_hop = source.get_all(header::CONNECTION).iter().any(|value| {
+// Prefixes admit a provider's own evolving header family without naming each member.
+fn selected_headers(source: &HeaderMap, allowed: &[&str], prefixes: &[&str]) -> HeaderMap {
+    let hop_by_hop = |name: &str| {
+        source.get_all(header::CONNECTION).iter().any(|value| {
             value.to_str().map_or(true, |value| {
                 value
                     .split(',')
                     .any(|token| token.trim().eq_ignore_ascii_case(name))
             })
-        });
-        if !hop_by_hop {
-            for value in source.get_all(name) {
-                selected.append(header::HeaderName::from_static(name), value.clone());
-            }
+        })
+    };
+    let mut selected = HeaderMap::new();
+    for (name, value) in source {
+        let admitted = allowed.contains(&name.as_str())
+            || prefixes
+                .iter()
+                .any(|prefix| name.as_str().starts_with(prefix));
+        if admitted && !hop_by_hop(name.as_str()) {
+            selected.append(name.clone(), value.clone());
         }
     }
     selected
 }
 
-pub(crate) fn request_headers(source: &HeaderMap) -> HeaderMap {
-    selected_headers(source, &["content-type", "content-encoding", "accept"])
+const COMMON_REQUEST_HEADERS: &[&str] = &["content-type", "content-encoding", "accept"];
+
+const COMMON_RESPONSE_HEADERS: &[&str] = &[
+    "content-type",
+    "content-encoding",
+    "cache-control",
+    "retry-after",
+];
+
+pub(crate) fn request_headers(source: &HeaderMap, api_format: ApiFormat) -> HeaderMap {
+    match api_format {
+        ApiFormat::OpenAiResponses => selected_headers(source, COMMON_REQUEST_HEADERS, &[]),
+        ApiFormat::AnthropicMessages => {
+            selected_headers(source, COMMON_REQUEST_HEADERS, &["anthropic-"])
+        }
+    }
 }
 
-pub(crate) fn response_headers(source: &HeaderMap) -> HeaderMap {
-    selected_headers(
-        source,
-        &[
-            "content-type",
-            "content-encoding",
-            "cache-control",
-            "retry-after",
-            "x-request-id",
-            "openai-processing-ms",
-            "openai-version",
-            "x-ratelimit-limit-requests",
-            "x-ratelimit-limit-tokens",
-            "x-ratelimit-remaining-requests",
-            "x-ratelimit-remaining-tokens",
-            "x-ratelimit-reset-requests",
-            "x-ratelimit-reset-tokens",
-        ],
-    )
+pub(crate) fn response_headers(source: &HeaderMap, api_format: ApiFormat) -> HeaderMap {
+    match api_format {
+        ApiFormat::OpenAiResponses => selected_headers(
+            source,
+            &[
+                COMMON_RESPONSE_HEADERS,
+                &[
+                    "x-request-id",
+                    "openai-processing-ms",
+                    "openai-version",
+                    "x-ratelimit-limit-requests",
+                    "x-ratelimit-limit-tokens",
+                    "x-ratelimit-remaining-requests",
+                    "x-ratelimit-remaining-tokens",
+                    "x-ratelimit-reset-requests",
+                    "x-ratelimit-reset-tokens",
+                ],
+            ]
+            .concat(),
+            &[],
+        ),
+        ApiFormat::AnthropicMessages => selected_headers(
+            source,
+            &[
+                COMMON_RESPONSE_HEADERS,
+                &["request-id", "x-should-retry", "anthropic-organization-id"],
+            ]
+            .concat(),
+            &["anthropic-ratelimit-"],
+        ),
+    }
 }
 
 pub(crate) fn relay<T: Send + 'static>(

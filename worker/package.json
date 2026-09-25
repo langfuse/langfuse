@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "4.43.0",
+  "version": "4.45.2",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -93,6 +93,7 @@
     "@types/node": "^24.3.0",
     "@vitest/coverage-v8": "^4.1.11",
     "eslint": "catalog:",
+    "fast-check": "3.23.2",
     "msw": "^2.6.5",
     "tsx": "^4.20.5",
     "typescript": "catalog:",

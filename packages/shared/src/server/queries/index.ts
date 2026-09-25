@@ -109,3 +109,7 @@ export {
   type EventsObservationRowSelectionInput,
 } from "./clickhouse-sql/events-observation-row-selection";
 export { extractTimeFilter } from "./clickhouse-sql/filter-utils";
+export {
+  isSeekEligibleFilter,
+  scoreOnlyFiltersAreSeekEligible,
+} from "./clickhouse-sql/score-seek-eligibility";

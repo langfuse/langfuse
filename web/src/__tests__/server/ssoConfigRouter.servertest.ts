@@ -798,18 +798,26 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
     const { org, caller } = await prepare();
     const domain = `discovery-mismatch-${uuidv4().slice(0, 8)}.com`;
     await addVerifiedDomain(org.id, domain);
+    // Chosen by the remote IdP. Must not be copied into the client error.
+    const reportedIssuer =
+      "https://idp-reported.invalid/issuer-must-not-appear-in-the-error";
     fetchMock.mockResolvedValueOnce(
       discoveryResponse({
-        issuer: "https://different.example.com",
-        authorization_endpoint: "https://different.example.com/authorize",
-        token_endpoint: "https://different.example.com/oauth/token",
-        jwks_uri: "https://different.example.com/.well-known/jwks.json",
+        issuer: reportedIssuer,
+        authorization_endpoint: "https://example.com/authorize",
+        token_endpoint: "https://example.com/oauth/token",
+        jwks_uri: "https://example.com/.well-known/jwks.json",
       }),
     );
 
     await expect(
       caller.ssoConfig.save({ orgId: org.id, payload: samplePayload(domain) }),
-    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    ).rejects.toSatisfy((error: { code?: string; message?: string }) => {
+      expect(error.code).toBe("PRECONDITION_FAILED");
+      expect(error.message).toContain("did not report the configured issuer");
+      expect(error.message).not.toContain(reportedIssuer);
+      return true;
+    });
   });
 
   it("accepts a discovery doc whose issuer matches modulo trailing slash", async () => {

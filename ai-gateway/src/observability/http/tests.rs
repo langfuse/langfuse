@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     inference::InferenceService,
-    providers::openai::{OpenAiProvider, ProviderLimits},
+    providers::{ProviderLimits, ProviderTransport},
     resolution::ControlPlaneConfig,
     server::GatewayLifecycleState,
     telemetry::Telemetry,
@@ -178,7 +178,7 @@ async fn cancellation_releases_spans_before_and_after_headers() {
 #[tokio::test]
 async fn provider_http_errors_are_traced_without_changing_the_response() {
     use crate::{
-        providers::openai::{OpenAiProvider, ProviderLimits},
+        providers::{ProviderLimits, ProviderTransport},
         test_support::{FakeServer, resolved_request_context},
     };
     for status in [429, 500] {
@@ -191,7 +191,7 @@ async fn provider_http_errors_are_traced_without_changing_the_response() {
         })
         .await;
         let provider =
-            OpenAiProvider::for_test(format!("{}/v1", upstream.url), ProviderLimits::default());
+            ProviderTransport::for_test(format!("{}/v1", upstream.url), ProviderLimits::default());
         let recording = Recording::start();
         let response = provider
             .forward(
@@ -247,7 +247,11 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
             web_calls.lock().unwrap().push((
                 if ingestion { "ingestion" } else { "resolver" },
                 parts.headers,
-                serde_json::from_slice::<Value>(&bytes).unwrap(),
+                if ingestion {
+                    crate::test_support::upload_json(&bytes)
+                } else {
+                    serde_json::from_slice::<Value>(&bytes).unwrap()
+                },
             ));
             if ingestion {
                 Response::new(Body::from("{}"))
@@ -272,11 +276,14 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
         }
     })
     .await;
-    let telemetry =
-        Telemetry::new(&ControlPlaneConfig::new(&web.url, "test-service-key").unwrap()).unwrap();
+    let telemetry = Telemetry::new(
+        &ControlPlaneConfig::new(&web.url, "test-service-key").unwrap(),
+        crate::telemetry::DEFAULT_RETAINED_BYTES,
+    )
+    .unwrap();
     let service = InferenceService::for_test(
         web.control_plane(),
-        OpenAiProvider::for_test(provider.url.clone(), ProviderLimits::default())
+        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default())
             .with_telemetry(telemetry.clone()),
         1,
     );
@@ -325,10 +332,11 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
 type SpanData = opentelemetry_sdk::trace::SpanData;
 
 /// Every phase between the caller's headers and the last body byte has a span in
-/// the server trace, so a waterfall shows no unattributed wall time.
+/// the server trace, so a waterfall shows no unattributed wall time. Batched
+/// ingestion runs in its own trace, linked back to each request it carries.
 fn assert_phase_spans(spans: &[SpanData], server: &SpanData) {
     let named = |name: &str| spans.iter().find(|span| span.name == name).unwrap();
-    assert_eq!(spans.len(), 8);
+    assert_eq!(spans.len(), 9);
     for (name, parent) in [
         ("resolution", server),
         ("resolver", named("resolution")),
@@ -336,7 +344,6 @@ fn assert_phase_spans(spans: &[SpanData], server: &SpanData) {
         ("request.capture", server),
         ("provider.headers", server),
         ("provider.stream", server),
-        ("ingestion", server),
     ] {
         let child = named(name);
         assert_eq!(
@@ -351,6 +358,28 @@ fn assert_phase_spans(spans: &[SpanData], server: &SpanData) {
             "{name}"
         );
     }
+    let batch = named("telemetry.batch");
+    assert_eq!(batch.parent_span_id, opentelemetry::trace::SpanId::INVALID);
+    assert_ne!(
+        batch.span_context.trace_id(),
+        server.span_context.trace_id()
+    );
+    assert_eq!(
+        batch
+            .links
+            .iter()
+            .map(|link| link.span_context.clone())
+            .collect::<Vec<_>>(),
+        std::slice::from_ref(&server.span_context)
+    );
+    assert_attribute(batch, "gateway.telemetry.records", 1i64);
+    assert_attribute(batch, "gateway.telemetry.attempts", 1i64);
+    let ingestion = named("ingestion");
+    assert_eq!(ingestion.parent_span_id, batch.span_context.span_id());
+    assert_eq!(
+        ingestion.span_context.trace_id(),
+        batch.span_context.trace_id()
+    );
     let request_bytes = i64::try_from(GENERATION_REQUEST.len()).unwrap();
     assert_attribute(server, "http.request.body.size", request_bytes);
     assert_attribute(server, "gateway.outcome", "eof");

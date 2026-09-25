@@ -8,6 +8,8 @@
 @plugin "tailwindcss-animate";
 
 @custom-variant dark (&:where(.dark, .dark *));
+/* Session metrics bar is open above a stacked annotation column. */
+@custom-variant session-review-stack (&:is([data-trace-review-open][data-review-orientation=vertical] *));
 
 /* App font tokens. The typeface is deliberately DEFERRED: the app ships the
    system stacks while the token system (families here, weight roles below,
