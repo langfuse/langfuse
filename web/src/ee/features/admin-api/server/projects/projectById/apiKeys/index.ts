@@ -95,15 +95,17 @@ export async function handleCreateApiKey(
 
   try {
     // Create the API key
-    const apiKeyMeta = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
-      note,
-      scope: "PROJECT",
-      createdByApiKeyId,
-      predefinedKeys:
-        publicKey && secretKey ? { publicKey, secretKey } : undefined,
-    });
+    const apiKeyMeta = await prisma.$transaction((tx) =>
+      createAndAddApiKeysToDb({
+        prisma: tx,
+        entityId: projectId,
+        note,
+        scope: "PROJECT",
+        createdByApiKeyId,
+        predefinedKeys:
+          publicKey && secretKey ? { publicKey, secretKey } : undefined,
+      }),
+    );
 
     // Log the API key creation
     await auditLog({

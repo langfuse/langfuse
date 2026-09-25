@@ -13,6 +13,7 @@ vi.mock("@/src/ee/features/billing/server/chb/chbProjectEvents", () => ({
   emitChbProjectEvent: mocks.emit,
 }));
 
+import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -173,5 +174,65 @@ describe("projectsRouter CHB project lifecycle events", () => {
       orgId,
       projectId,
     });
+  });
+});
+
+describe("projectsRouter system role assignments", () => {
+  it("revokes a project key's assignment when the project is deleted", async () => {
+    const orgId = await createOrg("Assignment Delete Org");
+    const projectId = await createProject(orgId);
+    const user = await createUserInOrgs([orgId]);
+    const caller = makeCaller({ userId: user.id, orgIds: [orgId], projectId });
+
+    const key = await createAndAddApiKeysToDb({
+      prisma,
+      entityId: projectId,
+      scope: "PROJECT",
+    });
+
+    await expect(
+      prisma.systemRoleAssignment.count({
+        where: { principalId: `apiKey/${key.id}` },
+      }),
+    ).resolves.toBe(1);
+
+    await caller.projects.delete({ projectId });
+
+    await expect(
+      prisma.systemRoleAssignment.count({
+        where: { ownerId: `project/${projectId}` },
+      }),
+    ).resolves.toBe(0);
+  });
+
+  it("re-tags a project key's assignment orgId on transfer", async () => {
+    const sourceOrgId = await createOrg("Assignment Source Org");
+    const targetOrgId = await createOrg("Assignment Target Org");
+    const projectId = await createProject(sourceOrgId);
+    const user = await createUserInOrgs([sourceOrgId, targetOrgId]);
+    const caller = makeCaller({
+      userId: user.id,
+      orgIds: [sourceOrgId, targetOrgId],
+      projectId,
+    });
+
+    const key = await createAndAddApiKeysToDb({
+      prisma,
+      entityId: projectId,
+      scope: "PROJECT",
+    });
+
+    const before = await prisma.systemRoleAssignment.findFirstOrThrow({
+      where: { principalId: `apiKey/${key.id}` },
+    });
+    expect(before.orgId).toBe(sourceOrgId);
+
+    await caller.projects.transfer({ projectId, targetOrgId });
+
+    const after = await prisma.systemRoleAssignment.findFirstOrThrow({
+      where: { principalId: `apiKey/${key.id}` },
+    });
+    expect(after.orgId).toBe(targetOrgId);
+    expect(after.ownerId).toBe(`project/${projectId}`);
   });
 });

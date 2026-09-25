@@ -5,8 +5,10 @@ import {
   redis,
   QueueJobs,
   ProjectDeleteQueue,
+  revokeRolesForOwner,
   type ApiAccessScope,
 } from "@langfuse/shared/src/server";
+import { ProjectId } from "@langfuse/shared/rbac";
 import { randomUUID } from "crypto";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
@@ -139,12 +141,15 @@ export async function handleDeleteProject(
       projectId,
     );
 
-    // Delete API keys from DB
-    await prisma.apiKey.deleteMany({
-      where: {
-        projectId: projectId,
-        scope: "PROJECT",
-      },
+    // Delete API keys and their role assignments from DB atomically.
+    await prisma.$transaction(async (tx) => {
+      await tx.apiKey.deleteMany({
+        where: {
+          projectId: projectId,
+          scope: "PROJECT",
+        },
+      });
+      await revokeRolesForOwner(tx, ProjectId(projectId));
     });
 
     // Mark project as deleted

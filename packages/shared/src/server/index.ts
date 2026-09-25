@@ -43,6 +43,7 @@ export * from "./llm/typesafe/typeSafeDecisionModelClient";
 export * from "./utils/traceId";
 export * from "./auth/apiKeyCache";
 export * from "./auth/apiKeys";
+export * from "./auth/assignRole";
 export * from "./auth/credentials";
 export * from "./auth/invalidateApiKeys";
 export * from "./auth/customSsoProvider";

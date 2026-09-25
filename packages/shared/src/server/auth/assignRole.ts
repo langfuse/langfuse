@@ -2,6 +2,7 @@ import { type PrismaClient, type Prisma } from "@prisma/client";
 
 import {
   OrganizationId,
+  ProjectId,
   hasOrganizationKind,
   hasProjectKind,
   hasSystemRoleKind,
@@ -38,6 +39,37 @@ export async function revokeRole(
         ? { systemRole: toSystemRole(p.roleId) }
         : {}),
     },
+  });
+}
+
+/** revokeRolesForOwner deletes every assignment hanging off an owner, e.g. when a project or organization is deleted. */
+export async function revokeRolesForOwner(
+  tx: Tx,
+  ownerId: OwnerId,
+): Promise<void> {
+  await tx.systemRoleAssignment.deleteMany({ where: { ownerId } });
+}
+
+/** revokeRolesForPrincipals deletes assignments for a set of principals, e.g. bulk key removal. */
+export async function revokeRolesForPrincipals(
+  tx: Tx,
+  principalIds: PrincipalId[],
+): Promise<void> {
+  if (principalIds.length === 0) return;
+  await tx.systemRoleAssignment.deleteMany({
+    where: { principalId: { in: principalIds } },
+  });
+}
+
+/** transferRoleAssignments re-tags a transferred project's assignments to the destination organization. */
+export async function transferRoleAssignments(
+  tx: Tx,
+  projectId: string,
+  targetOrgId: string,
+): Promise<void> {
+  await tx.systemRoleAssignment.updateMany({
+    where: { ownerId: ProjectId(projectId) },
+    data: { orgId: targetOrgId },
   });
 }
 

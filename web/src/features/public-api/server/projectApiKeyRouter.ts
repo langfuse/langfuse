@@ -72,13 +72,15 @@ export const projectApiKeysRouter = createTRPCRouter({
         scope: "apiKeys:CUD",
       });
 
-      const apiKeyMeta = await createAndAddApiKeysToDb({
-        prisma: ctx.prisma,
-        entityId: input.projectId,
-        note: input.note,
-        scope: "PROJECT",
-        createdByUserId: ctx.session.user.id,
-      });
+      const apiKeyMeta = await ctx.prisma.$transaction((tx) =>
+        createAndAddApiKeysToDb({
+          prisma: tx,
+          entityId: input.projectId,
+          note: input.note,
+          scope: "PROJECT",
+          createdByUserId: ctx.session.user.id,
+        }),
+      );
 
       await auditLog({
         session: ctx.session,

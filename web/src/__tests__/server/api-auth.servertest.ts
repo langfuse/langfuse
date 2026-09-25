@@ -956,6 +956,8 @@ describe("Authenticate API calls", () => {
         systemRoleAssignment: {
           deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
         },
+        $transaction: (fn: (tx: PrismaClient) => Promise<unknown>) =>
+          fn(racingPrisma),
       } as unknown as PrismaClient;
 
       await new ApiAuthService(racingPrisma, redis).deleteApiKey(

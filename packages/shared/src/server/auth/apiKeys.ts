@@ -176,18 +176,16 @@ export async function deleteApiKeyFromDb(p: {
     return false;
   }
 
-  // The row goes first, then the cache. In the other order, a request
-  // authenticating with this key in between misses the cache, still finds the
-  // row, and writes the key back into the cache after the eviction. `apiKey` is
-  // already loaded above, so eviction does not need the row to still exist.
-  await p.prisma.apiKey.delete({
-    where: {
-      id: apiKey.id,
-    },
+  // The row and its assignment go first in one transaction, then the cache.
+  // principalId is a tagged string, not an FK, so the delete does not cascade.
+  // In the other order, a request authenticating with this key in between
+  // misses the cache, still finds the row, and writes the key back into the
+  // cache after the eviction. `apiKey` is already loaded above, so eviction
+  // does not need the row to still exist.
+  await p.prisma.$transaction(async (tx) => {
+    await tx.apiKey.delete({ where: { id: apiKey.id } });
+    await revokeRole(tx, { principalId: ApiKeyId(apiKey.id) });
   });
-
-  // principalId is a tagged string, not an FK, so deletion does not cascade.
-  await revokeRole(p.prisma, { principalId: ApiKeyId(apiKey.id) });
 
   await invalidateCachedApiKeys([apiKey], `key ${p.id}`, p.redis);
 
