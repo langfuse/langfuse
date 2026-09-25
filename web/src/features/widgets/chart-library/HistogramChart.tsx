@@ -2,12 +2,12 @@ import { HistogramChart as DesignSystemHistogramChart } from "@/src/components/d
 import {
   type DataPoint,
   type MetricFormatterFunction,
+  type ChartProps,
 } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
   toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
-import { type ChartConfig } from "@/src/components/ui/chart";
 
 const HistogramChart = ({
   data,
@@ -21,7 +21,7 @@ const HistogramChart = ({
   metricFormatter = (value, options) => formatMetric(value, options),
 }: {
   data: DataPoint[];
-  config?: ChartConfig;
+  config?: ChartProps["config"];
   subtleFill?: boolean;
   metricFormatter?: MetricFormatterFunction;
 }) => {

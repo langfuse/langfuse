@@ -1,5 +1,6 @@
 import preview from "../../../../../.storybook/preview";
 import { expect, spyOn, userEvent, within } from "storybook/test";
+import { chartColors } from "../constants";
 import { PieChart } from "./PieChart";
 
 const data = [
@@ -29,9 +30,27 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
-export const SubtleFill = meta.story({
-  args: {
-    variant: "subtle",
+export const HoverColors = meta.story({
+  name: "(Test) Hover Colors",
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const first = canvas.getByRole("graphics-symbol", { name: "GPT-5: 46" });
+    const second = canvas.getByRole("graphics-symbol", {
+      name: "Claude Sonnet: 31",
+    });
+
+    await expect(first).toHaveAttribute("fill", chartColors[0]);
+    await expect(second).toHaveAttribute("fill", chartColors[1]);
+
+    await userEvent.hover(first);
+    await expect(first).toHaveAttribute("fill", chartColors[0]);
+    await expect(second).toHaveAttribute(
+      "fill",
+      expect.stringContaining("20%"),
+    );
+
+    await userEvent.unhover(first);
+    await expect(second).toHaveAttribute("fill", chartColors[1]);
   },
 });
 

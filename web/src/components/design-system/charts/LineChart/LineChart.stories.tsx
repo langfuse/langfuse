@@ -62,15 +62,7 @@ const LineChartDemo = (props: LineChartStoryProps) => {
       valueFormatter={(value) => `$${value.toFixed(2)}`}
       thresholds={props.thresholds}
       showDataPointDots={props.variant === "boundary-points"}
-      xAxis={{
-        type: "time",
-        tickFormatter: (value) =>
-          value.toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-            timeZone: "UTC",
-          }),
-      }}
+      xAxis={{ type: "time" }}
     />
   );
 };

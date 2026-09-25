@@ -25,6 +25,7 @@ export const DashboardLineTimeSeriesChart = React.memo(
     unit,
     legendSummary,
     syncId,
+    sync,
     missingValue,
   }: {
     data: TimeSeriesChartDataPoint[];
@@ -32,6 +33,10 @@ export const DashboardLineTimeSeriesChart = React.memo(
     unit?: string;
     legendSummary?: LegendSummaryMode;
     syncId?: string;
+    sync?: {
+      activeKey: string | undefined;
+      onActiveKeyChange: (key: string | undefined) => void;
+    };
     /** See {@link MissingBucketValue}. Defaults to `"gap"`. */
     missingValue?: MissingBucketValue;
   }) {
@@ -58,6 +63,7 @@ export const DashboardLineTimeSeriesChart = React.memo(
         chartConfig={chartConfig}
         legendSummary={legendSummary}
         syncId={syncId}
+        sync={sync}
         missingValue={missingValue}
       />
     );

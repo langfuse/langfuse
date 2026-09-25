@@ -504,7 +504,7 @@ async fn collector() -> (FakeServer, Arc<Mutex<Value>>) {
         let received = received.clone();
         async move {
             let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
-            *received.lock().unwrap() = serde_json::from_slice(&bytes).unwrap();
+            *received.lock().unwrap() = crate::test_support::upload_json(&bytes);
             Response::new(Body::from("{}"))
         }
     })
@@ -535,6 +535,7 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
     let (collector, uploaded) = collector().await;
     let telemetry = crate::telemetry::Telemetry::new(
         &crate::resolution::ControlPlaneConfig::new(&collector.url, "test-service-key").unwrap(),
+        crate::telemetry::DEFAULT_RETAINED_BYTES,
     )
     .unwrap();
     let context =
