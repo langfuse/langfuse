@@ -180,7 +180,6 @@ function SkillsList({
       accessorKey: "tags",
       header: "Tags",
       size: 120,
-      shouldWrap: false,
       cellClassName: "ph-no-capture",
     }),
     createDateTableColumn<SkillRow>({
@@ -300,6 +299,7 @@ function SkillsList({
                   />
                 )}
                 <PaginationBar
+                  mode="offset"
                   totalCount={skills.data?.meta.totalItems ?? null}
                   state={paginationState}
                   onChange={setPagination}
