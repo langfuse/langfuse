@@ -132,6 +132,10 @@ These distributions use the `langfuse.trace_batch` prefix:
 | `transcript_content_characters` | Sum of JSON-serialized message-part lengths across history and current turn, in UTF-16 code units; excludes message wrappers and provenance. |
 | `transcript_tool_response_characters` | The subset of content characters belonging to tool-role messages or unmatched tool-result parts; zero when absent. |
 | `transcript_thread_count` | Number of assembled conversation threads, or zero for a null transcript. |
+| `transcript_observation_count` | Ordered, deduplicated observations passed to assembly and the Topics renderer. The `observation_count` span attribute is the raw row count before deduplication. |
+| `transcript_history_message_count`, `transcript_history_part_count` | Replayed messages and their normalized parts across all assembled threads. |
+| `transcript_current_turn_message_count`, `transcript_current_turn_part_count` | This-trace messages and their normalized parts across all assembled threads. |
+| `transcript_current_turn_tool_call_count`, `transcript_current_turn_tool_result_count` | Tool-call parts and tool-result parts in this trace; a tool-role part also counts as a result. |
 | `transcript_assembly_phase_duration_ms` | Two non-overlapping samples per trace tagged `phase:normalization` or `phase:matching`. Normalization includes initial message-key construction and partitioning; matching covers remaining assembly work, including tool matching, deduplication, any rebuilt keys and finalization. Observation ordering is outside these phases but remains in total assembly time. |
 | `topics_transcript_characters` | UTF-16 length of the complete rendered Topics text, including labels, section headings and line breaks; admitted traces only. |
 | `topics_transcript_tokens` | o200k estimate of that same text, tagged `tokenizer:o200k_base`; admitted traces only. |
@@ -192,6 +196,16 @@ renderer preserves the previous plain-text layout under the same Topics
 per-block preset; it has no trace-root I/O or run-state sections. Empty
 transcripts have zero JSON length and tokens. Thread counts are numeric
 samples, never metric tags.
+
+To diagnose large Topics texts, compare `topics_transcript_tokens` with
+`transcript_observation_count`, the history/current-turn message and part counts,
+current-turn tool-call/result counts, `topics_transcript_history_share`, and
+raw/clipped characters by block type. Structure counts describe the assembled
+source, before the renderer's per-block character caps; they are not a count of
+visible lines. A last-N history policy can use each thread's
+`conversationHistory`, but a per-thread N would still grow with the number of
+threads. A future total history budget should account for all threads; tool
+loops should retain call/result pairs and errors when shortened.
 
 For rough tool-response size share, divide `transcript_tool_response_characters`
 by `transcript_content_characters` (when nonzero). Both sum serialized parts on

@@ -53,16 +53,35 @@ function recordTokens(
   span.setAttribute(`langfuse.trace_batch.${metric}`, tokens);
 }
 
-function recordCharacterCounts(transcript: Transcript | null, span: Span) {
+function recordContentAndStructureCounts(
+  transcript: Transcript | null,
+  observationCount: number,
+  span: Span,
+) {
   let total = 0;
   let toolResponses = 0;
+  let historyMessages = 0;
+  let historyParts = 0;
+  let currentTurnMessages = 0;
+  let currentTurnParts = 0;
+  let currentTurnToolCalls = 0;
+  let currentTurnToolResults = 0;
   for (const thread of transcript?.threads ?? []) {
-    for (const messages of [
-      thread.conversationHistory,
-      thread.currentTurn.messages,
-    ]) {
+    for (const [section, messages] of [
+      ["history", thread.conversationHistory],
+      ["current_turn", thread.currentTurn.messages],
+    ] as const) {
+      if (section === "history") historyMessages += messages.length;
+      else currentTurnMessages += messages.length;
       for (const message of messages) {
         for (const part of message.parts) {
+          if (section === "history") historyParts++;
+          else {
+            currentTurnParts++;
+            if (part.type === "tool-call") currentTurnToolCalls++;
+            if (message.role === "tool" || part.type === "tool-result")
+              currentTurnToolResults++;
+          }
           // Use the same serialized-part basis for numerator and denominator;
           // exclude message wrappers and observation provenance from both.
           const characters = JSON.stringify(part).length;
@@ -80,6 +99,18 @@ function recordCharacterCounts(transcript: Transcript | null, span: Span) {
   ] as const) {
     recordDistribution(`langfuse.trace_batch.${metric}`, characters);
     span.setAttribute(`langfuse.trace_batch.${metric}`, characters);
+  }
+  for (const [metric, count] of [
+    ["transcript_observation_count", observationCount],
+    ["transcript_history_message_count", historyMessages],
+    ["transcript_history_part_count", historyParts],
+    ["transcript_current_turn_message_count", currentTurnMessages],
+    ["transcript_current_turn_part_count", currentTurnParts],
+    ["transcript_current_turn_tool_call_count", currentTurnToolCalls],
+    ["transcript_current_turn_tool_result_count", currentTurnToolResults],
+  ] as const) {
+    recordDistribution(`langfuse.trace_batch.${metric}`, count);
+    span.setAttribute(`langfuse.trace_batch.${metric}`, count);
   }
 }
 
@@ -318,7 +349,11 @@ export function recordTraceBatchTranscript(
       "langfuse.trace_batch.transcript_thread_count",
       threadCount,
     );
-    recordCharacterCounts(transcript, span);
+    recordContentAndStructureCounts(
+      transcript,
+      orderedObservations.length,
+      span,
+    );
     const comparisonRenderStart = performance.now();
     const transcriptJson =
       transcript === null ? null : JSON.stringify(transcript);

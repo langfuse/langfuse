@@ -174,6 +174,10 @@ describe("trace batch queue", () => {
       "langfuse.trace_batch.topics_transcript_blocks_cut": 0,
       "langfuse.trace_batch.topics_transcript_history_share": 0,
       "langfuse.trace_batch.topics_transcript_tokens": expect.any(Number),
+      "langfuse.trace_batch.transcript_observation_count": 1,
+      "langfuse.trace_batch.transcript_history_message_count": 0,
+      "langfuse.trace_batch.transcript_current_turn_message_count": 2,
+      "langfuse.trace_batch.transcript_current_turn_part_count": 2,
     });
   });
 
@@ -288,6 +292,26 @@ describe("trace batch queue", () => {
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.trace_batch.transcript_thread_count",
       2,
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_observation_count",
+      4,
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_history_message_count",
+      2,
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_history_part_count",
+      2,
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_current_turn_tool_call_count",
+      1,
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_current_turn_tool_result_count",
+      1,
     );
     for (const [index, suffix] of [
       "current_turn_tokens",
