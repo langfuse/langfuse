@@ -40,6 +40,8 @@ import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
 import { isValidDateString, flattenJsonToPathArrays } from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
+export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
+
 // Foreign level vocabularies observed from OTel senders (OTel severity
 // names, python logging, loguru, console) mapped onto the Langfuse enum.
 //  The classic ingestion API keeps its strict enum; only the
@@ -1893,7 +1895,7 @@ export class OtelIngestionProcessor {
 
     // Gateway observation attributes are represented by canonical fields.
     // Keep unknown attributes available for diagnostics.
-    if (instrumentationScopeName === "langfuse-ai-gateway") {
+    if (instrumentationScopeName === AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME) {
       for (const key of Object.values(LangfuseOtelSpanAttributes)) {
         if (key.startsWith("langfuse.observation.")) {
           delete rawFilteredAttributes[key];

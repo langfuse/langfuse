@@ -1344,6 +1344,147 @@ describe("Token Cost Calculation", () => {
     expect(generation.usage_details.total).toBeUndefined();
   });
 
+  describe("tokenizer inference on failed and cancelled generations", () => {
+    const gatewayScope = { name: "langfuse-ai-gateway", version: "0.1.0" };
+
+    beforeEach(() => {
+      tokenisationMocks.tokenCountAsyncOverride = async () => 7;
+    });
+
+    afterEach(() => {
+      tokenisationMocks.tokenCountAsyncOverride = null;
+    });
+
+    it("should tokenize a DEFAULT generation on the events table", async () => {
+      const eventRecord = await (mockIngestionService as any).createEventRecord(
+        {
+          spanId: generationId,
+          traceId: uuidv4(),
+          projectId,
+          startTimeISO: new Date().toISOString(),
+          type: "GENERATION",
+          modelName,
+          input: "hello world",
+          output: "hey whassup",
+        },
+        "testfile.txt",
+      );
+
+      expect(eventRecord.usage_details).toEqual({
+        input: 7,
+        output: 7,
+        total: 14,
+      });
+    });
+
+    it("should skip tokenization for ERROR generations written to the events table", async () => {
+      const eventRecord = await (mockIngestionService as any).createEventRecord(
+        {
+          spanId: generationId,
+          traceId: uuidv4(),
+          projectId,
+          startTimeISO: new Date().toISOString(),
+          type: "GENERATION",
+          modelName,
+          level: "ERROR",
+          input: "hello world",
+          output: "hey whassup",
+        },
+        "testfile.txt",
+      );
+
+      expect(eventRecord.level).toBe("ERROR");
+      expect(eventRecord.model_id).toBe(tokenModelData.id);
+      expect(eventRecord.usage_details).toEqual({});
+      expect(eventRecord.cost_details).toEqual({});
+    });
+
+    it("should not tokenize a cancelled gateway generation on the events table", async () => {
+      const eventRecord = await (mockIngestionService as any).createEventRecord(
+        {
+          spanId: generationId,
+          traceId: uuidv4(),
+          projectId,
+          startTimeISO: new Date().toISOString(),
+          type: "GENERATION",
+          modelName,
+          level: "WARNING",
+          statusMessage: "Client cancelled the response",
+          scopeName: gatewayScope.name,
+          metadata: { scope: gatewayScope },
+          input: "hello world",
+          output: "[]",
+        },
+        "testfile.txt",
+      );
+
+      expect(eventRecord.model_id).toBe(tokenModelData.id);
+      expect(eventRecord.usage_details).toEqual({});
+      expect(eventRecord.cost_details).toEqual({});
+    });
+
+    it("should cost provider-reported usage on a cancelled gateway generation", async () => {
+      const eventRecord = await (mockIngestionService as any).createEventRecord(
+        {
+          spanId: generationId,
+          traceId: uuidv4(),
+          projectId,
+          startTimeISO: new Date().toISOString(),
+          type: "GENERATION",
+          modelName,
+          level: "WARNING",
+          scopeName: gatewayScope.name,
+          metadata: { scope: gatewayScope },
+          providedUsageDetails: { input: 10, output: 5 },
+          input: "hello world",
+          output: "[]",
+        },
+        "testfile.txt",
+      );
+
+      expect(eventRecord.usage_details).toEqual({
+        input: 10,
+        output: 5,
+        total: 15,
+      });
+      expect(eventRecord.cost_details.input).toBe(0.1);
+      expect(eventRecord.cost_details.output).toBe(0.1);
+    });
+
+    it("should not tokenize a cancelled gateway generation on the observations table", async () => {
+      const events = [
+        {
+          id: uuidv4(),
+          type: "generation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            startTime: new Date().toISOString(),
+            model: modelName,
+            level: "WARNING",
+            statusMessage: "Client cancelled the response",
+            metadata: { scope: gatewayScope },
+            input: "hello world",
+            output: "[]",
+          },
+        },
+      ];
+
+      await (mockIngestionService as any).processObservationEventList({
+        projectId,
+        entityId: generationId,
+        createdAtTimestamp: new Date(),
+        observationEventList: events,
+      });
+
+      const [tableName, generation] = mockAddToClickhouseWriter.mock.calls[0];
+      expect(tableName).toBe("observations");
+      expect(generation.internal_model_id).toBe(tokenModelData.id);
+      expect(generation.usage_details).toEqual({});
+      expect(generation.cost_details).toEqual({});
+    });
+  });
+
   it("should skip tokenization and leave usage details blank when cost details are provided", async () => {
     const generationUsage1 = {
       model: modelName,
