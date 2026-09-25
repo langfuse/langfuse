@@ -346,7 +346,8 @@ export const projectsRouter = createTRPCRouter({
             orgId: input.targetOrgId,
           },
         });
-        // Re-tag the project's key assignments to the destination org.
+        // Move the project's api-key assignments to the destination org and
+        // drop its user assignments, matching the membership wipe above.
         await transferRoleAssignments(tx, input.projectId, input.targetOrgId);
       });
 

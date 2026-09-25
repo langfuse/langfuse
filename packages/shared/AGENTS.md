@@ -91,7 +91,8 @@
   runtime leaks to the browser. Policy resolution stays in `web`.
 - `@langfuse/shared/rbac/server` via `src/features/rbac/server.ts`: server-only
   barrel for the role-assignment repository (`assignRole`,
-  `revokeRolesForPrincipals`, `revokeRolesForOwner`, `transferRoleAssignments`).
+  `revokeRolesForPrincipals`, `revokeRolesForOwner`,
+  `revokeApiKeyRolesForOwners`, `transferRoleAssignments`).
   Imports Prisma, so never route it into client bundles.
 - `@langfuse/shared/instrumentation/bootstrap` via
   `src/server/instrumentation/bootstrap/index.ts`: instrumentation initializers loaded before sdk.start(); must not import the server barrel or any instrumented library.

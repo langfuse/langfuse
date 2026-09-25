@@ -1,8 +1,10 @@
 import { type PrismaClient, type Prisma } from "@prisma/client";
 
 import {
+  ApiKeyId,
   OrganizationId,
   ProjectId,
+  UserId,
   hasOrganizationKind,
   hasProjectKind,
   hasSystemRoleKind,
@@ -15,6 +17,11 @@ import {
 } from "./types";
 
 type Tx = PrismaClient | Prisma.TransactionClient;
+
+/** apiKeyPrincipalPrefix is the tag prefix every api-key principal id carries. */
+const apiKeyPrincipalPrefix = ApiKeyId("");
+/** userPrincipalPrefix is the tag prefix every user principal id carries. */
+const userPrincipalPrefix = UserId("");
 
 /** assignRole derives the owner's tenant, then persists the assignment. */
 export async function assignRole(
@@ -44,15 +51,33 @@ export async function revokeRolesForPrincipals(
   });
 }
 
-/** transferRoleAssignments re-tags a transferred project's assignments to the destination organization. */
+/** revokeApiKeyRolesForOwners deletes the api-key assignments hanging off a set of owners, leaving user assignments intact. */
+export async function revokeApiKeyRolesForOwners(
+  tx: Tx,
+  ownerIds: OwnerId[],
+): Promise<void> {
+  if (ownerIds.length === 0) return;
+  await tx.systemRoleAssignment.deleteMany({
+    where: {
+      ownerId: { in: ownerIds },
+      principalId: { startsWith: apiKeyPrincipalPrefix },
+    },
+  });
+}
+
+/** transferRoleAssignments moves a transferred project's api-key assignments to the destination organization and drops its user assignments, mirroring the membership wipe. */
 export async function transferRoleAssignments(
   tx: Tx,
   projectId: string,
   targetOrgId: string,
 ): Promise<void> {
+  const ownerId = ProjectId(projectId);
   await tx.systemRoleAssignment.updateMany({
-    where: { ownerId: ProjectId(projectId) },
+    where: { ownerId, principalId: { startsWith: apiKeyPrincipalPrefix } },
     data: { orgId: targetOrgId },
+  });
+  await tx.systemRoleAssignment.deleteMany({
+    where: { ownerId, principalId: { startsWith: userPrincipalPrefix } },
   });
 }
 

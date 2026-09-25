@@ -55,7 +55,7 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       name: "Admin",
       description: "Administer the organization and its projects.",
       policies: userRoleAccessRights("ADMIN"),
-      tags: ["principal:user"],
+      tags: ["principal:user", "principal:apiKey"],
     },
     MEMBER: {
       id: "MEMBER",
@@ -69,7 +69,7 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       name: "Viewer",
       description: "Read-only access to the organization and its projects.",
       policies: userRoleAccessRights("VIEWER"),
-      tags: ["principal:user"],
+      tags: ["principal:user", "principal:apiKey"],
     },
     NONE: {
       id: "NONE",

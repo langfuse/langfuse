@@ -9,6 +9,8 @@ import {
   OrganizationId,
   ProjectId,
   SystemRoleId,
+  hasProjectKind,
+  type OwnerId,
 } from "../../features/rbac/types";
 import { logger } from "../logger";
 import {
@@ -101,58 +103,72 @@ export async function createAndAddApiKeysToDb(p: {
     ? { pk: p.predefinedKeys.publicKey, sk: p.predefinedKeys.secretKey }
     : await generateKeySet();
 
-  const hashedSk = await hashSecretKey(sk);
-  const displaySk = getDisplaySecretKey(sk);
-
-  const hashFromProvidedKey = createShaHash(sk, salt);
-
-  const entity =
-    p.scope === "PROJECT" ? { projectId: p.entityId } : { orgId: p.entityId };
-
-  const run = async (tx: PrismaClient | Prisma.TransactionClient) => {
-    const apiKey = await tx.apiKey.create({
-      data: {
-        ...entity,
-        publicKey: pk,
-        hashedSecretKey: hashedSk,
-        displaySecretKey: displaySk,
-        fastHashedSecretKey: hashFromProvidedKey,
-        note: p.note,
-        scope: p.scope,
-        isInAppAgentKey: p.isInAppAgentKey ?? false,
-        createdByUserId: p.createdByUserId,
-        createdByApiKeyId: p.createdByApiKeyId,
-      },
-    });
-
-    // The role derived from `scope` reproduces today's apiKeyAccessRights[scope].
-    // Written on the same client so it commits atomically with the key.
-    await assignRole(tx, {
-      principalId: ApiKeyId(apiKey.id),
-      roleId: SystemRoleId(p.scope === "PROJECT" ? "PROJECT" : "ORGANIZATION"),
-      ownerId:
-        p.scope === "PROJECT"
-          ? ProjectId(p.entityId)
-          : OrganizationId(p.entityId),
-      tags: [],
-    });
-
-    return {
-      id: apiKey.id,
-      createdAt: apiKey.createdAt,
-      note: apiKey.note,
-      publicKey: apiKey.publicKey,
-      secretKey: sk,
-      displaySecretKey: displaySk,
-    };
+  const params = {
+    ...(p.scope === "PROJECT"
+      ? { projectId: p.entityId }
+      : { orgId: p.entityId }),
+    publicKey: pk,
+    hashedSecretKey: await hashSecretKey(sk),
+    displaySecretKey: getDisplaySecretKey(sk),
+    fastHashedSecretKey: createShaHash(sk, salt),
+    note: p.note,
+    scope: p.scope,
+    isInAppAgentKey: p.isInAppAgentKey ?? false,
+    createdByUserId: p.createdByUserId,
+    createdByApiKeyId: p.createdByApiKeyId,
+    ownerId:
+      p.scope === "PROJECT"
+        ? ProjectId(p.entityId)
+        : OrganizationId(p.entityId),
   };
 
-  // A root client owns the transaction; a transaction client already runs
-  // inside the caller's, so both writes join it directly.
-  return "$transaction" in p.prisma
-    ? p.prisma.$transaction(run)
-    : run(p.prisma);
+  // A root client owns the transaction; a transaction client joins the caller's.
+  if (isPrismaClient(p.prisma)) {
+    const created = await p.prisma.$transaction((tx) =>
+      createApiKey(tx, params),
+    );
+    return { ...created, secretKey: sk };
+  }
+  const created = await createApiKey(p.prisma, params);
+  return { ...created, secretKey: sk };
 }
+
+/** isPrismaClient narrows a client to a root client, which can own a transaction. */
+function isPrismaClient(
+  client: PrismaClient | Prisma.TransactionClient,
+): client is PrismaClient {
+  return "$transaction" in client;
+}
+
+/** createApiKey inserts an api-key row and its owner's system-role assignment on one transaction client. */
+async function createApiKey(
+  tx: Prisma.TransactionClient,
+  params: CreateApiKeyParams,
+) {
+  const { ownerId, ...data } = params;
+  const apiKey = await tx.apiKey.create({ data });
+
+  // Written on the same client so the assignment commits atomically with the row.
+  await assignRole(tx, {
+    principalId: ApiKeyId(apiKey.id),
+    roleId: SystemRoleId(hasProjectKind(ownerId) ? "PROJECT" : "ORGANIZATION"),
+    ownerId,
+    tags: [],
+  });
+
+  return {
+    id: apiKey.id,
+    createdAt: apiKey.createdAt,
+    note: apiKey.note,
+    publicKey: apiKey.publicKey,
+    displaySecretKey: apiKey.displaySecretKey,
+  };
+}
+
+/** CreateApiKeyParams is an api-key create input plus the owner its assignment binds to. */
+type CreateApiKeyParams = Prisma.ApiKeyUncheckedCreateInput & {
+  ownerId: OwnerId;
+};
 
 export async function deleteApiKeyFromDb(p: {
   prisma: PrismaClient;
@@ -189,12 +205,10 @@ export async function deleteApiKeyFromDb(p: {
     return false;
   }
 
-  // The row and its assignment go first in one transaction, then the cache.
-  // principalId is a tagged string, not an FK, so the delete does not cascade.
-  // In the other order, a request authenticating with this key in between
-  // misses the cache, still finds the row, and writes the key back into the
-  // cache after the eviction. `apiKey` is already loaded above, so eviction
-  // does not need the row to still exist.
+  // Delete the row and its assignment atomically, then evict the cache after
+  // the commit so a concurrent authentication cannot re-cache the key from a
+  // row that is about to be gone. principalId is a tagged string, not an FK, so
+  // the delete does not cascade to the assignment.
   await p.prisma.$transaction(async (tx) => {
     await tx.apiKey.delete({ where: { id: apiKey.id } });
     await revokeRolesForPrincipals(tx, [ApiKeyId(apiKey.id)]);
