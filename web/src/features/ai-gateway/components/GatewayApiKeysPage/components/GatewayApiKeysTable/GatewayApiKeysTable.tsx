@@ -56,7 +56,6 @@ export function GatewayApiKeysTable({
       header: "Metadata",
       sensitive: true,
       enableResizing: false,
-      shouldWrap: false,
     }),
   ];
 

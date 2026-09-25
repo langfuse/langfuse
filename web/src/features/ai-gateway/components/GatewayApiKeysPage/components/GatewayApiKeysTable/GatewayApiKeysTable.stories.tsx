@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { expect, fn, userEvent } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { GatewayApiKeysTable } from "./GatewayApiKeysTable";
@@ -68,6 +68,44 @@ export const PopulatedMetadata = meta.story({
     const cells = canvas.getAllByRole("row")[1]!.querySelectorAll("td");
     await expect(cells[1]).toHaveClass("ph-no-capture");
     await expect(cells[3]).toHaveClass("ph-no-capture");
+  },
+});
+
+export const OverflowingMetadata = meta.story({
+  name: "(Test) Metadata badges collapse when the cell is narrow",
+  args: {
+    data: {
+      status: "success",
+      data: [
+        {
+          ...apiKeys[0]!,
+          metadata: {
+            environment: "production",
+            region: "eu",
+            team: "platform",
+            service: "gateway",
+          },
+        },
+      ],
+    },
+    ...actions,
+  },
+  render: (args) => (
+    <div className="w-[420px]">
+      <GatewayApiKeysTable {...args} />
+    </div>
+  ),
+  play: async ({ canvas }) => {
+    const metadataCell = canvas
+      .getAllByRole("row")[1]!
+      .querySelectorAll("td")[3]!;
+    await waitFor(() => {
+      expect(metadataCell).toHaveTextContent(/\+\d+/);
+    });
+    const overflow = metadataCell.querySelector("[tabindex='0']")!;
+    await userEvent.hover(overflow);
+    const tooltip = await screen.findByRole("tooltip");
+    await expect(tooltip.firstElementChild).toHaveClass("ph-no-capture");
   },
 });
 
