@@ -142,6 +142,7 @@ export const DatasetItemField = ({
         <DatasetItemFieldToolbar
           copyValue={value}
           onSelectFile={showMediaUpload ? handleSelectFile : undefined}
+          hoverReveal={!isFormField}
         />
       </div>
       {isFormField && (
@@ -191,6 +192,6 @@ export const DatasetItemField = ({
   return isFormField ? (
     <FormItem>{content}</FormItem>
   ) : (
-    <div className="space-y-2">{content}</div>
+    <div className="group/field space-y-2">{content}</div>
   );
 };
