@@ -37,6 +37,7 @@ export async function runOtelReplay(
   const tableName = `otel_replay_events_${suffix}`;
   let writer: ClickhouseWriter | undefined;
   let tableCreated = false;
+  let writerShutdown = false;
 
   try {
     await client.command({
@@ -76,7 +77,9 @@ export async function runOtelReplay(
       shouldWriteToEventsTable: true,
     });
 
-    await writer.shutdown();
+    // Reset the singletons here so cleanup cannot retry rows retained by this drain.
+    await ClickhouseWriter.shutdownAll();
+    writerShutdown = true;
 
     const pendingRows = writer.queue[TableName.EventsFull].length;
     if (pendingRows > 0) {
@@ -106,7 +109,7 @@ export async function runOtelReplay(
     );
   } finally {
     try {
-      if (writer) {
+      if (writer && !writerShutdown) {
         // Each corpus replay needs a fresh singleton and interval timer.
         await ClickhouseWriter.shutdownAll();
       }
