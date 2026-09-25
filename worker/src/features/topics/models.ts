@@ -38,7 +38,7 @@ function bedrockConfig() {
   };
 }
 
-function countTopicTokens(value: string): number {
+export function countTopicTokens(value: string): number {
   const encoding = get_encoding("o200k_base");
   try {
     return encoding.encode(value, "all", []).length;
@@ -66,9 +66,7 @@ async function structuredCall<T>(
   schema: z.ZodType<T>,
   inputLimit: number,
   outputLimit: number,
-  model:
-    | typeof TOPICS_SUMMARY_MODEL
-    | typeof TOPICS_NAMING_MODEL = TOPICS_SUMMARY_MODEL,
+  model: string = TOPICS_SUMMARY_MODEL,
 ): Promise<ModelResult<T>> {
   const connection = bedrockConfig();
   // Include the structured-output schema and message framing in the input limit.
@@ -98,6 +96,9 @@ async function structuredCall<T>(
     messages,
     schema,
     maxOutputTokens: outputLimit,
+    // Experiment switches; naming keeps its defaults.
+    reasoning: isNaming ? undefined : env.LANGFUSE_TOPICS_REASONING_EFFORT,
+    timeoutMs: env.LANGFUSE_TOPICS_MODEL_TIMEOUT_MS,
   }).catch((error: unknown) => {
     logger.warn("Topics model request failed", {
       model,
@@ -124,6 +125,15 @@ async function structuredCall<T>(
     providedUsageDetails[outputKey] = result.usage.outputTokens;
   if (result.usage.totalTokens != null)
     providedUsageDetails.total = result.usage.totalTokens;
+  const cacheAndReasoning = {
+    [`${inputKey}_no_cache`]: result.usage.inputTokenDetails?.noCacheTokens,
+    [`${inputKey}_cache_read`]: result.usage.inputTokenDetails?.cacheReadTokens,
+    [`${inputKey}_cache_write`]:
+      result.usage.inputTokenDetails?.cacheWriteTokens,
+    [`${stage}_reasoning`]: result.usage.outputTokenDetails?.reasoningTokens,
+  };
+  for (const [key, value] of Object.entries(cacheAndReasoning))
+    if (value != null) providedUsageDetails[key] = value;
   const accepted: ModelResult<T> = {
     output: schema.parse(result.output),
     providedUsageDetails,
@@ -142,11 +152,19 @@ async function structuredCall<T>(
   return accepted;
 }
 
-const SUMMARY_SYSTEM_PROMPT = `You describe one facet of a recorded run of an LLM application. Your description is embedded and clustered together with descriptions of many other runs. Runs that share a pattern should get similar descriptions; runs that differ in a way that matters should not.
+const TRANSCRIPT_FORMATS = {
+  json: `The user message contains the run as JSON. It has threads; each thread has conversationHistory, context carried over from earlier runs, and currentTurn, the run you describe. Use conversationHistory only to understand this run. Messages have a role and parts: text, tool-call (toolName, input), tool-result (toolName, output, isError), and reasoning (the model's internal reasoning, never shown to end users).
+- "truncated": true marks content removed for length.`,
+  text: `The user message contains the run as tagged plain text. <run_facts> gives counts; <tools> lists the tools available to the model; <earlier_conversation> is context replayed from earlier runs; <this_run> is the run you describe; <end_of_run> names its last action. Use the earlier conversation only to understand this run. Each line starts with a label: [user · request] is this run's request; [assistant → tool #n] is a tool call with its input and [tool name #n ←] its result, where ERROR marks a failed call and FINAL OUTPUT the run's final output; [assistant · reasoning] is the model's internal reasoning, never shown to end users; [error …] and [warning …] are signals recorded on an operation; [generation], [span], [agent] and similar mark the operations of the run.
+- "… [N chars omitted] …" and "[… K messages omitted …]" mark content removed for length.`,
+};
+
+const summarySystemPrompt = (
+  format: keyof typeof TRANSCRIPT_FORMATS,
+) => `You describe one facet of a recorded run of an LLM application. Your description is embedded and clustered together with descriptions of many other runs. Runs that share a pattern should get similar descriptions; runs that differ in a way that matters should not.
 
 <transcript_format>
-The user message contains the run as JSON. It has threads; each thread has conversationHistory, context carried over from earlier runs, and currentTurn, the run you describe. Use conversationHistory only to understand this run. Messages have a role and parts: text, tool-call (toolName, input), tool-result (toolName, output, isError), and reasoning (the model's internal reasoning, never shown to end users).
-- "truncated": true marks content removed for length. The removal happened when this recording was prepared, not in the run: never report it, or anything you cannot see because of it, as a problem or a result, and do not guess what was removed.
+${TRANSCRIPT_FORMATS[format]} The removal happened when this recording was prepared, not in the run: never report it, or anything you cannot see because of it, as a problem or a result, and do not guess what was removed.
 Recordings come from many frameworks and can be messy. Repeated, partial, or pasted messages are normal; count a repeated message once, and treat pasted transcripts or logs as material the user supplied, not as turns of this run.
 </transcript_format>
 
@@ -170,15 +188,16 @@ export function summarizeTopicTrace(
   facet: TopicFacetVersion,
   text: string,
   config: TopicProcessingConfig,
+  format: keyof typeof TRANSCRIPT_FORMATS = "json",
 ) {
   // Repeat the format request after the transcript; long inputs otherwise dilute it.
   return structuredCall(
-    `${SUMMARY_SYSTEM_PROMPT}\n\n<facet>\n${facet.prompt}\n</facet>`,
+    `${summarySystemPrompt(format)}\n\n<facet>\n${facet.prompt}\n</facet>`,
     `<transcript>\n${text}\n</transcript>\n\nWrite the summary now, in the facet's format.`,
     summarySchema,
     config.maxInputTokens,
     config.maxOutputTokens,
-    config.summaryModel,
+    env.LANGFUSE_TOPICS_SUMMARY_MODEL_OVERRIDE ?? config.summaryModel,
   );
 }
 

@@ -21,6 +21,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
 vi.mock("./models", () => ({
   summarizeTopicTrace: (...args: unknown[]) => state.summarize(...args),
   embedTopicSummary: (...args: unknown[]) => state.embed(...args),
+  countTopicTokens: (text: string) => text.length,
 }));
 
 import { summarizeAssembledTrace } from "./summarizeAssembledTrace";

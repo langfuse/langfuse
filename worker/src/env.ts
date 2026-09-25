@@ -311,6 +311,17 @@ const EnvSchema = z.object({
   AWS_PROFILE: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
   LANGFUSE_TOPICS_AWS_PROFILE: z.string().optional(),
+  // Experiment switches for Topics summaries; defaults match production.
+  LANGFUSE_TOPICS_TRANSCRIPT_FORMAT: z.enum(["json", "text"]).default("json"),
+  LANGFUSE_TOPICS_SUMMARY_MODEL_OVERRIDE: z.string().optional(),
+  LANGFUSE_TOPICS_REASONING_EFFORT: z
+    .enum(["none", "low", "medium", "high"])
+    .default("none"),
+  LANGFUSE_TOPICS_MODEL_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(60_000),
   LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
     .enum(["dangerous-docker", "lambda-microvm"])
     .optional(),

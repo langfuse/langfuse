@@ -34,7 +34,7 @@ function summarizeTraceBatch(observations: Observation[]): Promise<void> {
   const traceTimestamp = new Date(
     Math.min(...observations.map((row) => row.startTime.getTime())),
   ).toISOString();
-  return recordTraceBatchTranscript(observations, (transcript) =>
+  return recordTraceBatchTranscript(observations, (transcript, topicsText) =>
     summarizeAssembledTrace({
       projectId: first.projectId,
       traceId,
@@ -42,6 +42,7 @@ function summarizeTraceBatch(observations: Observation[]): Promise<void> {
       environment: first.environment,
       traceName: first.name ?? "",
       transcript,
+      topicsText,
     }),
   );
 }

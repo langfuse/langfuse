@@ -2,7 +2,6 @@ import {
   ensureDefaultTopicFacets,
   isTopicsProjectEnabled,
   listTopicSummaries,
-  topicSummaryId,
   TOPICS_TRANSCRIPT_VERSION,
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
@@ -15,8 +14,13 @@ import {
   type TopicSummary,
 } from "@langfuse/shared/topics";
 import type { Transcript } from "@langfuse/shared/src/server";
+import { env } from "../../env";
 import { prepareAssembledTopicTranscript } from "./assembledTranscript";
-import { embedTopicSummary, summarizeTopicTrace } from "./models";
+import {
+  countTopicTokens,
+  embedTopicSummary,
+  summarizeTopicTrace,
+} from "./models";
 import { TopicsProviderUnavailable } from "./provider-error";
 
 /**
@@ -30,27 +34,39 @@ export async function summarizeAssembledTrace(input: {
   environment: string;
   traceName: string;
   transcript: Transcript | null;
+  /** Topics text the batch job rendered from the same transcript. */
+  topicsText?: string;
 }): Promise<void> {
   if (!isTopicsProjectEnabled(input.projectId)) return;
-  const prepared = prepareAssembledTopicTranscript(input.transcript);
+  // Experiment switch: the rendered Topics text instead of the JSON projection.
+  const format =
+    env.LANGFUSE_TOPICS_TRANSCRIPT_FORMAT === "text" &&
+    input.topicsText !== undefined
+      ? "text"
+      : "json";
+  const prepared =
+    format === "text"
+      ? { text: input.topicsText ?? "", hasContent: Boolean(input.topicsText) }
+      : prepareAssembledTopicTranscript(input.transcript);
+  const transcriptMetrics = {
+    transcriptCharacters: prepared.text.length,
+    transcriptTokensO200k: countTopicTokens(prepared.text),
+  };
   const facets = await ensureDefaultTopicFacets(input.projectId);
   const versions = facets.flatMap((facet) =>
     facet.projectId === input.projectId ? facet.versions.slice(0, 1) : [],
   );
-  const stored = await listTopicSummaries(input.projectId, {
-    traceIds: [input.traceId],
-  });
   const config = topicProcessingConfigSchema.parse({});
   const dimensions = topicEmbeddingConfigSchema.parse({}).embeddingDimensions;
   for (const facet of versions) {
+    const stored = await listTopicSummaries(input.projectId, {
+      traceIds: [input.traceId],
+      facetId: facet.facetId,
+      facetVersion: facet.version,
+    });
     if (
       stored.some(
-        (row) =>
-          row.projectId === input.projectId &&
-          row.facetId === facet.facetId &&
-          row.facetVersion === facet.version &&
-          row.traceId === input.traceId &&
-          row.state !== "summarized",
+        (row) => row.traceId === input.traceId && row.state !== "summarized",
       )
     )
       continue;
@@ -60,6 +76,8 @@ export async function summarizeAssembledTrace(input: {
         facet,
         text: prepared.text,
         hasContent: prepared.hasContent,
+        format,
+        transcriptMetrics,
         config,
         dimensions,
       }),
@@ -76,6 +94,8 @@ async function summarizeFacet(input: {
   facet: TopicFacetVersion;
   text: string;
   hasContent: boolean;
+  format: "json" | "text";
+  transcriptMetrics: Record<string, number>;
   config: ReturnType<typeof topicProcessingConfigSchema.parse>;
   dimensions: number;
 }): Promise<TopicSummary> {
@@ -88,7 +108,6 @@ async function summarizeFacet(input: {
   };
   const base: TopicSummary = {
     ...source,
-    id: topicSummaryId(source),
     triggerType: "manual_poc",
     unitStartTime: input.traceTimestamp,
     environment: input.environment,
@@ -97,21 +116,28 @@ async function summarizeFacet(input: {
     summary: "",
     embedding: [],
     transcriptId: "trace-batch",
-    transcriptVersion: TOPICS_TRANSCRIPT_VERSION,
-    summaryModel: TOPICS_SUMMARY_MODEL,
+    transcriptVersion:
+      input.format === "text" ? "topics-text-v1" : TOPICS_TRANSCRIPT_VERSION,
+    summaryModel:
+      env.LANGFUSE_TOPICS_SUMMARY_MODEL_OVERRIDE ?? TOPICS_SUMMARY_MODEL,
     embeddingModel: TOPICS_EMBEDDING_MODEL,
     providedUsageDetails: {},
     usageDetails: {},
     providedCostDetails: {},
     costDetails: {},
     processedAt: new Date().toISOString(),
-    metadata: { input: "assembled-transcript" },
+    metadata: {
+      input: input.format === "text" ? "topics-text" : "assembled-transcript",
+      reasoningEffort: env.LANGFUSE_TOPICS_REASONING_EFFORT,
+      ...input.transcriptMetrics,
+    },
   };
   if (!input.hasContent) return base;
   const result = await summarizeTopicTrace(
     input.facet,
     input.text,
     input.config,
+    input.format,
   );
   const applicable = result.output.status === "applicable";
   const summary = result.output.summary.trim();
