@@ -135,18 +135,18 @@ describe("DataRetentionProcessingJob", () => {
           },
         ],
       });
-      const expiredRunId = randomUUID();
+      const expiredRunIds = Array.from({ length: 101 }, () => randomUUID());
       const runningRunId = randomUUID();
       await prisma.inAppAgentRun.createMany({
         data: [
-          {
-            id: expiredRunId,
+          ...expiredRunIds.map((id) => ({
+            id,
             projectId,
             conversationId: expiredId,
             createdAt: expiredAt,
             finishedAt: expiredAt,
             mcpApiKeyId: key.id,
-          },
+          })),
           { id: runningRunId, projectId, conversationId: runningId },
           {
             id: randomUUID(),
@@ -179,7 +179,7 @@ describe("DataRetentionProcessingJob", () => {
           {
             projectId,
             conversationId: expiredId,
-            runId: expiredRunId,
+            runId: expiredRunIds[0],
             sequenceNumber: 0,
             type: "test",
             event: {},
