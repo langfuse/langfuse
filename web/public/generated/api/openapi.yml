@@ -4101,6 +4101,26 @@ paths:
           schema:
             type: integer
             nullable: true
+        - name: fromTimestamp
+          in: query
+          description: >-
+            Optional filter to only include models created on or after this
+            timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toTimestamp
+          in: query
+          description: >-
+            Optional filter to only include models created on or before this
+            timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
       responses:
         '200':
           description: ''
