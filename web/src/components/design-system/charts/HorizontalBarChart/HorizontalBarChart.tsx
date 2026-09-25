@@ -2,7 +2,7 @@
 
 import { scaleLinear } from "d3-scale";
 
-import { ChartContainer } from "@/src/components/design-system/charts/ChartContainer";
+import { ChartContainer } from "@/src/components/design-system/internal/charts/ChartContainer";
 import {
   CHART_TRANSITION_DURATION,
   INACTIVE_CHART_COLOR_STRENGTH,
