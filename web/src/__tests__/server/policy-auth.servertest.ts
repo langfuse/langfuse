@@ -7,7 +7,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 
 import { Authenticator } from "@/src/features/apiKey/server";
-import { authorize } from "@/src/features/auth/policy/authorize";
+import { authorize } from "@/src/features/rbac/authorize";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 
 describe("policy authenticate() composition", () => {

@@ -19,12 +19,12 @@ import {
   type GetOrganizationResult,
   type OrganizationWithProjects,
 } from "./organizationRepository";
+import { type Policy } from "@/src/features/rbac/types";
 import {
   internalServerError,
   type AuthorizationContext,
   type BoundResource,
   type ErrorResult,
-  type Policy,
   type Principal,
   type PrincipalOrganization,
   type Success,

@@ -29,7 +29,7 @@ import {
   type EnforceAuthResult,
 } from "@/src/features/public-api/server/enforceAuth";
 import { shadowAuthDiff } from "@/src/features/public-api/server/shadowAuthDiff";
-import { authorize } from "@/src/features/auth/policy/authorize";
+import { authorize } from "@/src/features/rbac/authorize";
 import {
   forbiddenError,
   serviceUnavailableError,

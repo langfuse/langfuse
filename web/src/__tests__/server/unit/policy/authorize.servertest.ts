@@ -9,11 +9,9 @@ import {
   type TenantId,
 } from "@langfuse/shared/rbac";
 
-import { authorize } from "@/src/features/auth/policy/authorize";
-import {
-  type AuthorizationContext,
-  type Policy,
-} from "@/src/features/auth/policy/types";
+import { authorize } from "@/src/features/rbac/authorize";
+import { type Policy } from "@/src/features/rbac/types";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 const TENANT: TenantId = OrganizationId("org_1");
 const OTHER_TENANT: TenantId = OrganizationId("org_2");

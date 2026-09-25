@@ -4,50 +4,14 @@ import {
   ForbiddenError,
   InternalServerError,
   LangfuseNotFoundError,
-  projectScopes,
   ServiceUnavailableError,
   UnauthorizedError,
   type ApiKeyScope,
   type CloudConfigRateLimit,
   type Plan,
-  type ProjectScope,
 } from "@langfuse/shared";
-import {
-  type ResourceId,
-  type RoleId,
-  type TenantId,
-} from "@langfuse/shared/rbac";
-import {
-  organizationScopes,
-  type OrganizationScope,
-} from "@/src/features/rbac/constants/organizationAccessRights";
 
-/** allProjectActions is the full project action vocabulary. */
-export const allProjectActions: ProjectAction[] = [...projectScopes];
-
-/** allOrganizationActions is the full organization action vocabulary. */
-export const allOrganizationActions: OrganizationAction[] = [
-  ...organizationScopes,
-];
-
-/** organizationActionSet is allOrganizationActions indexed for membership tests. */
-const organizationActionSet: ReadonlySet<string> = new Set(organizationScopes);
-
-/** isOrgAction reports whether an action belongs to the disjoint org vocabulary. */
-export const isOrgAction = (action: Action): action is OrganizationAction =>
-  organizationActionSet.has(action);
-
-/** Effect is whether a policy grants or denies its actions. */
-export type Effect = "ALLOW" | "DENY";
-
-/** ProjectAction is an action assignable to a project policy. */
-export type ProjectAction = ProjectScope;
-
-/** OrganizationAction is an action assignable to an organization policy. */
-export type OrganizationAction = OrganizationScope;
-
-/** Action is any checkable action. */
-export type Action = ProjectAction | OrganizationAction;
+import { type Policy } from "@/src/features/rbac/types";
 
 /** PrincipalOrganization carries an org's static caps and its ingestion-suspension liveness state, enforced at the seam not the PDP. */
 export type PrincipalOrganization = {
@@ -86,25 +50,6 @@ export type Resource = ProjectResource | OrgResource;
 
 /** BoundResource is what a credential is bound to: its organization, narrowed to one project when the credential is project-scoped. */
 export type BoundResource = OrgResource & { projectId?: string };
-
-/** SystemRolePolicy is a catalog policy before its resource is bound. */
-export type SystemRolePolicy =
-  | {
-      resourceKind: "organization";
-      actions: OrganizationAction[];
-      effect: Effect;
-    }
-  | { resourceKind: "project"; actions: ProjectAction[]; effect: Effect };
-
-/** Policy is a role's effect on a set of actions over tagged resources within one tenant. */
-export type Policy = {
-  id: string;
-  tenantId: TenantId;
-  roleId: RoleId;
-  effect: Effect;
-  actions: Action[];
-  resources: ResourceId[];
-};
 
 /** AuthorizationContext is the PIP output and PDP input for one principal. */
 export type AuthorizationContext = {

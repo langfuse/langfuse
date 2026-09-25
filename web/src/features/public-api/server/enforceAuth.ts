@@ -15,15 +15,14 @@ import {
   type TenantId,
 } from "@langfuse/shared/rbac";
 
-import { authorize } from "@/src/features/auth/policy/authorize";
+import { authorize } from "@/src/features/rbac/authorize";
 import { authenticator } from "@/src/features/apiKey/server";
 import { toApiAccessScope } from "@/src/features/public-api/server/toApiAccessScope";
+import { isOrgAction, type Action } from "@/src/features/rbac/types";
 import {
   forbiddenError,
   internalServerError,
-  isOrgAction,
   notFoundError,
-  type Action,
   type AuthorizationContext,
   type Decision,
   type ErrorResult,

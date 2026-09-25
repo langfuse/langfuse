@@ -20,11 +20,8 @@ import {
   __dangerouslySkipAuthz,
   type ApiAction,
 } from "@/src/features/public-api/server";
-import {
-  type AuthorizationContext,
-  type Policy,
-  type ProjectAction,
-} from "@/src/features/auth/policy/types";
+import { type Policy, type ProjectAction } from "@/src/features/rbac/types";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 const PRJ = "prj_1";
 const ORG = "org_1";

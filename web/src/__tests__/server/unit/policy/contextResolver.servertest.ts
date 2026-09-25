@@ -4,7 +4,7 @@ import { type ApiKey, type PrismaClient } from "@langfuse/shared/src/db";
 import { InternalServerError } from "@langfuse/shared";
 import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 
-import { authorize } from "@/src/features/auth/policy/authorize";
+import { authorize } from "@/src/features/rbac/authorize";
 import {
   OrganizationRepository,
   type OrganizationWithProjects,

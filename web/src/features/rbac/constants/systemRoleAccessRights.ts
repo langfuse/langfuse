@@ -1,10 +1,12 @@
 import { projectRoleAccessRights } from "@langfuse/shared";
 import { type Role, type SystemRole } from "@langfuse/shared/src/db";
 
-import { type SystemRolePolicy } from "@/src/features/auth/policy/types";
 import { apiKeyAccessRights } from "@/src/features/rbac/constants/apiKeyAccessRights";
 import { organizationRoleAccessRights } from "@/src/features/rbac/constants/organizationAccessRights";
-import { type SystemRoleDefinition } from "@/src/features/rbac/types";
+import {
+  type SystemRoleDefinition,
+  type SystemRolePolicy,
+} from "@/src/features/rbac/types";
 
 /** userRoleAccessRights builds a user role's org- and project-kind policies from the per-role access-right tables. */
 const userRoleAccessRights = (role: Role): SystemRolePolicy[] => [

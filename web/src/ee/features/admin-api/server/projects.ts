@@ -6,11 +6,9 @@ import {
   type TenantId,
 } from "@langfuse/shared/rbac";
 
-import { authorize } from "@/src/features/auth/policy/authorize";
-import {
-  type Action,
-  type AuthorizationContext,
-} from "@/src/features/auth/policy/types";
+import { authorize } from "@/src/features/rbac/authorize";
+import { type Action } from "@/src/features/rbac/types";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 // GET - Retrieve all projects in an organization
 export async function handleGetProjects(

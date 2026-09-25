@@ -40,10 +40,8 @@ import {
   shadowAuthorize,
   __dangerouslySkipAuthz,
 } from "@/src/features/public-api/server";
-import {
-  type AuthorizationContext,
-  type ProjectAction,
-} from "@/src/features/auth/policy/types";
+import { type ProjectAction } from "@/src/features/rbac/types";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 export const config = {
   api: {

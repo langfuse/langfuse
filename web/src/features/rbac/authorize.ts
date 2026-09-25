@@ -5,14 +5,12 @@ import {
   type TenantId,
 } from "@langfuse/shared/rbac";
 
+import { type Action, type Effect, type Policy } from "./types";
 import {
   forbiddenError,
-  type Action,
   type AuthorizationContext,
   type Decision,
-  type Effect,
-  type Policy,
-} from "./types";
+} from "@/src/features/auth/policy/types";
 
 /** wildcardProjectId is the project-kind wildcard an org role binds to; it matches every project of its tenant but is never a valid authorization target. */
 const wildcardProjectId: ProjectId = "project/*";

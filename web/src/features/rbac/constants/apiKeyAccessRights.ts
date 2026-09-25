@@ -3,7 +3,7 @@ import {
   allProjectActions,
   type ProjectAction,
   type SystemRolePolicy,
-} from "@/src/features/auth/policy/types";
+} from "@/src/features/rbac/types";
 
 /** ApiKeyRole is the policy layer's role vocabulary for an API key, decoupled from the DB `ApiKeyScope` enum. */
 export type ApiKeyRole = "PROJECT" | "ORGANIZATION" | "SCORES_INGEST" | "ADMIN";

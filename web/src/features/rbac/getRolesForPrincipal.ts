@@ -13,14 +13,14 @@ import {
 import { type PrismaClient } from "@langfuse/shared/src/db";
 
 import {
-  type Policy,
-  type SystemRolePolicy,
-} from "@/src/features/auth/policy/types";
-import {
   getSystemRoles,
   type SystemRoleAssignmentWithRole,
 } from "@/src/features/rbac/getSystemRoles";
-import { type Role } from "@/src/features/rbac/types";
+import {
+  type Policy,
+  type Role,
+  type SystemRolePolicy,
+} from "@/src/features/rbac/types";
 
 /** getRolesForPrincipal loads a principal's system-role assignments and expands them into bound roles; custom roles are a later ticket. */
 export async function getRolesForPrincipal(
