@@ -24,7 +24,7 @@ import {
   getVisibleCellRows,
 } from "@/src/features/experiments/components/table/types";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
-import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
+import { usdFormatter } from "@/src/utils/numbers";
 import {
   HoverCard,
   HoverCardContent,
@@ -80,7 +80,7 @@ type ExperimentGridCellProps = {
  * Data passed to cell row render functions.
  */
 type GridCellData = {
-  reserveDiffSpace: boolean;
+  showBaselineDelta: boolean;
   projectId: string;
   itemId: string;
   output: unknown;
@@ -123,8 +123,11 @@ const scoreValueOf = (aggregate?: AggregatedScoreData | null): string => {
     : EMPTY_VALUE_PLACEHOLDER;
 };
 
-const valueColumnsClass = (reserveDiffSpace: boolean) =>
-  reserveDiffSpace
+const formatLatency = (value: number) => `${(value / 1000).toFixed(4)}s`;
+const formatCost = (value: number) => usdFormatter(value, 4, 4);
+
+const valueColumnsClass = (showBaselineDelta: boolean) =>
+  showBaselineDelta
     ? "grid shrink-0 grid-cols-[auto_4.5rem] items-center justify-items-start gap-1"
     : "flex shrink-0 items-center justify-end gap-1";
 
@@ -139,7 +142,7 @@ const ScoreItem = ({
   projectId,
   level,
   showScoreLevelLabel,
-  reserveDiffSpace,
+  showBaselineDelta,
 }: {
   scoreKey: string;
   aggregate: AggregatedScoreData | null;
@@ -147,7 +150,7 @@ const ScoreItem = ({
   projectId: string;
   level: Extract<ScoreLevel, "observation" | "trace">;
   showScoreLevelLabel: boolean;
-  reserveDiffSpace: boolean;
+  showBaselineDelta: boolean;
 }) => {
   // Decompose the key to get name, source, and dataType
   const { name, source, dataType } = decomposeAggregateScoreKey(scoreKey);
@@ -178,16 +181,12 @@ const ScoreItem = ({
         >
           <div className="flex min-w-0 items-center gap-1">
             {showScoreLevelLabel && <ScoreTag level={level} />}
-            {/* The hover card supplies the full name; suppress native titles. */}
-            <span
-              title=""
-              className="text-muted-foreground block min-w-0 truncate"
-            >
+            <span className="text-muted-foreground line-clamp-1 min-w-0">
               {name}
             </span>
           </div>
           {/* Comparison rows reserve a delta slot even when their values are equal. */}
-          <div className={valueColumnsClass(reserveDiffSpace)}>
+          <div className={valueColumnsClass(showBaselineDelta)}>
             <span className="flex max-w-full min-w-0 items-center gap-1">
               {displayValue === EMPTY_VALUE_PLACEHOLDER ? (
                 <span className="text-xs">
@@ -302,7 +301,7 @@ const getScoreRowDefinition = (
       projectId={data.projectId}
       level={level}
       showScoreLevelLabel={showScoreLevelLabel}
-      reserveDiffSpace={data.reserveDiffSpace}
+      showBaselineDelta={data.showBaselineDelta}
     />
   ),
 });
@@ -343,10 +342,10 @@ const CellMetadataFooter = ({
             )}
           </div>
           {visible("latencyMs") && (
-            <div className={valueColumnsClass(data.reserveDiffSpace)}>
+            <div className={valueColumnsClass(data.showBaselineDelta)}>
               {data.latencyMs != null ? (
                 <span className="font-bold tabular-nums">
-                  {(data.latencyMs / 1000).toFixed(4)}s
+                  {formatLatency(data.latencyMs)}
                 </span>
               ) : (
                 <NotRecordedMetric metric="latency" />
@@ -357,11 +356,11 @@ const CellMetadataFooter = ({
                   className="px-0"
                   diff={data.latencyDiff}
                   preferNegativeDiff
-                  formatValue={(value) => `${(value / 1000).toFixed(4)}s`}
+                  formatValue={formatLatency}
                   title={describeRunComparison({
                     baselineName: data.baselineExperimentName,
-                    baselineText: latencyFormatter(data.baselineLatencyMs ?? 0),
-                    currentText: latencyFormatter(data.latencyMs ?? 0),
+                    baselineText: formatLatency(data.baselineLatencyMs ?? 0),
+                    currentText: formatLatency(data.latencyMs ?? 0),
                     verb: "took",
                   })}
                 />
@@ -373,10 +372,10 @@ const CellMetadataFooter = ({
       {visible("totalCost") && (
         <div className="flex items-center justify-between gap-2">
           <span className="text-muted-foreground">Cost</span>
-          <div className={valueColumnsClass(data.reserveDiffSpace)}>
+          <div className={valueColumnsClass(data.showBaselineDelta)}>
             {data.totalCost != null ? (
               <span className="font-bold tabular-nums">
-                {usdFormatter(data.totalCost, 4, 4)}
+                {formatCost(data.totalCost)}
               </span>
             ) : (
               <NotRecordedMetric metric="cost" />
@@ -387,11 +386,11 @@ const CellMetadataFooter = ({
                 className="px-0"
                 diff={data.totalCostDiff}
                 preferNegativeDiff
-                formatValue={(value) => usdFormatter(value, 4, 4)}
+                formatValue={formatCost}
                 title={describeRunComparison({
                   baselineName: data.baselineExperimentName,
-                  baselineText: usdFormatter(data.baselineTotalCost ?? 0, 2, 6),
-                  currentText: usdFormatter(data.totalCost ?? 0, 2, 6),
+                  baselineText: formatCost(data.baselineTotalCost ?? 0),
+                  currentText: formatCost(data.totalCost ?? 0),
                   verb: "cost",
                 })}
               />
@@ -402,7 +401,7 @@ const CellMetadataFooter = ({
       {visible("level") && (
         <div className="flex items-center justify-between gap-2">
           <span className="text-muted-foreground">Status</span>
-          <div className={valueColumnsClass(data.reserveDiffSpace)}>
+          <div className={valueColumnsClass(data.showBaselineDelta)}>
             <Badge variant="ghost" className="px-0">
               {data.level}
             </Badge>
@@ -536,7 +535,7 @@ export const ExperimentGridCell = ({
   );
 
   const cellData: GridCellData = {
-    reserveDiffSpace: !isBaseline && showDiff,
+    showBaselineDelta: !isBaseline && showDiff,
     projectId,
     itemId,
     output,

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { decomposeAggregateScoreKey } from "@/src/features/scores";
 import { summariseScoreColumn } from "../../fns/summariseScoreColumn";
@@ -36,20 +37,60 @@ export function ExperimentGridSummaryValues({
 }) {
   const hasComparison =
     !!baselineExperimentId && experimentId !== baselineExperimentId;
-  const scores = [
-    ...observationScoreOrder.map((key) => ({
-      key,
-      field: "observationScores" as const,
-      level: "Observation",
-      columnId: key,
-    })),
-    ...traceScoreOrder.map((key) => ({
-      key,
-      field: "traceScores" as const,
-      level: "Trace",
-      columnId: `Trace-${key}`,
-    })),
-  ].filter((score) => columnVisibility[score.columnId] !== false);
+  const scores = useMemo(
+    () =>
+      [
+        ...observationScoreOrder.map((key) => ({
+          key,
+          field: "observationScores" as const,
+          level: "Observation",
+          columnId: key,
+        })),
+        ...traceScoreOrder.map((key) => ({
+          key,
+          field: "traceScores" as const,
+          level: "Trace",
+          columnId: `Trace-${key}`,
+        })),
+      ]
+        .filter((score) => columnVisibility[score.columnId] !== false)
+        .flatMap((score) => {
+          const { name, dataType, source } = decomposeAggregateScoreKey(
+            score.key,
+          );
+          if (
+            dataType !== "NUMERIC" &&
+            dataType !== "BOOLEAN" &&
+            dataType !== "CATEGORICAL"
+          )
+            return [];
+          const summary = summariseScoreColumn({
+            pairs: rows.map((row) => ({
+              baseline:
+                row.experiments.find(
+                  (exp) => exp.experimentId === experimentId,
+                )?.[score.field]?.[score.key] ?? null,
+              comparison:
+                row.experiments.find(
+                  (exp) => exp.experimentId === baselineExperimentId,
+                )?.[score.field]?.[score.key] ?? null,
+            })),
+            dataType,
+            hasComparison,
+          });
+          return [{ ...score, name, dataType, source, summary }];
+        }),
+    [
+      observationScoreOrder,
+      traceScoreOrder,
+      columnVisibility,
+      rows,
+      experimentId,
+      baselineExperimentId,
+      hasComparison,
+    ],
+  );
+
   return (
     <div className="border-t py-1">
       <div className="h-6">
@@ -74,23 +115,7 @@ export function ExperimentGridSummaryValues({
       </div>
       {expanded &&
         scores.map((score) => {
-          const { name, dataType, source } = decomposeAggregateScoreKey(
-            score.key,
-          );
-          const summary = summariseScoreColumn({
-            pairs: rows.map((row) => ({
-              baseline:
-                row.experiments.find(
-                  (exp) => exp.experimentId === experimentId,
-                )?.[score.field]?.[score.key] ?? null,
-              comparison:
-                row.experiments.find(
-                  (exp) => exp.experimentId === baselineExperimentId,
-                )?.[score.field]?.[score.key] ?? null,
-            })),
-            dataType,
-            hasComparison,
-          });
+          const { name, dataType, source, summary } = score;
           const { baseline: aggregate, delta, movement } = summary;
           let aggregateLabel = "not scored";
           if (aggregate) {
@@ -127,7 +152,7 @@ export function ExperimentGridSummaryValues({
                   aggregate?.kind === "average" && (
                     <span className="text-muted-foreground text-xs">AVG</span>
                   )}
-                {!isLoading && delta !== null && (
+                {!isLoading && delta !== null && delta !== 0 && (
                   <DiffLabel
                     variant="ghost"
                     diff={{
@@ -136,7 +161,6 @@ export function ExperimentGridSummaryValues({
                       direction: delta < 0 ? "-" : "+",
                     }}
                     formatValue={formatScoreValue}
-                    title="Difference from baseline"
                   />
                 )}
               </div>

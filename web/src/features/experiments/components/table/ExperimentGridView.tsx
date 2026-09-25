@@ -111,6 +111,16 @@ export const ExperimentGridView = ({
 
   const { experimentNames } = useExperimentNames({ projectId });
 
+  const selectedExperiments = useMemo(
+    () =>
+      allExperimentIds
+        .map((id) =>
+          experimentNames.find((experiment) => experiment.experimentId === id),
+        )
+        .filter((experiment) => experiment?.datasetId != null),
+    [allExperimentIds, experimentNames],
+  );
+
   // Build dynamic columns for each experiment
   const experimentColumns = useMemo(() => {
     return allExperimentIds.map((expId, index) => {
@@ -271,19 +281,11 @@ export const ExperimentGridView = ({
           <ExperimentInputCell
             projectId={projectId}
             datasetId={
-              allExperimentIds
-                .filter((experimentId) =>
-                  row.original.experiments.some(
-                    (item) => item.experimentId === experimentId,
-                  ),
-                )
-                .map(
-                  (experimentId) =>
-                    experimentNames.find(
-                      (experiment) => experiment.experimentId === experimentId,
-                    )?.datasetId,
-                )
-                .find((id) => id != null) ?? null
+              selectedExperiments.find((experiment) =>
+                row.original.experiments.some(
+                  (item) => item.experimentId === experiment?.experimentId,
+                ),
+              )?.datasetId ?? null
             }
             itemId={row.original.itemId}
             input={row.original.input}
@@ -313,8 +315,7 @@ export const ExperimentGridView = ({
     [
       experimentColumns,
       projectId,
-      experimentNames,
-      allExperimentIds,
+      selectedExperiments,
       ioLoading,
       selectActionColumn,
       showExpectedOutput,

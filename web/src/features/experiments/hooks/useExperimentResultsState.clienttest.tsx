@@ -118,8 +118,17 @@ describe("useExperimentResultsState", () => {
     expect(screen.getByTestId("layout").textContent).toBe("list");
   });
 
-  it("preserves a remembered layout when the URL does not specify one", () => {
+  it("ignores the old layout preference after the comparison layout reset", () => {
     localStorage.setItem("experiment-results-layout", JSON.stringify("list"));
+    render(<Harness />);
+    expect(screen.getByTestId("layout").textContent).toBe("grid");
+  });
+
+  it("preserves a remembered layout when the URL does not specify one", () => {
+    localStorage.setItem(
+      "experiment-results-compare-layout",
+      JSON.stringify("list"),
+    );
     queryParamStore.set("baseline", "baseline-run");
     queryParamStore.set("c", ["comp-a"]);
 

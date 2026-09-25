@@ -114,7 +114,7 @@ export function useExperimentResultsState() {
   // user's remembered pick, then the one-column-per-experiment default.
   const [storedLayout, setStoredLayout] =
     useLocalStorage<ExperimentResultsLayout | null>(
-      "experiment-results-layout",
+      "experiment-results-compare-layout",
       null,
     );
   const [storedDiffMode, setStoredDiffMode] =
