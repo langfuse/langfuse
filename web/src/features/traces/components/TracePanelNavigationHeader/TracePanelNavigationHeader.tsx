@@ -66,7 +66,6 @@ import { useElementSize } from "@/src/hooks/useElementSize";
 interface TracePanelNavigationHeaderProps {
   isPanelCollapsed: boolean;
   onTogglePanel: () => void;
-  shouldPulseToggle?: boolean;
 }
 
 export function TracePanelNavigationHeader(
@@ -81,14 +80,12 @@ export function TracePanelNavigationHeader(
 function TracePanelNavigationHeaderCollapsed({
   isPanelCollapsed,
   onTogglePanel,
-  shouldPulseToggle = false,
 }: TracePanelNavigationHeaderProps) {
   return (
     <div className="flex w-full flex-row items-center justify-center p-2">
       <TracePanelNavigationButton
         isPanelCollapsed={isPanelCollapsed}
         onTogglePanel={onTogglePanel}
-        shouldPulseToggle={shouldPulseToggle}
       />
     </div>
   );
@@ -97,7 +94,6 @@ function TracePanelNavigationHeaderCollapsed({
 function TracePanelNavigationHeaderExpanded({
   isPanelCollapsed,
   onTogglePanel,
-  shouldPulseToggle = false,
 }: TracePanelNavigationHeaderProps) {
   const { searchInputValue, setSearchInputValue, setSearchQueryImmediate } =
     useSearch();
@@ -277,7 +273,6 @@ function TracePanelNavigationHeaderExpanded({
               <TracePanelNavigationButton
                 isPanelCollapsed={isPanelCollapsed}
                 onTogglePanel={onTogglePanel}
-                shouldPulseToggle={shouldPulseToggle}
               />
             </div>
           )}
