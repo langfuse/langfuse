@@ -9,82 +9,15 @@
  * This composition pattern allows each component to have a single responsibility.
  */
 
-import { memo } from "react";
 import { VirtualizedTree } from "./VirtualizedTree";
-import {
-  VirtualizedTreeNodeWrapper,
-  type TreeNodeMetadata,
-} from "./VirtualizedTreeNodeWrapper";
+import { VirtualizedTreeNodeWrapper } from "./VirtualizedTreeNodeWrapper";
 import { SpanContent } from "./SpanContent";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
-import { useIsObservationActive } from "@/src/features/traces/contexts/PlayheadContext";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
 import { type TreeNode } from "../types/treeNode";
-import { cn } from "@/src/utils/tailwind";
-import {
-  metricEmphasisFor,
-  type MetricEmphasisContext,
-} from "@/src/features/traces/fns/metricEmphasis";
-
-/**
- * Feature-scoped row container: subscribes to the row's OWN playback-active
- * flag so the playhead glow lights tree rows up exactly like timeline rows —
- * and a boundary crossing re-renders only the rows whose flag flipped. Lives
- * here (not in the shared VirtualizedTree) so the shared component stays
- * context-free.
- */
-const TraceTreeRow = memo(function TraceTreeRow({
-  node,
-  treeMetadata,
-  isSelected,
-  isCollapsed,
-  onToggleCollapse,
-  onSelect,
-  emphasis,
-  commentCount,
-  onHover,
-}: {
-  node: TreeNode;
-  treeMetadata: TreeNodeMetadata;
-  isSelected: boolean;
-  isCollapsed: boolean;
-  onToggleCollapse: () => void;
-  onSelect: () => void;
-  emphasis?: MetricEmphasisContext;
-  commentCount?: number;
-  onHover: (node: TreeNode) => void;
-}) {
-  const isActive = useIsObservationActive(node.id);
-
-  return (
-    <div
-      className={cn(
-        "transition-colors duration-150",
-        isActive && "bg-primary-accent/15",
-      )}
-    >
-      <VirtualizedTreeNodeWrapper
-        metadata={treeMetadata}
-        nodeType={node.type}
-        hasChildren={node.children.length > 0}
-        isCollapsed={isCollapsed}
-        onToggleCollapse={onToggleCollapse}
-        isSelected={isSelected}
-        onSelect={onSelect}
-      >
-        <SpanContent
-          node={node}
-          emphasis={emphasis}
-          commentCount={commentCount}
-          onSelect={onSelect}
-          onHover={() => onHover(node)}
-        />
-      </VirtualizedTreeNodeWrapper>
-    </div>
-  );
-});
+import { metricEmphasisFor } from "@/src/features/traces/fns/metricEmphasis";
 
 export function TraceTree() {
   const { roots, comments, metricEmphasis } = useTraceData();
@@ -106,19 +39,29 @@ export function TraceTree() {
         isCollapsed,
         onToggleCollapse,
         onSelect,
-      }) => (
-        <TraceTreeRow
-          node={node as TreeNode}
-          treeMetadata={treeMetadata}
-          isSelected={isSelected}
-          isCollapsed={isCollapsed}
-          onToggleCollapse={onToggleCollapse}
-          onSelect={onSelect}
-          emphasis={metricEmphasisFor(node as TreeNode, metricEmphasis)}
-          commentCount={comments.get(node.id)}
-          onHover={handleHover}
-        />
-      )}
+      }) => {
+        const typedNode = node as TreeNode;
+
+        return (
+          <VirtualizedTreeNodeWrapper
+            metadata={treeMetadata}
+            nodeType={typedNode.type}
+            hasChildren={typedNode.children.length > 0}
+            isCollapsed={isCollapsed}
+            onToggleCollapse={onToggleCollapse}
+            isSelected={isSelected}
+            onSelect={onSelect}
+          >
+            <SpanContent
+              node={typedNode}
+              emphasis={metricEmphasisFor(typedNode, metricEmphasis)}
+              commentCount={comments.get(typedNode.id)}
+              onSelect={onSelect}
+              onHover={() => handleHover(typedNode)}
+            />
+          </VirtualizedTreeNodeWrapper>
+        );
+      }}
     />
   );
 }

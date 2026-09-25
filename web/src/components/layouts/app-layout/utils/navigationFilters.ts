@@ -3,7 +3,7 @@
  * Each filter is a pure function that can be tested in isolation
  */
 
-import type { Route } from "@/src/components/layouts/routes";
+import { RouteGroup, type Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 import { hasProjectAccess, hasOrganizationAccess } from "@/src/features/rbac";
 import type { Session } from "next-auth";
@@ -76,6 +76,10 @@ const filters = {
       return ctx.session?.user?.featureFlags?.[route.featureFlag] === true
         ? route
         : null;
+    }
+
+    if (route.featureFlag === "internalFeatures") {
+      return ctx.internalFeaturesEnabled ? route : null;
     }
 
     if (route.featureFlag === "experimentsV4Enabled") {
@@ -245,5 +249,10 @@ export function applyNavigationFilters(
 ): Route[] {
   return routes
     .map((route) => applyFiltersToRoute(route, ctx, organization))
-    .filter((route): route is Route => route !== null);
+    .filter((route): route is Route => route !== null)
+    .map((route) =>
+      ctx.internalFeaturesEnabled && route.group === RouteGroup.PromptManagement
+        ? { ...route, group: RouteGroup.ContextManagement }
+        : route,
+    );
 }

@@ -54,7 +54,6 @@ import {
   downloadServerTraceAsJson,
 } from "../../fns/downloadTrace";
 import { TracePanelNavigationButton } from "./components/TracePanelNavigationButton";
-import { PlaybackControls, PlaybackMenuItems } from "../PlaybackControls";
 import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
@@ -231,7 +230,6 @@ function TracePanelNavigationHeaderExpanded({
         <Download className="mr-2 h-3.5 w-3.5" />
         Download trace as JSON
       </DropdownMenuItem>
-      <PlaybackMenuItems />
       <DropdownMenuSeparator />
       <TraceViewOptionsMenuItems />
     </>
@@ -335,13 +333,6 @@ function TracePanelNavigationHeaderExpanded({
                   {renderOverflowMenuItems()}
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
-
-            {/* Playback transport + circular time-progress ring. View-agnostic:
-                shown in both Tree and Timeline views (see PlaybackControls) — and
-                folded into the overflow menu on a narrow panel, like the tools. */}
-            <div className="hidden flex-row items-center @min-[510px]/navheader:flex">
-              <PlaybackControls />
             </div>
 
             <div className="ml-2 hidden @min-[330px]/navheader:block">

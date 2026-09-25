@@ -233,9 +233,9 @@ const getProjectSettingsPages = ({
     content: <ModelsSettings projectId={project.id} />,
   },
   {
-    title: "Protected Prompt Labels",
+    title: "Protected Labels",
     slug: "protected-prompt-labels",
-    cmdKKeywords: ["prompt", "label", "protect", "lock"],
+    cmdKKeywords: ["prompt", "skill", "label", "protect", "lock"],
     content: <ProtectedLabelsSettings projectId={project.id} />,
     show: showProtectedLabelsSettings,
   },
