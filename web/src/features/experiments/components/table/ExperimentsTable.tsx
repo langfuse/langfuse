@@ -967,51 +967,50 @@ export default function ExperimentsTable({
               />
             }
             toolbar={
-              <>
-                <DataTableToolbar
-                  rowClassName="my-1"
-                  columns={columns}
-                  filterState={queryFilter.filterState}
-                  viewConfig={{
-                    tableName: TableViewPresetTableName.Experiments,
-                    projectId,
-                    controllers: viewControllers,
-                  }}
-                  tableName={filterConfig.tableName}
-                  isV4={true}
-                  onColumnGroupToggle={handleColumnGroupToggle}
-                  columnsWithCustomSelect={["name", "datasetId"]}
-                  columnVisibility={columnVisibility}
-                  setColumnVisibility={handleColumnVisibilityChange}
-                  columnOrder={columnOrder}
-                  setColumnOrder={handleColumnOrderChange}
-                  orderByState={orderByState}
-                  rowHeight={rowHeight}
-                  setRowHeight={setRowHeight}
-                  timeRange={showControlsInPageHeader ? undefined : timeRange}
-                  setTimeRange={
-                    showControlsInPageHeader ? undefined : setTimeRange
-                  }
-                  actionButtons={[
-                    <ExperimentsMultiSelectActionMenu
-                      key="experiments-multi-select-actions"
-                      projectId={projectId}
-                      store={experimentsTableStore}
-                      datasetIdByExperimentId={datasetIdByExperimentId}
-                    />,
-                  ]}
-                />
-                {isShowingMostRecent && (
-                  <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
-                    No experiments started in the selected time range. Showing
-                    the{" "}
-                    {mostRecentCount === 1
-                      ? "most recent run"
-                      : `${mostRecentCount} most recent runs`}{" "}
-                    instead.
-                  </div>
-                )}
-              </>
+              <DataTableToolbar
+                rowClassName="my-1"
+                columns={columns}
+                filterState={queryFilter.filterState}
+                viewConfig={{
+                  tableName: TableViewPresetTableName.Experiments,
+                  projectId,
+                  controllers: viewControllers,
+                }}
+                tableName={filterConfig.tableName}
+                isV4={true}
+                onColumnGroupToggle={handleColumnGroupToggle}
+                columnsWithCustomSelect={["name", "datasetId"]}
+                columnVisibility={columnVisibility}
+                setColumnVisibility={handleColumnVisibilityChange}
+                columnOrder={columnOrder}
+                setColumnOrder={handleColumnOrderChange}
+                orderByState={orderByState}
+                rowHeight={rowHeight}
+                setRowHeight={setRowHeight}
+                timeRange={showControlsInPageHeader ? undefined : timeRange}
+                setTimeRange={
+                  showControlsInPageHeader ? undefined : setTimeRange
+                }
+                actionButtons={[
+                  <ExperimentsMultiSelectActionMenu
+                    key="experiments-multi-select-actions"
+                    projectId={projectId}
+                    store={experimentsTableStore}
+                    datasetIdByExperimentId={datasetIdByExperimentId}
+                  />,
+                ]}
+              />
+            }
+            nonStickyContent={
+              isShowingMostRecent ? (
+                <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
+                  No experiments started in the selected time range. Showing the{" "}
+                  {mostRecentCount === 1
+                    ? "most recent run"
+                    : `${mostRecentCount} most recent runs`}{" "}
+                  instead.
+                </div>
+              ) : null
             }
           >
             <DataTableControls

@@ -12,6 +12,10 @@ import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout
 import { Sheet, SheetContent, SheetTitle } from "@/src/components/ui/sheet";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import {
+  SearchBarDraftCacheContext,
+  useSearchBarDraftCache,
+} from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { useDataTableControls } from "./data-table-controls";
 
 // Mirrors the trace peek's collapsed-panel rail (TraceLayoutDesktop): instead
@@ -46,8 +50,8 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
  * Desktop keeps the search bar and toolbar above the resizable sidebar/table
  * split. Mobile keeps the compact toolbar row visible, moves the large search
  * bar into the same Filters sheet as the facets, and leaves the table at full
- * width. The supplied controls are mounted once in either layout, so their
- * draft state never has to be mirrored.
+ * width. The layout caches unsubmitted search text while the mobile sheet is
+ * closed, without keeping the modal mounted while it is hidden.
  */
 export function SearchableTableFilterLayout({
   search,
@@ -58,15 +62,18 @@ export function SearchableTableFilterLayout({
   toolbar: ReactNode;
 }>) {
   const { isMobile } = useDataTableControls();
+  const searchDraftCache = useSearchBarDraftCache(
+    isValidElement(search) ? search.key : null,
+  );
 
   return (
-    <>
+    <SearchBarDraftCacheContext.Provider value={searchDraftCache}>
       {isMobile ? null : search}
       {toolbar}
       <FilterPanels mobileSearch={isMobile ? search : null}>
         {children}
       </FilterPanels>
-    </>
+    </SearchBarDraftCacheContext.Provider>
   );
 }
 
@@ -74,23 +81,29 @@ export function SearchableTableFilterLayout({
 export function StickySearchableTableFilterLayout({
   search,
   toolbar,
+  nonStickyContent,
   children,
 }: PropsWithChildren<{
   search: ReactNode;
   toolbar: ReactNode;
+  nonStickyContent?: ReactNode;
 }>) {
   const { isMobile } = useDataTableControls();
+  const searchDraftCache = useSearchBarDraftCache(
+    isValidElement(search) ? search.key : null,
+  );
 
   return (
-    <>
+    <SearchBarDraftCacheContext.Provider value={searchDraftCache}>
       <div className="bg-background sticky top-0 z-30 pb-1.5">
         {isMobile ? null : search}
         {toolbar}
       </div>
+      {nonStickyContent}
       <FilterPanels mobileSearch={isMobile ? search : null}>
         {children}
       </FilterPanels>
-    </>
+    </SearchBarDraftCacheContext.Provider>
   );
 }
 

@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   CategoricalFacet,
   DataTableControls,
+  DataTableControlsProvider,
   type QueryFilter,
 } from "./data-table-controls";
 import {
@@ -16,6 +17,8 @@ import {
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 
 vi.mock("use-query-params", async () => ({
   ...(await vi.importActual("use-query-params")),
@@ -43,6 +46,36 @@ beforeAll(() => {
   );
   Element.prototype.scrollIntoView = vi.fn();
 });
+
+function MobileDraftSearchInput() {
+  const { store } = useEventsSearchBar({
+    tableName: "draft-persistence-test",
+    enabled: true,
+    isV4: false,
+    filterState: [],
+    searchQuery: null,
+    searchType: ["id"],
+    observed: undefined,
+    setFilterState: vi.fn(),
+    setSearchQuery: vi.fn(),
+    setSearchType: vi.fn(),
+  });
+  const draft = useStore(store, (state) => state.draft);
+
+  return (
+    <input
+      aria-label="Mobile grammar search"
+      value={draft}
+      onChange={(event) =>
+        store.getState().actions.setDraft(event.target.value)
+      }
+    />
+  );
+}
+
+function TestFilterSidebar({ layout }: { layout?: "panel" | "inline" }) {
+  return <div data-layout={layout}>Facet controls</div>;
+}
 
 describe("delayed sidebar edits and search-bar commits", () => {
   const config: FilterConfig = {
@@ -215,6 +248,43 @@ describe("DataTableControls numeric conditions", () => {
       screen.getByRole("button", { name: "Remove Latency < 80" }),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Min.")).not.toBeInTheDocument();
+  });
+});
+
+describe("mobile searchable filter layout", () => {
+  it("preserves an unsubmitted grammar-search draft across sheet close", () => {
+    const layout = (searchKey: string) => (
+      <DataTableControlsProvider tableName="draft-persistence-test">
+        <SearchableTableFilterLayout
+          search={<MobileDraftSearchInput key={searchKey} />}
+          toolbar={<FilterToggleButton />}
+        >
+          <TestFilterSidebar />
+          <div>Table content</div>
+        </SearchableTableFilterLayout>
+      </DataTableControlsProvider>
+    );
+    const { rerender } = render(layout("initial"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Mobile grammar search" }),
+      { target: { value: "level:ERROR" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Close filters" }));
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+
+    expect(
+      screen.getByRole("textbox", { name: "Mobile grammar search" }),
+    ).toHaveValue("level:ERROR");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close filters" }));
+    rerender(layout("new-search-scope"));
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+
+    expect(
+      screen.getByRole("textbox", { name: "Mobile grammar search" }),
+    ).toHaveValue("");
   });
 });
 
