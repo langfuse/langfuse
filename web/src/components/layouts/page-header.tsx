@@ -62,6 +62,9 @@ export type PageHeaderProps = {
   container?: boolean;
   tabsProps?: PageTabsProps;
   className?: string;
+  /** Bottom border and bottom padding; pages whose own strip follows the
+   * header directly turn both off so title and strip read as one block. */
+  divider?: boolean;
   showSidebarTrigger?: boolean;
   leadingControl?: ReactNode;
   titleBadges?: ReactNode;
@@ -81,6 +84,7 @@ const PageHeader = ({
   tabsProps,
   container = false,
   className,
+  divider = true,
   showSidebarTrigger = true,
   leadingControl,
   titleBadges,
@@ -97,7 +101,8 @@ const PageHeader = ({
   return (
     <div
       className={cn([
-        "top-banner-offset bg-background sticky z-30 w-full border-b shadow-xs",
+        "top-banner-offset bg-background sticky z-30 w-full",
+        divider && "border-b",
         className,
       ])}
       id="page-header"
@@ -162,7 +167,8 @@ const PageHeader = ({
         <div>
           <div
             className={cn(
-              "flex min-h-11 w-full flex-wrap items-center justify-between gap-1 px-3 py-1 md:flex-nowrap",
+              "flex w-full flex-wrap items-center justify-between gap-1 px-3 md:flex-nowrap",
+              divider ? "min-h-11 py-1" : "min-h-0 pt-2 pb-0",
               container && containerLayoutClassName,
             )}
           >

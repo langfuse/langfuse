@@ -48,15 +48,12 @@ vi.mock("@/src/components/SingleLineOverflowList", () => ({
 const defaultProps = {
   projectId: "project-1",
   countTraces: 3,
-  traces: {
-    state: "loaded" as const,
-    data: [{ latencyMs: null, observationCount: 7 }],
-  },
+  minTimestamp: new Date("2026-01-01T00:00:00.000Z"),
+  maxTimestamp: new Date("2026-01-01T00:00:01.000Z"),
   tokensIn: 0,
   tokensOut: 0,
   totalTokens: 0,
   totalCost: 0.12,
-  environment: null,
   users: [],
   metadataJsonPaths: {
     paths: [],
@@ -79,13 +76,13 @@ describe("ModernSessionHeader", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Hide trace and span counts in session header",
+        name: "Hide trace count in session header",
       }),
     );
 
     expect(
       screen.queryByRole("button", {
-        name: "Hide trace and span counts in session header",
+        name: "Hide trace count in session header",
       }),
     ).not.toBeInTheDocument();
     expect(
@@ -108,13 +105,13 @@ describe("ModernSessionHeader", () => {
     );
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Show trace and span counts in session header",
+        name: "Show trace count in session header",
       }),
     );
 
     expect(
       screen.getByRole("button", {
-        name: "Hide trace and span counts in session header",
+        name: "Hide trace count in session header",
       }),
     ).toBeInTheDocument();
     expect(
@@ -141,7 +138,7 @@ describe("ModernSessionHeader", () => {
 
     expect(
       screen.queryByRole("button", {
-        name: "Hide trace and span counts in session header",
+        name: "Hide trace count in session header",
       }),
     ).not.toBeInTheDocument();
     fireEvent.click(
@@ -151,7 +148,7 @@ describe("ModernSessionHeader", () => {
     );
     expect(
       screen.getByRole("button", {
-        name: "Show trace and span counts in session header",
+        name: "Show trace count in session header",
       }),
     ).toBeInTheDocument();
   });
@@ -175,19 +172,17 @@ describe("ModernSessionHeader", () => {
 
   it("preserves preferences for details that are temporarily unavailable", () => {
     const storageKey = sessionHeaderVisibilityStorageKey("project-1");
-    localStorage.setItem(storageKey, JSON.stringify(["latency"]));
-    render(
-      <ModernSessionHeader {...defaultProps} traces={{ state: "loading" }} />,
-    );
+    localStorage.setItem(storageKey, JSON.stringify(["tokens"]));
+    render(<ModernSessionHeader {...defaultProps} />);
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Hide trace and span counts in session header",
+        name: "Hide trace count in session header",
       }),
     );
 
     expect(JSON.parse(localStorage.getItem(storageKey) ?? "[]")).toEqual([
-      "latency",
+      "tokens",
       "traces",
     ]);
   });

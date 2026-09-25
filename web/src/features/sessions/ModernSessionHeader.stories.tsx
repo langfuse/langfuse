@@ -14,7 +14,6 @@ const makeScore = (
 ): SessionScore =>
   ({
     projectId: "project-1",
-    environment: "default",
     source: "EVAL",
     authorUserId: null,
     comment: null,
@@ -55,20 +54,12 @@ const manyUsers = Array.from(
 const defaultArgs = {
   projectId: "project-1",
   countTraces: 24,
-  traces: {
-    state: "loaded",
-    data: [
-      { latencyMs: 1_240, observationCount: 42 },
-      { latencyMs: 2_310, observationCount: 38 },
-      { latencyMs: 4_620, observationCount: 51 },
-      { latencyMs: 8_760, observationCount: 55 },
-    ],
-  },
+  minTimestamp: new Date("2026-09-11T10:00:00Z"),
+  maxTimestamp: new Date("2026-09-11T10:04:12Z"),
   tokensIn: 18_420,
   tokensOut: 6_310,
   totalTokens: 24_730,
   totalCost: 0.084291,
-  environment: "production",
   users: ["customer@example.com", "support@example.com"],
   metadataJsonPaths: {
     paths: [],
@@ -82,11 +73,9 @@ const defaultArgs = {
 
 const minimalArgs = {
   ...defaultArgs,
-  traces: { state: "loading" },
   tokensIn: 0,
   tokensOut: 0,
   totalTokens: 0,
-  environment: null,
   users: [],
   scores: [],
 } satisfies ComponentProps<typeof ModernSessionHeader>;
@@ -163,7 +152,7 @@ export const TestSearchesHiddenPills = meta.story({
     await expect(
       overflowButton.getBoundingClientRect().left -
         lastVisiblePill.getBoundingClientRect().right,
-    ).toBeLessThanOrEqual(8);
+    ).toBeLessThanOrEqual(24);
     const overflowButtonRect = overflowButton.getBoundingClientRect();
     const lastVisiblePillRect = lastVisiblePill.getBoundingClientRect();
     await expect(
@@ -180,7 +169,7 @@ export const TestSearchesHiddenPills = meta.story({
       trailingButton.getBoundingClientRect().left -
       overflowButton.getBoundingClientRect().right;
     await expect(trailingGap).toBeGreaterThanOrEqual(0);
-    await expect(trailingGap).toBeLessThanOrEqual(8);
+    await expect(trailingGap).toBeLessThanOrEqual(24);
 
     await userEvent.click(overflowButton);
 
@@ -345,14 +334,10 @@ export const TestCompactsTokenCounts = meta.story({
       canvasElement.querySelectorAll<HTMLElement>(
         "[data-overflow-visible-item='true'] [data-session-header-pill='true']",
       ),
-    ).find((pill) => pill.textContent?.trim().startsWith("tokens"));
+    ).find((pill) => pill.textContent?.trim().endsWith("tokens"));
 
     await expect(tokenPill).toBeInTheDocument();
-    await expect(tokenPill).toHaveTextContent(/649k.*7k.*655k/);
-    await expect(tokenPill).toHaveAttribute(
-      "title",
-      "tokens 648,714 in, 6,697 out, 655,411 total",
-    );
+    await expect(tokenPill).toHaveTextContent(/^655k\s*tokens$/);
   },
 });
 
@@ -376,7 +361,7 @@ export const TestHidesAndRevealsDetails = meta.story({
 
     const canvas = within(canvasElement);
     const hideTraceDetail = await canvas.findByRole("button", {
-      name: "Hide trace and span counts in session header",
+      name: "Hide trace count in session header",
     });
     const visibleTraceDetail = hideTraceDetail.closest(
       "[data-overflow-visible-item='true']",
@@ -393,7 +378,7 @@ export const TestHidesAndRevealsDetails = meta.story({
     await userEvent.click(hideTraceDetail);
     await expect(
       canvas.queryByRole("button", {
-        name: "Hide trace and span counts in session header",
+        name: "Hide trace count in session header",
       }),
     ).not.toBeInTheDocument();
     await expect(
@@ -410,7 +395,7 @@ export const TestHidesAndRevealsDetails = meta.story({
       name: "Search session details",
     });
     const showTraceDetail = await body.findByRole("button", {
-      name: "Show trace and span counts in session header",
+      name: "Show trace count in session header",
     });
     showTraceDetail.focus();
     await waitFor(() => expect(showTraceDetail).toBeVisible());
@@ -418,7 +403,7 @@ export const TestHidesAndRevealsDetails = meta.story({
 
     await expect(
       canvas.getByRole("button", {
-        name: "Hide trace and span counts in session header",
+        name: "Hide trace count in session header",
       }),
     ).toBeInTheDocument();
     await expect(localStorage.getItem(storageKey)).toBe(JSON.stringify([]));

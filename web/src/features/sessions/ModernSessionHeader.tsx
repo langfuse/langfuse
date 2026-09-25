@@ -1,22 +1,14 @@
 /* eslint-disable no-nested-ternary */
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
-import { percentile, type ScoreDomain } from "@langfuse/shared";
-import {
-  ArrowRight,
-  Sigma,
-  ArrowUpRight,
-  Eye,
-  EyeOff,
-  Plus,
-  Search,
-  X,
-} from "lucide-react";
+import { type ScoreDomain } from "@langfuse/shared";
+import { ArrowUpRight, Eye, EyeOff, Plus, Search, X } from "lucide-react";
 import { type ReactNode, type SyntheticEvent, useRef, useState } from "react";
 
 import Link from "next/link";
 
 import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
+import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import {
   MAX_STORED_HIDDEN_SESSION_HEADER_DETAILS,
   parseStoredHiddenSessionHeaderDetails,
@@ -55,20 +47,12 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 type ModernSessionHeaderProps = {
   projectId: string;
   countTraces: number;
-  traces:
-    | { state: "loading" }
-    | {
-        state: "loaded";
-        data: ReadonlyArray<{
-          latencyMs: number | null;
-          observationCount: number;
-        }>;
-      };
+  minTimestamp: Date;
+  maxTimestamp: Date;
   tokensIn: number;
   tokensOut: number;
   totalTokens: number;
   totalCost: number;
-  environment: string | null;
   users: readonly string[];
   metadataJsonPaths: SessionMetadataJsonPathState;
   scores: ReadonlyArray<WithStringifiedMetadata<ScoreDomain>>;
@@ -76,8 +60,7 @@ type ModernSessionHeaderProps = {
 
 type SessionHeaderDetailType =
   | "cost"
-  | "environment"
-  | "latency"
+  | "duration"
   | "metadata"
   | "score"
   | "tokens"
@@ -100,8 +83,6 @@ const ChipKey = ({ children }: { children: React.ReactNode }) => (
   <span>{children}</span>
 );
 
-const ChipDot = () => <span className="text-foreground-tertiary">·</span>;
-
 const compactTokenFormatter = (tokens: number) =>
   compactNumberFormatter(tokens, 0).toLowerCase();
 
@@ -121,6 +102,7 @@ const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
     className="ph-no-capture inline-flex max-w-[280px] min-w-0"
   >
     <Badge
+      color="ghost"
       data-session-header-pill="true"
       label="user"
       text={user}
@@ -341,12 +323,12 @@ const MetadataJsonPathEditorContent = ({
 export function ModernSessionHeader({
   projectId,
   countTraces,
-  traces,
+  minTimestamp,
+  maxTimestamp,
   tokensIn,
   tokensOut,
   totalTokens,
   totalCost,
-  environment,
   users,
   metadataJsonPaths,
   scores,
@@ -388,98 +370,41 @@ export function ModernSessionHeader({
       isV4: true,
     });
   };
-  const latencies =
-    traces.state === "loaded"
-      ? traces.data.flatMap((trace) =>
-          trace.latencyMs !== null && trace.latencyMs > 0
-            ? [trace.latencyMs]
-            : [],
-        )
-      : [];
-  const spanCount =
-    traces.state === "loaded"
-      ? traces.data.reduce((total, trace) => total + trace.observationCount, 0)
-      : null;
-  const p50LatencyMs = latencies.length > 0 ? percentile(latencies, 0.5) : null;
-  const p95LatencyMs =
-    latencies.length > 0 ? percentile(latencies, 0.95) : null;
+  const durationSeconds = Math.max(
+    (maxTimestamp.getTime() - minTimestamp.getTime()) / 1000,
+    0,
+  );
   const pills: SessionHeaderDetail[] = [
     {
       key: "traces",
-      searchText: `traces ${countTraces} spans ${spanCount ?? ""}`,
-      visibilityLabel: "trace and span counts",
+      searchText: `traces ${countTraces}`,
+      visibilityLabel: "trace count",
       type: "traces",
       content: (
-        <BadgeShell data-session-header-pill="true">
+        <BadgeShell color="ghost" data-session-header-pill="true">
           <span>
-            {numberFormatter(countTraces, 0)} <ChipKey>traces</ChipKey>
+            {numberFormatter(countTraces, 0)}{" "}
+            <ChipKey>{countTraces === 1 ? "trace" : "traces"}</ChipKey>
           </span>
-          {spanCount !== null ? (
-            <>
-              <ChipDot />
-              <span>
-                {numberFormatter(spanCount, 0)} <ChipKey>spans</ChipKey>
-              </span>
-            </>
-          ) : null}
         </BadgeShell>
       ),
     },
   ];
 
-  if (p50LatencyMs !== null) {
-    pills.push({
-      key: "latency",
-      searchText: `latency p50 ${p50LatencyMs} p95 ${p95LatencyMs ?? ""}`,
-      visibilityLabel: "latency percentiles",
-      type: "latency",
-      content: (
-        <BadgeShell data-session-header-pill="true">
-          <span>
-            <ChipKey>p50</ChipKey> {formatIntervalSeconds(p50LatencyMs / 1000)}
-          </span>
-          {p95LatencyMs !== null ? (
-            <>
-              <ChipDot />
-              <span>
-                <ChipKey>p95</ChipKey>{" "}
-                {formatIntervalSeconds(p95LatencyMs / 1000)}
-              </span>
-            </>
-          ) : null}
-        </BadgeShell>
-      ),
-    });
-  }
-
-  if (totalTokens > 0) {
-    const exactTokenCounts = `${numberFormatter(tokensIn, 0)} in, ${numberFormatter(tokensOut, 0)} out, ${numberFormatter(totalTokens, 0)} total`;
-    pills.push({
-      key: "tokens",
-      searchText: `tokens ${tokensIn} ${tokensOut} ${totalTokens}`,
-      visibilityLabel: "token usage",
-      type: "tokens",
-      content: (
-        <BadgeShell
-          data-session-header-pill="true"
-          title={`tokens ${exactTokenCounts}`}
-        >
-          <span>tokens</span>
-          <span>{compactTokenFormatter(tokensIn)}</span>
-          <ArrowRight
-            aria-hidden
-            className="text-foreground-tertiary -mx-0.5 size-3 shrink-0"
-          />
-          <span>{compactTokenFormatter(tokensOut)}</span>
-          <Sigma
-            aria-hidden
-            className="text-foreground-tertiary -mr-0.5 size-3 shrink-0"
-          />
-          <span>{compactTokenFormatter(totalTokens)}</span>
-        </BadgeShell>
-      ),
-    });
-  }
+  pills.push({
+    key: "duration",
+    searchText: `duration ${durationSeconds}`,
+    visibilityLabel: "duration",
+    type: "duration",
+    content: (
+      <Badge
+        color="ghost"
+        data-session-header-pill="true"
+        text={formatIntervalSeconds(durationSeconds)}
+        title="session duration"
+      />
+    ),
+  });
 
   pills.push({
     key: "cost",
@@ -488,36 +413,32 @@ export function ModernSessionHeader({
     type: "cost",
     content: (
       <Badge
+        color="ghost"
         data-session-header-pill="true"
-        label="cost"
         text={usdFormatter(totalCost, 2, 3)}
         title={`exact $${totalCost.toFixed(6)}`}
       />
     ),
   });
 
-  scores.forEach((score, index) => {
+  if (totalTokens > 0) {
     pills.push({
-      key: sessionHeaderDynamicDetailKey("score", score.id),
-      searchText: `score ${score.name} ${scoreChipValue(score)}`,
-      visibilityLabel: `score ${index + 1}`,
-      type: "score",
+      key: "tokens",
+      searchText: `tokens ${tokensIn} ${tokensOut} ${totalTokens}`,
+      visibilityLabel: "token usage",
+      type: "tokens",
       content: (
-        <span data-session-header-pill="true" className="inline-flex min-w-0">
-          <ScoreBadge name={score.name} scores={[score]} />
-        </span>
-      ),
-    });
-  });
-
-  if (environment) {
-    pills.push({
-      key: "environment",
-      searchText: `environment env ${environment}`,
-      visibilityLabel: "environment",
-      type: "environment",
-      content: (
-        <Badge data-session-header-pill="true" label="env" text={environment} />
+        <BreakdownTooltip
+          details={{ input: tokensIn, output: tokensOut, total: totalTokens }}
+          isCost={false}
+        >
+          <Badge
+            color="ghost"
+            interactive
+            data-session-header-pill="true"
+            text={`${compactTokenFormatter(totalTokens)} tokens`}
+          />
+        </BreakdownTooltip>
       ),
     });
   }
@@ -541,6 +462,20 @@ export function ModernSessionHeader({
   const overflowUserDetails = userDetails.filter(
     (detail) => !visibleUserDetailKeySet.has(detail.key),
   );
+
+  scores.forEach((score, index) => {
+    pills.push({
+      key: sessionHeaderDynamicDetailKey("score", score.id),
+      searchText: `score ${score.name} ${scoreChipValue(score)}`,
+      visibilityLabel: `score ${index + 1}`,
+      type: "score",
+      content: (
+        <span data-session-header-pill="true" className="inline-flex min-w-0">
+          <ScoreBadge name={score.name} scores={[score]} />
+        </span>
+      ),
+    });
+  });
 
   metadataJsonPaths.paths.forEach((path, index) => {
     const display = getConfiguredMetadataDisplay(
@@ -607,13 +542,15 @@ export function ModernSessionHeader({
   };
 
   return (
-    <div className="bg-header border-b px-4 py-2">
+    <div className="border-b px-4 pt-0 pb-1.5">
       <SingleLineOverflowList
+        spacing="comfortable"
         items={visiblePills}
         additionalOverflowCount={
           overflowUserDetails.length + manuallyHiddenPills.length
         }
         getKey={(pill) => pill.key}
+        isTightItem={(pill) => pill.type === "score"}
         renderItem={(pill) => (
           <SessionHeaderDetailWithVisibilityControl
             detail={pill}
