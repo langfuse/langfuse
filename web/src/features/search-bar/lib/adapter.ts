@@ -443,7 +443,7 @@ function lowerUntargetedFilter(
       lowerHas(node, negated, out, errors, registry);
       return;
     case "metadata":
-      lowerMetadata(node, ref.key, negated, out, errors);
+      lowerMetadata(node, ref.key, negated, out, errors, ref.column);
       return;
     case "scores":
       lowerScores(node, ref.key, ref.level, negated, out, errors, scoreTypes);
@@ -751,10 +751,11 @@ function lowerMetadata(
   negated: boolean,
   out: SingleEventsFilter[],
   errors: string[],
+  column = "metadata",
 ): void {
   if (node.values.length > 1) {
     errors.push(
-      `metadata.${quoteIfNeeded(key)} supports a single value — any-of metadata groups are not supported`,
+      `${node.key} supports a single value — any-of metadata groups are not supported`,
     );
     return;
   }
@@ -763,7 +764,7 @@ function lowerMetadata(
   if (node.op === "~") {
     out.push({
       type: "stringObject",
-      column: "metadata",
+      column,
       key,
       operator: negated ? "does not contain" : "contains",
       value,
@@ -774,7 +775,7 @@ function lowerMetadata(
     // negationIssue blocks negated forms before this point.
     out.push({
       type: "stringObject",
-      column: "metadata",
+      column,
       key,
       operator: stringOperatorOf(node.op)!,
       value,
@@ -786,13 +787,13 @@ function lowerMetadata(
   // surface the same suggestion.
   if (negated) {
     errors.push(
-      `negated equality on metadata is not representable — use -metadata.${quoteIfNeeded(key)}:*value* (does not contain)`,
+      `negated equality on metadata is not representable — use -${node.key}:*value* (does not contain)`,
     );
     return;
   }
   out.push({
     type: "stringObject",
-    column: "metadata",
+    column,
     key,
     operator: "=",
     value,
@@ -981,6 +982,16 @@ function lowerHas(
   }
   for (const v of node.values) {
     const target = registry.resolveField(v);
+    if (target?.type === "metadata") {
+      out.push({
+        type: "stringObject",
+        column: target.column ?? "metadata",
+        key: target.key,
+        operator: negated ? "is not set" : "is set",
+        value: "",
+      });
+      continue;
+    }
     if (target === null || target.type !== "field") {
       errors.push(`has: expects a field name, got "${v}"`);
       continue;

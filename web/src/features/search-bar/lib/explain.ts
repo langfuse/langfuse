@@ -70,7 +70,7 @@ function subjectOf(ref: FieldRef): string {
     case "field":
       return ref.field.label;
     case "metadata":
-      return `Metadata ${quote(ref.key)}`;
+      return `${ref.namespace ?? "Metadata"} ${quote(ref.key)}`;
     case "scores":
       return ref.level === "trace"
         ? `Trace score ${quote(ref.key)}`

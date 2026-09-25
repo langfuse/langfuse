@@ -178,6 +178,20 @@ export function resolveCheckboxOperator(params: {
   return { finalOperator: "any of", finalValues: values };
 }
 
+/** A single checkbox selection cannot represent conditions for different targets. */
+export function hasMultipleFilterTargets(
+  filters: FilterState,
+  column: string,
+): boolean {
+  return (
+    new Set(
+      filters
+        .filter((filter) => filter.column === column)
+        .map((filter) => filter.target),
+    ).size > 1
+  );
+}
+
 /**
  * Applies a checkbox/boolean facet selection to the state. Returns `current`
  * unchanged when the column is unknown or its options are not enumerable.
@@ -189,6 +203,11 @@ export function applySelection(
   values: string[],
   operator?: CheckboxOperator,
 ): FilterState {
+  if (hasMultipleFilterTargets(current, column)) return current;
+  const existingFilter = current.find((f) => f.column === column);
+  const target = existingFilter?.target
+    ? { target: existingFilter.target }
+    : {};
   const other = current.filter((f) => f.column !== column);
 
   const facet = ctx.facets.find((f) => f.column === column);
@@ -211,6 +230,7 @@ export function applySelection(
         ...other,
         {
           column,
+          ...target,
           type: "boolean" as const,
           operator: "=" as const,
           value: !invert,
@@ -222,6 +242,7 @@ export function applySelection(
         ...other,
         {
           column,
+          ...target,
           type: "boolean" as const,
           operator: "=" as const,
           value: !!invert,
@@ -248,7 +269,6 @@ export function applySelection(
   // Determine operator and values based on context
   let finalOperator: CheckboxOperator;
   let finalValues: string[];
-  const existingFilter = current.find((f) => f.column === column);
   const isManagedEnvironmentColumn = column === ctx.managedEnvironmentColumn;
   // For an active "none of" filter, "all checked" is not the same as
   // "no filter": exclusions outside the current option list may still be
@@ -297,6 +317,7 @@ export function applySelection(
           ...other,
           {
             column,
+            ...target,
             type: "stringOptions" as const,
             operator: "any of" as const,
             value: values,
@@ -351,6 +372,7 @@ export function applySelection(
       ...other,
       {
         column,
+        ...target,
         type: "arrayOptions" as const,
         operator: finalOperator,
         value: finalValues,
@@ -369,6 +391,7 @@ export function applySelection(
     ...other,
     {
       column,
+      ...target,
       type: "stringOptions" as const,
       operator: stringOperator,
       value: finalValues,
@@ -387,6 +410,7 @@ export function applyCheckboxSelection(
   values: string[],
   operator?: CheckboxOperator,
 ): FilterState {
+  if (hasMultipleFilterTargets(current, column)) return current;
   const withoutTextFilters = current.filter(
     (f) =>
       !(
@@ -395,7 +419,19 @@ export function applyCheckboxSelection(
         (f.operator === "contains" || f.operator === "does not contain")
       ),
   );
-  return applySelection(ctx, withoutTextFilters, column, values, operator);
+  const next = applySelection(
+    ctx,
+    withoutTextFilters,
+    column,
+    values,
+    operator,
+  );
+  const target = current.find((filter) => filter.column === column)?.target;
+  return target
+    ? next.map((filter) =>
+        filter.column === column ? { ...filter, target } : filter,
+      )
+    : next;
 }
 
 /**
@@ -536,7 +572,8 @@ export function addTextFilterEntry(
   operator: TextFilterOperator,
   value: string,
 ): FilterState | null {
-  if (!value.trim()) return null;
+  if (!value.trim() || hasMultipleFilterTargets(current, column)) return null;
+  const target = current.find((filter) => filter.column === column)?.target;
 
   const withoutCheckboxFilters = current.filter(
     (f) =>
@@ -550,6 +587,7 @@ export function addTextFilterEntry(
     ...withoutCheckboxFilters,
     {
       column,
+      ...(target ? { target } : {}),
       type: "string",
       operator,
       value: value.trim(),
@@ -564,6 +602,7 @@ export function removeTextFilterEntry(
   operator: TextFilterOperator,
   value: string,
 ): FilterState {
+  if (hasMultipleFilterTargets(current, column)) return current;
   return current.filter(
     (f) =>
       !(

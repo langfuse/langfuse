@@ -44,7 +44,7 @@ describe("experiment item search contract", () => {
       ],
     });
   });
-  it("preserves backend-specific metadata filters without emitting a generic metadata column", () => {
+  it("maps each metadata namespace to its own backend column", () => {
     const filters: FilterState = [
       {
         column: "itemMetadata",
@@ -61,20 +61,20 @@ describe("experiment item search contract", () => {
         value: "test",
       },
     ];
+    const result = filterStateToQueryText(
+      filters,
+      undefined,
+      EXPERIMENT_ITEMS_FIELD_REGISTRY,
+    );
+    expect(result.skippedFilters).toEqual([]);
+    expect(result.text).toContain("itemMetadata.language");
+    expect(result.text).toContain("eventMetadata.model");
     expect(
-      filterStateToQueryText(
-        filters,
-        undefined,
-        EXPERIMENT_ITEMS_FIELD_REGISTRY,
-      ).skippedFilters,
-    ).toEqual(filters);
-    expect(
-      planCommit(
-        "metadata.language:en",
-        undefined,
-        EXPERIMENT_ITEMS_FIELD_REGISTRY,
-      ).status,
-    ).toBe("invalid");
+      planCommit(result.text, undefined, EXPERIMENT_ITEMS_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters,
+    });
     expect(
       planCommit(
         "traceScores.quality:1",
@@ -85,7 +85,7 @@ describe("experiment item search contract", () => {
   });
 });
 
-describe("experiment score targets", () => {
+describe("experiment filter targets", () => {
   const registry = {
     ...EXPERIMENT_ITEMS_FIELD_REGISTRY,
     targeting: {
@@ -94,9 +94,73 @@ describe("experiment score targets", () => {
         { id: "baseline", label: "baseline", keyword: true },
         { id: "run-b", label: "Claude Sonnet", textClassName: "text-pink-500" },
       ],
-      supports: (field: { type: string }) => field.type === "scores",
+      supports: () => true,
     },
   };
+
+  it("targets status and both metadata namespaces, including key presence", () => {
+    const result = planCommit(
+      'level:ERROR @"Claude Sonnet" itemMetadata.language:en eventMetadata.model:test @"Claude Sonnet" has:itemMetadata.version @baseline',
+      undefined,
+      registry,
+    );
+    expect(result).toMatchObject({
+      status: "committed",
+      filters: [
+        { column: "level", target: "run-b" },
+        { column: "itemMetadata", key: "language", target: "baseline" },
+        { column: "eventMetadata", key: "model", target: "run-b" },
+        {
+          column: "itemMetadata",
+          key: "version",
+          operator: "is set",
+          target: "baseline",
+        },
+      ],
+    });
+    if (result.status !== "committed") throw new Error("Expected valid query");
+    const query = filterStateToQueryText(result.filters, undefined, registry);
+    expect(query.skippedFilters).toEqual([]);
+    expect(planCommit(query.text, undefined, registry)).toMatchObject({
+      filters: result.filters,
+    });
+    const restored = decodeFiltersGeneric(encodeFiltersGeneric(result.filters));
+    expect(restored).toEqual(result.filters);
+    expect(
+      groupExperimentFilters(restored, "run-a", ["run-a", "run-b"]).groups,
+    ).toMatchObject([
+      {
+        runId: "run-b",
+        filters: [{ column: "level" }, { column: "eventMetadata" }],
+      },
+      {
+        runId: "run-a",
+        filters: [{ column: "itemMetadata" }, { column: "itemMetadata" }],
+      },
+    ]);
+    for (const condition of [
+      "level:ERROR",
+      "itemMetadata.language:en",
+      "eventMetadata.model:test",
+      "has:itemMetadata.version",
+    ]) {
+      const input = `${condition} @`;
+      expect(
+        flattenOptions(
+          planInputCompletions(
+            {
+              input,
+              caret: input.length,
+              observed: {},
+              recents: [],
+              currentQueryText: input,
+            },
+            registry,
+          ),
+        ).map((option) => option.label),
+      ).toEqual(["baseline", "Claude Sonnet"]);
+    }
+  });
 
   it("binds targets to conditions and round-trips them through editable text", () => {
     const result = planCommit(

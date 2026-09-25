@@ -12,9 +12,7 @@ export const EXPERIMENT_ITEMS_FIELD_REGISTRY = fieldRegistryFromColumns(
   {
     id: "experimentItems",
     allowFreeText: false,
-    // Item and event metadata use different backend columns; the sidebar owns
-    // those namespaces until the grammar can map each namespace independently.
-    metadata: false,
+    metadata: { itemMetadata: "itemMetadata", eventMetadata: "eventMetadata" },
     scores: true,
     traceScores: false,
     recentSearches: true,

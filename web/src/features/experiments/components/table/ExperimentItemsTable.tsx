@@ -1627,7 +1627,7 @@ export default function ExperimentItemsTable({
           ).textClass,
         })),
       ],
-      supports: (field: { type: string }) => field.type === "scores",
+      supports: () => true,
     },
   };
 

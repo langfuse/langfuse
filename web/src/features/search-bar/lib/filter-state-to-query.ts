@@ -20,6 +20,7 @@ import {
 import type { ASTNode, FilterNode } from "./ast";
 import {
   EVENTS_FIELD_REGISTRY,
+  metadataNamespaces,
   SCORE_COLUMNS,
   type FieldRef,
   type FieldRegistry,
@@ -202,11 +203,18 @@ function lowerSingle(
       return filterNode(id, "=", [String(value)]);
     }
     case "stringObject": {
-      const id = registry.columnIdOf(filter.column);
-      if (id !== "metadata") return null;
+      const id = registry.columnIdOf(filter.column) ?? filter.column;
+      const namespace = Object.entries(metadataNamespaces(registry)).find(
+        ([, column]) => column === id,
+      )?.[0];
+      if (!namespace) return null;
       // A key with grammar chars (`:`, space, …) is quoted so it re-lexes as one
       // token (`metadata."my key"`); resolveField unquotes it on the way back.
-      const key = `metadata.${quoteIfNeeded(filter.key)}`;
+      const key = `${namespace}.${quoteIfNeeded(filter.key)}`;
+      if (filter.operator === "is set" || filter.operator === "is not set") {
+        const node = filterNode("has", "=", [key]);
+        return filter.operator === "is not set" ? negate(node) : node;
+      }
       if (filter.operator === "does not contain") {
         return negate(filterNode(key, "~", [filter.value]));
       }

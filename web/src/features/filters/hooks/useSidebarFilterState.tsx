@@ -48,6 +48,7 @@ import {
   buildOnlySelection,
   clearCategoricalColumn,
   deriveOperatorChange,
+  hasMultipleFilterTargets,
   removeColumnFiltersOfType,
   removeTextFilterEntry,
   type BooleanKeyValueFilterEntry,
@@ -1373,6 +1374,17 @@ export function useSidebarFilterPresentation(
         return {
           isDisabled: true,
           reason: facet.disabledReason ?? "This filter is currently disabled.",
+        };
+      }
+
+      if (
+        facet.type === "categorical" &&
+        hasMultipleFilterTargets(filterState, facet.column)
+      ) {
+        return {
+          isDisabled: true,
+          reason:
+            "Edit filters for different targets individually in the filter bar.",
         };
       }
 
