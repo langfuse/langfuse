@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef } from "react";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 
 import { CodeMirrorEditor } from "@/src/components/editor";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { useMediaTagChips } from "@/src/components/editor/mediaTagWidget";
 import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
 import { DatasetItemFieldSchemaErrors } from "./DatasetItemFieldSchemaErrors";
@@ -28,12 +29,15 @@ type DatasetError = {
   }>;
 };
 
+export type DatasetItemRenderMode = "pretty" | "json";
+
 type DatasetItemFieldProps = {
   label: string;
   value: string;
   schema?: Prisma.JsonValue | null;
   schemaType?: "input" | "expectedOutput";
   editable: boolean;
+  renderMode?: DatasetItemRenderMode;
   onChange?: (value: string) => void;
   errors?: DatasetError[];
   hasSchemas?: boolean;
@@ -55,6 +59,7 @@ export const DatasetItemField = ({
   schema,
   schemaType,
   editable,
+  renderMode = "json",
   onChange,
   errors = [],
   hasSchemas = false,
@@ -64,6 +69,8 @@ export const DatasetItemField = ({
 }: DatasetItemFieldProps) => {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const showMediaUpload = isFormField && editable && !!onUploadMedia;
+  const showPrettyView =
+    !isFormField && !editable && renderMode === "pretty" && value !== "";
 
   const handleSelectFile = async (file: File) => {
     const referenceString = await onUploadMedia?.(file);
@@ -125,7 +132,7 @@ export const DatasetItemField = ({
           onSelectFile={showMediaUpload ? handleSelectFile : undefined}
         />
       </div>
-      {isFormField ? (
+      {isFormField && (
         <FormControl>
           <CodeMirrorEditor
             mode="json"
@@ -137,7 +144,11 @@ export const DatasetItemField = ({
             extensions={editorExtensions}
           />
         </FormControl>
-      ) : (
+      )}
+      {!isFormField && showPrettyView && (
+        <PrettyJsonView json={value} currentView="pretty" className="w-full" />
+      )}
+      {!isFormField && !showPrettyView && (
         <CodeMirrorEditor
           mode="json"
           value={value}
