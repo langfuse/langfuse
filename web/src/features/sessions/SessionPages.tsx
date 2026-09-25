@@ -117,6 +117,7 @@ import { ModernSession } from "@/src/features/sessions/ModernSession";
 import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
+import { ConnectedSessionAddToDropdownMenuController } from "@/src/features/sessions/ConnectedSessionAddToDropdownMenuController";
 import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useStore } from "zustand";
@@ -734,29 +735,26 @@ export const SessionPage: React.FC<{
                       </Button>
                     )}
                   </AnnotateDrawerController>
-                  <AnnotationQueueItemDropdownMenuController
+                  <ConnectedSessionAddToDropdownMenuController
                     projectId={projectId}
-                    objectId={sessionId}
-                    objectType="SESSION"
+                    sessionId={sessionId}
                     analyticsData={{ source: "SessionDetail", isV4: false }}
                   >
-                    {({ disabled, totalCount, Trigger }) => (
-                      <Trigger asChild>
-                        <Button
-                          variant="outline"
-                          disabled={disabled !== undefined}
-                          className="gap-1.5"
-                        >
-                          <Plus className="h-4 w-4" />
-                          <span>Add to</span>
-                          {totalCount > 0 && (
-                            <ActionButtonCountBadge count={totalCount} />
-                          )}
-                          <ChevronDown className="h-3 w-3" />
-                        </Button>
-                      </Trigger>
+                    {({ getTriggerProps, totalCount }) => (
+                      <Button
+                        variant="outline"
+                        className="gap-1.5"
+                        {...getTriggerProps()}
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>Add to</span>
+                        {totalCount > 0 && (
+                          <ActionButtonCountBadge count={totalCount} />
+                        )}
+                        <ChevronDown className="h-3 w-3" />
+                      </Button>
                     )}
-                  </AnnotationQueueItemDropdownMenuController>
+                  </ConnectedSessionAddToDropdownMenuController>
                 </div>
                 <div className="flex items-center">
                   <div className="mx-1">
@@ -1717,30 +1715,27 @@ const LoadedSessionEventsPage: React.FC<{
                 {webCalloutAction && (
                   <WebCalloutButton action={webCalloutAction} />
                 )}
-                <AnnotationQueueItemDropdownMenuController
+                <ConnectedSessionAddToDropdownMenuController
                   projectId={projectId}
-                  objectId={sessionId}
-                  objectType="SESSION"
+                  sessionId={sessionId}
                   analyticsData={{ source: "SessionDetail", isV4: true }}
                 >
-                  {({ disabled, totalCount, Trigger }) => (
-                    <Trigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={disabled !== undefined}
-                        className={cn(HEADER_ACTION_CLASS, "gap-1.5")}
-                      >
-                        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                        Add to
-                        {totalCount > 0 && (
-                          <ActionButtonCountBadge count={totalCount} />
-                        )}
-                        <ChevronDown className="h-3 w-3" aria-hidden="true" />
-                      </Button>
-                    </Trigger>
+                  {({ getTriggerProps, totalCount }) => (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn(HEADER_ACTION_CLASS, "gap-1.5")}
+                      {...getTriggerProps()}
+                    >
+                      <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                      Add to
+                      {totalCount > 0 && (
+                        <ActionButtonCountBadge count={totalCount} />
+                      )}
+                      <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                    </Button>
                   )}
-                </AnnotationQueueItemDropdownMenuController>
+                </ConnectedSessionAddToDropdownMenuController>
                 <AnnotateDrawerController projectId={projectId}>
                   {({ disabled, openDrawer }) => (
                     <Button
