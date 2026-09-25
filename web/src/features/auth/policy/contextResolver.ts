@@ -11,7 +11,7 @@ import {
   SystemRoleId,
 } from "@langfuse/shared/rbac";
 
-import { apiKeyAccessRights } from "@/src/features/rbac/constants/apiKeyAccessRights";
+import { systemRoleAccessRights } from "@/src/features/rbac/constants/systemRoleAccessRights";
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import {
@@ -127,9 +127,10 @@ function publicBearerPolicies(
 ): Policy[] {
   const tenantId = OrganizationId(org.orgId);
   const resources = [ProjectId(apiKey.projectId!)];
-  return apiKeyAccessRights.SCORES_INGEST.map((policy) => ({
-    id: `${SystemRoleId("SCORES_INGEST")}:${policy.resourceKind}`,
-    roleId: SystemRoleId("SCORES_INGEST"),
+  const roleId = SystemRoleId("SCORES_INGEST");
+  return systemRoleAccessRights.SCORES_INGEST.policies.map((policy) => ({
+    id: `${roleId}:${policy.resourceKind}`,
+    roleId,
     tenantId,
     effect: policy.effect,
     actions: policy.actions,

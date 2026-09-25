@@ -13,8 +13,8 @@ import {
   SystemRoleId,
 } from "@langfuse/shared/rbac";
 
-import { apiKeyAccessRights } from "@/src/features/rbac/constants/apiKeyAccessRights";
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
+import { systemRoleAccessRights } from "@/src/features/rbac/constants/systemRoleAccessRights";
 
 // Decision-equivalence: resolving policies from system-role assignments must
 // yield the catalog grants bound to the same tenant and resources the key
@@ -33,7 +33,7 @@ describe("getRolesForPrincipal decision-equivalence", () => {
     );
 
     expect(policies).toEqual(
-      apiKeyAccessRights.PROJECT.map((p) => ({
+      systemRoleAccessRights.PROJECT.policies.map((p) => ({
         id: `${SystemRoleId("PROJECT")}:${p.resourceKind}`,
         roleId: SystemRoleId("PROJECT"),
         tenantId: OrganizationId(orgId),
@@ -57,7 +57,7 @@ describe("getRolesForPrincipal decision-equivalence", () => {
     );
 
     expect(policies).toEqual(
-      apiKeyAccessRights.ORGANIZATION.map((p) => ({
+      systemRoleAccessRights.ORGANIZATION.policies.map((p) => ({
         id: `${SystemRoleId("ORGANIZATION")}:${p.resourceKind}`,
         roleId: SystemRoleId("ORGANIZATION"),
         tenantId: OrganizationId(orgId),
