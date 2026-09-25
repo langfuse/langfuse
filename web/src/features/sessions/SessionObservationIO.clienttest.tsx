@@ -71,9 +71,6 @@ const renderComponent = (
   onOpenInTraceView = vi.fn(),
 ) => {
   render(
-    // IOPreview reads the normalizedIoPreview flag via useSession; a null
-    // session resolves it to false (legacy behavior), matching production
-    // for regular users.
     <SessionProvider session={null}>
       <SessionObservationIO
         observation={observation}
@@ -114,6 +111,18 @@ describe("SessionObservationIO", () => {
     ).toBeInTheDocument();
     // True size is surfaced so users know what they are dealing with.
     expect(screen.getByText(/2\.5M characters/i)).toBeInTheDocument();
+  });
+
+  it("decodes Unicode escapes in the truncated I/O preview", () => {
+    renderComponent({
+      ...baseObservation,
+      input: '{"text":"\\u4f60\\u597d"}',
+      inputLength: 2_500_000,
+      inputTruncated: true,
+    } as SessionTraceObservation);
+
+    expect(screen.getByText(/你好/)).toBeInTheDocument();
+    expect(screen.queryByText(/\\u4f60\\u597d/)).not.toBeInTheDocument();
   });
 
   it("opens the trace view at the observation", () => {

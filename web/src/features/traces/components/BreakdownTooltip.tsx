@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   Tooltip,
   TooltipContent,
@@ -54,8 +55,6 @@ export const BreakdownTooltip = ({
       }, {})
     : details;
 
-  const formatValue = (value: number) =>
-    isCost ? usdFormatter(value, 2, 12) : value ? value.toLocaleString() : "0";
   const entries = Object.entries(aggregatedDetails);
   const inputEntries = sortEntriesByValue(
     entries.filter(([key]) => key.includes("input")),
@@ -75,7 +74,21 @@ export const BreakdownTooltip = ({
     return acc + value;
   }, 0);
   const contributionEntries = inputEntries.concat(outputEntries, otherEntries);
+  const costFractionDigits = getCostFractionDigits(entries);
+  const formatValue = (value: number | Decimal) => {
+    if (!isCost) {
+      const numericValue = value instanceof Decimal ? value.toNumber() : value;
+      return numericValue ? numericValue.toLocaleString() : "0";
+    }
+
+    return new Decimal(value).isZero()
+      ? "—"
+      : usdFormatter(value, costFractionDigits, costFractionDigits);
+  };
   const waterfallSegments = createWaterfallSegments(contributionEntries);
+  const displayedTotal =
+    aggregatedDetails.total ??
+    (isCost ? sumEntries(contributionEntries) : new Decimal(0));
 
   const resolvedCostSource =
     costSource ?? (isCost && priceSource ? "calculated" : undefined);
@@ -179,7 +192,7 @@ export const BreakdownTooltip = ({
             {/* Total */}
             <BreakdownRow
               label={isCost ? "Total cost" : "Total usage"}
-              value={formatValue(aggregatedDetails.total ?? 0)}
+              value={formatValue(displayedTotal)}
               variant="total"
             />
           </div>
@@ -285,7 +298,7 @@ function BreakdownRow({
 interface SectionProps {
   title: string;
   entries: [string, number | undefined][];
-  formatValue: (value: number) => string;
+  formatValue: (value: number | Decimal) => string;
   waterfallSegments: Map<string, WaterfallSegment>;
 }
 
@@ -295,11 +308,7 @@ const Section = ({
   formatValue,
   waterfallSegments,
 }: SectionProps) => {
-  const sectionTotal = entries.reduce(
-    (sum, [_, value]) =>
-      new Decimal(sum).plus(new Decimal(value ?? 0)).toNumber(),
-    0,
-  );
+  const sectionTotal = sumEntries(entries);
 
   return (
     <div className="col-span-3 grid min-w-0 grid-cols-subgrid gap-y-2">
@@ -323,6 +332,41 @@ const Section = ({
 
 function sortEntriesByValue(entries: [string, number | undefined][]) {
   return entries.toSorted(([, a], [, b]) => (b ?? 0) - (a ?? 0));
+}
+
+function sumEntries(entries: [string, number | undefined][]) {
+  return entries.reduce(
+    (sum, [, value]) => sum.plus(value ?? 0),
+    new Decimal(0),
+  );
+}
+
+function getCostFractionDigits(entries: [string, number | undefined][]) {
+  return Math.max(
+    2,
+    ...entries
+      .map(([, value]) => value)
+      .filter((value): value is number => Boolean(value))
+      .map(getArtifactFreeFractionDigits),
+  );
+}
+
+function getArtifactFreeFractionDigits(value: number) {
+  const decimalValue = new Decimal(value);
+
+  for (let fractionDigits = 2; fractionDigits <= 12; fractionDigits++) {
+    const roundingUnit = new Decimal(10).pow(-fractionDigits);
+    const distanceToRoundedValue = decimalValue
+      .minus(decimalValue.toDecimalPlaces(fractionDigits))
+      .abs();
+
+    // Treat values within 1/10,000 of a decimal grid point as transport noise.
+    if (distanceToRoundedValue.lte(roundingUnit.div(10_000))) {
+      return fractionDigits;
+    }
+  }
+
+  return 12;
 }
 
 function createWaterfallSegments(

@@ -55,6 +55,7 @@ const ctx = (policies: Policy[]): AuthorizationContext => ({
     scope: "PROJECT",
     presentation: "privateKey",
     organizations: [],
+    boundResource: { orgId: "org_1", projectId: "prj_1" },
   },
   policies,
 });

@@ -1,4 +1,4 @@
-import { type ChartConfig } from "@/src/components/ui/chart";
+import type { ComponentType, ReactNode } from "react";
 import type tailwindColors from "tailwindcss/colors";
 
 export interface DataPoint {
@@ -110,7 +110,15 @@ export interface ChartThreshold {
 
 export interface ChartProps {
   data: DataPoint[];
-  config?: ChartConfig;
+  config?: {
+    [key: string]: {
+      label?: ReactNode;
+      icon?: ComponentType;
+    } & (
+      | { color?: string; theme?: never }
+      | { color?: never; theme: Record<"light" | "dark", string> }
+    );
+  };
   accessibilityLayer?: boolean;
   metricFormatter?: MetricFormatterFunction;
   legendPosition?: LegendPosition;
@@ -124,11 +132,14 @@ export interface ChartProps {
    */
   maxVisibleSeries?: number;
   /**
-   * Shared sync group: charts on the same dashboard timeline that pass the same
-   * `syncId` show a synced hover crosshair + tooltip — hovering one moves the
-   * vertical time marker on all of them. (LFE-10549)
+   * Recharts sync group for chart types that still use Recharts. Design-system
+   * charts use `sync` to share their active key instead. (LFE-10549)
    */
   syncId?: string;
+  sync?: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
   showValueLabels?: boolean;
   showDataPointDots?: boolean;
   subtleFill?: boolean;
@@ -154,14 +165,14 @@ export interface ChartProps {
    * Give each bar of a categorical (entity) axis its own palette colour, plus a
    * legend below the plot that names it. Off by default: a dashboard bar chart
    * shows its categories on the axis and needs neither. Opt in where the axis
-   * labels are hidden and the bars are entities rather than buckets — the
-   * experiments strip, one bar per run. Colours and legend both come from
+   * bars are entities rather than buckets — the experiments strip, one bar
+   * per run. Colours and the optional legend both come from
    * `prepareCategoryBars`, which also decides when there are too many bars for
    * the bounded palette to identify any of them.
    */
   colorBarsByCategory?: boolean;
   /**
-   * Measure the bars from zero instead of from recharts' fitted domain. A bar
+   * Measure the bars from zero instead of from a fitted domain. A bar
    * encodes its value as a length, so this is what makes two bars comparable at
    * all — on a fitted domain 0.80/0.87/1.00 draw as short/medium/full.
    *

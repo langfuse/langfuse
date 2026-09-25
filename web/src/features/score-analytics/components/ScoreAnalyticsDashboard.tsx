@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { StatisticsCard } from "./cards/StatisticsCard";
 import { TimelineChartCard } from "./cards/TimelineChartCard";
 import { DistributionNumericCard } from "./cards/DistributionNumericCard";

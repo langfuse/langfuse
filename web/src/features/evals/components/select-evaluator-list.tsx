@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";

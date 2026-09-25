@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { fn } from "storybook/test";
 
 import preview from "../../../.storybook/preview";

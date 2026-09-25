@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { pipeline, Transform, type Readable } from "stream";
 import { monitorEventLoopDelay } from "perf_hooks";
 import { Job, UnrecoverableError } from "bullmq";
@@ -1294,6 +1295,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
       status: "success",
       runStartTime,
       maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
+      // Empty window means nothing newer to export: fully caught up.
+      catchup: false,
     });
     return;
   }
@@ -1542,6 +1545,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       status: "success",
       runStartTime,
       maxExportedTimestamp: maxTimestamp,
+      catchup: !caughtUp,
     });
     watermarkAdvanced = true;
 

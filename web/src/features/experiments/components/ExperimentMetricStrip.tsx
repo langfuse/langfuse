@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
 import { ChevronDown } from "lucide-react";
 import {
@@ -31,7 +32,7 @@ import {
   metricStripTriggerClasses,
 } from "@/src/components/metric-strip/MetricStripTrigger";
 import { useExperimentStripMetric } from "@/src/features/experiments/hooks/useExperimentStripMetric";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { chartMetricChangedProps } from "@/src/features/experiments/lib/analytics";
 
 /**
@@ -41,26 +42,22 @@ import { chartMetricChangedProps } from "@/src/features/experiments/lib/analytic
 const EMPTY_PLOT = <MetricStripMessage message="No values for this metric" />;
 
 /**
- * The band's shared plot height plus one 20px row for the bar legend beneath
- * it. Constant, because the chart always draws exactly one row there — the
- * per-experiment legend, or the "hover a bar" note when there are more
- * experiments than the palette can tell apart — so the plot itself stays the
- * band's 63px and still lines up with the events and scores strips instead of
- * being squeezed to make room.
+ * Leave room for the experiment names on the x-axis without shrinking the
+ * plot below the neighboring strips' height.
  */
-const PLOT_WITH_LEGEND_HEIGHT_CLASS = "h-[83px]";
+const PLOT_WITH_LABELS_HEIGHT_CLASS = "h-[100px]";
 
 /**
  * What this strip's ready content occupies, for the band's loading and empty
  * box: the 13px header row (a `leading-none` 13px trigger), the 6px gap under
- * it, and the plot with its legend. Taller than the band's default, and a
+ * it, and the plot with its labels. Taller than the band's default, and a
  * placeholder of the wrong height drops the table by the difference the moment
  * the data arrives.
  */
-const CONTENT_HEIGHT_CLASS = "h-[102px]";
+const CONTENT_HEIGHT_CLASS = "h-[119px]";
 
 const AXIS_EXPLANATION =
-  "One bar per experiment in view, oldest on the left and newest on the right, so a metric that improved over time climbs. The bars are a set of runs in start order, not a timeline — nothing is implied between two of them. The table below stays newest-first; filtering it changes which experiments are plotted, not their left-to-right order. Experiments with no value for this metric are left out. The legend below names each bar; past eight experiments the chart palette would give two bars the same colour, so the bars go one colour and hovering one names it. Which metric opens by default is data-driven: the numeric score recorded on the most items across these experiments, with ties settled by name, falling back to cost only when none of them carry a score. Pick any metric from the dropdown and that choice is kept instead.";
+  "One bar per experiment in view, oldest on the left and newest on the right, so a metric that improved over time climbs. The bars are a set of runs in start order, not a timeline — nothing is implied between two of them. The table below stays newest-first; filtering it changes which experiments are plotted, not their left-to-right order. Experiments with no value for this metric are left out. Experiment names appear on the x-axis; hovering a bar reveals its full name. Which metric opens by default is data-driven: the numeric score recorded on the most items across these experiments, with ties settled by name, falling back to cost only when none of them carry a score. Pick any metric from the dropdown and that choice is kept instead.";
 
 /**
  * Which columns carry the experiment, keyed by the chart's entity dimension.
@@ -350,7 +347,7 @@ export function ExperimentMetricStrip({
       }
     >
       <div
-        className={cn("mt-1.5 flex flex-col", PLOT_WITH_LEGEND_HEIGHT_CLASS)}
+        className={cn("mt-1.5 flex flex-col", PLOT_WITH_LABELS_HEIGHT_CLASS)}
       >
         {query && widgetConfig && (
           <WidgetContent
@@ -369,12 +366,8 @@ export function ExperimentMetricStrip({
             // The band is 63px: the chart's own "No data" card is taller than
             // that and clips its own text inside it.
             emptyState={EMPTY_PLOT}
-            // Experiment names are far too long for the axis of a 63px band
-            // (angled category labels cost ~60px of it). Identity moves to the
-            // legend below the plot, which fits in the space the events strip
-            // spends on tick labels, so the band's height is unchanged; the
-            // tooltip carries the exact name either way.
-            hideXAxisLabels
+            // The axis shows shortened names; hover restores the full name.
+            legendPosition="none"
             colorBarsByCategory
             // Bars are compared by length, so they have to start at zero.
             zeroBaseline

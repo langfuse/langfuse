@@ -2,21 +2,27 @@ import {
   getCodeEvalVariableMapping,
   observationVariableMappingList,
 } from "@langfuse/shared";
+import { decrypt } from "@langfuse/shared/encryption";
 import {
   buildEvalExecutionData,
   compileLangfuseMediaMessages,
+  createTypeSafeDecisionModelClient,
   createW3CTraceId,
+  decryptAndParseExtraHeaders,
   DefaultEvalModelService,
   createLLMOutput,
+  executeDecisionModelEvaluator,
   executeLlmEvaluator,
   extractObservationVariables,
   findModel,
   generateLLMText,
+  isDecisionModelAdapter,
   LangfuseInternalTraceEnvironment,
   mapLegacyLLMCompletionParams,
   matchPricingTier,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
+  type DecisionModelRequest,
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import { getObservationForEvalById } from "@/src/features/evals/server/getObservationForEvalById";
@@ -48,6 +54,14 @@ export async function testEvaluator(params: {
   let variableMapping;
   if (params.definition.type === "CODE") {
     variableMapping = getCodeEvalVariableMapping();
+  } else if (params.definition.type === "DECISION_MODEL") {
+    assertCompleteEvaluatorVariableMapping({
+      promptVariables: params.definition.vars,
+      variableMapping: params.definition.variableMapping,
+    });
+    variableMapping = observationVariableMappingList.parse(
+      params.definition.variableMapping,
+    );
   } else {
     const llmVariableMapping = params.definition.variableMapping ?? [];
     assertCompleteEvaluatorVariableMapping({
@@ -70,25 +84,112 @@ export async function testEvaluator(params: {
     targetObservationId: params.observationId,
   });
 
-  const result =
-    params.definition.type === "CODE"
-      ? await testCodeEvaluator({
-          orgId: params.orgId,
-          projectId: params.projectId,
-          evaluatorId: params.evaluatorId,
-          definition: params.definition,
-          variables,
-          ...executionData,
-        })
-      : await testLlmEvaluator({
-          projectId: params.projectId,
-          evaluatorId: params.evaluatorId,
-          definition: params.definition,
-          variables,
-          ...executionData,
-        });
+  const result = await runEvaluatorTest({
+    ...params,
+    variables,
+    ...executionData,
+  });
 
   return { ...result, durationMs: Date.now() - startedAt };
+}
+
+async function runEvaluatorTest(params: {
+  orgId: string;
+  projectId: string;
+  evaluatorId: string;
+  definition: NormalizedEvaluatorDefinition;
+  variables: ExtractedVariable[];
+  executionMetadata: Record<string, string>;
+  evaluationContext: ReturnType<
+    typeof buildEvalExecutionData
+  >["evaluationContext"];
+}) {
+  switch (params.definition.type) {
+    case "CODE":
+      return testCodeEvaluator({ ...params, definition: params.definition });
+    case "DECISION_MODEL":
+      return testDecisionModelEvaluator({
+        projectId: params.projectId,
+        definition: params.definition,
+        variables: params.variables,
+      });
+    case "LLM_AS_JUDGE":
+      return testLlmEvaluator({ ...params, definition: params.definition });
+  }
+}
+
+async function testDecisionModelEvaluator(params: {
+  projectId: string;
+  definition: Extract<
+    NormalizedEvaluatorDefinition,
+    { type: "DECISION_MODEL" }
+  >;
+  variables: ExtractedVariable[];
+}) {
+  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+    params.projectId,
+    params.definition.provider,
+    params.definition.model,
+  );
+  if (!modelConfig.valid) {
+    return { success: false as const, error: modelConfig.error };
+  }
+  if (!isDecisionModelAdapter(modelConfig.config.apiKey.adapter)) {
+    return {
+      success: false as const,
+      error: `Connection "${params.definition.provider}" is not a decision-model connection.`,
+    };
+  }
+
+  const executionTraceId = createW3CTraceId();
+  let request: DecisionModelRequest | undefined;
+  try {
+    const client = createTypeSafeDecisionModelClient({
+      apiKey: decrypt(modelConfig.config.apiKey.secretKey),
+      model: modelConfig.config.model,
+      baseURL: modelConfig.config.apiKey.baseURL,
+      extraHeaders: decryptAndParseExtraHeaders(
+        modelConfig.config.apiKey.extraHeaders,
+      ),
+    });
+    const execution = await executeDecisionModelEvaluator({
+      variables: params.variables,
+      questions: params.definition.questions,
+      client: {
+        evaluate: (sent) => {
+          request = sent;
+          return client.evaluate(sent);
+        },
+      },
+    });
+
+    const usage = execution.evaluation.usage;
+    return {
+      success: true as const,
+      scores: execution.scores,
+      request: execution.request,
+      model: execution.evaluation.model,
+      provider: modelConfig.config.provider,
+      executionTraceId,
+      estimatedCostUsd: usage
+        ? await calculateTestRunCost({
+            projectId: params.projectId,
+            model: execution.evaluation.model,
+            usage: {
+              input: usage.inputTokens ?? 0,
+              output: usage.outputTokens ?? 0,
+            },
+          })
+        : null,
+    };
+  } catch (error) {
+    return {
+      success: false as const,
+      error: error instanceof Error ? error.message : String(error),
+      request,
+      executionTraceId,
+    };
+  }
 }
 
 async function testLlmEvaluator(params: {

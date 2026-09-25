@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useFieldArray, useForm } from "react-hook-form";
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,7 +10,11 @@ import {
   type VertexAIConfig,
   LLMAdapter,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
+  TYPESAFE_UPSTREAMS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
+  isDecisionModelAdapter,
+  resolveTypeSafeUpstream,
+  type TypeSafeUpstream,
 } from "@langfuse/shared";
 import { ChevronDown, PlusIcon, TrashIcon } from "lucide-react";
 import { z } from "zod";
@@ -24,6 +29,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import {
   Select,
   SelectContent,
@@ -32,18 +38,18 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { TypeSafeUpstreamCards } from "@/src/features/llm-api-key/components/TypeSafeUpstreamCards/TypeSafeUpstreamCards";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { type useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { type useUiCustomization } from "@/src/ee/features/ui-customization";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
 import { env } from "@/src/env.mjs";
 import {
   AuthMethod,
   BedrockAuthMethodSchema,
   type BedrockAuthMethod,
-} from "@/src/features/llm-api-key/types";
-
+} from "@/src/features/llm-api-key";
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 /**
@@ -104,6 +110,11 @@ const createFormSchema = (params: {
         ),
       adapter: z.enum(LLMAdapter),
       baseURL: z.union([z.literal(""), z.url()]),
+      typeSafeUpstream: z.enum(
+        TYPESAFE_UPSTREAMS.map(
+          (upstream): TypeSafeUpstream["id"] => upstream.id,
+        ),
+      ),
       withDefaultModels: z.boolean(),
       customModels: z.array(z.object({ value: z.string().min(1) })),
       awsAccessKeyId: z.string().optional(),
@@ -247,6 +258,16 @@ const createFormSchema = (params: {
         message: "API Base URL is required for Azure connections.",
         path: ["baseURL"],
       },
+    )
+    .refine(
+      (data) =>
+        data.adapter !== LLMAdapter.TypeSafe ||
+        data.typeSafeUpstream !== "custom" ||
+        data.baseURL.trim() !== "",
+      {
+        message: "A base URL is required for a custom upstream.",
+        path: ["baseURL"],
+      },
     );
 
 interface CreateLLMApiKeyFormProps {
@@ -275,9 +296,11 @@ export function CreateLLMApiKeyForm({
   const existingKeys = api.llmApiKey.all.useQuery(
     {
       projectId: projectId as string,
+      includeDecisionModels: true,
     },
     { enabled: Boolean(projectId) },
   );
+  const adapterOptions = Object.values(LLMAdapter);
 
   const mutCreateLlmApiKey = api.llmApiKey.create.useMutation({
     onSuccess: () => utils.llmApiKey.invalidate(),
@@ -327,6 +350,7 @@ export function CreateLLMApiKeyForm({
             baseURL:
               existingKey.baseURL ??
               getCustomizedBaseURL(existingKey.adapter as LLMAdapter),
+            typeSafeUpstream: resolveTypeSafeUpstream(existingKey.baseURL).id,
             withDefaultModels: existingKey.withDefaultModels,
             customModels: existingKey.customModels.map((value) => ({ value })),
             extraHeaders:
@@ -358,6 +382,7 @@ export function CreateLLMApiKeyForm({
             provider: "",
             secretKey: "",
             baseURL: getCustomizedBaseURL(defaultAdapter),
+            typeSafeUpstream: TYPESAFE_UPSTREAMS[0].id,
             withDefaultModels: true,
             customModels: [],
             extraHeaders: [],
@@ -375,6 +400,11 @@ export function CreateLLMApiKeyForm({
 
   const currentAdapter = form.watch("adapter");
   const currentAuthMethod = form.watch("authMethod");
+  const currentTypeSafeUpstreamId = form.watch("typeSafeUpstream");
+  const currentTypeSafeUpstream =
+    TYPESAFE_UPSTREAMS.find(
+      (upstream) => upstream.id === currentTypeSafeUpstreamId,
+    ) ?? TYPESAFE_UPSTREAMS[0];
   const isKeepingCurrentBedrockAuthMethod =
     mode === "update" &&
     currentAdapter === LLMAdapter.Bedrock &&
@@ -387,7 +417,8 @@ export function CreateLLMApiKeyForm({
     adapter === LLMAdapter.OpenAI ||
     adapter === LLMAdapter.Anthropic ||
     adapter === LLMAdapter.VertexAI ||
-    adapter === LLMAdapter.GoogleAIStudio;
+    adapter === LLMAdapter.GoogleAIStudio ||
+    adapter === LLMAdapter.TypeSafe;
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -621,7 +652,11 @@ export function CreateLLMApiKeyForm({
       secretKey: secretKey ?? "",
       provider: values.provider,
       adapter: values.adapter,
-      baseURL: values.baseURL || undefined,
+      baseURL:
+        values.baseURL ||
+        (mode === "update" && currentAdapter === LLMAdapter.TypeSafe
+          ? null
+          : undefined),
       withDefaultModels: isCustomModelsRequired(currentAdapter)
         ? false
         : values.withDefaultModels,
@@ -700,6 +735,10 @@ export function CreateLLMApiKeyForm({
                         "baseURL",
                         getCustomizedBaseURL(value as LLMAdapter),
                       );
+                      form.setValue(
+                        "typeSafeUpstream",
+                        TYPESAFE_UPSTREAMS[0].id,
+                      );
                     }
                     field.onChange(value as LLMAdapter);
                   }}
@@ -711,9 +750,11 @@ export function CreateLLMApiKeyForm({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {Object.values(LLMAdapter).map((provider) => (
+                    {adapterOptions.map((provider) => (
                       <SelectItem value={provider} key={provider}>
-                        {provider}
+                        {isDecisionModelAdapter(provider)
+                          ? `${provider} (experimental)`
+                          : provider}
                       </SelectItem>
                     ))}
                     {mode === "create" && (
@@ -775,6 +816,65 @@ export function CreateLLMApiKeyForm({
                   </FormItem>
                 )}
               />
+
+              {/* Decision-model upstream: which gateway serves Jev */}
+              {currentAdapter === LLMAdapter.TypeSafe && (
+                <FormField
+                  control={form.control}
+                  name="typeSafeUpstream"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Upstream</FormLabel>
+                      <FormDescription>
+                        Provider that serves the Jev decision model. Vercel AI
+                        Gateway, OpenRouter, and custom gateways expose
+                        TypeSafe&apos;s API, so evaluators behave the same on
+                        every upstream.
+                      </FormDescription>
+                      <FormControl>
+                        <TypeSafeUpstreamCards
+                          aria-label="Upstream"
+                          value={field.value}
+                          onValueChange={(id) => {
+                            field.onChange(id);
+                            form.setValue(
+                              "baseURL",
+                              TYPESAFE_UPSTREAMS.find(
+                                (upstream) => upstream.id === id,
+                              )?.baseURL ?? "",
+                            );
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {currentAdapter === LLMAdapter.TypeSafe &&
+                currentTypeSafeUpstream.id === "custom" && (
+                  <FormField
+                    control={form.control}
+                    name="baseURL"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Custom base URL</FormLabel>
+                        <FormDescription>
+                          Base URL of a TypeSafe-compatible API, e.g.
+                          <code>https://gateway.example.com/typesafe/v1</code>.
+                        </FormDescription>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="https://gateway.example.com/v1"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
               {/* API Key or AWS Credentials or Vertex AI Credentials */}
               {currentAdapter === LLMAdapter.Bedrock ? (
@@ -886,9 +986,8 @@ export function CreateLLMApiKeyForm({
                             )}
                           </FormDescription>
                           <FormControl>
-                            <Input
+                            <PasswordInput
                               {...field}
-                              type="password"
                               placeholder={
                                 mode === "update"
                                   ? isKeepingCurrentBedrockAuthMethod &&
@@ -897,8 +996,7 @@ export function CreateLLMApiKeyForm({
                                     : "Enter Bedrock API key"
                                   : undefined
                               }
-                              autoComplete="new-password"
-                              data-1p-ignore
+                              autoComplete="off"
                             />
                           </FormControl>
                           <FormMessage />
@@ -966,9 +1064,8 @@ export function CreateLLMApiKeyForm({
                               )}
                             </FormLabel>
                             <FormControl>
-                              <Input
+                              <PasswordInput
                                 {...field}
-                                type="password"
                                 placeholder={
                                   mode === "update"
                                     ? isUsingDefaultAwsCredentialsForCurrentAuthMethod
@@ -979,8 +1076,7 @@ export function CreateLLMApiKeyForm({
                                         : "Enter AWS secret access key"
                                     : undefined
                                 }
-                                autoComplete="new-password"
-                                data-1p-ignore
+                                autoComplete="off"
                               />
                             </FormControl>
                             <FormMessage />
@@ -1092,7 +1188,7 @@ export function CreateLLMApiKeyForm({
                             </pre>
                           </FormDescription>
                           <FormControl>
-                            <Input
+                            <PasswordInput
                               {...field}
                               placeholder={
                                 mode === "update"
@@ -1100,8 +1196,6 @@ export function CreateLLMApiKeyForm({
                                   : '{"type": "service_account", ...}'
                               }
                               autoComplete="off"
-                              spellCheck="false"
-                              autoCapitalize="off"
                             />
                           </FormControl>
                           <FormMessage />
@@ -1157,14 +1251,18 @@ export function CreateLLMApiKeyForm({
                   name="secretKey"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>API Key</FormLabel>
+                      <FormLabel>
+                        {currentAdapter === LLMAdapter.TypeSafe
+                          ? currentTypeSafeUpstream.apiKeyLabel
+                          : "API Key"}
+                      </FormLabel>
                       <FormDescription>
                         {isLangfuseCloud
                           ? "Your API keys are stored encrypted on our servers."
                           : "Your API keys are stored encrypted in your database."}
                       </FormDescription>
                       <FormControl>
-                        <Input
+                        <PasswordInput
                           {...field}
                           placeholder={
                             mode === "update"
@@ -1172,8 +1270,6 @@ export function CreateLLMApiKeyForm({
                               : undefined
                           }
                           autoComplete="off"
-                          spellCheck="false"
-                          autoCapitalize="off"
                         />
                       </FormControl>
                       <FormMessage />
@@ -1239,37 +1335,39 @@ export function CreateLLMApiKeyForm({
 
               {hasAdvancedSettings(currentAdapter) && showAdvancedSettings && (
                 <div className="space-y-4 border-t pt-4">
-                  {/* baseURL */}
-                  <FormField
-                    control={form.control}
-                    name="baseURL"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>API Base URL</FormLabel>
-                        <FormDescription>
-                          Leave blank to use the default base URL for the given
-                          LLM adapter.{" "}
-                          {currentAdapter === LLMAdapter.OpenAI && (
-                            <span>
-                              OpenAI default: https://api.openai.com/v1
-                            </span>
-                          )}
-                          {currentAdapter === LLMAdapter.Anthropic && (
-                            <span>
-                              Anthropic default: https://api.anthropic.com
-                              (excluding /v1/messages)
-                            </span>
-                          )}
-                        </FormDescription>
+                  {/* baseURL: TypeSafe sets it through the upstream cards */}
+                  {currentAdapter !== LLMAdapter.TypeSafe && (
+                    <FormField
+                      control={form.control}
+                      name="baseURL"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>API Base URL</FormLabel>
+                          <FormDescription>
+                            Leave blank to use the default base URL for the
+                            given LLM adapter.{" "}
+                            {currentAdapter === LLMAdapter.OpenAI && (
+                              <span>
+                                OpenAI default: https://api.openai.com/v1
+                              </span>
+                            )}
+                            {currentAdapter === LLMAdapter.Anthropic && (
+                              <span>
+                                Anthropic default: https://api.anthropic.com
+                                (excluding /v1/messages)
+                              </span>
+                            )}
+                          </FormDescription>
 
-                        <FormControl>
-                          <Input {...field} placeholder="default" />
-                        </FormControl>
+                          <FormControl>
+                            <Input {...field} placeholder="default" />
+                          </FormControl>
 
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
                   {/* VertexAI Location */}
                   {currentAdapter === LLMAdapter.VertexAI && (
@@ -1325,9 +1423,11 @@ export function CreateLLMApiKeyForm({
                   )}
 
                   {/* Extra Headers */}
-                  {[LLMAdapter.OpenAI, LLMAdapter.Anthropic].includes(
-                    currentAdapter,
-                  ) && renderExtraHeadersField()}
+                  {[
+                    LLMAdapter.OpenAI,
+                    LLMAdapter.Anthropic,
+                    LLMAdapter.TypeSafe,
+                  ].includes(currentAdapter) && renderExtraHeadersField()}
 
                   {/* With default models */}
                   <FormField

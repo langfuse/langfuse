@@ -132,14 +132,14 @@ function MetadataCell({ metadata }: { metadata: unknown }) {
       getKey={([key]) => key}
       renderItem={([key, value]) => (
         <span className="ph-no-capture inline-flex min-w-0">
-          <Badge size="sm" text={`${key}: ${value}`} />
+          <Badge text={`${key}: ${value}`} />
         </span>
       )}
       renderOverflow={({ hiddenItems, overflowItemCount }) => (
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="inline-flex" tabIndex={0}>
-              <Badge size="sm" text={`+${overflowItemCount}`} />
+              <Badge text={`+${overflowItemCount}`} />
             </span>
           </TooltipTrigger>
           <TooltipContent className="ph-no-capture max-w-xs">

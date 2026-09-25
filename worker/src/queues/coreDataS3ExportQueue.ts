@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Processor } from "bullmq";
 import { Readable } from "node:stream";
 import pLimit from "p-limit";

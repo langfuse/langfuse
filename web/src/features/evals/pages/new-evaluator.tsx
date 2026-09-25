@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import Page from "@/src/components/layouts/page";
 import {
   BreadcrumbSeparator,

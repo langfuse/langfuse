@@ -196,6 +196,44 @@ test("derives changed pricing metadata from the semantic diff", () => {
   assert.deepEqual(normalizedOutput.changedModels, [`${model} (added)`]);
 });
 
+test("accepts TypeSafe docs as the official source for a jev price update", () => {
+  const model = "jev";
+  const { normalizedOutput, result } = runContract({
+    basePrices: [pricingEntry(model, 4.2e-8)],
+    currentPrices: [pricingEntry(model, 5e-8)],
+    output: {
+      ...structuredOutput([
+        {
+          ...auditRow({
+            model,
+            change: "updated",
+            officialSources: ["https://docs.typesafe.ai/models"],
+          }),
+          provider: "TypeSafe",
+        },
+      ]),
+      pullRequestTitle: "chore(pricing): update jev pricing",
+    },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(normalizedOutput.changedModels, [`${model} (updated)`]);
+});
+
+test("rejects lookalike TypeSafe source hosts", () => {
+  const { result } = runContract({
+    output: structuredOutput([
+      auditRow({
+        model: "jev",
+        officialSources: ["https://docs.typesafe.ai.example.com/models"],
+      }),
+    ]),
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /not on an approved official domain for jev/);
+});
+
 test("rejects automated pricing-entry removal", () => {
   const model = "gpt-4o";
   const { result } = runContract({

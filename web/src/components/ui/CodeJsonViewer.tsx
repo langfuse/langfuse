@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -16,9 +17,7 @@ import { deepParseJson } from "@langfuse/shared";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useTheme } from "next-themes";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
@@ -33,7 +32,6 @@ import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 export const IO_TABLE_CHAR_LIMIT = 10000;
 
 export function JSONView(props: {
-  canEnableMarkdown?: boolean;
   json?: unknown;
   title?: string;
   hideTitle?: boolean;
@@ -64,8 +62,6 @@ export function JSONView(props: {
     [props.json, props.preserveStrings],
   );
   const { resolvedTheme } = useTheme();
-  const { setIsMarkdownEnabled } = useMarkdownContext();
-  const capture = usePostHogClientCapture();
   const promptReferenceProjectId = usePromptReferenceProjectId();
   const [internalCollapsed, setInternalCollapsed] = useState(false);
 
@@ -90,13 +86,6 @@ export function JSONView(props: {
     }
   };
 
-  const handleOnValueChange = () => {
-    setIsMarkdownEnabled(true);
-    capture("trace_detail:io_pretty_format_toggle_group", {
-      renderMarkdown: true,
-    });
-  };
-
   const handleToggleCollapse = () => {
     if (props.onToggleCollapse) {
       props.onToggleCollapse();
@@ -114,8 +103,9 @@ export function JSONView(props: {
           props.title === "assistant" || props.title === "Output"
             ? "bg-accent-light-green dark:border-accent-dark-green/30"
             : "",
-          props.title === "system" || props.title === "Input" ? "bg-card" : "",
-          props.scrollable || props.borderless ? "" : "rounded-sm border",
+          props.scrollable || props.borderless || props.title
+            ? ""
+            : "rounded-sm border",
           props.codeClassName,
         )}
       >
@@ -195,16 +185,15 @@ export function JSONView(props: {
   return (
     <div
       className={cn(
-        "flex max-h-full min-h-0 max-w-full min-w-0 flex-col",
+        "group/iosection flex max-h-full min-h-0 max-w-full min-w-0 flex-col",
         props.className,
         props.scrollable ? "overflow-hidden" : "",
       )}
     >
       {props.title && !props.hideTitle ? (
         <MarkdownJsonViewHeader
+          hoverRevealControls
           title={props.title}
-          canEnableMarkdown={props.canEnableMarkdown ?? false}
-          handleOnValueChange={handleOnValueChange}
           handleOnCopy={handleOnCopy}
           controlButtons={
             <>

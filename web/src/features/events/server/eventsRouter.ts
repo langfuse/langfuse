@@ -1,4 +1,7 @@
 import { type z, z as zodSchema } from "zod";
+import { TRPCError } from "@trpc/server";
+import { env } from "@/src/env.mjs";
+import { hasInternalAccess } from "@/src/features/feature-flags/server";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -9,7 +12,7 @@ import {
   type OrderByState,
   normalizeOrderByForTable,
   paginationZod,
-  singleFilter,
+  singleFilterList,
   timeFilter,
 } from "@langfuse/shared";
 import {
@@ -27,6 +30,7 @@ import {
   getEventBatchIO,
   EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
+import { loadTraceTranscript } from "./loadTraceTranscript";
 import {
   instrumentAsync,
   getScoresAndCorrectionsForTraces,
@@ -41,7 +45,7 @@ import {
 import {
   AgentGraphDataSchema,
   type AgentGraphDataResponse,
-} from "@/src/features/trace-graph-view/types";
+} from "@/src/features/trace-graph-view/server";
 import type * as opentelemetry from "@opentelemetry/api";
 
 const GetAllEventsInput = EventsTableOptions.safeExtend({
@@ -74,7 +78,7 @@ export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 
 const GetEventFilterOptionsInput = zodSchema.object({
   projectId: zodSchema.string(),
-  filter: zodSchema.array(singleFilter).optional(),
+  filter: singleFilterList.optional(),
   startTimeFilter: zodSchema.array(timeFilter).optional(),
   isRootObservation: zodSchema.boolean().optional(),
   hasParentObservation: zodSchema.boolean().optional(),
@@ -423,6 +427,63 @@ export const eventsRouter = createTRPCRouter({
             // we need traceTS here because we filter for that in DB
             // fallback to input in case trace unavailable - shouldn't happen
             timestamp: ctx.trace?.timestamp ?? input.timestamp,
+          });
+        },
+      );
+    }),
+  /**
+   * Assemble the message transcript of a trace from its generations and tools,
+   * see `loadTraceTranscript`. Internal surface: Langfuse admins and
+   * deployments with experimental features enabled only, and only where the
+   * events tables are written.
+   */
+  transcriptByTraceId: protectedGetEventsTraceProcedure
+    .input(
+      zodSchema.object({
+        projectId: zodSchema.string(),
+        traceId: zodSchema.string(),
+        timestamp: zodSchema.date().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      if (
+        !hasInternalAccess({
+          isAdmin: ctx.session?.user?.admin === true,
+          isExperimentalFeaturesEnabled:
+            env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+        })
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Transcripts are an internal preview.",
+        });
+      }
+      if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Transcripts need the events-backed trace view.",
+        });
+      }
+      // The trace timestamp bounds the observation read; the trace is loaded
+      // by the procedure, so the input is only a fallback.
+      const timestamp = ctx.trace?.timestamp ?? input.timestamp;
+      if (!timestamp) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Trace timestamp is required.",
+        });
+      }
+
+      return instrumentAsync(
+        { name: "get-transcript-by-trace-id-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          span.setAttribute("trace_id", input.traceId);
+
+          return loadTraceTranscript({
+            projectId: input.projectId,
+            traceId: input.traceId,
+            timestamp,
           });
         },
       );

@@ -199,6 +199,7 @@ export class ApiAuthService {
                 projectId: finalApiKey.projectId,
                 accessLevel,
                 orgId: finalApiKey.orgId,
+                organizationCreatedAt: finalApiKey.organizationCreatedAt,
                 plan: plan,
                 rateLimitOverrides: finalApiKey.rateLimitOverrides ?? [],
                 apiKeyId: finalApiKey.id,
@@ -223,8 +224,12 @@ export class ApiAuthService {
               );
             }
 
-            const { orgId, cloudConfig, cloudFreeTierUsageThresholdState } =
-              this.extractOrgIdAndCloudConfig(dbKey);
+            const {
+              orgId,
+              organizationCreatedAt,
+              cloudConfig,
+              cloudFreeTierUsageThresholdState,
+            } = this.extractOrgIdAndCloudConfig(dbKey);
             const plan = getOrganizationPlanServerSide(cloudConfig);
 
             addUserToSpan(
@@ -244,6 +249,7 @@ export class ApiAuthService {
                 projectId: dbKey.projectId,
                 accessLevel: "scores" as const,
                 orgId,
+                organizationCreatedAt: organizationCreatedAt.toISOString(),
                 plan,
                 rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
                 apiKeyId: dbKey.id,
@@ -390,11 +396,12 @@ export class ApiAuthService {
     }
 
     try {
-      const redisApiKey = await this.redis.getex(
-        createApiKeyCacheKey(hash),
-        "EX",
-        env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS, // redis API is in seconds
-      );
+      // A plain GET, not GETEX: an entry expires a fixed TTL after it was
+      // written, never a TTL after it was last read. A sliding TTL lets an entry
+      // that is still being read outlive the API key it caches, so a request
+      // that repopulates the cache while the key is being revoked could keep the
+      // revoked key valid for as long as its holder kept using it.
+      const redisApiKey = await this.redis.get(createApiKeyCacheKey(hash));
 
       if (!redisApiKey) {
         return null;
@@ -447,6 +454,9 @@ export class ApiAuthService {
     const orgId =
       apiKeyAndOrganisation.project?.organization.id ??
       apiKeyAndOrganisation.organization?.id;
+    const organizationCreatedAt =
+      apiKeyAndOrganisation.project?.organization.createdAt ??
+      apiKeyAndOrganisation.organization?.createdAt;
     const rawCloudConfig =
       apiKeyAndOrganisation.project?.organization.cloudConfig ??
       apiKeyAndOrganisation.organization?.cloudConfig;
@@ -455,7 +465,7 @@ export class ApiAuthService {
         .cloudFreeTierUsageThresholdState ??
       apiKeyAndOrganisation.organization?.cloudFreeTierUsageThresholdState;
 
-    if (!orgId) {
+    if (!orgId || !organizationCreatedAt) {
       logger.error(
         `No organization found for key: ${apiKeyAndOrganisation.publicKey}`,
       );
@@ -468,6 +478,7 @@ export class ApiAuthService {
 
     return {
       orgId,
+      organizationCreatedAt,
       cloudConfig,
       cloudFreeTierUsageThresholdState,
     };
@@ -503,13 +514,18 @@ export class ApiAuthService {
       } | null;
     },
   ) {
-    const { orgId, cloudConfig, cloudFreeTierUsageThresholdState } =
-      this.extractOrgIdAndCloudConfig(apiKeyAndOrganisation);
+    const {
+      orgId,
+      organizationCreatedAt,
+      cloudConfig,
+      cloudFreeTierUsageThresholdState,
+    } = this.extractOrgIdAndCloudConfig(apiKeyAndOrganisation);
 
     const newApiKey = OrgEnrichedApiKey.parse({
       ...apiKeyAndOrganisation,
       createdAt: apiKeyAndOrganisation.createdAt?.toISOString(),
       orgId,
+      organizationCreatedAt: organizationCreatedAt.toISOString(),
       plan: getOrganizationPlanServerSide(cloudConfig),
       rateLimitOverrides: cloudConfig?.rateLimitOverrides,
       isIngestionSuspended: cloudFreeTierUsageThresholdState === "BLOCKED",

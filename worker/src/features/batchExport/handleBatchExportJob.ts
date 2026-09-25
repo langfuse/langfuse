@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { pipeline, Transform } from "stream";
 import {
   BatchExportFileFormat,
@@ -34,6 +35,21 @@ const tableToCommentType: Record<string, CommentObjectType | undefined> = {
 };
 
 const BATCH_EXPORT_CLICKHOUSE_SERVICE: PreferredClickhouseService = "ReadOnly";
+
+// Walks an error's `cause` chain to check whether `target` produced it. Used to
+// tell a read/transform failure (whose error the uploader rethrows as its cause)
+// apart from a genuine storage failure that merely aborts the stream as a side
+// effect. Guards against cause cycles.
+const isCausedBy = (error: unknown, target: unknown): boolean => {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current && typeof current === "object" && !seen.has(current)) {
+    if (current === target) return true;
+    seen.add(current);
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+};
 
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
@@ -223,12 +239,19 @@ export const handleBatchExportJob = async (
     },
   });
 
+  // The read/transform pipeline is piped into the buffered uploader below. A
+  // mid-stream failure here (e.g. a ClickHouse query timeout) surfaces inside
+  // the uploader's try/catch and gets rewrapped as a storage error, so we
+  // capture the real cause here to re-attribute it after the upload rejects.
+  let readStreamError: unknown = null;
+
   const fileStream = pipeline(
     dbReadStream,
     loggingTransform,
     streamTransformations[jobDetails.format as BatchExportFileFormat](),
     (err) => {
       if (err) {
+        readStreamError = err;
         logger.error(
           "[BATCH EXPORT] Getting data from DB and transform failed: ",
           err,
@@ -268,13 +291,34 @@ export const handleBatchExportJob = async (
 
   const storageService = StorageServiceFactory.getInstance(storageParams);
 
-  await storageService.uploadFileBuffered({
-    fileName,
-    fileType:
-      exportOptions[jobDetails.format as BatchExportFileFormat].fileType,
-    data: fileStream,
-    partSizeBytes: env.BATCH_EXPORT_S3_PART_SIZE_MIB * 1024 * 1024,
-  });
+  try {
+    await storageService.uploadFileBuffered({
+      fileName,
+      fileType:
+        exportOptions[jobDetails.format as BatchExportFileFormat].fileType,
+      data: fileStream,
+      partSizeBytes: env.BATCH_EXPORT_S3_PART_SIZE_MIB * 1024 * 1024,
+    });
+  } catch (uploadError) {
+    // A read/transform stream failure (ClickHouse/Postgres read or a transform)
+    // is piped into the uploader, which rethrows it as the cause of its own
+    // error. Surface the real origin only when the upload error's cause chain
+    // traces back to that stream error — otherwise a genuine storage failure,
+    // which aborts the stream as a side effect and trips readStreamError with an
+    // unrelated premature-close, would be mislabeled. Thrown as a plain Error so
+    // the customer-facing `log` stays generic and does not leak internals.
+    if (readStreamError && isCausedBy(uploadError, readStreamError)) {
+      const causeMessage =
+        readStreamError instanceof Error
+          ? readStreamError.message
+          : String(readStreamError);
+      throw new Error(
+        `[BATCH EXPORT] Reading export data failed: ${causeMessage}`,
+        { cause: readStreamError },
+      );
+    }
+    throw uploadError;
+  }
 
   // asAttachment must be explicit: S3 defaults it to true, but GCS and Azure
   // don't — and the web tier's downloadUrl fallback returns this stored URL

@@ -3,10 +3,13 @@ import { z } from "zod";
 import { JobExecutionStatus } from "@prisma/client";
 import type { EvalExecutionContext } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { decrypt } from "@langfuse/shared/encryption";
 import {
   buildEventBucketPrefix,
   compileLangfuseMediaMessages,
   createLLMOutput,
+  createTypeSafeDecisionModelClient,
+  decryptAndParseExtraHeaders,
   DefaultEvalModelService,
   generateLLMText,
   IngestionQueue,
@@ -16,7 +19,12 @@ import {
   ScoreEventType,
   UNKNOWN_INGESTION_SDK_VALUE,
   type ChatMessage,
+  type DecisionModelEvaluation,
+  type DecisionModelRequest,
+  type InternalTraceWriter,
+  writeInternalTraceViaOtelIngestion,
 } from "@langfuse/shared/src/server";
+import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { getEvalS3StorageClient } from "./s3StorageClient";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
@@ -66,6 +74,14 @@ interface LLMCallParams {
     metadata: Record<string, unknown>;
     evaluationContext?: EvalExecutionContext;
   };
+}
+
+/**
+ * Parameters for asking a decision model one Choice question.
+ */
+interface DecisionModelCallParams {
+  modelConfig: Extract<ModelConfigResult, { valid: true }>["config"];
+  request: DecisionModelRequest;
 }
 
 /**
@@ -140,6 +156,12 @@ export interface EvalExecutionDeps {
   fetchModelConfig: (
     params: FetchModelConfigParams,
   ) => Promise<ModelConfigResult>;
+
+  // Decision-model operations (experimental)
+  callDecisionModel: (
+    params: DecisionModelCallParams,
+  ) => Promise<DecisionModelEvaluation>;
+  writeInternalTrace: InternalTraceWriter;
 }
 
 // Measure the schema as the JSON Schema LangChain ships, not Zod's _def.
@@ -313,6 +335,45 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
       // Cast to our simplified ModelConfigResult type for the interface
       return result as ModelConfigResult;
     },
+
+    callDecisionModel: async (params) => {
+      const { apiKey } = params.modelConfig;
+      if (apiKey.adapter !== LLMAdapter.TypeSafe) {
+        throw new Error(
+          `Decision-model adapter is not supported: ${apiKey.adapter}`,
+        );
+      }
+      const secretKey = apiKey.secretKey;
+      if (typeof secretKey !== "string") {
+        throw new UnrecoverableError(
+          "TypeSafe connection is missing its secret key",
+        );
+      }
+
+      let decryptedSecretKey: string;
+      let extraHeaders: Record<string, string> | undefined;
+      try {
+        decryptedSecretKey = decrypt(secretKey);
+        extraHeaders = decryptAndParseExtraHeaders(
+          typeof apiKey.extraHeaders === "string" ? apiKey.extraHeaders : null,
+        );
+      } catch {
+        throw new UnrecoverableError(
+          "TypeSafe connection secrets could not be decrypted",
+        );
+      }
+
+      const client = createTypeSafeDecisionModelClient({
+        apiKey: decryptedSecretKey,
+        model: params.modelConfig.model,
+        baseURL: typeof apiKey.baseURL === "string" ? apiKey.baseURL : null,
+        extraHeaders,
+      });
+
+      return client.evaluate(params.request);
+    },
+
+    writeInternalTrace: (trace) => writeInternalTraceViaOtelIngestion(trace),
   };
 }
 
@@ -333,6 +394,36 @@ export function createMockEvalExecutionDeps(
       valid: false,
       error: "Mock - no config",
     }),
+    callDecisionModel: async ({ request }) => ({
+      model: "mock-decision-model",
+      answers: Object.fromEntries(
+        Object.entries(request.questions).map(([id, question]) => {
+          switch (question.type) {
+            case "choice": {
+              const [choice = "mock"] = Object.keys(question.criteria);
+              return [
+                id,
+                {
+                  type: "choice",
+                  choice,
+                  probabilities: { [choice]: 1 },
+                  confidence: 1,
+                },
+              ];
+            }
+            case "score":
+              return [
+                id,
+                { type: "score", score: 0, probabilities: {}, confidence: 1 },
+              ];
+            case "boolean":
+              return [id, { type: "boolean", probability: 1 }];
+          }
+        }),
+      ),
+      usage: null,
+    }),
+    writeInternalTrace: async () => {},
   };
 
   return { ...defaultMock, ...overrides };

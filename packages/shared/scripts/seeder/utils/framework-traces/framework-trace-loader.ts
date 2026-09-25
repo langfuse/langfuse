@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { readFileSync, readdirSync } from "fs";
 import path from "path";
 import {

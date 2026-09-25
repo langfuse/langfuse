@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import {
   ScoreDataTypeType,
@@ -36,6 +37,7 @@ import {
   DateTimeFilter,
   CTEQueryBuilder,
   NumberFilter,
+  scoreOnlyFiltersAreSeekEligible,
 } from "../queries";
 import { FilterCondition, FilterState, TimeFilter } from "../../types";
 import {
@@ -1438,6 +1440,63 @@ const scoresTraceFilterEventsMapping = [
   },
 ];
 
+// Score columns the count path reconstructs to their latest version via
+// argMax(col, event_ts), replacing FINAL. id / project_id / name are the
+// grouping keys and so are selected directly, not here.
+const SCORE_COUNT_DEDUP_COLUMNS = [
+  "timestamp",
+  "environment",
+  "trace_id",
+  "observation_id",
+  "session_id",
+  "evaluator_id",
+  "evaluation_rule_id",
+  "value",
+  "source",
+  "comment",
+  "author_user_id",
+  "data_type",
+  "string_value",
+  "metadata",
+] as const;
+
+/**
+ * Coarse toDate(timestamp) prune for a dedup subquery's pre-dedup scan (count
+ * and rows paths share it).
+ *
+ * The exact timestamp bound must NOT filter raw rows before dedup (a score's
+ * timestamp is mutable across versions, so it could drop the latest one); it is
+ * re-applied post-dedup in the outer WHERE. This prune only skips partitions /
+ * granules, keeping or dropping whole day-buckets, so the latest version always
+ * survives to the dedup. Operators are relaxed (> / < to >= / <=) and both
+ * sides wrapped in toDate() so boundary-day rows are never lost.
+ */
+const buildScoresDatePrune = (
+  filter: FilterState,
+): { query: string; params: Record<string, unknown> } => {
+  const timestampColumn = scoresTableUiColumnDefinitionsFromEvents.find(
+    (c) => c.uiTableId === "timestamp",
+  );
+  if (!timestampColumn) return { query: "", params: {} };
+
+  const timestampFilters = createFilterFromFilterState(
+    filter.filter((f) => matchesUiColumnMapping(timestampColumn, f.column)),
+    scoresTableUiColumnDefinitionsFromEvents,
+    scoresTableCols,
+  ).filter((f): f is DateTimeFilter => f instanceof DateTimeFilter);
+
+  const params: Record<string, unknown> = {};
+  const clauses = timestampFilters.map((f) => {
+    const dateOp = f.operator.startsWith(">") ? ">=" : "<=";
+    const varName = `scoresInnerDatePrune${clickhouseCompliantRandomCharacters()}`;
+    const column = `${f.tablePrefix ? `${f.tablePrefix}.` : ""}${f.field}`;
+    params[varName] = convertDateToClickhouseDateTime(new Date(f.value));
+    return `toDate(${column}) ${dateOp} toDate({${varName}: DateTime64(3, 'UTC')})`;
+  });
+
+  return { query: clauses.join(" AND "), params };
+};
+
 /**
  * v4 variant: scores query using a flat events CTE instead of the physical
  * traces table. Trace-level filters and sort use a "traces" CTE built by
@@ -1484,6 +1543,11 @@ const getScoresUiGenericFromEvents = async <T>(props: {
     (f) => f.clickhouseTable !== "traces",
   );
   const scoreOnlyFilterRes = scoreOnlyFilters.apply();
+
+  // Coarse pre-dedup prune shared by the count and rows subqueries; see
+  // buildScoresDatePrune.
+  const { query: innerDatePruneQuery, params: innerDatePruneParams } =
+    buildScoresDatePrune(filter);
 
   // Trace-level filter entries from the frontend filter state
   const traceFilterState = filter.filter((filterEntry) =>
@@ -1540,14 +1604,14 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       : `LEFT ANY JOIN traces e ON s.trace_id = e.id`
     : "";
 
-  const select =
-    props.select === "count"
-      ? "count(*) as count"
-      : `
-        s.id,
+  // id and name are aliased because the traces CTE (joined as `e`) also exposes
+  // id and name: without the alias ClickHouse qualifies the output columns as
+  // s.id / s.name to disambiguate, and the row mapper reads bare id / name.
+  const rowSelect = `
+        s.id AS id,
         s.project_id,
         s.environment,
-        s.name,
+        s.name AS name,
         s.value,
         s.string_value,
         s.timestamp,
@@ -1574,15 +1638,126 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         ${includeHasMetadataFlag ? ",length(mapKeys(s.metadata)) > 0 AS has_metadata" : ""}
       `;
 
-  const query = `
+  // ── Selective seek ────────────────────────────────────────────────────────
+  // A highly selective score-only filter (single trace/observation/id, or a
+  // name) otherwise reconstructs the whole project before the outer WHERE
+  // discards almost everything. When at least one score-only conjunct is
+  // index-prunable (see scoreOnlyFiltersAreSeekEligible), first collect the
+  // matching dedup keys via the bloom / primary indexes, then reconstruct only
+  // those keys.
+  //
+  // The seek carries the *entire* score-only predicate, not just the prunable
+  // conjuncts: it stays a superset collection (proof below), the index prunes
+  // granules via the eligible conjuncts, and the remaining conjuncts shrink the
+  // key set within surviving granules.
+  //
+  // Correctness: if a key's deduped-latest satisfies predicate P, its latest raw
+  // row satisfies P (the latest *is* a raw row), so `SELECT DISTINCT … WHERE P`
+  // over raw rows collects it — `{latest matches P} ⊆ {some raw row matches P}`
+  // for any P (negation, null, range included). False positives (a key seeked
+  // via an older matching version whose latest no longer matches) are removed by
+  // re-applying P in the outer WHERE post-dedup. The seek's projection is the
+  // dedup key only, all immutable within a group, so the resulting tuple IN
+  // touches only dedup-key columns and is safe pre-dedup.
+  const seekEligible = scoreOnlyFiltersAreSeekEligible(scoreOnlyFilters);
+  const seekSubquery = seekEligible
+    ? `
+        SELECT DISTINCT s.project_id, toDate(s.timestamp), s.name, s.id
+        FROM scores s
+        WHERE s.project_id = {projectId: String}
+        ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}
+        ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}`
+    : "";
+
+  // Pre-dedup inner scan: project scope + coarse date prune only. Mutable-column
+  // filters run post-dedup in the outer WHERE (see the dedup rule below). When
+  // the seek fired, the tuple IN restricts the reconstruct scan to seeked keys;
+  // it references only dedup-key columns, so it is safe pre-dedup.
+  const innerScanWhere = `
+        WHERE s.project_id = {projectId: String}
+        ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}
+        ${seekSubquery ? `AND (s.project_id, toDate(s.timestamp), s.name, s.id) IN (${seekSubquery}\n        )` : ""}`;
+
+  // Post-dedup outer filters, shared by the count and rows paths.
+  const outerWhereClause = `
+      WHERE s.data_type IN ({dataTypes: Array(String)})
+      ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}`;
+
+  // ── Dedup without FINAL ───────────────────────────────────────────────────
+  // Reads dedup the ReplacingMergeTree by reconstructing each score's latest
+  // version instead of FINAL. The count path collapses columns with one argMax
+  // GROUP BY pass. The rows path needs every (incl. wide Map/String) column, so
+  // it INNER JOINs scores back to a GROUP BY subquery holding each key's
+  // max(event_ts), matching on the full sorting key + that event_ts. Only the
+  // latest version has event_ts = max, so the join *is* the dedup: every joined
+  // row is a latest version.
+  //
+  // Rule: filter AFTER dedup, never before. value / comment / timestamp /
+  // trace_id are mutable across versions, so filtering raw rows can surface a
+  // stale version (filter value>0.5 on v1=0.9→v2=0.1 keeps v1; FINAL keeps none).
+  // Filtering the join output honours this — filters only ever see latest
+  // versions. The GROUP BY that finds max(event_ts) carries only project scope +
+  // a coarse toDate prune (innerDatePruneQuery) + the seek (when eligible), so
+  // whole buckets are kept/dropped, the latest is never lost pre-dedup, and the
+  // seek scans once.
+  //
+  // Filters run INSIDE the dedup subquery (with the join) so ClickHouse prunes
+  // the wide scan by the real predicates before assembling the full join. The
+  // LIMIT 1 BY there collapses the only remaining duplicates: two raw rows
+  // sharing a key's max event_ts. That tie is two versions with equal version
+  // timestamps, where FINAL itself keeps an arbitrary row (its answer flips with
+  // insert order), so an arbitrary tie pick is FINAL-consistent.
+  //
+  // The trace join, ORDER BY, and LIMIT/OFFSET run OUTSIDE the subquery, at one
+  // level, so pagination follows the requested sort (and a traces-column sort can
+  // reference the joined `e`).
+  const query =
+    props.select === "count"
+      ? `
+      ${tracesCTEClause}
+      SELECT count(*) AS count
+      FROM (
+        SELECT
+          s.id,
+          s.project_id,
+          s.name,
+          ${SCORE_COUNT_DEDUP_COLUMNS.map(
+            (c) => `argMax(s.${c}, s.event_ts) AS ${c}`,
+          ).join(",\n          ")}
+        FROM scores s
+        ${innerScanWhere}
+        GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
+      ) s
+      ${eventsJoin}
+      ${outerWhereClause}
+    `
+      : `
       ${tracesCTEClause}
       SELECT
-          ${select}
-      FROM scores s final
+          ${rowSelect}
+      FROM (
+        SELECT s.*
+        FROM scores s
+        INNER JOIN (
+          SELECT
+            s.project_id AS latest_project_id,
+            toDate(s.timestamp) AS latest_date,
+            s.name AS latest_name,
+            s.id AS latest_id,
+            max(s.event_ts) AS latest_event_ts
+          FROM scores s
+          ${innerScanWhere}
+          GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
+        ) latest
+          ON s.project_id = latest.latest_project_id
+          AND toDate(s.timestamp) = latest.latest_date
+          AND s.name = latest.latest_name
+          AND s.id = latest.latest_id
+          AND s.event_ts = latest.latest_event_ts
+        ${outerWhereClause}
+        LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
+      ) s
       ${eventsJoin}
-      WHERE s.project_id = {projectId: String}
-      AND s.data_type IN ({dataTypes: Array(String)})
-      ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}
       ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
@@ -1592,6 +1767,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       projectId,
       dataTypes: LISTABLE_SCORE_TYPES,
       ...(scoreOnlyFilterRes ? scoreOnlyFilterRes.params : {}),
+      ...innerDatePruneParams,
       ...tracesCTEParams,
       limit,
       offset,

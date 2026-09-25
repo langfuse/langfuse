@@ -1,10 +1,11 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { InvalidRequestError } from "../../../errors";
 import {
   hasValidTracingSearchTypes,
   TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
   type TracingSearchType,
 } from "../../../interfaces/search";
-import { bareFtsField, ftsTextTokenConjunct } from "./fts";
+import { bareFtsField, ftsTextTokenPredicate, hasFtsSearchToken } from "./fts";
 
 const regexIndefiniteCharacters = "%";
 
@@ -77,12 +78,18 @@ export const clickhouseSearchCondition = ({
 
   const prefix = tablePrefix ? `${tablePrefix}.` : "";
 
-  const ilikeWithPrefilter = (col: string, param = "{searchString: String}") =>
+  const ilikeWithPrefilter = (
+    col: string,
+    param = "{searchString: String}",
+    hasToken = false,
+  ) =>
     // Fast-mode UI search intentionally narrows IO search to token matches
     // before applying ILIKE. This gives ClickHouse an inverted-index lookup,
-    // but drops embedded-word substring matches like "foobarneedle".
-    useEventsTablePath
-      ? `(${col} ILIKE ${param} AND ${ftsTextTokenConjunct(col, param)})`
+    // but drops embedded-word substring matches like "foobarneedle". The token
+    // prefilter is only meaningful when the value yields tokens; a tokenless
+    // value leans on ILIKE alone.
+    useEventsTablePath && hasToken
+      ? `(${col} ILIKE ${param} AND ${ftsTextTokenPredicate(col, param)})`
       : `${col} ILIKE ${param}`;
 
   const idLaneMatch = (col: string) => {
@@ -119,13 +126,24 @@ export const clickhouseSearchCondition = ({
   const escapedQuery = query ? toJsonUnicodeEscaped(query) : undefined;
   const hasEscapedVariant = !!query && escapedQuery !== query;
 
+  // `hasFtsSearchToken` mirrors ClickHouse's `tokens()` emptiness, so the token
+  // prefilter can be gated per search value at build time.
+  const searchStringHasToken = !!query && hasFtsSearchToken(query);
+  const searchStringEscapedHasToken =
+    hasEscapedVariant && hasFtsSearchToken(escapedQuery!);
+
   const ioColumnMatch = (col: string) =>
     hasEscapedVariant
-      ? `${ilikeWithPrefilter(col)} OR ${ilikeWithPrefilter(
+      ? `${ilikeWithPrefilter(
+          col,
+          "{searchString: String}",
+          searchStringHasToken,
+        )} OR ${ilikeWithPrefilter(
           col,
           "{searchStringEscaped: String}",
+          searchStringEscapedHasToken,
         )}`
-      : ilikeWithPrefilter(col);
+      : ilikeWithPrefilter(col, "{searchString: String}", searchStringHasToken);
 
   // The default cols include t.user_id for callers querying via traces CTE (traces.ts, observations.ts).
   const conditions = [

@@ -1,4 +1,4 @@
-import { createAnnotationQueueForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
+import { createAnnotationQueueForApi } from "@/src/features/annotation-queues/server";
 import {
   CreateAnnotationQueueBody,
   CreateAnnotationQueueResponse,
@@ -22,6 +22,7 @@ export const [createAnnotationQueueTool, handleCreateAnnotationQueue] =
     name: "createAnnotationQueue",
     description:
       "Create an annotation queue, a worklist that collects trace or observation items for human review and scoring.",
+    action: "annotationQueues:CUD",
     baseSchema: CreateAnnotationQueueBaseSchema,
     inputSchema: CreateAnnotationQueueBody,
     handler: async (input, context) =>
