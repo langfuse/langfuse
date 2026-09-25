@@ -132,7 +132,7 @@ export const Loading = meta.story({
 });
 
 export const MissingDescription = meta.story({
-  name: "(Test) Missing description leaves cell empty",
+  name: "(Test) Missing description shows empty marker",
   args: {
     data: {
       status: "success",
@@ -142,7 +142,7 @@ export const MissingDescription = meta.story({
   },
   play: async ({ canvas }) => {
     const row = canvas.getAllByRole("row")[1]!;
-    await expect(row.querySelectorAll("td")[2]).toHaveTextContent(/^$/);
+    await expect(row.querySelectorAll("td")[2]).toHaveTextContent(/^\s*-\s*$/);
   },
 });
 

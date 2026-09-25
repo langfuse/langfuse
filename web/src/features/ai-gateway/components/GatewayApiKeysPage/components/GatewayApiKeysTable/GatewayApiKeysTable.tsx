@@ -48,6 +48,7 @@ export function GatewayApiKeysTable({
       accessorFn: (row) => row.apiKey.note,
       id: "description",
       header: "Description",
+      nullValue: "-",
       enableResizing: false,
     }),
     createBadgeListTableColumn<GatewayApiKey>({
