@@ -45,7 +45,7 @@ export interface TableProps<TData> {
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   columnOrder?: ColumnOrderState;
   onColumnOrderChange?: OnChangeFn<ColumnOrderState>;
-  rowHeight?: "compact" | "s" | "m" | "l";
+  rowHeight?: "s" | "m" | "l";
 }
 
 export function Table<TData extends object>({
@@ -262,7 +262,6 @@ export function Table<TData extends object>({
                   key={`loading-row-${rowIndex}`}
                   className={cn(
                     "h-12",
-                    rowHeight === "compact" && "h-8",
                     rowHeight === "m" && "h-24",
                     rowHeight === "l" && "h-64",
                   )}
@@ -278,9 +277,6 @@ export function Table<TData extends object>({
                           column.columnDef.cellPadding === "none"
                             ? "p-0"
                             : "p-2",
-                          column.columnDef.cellPadding !== "none" &&
-                            rowHeight === "compact" &&
-                            "p-1 first:pl-2",
                           column.columnDef.cellClassName,
                           column.columnDef.sensitive && "ph-no-capture",
                           column.columnDef.hideBelowMd &&
@@ -323,7 +319,6 @@ export function Table<TData extends object>({
                   key={row.id}
                   className={cn(
                     "hover:bg-accent h-12 transition-colors",
-                    rowHeight === "compact" && "h-8",
                     rowHeight === "m" && "h-24",
                     rowHeight === "l" && "h-64",
                     onRowClick ? "cursor-pointer" : "cursor-default",
@@ -347,9 +342,6 @@ export function Table<TData extends object>({
                         className={cn(
                           "h-full overflow-hidden border-b align-middle text-xs whitespace-nowrap",
                           column.cellPadding === "none" ? "p-0" : "p-2",
-                          column.cellPadding !== "none" &&
-                            rowHeight === "compact" &&
-                            "p-1 first:pl-2",
                           column.cellClassName,
                           column.sensitive && "ph-no-capture",
                           column.hideBelowMd && "hidden md:table-cell",
