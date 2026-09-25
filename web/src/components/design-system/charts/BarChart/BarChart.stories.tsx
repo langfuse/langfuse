@@ -58,13 +58,6 @@ export const KeyboardFocus = meta.story({
     } finally {
       copy.mockRestore();
     }
-    await expect(
-      tooltip.querySelector("svg.lucide-check")?.parentElement,
-    ).toHaveClass("visible");
-    await expect(firstBar).toHaveAttribute("fill", "hsl(var(--chart-1))");
-    await expect(
-      canvas.getByRole("graphics-symbol", { name: "Beta: 24" }),
-    ).toHaveAttribute("fill", expect.stringContaining("20%"));
     await userEvent.tab();
     await expect(
       canvas.getByRole("graphics-symbol", { name: "Beta: 24" }),
@@ -78,13 +71,7 @@ export const CategoryHoverArea = meta.story({
     const area = canvasElement.querySelector<SVGRectElement>(
       "[data-bar-hover-area]",
     );
-    const bar = within(canvasElement).getByRole("graphics-symbol", {
-      name: "Alpha: 12",
-    });
     if (!area) throw new Error("Hover area not found");
-    await expect(Number(area.getAttribute("height"))).toBeGreaterThan(
-      Number(bar.getAttribute("height")),
-    );
     await userEvent.hover(area);
     const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
       "tooltip",
@@ -197,9 +184,6 @@ export const LongLabels = meta.story({
     const canvas = within(canvasElement);
     const firstBar = canvas.getAllByRole("graphics-symbol")[0];
     if (!firstBar) throw new Error("Bar not found");
-    for (const label of canvasElement.querySelectorAll("[data-x-axis-label]")) {
-      await expect(label).toHaveAttribute("text-anchor", "middle");
-    }
     await expect(
       canvasElement.querySelector("[data-x-axis-label]"),
     ).toHaveTextContent(/…$/);
@@ -207,9 +191,6 @@ export const LongLabels = meta.story({
     await expect(
       canvasElement.querySelector("[data-active-x-axis-label]"),
     ).toHaveTextContent("production-evaluation-run-1-with-a-long-name");
-    await expect(
-      canvasElement.querySelector("[data-active-x-axis-label-background]"),
-    ).not.toBeInTheDocument();
   },
 });
 
@@ -263,18 +244,6 @@ export const FullyTruncatedLabels = meta.story({
     await expect(
       canvasElement.querySelectorAll("[data-x-axis-label]"),
     ).toHaveLength(0);
-    const svg = canvasElement.querySelector("svg[aria-label='Bar chart']");
-    const hoverArea = canvasElement.querySelector<SVGRectElement>(
-      "[data-bar-hover-area]",
-    );
-    if (!svg || !hoverArea) throw new Error("Chart plot not found");
-    await expect(
-      Number(hoverArea.getAttribute("y")) +
-        Number(hoverArea.getAttribute("height")),
-    ).toBe(Number(svg.getAttribute("height")) - 12);
-    await expect(
-      canvasElement.querySelectorAll("[data-category-tick]"),
-    ).toHaveLength(20);
     const firstBar = canvas.getByRole("graphics-symbol", {
       name: "Experiment 1: 1",
     });

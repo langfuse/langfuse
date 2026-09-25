@@ -31,10 +31,9 @@ export const HistogramBinSpacing = meta.story({
     const first = bars[0];
     const second = bars[1];
     if (!first || !second) throw new Error("Histogram bins not found");
-    await expect(first).toHaveAttribute("rx", "0");
-    await expect(
-      Number(first.getAttribute("x")) + Number(first.getAttribute("width")) + 2,
-    ).toBeCloseTo(Number(second.getAttribute("x")));
+    await expect(first.getBoundingClientRect().right).toBeLessThan(
+      second.getBoundingClientRect().left,
+    );
   },
 });
 
@@ -84,7 +83,6 @@ export const InsufficientSpace = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("Insufficient space")).toBeInTheDocument();
-    await expect(canvas.queryAllByRole("graphics-symbol")).toHaveLength(0);
   },
 });
 

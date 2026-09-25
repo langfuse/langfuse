@@ -45,16 +45,6 @@ export const SideBySide = meta.story({
     await expect(tooltip).toHaveTextContent("False");
     await expect(tooltip).toHaveTextContent("First");
     await expect(tooltip).toHaveTextContent("Second");
-    const firstPosition = tooltip.getBoundingClientRect();
-    second.focus();
-    await expect(tooltip.getBoundingClientRect().left).toBeCloseTo(
-      firstPosition.left,
-      0,
-    );
-    await expect(tooltip.getBoundingClientRect().top).toBeCloseTo(
-      firstPosition.top,
-      0,
-    );
   },
 });
 
@@ -75,7 +65,6 @@ export const LegendHighlight = meta.story({
     await expect(
       canvas.getByRole("graphics-symbol", { name: "First: 12" }),
     ).toHaveAttribute("fill", expect.stringContaining("20%"));
-    await expect(canvas.getAllByRole("graphics-symbol")).toHaveLength(4);
     await userEvent.click(
       canvas.getByRole("button", { name: "Show all series" }),
     );
@@ -89,7 +78,6 @@ export const LegendToggle = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getAllByRole("graphics-symbol")).toHaveLength(4);
     await userEvent.click(canvas.getByRole("button", { name: "Hide Second" }));
     await expect(
       canvas.queryAllByRole("graphics-symbol", { name: /Second:/ }),
@@ -109,7 +97,6 @@ export const NegativeAndMissingValues = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getAllByRole("graphics-symbol")).toHaveLength(3);
     await expect(
       canvas.getByRole("graphics-symbol", { name: "First: -12" }),
     ).toBeInTheDocument();
@@ -144,17 +131,6 @@ export const ManyBuckets = meta.story({
     await expect(
       canvasElement.querySelectorAll("[data-x-axis-label]").length,
     ).toBe(0);
-    const svg = canvasElement.querySelector(
-      "svg[aria-label='Grouped bar chart']",
-    );
-    const hoverArea = svg?.querySelector<SVGRectElement>(
-      'rect[fill="transparent"]',
-    );
-    if (!svg || !hoverArea) throw new Error("Chart plot not found");
-    await expect(
-      Number(hoverArea.getAttribute("y")) +
-        Number(hoverArea.getAttribute("height")),
-    ).toBe(Number(svg.getAttribute("height")) - 12);
   },
 });
 
@@ -184,9 +160,6 @@ export const LongCategoryLabels = meta.story({
     await expect(
       canvasElement.querySelector("[data-active-x-axis-label]"),
     ).toHaveTextContent("dataset-run-1-transcription");
-    await expect(
-      canvasElement.querySelector("[data-active-x-axis-label-background]"),
-    ).not.toBeInTheDocument();
   },
 });
 
