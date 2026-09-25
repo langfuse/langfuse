@@ -78,6 +78,17 @@ export type SearchScope = {
   description: string;
 };
 
+export type FilterTargeting = {
+  defaultTarget: string;
+  targets: readonly {
+    id: string;
+    label: string;
+    keyword?: boolean;
+    textClassName?: string;
+  }[];
+  supports: (field: FieldRef) => boolean;
+};
+
 export type FieldRegistry = {
   id:
     | "events"
@@ -105,9 +116,11 @@ export type FieldRegistry = {
   fields: readonly FieldDef[];
   columns: readonly ColumnDefinition[];
   allowFreeText: boolean;
+  targeting?: FilterTargeting;
   /** View-specific backend constraints beyond individual column operators. */
   filterStateErrors?: (filters: FilterState) => readonly string[];
-  metadata: boolean;
+  /** `true` exposes metadata.<key>; a map exposes query namespace → backend column. */
+  metadata: boolean | Readonly<Record<string, string>>;
   scores: boolean;
   /** Trace-level `traceScores.<name>` paths. Views whose backend has no
    *  trace-score columns (sessions) keep observation scores without them. */
@@ -179,7 +192,7 @@ export function fieldRegistryFromColumns(
   overlay: {
     id: FieldRegistry["id"];
     fields?: Readonly<Record<string, FieldOverlay>>;
-    metadata?: boolean;
+    metadata?: boolean | Readonly<Record<string, string>>;
     scores?: boolean;
     /** Defaults to `scores`. */
     traceScores?: boolean;
@@ -284,6 +297,7 @@ export function extendFieldRegistryWithColumns(
     defaultSearchType: registry.defaultSearchType,
     searchScopes: registry.searchScopes,
     filterStateErrors: registry.filterStateErrors,
+    targeting: registry.targeting,
     defaultTextField: registry.defaultTextField,
     freeTextScopeLabel: registry.freeTextScopeLabel,
     searchExamples: registry.searchExamples,
@@ -330,6 +344,7 @@ export function withFieldOptions(
     defaultSearchType: registry.defaultSearchType,
     searchScopes: registry.searchScopes,
     filterStateErrors: registry.filterStateErrors,
+    targeting: registry.targeting,
     defaultTextField: registry.defaultTextField,
     freeTextScopeLabel: registry.freeTextScopeLabel,
     searchExamples: registry.searchExamples,
@@ -394,7 +409,14 @@ export const FIELDS: FieldDef[] = [
   { id: "output", aliases: [], kind: "text", syncMode: "textSearch", label: "Output", description: "Observation output", nullable: true },
 ];
 
-const METADATA_PREFIX = "metadata.";
+/** Maps query namespaces to their backend object columns. */
+export function metadataNamespaces(
+  registry: Pick<FieldRegistry, "metadata">,
+): Readonly<Record<string, string>> {
+  return registry.metadata === true
+    ? { metadata: "metadata" }
+    : registry.metadata || {};
+}
 
 // Score dot-paths. Lowercased prefixes accepted by the grammar; the
 // canonical spellings are `scores.<name>` and `traceScores.<name>`.
@@ -431,7 +453,7 @@ function isKeyedScoreColumn(column: string): boolean {
 export type FieldRef =
   | { type: "field"; field: FieldDef }
   | { type: "searchScope"; id: string; scope: SearchScope }
-  | { type: "metadata"; key: string }
+  | { type: "metadata"; key: string; namespace?: string; column?: string }
   | { type: "scores"; key: string; level: "observation" | "trace" }
   | { type: "pseudo"; id: typeof HAS_KEY | "in" };
 
@@ -454,6 +476,7 @@ export function createFieldRegistry({
   defaultSearchType = ["id", "content"],
   searchScopes = {},
   filterStateErrors,
+  targeting,
   defaultTextField,
   freeTextScopeLabel,
   searchExamples,
@@ -465,12 +488,13 @@ export function createFieldRegistry({
   id: FieldRegistry["id"];
   fields: readonly FieldDef[];
   columns: readonly ColumnDefinition[];
-  metadata: boolean;
+  metadata: boolean | Readonly<Record<string, string>>;
   scores: boolean;
   traceScores: boolean;
   allowFreeText: boolean;
   defaultSearchType?: readonly TracingSearchType[];
   searchScopes?: Readonly<Record<string, SearchScope>>;
+  targeting?: FilterTargeting;
   /** View-specific backend constraints beyond individual column operators. */
   filterStateErrors?: (filters: FilterState) => readonly string[];
   defaultTextField: string | null;
@@ -509,6 +533,7 @@ export function createFieldRegistry({
     defaultSearchType,
     searchScopes,
     filterStateErrors,
+    targeting,
     metadata,
     scores,
     traceScores,
@@ -525,7 +550,9 @@ export function createFieldRegistry({
     isDanglingDotPrefix: (value) => {
       const lower = value.toLowerCase();
       return (
-        (metadata && lower === METADATA_PREFIX) ||
+        Object.keys(metadataNamespaces(registry)).some(
+          (namespace) => lower === `${namespace.toLowerCase()}.`,
+        ) ||
         (scores && SCORE_PREFIXES.includes(lower)) ||
         (traceScores && TRACE_SCORE_PREFIXES.includes(lower))
       );
@@ -611,9 +638,16 @@ function resolveFromRegistry(
   byName: ReadonlyMap<string, FieldDef>,
 ): FieldRef | null {
   const lower = name.toLowerCase();
-  if (registry.metadata && lower.startsWith(METADATA_PREFIX)) {
-    const key = unquote(name.slice(METADATA_PREFIX.length)).value;
-    return key.length > 0 ? { type: "metadata", key } : null;
+  for (const [namespace, column] of Object.entries(
+    metadataNamespaces(registry),
+  )) {
+    const prefix = `${namespace}.`;
+    if (!lower.startsWith(prefix.toLowerCase())) continue;
+    const key = unquote(name.slice(prefix.length)).value;
+    if (!key) return null;
+    return registry.metadata === true
+      ? { type: "metadata", key }
+      : { type: "metadata", key, namespace, column };
   }
   if (registry.traceScores) {
     for (const prefix of TRACE_SCORE_PREFIXES) {
@@ -837,7 +871,7 @@ function refName(ref: FieldRef): string {
     case "field":
       return ref.field.id;
     case "metadata":
-      return `metadata.${quoteIfNeeded(ref.key)}`;
+      return `${ref.namespace ?? "metadata"}.${quoteIfNeeded(ref.key)}`;
     case "scores":
       return ref.level === "trace"
         ? `traceScores.${quoteIfNeeded(ref.key)}`

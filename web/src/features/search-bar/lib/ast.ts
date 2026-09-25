@@ -34,6 +34,7 @@ type NotNode = {
   parenSpan?: Span;
 };
 export type FilterNode = {
+  target?: { kind: "name" | "id" | "keyword"; value: string; span?: Span };
   kind: "filter";
   /** Canonical field id (registry-resolved) or `metadata.<key>`. */
   key: string;
@@ -79,6 +80,8 @@ export function astEquals(a: ASTNode | null, b: ASTNode | null): boolean {
       const o = b as FilterNode;
       return (
         a.key === o.key &&
+        a.target?.kind === o.target?.kind &&
+        a.target?.value === o.target?.value &&
         a.op === o.op &&
         (a.valueOp ?? "or") === (o.valueOp ?? "or") &&
         a.values.length === o.values.length &&

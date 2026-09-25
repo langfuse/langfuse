@@ -18,6 +18,7 @@
 // Langfuse filter contract can represent (e.g. cross-field OR) — those forms
 // are rejected with targeted messages in validate.ts, not here.
 
+import { serializeTarget } from "./targeting";
 import type { ASTNode, CompareOp, FilterNode, Span, TextNode } from "./ast";
 import {
   canonicalKey,
@@ -653,6 +654,38 @@ export function parse(
         }
       }
       const node = parseUnary();
+      const suffix = peek();
+      if (
+        registry.targeting &&
+        suffix?.type === "term" &&
+        suffix.raw.startsWith("@")
+      ) {
+        const filter =
+          node?.kind === "filter"
+            ? node
+            : node?.kind === "not" && node.child.kind === "filter"
+              ? node.child
+              : null;
+        if (filter && !node?.parenSpan && !filter.parenSpan) {
+          next();
+          const raw = suffix.raw.slice(1);
+          const isId = raw.startsWith("id:");
+          const decoded = unquote(isId ? raw.slice(3) : raw);
+          filter.target = {
+            kind: isId ? "id" : decoded.quoted ? "name" : "keyword",
+            value: decoded.value,
+            span: suffix.span,
+          };
+          if (!decoded.value)
+            diagnostics.push({
+              ...suffix.span,
+              severity: "error",
+              message: "Missing target after @",
+            });
+          if (filter.span) filter.span.to = suffix.span.to;
+          if (node?.kind === "not" && node.span) node.span.to = suffix.span.to;
+        }
+      }
       if (node !== null) children.push(node);
     }
     if (children.length === 0) return null;
@@ -880,6 +913,11 @@ const OP_SYMBOL: Partial<Record<CompareOp, string>> = {
 };
 
 function serializeFilter(node: FilterNode): string {
+  const text = serializeBareFilter(node);
+  return node.target ? `${text} ${serializeTarget(node.target)}` : text;
+}
+
+function serializeBareFilter(node: FilterNode): string {
   // Prefer the user's typed key (alias/casing) — surgery fallbacks shouldn't
   // canonicalize untouched filters.
   const key = node.rawKey ?? node.key;
@@ -900,7 +938,7 @@ function serializeFilter(node: FilterNode): string {
 function sameFieldOrGroup(node: ASTNode): FilterNode[] | null {
   if (node.kind !== "or") return null;
   const filters = node.children.filter(
-    (c): c is FilterNode => c.kind === "filter",
+    (c): c is FilterNode => c.kind === "filter" && !c.target,
   );
   if (filters.length !== node.children.length || filters.length < 2)
     return null;

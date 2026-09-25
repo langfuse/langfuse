@@ -49,6 +49,45 @@ function plan(
 }
 
 describe("planInputCompletions", () => {
+  it("uses mapped metadata namespaces for keys and backend columns for values", () => {
+    const registry = createFieldRegistry({
+      ...EVENTS_FIELD_REGISTRY,
+      metadata: { attributes: "eventMetadata" },
+    });
+    const observed = {
+      eventMetadata: [{ value: "a b" }],
+      "eventMetadata.a b": [{ value: "eu" }],
+    };
+    const keys = flattenOptions(
+      planInputCompletions(
+        {
+          input: "attributes.",
+          caret: 11,
+          observed,
+          recents: [],
+          currentQueryText: "attributes.",
+        },
+        registry,
+      ),
+    );
+    expect(keys).toContainEqual(
+      expect.objectContaining({ fieldId: 'attributes."a b"' }),
+    );
+    const input = 'attributes."a b":';
+    const values = flattenOptions(
+      planInputCompletions(
+        {
+          input,
+          caret: input.length,
+          observed,
+          recents: [],
+          currentQueryText: input,
+        },
+        registry,
+      ),
+    );
+    expect(values).toContainEqual(expect.objectContaining({ value: "eu" }));
+  });
   it("offers only declared scope rewrites and keeps compatibility in: out of suggestions", () => {
     const registry = createFieldRegistry({
       ...EVENTS_FIELD_REGISTRY,

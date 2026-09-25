@@ -1335,3 +1335,48 @@ describe("filterStateToQueryText", () => {
     expect(astToFilterState(v.ast).filters).toEqual(filters);
   });
 });
+
+describe("mapped metadata namespaces", () => {
+  it("round-trips distinct metadata columns, presence, and experiment targets", () => {
+    const registry = createFieldRegistry({
+      ...EVENTS_FIELD_REGISTRY,
+      metadata: {
+        itemMetadata: "itemMetadata",
+        eventMetadata: "eventMetadata",
+      },
+      targeting: {
+        defaultTarget: "baseline",
+        targets: [{ id: "baseline", label: "baseline", keyword: true }],
+        supports: () => true,
+      },
+    });
+    const filters: FilterState = [
+      {
+        type: "stringObject",
+        column: "itemMetadata",
+        key: "language",
+        operator: "=",
+        value: "en",
+        target: "baseline",
+      },
+      {
+        type: "stringObject",
+        column: "eventMetadata",
+        key: "region",
+        operator: "is set",
+        value: "",
+        target: "baseline",
+      },
+    ];
+    const text = filterStateToQueryText(filters, {}, registry);
+    expect(text.skipped).toEqual([]);
+    expect(text.text).toContain("itemMetadata.language:en @baseline");
+    expect(text.text).toContain("has:eventMetadata.region @baseline");
+    const result = astToFilterState(
+      parse(text.text, registry).ast,
+      undefined,
+      registry,
+    );
+    expect(result.filters).toEqual(filters);
+  });
+});

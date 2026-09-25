@@ -74,7 +74,9 @@ function renderPlainText(text: string, keyPrefix: string): React.ReactNode[] {
 }
 
 function FilterTokenBody({ segment }: { segment: FilterSegment }) {
-  const raw = segment.raw;
+  const raw = segment.target
+    ? segment.raw.slice(0, segment.target.from)
+    : segment.raw;
   const dash = segment.negated ? "-" : "";
   const body = segment.negated ? raw.slice(1) : raw;
   // Quote-aware split: a dot-path key may carry a quoted segment with an inner
@@ -109,6 +111,11 @@ function FilterTokenBody({ segment }: { segment: FilterSegment }) {
       >
         {value}
       </span>
+      {segment.target && (
+        <span className={segment.target.textClassName}>
+          {segment.raw.slice(segment.target.from)}
+        </span>
+      )}
     </>
   );
 }

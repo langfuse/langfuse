@@ -20,12 +20,14 @@ import {
 import type { ASTNode, FilterNode } from "./ast";
 import {
   EVENTS_FIELD_REGISTRY,
+  metadataNamespaces,
   SCORE_COLUMNS,
   type FieldRef,
   type FieldRegistry,
 } from "./fields";
 import { serialize } from "./langQ";
 import { quoteIfNeeded } from "./quoting";
+import { targetReference } from "./targeting";
 
 function filterNode(
   key: string,
@@ -201,11 +203,18 @@ function lowerSingle(
       return filterNode(id, "=", [String(value)]);
     }
     case "stringObject": {
-      const id = registry.columnIdOf(filter.column);
-      if (id !== "metadata") return null;
+      const id = registry.columnIdOf(filter.column) ?? filter.column;
+      const namespace = Object.entries(metadataNamespaces(registry)).find(
+        ([, column]) => column === id,
+      )?.[0];
+      if (!namespace) return null;
       // A key with grammar chars (`:`, space, …) is quoted so it re-lexes as one
       // token (`metadata."my key"`); resolveField unquotes it on the way back.
-      const key = `metadata.${quoteIfNeeded(filter.key)}`;
+      const key = `${namespace}.${quoteIfNeeded(filter.key)}`;
+      if (filter.operator === "is set" || filter.operator === "is not set") {
+        const node = filterNode("has", "=", [key]);
+        return filter.operator === "is not set" ? negate(node) : node;
+      }
       if (filter.operator === "does not contain") {
         return negate(filterNode(key, "~", [filter.value]));
       }
@@ -258,6 +267,8 @@ export type FilterStateToQueryResult = {
 };
 
 export type FilterStateToQueryOptions = {
+  /** Stable target references for persisted query text, such as recent searches. */
+  targetIds?: boolean;
   /** Global full-text query — rendered as bare text or a scoped field token. */
   searchQuery?: string | null;
   /** Exact backend search lanes, projected through the host's registry. */
@@ -285,6 +296,29 @@ export function filterStateToQueryText(
     const node = lowerSingle(filter, registry);
     if (node === null) {
       skipped.push(`${filter.column} (${filter.type} ${filter.operator})`);
+      skippedFilters.push(filter);
+      continue;
+    }
+    const condition =
+      node.kind === "filter"
+        ? node
+        : node.kind === "not" && node.child.kind === "filter"
+          ? node.child
+          : null;
+    const field = condition ? registry.resolveField(condition.key) : null;
+    if (condition && field && registry.targeting?.supports(field)) {
+      condition.target = targetReference(
+        filter.target ?? registry.targeting.defaultTarget,
+        registry,
+      );
+      if (options.targetIds && condition.target.kind === "name") {
+        condition.target = {
+          kind: "id",
+          value: filter.target ?? registry.targeting.defaultTarget,
+        };
+      }
+    } else if (filter.target) {
+      skipped.push(`${filter.column} (target not supported)`);
       skippedFilters.push(filter);
       continue;
     }

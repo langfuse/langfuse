@@ -48,6 +48,7 @@ import {
   buildOnlySelection,
   clearCategoricalColumn,
   deriveOperatorChange,
+  hasMultipleFilterTargets,
   removeColumnFiltersOfType,
   removeTextFilterEntry,
   type BooleanKeyValueFilterEntry,
@@ -1376,6 +1377,17 @@ export function useSidebarFilterPresentation(
         };
       }
 
+      if (
+        facet.type === "categorical" &&
+        hasMultipleFilterTargets(filterState, facet.column)
+      ) {
+        return {
+          isDisabled: true,
+          reason:
+            "Edit filters for different targets individually in the filter bar.",
+        };
+      }
+
       return { isDisabled: false };
     };
 
@@ -1465,6 +1477,7 @@ export function useSidebarFilterPresentation(
           const categoryFilters = filterState.filter(
             (f) => f.column === facet.column && f.type === "categoryOptions",
           ) as Array<{
+            target?: string;
             column: string;
             type: "categoryOptions";
             operator: "any of" | "none of";
@@ -1476,6 +1489,7 @@ export function useSidebarFilterPresentation(
           const activeFilters: KeyValueFilterEntry[] = categoryFilters.map(
             (f) => ({
               key: f.key,
+              ...(f.target ? { target: f.target } : {}),
               operator: f.operator,
               value: f.value,
             }),
@@ -1534,6 +1548,7 @@ export function useSidebarFilterPresentation(
           const numericFilters = filterState.filter(
             (f) => f.column === facet.column && f.type === "numberObject",
           ) as Array<{
+            target?: string;
             column: string;
             type: "numberObject";
             operator: "=" | ">" | "<" | ">=" | "<=";
@@ -1545,6 +1560,7 @@ export function useSidebarFilterPresentation(
           const activeFilters: NumericKeyValueFilterEntry[] =
             numericFilters.map((f) => ({
               key: f.key,
+              ...(f.target ? { target: f.target } : {}),
               operator: f.operator,
               value: f.value,
             }));
@@ -1614,6 +1630,7 @@ export function useSidebarFilterPresentation(
           const booleanFilters = filterState.filter(
             (f) => f.column === facet.column && f.type === "booleanObject",
           ) as Array<{
+            target?: string;
             column: string;
             type: "booleanObject";
             operator: "=" | "<>";
@@ -1624,6 +1641,7 @@ export function useSidebarFilterPresentation(
           const activeFilters: BooleanKeyValueFilterEntry[] =
             booleanFilters.map((f) => ({
               key: f.key,
+              ...(f.target ? { target: f.target } : {}),
               operator: f.operator,
               value: f.value,
             }));
@@ -1667,6 +1685,7 @@ export function useSidebarFilterPresentation(
           const stringFilters = filterState.filter(
             (f) => f.column === facet.column && f.type === "stringObject",
           ) as Array<{
+            target?: string;
             column: string;
             type: "stringObject";
             operator:
@@ -1683,6 +1702,7 @@ export function useSidebarFilterPresentation(
           const activeFilters: StringKeyValueFilterEntry[] = stringFilters.map(
             (f) => ({
               key: f.key,
+              ...(f.target ? { target: f.target } : {}),
               operator: f.operator,
               value: f.value,
             }),

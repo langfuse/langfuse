@@ -98,6 +98,28 @@ text: `!`, lowercase `not`/`or`/`and` (use `-field:value` to exclude;
 search for it as literal text. (Top-level grouping with `(` `)` is tracked as a
 follow-up.)
 
+## Optional condition targets
+
+A host can supply `registry.targeting` with available targets, a default target,
+and a predicate selecting eligible fields. An eligible condition accepts a
+suffix such as `level:ERROR @baseline` or
+`scores.quality:>0.8 @"Comparison run"`. The target is part of that condition's
+editable/removable chip. Hosts without this capability keep their existing
+syntax.
+
+`FilterState.target` persists the stable target ID; keyword targets such as
+`baseline` remain symbolic. The reverse adapter explicitly renders the default
+target, and unavailable targets block the query rather than falling back.
+Experiment items support targets on every exposed facet; their host groups the
+conditions by experiment before querying. The legacy comparison view does not
+opt in.
+
+The existing `metadata` capability also accepts a namespace-to-column mapping
+when a view has multiple object columns, for example
+`{ itemMetadata: "itemMetadata", eventMetadata: "eventMetadata" }`.
+`true` retains the standard `metadata.` namespace. Key presence uses
+`has:itemMetadata.version` / `-has:itemMetadata.version` and can carry a target.
+
 ## Data flow (one source of truth, one direction)
 
 The table's URL filter state — `FilterState` (the `filter` param, owned by the

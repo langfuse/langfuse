@@ -16,18 +16,21 @@ import {
   indexOfOutsideQuotes,
   lexTokens,
   parseGlob,
+  parse,
   serializeValue,
   splitOutsideQuotes,
   termAt,
 } from "./langQ";
 import {
   EVENTS_FIELD_REGISTRY,
+  metadataNamespaces,
   SCORE_COLUMNS,
   type FieldDef,
   type FieldRegistry,
   type FieldRef,
 } from "./fields";
-import { quoteIfNeeded } from "./quoting";
+import { quoteIfNeeded, unquote } from "./quoting";
+import { serializeTarget, targetReference } from "./targeting";
 import { validateQuery } from "./validate";
 import { rankFilter } from "./rank";
 import type { ObservedOptions } from "./observed-options";
@@ -225,14 +228,16 @@ function fieldOptions(
       })),
     );
   }
-  if (includeVirtual && registry.metadata) {
-    opts.push({
-      id: "field:metadata.",
-      kind: "field",
-      label: "metadata.",
-      detail: "metadata key path, e.g. metadata.region:eu",
-      fieldId: "metadata.",
-    });
+  if (includeVirtual) {
+    for (const namespace of Object.keys(metadataNamespaces(registry))) {
+      opts.push({
+        id: `field:${namespace}.`,
+        kind: "field",
+        label: `${namespace}.`,
+        detail: `metadata key path, e.g. ${namespace}.region:eu`,
+        fieldId: `${namespace}.`,
+      });
+    }
   }
   if (includeVirtual && registry.scores) {
     opts.push(
@@ -642,6 +647,7 @@ function matchOperatorOptions(
 // ---- key-path suggestions (metadata.*, scores.*, traceScores.*) ----
 
 type PathKind = {
+  column?: string;
   prefix: string;
   canonical: string;
   level?: "observation" | "trace";
@@ -652,7 +658,6 @@ type PathKind = {
 // no score-name dropdown. (`tracescore.` singular matches the `score.`/`scores.`
 // observation-level pair.)
 const PATH_PREFIXES: PathKind[] = [
-  { prefix: "metadata.", canonical: "metadata." },
   { prefix: "tracescores.", canonical: "traceScores.", level: "trace" },
   { prefix: "trace_scores.", canonical: "traceScores.", level: "trace" },
   { prefix: "tracescore.", canonical: "traceScores.", level: "trace" },
@@ -665,8 +670,17 @@ function pathKindOf(
   registry: FieldRegistry,
 ): { kind: PathKind; typedKey: string } | null {
   const lower = keyPart.toLowerCase();
-  for (const kind of PATH_PREFIXES) {
-    if (kind.canonical === "metadata." && !registry.metadata) continue;
+  const paths = [
+    ...Object.entries(metadataNamespaces(registry)).map(
+      ([namespace, column]) => ({
+        prefix: `${namespace.toLowerCase()}.`,
+        canonical: `${namespace}.`,
+        column,
+      }),
+    ),
+    ...PATH_PREFIXES,
+  ];
+  for (const kind of paths) {
     if (kind.canonical === "scores." && !registry.scores) continue;
     if (kind.canonical === "traceScores." && !registry.traceScores) continue;
     if (lower.startsWith(kind.prefix)) {
@@ -695,11 +709,11 @@ function keyPathOptions(
   // still matches (otherwise the first `"` drops every option and the popover
   // silently closes).
   const rankKey = typedKey.replace(/^"/, "").replace(/"$/, "");
-  if (kind.canonical === "metadata.") {
-    const options = observedValues(observed, "metadata").map((o) => ({
-      id: `key:metadata.${o.value}`,
+  if (kind.column) {
+    const options = observedValues(observed, kind.column).map((o) => ({
+      id: `key:${kind.canonical}${o.value}`,
       kind: "field" as const,
-      label: `metadata.${o.value}`,
+      label: `${kind.canonical}${o.value}`,
       // The observed JSON type of the path (display-only — metadata filters
       // always lower to stringObject regardless). Paths seen with multiple
       // types carry no type hint; counts stay the fallback like other lists.
@@ -708,7 +722,7 @@ function keyPathOptions(
     }));
     return {
       title: SECTION_KEYS,
-      options: rankFilter(options, `metadata.${rankKey}`),
+      options: rankFilter(options, `${kind.canonical}${rankKey}`),
     };
   }
   const numericColumn =
@@ -855,7 +869,10 @@ function valueStageSections(input: ValueStageInput): {
 
     case "metadata": {
       if (observed === undefined) return { sections: [], loading: true };
-      const all = observedValues(observed, `metadata.${ref.key}`).map((o) => ({
+      const all = observedValues(
+        observed,
+        `${ref.column ?? "metadata"}.${ref.key}`,
+      ).map((o) => ({
         id: `value:${o.value}`,
         kind: "value" as const,
         label: o.value,
@@ -1296,6 +1313,48 @@ export function planInputCompletions(
   const start = term?.from ?? caret;
   const token = term?.raw ?? "";
 
+  if (registry.targeting && token.startsWith("@")) {
+    const prefix = parse(input.slice(0, start), registry);
+    const parsed =
+      prefix.ast?.kind === "and" ? prefix.ast.children.at(-1) : prefix.ast;
+    const condition =
+      parsed?.kind === "filter"
+        ? parsed
+        : parsed?.kind === "not" && parsed.child.kind === "filter"
+          ? parsed.child
+          : null;
+    const field = condition ? registry.resolveField(condition.key) : null;
+    if (
+      !prefix.valid ||
+      condition?.target ||
+      !field ||
+      !registry.targeting.supports(field)
+    )
+      return null;
+    const query = unquote(
+      token.slice(1).replace(/^"/, "").replace(/"$/, ""),
+    ).value.toLowerCase();
+    return {
+      stage: "value",
+      from: start,
+      to: term?.to ?? caret,
+      loading: false,
+      sections: [
+        {
+          title: "Target",
+          options: registry.targeting.targets
+            .filter((target) => target.label.toLowerCase().includes(query))
+            .map((target) => ({
+              id: `target:${target.id}`,
+              kind: "pattern" as const,
+              label: target.label,
+              insert: serializeTarget(targetReference(target.id, registry)),
+            })),
+        },
+      ],
+    };
+  }
+
   const negated = token.startsWith("-");
   const tokenBody = negated ? token.slice(1) : token;
   const bodyStart = start + (negated ? 1 : 0);
@@ -1345,7 +1404,7 @@ export function planInputCompletions(
       // show a loading row while they stream in (lazy mode). Metadata keys are
       // not server-enumerated — they come from the client-side observed-metadata
       // map (lib/metadata-paths.ts) — so there is nothing to request there.
-      if (path.kind.canonical !== "metadata.") {
+      if (!path.kind.column) {
         const scoreColumns =
           path.kind.level === "trace"
             ? SCORE_COLUMNS.trace
