@@ -252,6 +252,31 @@ describe("DataTableControls numeric conditions", () => {
 });
 
 describe("mobile searchable filter layout", () => {
+  it("keeps secondary controls inside the Filters sheet", () => {
+    render(
+      <DataTableControlsProvider tableName="mobile-controls-test">
+        <SearchableTableFilterLayout
+          search={<MobileDraftSearchInput />}
+          toolbar={<FilterToggleButton />}
+          mobileControls={<button>Past 30 days</button>}
+        >
+          <TestFilterSidebar />
+          <div>Table content</div>
+        </SearchableTableFilterLayout>
+      </DataTableControlsProvider>,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Past 30 days" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+
+    expect(
+      screen.getByRole("button", { name: "Past 30 days" }),
+    ).toBeInTheDocument();
+  });
+
   it("preserves an unsubmitted grammar-search draft across sheet close", () => {
     const layout = (searchKey: string) => (
       <DataTableControlsProvider tableName="draft-persistence-test">

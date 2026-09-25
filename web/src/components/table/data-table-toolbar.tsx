@@ -190,6 +190,9 @@ interface DataTableToolbarProps<TData, TValue> {
   leadingControls?: React.ReactNode;
   /** Surface-specific controls immediately before Columns and row height. */
   toolbarSettings?: React.ReactNode;
+  /** Saved views and time range are rendered by the owning searchable layout
+   * inside its mobile Filters sheet. Their desktop toolbar placement remains. */
+  hideMobileFilterControls?: boolean;
   additionalColumnSettings?: {
     content: React.ReactNode;
     isDefault: boolean;
@@ -198,6 +201,95 @@ interface DataTableToolbarProps<TData, TValue> {
   /** Notified when a whole column group is shown or hidden at once, for surfaces
    *  that report their own event for it (the experiments score families). */
   onColumnGroupToggle?: (payload: ColumnGroupTogglePayload) => void;
+}
+
+type TableViewControlProps = {
+  viewConfig: TableViewConfig;
+  orderByState?: OrderByState;
+  filterState?: FilterState;
+  columnOrder: ColumnOrderState;
+  columnVisibility: VisibilityState;
+  searchQuery?: string;
+};
+
+function TableViewControl({
+  viewConfig,
+  orderByState,
+  filterState,
+  columnOrder,
+  columnVisibility,
+  searchQuery,
+}: TableViewControlProps) {
+  return (
+    <TableViewPresetsDrawer
+      viewConfig={viewConfig}
+      currentState={{
+        orderBy: orderByState ?? null,
+        filters: filterState ?? [],
+        columnOrder,
+        columnVisibility,
+        searchQuery: searchQuery ?? "",
+      }}
+      systemFilterPresets={viewConfig.systemFilterPresets}
+    />
+  );
+}
+
+function TableTimeRangeControl({
+  timeRange,
+  setTimeRange,
+  compact = false,
+}: {
+  timeRange: TimeRange;
+  setTimeRange: (timeRange: TimeRange) => void;
+  compact?: boolean;
+}) {
+  return (
+    <TimeRangePicker
+      timeRange={timeRange}
+      onTimeRangeChange={setTimeRange}
+      timeRangePresets={TABLE_AGGREGATION_OPTIONS}
+      className="my-0 max-w-full overflow-x-auto"
+      compact={compact}
+    />
+  );
+}
+
+/** Saved views and time-range controls for searchable tables' mobile sheet. */
+export function DataTableMobileFilterControls({
+  viewConfig,
+  orderByState,
+  filterState,
+  columnOrder,
+  columnVisibility,
+  searchQuery,
+  timeRange,
+  setTimeRange,
+}: Partial<TableViewControlProps> & {
+  timeRange?: TimeRange;
+  setTimeRange?: (timeRange: TimeRange) => void;
+}) {
+  return (
+    <>
+      {viewConfig && columnOrder && columnVisibility && (
+        <TableViewControl
+          viewConfig={viewConfig}
+          orderByState={orderByState}
+          filterState={filterState}
+          columnOrder={columnOrder}
+          columnVisibility={columnVisibility}
+          searchQuery={searchQuery}
+        />
+      )}
+      {timeRange && setTimeRange && (
+        <TableTimeRangeControl
+          timeRange={timeRange}
+          setTimeRange={setTimeRange}
+          compact
+        />
+      )}
+    </>
+  );
 }
 
 /**
@@ -281,6 +373,7 @@ export function DataTableToolbar<TData, TValue>({
   viewModeToggle,
   leadingControls,
   toolbarSettings,
+  hideMobileFilterControls = false,
   additionalColumnSettings,
   onColumnGroupToggle,
 }: DataTableToolbarProps<TData, TValue> & ToolbarTableIdentity) {
@@ -365,17 +458,16 @@ export function DataTableToolbar<TData, TValue>({
           <FilterToggleButton filterState={filterState} className="md:hidden" />
         )}
         {!!columnVisibility && !!columnOrder && !!viewConfig && (
-          <TableViewPresetsDrawer
-            viewConfig={viewConfig}
-            currentState={{
-              orderBy: orderByState ?? null,
-              filters: filterState ?? [],
-              columnOrder,
-              columnVisibility,
-              searchQuery: currentSearchQuery ?? searchString,
-            }}
-            systemFilterPresets={viewConfig.systemFilterPresets}
-          />
+          <div className={cn(hideMobileFilterControls && "hidden md:contents")}>
+            <TableViewControl
+              viewConfig={viewConfig}
+              orderByState={orderByState}
+              filterState={filterState}
+              columnOrder={columnOrder}
+              columnVisibility={columnVisibility}
+              searchQuery={currentSearchQuery ?? searchString}
+            />
+          </div>
         )}
         {searchConfig && (
           <div className="flex max-w-120 shrink-0 items-stretch md:min-w-96">
@@ -498,12 +590,12 @@ export function DataTableToolbar<TData, TValue>({
         )}
         {viewModeToggle}
         {timeRange && setTimeRange && (
-          <TimeRangePicker
-            timeRange={timeRange}
-            onTimeRangeChange={setTimeRange}
-            timeRangePresets={TABLE_AGGREGATION_OPTIONS}
-            className="my-0 max-w-full overflow-x-auto"
-          />
+          <div className={cn(hideMobileFilterControls && "hidden md:contents")}>
+            <TableTimeRangeControl
+              timeRange={timeRange}
+              setTimeRange={setTimeRange}
+            />
+          </div>
         )}
         {refreshConfig && (
           <DataTableRefreshButton

@@ -56,10 +56,14 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
 export function SearchableTableFilterLayout({
   search,
   toolbar,
+  mobileControls,
   children,
 }: PropsWithChildren<{
   search: ReactNode;
   toolbar: ReactNode;
+  /** Compact context controls that belong in the mobile Filters sheet rather
+   * than consuming a second toolbar row (for example saved views and time). */
+  mobileControls?: ReactNode;
 }>) {
   const { isMobile } = useDataTableControls();
   const searchDraftCache = useSearchBarDraftCache(
@@ -70,7 +74,10 @@ export function SearchableTableFilterLayout({
     <SearchBarDraftCacheContext.Provider value={searchDraftCache}>
       {isMobile ? null : search}
       {toolbar}
-      <FilterPanels mobileSearch={isMobile ? search : null}>
+      <FilterPanels
+        mobileSearch={isMobile ? search : null}
+        mobileControls={isMobile ? mobileControls : null}
+      >
         {children}
       </FilterPanels>
     </SearchBarDraftCacheContext.Provider>
@@ -81,11 +88,13 @@ export function SearchableTableFilterLayout({
 export function StickySearchableTableFilterLayout({
   search,
   toolbar,
+  mobileControls,
   nonStickyContent,
   children,
 }: PropsWithChildren<{
   search: ReactNode;
   toolbar: ReactNode;
+  mobileControls?: ReactNode;
   nonStickyContent?: ReactNode;
 }>) {
   const { isMobile } = useDataTableControls();
@@ -100,7 +109,10 @@ export function StickySearchableTableFilterLayout({
         {toolbar}
       </div>
       {nonStickyContent}
-      <FilterPanels mobileSearch={isMobile ? search : null}>
+      <FilterPanels
+        mobileSearch={isMobile ? search : null}
+        mobileControls={isMobile ? mobileControls : null}
+      >
         {children}
       </FilterPanels>
     </SearchBarDraftCacheContext.Provider>
@@ -110,7 +122,11 @@ export function StickySearchableTableFilterLayout({
 function FilterPanels({
   children,
   mobileSearch,
-}: PropsWithChildren<{ mobileSearch?: ReactNode }>) {
+  mobileControls,
+}: PropsWithChildren<{
+  mobileSearch?: ReactNode;
+  mobileControls?: ReactNode;
+}>) {
   const { open, setOpen, tableName, isMobile } = useDataTableControls();
   const capture = usePostHogClientCapture();
   // Single-source the breakpoint from the controls provider (which derives
@@ -174,7 +190,7 @@ function FilterPanels({
               className="flex h-[85svh] flex-col gap-0 p-0 [&>button]:hidden"
             >
               <SheetTitle className="sr-only">Filters</SheetTitle>
-              {mobileSearch ? (
+              {mobileSearch || mobileControls ? (
                 <>
                   <div className="flex shrink-0 items-center gap-2 border-b px-4 py-3">
                     <span className="text-foreground text-lg font-bold">
@@ -193,9 +209,16 @@ function FilterPanels({
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
-                  <div className="shrink-0 border-b px-2 py-2">
-                    {mobileSearch}
-                  </div>
+                  {mobileSearch && (
+                    <div className="shrink-0 border-b px-2 py-2">
+                      {mobileSearch}
+                    </div>
+                  )}
+                  {mobileControls && (
+                    <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-2 py-2">
+                      {mobileControls}
+                    </div>
+                  )}
                   <div className="min-h-0 flex-1 overflow-y-auto">
                     {mobileFilterSidebar}
                   </div>

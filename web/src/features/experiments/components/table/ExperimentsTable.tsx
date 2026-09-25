@@ -2,7 +2,10 @@
 /* eslint-disable @repo/no-null-render */
 import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
 import { DataTable } from "@/src/components/table/data-table";
-import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import {
+  DataTableMobileFilterControls,
+  DataTableToolbar,
+} from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
   DataTableControls,
@@ -951,6 +954,7 @@ export default function ExperimentsTable({
             <TableHeaderControls
               timeRange={timeRange}
               setTimeRange={setTimeRange}
+              desktopOnly
             />
           )}
           <StickySearchableTableFilterLayout
@@ -999,6 +1003,22 @@ export default function ExperimentsTable({
                     datasetIdByExperimentId={datasetIdByExperimentId}
                   />,
                 ]}
+                hideMobileFilterControls
+              />
+            }
+            mobileControls={
+              <DataTableMobileFilterControls
+                viewConfig={{
+                  tableName: TableViewPresetTableName.Experiments,
+                  projectId,
+                  controllers: viewControllers,
+                }}
+                orderByState={orderByState}
+                filterState={queryFilter.filterState}
+                columnOrder={columnOrder}
+                columnVisibility={columnVisibility}
+                timeRange={timeRange}
+                setTimeRange={setTimeRange}
               />
             }
             nonStickyContent={

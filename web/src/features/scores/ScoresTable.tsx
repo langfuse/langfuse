@@ -2,7 +2,10 @@
 import { type ViewVersion } from "@langfuse/shared/query";
 import { DataTable } from "@/src/components/table/data-table";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import {
+  DataTableMobileFilterControls,
+  DataTableToolbar,
+} from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
   DataTableControls,
@@ -1138,6 +1141,7 @@ export default function ScoresTable({
           <TableHeaderControls
             timeRange={timeRange}
             setTimeRange={setTimeRange}
+            desktopOnly
           />
         )}
         <SearchableTableFilterLayout
@@ -1220,6 +1224,22 @@ export default function ScoresTable({
                 totalCount,
                 ...paginationState,
               }}
+              hideMobileFilterControls
+            />
+          }
+          mobileControls={
+            <DataTableMobileFilterControls
+              viewConfig={{
+                tableName: TableViewPresetTableName.Scores,
+                projectId,
+                controllers: viewControllers,
+              }}
+              orderByState={orderByState}
+              filterState={queryFilter.explicitFilterState}
+              columnOrder={columnOrder}
+              columnVisibility={columnVisibility}
+              timeRange={isTraceScoped ? undefined : timeRange}
+              setTimeRange={isTraceScoped ? undefined : setTimeRange}
             />
           }
         >
