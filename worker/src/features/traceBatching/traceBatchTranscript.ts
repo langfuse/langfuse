@@ -8,6 +8,7 @@ import {
   orderObservations,
   recordDistribution,
   recordIncrement,
+  renderGenericTranscript,
   renderTranscript,
   topicsTranscriptConfig,
   transcriptBlockTypes,
@@ -194,6 +195,64 @@ async function recordTopicsTokens(text: string, span: Span) {
   span.setAttribute("langfuse.trace_batch.topics_transcript_tokens", tokens);
 }
 
+async function recordTranscriptJsonTokens(text: string | null, span: Span) {
+  const tokens =
+    text === null ? 0 : await tokenCountAsync({ model: TOKENIZER_MODEL, text });
+  if (tokens === undefined) {
+    recordIncrement(
+      "langfuse.trace_batch.transcript_json_token_estimation_unavailable",
+      1,
+    );
+    span.setAttribute("langfuse.trace_batch.transcript_json", "unavailable");
+    return;
+  }
+  recordDistribution("langfuse.trace_batch.transcript_json_tokens", tokens, {
+    tokenizer: "o200k_base",
+  });
+  span.setAttribute("langfuse.trace_batch.transcript_json_tokens", tokens);
+}
+
+async function recordGenericTranscriptTokens(text: string, span: Span) {
+  const tokens = text
+    ? await tokenCountAsync({ model: TOKENIZER_MODEL, text })
+    : 0;
+  if (tokens === undefined) {
+    recordIncrement(
+      "langfuse.trace_batch.generic_transcript_token_estimation_unavailable",
+      1,
+    );
+    span.setAttribute("langfuse.trace_batch.generic_transcript", "unavailable");
+    return;
+  }
+  recordDistribution("langfuse.trace_batch.generic_transcript_tokens", tokens, {
+    tokenizer: "o200k_base",
+  });
+  span.setAttribute("langfuse.trace_batch.generic_transcript_tokens", tokens);
+}
+
+function recordGenericRendering(
+  transcript: Transcript | null,
+  observations: Observation[],
+  span: Span,
+): string | undefined {
+  try {
+    const text = renderGenericTranscript(transcript, observations);
+    recordDistribution(
+      "langfuse.trace_batch.generic_transcript_characters",
+      text.length,
+    );
+    span.setAttribute(
+      "langfuse.trace_batch.generic_transcript_characters",
+      text.length,
+    );
+    return text;
+  } catch {
+    recordIncrement("langfuse.trace_batch.generic_transcript_failed", 1);
+    span.setAttribute("langfuse.trace_batch.generic_transcript", "failed");
+    return undefined;
+  }
+}
+
 export function recordTraceBatchTranscript(
   observations: Observation[],
 ): Promise<void> {
@@ -260,13 +319,28 @@ export function recordTraceBatchTranscript(
       threadCount,
     );
     recordCharacterCounts(transcript, span);
-    if (span.isRecording()) {
-      // JSON string length in UTF-16 code units; do not retain the serialized copy.
+    const transcriptJson =
+      transcript === null ? null : JSON.stringify(transcript);
+    const transcriptJsonCharacters = transcriptJson?.length ?? 0;
+    recordDistribution(
+      "langfuse.trace_batch.transcript_json_characters",
+      transcriptJsonCharacters,
+    );
+    span.setAttribute(
+      "langfuse.trace_batch.transcript_json_characters",
+      transcriptJsonCharacters,
+    );
+    if (span.isRecording())
       span.setAttribute(
         "langfuse.trace_batch.transcript_characters",
-        transcript === null ? 0 : JSON.stringify(transcript).length,
+        transcriptJsonCharacters,
       );
-    }
+
+    const genericText = recordGenericRendering(
+      transcript,
+      orderedObservations,
+      span,
+    );
 
     const topicsText = recordTopicsRendering(
       transcript,
@@ -278,8 +352,7 @@ export function recordTraceBatchTranscript(
       for (const metric of TOKEN_METRICS) recordTokens(span, metric, 0);
     }
 
-    // Only the rendered text and span outlive this call, releasing observations
-    // while the next trace streams. Tokenizer requests remain sequential.
+    // Text estimates run sequentially while the next trace streams.
     return (async () => {
       if (transcript !== null) {
         try {
@@ -288,6 +361,23 @@ export function recordTraceBatchTranscript(
           // A missing experiment metric must not retry all reads in the batch.
           recordIncrement("langfuse.trace_batch.token_estimation_failed", 1);
           span.setAttribute("langfuse.trace_batch.token_estimation", "failed");
+        }
+      }
+      try {
+        await recordTranscriptJsonTokens(transcriptJson, span);
+      } catch {
+        recordIncrement("langfuse.trace_batch.transcript_json_failed", 1);
+        span.setAttribute("langfuse.trace_batch.transcript_json", "failed");
+      }
+      if (genericText !== undefined) {
+        try {
+          await recordGenericTranscriptTokens(genericText, span);
+        } catch {
+          recordIncrement("langfuse.trace_batch.generic_transcript_failed", 1);
+          span.setAttribute(
+            "langfuse.trace_batch.generic_transcript",
+            "failed",
+          );
         }
       }
       if (topicsText !== undefined) {

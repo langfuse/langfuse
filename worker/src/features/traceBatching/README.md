@@ -122,7 +122,11 @@ These distributions use the `langfuse.trace_batch` prefix:
 | Metric | Sample |
 | --- | --- |
 | `transcript_assembly_duration_ms` | One trace's ordering and assembly time, excluding I/O conversion, stream waits and tokenization; `has_transcript:true\|false`. |
-| `transcript_message_tokens` | Sum of current-turn and history token estimates; zero when empty, omitted if either estimate is unavailable. Replaces full-transcript JSON tokenization under a different name. |
+| `transcript_json_characters` | UTF-16 length of `JSON.stringify(assembleTranscript(...))`, including thread/message wrappers and provenance; zero for a null transcript. Same admitted traces as the Topics length metrics. |
+| `transcript_json_tokens` | o200k estimate of that complete JSON string, tagged `tokenizer:o200k_base`; zero for a null transcript. Attempted on the same admitted traces as `topics_transcript_tokens`; unavailable estimates are omitted. |
+| `generic_transcript_characters` | UTF-16 length of the previous generic plain-text layout, rendered with the same Topics block caps and inclusions. Tool definitions or errors may still render when assembly returns null. |
+| `generic_transcript_tokens` | o200k estimate of that generic text, tagged `tokenizer:o200k_base`. |
+| `transcript_message_tokens` | Sum of current-turn and history message-projection token estimates; zero when empty, omitted if either estimate is unavailable. Distinct from full-transcript JSON. |
 | `transcript_current_turn_tokens` | Token estimate of current-turn messages across all threads, using role and parts only; zero when empty. |
 | `transcript_history_tokens` | Token estimate of history messages across all threads, using the same role/parts representation; zero when empty. |
 | `transcript_content_characters` | Sum of JSON-serialized message-part lengths across history and current turn, in UTF-16 code units; excludes message wrappers and provenance. |
@@ -169,8 +173,14 @@ billing counts or a model's full request framing.
 Current turn and history use identical `{ messages: [{ role, parts }] }` JSON
 framing, without observation provenance. Only nonempty partitions are tokenized,
 at most twice per trace. Their sum is `transcript_message_tokens`; it is not
-directly comparable to the retired `transcript_tokens` full-transcript JSON metric.
-Empty transcripts report zero. Thread counts are numeric samples, never metric tags.
+directly comparable to the full assembled-transcript JSON or rendered text. The
+`transcript_json_*`, `generic_transcript_*`, and `topics_transcript_*` length
+distributions are attempted on the same admitted trace cohort and can be
+compared at p50/p90/p99 after checking their sample counts. The generic
+renderer preserves the previous plain-text layout under the same Topics
+per-block preset; it has no trace-root I/O or run-state sections. Empty
+transcripts have zero JSON length and tokens. Thread counts are numeric
+samples, never metric tags.
 
 For rough tool-response size share, divide `transcript_tool_response_characters`
 by `transcript_content_characters` (when nonzero). Both sum serialized parts on
@@ -184,9 +194,16 @@ estimates for that trace; successful earlier samples are retained. Unknown
 estimates do not stop later estimates. The summed estimate is omitted unless
 both partitions are known. Neither failure retries the batch.
 Current-turn and history message projections are tokenized first. Each admitted
-trace adds one plain-text tokenization call after those estimates. Rendering
-failures increment `topics_transcript_failed` and leave the batch successful. An
+trace then adds one full-JSON, one generic plain-text, and one Topics plain-text
+tokenization call.
+Missing or failed JSON estimates increment `transcript_json_token_estimation_unavailable`
+or `transcript_json_failed` without stopping later measurements. Generic text
+rendering or token failures increment `generic_transcript_failed`, while an
 unavailable token estimate increments
+`generic_transcript_token_estimation_unavailable`. These do not stop Topics.
+Topics rendering failures increment `topics_transcript_failed` and leave the
+batch successful. An
+unavailable Topics token estimate increments
 `topics_transcript_token_estimation_unavailable`; a rejected estimate increments
 `topics_transcript_failed`. Character metrics remain available in either case.
 
@@ -199,10 +216,10 @@ partial final trace. Assembly itself remains synchronous. `read_duration_ms`
 includes all this processing.
 
 Memory includes the current trace, the previous transcript being tokenized and
-stream buffers, multiplied by active batch jobs. Each trace also retains
-its rendered text for one sequential tokenizer call. A single trace remains
-unbounded. Each message belongs to one JSON partition; there is no additional
-JSON or tool-response tokenization pass.
+stream buffers, multiplied by active batch jobs. Each trace also retains its
+assembled JSON, generic text, and Topics text for sequential tokenizer calls.
+A single trace remains unbounded. Each message belongs to one JSON partition;
+there is no additional tool-response tokenization pass.
 The default two-thread tokenizer pool is shared with ingestion; overlap hides
 waiting time but does not remove CPU use or contention. Its existing 30-second
 timeout rejects the promise without cancelling queued/running encoding, so the
@@ -225,6 +242,8 @@ Each completed trace emits a `trace-batch-transcript` child span under the batch
 processing span. Its attributes include `langfuse.project.id`, `langfuse.trace.id`,
 and `langfuse.trace.url` (a peek link using the configured product base URL).
 Under `langfuse.trace_batch`, the span records `transcript_message_tokens`, `transcript_characters`,
+`transcript_json_characters`, `transcript_json_tokens`,
+`generic_transcript_characters`, `generic_transcript_tokens`,
 `transcript_assembly_duration_ms`, `observation_count` (rows before observation
 deduplication), `has_transcript`, `tokenizer`, and `experiment_id`.
 It also records the token breakdown and content/tool-response character metrics,
@@ -235,13 +254,12 @@ It also records each Topics metric above. Block character attributes use
 are absent if rendering failed; the token metric can also be absent if its
 estimate failed.
 No transcript content is attached, and IDs are not distribution metric tags.
-`transcript_characters` measures the complete transcript JSON's JavaScript string
-length (UTF-16 code units, including JSON syntax), or zero for a null transcript.
-This legacy span-only field uses a different basis from the content character
-metrics; use `transcript_content_characters` as the tool-response denominator.
-It is recorded before tokenization, so remains available if token estimation fails.
-Only recording spans serialize this extra temporary copy; it is not retained
-while tokenization runs or included in the assembly-duration measurement.
+`transcript_characters` is the legacy span-only name for the same value as
+`transcript_json_characters`. The full JSON includes syntax and provenance, so
+use `transcript_content_characters` as the tool-response denominator. JSON
+characters are recorded before tokenization and remain available if an estimate
+fails. The JSON string is retained only until its sequential token count settles;
+it is not included in the assembly-duration measurement.
 
 The span stays open until token estimation settles, so its duration includes
 tokenization and pool waits. Use the assembly-duration attribute for assembly

@@ -99,8 +99,41 @@ describe("trace batch queue", () => {
 
     await recordTraceBatchTranscript(observations);
 
-    expect(tokenCountAsync).toHaveBeenCalledTimes(2);
-    const renderedText = vi.mocked(tokenCountAsync).mock.calls[1][0].text;
+    expect(tokenCountAsync).toHaveBeenCalledTimes(4);
+    const baselineJson = vi.mocked(tokenCountAsync).mock.calls[1][0]
+      .text as string;
+    expect(
+      JSON.parse(baselineJson).threads[0].currentTurn.observations,
+    ).toEqual([expect.objectContaining({ traceId: "topics-sample" })]);
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_json_characters",
+      baselineJson.length,
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_json_tokens",
+      tokenCount({
+        model: vi.mocked(tokenCountAsync).mock.calls[1][0].model,
+        text: baselineJson,
+      }),
+      { tokenizer: "o200k_base" },
+    );
+    const genericText = vi.mocked(tokenCountAsync).mock.calls[2][0].text;
+    expect(genericText).toBe(
+      "[user] Explain the result\n[assistant] The answer",
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.generic_transcript_characters",
+      genericText.length,
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.generic_transcript_tokens",
+      tokenCount({
+        model: vi.mocked(tokenCountAsync).mock.calls[2][0].model,
+        text: genericText,
+      }),
+      { tokenizer: "o200k_base" },
+    );
+    const renderedText = vi.mocked(tokenCountAsync).mock.calls[3][0].text;
     expect(renderedText).toBe(
       [
         "<run_facts>",
@@ -120,7 +153,7 @@ describe("trace batch queue", () => {
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.trace_batch.topics_transcript_tokens",
       tokenCount({
-        model: vi.mocked(tokenCountAsync).mock.calls[1][0].model,
+        model: vi.mocked(tokenCountAsync).mock.calls[3][0].model,
         text: renderedText,
       }),
       { tokenizer: "o200k_base" },
@@ -146,6 +179,8 @@ describe("trace batch queue", () => {
   it("keeps the batch successful when Topics token estimation fails", async () => {
     vi.mocked(tokenCountAsync)
       .mockResolvedValueOnce(10)
+      .mockResolvedValueOnce(20)
+      .mockResolvedValueOnce(30)
       .mockRejectedValueOnce(new Error("tokenizer unavailable"));
 
     await expect(
@@ -177,6 +212,8 @@ describe("trace batch queue", () => {
     expect(exporter.getFinishedSpans()[0].attributes).toMatchObject({
       "langfuse.trace_batch.topics_transcript": "failed",
       "langfuse.trace_batch.transcript_message_tokens": 10,
+      "langfuse.trace_batch.transcript_json_tokens": 20,
+      "langfuse.trace_batch.generic_transcript_tokens": 30,
     });
   });
 
@@ -237,7 +274,7 @@ describe("trace batch queue", () => {
     const estimates = vi
       .mocked(tokenCountAsync)
       .mock.calls.map(([params]) => params);
-    expect(estimates).toHaveLength(3);
+    expect(estimates).toHaveLength(5);
     const [current, historyOnly] = estimates
       .slice(0, 2)
       .map(({ text }) => JSON.stringify(text));
@@ -321,7 +358,7 @@ describe("trace batch queue", () => {
         }),
       ),
     ]);
-    expect(tokenCountAsync).toHaveBeenCalledTimes(2);
+    expect(tokenCountAsync).toHaveBeenCalledTimes(4);
     const toolCharacters = JSON.stringify({
       type: "tool-result",
       toolCallId: "unmatched",
@@ -404,6 +441,8 @@ describe("trace batch queue", () => {
           () => new Promise<number>((resolve) => (resolveFirst = resolve)),
         )
         .mockImplementationOnce(() => Promise.resolve(0))
+        .mockImplementationOnce(() => Promise.resolve(0))
+        .mockImplementationOnce(() => Promise.resolve(0))
         .mockImplementationOnce(() =>
           cleaningUp
             ? Promise.resolve(0)
@@ -472,7 +511,7 @@ describe("trace batch queue", () => {
         expect(exporter.getFinishedSpans()).toHaveLength(0);
         resolveFirst(100);
         await vi.waitFor(() => expect(reachedEnd).toBe(true));
-        expect(tokenCountAsync).toHaveBeenCalledTimes(3);
+        expect(tokenCountAsync).toHaveBeenCalledTimes(5);
         expect(settled).toBe(false);
         // An unavailable token estimate must not retry a whole batch or mask
         // the original stream failure; its promise is drained before returning.
@@ -578,7 +617,7 @@ describe("trace batch queue", () => {
     } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
     await traceBatchQueueProcessor(job, undefined);
     const estimates = vi.mocked(tokenCountAsync).mock.calls;
-    expect(estimates).toHaveLength(3);
+    expect(estimates).toHaveLength(5);
     const serializedTranscript = JSON.stringify(estimates[0][0].text);
     for (const content of [
       "first question",

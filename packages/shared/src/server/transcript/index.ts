@@ -5,6 +5,7 @@ export {
   renderTranscriptFromObservations,
   transcriptBlockTypes,
 } from "./render";
+export { renderGenericTranscript } from "./render-generic";
 export {
   topicsTranscriptConfig,
   transcriptRenderConfigSchema,
