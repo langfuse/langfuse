@@ -448,14 +448,14 @@
     --find-match-selected-background: 60 100% 50%;
     --find-match-selected-foreground: 0 0% 0%;
 
-    --chart-1: 239 84% 58%;
-    --chart-2: 188 94% 43%;
-    --chart-3: 240 4% 46%;
-    --chart-4: 271 91% 65%;
-    --chart-5: 48 96% 47%;
-    --chart-6: 0 84% 60%;
-    --chart-7: 84 81% 44%;
-    --chart-8: 330 81% 60%;
+    --chart-1: 239 84% 66%;
+    --chart-2: 188 94% 30%;
+    --chart-3: 240 4% 48%;
+    --chart-4: 271 91% 61%;
+    --chart-5: 48 96% 29%;
+    --chart-6: 0 84% 50%;
+    --chart-7: 84 81% 28%;
+    --chart-8: 330 81% 49%;
     --chart-grid: var(--muted-gray);
     --color-1: oklch(66.2% 0.225 25.9);
     --color-2: oklch(60.4% 0.26 302);
@@ -642,14 +642,14 @@
     --find-match-selected-background: 60 100% 50%;
     --find-match-selected-foreground: 0 0% 0%;
 
-    --chart-1: 239 84% 58%;
-    --chart-2: 188 94% 43%;
-    --chart-3: 240 4% 46%;
-    --chart-4: 271 91% 65%;
-    --chart-5: 48 96% 47%;
-    --chart-6: 0 84% 60%;
-    --chart-7: 84 81% 44%;
-    --chart-8: 330 81% 60%;
+    --chart-1: 239 96% 69%;
+    --chart-2: 188 94% 30%;
+    --chart-3: 240 4% 48%;
+    --chart-4: 271 91% 61%;
+    --chart-5: 48 96% 29%;
+    --chart-6: 0 84% 50%;
+    --chart-7: 84 81% 28%;
+    --chart-8: 330 81% 49%;
     --chart-grid: var(--muted-gray);
     --color-1: oklch(66.2% 0.225 25.9);
     --color-2: oklch(60.4% 0.26 302);

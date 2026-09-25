@@ -84,7 +84,6 @@ const ChartComponent = ({
     defaultSort?: OrderByState;
     show_value_labels?: boolean;
     show_data_point_dots?: boolean;
-    subtle_fill?: boolean;
   };
   config?: ChartProps["config"];
   sortState?: OrderByState | null;
@@ -241,7 +240,6 @@ const ChartComponent = ({
             data={renderedData.slice(0, rowLimit)}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
-            subtleFill={chartConfig?.subtle_fill}
             hideXAxisLabels={hideXAxisLabels}
             colorBarsByCategory={colorBarsByCategory}
             legendPosition={legendPosition}
@@ -261,7 +259,6 @@ const ChartComponent = ({
             data={renderedData}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
-            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "NUMBER": {
