@@ -28,6 +28,10 @@ pub(crate) enum InputOmissionReason {
     SizeLimit,
     ContentEncoding,
     InvalidJson,
+    /// The mapped generation exceeded the telemetry record limit.
+    RecordLimit,
+    /// The telemetry buffer had no room for the generation with its input.
+    TelemetryBuffer,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]

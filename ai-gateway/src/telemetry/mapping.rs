@@ -91,6 +91,41 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
     span
 }
 
+/// Removes the recorded input from a mapped span and explains the omission in its
+/// metadata. Returns false when the span carries no input.
+pub(super) fn omit_input(span: &mut Value, reason: InputOmissionReason) -> bool {
+    let Some(attributes) = span["attributes"].as_array_mut() else {
+        return false;
+    };
+    let Some(index) = attributes
+        .iter()
+        .position(|attribute| attribute["key"] == "langfuse.observation.input")
+    else {
+        return false;
+    };
+    let input = attributes.remove(index);
+    let input_bytes = input["value"]["stringValue"].as_str().map_or(0, str::len);
+    if let Some(value) = attributes
+        .iter_mut()
+        .find(|attribute| attribute["key"] == "langfuse.observation.metadata")
+        .map(|attribute| &mut attribute["value"]["stringValue"])
+        && let Some(Value::Object(mut metadata)) = value
+            .as_str()
+            .and_then(|value| serde_json::from_str(value).ok())
+    {
+        metadata.insert(
+            "langfuse.gateway.request.input_omitted".into(),
+            json!(reason),
+        );
+        metadata.insert(
+            "langfuse.gateway.request.input_bytes".into(),
+            json!(input_bytes),
+        );
+        *value = Value::String(Value::Object(metadata).to_string());
+    }
+    true
+}
+
 fn reserved_metadata(key: &str) -> bool {
     [
         "langfuse.gateway",

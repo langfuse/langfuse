@@ -684,6 +684,99 @@ async fn full_input_at_capture_limit_is_uploaded() {
 }
 
 #[tokio::test]
+async fn input_that_does_not_fit_is_omitted_instead_of_dropping_the_generation() {
+    let input_size = crate::capture::MAX_INPUT_CAPTURE_BYTES - 16;
+    // The configured buffer minimum is smaller than a record carrying this input.
+    for (buffer, held, reason) in [
+        (4 * 1024 * 1024, 0, "record_limit"),
+        (
+            DEFAULT_RETAINED_BYTES,
+            DEFAULT_RETAINED_BYTES - 1024 * 1024,
+            "telemetry_buffer",
+        ),
+    ] {
+        let received = Arc::new(Mutex::new(Vec::new()));
+        let sink = received.clone();
+        let web = FakeServer::start(move |request| {
+            let sink = sink.clone();
+            async move {
+                let bytes = to_bytes(request.into_body(), usize::MAX).await.unwrap();
+                let payload = upload_json(&bytes);
+                let attributes: Map<String, Value> =
+                    payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|attribute| {
+                            (
+                                attribute["key"].as_str().unwrap().to_owned(),
+                                attribute["value"]["stringValue"].clone(),
+                            )
+                        })
+                        .collect();
+                sink.lock().unwrap().push(attributes);
+                response(200, "{}")
+            }
+        })
+        .await;
+        let telemetry = Telemetry::with_uploader(
+            uploader(&web.url),
+            1,
+            buffer,
+            BatchPolicy::default(),
+            fast_retry(),
+        );
+        let held = (held > 0).then(|| {
+            telemetry
+                .0
+                .retained
+                .clone()
+                .try_acquire_many_owned(u32::try_from(held).unwrap())
+                .unwrap()
+        });
+        let mut large = facts("project-1");
+        large.metadata["ingestion_mode"] = json!("full");
+        large.inference.input = Some(json!("x".repeat(input_size)));
+        large.inference.output = Some(json!(["output-canary"]));
+        telemetry.record(grant().await, large);
+        drop(held);
+        telemetry
+            .shutdown(Instant::now() + Duration::from_secs(5))
+            .await;
+        assert_eq!(
+            telemetry.0.stats.dropped.load(Ordering::Relaxed),
+            0,
+            "{reason}"
+        );
+        assert_eq!(
+            telemetry.0.stats.accepted.load(Ordering::Relaxed),
+            1,
+            "{reason}"
+        );
+        let received = received.lock().unwrap();
+        let attributes = &received[0];
+        assert!(!attributes.contains_key("langfuse.observation.input"));
+        assert!(
+            attributes["langfuse.observation.output"]
+                .as_str()
+                .unwrap()
+                .contains("output-canary")
+        );
+        let metadata: Value = serde_json::from_str(
+            attributes["langfuse.observation.metadata"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(metadata["langfuse.gateway.request.input_omitted"], reason);
+        assert_eq!(
+            metadata["langfuse.gateway.request.input_bytes"],
+            input_size + 2
+        );
+    }
+}
+
+#[tokio::test]
 async fn oversized_records_are_dropped_before_admission() {
     let web = FakeServer::start(|_| async { response(200, "{}") }).await;
     let telemetry = Telemetry::with_uploader(

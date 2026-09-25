@@ -621,7 +621,11 @@ bounds the number of captures. Trusted key metadata is bounded by the resolver's
 content-encoded or not a JSON object) is explained in generation metadata:
 `langfuse.gateway.request.input_omitted` (`size_limit`, `content_encoding` or
 `invalid_json`), `langfuse.gateway.request.body_bytes`, and, for `size_limit`,
-`langfuse.gateway.request.input_limit_bytes`. Oversized output items
+`langfuse.gateway.request.input_limit_bytes`. If a generation with its input would
+exceed the telemetry record limit (capped at the retained buffer size) or the buffer
+is full, the input is dropped from that record and the generation is still uploaded,
+with `input_omitted` set to `record_limit` or `telemetry_buffer` and
+`langfuse.gateway.request.input_bytes`. Oversized output items
 are skipped and completeness is false. Malformed, truncated or compressed bodies
 do not interrupt the relay. Capture buffers are independent of forwarding, so
 these limits never cap the actual provider response. Media is not fetched/uploaded.
