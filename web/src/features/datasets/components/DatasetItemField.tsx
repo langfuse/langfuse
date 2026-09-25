@@ -3,6 +3,7 @@ import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { cn } from "@/src/utils/tailwind";
 import { useMediaTagChips } from "@/src/components/editor/mediaTagWidget";
 import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
 import { DatasetItemFieldSchemaErrors } from "./DatasetItemFieldSchemaErrors";
@@ -71,6 +72,17 @@ export const DatasetItemField = ({
   const showMediaUpload = isFormField && editable && !!onUploadMedia;
   const showPrettyView =
     !isFormField && !editable && renderMode === "pretty" && value !== "";
+  // Objects and arrays render as a bordered table; bare strings render as
+  // markdown without a frame, so they get the frame here.
+  const prettyValueIsStructured = useMemo(() => {
+    if (!showPrettyView) return false;
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return typeof parsed === "object" && parsed !== null;
+    } catch {
+      return false;
+    }
+  }, [showPrettyView, value]);
 
   const handleSelectFile = async (file: File) => {
     const referenceString = await onUploadMedia?.(file);
@@ -146,7 +158,18 @@ export const DatasetItemField = ({
         </FormControl>
       )}
       {!isFormField && showPrettyView && (
-        <PrettyJsonView json={value} currentView="pretty" className="w-full" />
+        <div
+          className={cn(
+            "w-full",
+            !prettyValueIsStructured && "rounded-sm border",
+          )}
+        >
+          <PrettyJsonView
+            json={value}
+            currentView="pretty"
+            className="w-full"
+          />
+        </div>
       )}
       {!isFormField && !showPrettyView && (
         <CodeMirrorEditor
