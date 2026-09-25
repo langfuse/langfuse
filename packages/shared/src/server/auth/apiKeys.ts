@@ -4,7 +4,14 @@ import { randomUUID } from "crypto";
 import * as crypto from "crypto";
 import type { Cluster, Redis } from "ioredis";
 import { env } from "../../env";
+import {
+  ApiKeyId,
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+} from "../../features/rbac/tags";
 import { logger } from "../logger";
+import { assignRole, revokeRole } from "./assignRole";
 import { invalidateCachedApiKeys } from "./invalidateApiKeys";
 
 export function getDisplaySecretKey(secretKey: string) {
@@ -112,6 +119,31 @@ export async function createAndAddApiKeysToDb(p: {
     },
   });
 
+  // The role derived from `scope` reproduces today's apiKeyAccessRights[scope].
+  // Written on the caller's client so it commits atomically with the key.
+  const tenantId =
+    p.scope === "PROJECT"
+      ? OrganizationId(
+          (
+            await p.prisma.project.findUniqueOrThrow({
+              where: { id: p.entityId },
+              select: { orgId: true },
+            })
+          ).orgId,
+        )
+      : OrganizationId(p.entityId);
+
+  await assignRole(p.prisma, {
+    principalId: ApiKeyId(apiKey.id),
+    roleId: SystemRoleId(p.scope === "PROJECT" ? "PROJECT" : "ORGANIZATION"),
+    ownerId:
+      p.scope === "PROJECT"
+        ? ProjectId(p.entityId)
+        : OrganizationId(p.entityId),
+    tenantId,
+    tags: [],
+  });
+
   return {
     id: apiKey.id,
     createdAt: apiKey.createdAt,
@@ -166,6 +198,9 @@ export async function deleteApiKeyFromDb(p: {
       id: apiKey.id,
     },
   });
+
+  // principalId is a tagged string, not an FK, so deletion does not cascade.
+  await revokeRole(p.prisma, { principalId: ApiKeyId(apiKey.id) });
 
   await invalidateCachedApiKeys([apiKey], `key ${p.id}`, p.redis);
 

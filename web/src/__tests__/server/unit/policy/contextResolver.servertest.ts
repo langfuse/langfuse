@@ -32,14 +32,41 @@ const orgRow = (
     ...over,
   }) as unknown as OrganizationWithProjects;
 
+// Mirrors the backfill mapping: the default project key is a PROJECT role owned
+// by its project; the default org key is an ORGANIZATION role owned by its org.
+const assignmentsFor = (principalId: string) => {
+  if (principalId === "apiKey/key_o")
+    return [
+      {
+        systemRole: "ORGANIZATION",
+        ownerId: `organization/${ORG}`,
+        orgId: ORG,
+      },
+    ];
+  if (principalId === "apiKey/key_p")
+    return [{ systemRole: "PROJECT", ownerId: `project/${PRJ}`, orgId: ORG }];
+  return [];
+};
+
+const mockPrisma = (row: OrganizationWithProjects | null): PrismaClient =>
+  ({
+    organization: {
+      findUnique: async () => row,
+      findFirst: async () => row,
+    },
+    systemRoleAssignment: {
+      findMany: async ({ where }: { where: { principalId: string } }) =>
+        assignmentsFor(where.principalId),
+    },
+    project: {
+      findMany: async () => (row?.projects ?? []).map((p) => ({ id: p.id })),
+    },
+  }) as unknown as PrismaClient;
+
 const resolverFor = (row: OrganizationWithProjects | null): ContextResolver =>
   new ContextResolver(
-    new OrganizationRepository({
-      organization: {
-        findUnique: async () => row,
-        findFirst: async () => row,
-      },
-    } as unknown as PrismaClient),
+    new OrganizationRepository(mockPrisma(row)),
+    mockPrisma(row),
   );
 
 const contextFor = async (

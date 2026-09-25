@@ -953,6 +953,9 @@ describe("Authenticate API calls", () => {
             return prisma.apiKey.delete({ where: { id: apiKey!.id } });
           },
         },
+        systemRoleAssignment: {
+          deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+        },
       } as unknown as PrismaClient;
 
       await new ApiAuthService(racingPrisma, redis).deleteApiKey(

@@ -131,15 +131,26 @@ const scopeOf = (result: ShadowResult): Record<string, unknown> => {
 const createOrgApiKey = async (targetOrgId: string) => {
   const publicKey = `pk-lf-${randomUUID()}`;
   const secretKey = `sk-lf-${randomUUID()}`;
+  const apiKeyRowId = randomUUID();
   await prisma.apiKey.create({
     data: {
-      id: randomUUID(),
+      id: apiKeyRowId,
       orgId: targetOrgId,
       publicKey,
       hashedSecretKey: `test-hashed-secret-key-${randomUUID()}`,
       fastHashedSecretKey: createShaHash(secretKey, env.SALT as string),
       displaySecretKey: getDisplaySecretKey(secretKey),
       scope: "ORGANIZATION",
+    },
+  });
+  // Mirror the ORGANIZATION system-role assignment the production create path
+  // writes, so the resolver reading policies from assignments sees this key.
+  await prisma.systemRoleAssignment.create({
+    data: {
+      orgId: targetOrgId,
+      principalId: `apiKey/${apiKeyRowId}`,
+      systemRole: "ORGANIZATION",
+      ownerId: `organization/${targetOrgId}`,
     },
   });
   return createBasicAuthHeader(publicKey, secretKey);

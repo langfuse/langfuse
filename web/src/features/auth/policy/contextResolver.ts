@@ -1,7 +1,16 @@
-import { type ApiKey } from "@langfuse/shared/src/db";
-import { CloudConfigSchema, type InternalServerError } from "@langfuse/shared";
+import {
+  type ApiKey,
+  type PrismaClient,
+  prisma as defaultPrisma,
+} from "@langfuse/shared/src/db";
+import {
+  ApiKeyId,
+  CloudConfigSchema,
+  type InternalServerError,
+} from "@langfuse/shared";
 
 import { apiKeyAccessRights } from "@/src/features/rbac/constants/apiKeyAccessRights";
+import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import {
   OrganizationRepository,
@@ -25,6 +34,7 @@ import {
 export class ContextResolver {
   constructor(
     private readonly orgs: OrganizationRepository = new OrganizationRepository(),
+    private readonly prisma: PrismaClient = defaultPrisma,
   ) {}
 
   /** resolve turns a verified credential into its context, collapsing a missing org to a 500 invariant break. */
@@ -36,10 +46,11 @@ export class ContextResolver {
     if (!org.success) return org;
     return {
       success: true,
-      context: materialize(
+      context: await materialize(
         params.apiKey,
         params.authorization,
         org.organization,
+        this.prisma,
       ),
     };
   }
@@ -82,11 +93,12 @@ export class ContextResolver {
 }
 
 /** materialize expands the `ApiKey` row and its presentation into the policies the credential implies. */
-function materialize(
+async function materialize(
   apiKey: ApiKey,
   authorization: "publicKey" | "privateKey",
   org: PrincipalOrganization,
-): AuthorizationContext {
+  prisma: PrismaClient,
+): Promise<AuthorizationContext> {
   const principal: Principal = {
     kind: "apiKey",
     apiKeyId: apiKey.id,
@@ -99,11 +111,16 @@ function materialize(
     boundResource: boundResourceFor(apiKey, org),
   };
 
-  const grants =
+  // Public-bearer auth is presentation-derived score ingest, never stored as an
+  // assignment; the private-key/basic path sources its policies from the key's
+  // system-role assignments (`apiKeyAccessRights.SCORES_INGEST` equals
+  // `systemRoleAccessRights.SCORES_INGEST`).
+  const policies =
     authorization === "publicKey"
-      ? apiKeyAccessRights.SCORES_INGEST
-      : apiKeyAccessRights[apiKey.scope];
-  const policies = grants.map((p) => bind(p, principal));
+      ? apiKeyAccessRights.SCORES_INGEST.map((p) => bind(p, principal))
+      : (await getRolesForPrincipal(ApiKeyId(apiKey.id), prisma)).flatMap(
+          (role) => role.policies,
+        );
   return { principal, policies };
 }
 

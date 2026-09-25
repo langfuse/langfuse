@@ -1,7 +1,14 @@
 import { v4 } from "uuid";
 import { prisma } from "../../db";
 import { env } from "../../env";
+import {
+  ApiKeyId,
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+} from "../../features/rbac/tags";
 import { CloudConfigSchema } from "../../interfaces/cloudConfigSchema";
+import { assignRole } from "../auth/assignRole";
 import { createShaHash, getDisplaySecretKey } from "../auth/apiKeys";
 
 export function createBasicAuthHeader(
@@ -47,9 +54,10 @@ export const createOrgProjectAndApiKey = async (
   }
 
   const auth = createBasicAuthHeader(publicKey, secretKey);
+  const apiKeyRowId = v4();
   await prisma.apiKey.create({
     data: {
-      id: v4(),
+      id: apiKeyRowId,
       projectId: projectId,
       publicKey: publicKey,
       // Test fixtures use the modern fast-hash auth path. Avoid bcrypt here as
@@ -60,6 +68,16 @@ export const createOrgProjectAndApiKey = async (
       displaySecretKey: getDisplaySecretKey(secretKey),
       scope: "PROJECT",
     },
+  });
+
+  // Mirror the PROJECT system-role assignment the production create path writes,
+  // so the resolver reading policies from assignments sees this fixture key.
+  await assignRole(prisma, {
+    principalId: ApiKeyId(apiKeyRowId),
+    roleId: SystemRoleId("PROJECT"),
+    ownerId: ProjectId(projectId),
+    tenantId: OrganizationId(org.id),
+    tags: [],
   });
 
   return { projectId, orgId: org.id, publicKey, secretKey, auth, org, project };
