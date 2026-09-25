@@ -14,7 +14,12 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { ModelUsageUnit, paginationZod, Prisma } from "@langfuse/shared";
+import {
+  LangfuseNotFoundError,
+  ModelUsageUnit,
+  paginationZod,
+  Prisma,
+} from "@langfuse/shared";
 import {
   clearModelCacheForProject,
   queryClickhouse,
@@ -391,12 +396,23 @@ export const modelRouter = createTRPCRouter({
         scope: "models:CUD",
       });
 
-      const deletedModel = await ctx.prisma.model.delete({
-        where: {
-          id: input.modelId,
-          projectId: input.projectId,
-        },
-      });
+      let deletedModel;
+      try {
+        deletedModel = await ctx.prisma.model.delete({
+          where: {
+            id: input.modelId,
+            projectId: input.projectId,
+          },
+        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025"
+        ) {
+          throw new LangfuseNotFoundError("Model not found");
+        }
+        throw error;
+      }
 
       await auditLog({
         session: ctx.session,

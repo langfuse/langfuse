@@ -26,6 +26,8 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
+  LangfuseNotFoundError,
+  Prisma,
   type LLMConnectionConfig,
 } from "@langfuse/shared";
 
@@ -391,50 +393,65 @@ export const llmApiKeyRouter = createTRPCRouter({
         },
       });
 
-      const result = await ctx.prisma.$transaction(async (tx) => {
-        // Check if the llm api key is used for the default evaluation model
-        const defaultModel = await tx.defaultLlmModel.findFirst({
-          where: {
-            projectId: input.projectId,
-          },
-          select: {
-            llmApiKeyId: true,
-          },
-        });
+      if (!llmApiKey) {
+        throw new LangfuseNotFoundError("LLM API key not found");
+      }
 
-        const providerBlock = llmApiKey?.provider
-          ? await blockEvaluatorsUsingProvider({
-              tx,
+      let result;
+      try {
+        result = await ctx.prisma.$transaction(async (tx) => {
+          // Check if the llm api key is used for the default evaluation model
+          const defaultModel = await tx.defaultLlmModel.findFirst({
+            where: {
               projectId: input.projectId,
-              provider: llmApiKey.provider,
-            })
-          : EMPTY_EVALUATOR_BLOCK;
+            },
+            select: {
+              llmApiKeyId: true,
+            },
+          });
 
-        const defaultModelBlock =
-          !!defaultModel && defaultModel.llmApiKeyId === llmApiKey?.id
-            ? await blockEvaluatorsUsingDefaultModel({
+          const providerBlock = llmApiKey.provider
+            ? await blockEvaluatorsUsingProvider({
                 tx,
                 projectId: input.projectId,
+                provider: llmApiKey.provider,
               })
             : EMPTY_EVALUATOR_BLOCK;
 
-        await tx.llmApiKeys.delete({
-          where: {
-            id: input.id,
-            projectId: input.projectId,
-          },
-        });
+          const defaultModelBlock =
+            !!defaultModel && defaultModel.llmApiKeyId === llmApiKey.id
+              ? await blockEvaluatorsUsingDefaultModel({
+                  tx,
+                  projectId: input.projectId,
+                })
+              : EMPTY_EVALUATOR_BLOCK;
 
-        await auditLog({
-          session: ctx.session,
-          resourceType: "llmApiKey",
-          resourceId: input.id,
-          before: llmApiKey,
-          action: "delete",
-        });
+          await tx.llmApiKeys.delete({
+            where: {
+              id: input.id,
+              projectId: input.projectId,
+            },
+          });
 
-        return { providerBlock, defaultModelBlock };
-      });
+          await auditLog({
+            session: ctx.session,
+            resourceType: "llmApiKey",
+            resourceId: input.id,
+            before: llmApiKey,
+            action: "delete",
+          });
+
+          return { providerBlock, defaultModelBlock };
+        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025"
+        ) {
+          throw new LangfuseNotFoundError("LLM API key not found");
+        }
+        throw error;
+      }
 
       await finalizeEvaluatorBlocks({
         projectId: input.projectId,
