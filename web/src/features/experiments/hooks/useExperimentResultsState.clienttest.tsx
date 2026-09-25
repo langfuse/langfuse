@@ -93,7 +93,7 @@ describe("useExperimentResultsState", () => {
     localStorage.clear();
   });
 
-  it("defaults to the one-row-per-item diff layout once a comparison exists", () => {
+  it("defaults to one column per experiment with or without comparisons", () => {
     queryParamStore.set("baseline", "baseline-run");
 
     render(<Harness />);
@@ -105,17 +105,36 @@ describe("useExperimentResultsState", () => {
 
     render(<Harness />);
 
-    expect(screen.getAllByTestId("layout")[1].textContent).toBe("list");
+    expect(screen.getAllByTestId("layout")[1].textContent).toBe("grid");
   });
 
   it("lets an explicit layout in the URL win over the default", () => {
     queryParamStore.set("baseline", "baseline-run");
     queryParamStore.set("c", ["comp-a"]);
-    queryParamStore.set("layout", "grid");
+    queryParamStore.set("layout", "list");
 
     render(<Harness />);
 
+    expect(screen.getByTestId("layout").textContent).toBe("list");
+  });
+
+  it("ignores the old layout preference after the comparison layout reset", () => {
+    localStorage.setItem("experiment-results-layout", JSON.stringify("list"));
+    render(<Harness />);
     expect(screen.getByTestId("layout").textContent).toBe("grid");
+  });
+
+  it("preserves a remembered layout when the URL does not specify one", () => {
+    localStorage.setItem(
+      "experiment-results-compare-layout",
+      JSON.stringify("list"),
+    );
+    queryParamStore.set("baseline", "baseline-run");
+    queryParamStore.set("c", ["comp-a"]);
+
+    render(<Harness />);
+
+    expect(screen.getByTestId("layout").textContent).toBe("list");
   });
 
   it("derives hasBaseline correctly", () => {
