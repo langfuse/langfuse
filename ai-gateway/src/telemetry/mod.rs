@@ -1,7 +1,10 @@
-//! Immediate, best-effort delivery of finalized inference facts.
+//! Best-effort delivery of finalized inference facts, batched per project.
+mod batch;
 mod context;
 mod mapping;
 mod otlp;
+mod retry;
+mod worker;
 
 use std::{
     io::{self, Write},
@@ -9,32 +12,52 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
     },
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use axum::http::HeaderMap;
-use opentelemetry::trace::{FutureExt, TraceContextExt};
+use opentelemetry::trace::TraceContextExt;
 use serde_json::{Map, Value};
-use tokio::{sync::Semaphore, task::JoinSet, time::Instant};
+use tokio::{
+    sync::{Semaphore, mpsc, mpsc::error::TrySendError},
+    task::JoinHandle,
+    time::Instant,
+};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 use crate::{
     capture::InferenceFacts,
     resolution::{ControlPlaneConfig, ResolutionError, ResolvedRequestContext},
 };
+use batch::{BatchPolicy, Batches, Pending};
 use context::GenerationContext;
 pub(crate) use context::take_agent_client_metadata;
 use otlp::Uploader;
+use retry::RetryPolicy;
+use worker::{Message, Uploads};
 
 const MAX_UPLOADS: usize = 32;
-const MAX_FACT_BYTES: usize = 4 * 1024 * 1024;
-const MAX_RETAINED_BYTES: usize = 16 * 1024 * 1024;
+const MAX_RECORD_BYTES: usize = 4 * 1024 * 1024;
+pub(crate) const DEFAULT_RETAINED_BYTES: usize = 64 * 1024 * 1024;
+const MAX_QUEUED_RECORDS: usize = 1024;
 
-/// Credentials are deliberately not serializable or printable. Project attribution
-/// stays attached to each execution even when delivery outlives the response body.
+struct Grant {
+    project_id: String,
+    access_token: String,
+    expires_at: u64,
+}
+
+impl Grant {
+    fn remaining(&self) -> Duration {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default();
+        Duration::from_secs(self.expires_at).saturating_sub(now)
+    }
+}
+
 pub(crate) struct DeliveryContext {
-    pub project_id: String,
-    pub access_token: String,
-    pub expires_at: u64,
+    grant: Grant,
     generation: GenerationContext,
 }
 
@@ -45,9 +68,11 @@ impl DeliveryContext {
         client_metadata: Option<&Map<String, Value>>,
     ) -> Self {
         Self {
-            project_id: context.attribution().project_id().to_owned(),
-            access_token: context.ingestion().access_token().to_owned(),
-            expires_at: context.ingestion().expires_at(),
+            grant: Grant {
+                project_id: context.attribution().project_id().to_owned(),
+                access_token: context.ingestion().access_token().to_owned(),
+                expires_at: context.ingestion().expires_at(),
+            },
             generation: GenerationContext::from_request(headers, client_metadata),
         }
     }
@@ -60,148 +85,142 @@ struct Stats {
     dropped: AtomicU64,
 }
 
+impl Stats {
+    fn record_accepted(&self, records: u64) {
+        self.accepted.fetch_add(records, Ordering::Relaxed);
+        crate::observability::delivery("accepted", "success", records);
+    }
+
+    fn record_failed(&self, records: u64, reason: &'static str) -> bool {
+        let before = self.failed.fetch_add(records, Ordering::Relaxed);
+        crate::observability::delivery("failed", reason, records);
+        crosses_report_threshold(before, before + records)
+    }
+
+    fn record_dropped(&self, records: u64, reason: &'static str) {
+        let before = self.dropped.fetch_add(records, Ordering::Relaxed);
+        crate::observability::delivery("dropped", reason, records);
+        let dropped = before + records;
+        if crosses_report_threshold(before, dropped) {
+            tracing::warn!(reason, dropped, "gateway telemetry dropped");
+        }
+    }
+}
+
+fn crosses_report_threshold(before: u64, after: u64) -> bool {
+    before == 0 || before / 100 != after / 100
+}
+
 struct Delivery {
-    uploader: Arc<Uploader>,
-    capacity: Arc<Semaphore>,
-    bytes: Arc<Semaphore>,
-    tasks: Mutex<Option<JoinSet<()>>>,
+    queue: mpsc::Sender<Message>,
+    retained: Arc<Semaphore>,
+    worker: Mutex<Option<JoinHandle<()>>>,
     stats: Arc<Stats>,
 }
 
-/// Shared delivery handle. Shutdown closes submission and drains already admitted work.
 #[derive(Clone)]
 pub struct Telemetry(Arc<Delivery>);
 
 impl Telemetry {
-    pub(crate) fn new(config: &ControlPlaneConfig) -> Result<Self, ResolutionError> {
+    pub(crate) fn new(
+        config: &ControlPlaneConfig,
+        retained_bytes: usize,
+    ) -> Result<Self, ResolutionError> {
         Ok(Self::with_uploader(
             Uploader::new(config)?,
             MAX_UPLOADS,
-            MAX_RETAINED_BYTES,
+            retained_bytes,
+            BatchPolicy::default(),
+            RetryPolicy::default(),
         ))
     }
 
-    fn with_uploader(uploader: Uploader, uploads: usize, bytes: usize) -> Self {
+    #[cfg(test)]
+    pub(crate) fn for_test(config: &ControlPlaneConfig) -> Self {
+        Self::with_uploader(
+            Uploader::new(config).expect("test uploader"),
+            MAX_UPLOADS,
+            DEFAULT_RETAINED_BYTES,
+            BatchPolicy {
+                linger: Duration::from_millis(10),
+                ..BatchPolicy::default()
+            },
+            RetryPolicy {
+                max_attempts: 1,
+                ..RetryPolicy::default()
+            },
+        )
+    }
+
+    fn with_uploader(
+        uploader: Uploader,
+        uploads: usize,
+        bytes: usize,
+        policy: BatchPolicy,
+        retry: RetryPolicy,
+    ) -> Self {
+        let (queue, receiver) = mpsc::channel(MAX_QUEUED_RECORDS);
+        let stats = Arc::new(Stats::default());
+        let worker = tokio::spawn(worker::run_worker(
+            receiver,
+            Batches::new(policy),
+            Uploads::new(uploader, uploads, retry, stats.clone()),
+        ));
         Self(Arc::new(Delivery {
-            uploader: Arc::new(uploader),
-            capacity: Arc::new(Semaphore::new(uploads)),
-            bytes: Arc::new(Semaphore::new(bytes)),
-            tasks: Mutex::new(Some(JoinSet::new())),
-            stats: Arc::new(Stats::default()),
+            queue,
+            retained: Arc::new(Semaphore::new(bytes)),
+            worker: Mutex::new(Some(worker)),
+            stats,
         }))
     }
 
-    /// No waiting queue and no network work on the caller's response/drop path.
     pub(crate) fn record(&self, context: DeliveryContext, facts: InferenceFacts) {
-        let Ok(capacity) = self.0.capacity.clone().try_acquire_owned() else {
-            self.drop_record("capacity");
-            return;
-        };
+        let link = tracing::Span::current()
+            .context()
+            .span()
+            .span_context()
+            .clone();
+        let span = mapping::span(facts, &context.generation);
+        let credentials = context.grant.access_token.len() + context.grant.project_id.len();
         let mut size = SizeCounter {
-            bytes: context.access_token.len() + context.project_id.len(),
-            limit: MAX_FACT_BYTES,
+            bytes: 0,
+            limit: MAX_RECORD_BYTES.saturating_sub(credentials),
         };
-        if serde_json::to_writer(&mut size, &context.generation).is_err()
-            || serde_json::to_writer(&mut size, &facts).is_err()
-        {
-            self.drop_record("size");
+        if serde_json::to_writer(&mut size, &span).is_err() {
+            self.0.stats.record_dropped(1, "size");
             return;
         }
-        let Ok(bytes) = self
-            .0
-            .bytes
-            .clone()
-            .try_acquire_many_owned(u32::try_from(size.bytes).expect("bounded fact bytes"))
-        else {
-            self.drop_record("bytes");
+        let Ok(retained) = self.0.retained.clone().try_acquire_many_owned(
+            u32::try_from(size.bytes + credentials).expect("bounded record bytes"),
+        ) else {
+            self.0.stats.record_dropped(1, "bytes");
             return;
         };
-        let mut tasks = self.0.tasks.lock().expect("telemetry task lock poisoned");
-        let Some(tasks) = tasks.as_mut() else {
-            self.drop_record("shutdown");
-            return;
-        };
-        // Reap completed handles on submission so the task registry stays bounded.
-        while tasks.try_join_next().is_some() {}
-        let uploader = self.0.uploader.clone();
-        let stats = self.0.stats.clone();
-        let parent = tracing::Span::current().context();
-        tasks.spawn(
-            async move {
-                let _capacity = capacity;
-                let _bytes = bytes;
-                let span = mapping::span(facts, &context.generation);
-                match uploader.export(&context, &[span]).await {
-                    Ok(()) => {
-                        stats.accepted.fetch_add(1, Ordering::Relaxed);
-                        crate::observability::delivery("accepted", "success");
-                        tracing::debug!("gateway telemetry accepted");
-                    }
-                    Err(error) => {
-                        let failed = stats.failed.fetch_add(1, Ordering::Relaxed) + 1;
-                        crate::observability::delivery("failed", error.reason());
-                        // Error categories contain no URLs, credentials, response bodies or content.
-                        if failed == 1 || failed.is_multiple_of(100) {
-                            let context = opentelemetry::Context::current();
-                            let span = context.span();
-                            let context = span.span_context();
-                            tracing::warn!(
-                                trace_id = %context.trace_id(),
-                                span_id = %context.span_id(),
-                                reason = error.reason(),
-                                failed,
-                                "gateway telemetry upload failed"
-                            );
-                        }
-                    }
-                }
-            }
-            .with_context(parent),
-        );
-    }
-
-    fn drop_record(&self, reason: &'static str) {
-        let dropped = self.0.stats.dropped.fetch_add(1, Ordering::Relaxed) + 1;
-        crate::observability::delivery("dropped", reason);
-        if dropped == 1 || dropped.is_multiple_of(100) {
-            tracing::warn!(reason, dropped, "gateway telemetry dropped");
+        let item = Pending::new(span, size.bytes, link, retained);
+        match self.0.queue.try_send(Message::Record(context.grant, item)) {
+            Ok(()) => {}
+            Err(TrySendError::Full(_)) => self.0.stats.record_dropped(1, "capacity"),
+            Err(TrySendError::Closed(_)) => self.0.stats.record_dropped(1, "shutdown"),
         }
     }
 
-    /// Stop accepting work and finish uploads within the existing process drain deadline.
+    /// Stop accepting work, flush open batches, and finish uploads within the existing
+    /// process drain deadline.
     ///
     /// # Panics
-    /// Panics if the upload task lock was poisoned.
+    /// Panics if the worker handle lock was poisoned.
     pub async fn shutdown(&self, deadline: Instant) {
-        self.0.capacity.close();
-        let tasks = self
+        let worker = self
             .0
-            .tasks
+            .worker
             .lock()
-            .expect("telemetry task lock poisoned")
+            .expect("telemetry worker lock poisoned")
             .take();
-        let Some(mut tasks) = tasks else {
+        let Some(worker) = worker else {
             return;
         };
-        loop {
-            match tokio::time::timeout_at(deadline, tasks.join_next()).await {
-                Ok(Some(Ok(()))) => {}
-                Ok(Some(Err(_))) => {
-                    self.0.stats.failed.fetch_add(1, Ordering::Relaxed);
-                    crate::observability::delivery("failed", "task");
-                }
-                Ok(None) => break,
-                Err(_) => {
-                    tasks.abort_all();
-                    while let Some(result) = tasks.join_next().await {
-                        if result.is_err() {
-                            self.0.stats.dropped.fetch_add(1, Ordering::Relaxed);
-                            crate::observability::delivery("dropped", "shutdown");
-                        }
-                    }
-                    break;
-                }
-            }
+        if self.0.queue.send(Message::Shutdown(deadline)).await.is_ok() {
+            let _ = worker.await;
         }
         tracing::info!(
             accepted = self.0.stats.accepted.load(Ordering::Relaxed),
@@ -212,7 +231,7 @@ impl Telemetry {
     }
 }
 
-/// Count serialized facts without allocating a second copy on the finalization path.
+/// Count serialized bytes without allocating a copy on the finalization path.
 struct SizeCounter {
     bytes: usize,
     limit: usize,

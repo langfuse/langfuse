@@ -7,7 +7,7 @@ use tokio::sync::Semaphore;
 use tracing::Instrument;
 
 use crate::{
-    providers::openai::{OpenAiProvider, OpenAiRoute, ProviderError, RequestPermit},
+    providers::{ProviderError, ProviderTransport, RequestPermit, Route},
     resolution::{
         ApiFormat, ControlPlaneClient, ControlPlaneConfig, ResolutionError, ResolvedRequestContext,
     },
@@ -15,7 +15,7 @@ use crate::{
 
 pub struct InferenceService {
     control_plane: ControlPlaneClient,
-    provider: OpenAiProvider,
+    provider: ProviderTransport,
     resolution_capacity: Semaphore,
     telemetry: Option<crate::telemetry::Telemetry>,
 }
@@ -34,14 +34,15 @@ impl InferenceService {
         config: ControlPlaneConfig,
         max_active_requests: usize,
         max_concurrent_resolutions: usize,
+        telemetry_buffer_bytes: usize,
     ) -> Result<Self, ResolutionError> {
         if !(1..=Semaphore::MAX_PERMITS).contains(&max_concurrent_resolutions) {
             return Err(ResolutionError::Configuration);
         }
-        let telemetry = crate::telemetry::Telemetry::new(&config)?;
+        let telemetry = crate::telemetry::Telemetry::new(&config, telemetry_buffer_bytes)?;
         Ok(Self {
             control_plane: ControlPlaneClient::new(config)?,
-            provider: OpenAiProvider::new(max_active_requests)
+            provider: ProviderTransport::new(max_active_requests)
                 .map_err(|_| ResolutionError::Configuration)?
                 .with_telemetry(telemetry.clone()),
             resolution_capacity: Semaphore::new(max_concurrent_resolutions),
@@ -54,6 +55,7 @@ impl InferenceService {
     }
 
     /// Authenticate with a separate bounded budget before reserving execution capacity.
+    /// The API format comes from the public route, so Web selects a compatible connection.
     pub(crate) async fn resolve_and_admit(
         &self,
         gateway_key: &str,
@@ -109,17 +111,18 @@ impl InferenceService {
         context: ResolvedRequestContext,
         headers: &HeaderMap,
         body: Bytes,
-        route: OpenAiRoute,
+        route: Route,
+        query: Option<&str>,
     ) -> Result<Response<Body>, ProviderError> {
         self.provider
-            .forward_route(permit, context, headers, body, route)
+            .forward_route(permit, context, headers, body, route, query)
             .await
     }
 
     #[cfg(test)]
     pub(crate) fn for_test(
         control_plane: ControlPlaneClient,
-        provider: OpenAiProvider,
+        provider: ProviderTransport,
         resolutions: usize,
     ) -> Self {
         Self {

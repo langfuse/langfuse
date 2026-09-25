@@ -57,7 +57,13 @@ function ChartXAxis({
   showCategoryTicks = false,
   alignment = "endpoints",
 }: {
-  ticks: { key: string; x: number; label: string; maxWidth?: number }[];
+  ticks: {
+    key: string;
+    x: number;
+    label: string;
+    maxWidth?: number;
+    textAnchor?: "end";
+  }[];
   activeKey?: string;
   y: number;
   width: number;
@@ -159,7 +165,9 @@ function ChartXAxis({
                   data-active-x-axis-label={active ? "" : undefined}
                   x={active ? activeTextX : tick.x}
                   y={y + 16}
-                  textAnchor={active ? "middle" : textAnchor}
+                  textAnchor={
+                    active ? "middle" : (tick.textAnchor ?? textAnchor)
+                  }
                   textLength={
                     active &&
                     tick.label.length * characterWidth > activeTextWidth
@@ -242,7 +250,13 @@ export function CartesianChart({
   categoryBoundaries?: boolean;
   zeroY?: number;
   xAxis?: {
-    ticks: { key: string; x: number; label: string; maxWidth?: number }[];
+    ticks: {
+      key: string;
+      x: number;
+      label: string;
+      maxWidth?: number;
+      textAnchor?: "end";
+    }[];
     activeKey?: string;
     showCategoryTicks?: boolean;
     alignment?: "endpoints" | "center";

@@ -1,4 +1,4 @@
-import { type ChartConfig } from "@/src/components/ui/chart";
+import type { ComponentType, ReactNode } from "react";
 import type tailwindColors from "tailwindcss/colors";
 
 export interface DataPoint {
@@ -110,7 +110,15 @@ export interface ChartThreshold {
 
 export interface ChartProps {
   data: DataPoint[];
-  config?: ChartConfig;
+  config?: {
+    [key: string]: {
+      label?: ReactNode;
+      icon?: ComponentType;
+    } & (
+      | { color?: string; theme?: never }
+      | { color?: never; theme: Record<"light" | "dark", string> }
+    );
+  };
   accessibilityLayer?: boolean;
   metricFormatter?: MetricFormatterFunction;
   legendPosition?: LegendPosition;
@@ -124,9 +132,8 @@ export interface ChartProps {
    */
   maxVisibleSeries?: number;
   /**
-   * Shared sync group: charts on the same dashboard timeline that pass the same
-   * `syncId` show a synced hover crosshair + tooltip — hovering one moves the
-   * vertical time marker on all of them. (LFE-10549)
+   * Recharts sync group for chart types that still use Recharts. Design-system
+   * charts use `sync` to share their active key instead. (LFE-10549)
    */
   syncId?: string;
   sync?: {

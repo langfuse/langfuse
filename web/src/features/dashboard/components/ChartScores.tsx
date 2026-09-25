@@ -38,6 +38,10 @@ export function ChartScores(props: {
   metricsVersion: ViewVersion;
   schedulerId?: string;
   syncId?: string;
+  sync?: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
 }) {
   const scoresQuery: QueryType = {
     view: "scores-numeric",
@@ -129,6 +133,7 @@ export function ChartScores(props: {
             rowLimit={100}
             chartConfig={SCORES_CHART_CONFIG}
             syncId={props.syncId}
+            sync={props.sync}
           />
         </div>
       ) : (
