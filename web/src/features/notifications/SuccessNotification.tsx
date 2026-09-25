@@ -9,6 +9,10 @@ export type SuccessNotificationProps = {
     href: string;
     text: string;
   };
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
 };
 
 export const SuccessNotification: React.FC<SuccessNotificationProps> = ({
@@ -16,6 +20,7 @@ export const SuccessNotification: React.FC<SuccessNotificationProps> = ({
   description,
   onDismiss,
   link,
+  action,
 }) => {
   return (
     <div className="flex justify-between">
@@ -35,6 +40,20 @@ export const SuccessNotification: React.FC<SuccessNotificationProps> = ({
           <div className="self-start">
             <ActionButton href={link.href} size="sm" variant="secondary">
               {link.text}
+            </ActionButton>
+          </div>
+        )}
+        {action && (
+          <div className="self-start">
+            <ActionButton
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                action.onClick();
+                onDismiss();
+              }}
+            >
+              {action.label}
             </ActionButton>
           </div>
         )}

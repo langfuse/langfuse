@@ -10,7 +10,7 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 /**
  * Share menu items for a trace or session detail header: Share while private,
- * Copy share link + Unshare while public. Toggling shows a success toast.
+ * Copy share link + Unshare while public. Sharing shows a toast with a copy action.
  */
 export function useShareMenuItems({
   kind,
@@ -41,11 +41,14 @@ export function useShareMenuItems({
     publish
       .toggle(nextPublic)
       .then(() => {
+        if (!nextPublic) return;
         showSuccessToast({
-          title: `${label} is now ${nextPublic ? "public" : "private"}`,
-          description: nextPublic
-            ? `Anyone with the link can view this ${kind}.`
-            : `Only project members can view this ${kind}.`,
+          title: `${label} is now public`,
+          description: `Anyone with the link can view this ${kind}.`,
+          action: {
+            label: "Copy link",
+            onClick: () => copyTextToClipboard(getShareUrl(shareUrl)),
+          },
         });
       })
       .catch(() => undefined);
