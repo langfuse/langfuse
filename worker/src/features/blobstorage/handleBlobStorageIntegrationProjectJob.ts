@@ -1295,6 +1295,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
       status: "success",
       runStartTime,
       maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
+      // Empty window means nothing newer to export: fully caught up.
+      catchup: false,
     });
     return;
   }
@@ -1543,6 +1545,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       status: "success",
       runStartTime,
       maxExportedTimestamp: maxTimestamp,
+      catchup: !caughtUp,
     });
     watermarkAdvanced = true;
 

@@ -336,6 +336,7 @@ export const handlePostHogIntegrationProjectJob = async (
         status: "success",
         runStartTime,
         maxExportedTimestamp: postHogIntegration.lastSyncAt,
+        catchup: false,
       });
       return;
     }
@@ -441,6 +442,10 @@ export const handlePostHogIntegrationProjectJob = async (
       status: "success",
       runStartTime,
       maxExportedTimestamp: executionConfig.maxTimestamp,
+      // maxTimestamp is capped at the next UTC day boundary, so a window that
+      // ends before present-day means the integration is still working
+      // through a backlog.
+      catchup: maxTimestamp < uncappedMaxTimestamp,
     });
     logger.info(
       `[POSTHOG] PostHog integration processing complete for project ${projectId}`,

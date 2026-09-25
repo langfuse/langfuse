@@ -27,7 +27,6 @@ import { AlertCircle } from "lucide-react";
 import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
 import { PivotTable } from "@/src/features/widgets/chart-library/PivotTable";
 import { type OrderByState } from "@langfuse/shared";
-import { type ChartConfig } from "@/src/components/ui/chart";
 
 const DEFAULT_METRIC_THEME = {
   light: "hsl(var(--chart-1))",
@@ -85,9 +84,8 @@ const ChartComponent = ({
     defaultSort?: OrderByState;
     show_value_labels?: boolean;
     show_data_point_dots?: boolean;
-    subtle_fill?: boolean;
   };
-  config?: ChartConfig;
+  config?: ChartProps["config"];
   sortState?: OrderByState | null;
   onSortChange?: (sortState: OrderByState | null) => void;
   isLoading?: boolean;
@@ -156,7 +154,7 @@ const ChartComponent = ({
           },
         ];
       }),
-    ) as ChartConfig;
+    ) as NonNullable<ChartProps["config"]>;
   }, [config]);
 
   const renderChart = () => {
@@ -209,7 +207,6 @@ const ChartComponent = ({
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
             sync={sync}
-            subtleFill={chartConfig?.subtle_fill}
             missingValue={missingValue}
             hideXAxisLabels={hideXAxisLabels}
           />
@@ -226,7 +223,6 @@ const ChartComponent = ({
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
             sync={sync}
-            subtleFill={chartConfig?.subtle_fill}
             hideXAxisLabels={hideXAxisLabels}
           />
         );
@@ -236,7 +232,6 @@ const ChartComponent = ({
             data={renderedData.slice(0, rowLimit)}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
-            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "VERTICAL_BAR":
@@ -245,7 +240,6 @@ const ChartComponent = ({
             data={renderedData.slice(0, rowLimit)}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
-            subtleFill={chartConfig?.subtle_fill}
             hideXAxisLabels={hideXAxisLabels}
             colorBarsByCategory={colorBarsByCategory}
             legendPosition={legendPosition}
@@ -257,7 +251,6 @@ const ChartComponent = ({
           <PieChart
             data={renderedData.slice(0, rowLimit)}
             metricFormatter={metricFormatter}
-            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "HISTOGRAM":
@@ -266,7 +259,6 @@ const ChartComponent = ({
             data={renderedData}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
-            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "NUMBER": {

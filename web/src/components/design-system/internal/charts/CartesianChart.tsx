@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import type { CartesianPlot } from "@/src/components/design-system/internal/charts/CartesianLayout";
 
@@ -51,20 +51,25 @@ function ChartGrid({
 
 function ChartXAxis({
   ticks,
-  activeKey,
+  activeTick,
   y,
   width,
   showCategoryTicks = false,
   alignment = "endpoints",
 }: {
-  ticks: { key: string; x: number; label: string; maxWidth?: number }[];
-  activeKey?: string;
+  ticks: {
+    key: string;
+    x: number;
+    label: string;
+    maxWidth?: number;
+    textAnchor?: "end";
+  }[];
+  activeTick?: { key: string; x: number; label: string };
   y: number;
   width: number;
   showCategoryTicks?: boolean;
   alignment?: "endpoints" | "center";
 }) {
-  const gradientId = useId();
   const characterWidth = 7;
   const hideLabels =
     ticks.length > 0 &&
@@ -74,16 +79,87 @@ function ChartXAxis({
         Math.floor(tick.maxWidth / characterWidth) <= 1 &&
         tick.label.length > 1,
     );
+  const axisTicks: typeof ticks = activeTick
+    ? [...ticks.filter((tick) => tick.key !== activeTick.key), activeTick].sort(
+        (left, right) => left.x - right.x,
+      )
+    : ticks;
+  const labels = axisTicks.map((tick, index) => {
+    let textAnchor: "start" | "middle" | "end" = "middle";
+    if (alignment === "endpoints" && axisTicks.length > 1) {
+      if (index === 0) textAnchor = "start";
+      else if (index === axisTicks.length - 1) textAnchor = "end";
+    }
+    const anchor = tick.textAnchor ?? textAnchor;
+    const maxCharacters = tick.maxWidth
+      ? Math.max(1, Math.floor(tick.maxWidth / characterWidth))
+      : undefined;
+    const label =
+      maxCharacters && tick.label.length > maxCharacters
+        ? `${tick.label.slice(0, Math.max(0, maxCharacters - 1))}…`
+        : tick.label;
+    const labelWidth = label.length * characterWidth;
+    const x = tick.x;
+    let left = x;
+    if (anchor === "middle") left = x - labelWidth / 2;
+    else if (anchor === "end") left = x - labelWidth;
+    return { tick, index, active: false, anchor, label, labelWidth, x, left };
+  });
+  const active = labels.find(({ tick }) => tick.key === activeTick?.key);
+  const activeLabelWidth = active
+    ? Math.min(width - 32, active.tick.label.length * characterWidth)
+    : 0;
+  const activeX = active
+    ? Math.max(
+        16 + activeLabelWidth / 2,
+        Math.min(width - 16 - activeLabelWidth / 2, active.x),
+      )
+    : 0;
+  const activeLabel = active
+    ? {
+        ...active,
+        active: true,
+        label: active.tick.label,
+        labelWidth: activeLabelWidth,
+        x: activeX,
+        left: activeX - activeLabelWidth / 2,
+      }
+    : undefined;
+  const baseLabels = labels
+    .sort((left, right) => {
+      const leftEndpoint =
+        left.index === 0 || left.index === axisTicks.length - 1;
+      const rightEndpoint =
+        right.index === 0 || right.index === axisTicks.length - 1;
+      return Number(rightEndpoint) - Number(leftEndpoint);
+    })
+    .reduce<typeof labels>((visible, label) => {
+      if (
+        visible.some(
+          (other) =>
+            label.left < other.left + other.labelWidth + 8 &&
+            label.left + label.labelWidth + 8 > other.left,
+        )
+      ) {
+        return visible;
+      }
+      visible.push(label);
+      return visible;
+    }, []);
+  // Keep the resting tick selection stable while hovering: only remove labels
+  // that actually overlap the active label, without filling vacated slots.
+  const visibleLabels = [
+    ...baseLabels.filter(
+      (label) =>
+        !activeLabel ||
+        (label.tick.key !== activeLabel.tick.key &&
+          (label.left >= activeLabel.left + activeLabel.labelWidth + 8 ||
+            label.left + label.labelWidth + 8 <= activeLabel.left)),
+    ),
+    ...(activeLabel ? [activeLabel] : []),
+  ].sort((left, right) => left.index - right.index);
   return (
     <g>
-      <defs>
-        <linearGradient id={gradientId} x1="0" x2="1">
-          <stop offset="0" stopColor="hsl(var(--background))" stopOpacity="0" />
-          <stop offset="0.12" stopColor="hsl(var(--background))" />
-          <stop offset="0.88" stopColor="hsl(var(--background))" />
-          <stop offset="1" stopColor="hsl(var(--background))" stopOpacity="0" />
-        </linearGradient>
-      </defs>
       {showCategoryTicks
         ? ticks.map((tick) => (
             <line
@@ -99,87 +175,32 @@ function ChartXAxis({
           ))
         : null}
       {!hideLabels &&
-        ticks
-          .map((tick, index) => ({ tick, index }))
-          .sort(
-            (left, right) =>
-              Number(left.tick.key === activeKey) -
-              Number(right.tick.key === activeKey),
-          )
-          .map(({ tick, index }) => {
-            const active = tick.key === activeKey;
-            let textAnchor: "start" | "middle" | "end" = "middle";
-            if (alignment === "endpoints") {
-              if (ticks.length > 1 && index === 0) textAnchor = "start";
-              else if (ticks.length > 1 && index === ticks.length - 1)
-                textAnchor = "end";
-            }
-            const maxCharacters = tick.maxWidth
-              ? Math.max(1, Math.floor(tick.maxWidth / characterWidth))
-              : undefined;
-            const label =
-              !active && maxCharacters && tick.label.length > maxCharacters
-                ? `${tick.label.slice(0, Math.max(0, maxCharacters - 1))}…`
-                : tick.label;
-            const activeLabelWidth = Math.min(
-              width - 16,
-              tick.label.length * characterWidth + 96,
-            );
-            const activeLabelX = Math.max(
-              8,
-              Math.min(
-                width - 8 - activeLabelWidth,
-                tick.x - activeLabelWidth / 2,
-              ),
-            );
-            const activeTextWidth = Math.min(
-              width - 32,
-              tick.label.length * characterWidth,
-            );
-            const activeTextX = Math.max(
-              16 + activeTextWidth / 2,
-              Math.min(width - 16 - activeTextWidth / 2, tick.x),
-            );
-
-            return (
-              <g key={tick.key}>
-                {active ? (
-                  <rect
-                    data-active-x-axis-label-background=""
-                    x={activeLabelX}
-                    y={y + 4}
-                    width={activeLabelWidth}
-                    height={17}
-                    rx={2}
-                    fill={`url(#${gradientId})`}
-                  />
-                ) : null}
-                <text
-                  data-x-axis-label=""
-                  data-active-x-axis-label={active ? "" : undefined}
-                  x={active ? activeTextX : tick.x}
-                  y={y + 16}
-                  textAnchor={active ? "middle" : textAnchor}
-                  textLength={
-                    active &&
-                    tick.label.length * characterWidth > activeTextWidth
-                      ? activeTextWidth
-                      : undefined
-                  }
-                  lengthAdjust="spacingAndGlyphs"
-                  fill={
-                    active
-                      ? "hsl(var(--foreground))"
-                      : "hsl(var(--muted-foreground))"
-                  }
-                  fontSize={12}
-                  fontWeight={active ? 700 : undefined}
-                >
-                  {label}
-                </text>
-              </g>
-            );
-          })}
+        visibleLabels.map(({ tick, active, anchor, label, x, labelWidth }) => (
+          <g key={tick.key}>
+            <text
+              data-x-axis-label=""
+              data-active-x-axis-label={active ? "" : undefined}
+              x={x}
+              y={y + 16}
+              textAnchor={active ? "middle" : anchor}
+              textLength={
+                active && tick.label.length * characterWidth > labelWidth
+                  ? labelWidth
+                  : undefined
+              }
+              lengthAdjust="spacingAndGlyphs"
+              fill={
+                active
+                  ? "hsl(var(--foreground))"
+                  : "hsl(var(--muted-foreground))"
+              }
+              fontSize={12}
+              fontWeight={active ? 700 : undefined}
+            >
+              {label}
+            </text>
+          </g>
+        ))}
     </g>
   );
 }
@@ -229,6 +250,7 @@ export function CartesianChart({
   categoryBoundaries = false,
   zeroY,
   xAxis,
+  activeX,
   children,
 }: {
   width: number;
@@ -242,11 +264,17 @@ export function CartesianChart({
   categoryBoundaries?: boolean;
   zeroY?: number;
   xAxis?: {
-    ticks: { key: string; x: number; label: string; maxWidth?: number }[];
-    activeKey?: string;
+    ticks: {
+      key: string;
+      x: number;
+      label: string;
+      maxWidth?: number;
+      textAnchor?: "end";
+    }[];
     showCategoryTicks?: boolean;
     alignment?: "endpoints" | "center";
   };
+  activeX?: { key: string; x: number; label: string };
   children: ReactNode;
 }) {
   return (
@@ -289,11 +317,24 @@ export function CartesianChart({
         left={plot.left}
         valueFormatter={valueFormatter}
       />
+      {activeX ? (
+        <line
+          data-active-reference-line=""
+          x1={activeX.x}
+          x2={activeX.x}
+          y1={plot.top}
+          y2={plot.top + plot.height}
+          stroke="hsl(var(--foreground))"
+          strokeDasharray="3 3"
+          opacity={0.35}
+          pointerEvents="none"
+        />
+      ) : null}
       {children}
       {xAxis ? (
         <ChartXAxis
           ticks={xAxis.ticks}
-          activeKey={xAxis.activeKey}
+          activeTick={activeX}
           y={plot.top + plot.height}
           width={width}
           showCategoryTicks={xAxis.showCategoryTicks}

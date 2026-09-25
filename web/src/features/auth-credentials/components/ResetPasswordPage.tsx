@@ -253,6 +253,7 @@ export function ResetPasswordPage({
                           </FormLabel>
                           <FormControl>
                             <PasswordInput
+                              allowPasswordManager
                               autoComplete="new-password"
                               {...field}
                             />
@@ -273,6 +274,7 @@ export function ResetPasswordPage({
                           </FormLabel>
                           <FormControl>
                             <PasswordInput
+                              allowPasswordManager
                               autoComplete="new-password"
                               {...field}
                             />

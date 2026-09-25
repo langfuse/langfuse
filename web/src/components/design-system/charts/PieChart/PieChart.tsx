@@ -4,9 +4,13 @@ import { useMemo } from "react";
 import { scaleOrdinal } from "d3-scale";
 import { arc, pie, type PieArcDatum } from "d3-shape";
 
-import { ChartContainer } from "@/src/components/design-system/charts/ChartContainer";
+import { ChartContainer } from "@/src/components/design-system/internal/charts/ChartContainer";
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
-import { chartColors } from "@/src/components/design-system/charts/chartColors";
+import {
+  chartColors,
+  INACTIVE_CHART_COLOR_STRENGTH,
+  CHART_TRANSITION_DURATION,
+} from "@/src/components/design-system/charts/constants";
 import { cn } from "@/src/utils/tailwind";
 
 export type PieChartDatum = {
@@ -23,7 +27,6 @@ type PieChartProps = {
   data: PieChartDatum[];
   valueFormatter?: (value: number) => string;
   centerLabel?: string;
-  variant?: "default" | "subtle";
   ariaLabel?: string;
 };
 
@@ -55,7 +58,6 @@ function PieChartContent({
   data,
   valueFormatter = (value) => value.toLocaleString(),
   centerLabel = "Total",
-  variant = "default",
   ariaLabel = "Pie chart",
   availableSize,
 }: PieChartProps & { availableSize: number }) {
@@ -170,28 +172,34 @@ function PieChartContent({
               {chartSlices.map(({ slice, index, path, activePath, color }) => {
                 const isActive = activeIndex === index;
 
-                let opacity = 0.82;
-                if (variant === "subtle") opacity = isActive ? 0.9 : 0.45;
-                if (isActive && variant === "default") opacity = 1;
+                const fill =
+                  activeIndex !== undefined && !isActive
+                    ? `color-mix(in srgb, ${color} ${INACTIVE_CHART_COLOR_STRENGTH}%, hsl(var(--background)))`
+                    : color;
 
                 return (
                   <path
                     key={slice.data.id}
                     d={isActive ? activePath : path}
-                    fill={color}
-                    opacity={opacity}
+                    fill={fill}
                     stroke="hsl(var(--background))"
                     strokeWidth={isActive ? 4 : 3}
-                    className="outline-hidden transition-[opacity] duration-100 focus-visible:outline-2 focus-visible:outline-offset-2"
+                    className="outline-hidden transition-[fill] focus-visible:outline-2 focus-visible:outline-offset-2"
+                    style={{
+                      transitionDuration: CHART_TRANSITION_DURATION,
+                    }}
                     role="graphics-symbol"
                     tabIndex={0}
                     aria-label={`${slice.data.label}: ${valueFormatter(slice.data.value)}`}
                     {...getReferenceProps({
                       type: "primary",
                       index,
+                      anchor: { type: "pointer" },
                       label: slice.data.label,
                       value: `${valueFormatter(slice.data.value)} (${percentageFormatter.format(slice.data.value / totalValue)})`,
                       color,
+                      copyLabel: slice.data.label,
+                      hint: "Click or press Enter to copy label",
                       details: slice.data.details?.map((datum) => ({
                         label: datum.label,
                         value: `${valueFormatter(datum.value)} (${percentageFormatter.format(datum.value / totalValue)})`,

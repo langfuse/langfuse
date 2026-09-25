@@ -32,21 +32,44 @@ describe("redactLangfuseSecretKeys", () => {
 });
 
 describe("formatSubmittedPublicKeyForLog", () => {
-  it("passes a public key through verbatim", () => {
-    expect(formatSubmittedPublicKeyForLog(PUBLIC_KEY)).toBe(PUBLIC_KEY);
+  it("echoes a public key, quoted so it is delimited in the log line", () => {
+    expect(formatSubmittedPublicKeyForLog(PUBLIC_KEY)).toBe(`"${PUBLIC_KEY}"`);
   });
 
   it("masks a secret key to its display form", () => {
-    expect(formatSubmittedPublicKeyForLog(SECRET_KEY)).toBe("sk-lf-...9b0c");
+    expect(formatSubmittedPublicKeyForLog(SECRET_KEY)).toBe('"sk-lf-...9b0c"');
   });
 
   it("masks non-Langfuse secrets without revealing their middle", () => {
     const openAiStyle = "sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    expect(formatSubmittedPublicKeyForLog(openAiStyle)).toBe("sk-pro...6789");
+    expect(formatSubmittedPublicKeyForLog(openAiStyle)).toBe('"sk-pro...6789"');
   });
 
   it("does not echo short values whose head and tail would overlap", () => {
-    expect(formatSubmittedPublicKeyForLog("None")).toBe("****");
-    expect(formatSubmittedPublicKeyForLog("")).toBe("****");
+    expect(formatSubmittedPublicKeyForLog("None")).toBe('"****"');
+    expect(formatSubmittedPublicKeyForLog("")).toBe('"****"');
+  });
+
+  it("replaces characters outside printable ASCII", () => {
+    expect(formatSubmittedPublicKeyForLog("pk-lf-a\nERROR forged")).toBe(
+      '"pk-lf-a\uFFFDERROR forged"',
+    );
+    expect(formatSubmittedPublicKeyForLog("pk-lf-a\u001b[2Jb")).toBe(
+      '"pk-lf-a\uFFFD[2Jb"',
+    );
+    expect(formatSubmittedPublicKeyForLog("pk-lf-a\u009bb")).toBe(
+      '"pk-lf-a\uFFFDb"',
+    );
+  });
+
+  it("escapes a quote or backslash so the value stays one token", () => {
+    expect(formatSubmittedPublicKeyForLog('pk-lf-a" b\\c')).toBe(
+      '"pk-lf-a\\" b\\\\c"',
+    );
+  });
+
+  it("bounds the logged length", () => {
+    const long = `pk-lf-${"a".repeat(500)}`;
+    expect(formatSubmittedPublicKeyForLog(long)).toBe(`"${long.slice(0, 64)}"`);
   });
 });

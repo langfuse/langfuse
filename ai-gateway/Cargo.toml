@@ -7,7 +7,9 @@ license = "MIT"
 
 [dependencies]
 axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "matched-path", "tokio"] }
+base64 = "0.23"
 chrono = { version = "0.4", default-features = false, features = ["std"] }
+flate2 = "1.1"
 hmac = "0.13"
 http-body-util = "0.1"
 futures-util = "0.3"
@@ -32,7 +34,7 @@ http-body = "1"
 opentelemetry-proto = { version = "0.32", default-features = false, features = ["gen-tonic-messages", "trace", "metrics"] }
 opentelemetry_sdk = { version = "0.32", default-features = false, features = ["testing"] }
 prost = "0.14"
-tokio = { version = "1.53.1", features = ["io-util"] }
+tokio = { version = "1.53.1", features = ["io-util", "test-util"] }
 tower = { version = "0.5", features = ["util"] }
 
 [lints.clippy]

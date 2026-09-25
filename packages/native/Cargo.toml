@@ -10,10 +10,6 @@ publish = false
 [lib]
 crate-type = ["cdylib"]
 
-[[example]]
-name = "native_codec_test_driver"
-test = false
-
 [dependencies]
 bytes = "1"
 chrono = { version = "0.4", default-features = false, features = ["alloc", "std"] }
@@ -24,8 +20,6 @@ metrics-exporter-dogstatsd = "0.9"
 napi = { version = "3", default-features = false, features = ["napi9"] }
 napi-derive = "3"
 rust_decimal = { version = "1.37.2", default-features = false, features = ["std"] }
-serde = "1"
-serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 

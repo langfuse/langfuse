@@ -1,6 +1,6 @@
 import { type ComponentProps } from "react";
 import preview from "../../../../.storybook/preview";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, within } from "storybook/test";
 
 import { ChartTooltip } from "../internal/charts/ChartTooltip";
 
@@ -49,6 +49,7 @@ async function focusTooltip(canvasElement: HTMLElement) {
 const itemsData: ChartTooltipDemoProps["data"] = {
   type: "items",
   index: 0,
+  anchor: { type: "element" },
   items: [
     { id: "api", label: "API", value: "$18.42", color: "#6366f1" },
     { id: "worker", label: "Worker", value: "$12.08", color: "#06b6d4" },
@@ -81,12 +82,30 @@ export const Items = meta.story({
   },
 });
 
+export const NoData = meta.story({
+  name: "(Test) No Data",
+  args: {
+    data: {
+      type: "empty",
+      index: 0,
+      anchor: { type: "element" },
+      heading: "September 22, 2026",
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const tooltip = await focusTooltip(canvasElement);
+    await expect(tooltip).toHaveTextContent("September 22, 2026");
+    await expect(tooltip).toHaveTextContent("No data available");
+  },
+});
+
 export const WithHeading = meta.story({
   name: "(Test) With Heading",
   args: {
     data: {
       type: "items",
       index: 0,
+      anchor: { type: "element" },
       heading: "September 22, 2026",
       items: [
         { id: "api", label: "API", value: "1,240", color: "#6366f1" },
@@ -106,6 +125,7 @@ export const Emphasis = meta.story({
     data: {
       type: "items",
       index: 0,
+      anchor: { type: "element" },
       emphasizedItemId: "emphasized",
       items: [
         {
@@ -143,6 +163,7 @@ export const Primary = meta.story({
     data: {
       type: "primary",
       index: 0,
+      anchor: { type: "element" },
       label: "Claude Sonnet",
       value: "31 (31%)",
       color: "#6366f1",
@@ -152,6 +173,9 @@ export const Primary = meta.story({
     const tooltip = await focusTooltip(canvasElement);
     await expect(tooltip).toHaveTextContent("Claude Sonnet");
     await expect(tooltip).toHaveTextContent("31 (31%)");
+    await expect(within(tooltip).getByText("Claude Sonnet")).toHaveClass(
+      "text-foreground",
+    );
   },
 });
 
@@ -161,6 +185,7 @@ export const PrimaryWithDetails = meta.story({
     data: {
       type: "primary",
       index: 0,
+      anchor: { type: "element" },
       heading: "Other",
       label: "Combined slices",
       value: "8 (8%)",
@@ -180,12 +205,60 @@ export const PrimaryWithDetails = meta.story({
   },
 });
 
+export const WithCopyHint = meta.story({
+  name: "(Test) With Copy Hint",
+  args: {
+    data: {
+      type: "primary",
+      index: 0,
+      anchor: { type: "element" },
+      label: "Alpha",
+      value: "12",
+      copyLabel: "Alpha",
+      hint: "Click or press Enter to copy label",
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const tooltip = await focusTooltip(canvasElement);
+    const hint = within(tooltip).getByText(
+      "Click or press Enter to copy label",
+    );
+    await expect(hint).toBeVisible();
+    await expect(hint.parentElement).toHaveClass(
+      "border-t",
+      "text-muted-foreground/70",
+    );
+    await expect(
+      Number.parseFloat(getComputedStyle(hint).fontSize),
+    ).toBeLessThan(Number.parseFloat(getComputedStyle(tooltip).fontSize));
+    const widthBeforeCopy = tooltip.getBoundingClientRect().width;
+    const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    try {
+      await userEvent.click(
+        within(canvasElement).getByLabelText("Tooltip trigger"),
+      );
+      await expect(copy).toHaveBeenCalledWith("Alpha");
+      await expect(hint).not.toBeVisible();
+      await expect(
+        within(tooltip).getByText("Label copied to clipboard"),
+      ).toBeVisible();
+      await expect(tooltip.getBoundingClientRect().width).toBeCloseTo(
+        widthBeforeCopy,
+        0,
+      );
+    } finally {
+      copy.mockRestore();
+    }
+  },
+});
+
 export const LongContent = meta.story({
   name: "(Test) Long Content",
   args: {
     data: {
       type: "items",
       index: 0,
+      anchor: { type: "element" },
       heading: "A deliberately long heading for a dense chart tooltip",
       items: [
         {
@@ -214,5 +287,25 @@ export const PointerHover = meta.story({
       "tooltip",
     );
     await expect(tooltip).toBeVisible();
+    const bounds = tooltip.getBoundingClientRect();
+    await expect(bounds.left).toBeGreaterThanOrEqual(0);
+    await expect(bounds.right).toBeLessThanOrEqual(window.innerWidth);
+    await expect(bounds.top).toBeGreaterThanOrEqual(0);
+    await expect(bounds.bottom).toBeLessThanOrEqual(window.innerHeight);
+  },
+});
+
+export const ValuePointFallback = meta.story({
+  name: "(Test) Value Point Fallback",
+  args: {
+    data: { ...itemsData, anchor: { type: "point", x: 240, y: 40 } },
+  },
+  play: async ({ canvasElement }) => {
+    const tooltip = await focusTooltip(canvasElement);
+    const chart = within(canvasElement).getByLabelText("Tooltip story chart");
+    await expect(tooltip.getBoundingClientRect().top).toBeLessThan(
+      chart.getBoundingClientRect().top +
+        chart.getBoundingClientRect().height / 2,
+    );
   },
 });
