@@ -98,23 +98,15 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
       for (const run of keyRuns) {
         // Prisma does not narrow the nullable field type from the `not: null` query filter.
         if (!run.mcpApiKeyId) continue;
-        try {
-          await deleteInAppAgentMcpApiKeyFromDb({
-            prisma,
-            id: run.mcpApiKeyId,
-            projectId,
-            redis,
-          }).catch((error: unknown) => {
-            if (!isMissingInAppAgentMcpApiKeyError(error)) throw error;
-          });
-          await clearRunMcpApiKeyPointer({ prisma, projectId, runId: run.id });
-        } catch (error) {
-          logger.error("Failed to clean up in-app agent MCP key on reconcile", {
-            projectId,
-            runId: run.id,
-            error,
-          });
-        }
+        await deleteInAppAgentMcpApiKeyFromDb({
+          prisma,
+          id: run.mcpApiKeyId,
+          projectId,
+          redis,
+        }).catch((error: unknown) => {
+          if (!isMissingInAppAgentMcpApiKeyError(error)) throw error;
+        });
+        await clearRunMcpApiKeyPointer({ prisma, projectId, runId: run.id });
       }
       lastRunId = keyRuns.at(-1)?.id;
     }
