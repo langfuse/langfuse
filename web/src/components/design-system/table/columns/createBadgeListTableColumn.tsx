@@ -2,6 +2,8 @@
 import { type CellContext, type RowData } from "@tanstack/react-table";
 import { type LucideIcon } from "lucide-react";
 
+import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { Badge, type BadgeProps } from "@/src/components/ui/badge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
@@ -59,11 +61,9 @@ export function createBadgeListTableColumn<TData extends RowData>({
   getBadge,
   nullValue,
   range,
-  shouldWrap,
   ...options
 }: BadgeListTableColumnOptions<TData> & {
   nullValue?: string;
-  shouldWrap: boolean;
 }) {
   return createTableColumn<TData, string[]>({
     ...options,
@@ -71,33 +71,64 @@ export function createBadgeListTableColumn<TData extends RowData>({
     renderCell: (values, context) => {
       if (!values?.length) return nullValue ?? null;
 
-      return (
-        <div className={cn("flex gap-1", shouldWrap && "flex-wrap")}>
-          {values.map((value, index) => {
-            const badge =
-              range === "semantic" || range === "decorative"
-                ? getBadge(value, context)
-                : (getBadge?.(value, context) ?? {
-                    value,
-                    variant: "secondary",
-                  });
-            const Icon = badge.icon;
+      const badges = values.map((value, index) => ({
+        key: String(index),
+        ...(range === "semantic" || range === "decorative"
+          ? getBadge(value, context)
+          : (getBadge?.(value, context) ?? {
+              value,
+              variant: "secondary" as const,
+            })),
+      }));
+      const renderBadge = (badge: (typeof badges)[number]) => {
+        const Icon = badge.icon;
+        return (
+          <Badge
+            variant={badge.variant}
+            className="max-w-fit gap-1 truncate rounded-sm px-1 font-normal"
+            title={badge.value}
+          >
+            {Icon && <Icon className="size-3 shrink-0" aria-hidden />}
+            <span className="truncate" title={badge.value}>
+              {badge.value}
+            </span>
+          </Badge>
+        );
+      };
 
-            return (
-              <Badge
-                key={`${value}-${index}`}
-                variant={badge.variant}
-                className="max-w-fit gap-1 truncate rounded-sm px-1 font-normal"
-                title={badge.value}
-              >
-                {Icon && <Icon className="size-3 shrink-0" aria-hidden />}
-                <span className="truncate" title={badge.value}>
-                  {badge.value}
+      return (
+        <SingleLineOverflowList
+          items={badges}
+          additionalOverflowCount={0}
+          getKey={(badge) => badge.key}
+          renderItem={renderBadge}
+          renderOverflow={({ hiddenItems, overflowItemCount }) => (
+            <CustomTooltip
+              content={
+                <div
+                  className={cn(
+                    "flex flex-wrap gap-1",
+                    options.sensitive && "ph-no-capture",
+                  )}
+                >
+                  {hiddenItems.map((badge) => (
+                    <span key={badge.key}>{renderBadge(badge)}</span>
+                  ))}
+                </div>
+              }
+            >
+              {({ getTriggerProps }) => (
+                <span
+                  {...getTriggerProps()}
+                  className="inline-flex"
+                  tabIndex={0}
+                >
+                  <Badge variant="secondary">+{overflowItemCount}</Badge>
                 </span>
-              </Badge>
-            );
-          })}
-        </div>
+              )}
+            </CustomTooltip>
+          )}
+        />
       );
     },
   });
