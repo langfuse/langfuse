@@ -1,8 +1,16 @@
 "use client";
 
-import { type PropsWithChildren, Children } from "react";
+import {
+  type PropsWithChildren,
+  type ReactNode,
+  Children,
+  cloneElement,
+  isValidElement,
+} from "react";
+import { X } from "lucide-react";
 import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
 import { Sheet, SheetContent, SheetTitle } from "@/src/components/ui/sheet";
+import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useDataTableControls } from "./data-table-controls";
 
@@ -29,6 +37,67 @@ const FILTER_PANEL_MAX_DEFAULT_PCT = 30;
  *  Expects exactly 2 children: filter sidebar (DataTableControls) and table content.
  */
 export function ResizableFilterLayout({ children }: PropsWithChildren) {
+  return <FilterPanels>{children}</FilterPanels>;
+}
+
+/**
+ * Responsive composition for searchable filter tables.
+ *
+ * Desktop keeps the search bar and toolbar above the resizable sidebar/table
+ * split. Mobile keeps the compact toolbar row visible, moves the large search
+ * bar into the same Filters sheet as the facets, and leaves the table at full
+ * width. The supplied controls are mounted once in either layout, so their
+ * draft state never has to be mirrored.
+ */
+export function SearchableTableFilterLayout({
+  search,
+  toolbar,
+  children,
+}: PropsWithChildren<{
+  search: ReactNode;
+  toolbar: ReactNode;
+}>) {
+  const { isMobile } = useDataTableControls();
+
+  return (
+    <>
+      {isMobile ? null : search}
+      {toolbar}
+      <FilterPanels mobileSearch={isMobile ? search : null}>
+        {children}
+      </FilterPanels>
+    </>
+  );
+}
+
+/** Sticky-header variant for tables whose search and toolbar must scroll as one band. */
+export function StickySearchableTableFilterLayout({
+  search,
+  toolbar,
+  children,
+}: PropsWithChildren<{
+  search: ReactNode;
+  toolbar: ReactNode;
+}>) {
+  const { isMobile } = useDataTableControls();
+
+  return (
+    <>
+      <div className="bg-background sticky top-0 z-30 pb-1.5">
+        {isMobile ? null : search}
+        {toolbar}
+      </div>
+      <FilterPanels mobileSearch={isMobile ? search : null}>
+        {children}
+      </FilterPanels>
+    </>
+  );
+}
+
+function FilterPanels({
+  children,
+  mobileSearch,
+}: PropsWithChildren<{ mobileSearch?: ReactNode }>) {
   const { open, setOpen, tableName, isMobile } = useDataTableControls();
   const capture = usePostHogClientCapture();
   // Single-source the breakpoint from the controls provider (which derives
@@ -48,6 +117,24 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
     ? childrenArray.slice(1)
     : childrenArray;
 
+  const emitMobileClose = (trigger: "header" | "mobile_sheet_dismiss") => {
+    capture("filters:sidebar_toggled", {
+      tableName,
+      open: false,
+      trigger,
+    });
+  };
+
+  // Searchable tables use the same single-scroll presentation as the Events
+  // Filters sheet. The first child is always DataTableControls; override only
+  // its presentation while it is mounted in the sheet so the sheet owns the
+  // title/close chrome and the facet list contributes natural height.
+  const mobileFilterSidebar = isValidElement<{ layout?: "panel" | "inline" }>(
+    filterSidebar,
+  )
+    ? cloneElement(filterSidebar, { layout: "inline" })
+    : filterSidebar;
+
   // On mobile the desktop rail doesn't fit — the table takes the full width and
   // the filter panel opens in a bottom sheet (driven by the same open state the
   // "Filters" toggle in the toolbar controls), rather than squeezing the
@@ -66,27 +153,43 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
               // Radix callbacks don't run for the programmatic close from the
               // header X, so this counts the previously-silent dismiss path
               // without double-counting the others.
-              onInteractOutside={() =>
-                capture("filters:sidebar_toggled", {
-                  tableName,
-                  open: false,
-                  trigger: "mobile_sheet_dismiss",
-                })
-              }
-              onEscapeKeyDown={() =>
-                capture("filters:sidebar_toggled", {
-                  tableName,
-                  open: false,
-                  trigger: "mobile_sheet_dismiss",
-                })
-              }
+              onInteractOutside={() => emitMobileClose("mobile_sheet_dismiss")}
+              onEscapeKeyDown={() => emitMobileClose("mobile_sheet_dismiss")}
               // Hide the Sheet's own close button — the filter panel header
               // renders its own close (X), so a second one just collides with
               // the panel's controls.
               className="flex h-[85svh] flex-col gap-0 p-0 [&>button]:hidden"
             >
               <SheetTitle className="sr-only">Filters</SheetTitle>
-              {filterSidebar}
+              {mobileSearch ? (
+                <>
+                  <div className="flex shrink-0 items-center gap-2 border-b px-4 py-3">
+                    <span className="text-foreground text-lg font-bold">
+                      Filters
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Close filters"
+                      className="ml-auto h-8 w-8 shrink-0"
+                      onClick={() => {
+                        setOpen(false);
+                        emitMobileClose("header");
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="shrink-0 border-b px-2 py-2">
+                    {mobileSearch}
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto">
+                    {mobileFilterSidebar}
+                  </div>
+                </>
+              ) : (
+                filterSidebar
+              )}
             </SheetContent>
           </Sheet>
         )}

@@ -6,7 +6,7 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { RunEvaluationDialog } from "@/src/features/batch-actions";
 import { LightbulbIcon } from "lucide-react";
@@ -2039,111 +2039,122 @@ export default function ExperimentItemsTable({
       tableName={experimentItemsFilterConfig.tableName}
     >
       <div className="flex h-full w-full flex-col">
-        {!hideControls && (
-          <TableSearchBar
-            key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
-            projectId={projectId}
-            tableName="experiment-items"
-            registry={searchRegistry}
-            filterState={queryFilter.searchBarFilterState}
-            setFilterState={queryFilter.setFilterState}
-            observed={toObservedOptions(
-              scoreFilterOptions,
-              isFilterOptionsLoading,
-            )}
-            isV4={true}
-          />
-        )}
-        {/* Toolbar spanning full width */}
-        {!hideControls && (
-          <DataTableToolbar
-            columns={columns}
-            filterState={queryFilter.filterState}
-            viewConfig={{
-              tableName: TableViewPresetTableName.ExperimentItems,
-              projectId,
-              controllers: {
-                ...viewControllers,
-                applyViewState: (
-                  ...args: Parameters<typeof viewControllers.applyViewState>
-                ) => {
-                  setFilterTargetState({ filters: [], targets: {} });
-                  viewControllers.applyViewState(...args);
-                },
-              },
-            }}
-            tableName={experimentItemsFilterConfig.tableName}
-            isV4={true}
-            onColumnGroupToggle={handleColumnGroupToggle}
-            columnsWithCustomSelect={["datasetItemId"]}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={handleColumnVisibilityChange}
-            columnOrder={columnOrder}
-            setColumnOrder={handleColumnOrderChange}
-            orderByState={orderByState}
-            rowHeight={rowHeight}
-            setRowHeight={setRowHeight}
-            toolbarSettings={toolbarSettings}
-            multiSelect={{
-              selectAll,
-              setSelectAll,
-              selectedRowIds:
-                Object.keys(selectedRows).filter((itemId) =>
-                  items.rows
-                    ?.map((item: ExperimentItemsTableRow) => item.itemId)
-                    .includes(itemId),
-                ) ?? [],
-              setRowSelection: setSelectedRows,
-              totalCount,
-              pageSize: paginationState.pageSize,
-              pageIndex: paginationState.pageIndex,
-            }}
-            actionButtons={
-              (selectAll || selectedItemCount > 0) && tableActions.length > 0
-                ? [
-                    <TableActionMenu
-                      key="experiment-items-multi-select-actions"
-                      projectId={projectId}
-                      actions={tableActions}
-                      tableName={BatchExportTableName.Sessions}
-                      selectedCount={selectAll ? totalCount : selectedItemCount}
-                      onClearSelection={() => {
-                        setSelectedRows({});
-                        setSelectAll(false);
-                      }}
-                      onCustomAction={(actionId) => {
-                        if (actionId === ActionId.ObservationBatchEvaluation) {
-                          setShowRunEvaluationDialog(true);
-                        }
-                      }}
-                    />,
-                  ]
-                : undefined
-            }
-          />
-        )}
+        <SearchableTableFilterLayout
+          search={
+            hideControls ? null : (
+              <TableSearchBar
+                key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+                projectId={projectId}
+                tableName="experiment-items"
+                registry={searchRegistry}
+                filterState={queryFilter.searchBarFilterState}
+                setFilterState={queryFilter.setFilterState}
+                observed={toObservedOptions(
+                  scoreFilterOptions,
+                  isFilterOptionsLoading,
+                )}
+                isV4={true}
+              />
+            )
+          }
+          toolbar={
+            <>
+              {!hideControls && (
+                <DataTableToolbar
+                  columns={columns}
+                  filterState={queryFilter.filterState}
+                  viewConfig={{
+                    tableName: TableViewPresetTableName.ExperimentItems,
+                    projectId,
+                    controllers: {
+                      ...viewControllers,
+                      applyViewState: (
+                        ...args: Parameters<
+                          typeof viewControllers.applyViewState
+                        >
+                      ) => {
+                        setFilterTargetState({ filters: [], targets: {} });
+                        viewControllers.applyViewState(...args);
+                      },
+                    },
+                  }}
+                  tableName={experimentItemsFilterConfig.tableName}
+                  isV4={true}
+                  onColumnGroupToggle={handleColumnGroupToggle}
+                  columnsWithCustomSelect={["datasetItemId"]}
+                  columnVisibility={columnVisibility}
+                  setColumnVisibility={handleColumnVisibilityChange}
+                  columnOrder={columnOrder}
+                  setColumnOrder={handleColumnOrderChange}
+                  orderByState={orderByState}
+                  rowHeight={rowHeight}
+                  setRowHeight={setRowHeight}
+                  toolbarSettings={toolbarSettings}
+                  multiSelect={{
+                    selectAll,
+                    setSelectAll,
+                    selectedRowIds:
+                      Object.keys(selectedRows).filter((itemId) =>
+                        items.rows
+                          ?.map((item: ExperimentItemsTableRow) => item.itemId)
+                          .includes(itemId),
+                      ) ?? [],
+                    setRowSelection: setSelectedRows,
+                    totalCount,
+                    pageSize: paginationState.pageSize,
+                    pageIndex: paginationState.pageIndex,
+                  }}
+                  actionButtons={
+                    (selectAll || selectedItemCount > 0) &&
+                    tableActions.length > 0
+                      ? [
+                          <TableActionMenu
+                            key="experiment-items-multi-select-actions"
+                            projectId={projectId}
+                            actions={tableActions}
+                            tableName={BatchExportTableName.Sessions}
+                            selectedCount={
+                              selectAll ? totalCount : selectedItemCount
+                            }
+                            onClearSelection={() => {
+                              setSelectedRows({});
+                              setSelectAll(false);
+                            }}
+                            onCustomAction={(actionId) => {
+                              if (
+                                actionId === ActionId.ObservationBatchEvaluation
+                              ) {
+                                setShowRunEvaluationDialog(true);
+                              }
+                            }}
+                          />,
+                        ]
+                      : undefined
+                  }
+                />
+              )}
 
-        {/* Score comparison filters — evaluated over the loaded page */}
-        {scoreComparisonPills.length > 0 && (
-          <ScoreComparisonFilterPills
-            pills={scoreComparisonPills}
-            onRemove={removeScoreComparisonFilter}
-          />
-        )}
+              {/* Score comparison filters — evaluated over the loaded page */}
+              {scoreComparisonPills.length > 0 && (
+                <ScoreComparisonFilterPills
+                  pills={scoreComparisonPills}
+                  onRemove={removeScoreComparisonFilter}
+                />
+              )}
 
-        {/* Filter Pills with Experiment Targeting */}
-        {filtersByExperiment.length > 0 && (
-          <ExperimentFilterPills
-            selectedExperimentNames={selectedExperimentNames}
-            filtersByExperiment={filtersByExperiment}
-            onFilterTargetChange={handleFilterTargetChange}
-            onFilterRemove={handleFilterRemove}
-            className="border-b"
-          />
-        )}
-
-        {/* Content area with sidebar and table */}
-        <ResizableFilterLayout>
+              {/* Filter Pills with Experiment Targeting */}
+              {filtersByExperiment.length > 0 && (
+                <ExperimentFilterPills
+                  selectedExperimentNames={selectedExperimentNames}
+                  filtersByExperiment={filtersByExperiment}
+                  onFilterTargetChange={handleFilterTargetChange}
+                  onFilterRemove={handleFilterRemove}
+                  className="border-b"
+                />
+              )}
+            </>
+          }
+        >
           {!hideControls && (
             <DataTableControls
               key={viewControllers.filterEditorResetKey}
@@ -2245,7 +2256,7 @@ export default function ExperimentItemsTable({
               />
             )}
           </div>
-        </ResizableFilterLayout>
+        </SearchableTableFilterLayout>
 
         {/* Peek view panel */}
         {peekConfig && (

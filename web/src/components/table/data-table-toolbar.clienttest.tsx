@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
+import type { ColumnDefinition } from "@langfuse/shared";
 import { ExperimentFormatSetting } from "@/src/features/experiments";
 import {
   DataTableToolbar,
@@ -234,5 +235,36 @@ describe("DataTableToolbar presentation controls", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Row height" })).toBeVisible();
     expect(screen.getByRole("radio", { name: "JSON" })).toBeVisible();
+  });
+
+  it("opens legacy filters and search together in the mobile sheet", () => {
+    const filterColumns: ColumnDefinition[] = [
+      {
+        id: "status",
+        name: "Status",
+        type: "stringOptions",
+        internal: "status",
+        options: [{ value: "active" }],
+      },
+    ];
+
+    render(
+      <DataTableToolbar
+        columns={[]}
+        tableName="test-table"
+        filterColumnDefinition={filterColumns}
+        filterState={[]}
+        setFilterState={vi.fn()}
+        mobileSearch={<div>Mobile search</div>}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Filters" })[0]!);
+
+    const sheet = screen.getByRole("dialog", { name: "Filters" });
+    expect(sheet).toHaveTextContent("Mobile search");
+    expect(
+      screen.getByRole("button", { name: "Add filter" }),
+    ).toBeInTheDocument();
   });
 });

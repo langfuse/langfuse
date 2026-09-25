@@ -14,7 +14,7 @@ import {
   DataTableControls,
   DataTableControlsProvider,
 } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { StickySearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -524,44 +524,46 @@ export function UsersTable({
             setTimeRange={setTimeRange}
           />
         )}
-        {/* In bar mode the composer and the toolbar stick together as one band
-            so the toolbar cannot scroll under the composer and render
-            half-clipped. */}
-        <div className="bg-background sticky top-0 z-30 pb-1.5">
-          <TableSearchBar
-            key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
-            isV4={isV4}
-            filterState={queryFilter.searchBarFilterState}
-            setFilterState={setFiltersWrapper}
-            search={{ query: searchQuery, setQuery: handleSearchChange }}
-            projectId={projectId}
-            tableName={usersFilterConfig.tableName}
-            observed={observedOptions}
-            erroredColumns={erroredColumns}
-            onRequestColumns={requestColumns}
-            registry={isV4 ? USERS_FIELD_REGISTRY : LEGACY_USERS_FIELD_REGISTRY}
-          />
-          <DataTableToolbar
-            tableName={usersFilterConfig.tableName}
-            isV4={isV4}
-            rowClassName="my-1"
-            filterState={queryFilter.explicitFilterState}
-            columns={columns}
-            timeRange={showControlsInPageHeader ? undefined : timeRange}
-            setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-            currentSearchQuery={searchQuery ?? ""}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={handleColumnVisibilityChange}
-            columnOrder={columnOrder}
-            setColumnOrder={handleColumnOrderChange}
-            viewConfig={{
-              tableName: TableViewPresetTableName.Users,
-              projectId,
-              controllers: viewControllers,
-            }}
-          />
-        </div>
-        <ResizableFilterLayout>
+        <StickySearchableTableFilterLayout
+          search={
+            <TableSearchBar
+              key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+              isV4={isV4}
+              filterState={queryFilter.searchBarFilterState}
+              setFilterState={setFiltersWrapper}
+              search={{ query: searchQuery, setQuery: handleSearchChange }}
+              projectId={projectId}
+              tableName={usersFilterConfig.tableName}
+              observed={observedOptions}
+              erroredColumns={erroredColumns}
+              onRequestColumns={requestColumns}
+              registry={
+                isV4 ? USERS_FIELD_REGISTRY : LEGACY_USERS_FIELD_REGISTRY
+              }
+            />
+          }
+          toolbar={
+            <DataTableToolbar
+              tableName={usersFilterConfig.tableName}
+              isV4={isV4}
+              rowClassName="my-1"
+              filterState={queryFilter.explicitFilterState}
+              columns={columns}
+              timeRange={showControlsInPageHeader ? undefined : timeRange}
+              setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+              currentSearchQuery={searchQuery ?? ""}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={handleColumnVisibilityChange}
+              columnOrder={columnOrder}
+              setColumnOrder={handleColumnOrderChange}
+              viewConfig={{
+                tableName: TableViewPresetTableName.Users,
+                projectId,
+                controllers: viewControllers,
+              }}
+            />
+          }
+        >
           <DataTableControls
             key={viewControllers.filterEditorResetKey}
             queryFilter={queryFilter}
@@ -620,7 +622,7 @@ export function UsersTable({
               cellPadding="comfortable"
             />
           </div>
-        </ResizableFilterLayout>
+        </StickySearchableTableFilterLayout>
       </div>
     </DataTableControlsProvider>
   );

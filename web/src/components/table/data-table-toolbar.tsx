@@ -1,12 +1,20 @@
 /* eslint-disable @repo/no-style-props */
-import React, { type Dispatch, type SetStateAction, useState } from "react";
+import React, {
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+  useState,
+} from "react";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import {
   DataTableColumnVisibilityFilter,
   type ColumnGroupTogglePayload,
 } from "@/src/components/table/data-table-column-visibility-filter";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
-import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import {
+  InlineFilterBuilder,
+  PopoverFilterBuilder,
+} from "@/src/features/filters/components/filter-builder";
 import {
   type FilterState,
   type ColumnDefinition,
@@ -54,6 +62,15 @@ import {
   hasFullTextSearchType,
   searchModeToType,
 } from "@/src/components/table/utils/searchUtils";
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from "@/src/components/ui/sheet";
+import { Button } from "@/src/components/ui/button";
+import { Filter, X } from "lucide-react";
+import { useMediaQuery } from "react-responsive";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -157,6 +174,9 @@ interface DataTableToolbarProps<TData, TValue> {
    * the fallback is the v4 events view, not a safe default. */
   isV4?: boolean;
   filterWithAI?: boolean;
+  /** Search composer rendered inside the mobile legacy-filter sheet. New
+   * sidebar tables compose this through SearchableTableFilterLayout instead. */
+  mobileSearch?: ReactNode;
   className?: string;
   rowClassName?: string;
   viewModeToggle?: React.ReactNode;
@@ -253,6 +273,7 @@ export function DataTableToolbar<TData, TValue>({
   tableName,
   isV4,
   filterWithAI = false,
+  mobileSearch,
   viewModeToggle,
   leadingControls,
   toolbarSettings,
@@ -262,6 +283,8 @@ export function DataTableToolbar<TData, TValue>({
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
+  const [legacyMobileFiltersOpen, setLegacyMobileFiltersOpen] = useState(false);
+  const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
 
   const capture = usePostHogClientCapture();
   // One definition of the two analytics dimensions for everything the toolbar
@@ -483,18 +506,77 @@ export function DataTableToolbar<TData, TValue>({
           />
         )}
         {!!filterColumnDefinition && !!filterState && !!setFilterState && (
-          <PopoverFilterBuilder
-            columns={filterColumnDefinition}
-            filterState={filterState}
-            onChange={setFilterState}
-            columnsWithCustomSelect={columnsWithCustomSelect}
-            filterWithAI={filterWithAI}
-            // Analytics (LFE-10781): the table's own identity, so popover
-            // filters:applied/cleared events aren't mislabeled "unknown". Shares
-            // the toolbar's single definition of both dimensions.
-            tableName={analyticsTableName}
-            isV4={analyticsIsV4}
-          />
+          <>
+            {mobileSearch && !isDesktop && (
+              <Sheet
+                open={legacyMobileFiltersOpen}
+                onOpenChange={setLegacyMobileFiltersOpen}
+              >
+                <SheetTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex h-8 items-center gap-2 text-sm md:hidden"
+                  >
+                    <Filter className="h-4 w-4" />
+                    <span>Filters</span>
+                    {filterState.length > 0 && (
+                      <span className="bg-input ml-1 rounded-sm px-1.5 text-xs shadow-xs">
+                        {filterState.length}
+                      </span>
+                    )}
+                  </Button>
+                </SheetTrigger>
+                <SheetContent
+                  side="bottom"
+                  aria-describedby={undefined}
+                  className="flex h-[85svh] flex-col gap-0 p-0 [&>button]:hidden"
+                >
+                  <SheetTitle className="sr-only">Filters</SheetTitle>
+                  <div className="flex shrink-0 items-center gap-2 border-b px-4 py-3">
+                    <span className="text-foreground text-lg font-bold">
+                      Filters
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Close filters"
+                      className="ml-auto h-8 w-8 shrink-0"
+                      onClick={() => setLegacyMobileFiltersOpen(false)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="shrink-0 border-b px-2 py-2">
+                    {mobileSearch}
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                    <InlineFilterBuilder
+                      columns={filterColumnDefinition}
+                      filterState={filterState}
+                      onChange={setFilterState}
+                      columnsWithCustomSelect={columnsWithCustomSelect}
+                      compact
+                    />
+                  </div>
+                </SheetContent>
+              </Sheet>
+            )}
+            {(!mobileSearch || isDesktop) && (
+              <PopoverFilterBuilder
+                columns={filterColumnDefinition}
+                filterState={filterState}
+                onChange={setFilterState}
+                columnsWithCustomSelect={columnsWithCustomSelect}
+                filterWithAI={filterWithAI}
+                // Analytics (LFE-10781): the table's own identity, so popover
+                // filters:applied/cleared events aren't mislabeled "unknown". Shares
+                // the toolbar's single definition of both dimensions.
+                tableName={analyticsTableName}
+                isV4={analyticsIsV4}
+              />
+            )}
+          </>
         )}
 
         <div className="flex flex-row flex-wrap gap-2 pr-0.5 @3xl:ml-auto">

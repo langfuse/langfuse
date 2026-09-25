@@ -7,7 +7,7 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { StickySearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import {
   useQueryFilterState,
@@ -953,66 +953,67 @@ export default function ExperimentsTable({
               setTimeRange={setTimeRange}
             />
           )}
-          {/* The composer and the toolbar stick together as one band so the
-              toolbar cannot scroll under the composer and render half-clipped;
-              pb-1.5 matches the other bar surfaces' spacing above the table. */}
-          <div className="bg-background sticky top-0 z-30 pb-1.5">
-            <TableSearchBar
-              key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
-              isV4={true}
-              filterState={queryFilter.searchBarFilterState}
-              setFilterState={setFiltersWrapper}
-              projectId={projectId}
-              tableName={filterConfig.tableName}
-              observed={observedOptions}
-              registry={searchRegistry}
-            />
-            {/* Toolbar spanning full width */}
-            <DataTableToolbar
-              rowClassName="my-1"
-              columns={columns}
-              filterState={queryFilter.filterState}
-              viewConfig={{
-                tableName: TableViewPresetTableName.Experiments,
-                projectId,
-                controllers: viewControllers,
-              }}
-              tableName={filterConfig.tableName}
-              isV4={true}
-              onColumnGroupToggle={handleColumnGroupToggle}
-              columnsWithCustomSelect={["name", "datasetId"]}
-              columnVisibility={columnVisibility}
-              setColumnVisibility={handleColumnVisibilityChange}
-              columnOrder={columnOrder}
-              setColumnOrder={handleColumnOrderChange}
-              orderByState={orderByState}
-              rowHeight={rowHeight}
-              setRowHeight={setRowHeight}
-              timeRange={showControlsInPageHeader ? undefined : timeRange}
-              setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-              actionButtons={[
-                <ExperimentsMultiSelectActionMenu
-                  key="experiments-multi-select-actions"
-                  projectId={projectId}
-                  store={experimentsTableStore}
-                  datasetIdByExperimentId={datasetIdByExperimentId}
-                />,
-              ]}
-            />
-          </div>
-
-          {isShowingMostRecent && (
-            <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
-              No experiments started in the selected time range. Showing the{" "}
-              {mostRecentCount === 1
-                ? "most recent run"
-                : `${mostRecentCount} most recent runs`}{" "}
-              instead.
-            </div>
-          )}
-
-          {/* Content area with sidebar and table */}
-          <ResizableFilterLayout>
+          <StickySearchableTableFilterLayout
+            search={
+              <TableSearchBar
+                key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+                isV4={true}
+                filterState={queryFilter.searchBarFilterState}
+                setFilterState={setFiltersWrapper}
+                projectId={projectId}
+                tableName={filterConfig.tableName}
+                observed={observedOptions}
+                registry={searchRegistry}
+              />
+            }
+            toolbar={
+              <>
+                <DataTableToolbar
+                  rowClassName="my-1"
+                  columns={columns}
+                  filterState={queryFilter.filterState}
+                  viewConfig={{
+                    tableName: TableViewPresetTableName.Experiments,
+                    projectId,
+                    controllers: viewControllers,
+                  }}
+                  tableName={filterConfig.tableName}
+                  isV4={true}
+                  onColumnGroupToggle={handleColumnGroupToggle}
+                  columnsWithCustomSelect={["name", "datasetId"]}
+                  columnVisibility={columnVisibility}
+                  setColumnVisibility={handleColumnVisibilityChange}
+                  columnOrder={columnOrder}
+                  setColumnOrder={handleColumnOrderChange}
+                  orderByState={orderByState}
+                  rowHeight={rowHeight}
+                  setRowHeight={setRowHeight}
+                  timeRange={showControlsInPageHeader ? undefined : timeRange}
+                  setTimeRange={
+                    showControlsInPageHeader ? undefined : setTimeRange
+                  }
+                  actionButtons={[
+                    <ExperimentsMultiSelectActionMenu
+                      key="experiments-multi-select-actions"
+                      projectId={projectId}
+                      store={experimentsTableStore}
+                      datasetIdByExperimentId={datasetIdByExperimentId}
+                    />,
+                  ]}
+                />
+                {isShowingMostRecent && (
+                  <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
+                    No experiments started in the selected time range. Showing
+                    the{" "}
+                    {mostRecentCount === 1
+                      ? "most recent run"
+                      : `${mostRecentCount} most recent runs`}{" "}
+                    instead.
+                  </div>
+                )}
+              </>
+            }
+          >
             <DataTableControls
               // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
               key={viewControllers.filterEditorResetKey}
@@ -1098,7 +1099,7 @@ export default function ExperimentsTable({
                 }}
               />
             </div>
-          </ResizableFilterLayout>
+          </StickySearchableTableFilterLayout>
         </div>
       </DataTableControlsProvider>
     </>
