@@ -252,17 +252,6 @@ export function renderTranscript(
   }
 
   const comparable = (value: string) => value.replace(/\s+/g, " ").trim();
-  const root = observations.find(
-    (observation) => observation.parentObservationId === null,
-  );
-  const rootInput =
-    config.runIO.include && root?.input != null
-      ? rootContent(root, "input")
-      : null;
-  const rootOutput =
-    config.runIO.include && root?.output != null
-      ? rootContent(root, "output")
-      : null;
   const firstResponse = currentEvents.findIndex(
     (event) =>
       event.message.role === "assistant" || event.part.type === "tool-result",
@@ -272,6 +261,17 @@ export function renderTranscript(
   )
     .filter((event) => event.message.role === "user")
     .at(-1)?.message;
+  const root = observations.find(
+    (observation) => observation.parentObservationId === null,
+  );
+  const rootInput =
+    config.runIO.include && !requestMessage && root?.input != null
+      ? rootContent(root, "input")
+      : null;
+  const rootOutput =
+    config.runIO.include && root?.output != null
+      ? rootContent(root, "output")
+      : null;
   const finalEvent = [...currentEvents]
     .reverse()
     .find(
@@ -450,10 +450,9 @@ export function renderTranscript(
     })
     .filter((event): event is RenderedEvent => event !== null);
 
-  const rootInputLine =
-    rootInput && !requestMessage
-      ? labeled("input · request", rootInput, config.runIO.maxChars, "run_io")
-      : null;
+  const rootInputLine = rootInput
+    ? labeled("input · request", rootInput, config.runIO.maxChars, "run_io")
+    : null;
   const rootOutputLine =
     rootOutput && !outputMatchesMessage
       ? labeled("final output", rootOutput, config.runIO.maxChars, "run_io")
