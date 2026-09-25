@@ -135,19 +135,22 @@ These distributions use the `langfuse.trace_batch` prefix:
 | `transcript_assembly_phase_duration_ms` | Two non-overlapping samples per trace tagged `phase:normalization` or `phase:matching`. Normalization includes initial message-key construction and partitioning; matching covers remaining assembly work, including tool matching, deduplication, any rebuilt keys and finalization. Observation ordering is outside these phases but remains in total assembly time. |
 | `topics_transcript_characters` | UTF-16 length of the complete rendered Topics text, including labels, section headings and line breaks; admitted traces only. |
 | `topics_transcript_tokens` | o200k estimate of that same text, tagged `tokenizer:o200k_base`; admitted traces only. |
-| `topics_transcript_block_characters` | Present block content length tagged `block:user\|assistant\|system\|reasoning\|tool_calls\|tool_results\|tool_definitions\|errors\|run_io` and `stage:raw\|clipped`; absent blocks emit no sample. |
+| `topics_transcript_block_characters` | Present block content length tagged `block:user\|assistant\|system\|reasoning\|tool_calls\|tool_results\|tool_definitions\|errors\|run_io\|observations` and `stage:raw\|clipped`; absent blocks emit no sample. |
 | `topics_transcript_blocks_cut` | Number of content blocks cut by their per-block character caps. |
-| `topics_transcript_history_characters`, `topics_transcript_current_turn_characters`, `topics_transcript_history_share` | Rendered content-line characters from replayed input and this run, plus replayed input divided by their sum (0 when both are empty). This-run content includes trace-level I/O and inline errors. |
+| `topics_transcript_history_characters`, `topics_transcript_current_turn_characters`, `topics_transcript_history_share` | Rendered content-line characters from replayed input and this run, plus replayed input divided by their sum (0 when both are empty). This-run content includes fallback trace-level I/O, observation markers, and inline errors. |
 
 Topics measurement uses the existing assembled transcript and the inclusive
 Topics preset in `packages/shared/src/server/transcript/render-config.ts`. It
 does not call a model or store the text. The preset includes all block types and
-history, caps trace-level input and output at 10,000 characters each, and has no
+history, caps fallback trace-level input and output at 10,000 characters each, and has no
 total token budget. It omits no middle lines. The rendered text has
 `<run_facts>`, optional `<tools>` and `<earlier_conversation source="replayed input">`,
-`<this_run>`, and `<end_of_run>` sections in that order. Trace-root input and
-output appear once each in `<this_run>` outside the numbered thread segments,
-including when a model message repeats them. Thread segments follow observation
+`<this_run>`, and `<end_of_run>` sections in that order. Observation markers show
+the Langfuse operation type and name in walk order; matched tool results already
+identify their operation. Trace input appears only when no current-run user
+message exists. A trace output matching the last assistant message or tool
+result labels that message as final output; distinct application output appears
+once as `[final output]`. Thread segments follow observation
 order; the replayed prefix does not claim to come from a previous trace. Tool
 calls and results share a number, and observation errors appear after the last
 message emitted at or before their position in the observation walk. The facts
@@ -158,8 +161,9 @@ a block cap; `clipped` counts the resulting content including any omission marke
 Block values exclude
 role labels, section headings, run facts and line breaks; media placeholders
 can add characters to the complete text without adding to a block metric. The
-history share uses content lines including role labels, tool exchanges, root I/O
-and inline errors, excluding section headings and tool definitions. Keep
+history share uses content lines including role labels, tool exchanges, fallback
+root I/O, observation markers and inline errors, excluding section headings and
+tool definitions. Keep
 numerator and denominator on the same basis when calculating shares. Ingestion
 applies `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` by trace ID before the dispatcher
 and worker; every admitted trace receives Topics measurements.

@@ -22,6 +22,7 @@ export const transcriptBlockTypes = [
   "tool_definitions",
   "errors",
   "run_io",
+  "observations",
 ] as const;
 
 export type TranscriptBlockType = (typeof transcriptBlockTypes)[number];
@@ -37,6 +38,7 @@ type PartEvent = {
   history: boolean;
   callNumber?: number;
   toolName?: string;
+  finalOutput?: boolean;
 };
 type ErrorEvent = {
   kind: "error";
@@ -44,7 +46,14 @@ type ErrorEvent = {
   observationIndex: number;
   thread: number | null;
 };
-type RenderedEvent = { event: PartEvent | ErrorEvent; text: string };
+type ObservationEvent = {
+  kind: "observation";
+  observation: Observation;
+  observationIndex: number;
+  thread: number | null;
+};
+type CurrentEvent = PartEvent | ErrorEvent | ObservationEvent;
+type RenderedEvent = { event: CurrentEvent; text: string };
 
 const redactInlineMedia = (text: string): string =>
   text.replace(/data:[^:;,\s]+;base64,[A-Za-z0-9+/=_-]+/g, "[media omitted]");
@@ -180,38 +189,42 @@ export function renderTranscript(
       a.observationIndex - b.observationIndex || a.sequence - b.sequence,
   );
 
-  // Match tool results to earlier calls in the same thread, preferring IDs.
+  // Match each result to a preceding call in its thread. Replayed calls can
+  // share IDs with current calls, so an ID match uses the most recent call.
   const allPartEvents = [...historyEvents, ...currentEvents];
   let nextCallNumber = 0;
   const callsById = new Map<string, PartEvent[]>();
   const callsByName = new Map<string, PartEvent[]>();
   const callKey = (thread: number, value: string) => `${thread}:${value}`;
-  for (const event of allPartEvents) {
-    if (event.part.type !== "tool-call" || !config.toolCalls.include) continue;
-    event.callNumber = ++nextCallNumber;
-    const name = callKey(event.thread, event.part.toolName);
-    const namedCalls = callsByName.get(name) ?? [];
-    namedCalls.push(event);
-    callsByName.set(name, namedCalls);
-    if (event.part.toolCallId) {
-      const id = callKey(event.thread, event.part.toolCallId);
-      const keyedCalls = callsById.get(id) ?? [];
-      keyedCalls.push(event);
-      callsById.set(id, keyedCalls);
-    }
-  }
-  const matchedCalls = new Set<number>();
+  const matchedCalls = new Set<PartEvent>();
   const resultMessages = new WeakMap<NormalizedMessage, number | null>();
-  const takeCall = (calls: PartEvent[] | undefined, before: number) => {
-    while (calls?.length && matchedCalls.has(calls[0].callNumber!))
-      calls.shift();
-    const call = calls?.[0];
-    if (!call || call.sequence >= before) return undefined;
-    calls!.shift();
-    matchedCalls.add(call.callNumber!);
-    return call.callNumber;
+  const takeCall = (
+    calls: PartEvent[] | undefined,
+    newest: boolean,
+    history: boolean,
+  ) => {
+    const available = calls?.filter(
+      (candidate) => !matchedCalls.has(candidate),
+    );
+    const sameSection = available?.filter(
+      (candidate) => candidate.history === history,
+    );
+    const candidates = sameSection?.length ? sameSection : available;
+    const call = newest ? candidates?.at(-1) : candidates?.[0];
+    if (call) matchedCalls.add(call);
+    return call?.callNumber;
   };
   for (const event of allPartEvents) {
+    if (event.part.type === "tool-call" && config.toolCalls.include) {
+      if (!event.history) event.callNumber = ++nextCallNumber;
+      const name = callKey(event.thread, event.part.toolName);
+      callsByName.set(name, [...(callsByName.get(name) ?? []), event]);
+      if (event.part.toolCallId) {
+        const id = callKey(event.thread, event.part.toolCallId);
+        callsById.set(id, [...(callsById.get(id) ?? []), event]);
+      }
+      continue;
+    }
     const isResult =
       event.part.type === "tool-result" || event.message.role === "tool";
     if (!isResult) continue;
@@ -228,18 +241,63 @@ export function renderTranscript(
     }
     const id = event.part.type === "tool-result" ? event.part.toolCallId : null;
     event.callNumber = id
-      ? takeCall(callsById.get(callKey(event.thread, id)), event.sequence)
+      ? takeCall(callsById.get(callKey(event.thread, id)), true, event.history)
       : takeCall(
           callsByName.get(callKey(event.thread, event.toolName)),
-          event.sequence,
+          false,
+          event.history,
         );
     if (event.message.role === "tool")
       resultMessages.set(event.message, event.callNumber ?? null);
   }
 
-  const requestMessage = currentEvents.find(
-    (event) => event.message.role === "user",
-  )?.message;
+  const comparable = (value: string) => value.replace(/\s+/g, " ").trim();
+  const root = observations.find(
+    (observation) => observation.parentObservationId === null,
+  );
+  const rootInput =
+    config.runIO.include && root?.input != null
+      ? rootContent(root, "input")
+      : null;
+  const rootOutput =
+    config.runIO.include && root?.output != null
+      ? rootContent(root, "output")
+      : null;
+  const firstResponse = currentEvents.findIndex(
+    (event) =>
+      event.message.role === "assistant" || event.part.type === "tool-result",
+  );
+  const requestMessage = (
+    firstResponse < 0 ? currentEvents : currentEvents.slice(0, firstResponse)
+  )
+    .filter((event) => event.message.role === "user")
+    .at(-1)?.message;
+  const finalEvent = [...currentEvents]
+    .reverse()
+    .find(
+      (event) =>
+        event.part.type === "tool-result" ||
+        ((event.message.role === "assistant" ||
+          event.message.role === "tool") &&
+          (event.part.type === "text" ||
+            event.part.type === "data" ||
+            event.part.type === "custom")),
+    );
+  const finalMessageText = finalEvent?.message.parts
+    .filter(
+      (part) =>
+        part.type === "text" ||
+        part.type === "data" ||
+        part.type === "custom" ||
+        part.type === "tool-result",
+    )
+    .map(partContent)
+    .join("\n");
+  const outputMatchesMessage =
+    !!rootOutput &&
+    !!finalMessageText &&
+    comparable(rootOutput) === comparable(finalMessageText);
+  if (outputMatchesMessage && finalEvent) finalEvent.finalOutput = true;
   const partLine = (event: PartEvent): string | null => {
     const { message, part } = event;
     const role =
@@ -247,12 +305,13 @@ export function renderTranscript(
     const roleLabel = message.senderName
       ? `${message.role} (${message.senderName})`
       : message.role;
-    const userLabel =
-      message.role === "user" && message === requestMessage
-        ? `${roleLabel} · request`
-        : roleLabel;
+    let userLabel = roleLabel;
+    if (message.role === "user" && message === requestMessage)
+      userLabel = `${roleLabel} · request`;
+    else if (event.finalOutput && message.role === "assistant")
+      userLabel = `${roleLabel} · final output`;
     const resultLabel =
-      `tool ${event.toolName ?? ""}${event.callNumber ? ` #${event.callNumber}` : ""} ←`
+      `tool ${event.toolName ?? ""}${event.callNumber ? ` #${event.callNumber}` : ""} ←${event.finalOutput ? " FINAL OUTPUT" : ""}`
         .replace(/\s+/g, " ")
         .trim();
     if (message.role === "tool" && part.type !== "tool-result") {
@@ -320,11 +379,35 @@ export function renderTranscript(
       return text ? { event, text } : null;
     })
     .filter((event): event is RenderedEvent => event !== null);
-  const currentWithErrors: Array<PartEvent | ErrorEvent> = [...currentEvents];
+  const currentWithErrors: CurrentEvent[] = [...currentEvents];
+  const threadByObservation = new Map(
+    currentEvents.map((event) => [event.observationIndex, event.thread]),
+  );
+  const representedTools = new Set(
+    currentEvents
+      .filter(
+        (event) =>
+          event.message.role === "tool" || event.part.type === "tool-result",
+      )
+      .flatMap((event) =>
+        "observationId" in event.message
+          ? [event.message.observationId as string]
+          : [],
+      ),
+  );
+  if (config.observations.include) {
+    observations.forEach((observation, observationIndex) => {
+      if (observation.type === "TOOL" && representedTools.has(observation.id))
+        return;
+      currentWithErrors.push({
+        kind: "observation",
+        observation,
+        observationIndex,
+        thread: threadByObservation.get(observationIndex) ?? null,
+      });
+    });
+  }
   if (config.errors.include) {
-    const threadByObservation = new Map(
-      currentEvents.map((event) => [event.observationIndex, event.thread]),
-    );
     observations.forEach((observation, observationIndex) => {
       if (
         observation.level === "ERROR" ||
@@ -341,41 +424,40 @@ export function renderTranscript(
   currentWithErrors.sort(
     (a, b) =>
       a.observationIndex - b.observationIndex ||
-      (a.kind === "error" ? 1 : 0) - (b.kind === "error" ? 1 : 0) ||
+      { observation: 0, part: 1, error: 2 }[a.kind] -
+        { observation: 0, part: 1, error: 2 }[b.kind] ||
       (a.kind === "part" && b.kind === "part" ? a.sequence - b.sequence : 0),
   );
   const current = currentWithErrors
     .map((event): RenderedEvent | null => {
-      const text =
-        event.kind === "part"
-          ? partLine(event)
-          : labeled(
-              `${event.observation.level === "WARNING" ? "warning" : "error"} ${event.observation.type} ${event.observation.name ?? ""}`.trim(),
-              event.observation.statusMessage ?? "",
-              config.errors.maxChars,
-              "errors",
-            );
+      let text: string | null;
+      if (event.kind === "part") text = partLine(event);
+      else if (event.kind === "observation")
+        text = labeled(
+          event.observation.type.toLowerCase(),
+          event.observation.name ?? "",
+          config.observations.maxChars,
+          "observations",
+        );
+      else
+        text = labeled(
+          `${event.observation.level === "WARNING" ? "warning" : "error"} ${event.observation.type} ${event.observation.name ?? ""}`.trim(),
+          event.observation.statusMessage ?? "",
+          config.errors.maxChars,
+          "errors",
+        );
       return text ? { event, text } : null;
     })
     .filter((event): event is RenderedEvent => event !== null);
 
-  const root = observations.find(
-    (observation) => observation.parentObservationId === null,
-  );
-  const rootInput =
-    config.runIO.include && root?.input != null
-      ? rootContent(root, "input")
+  const rootInputLine =
+    rootInput && !requestMessage
+      ? labeled("input · request", rootInput, config.runIO.maxChars, "run_io")
       : null;
-  const rootOutput =
-    config.runIO.include && root?.output != null
-      ? rootContent(root, "output")
+  const rootOutputLine =
+    rootOutput && !outputMatchesMessage
+      ? labeled("final output", rootOutput, config.runIO.maxChars, "run_io")
       : null;
-  const rootInputLine = rootInput
-    ? labeled("run input", rootInput, config.runIO.maxChars, "run_io")
-    : null;
-  const rootOutputLine = rootOutput
-    ? labeled("run output", rootOutput, config.runIO.maxChars, "run_io")
-    : null;
 
   const errorObservations = new Set(
     currentWithErrors
@@ -495,31 +577,13 @@ export function renderTranscript(
       lastAction = "assistant text";
     else lastAction = `${lastPart.message.role} message`;
   }
-  const lastAssistantMessage = [...currentEvents]
-    .reverse()
-    .find(
-      (event) =>
-        event.message.role === "assistant" &&
-        (event.part.type === "text" ||
-          event.part.type === "data" ||
-          event.part.type === "custom"),
-    )?.message;
-  const lastAssistantText = lastAssistantMessage?.parts
-    .filter(
-      (part) =>
-        part.type === "text" || part.type === "data" || part.type === "custom",
-    )
-    .map(partContent)
-    .join("\n");
-  const comparable = (value: string) => value.replace(/\s+/g, " ").trim();
   header("<end_of_run>");
   header(`last action: ${lastAction}`);
-  if (
-    rootOutput &&
-    (!lastAssistantText ||
-      comparable(rootOutput) !== comparable(lastAssistantText))
-  )
-    header("run output differs from last assistant text");
+  if (rootOutputLine) header("final output: application output");
+  else if (outputMatchesMessage)
+    header(
+      `final output: ${finalEvent?.part.type === "tool-result" || finalEvent?.message.role === "tool" ? "tool result" : "assistant"}`,
+    );
   header("</end_of_run>");
 
   // Keep headings and trace-level I/O; drop ordinary lines from the middle.

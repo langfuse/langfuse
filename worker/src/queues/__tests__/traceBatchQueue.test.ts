@@ -88,6 +88,7 @@ describe("trace batch queue", () => {
       convertObservation(
         createObservation({
           type: "GENERATION",
+          name: "explain",
           trace_id: "topics-sample",
           input: JSON.stringify([
             { role: "user", content: "Explain the result" },
@@ -140,13 +141,13 @@ describe("trace batch queue", () => {
         "threads: 1 · rendered user entries: 1 · rendered tool calls: 0 · error signals: 0 · omitted lines: 0",
         "</run_facts>",
         "<this_run>",
-        "[run input] Explain the result",
+        "[generation] explain",
         "[user · request] Explain the result",
-        "[assistant] The answer",
-        "[run output] The answer",
+        "[assistant · final output] The answer",
         "</this_run>",
         "<end_of_run>",
         "last action: assistant text",
+        "final output: assistant",
         "</end_of_run>",
       ].join("\n"),
     );
@@ -165,8 +166,8 @@ describe("trace batch queue", () => {
     );
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.trace_batch.topics_transcript_block_characters",
-      "Explain the resultThe answer".length,
-      { block: "run_io", stage: "raw" },
+      "explain".length,
+      { block: "observations", stage: "raw" },
     );
     expect(exporter.getFinishedSpans()[0].attributes).toMatchObject({
       "langfuse.trace_batch.topics_transcript_characters": renderedText.length,
