@@ -73,14 +73,17 @@ export const DatasetItemField = ({
   const showPrettyView =
     !isFormField && !editable && renderMode === "pretty" && value !== "";
   // Objects and arrays render as a bordered table; bare strings render as
-  // markdown without a frame, so they get the frame here.
-  const prettyValueIsStructured = useMemo(() => {
-    if (!showPrettyView) return false;
+  // markdown without a frame, so they get the frame here. The parsed value is
+  // handed over so the viewer's large-string gate sees the data, not the
+  // indented text.
+  const prettyValue = useMemo(() => {
+    if (!showPrettyView) return { json: value, structured: false };
     try {
       const parsed: unknown = JSON.parse(value);
-      return typeof parsed === "object" && parsed !== null;
+      const structured = typeof parsed === "object" && parsed !== null;
+      return { json: structured ? parsed : value, structured };
     } catch {
-      return false;
+      return { json: value, structured: false };
     }
   }, [showPrettyView, value]);
 
@@ -162,11 +165,12 @@ export const DatasetItemField = ({
         <div
           className={cn(
             "w-full",
-            !prettyValueIsStructured && "rounded-sm border",
+            !prettyValue.structured &&
+              "rounded-sm border pl-3 [&_.io-message-content]:pb-0 [&_.io-message-content_.io-message-content]:pb-1",
           )}
         >
           <PrettyJsonView
-            json={value}
+            json={prettyValue.json}
             currentView="pretty"
             className="w-full"
           />
