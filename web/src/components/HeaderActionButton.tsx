@@ -29,7 +29,7 @@ export const HeaderActionButton = React.forwardRef<
 ) {
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
+      <TooltipTrigger asChild onFocus={(event) => event.preventDefault()}>
         <Button
           ref={ref}
           variant="ghost"
