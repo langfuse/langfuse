@@ -63,20 +63,13 @@ For a v4 experiment with chat messages and nested JSON input/output, run
 three items, then prints the experiment results link. Set `NEXTAUTH_URL` to
 your local app URL when using a port other than 3000.
 
-## Contract
-
 For Topics discovery and later assignment, run `pnpm run seed -- topics`.
-It creates 12 traces across three semantic themes plus three separate traces
-for assignment (two familiar themes, one novel). Use `--batch discovery` or
-`--batch assignment` to print only that batch's IDs; v4 is on by default.
-The trace I/O contains synthetic requests and answers, with no planted topic
-labels and no model calls. IDs `-t00` through `-t11` are discovery;
-`-t12` through `-t14` are assignment. For a larger Intent/Issues evaluation,
-use `--batch evaluation --id-prefix topics-eval-s42`: 100 diverse requests,
-five intent themes, 80 evidenced tool failures and 20 successful traces,
-IDs `-e00` through `-e99`. Issues has 80 applicable traces, so select
-exploratory mode for its discovery run. Fixture details live in the seeder
-README.
+For the 100-trace Intent/Issues evaluation, run
+`pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42`.
+Read the [Topics fixture walkthrough](../../../packages/shared/scripts/seeder/README.md#topics)
+for batch IDs, dataset contents, and clustering settings.
+
+## Contract
 
 - Last stdout line is a JSON summary: `traceIds`, `sessionIds`, `counts`,
   `verified` (ClickHouse readback), `links` (UI deep links). Use `--json` to

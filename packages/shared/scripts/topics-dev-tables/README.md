@@ -47,17 +47,21 @@ the actual deployment. No native ClickHouse or PostgreSQL client required.
 
 ## Local development
 
-After `pnpm run infra:dev:up`:
+Use an initialized local stack: installed dependencies, generated Prisma client
+and shared build, baseline Postgres/ClickHouse migrations including v4 events
+tables, and the seeded demo project. Check datastore readiness with
+`pnpm run seed -- doctor`, then run:
 
 ```bash
 pnpm run topics:dev-setup
 pnpm run dev
 ```
 
-The convenience setup runs baseline migrations, Prisma generation, shared build,
-Topics provisioning and development seeders. **Local only:** its existing events
-seeder truncates/repopulates events. It does not reset volumes or start the app.
-For demo data, allow project `7a88fb47-b4e2-43b8-a06c-a5ce950dc53a`.
+The convenience setup creates missing Topics tables and seeds only the
+[Topics discovery/assignment fixture](../seeder/README.md#topics). Normal stack
+setup owns migrations, generated clients, builds and demo project seeding.
+Apply the runtime flags above on web and worker; for demo data, allow project
+`7a88fb47-b4e2-43b8-a06c-a5ce950dc53a`.
 
 For tables only: `pnpm run topics:dev-tables --apply`. Without `--config`, the
 root `.env` is loaded and exported variables take precedence. `DIRECT_URL` wins

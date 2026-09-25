@@ -69,7 +69,6 @@ async function main() {
       name: "Demo User",
       email: "demo@langfuse.com",
       password: await hash("password", 12),
-      featureFlags: ["langfuseTopics"],
       v4BetaEnabled: true,
     },
     create: {
@@ -81,6 +80,13 @@ async function main() {
       featureFlags: ["langfuseTopics"],
       v4BetaEnabled: true,
     },
+  });
+  await prisma.user.updateMany({
+    where: {
+      id: seedUserId1,
+      NOT: { featureFlags: { has: "langfuseTopics" } },
+    },
+    data: { featureFlags: { push: "langfuseTopics" } },
   });
   const user2 = await prisma.user.upsert({
     where: { id: seedUserId2 },
