@@ -7,7 +7,14 @@ import {
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+  useCallback,
+  type ReactNode,
+} from "react";
 import { RunEvaluationDialog } from "@/src/features/batch-actions";
 import { LightbulbIcon } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -57,6 +64,7 @@ import {
 import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { ExperimentGridView } from "./ExperimentGridView";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
@@ -130,6 +138,11 @@ import {
 import { resetStaleDefaultColumnOrder } from "@/src/features/experiments/fns/experimentItemsColumnOrder";
 import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
 import { resolveExperimentPeekTarget } from "@/src/features/experiments/fns/resolveExperimentPeekTarget";
+import {
+  getDatasetItemPath,
+  resolveSourceDatasetId,
+} from "@/src/features/experiments/fns/resolveSourceDatasetId";
+import { useRouter } from "next/router";
 
 /**
  * A row on its way into the peek, carrying which experiment's cell was
@@ -236,6 +249,31 @@ const shouldEnableExperimentPeek = (props: {
   hasBaseline: boolean;
   hideControls: boolean;
 }) => !props.hideControls && props.hasBaseline;
+
+/**
+ * Input stays an IO cell, not a table link. When a managed dataset exists,
+ * a click goes to that item instead of opening the peek.
+ */
+function DatasetItemInputClick({
+  href,
+  children,
+}: {
+  href: string;
+  children: ReactNode;
+}) {
+  const router = useRouter();
+  return (
+    <div
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        router.push(href);
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 
 /**
  * Cell component that renders stacked values for each experiment.
@@ -600,6 +638,10 @@ export default function ExperimentItemsTable({
       allExperimentIds.includes(exp.experimentId),
     );
   }, [experimentNames, allExperimentIds]);
+  const sourceDatasetId = useMemo(
+    () => resolveSourceDatasetId(selectedExperimentNames, baselineId),
+    [selectedExperimentNames, baselineId],
+  );
 
   // A stacked cell holds one line per run, told apart by a colour marker only,
   // so every value and every comparison chip in it names its run on hover.
@@ -1342,22 +1384,65 @@ export default function ExperimentItemsTable({
     );
   };
 
+  const itemIdColumn = sourceDatasetId
+    ? createLinkTableColumn<ExperimentItemsTableRow>({
+        accessorKey: "itemId",
+        header: "Item ID",
+        size: 150,
+        enableHiding: true,
+        getCell: (id) => {
+          if (!id) return undefined;
+          return {
+            type: "link",
+            props: {
+              path: getDatasetItemPath({
+                projectId,
+                datasetId: sourceDatasetId,
+                itemId: id,
+              }),
+              value: id,
+            },
+          };
+        },
+      })
+    : createIdTableColumn<ExperimentItemsTableRow>({
+        accessorKey: "itemId",
+        header: "Item ID",
+        size: 150,
+        enableHiding: true,
+      });
+
+  const inputColumnBase = createIOTableColumn<ExperimentItemsTableRow>({
+    accessorKey: "input",
+    header: "Input",
+    size: 300,
+    enableHiding: true,
+    getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
+    singleLine: ioSingleLine,
+  });
+  const renderInputCell = inputColumnBase.cell;
+  const inputColumn =
+    sourceDatasetId && typeof renderInputCell === "function"
+      ? {
+          ...inputColumnBase,
+          cell: (context: Parameters<typeof renderInputCell>[0]): ReactNode => (
+            <DatasetItemInputClick
+              href={getDatasetItemPath({
+                projectId,
+                datasetId: sourceDatasetId,
+                itemId: context.row.original.itemId,
+              })}
+            >
+              {renderInputCell(context)}
+            </DatasetItemInputClick>
+          ),
+        }
+      : inputColumnBase;
+
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = [
     ...(hideControls ? [] : [selectActionColumn]),
-    createIdTableColumn<ExperimentItemsTableRow>({
-      accessorKey: "itemId",
-      header: "Item ID",
-      size: 150,
-      enableHiding: true,
-    }),
-    createIOTableColumn<ExperimentItemsTableRow>({
-      accessorKey: "input",
-      header: "Input",
-      size: 300,
-      enableHiding: true,
-      getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
-      singleLine: ioSingleLine,
-    }),
+    itemIdColumn,
+    inputColumn,
     // The scores sit between the item's input and its outputs: the input says
     // which item this is, the score headers carry the judgement, and the outputs
     // are the drill-down a regression sends you to (peek carries it too).
