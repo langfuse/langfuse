@@ -123,15 +123,17 @@ export function EvaluatorGalleryDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex h-[80dvh] w-[calc(100vw-2rem)] max-w-none flex-col gap-0 p-0 sm:w-[70vw]"
+        className="flex h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none flex-col gap-0 rounded-lg p-0 sm:h-[80dvh] sm:w-[70vw]"
         closeOnInteractionOutside
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           searchInputRef.current?.focus();
         }}
       >
-        <DialogHeader className="[&>div]:items-start [&>div>button]:-mt-1 [&>div>button]:-mr-2 [&>div>button]:flex [&>div>button]:size-8 [&>div>button]:items-center [&>div>button]:justify-center">
-          <DialogTitle>Add an evaluator</DialogTitle>
+        <DialogHeader className="p-3 sm:p-4 [&>div]:items-start [&>div]:text-left [&>div>button]:-mt-1 [&>div>button]:-mr-2 [&>div>button]:flex [&>div>button]:size-8 [&>div>button]:items-center [&>div>button]:justify-center">
+          <DialogTitle className="text-lg sm:text-xl">
+            Add an evaluator
+          </DialogTitle>
           <DialogDescription>
             Pick a template to start from or create a new evaluator from
             scratch.

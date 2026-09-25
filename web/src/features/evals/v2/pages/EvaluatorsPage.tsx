@@ -619,6 +619,12 @@ export default function EvaluatorsPage() {
           description:
             "Create reusable evaluator definitions and test them before activation.",
         },
+        mobileActionButtons: showOnboarding ? (
+          <Button size="sm" onClick={() => setGalleryOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New evaluator
+          </Button>
+        ) : undefined,
         actionButtonsRight: (
           <div className="flex gap-2">
             {showOnboarding ? null : (

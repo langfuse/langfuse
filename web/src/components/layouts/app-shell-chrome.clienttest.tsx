@@ -172,6 +172,23 @@ describe("mobile page action focus handoff", () => {
     vi.useRealTimers();
   });
 
+  it("keeps an explicit mobile primary action out of the overflow menu", () => {
+    render(
+      <MobilePageTitle
+        headerProps={{
+          title: "Evaluators",
+          mobileActionButtons: <button>New evaluator</button>,
+          actionButtonsRight: <button>Desktop evaluator actions</button>,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "New evaluator" })).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "More actions" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("closes before panel focus and restores the trigger only on ordinary dismissals", async () => {
     vi.useFakeTimers();
     const openReview = vi.fn();

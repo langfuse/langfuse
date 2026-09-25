@@ -251,6 +251,26 @@ export const DecisionModels = meta.story({
   render: StatefulEvaluatorGalleryView,
 });
 
+export const DecisionModelsNarrow = meta.story({
+  globals: { viewport: { value: "evaluator-gallery-phone", isRotated: false } },
+  parameters: {
+    viewport: {
+      options: {
+        "evaluator-gallery-phone": {
+          name: "Phone",
+          styles: { width: "390px", height: "844px" },
+        },
+      },
+    },
+  },
+  args: {
+    ...defaultArgs,
+    sections: sectionsWithDecisionModelCard,
+    decisionModelBannerDismissed: false,
+  },
+  render: StatefulEvaluatorGalleryView,
+});
+
 export const DecisionModelsBannerDismissed = meta.story({
   args: {
     ...defaultArgs,

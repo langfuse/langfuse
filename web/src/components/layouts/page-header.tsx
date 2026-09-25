@@ -44,6 +44,9 @@ export type PageHeaderProps = {
   actionButtonsLeft?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRight?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRightClassName?: string;
+  /** Mobile-only primary action rendered directly beside the page title. Use
+   * this when collapsing the action would add an unnecessary overflow menu. */
+  mobileActionButtons?: ReactNode;
   /** Mobile-only: the same actions rendered as full-width labeled menu rows
    * (icon + label), for the compact header's `⋯` overflow. Pages pass a
    * `layout="menu"` variant of their actions here (mirrors the table peek's

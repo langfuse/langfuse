@@ -703,28 +703,30 @@ export function DataTableToolbar<TData, TValue>({
         )}
 
         <div className="flex flex-row flex-wrap gap-2 pr-0.5 @3xl:ml-auto">
-          {toolbarSettings}
-          {!!columnVisibility && !!setColumnVisibility && (
-            <DataTableColumnVisibilityFilter
-              columns={columns}
-              columnVisibility={columnVisibility}
-              setColumnVisibility={setColumnVisibility}
-              columnOrder={columnOrder}
-              setColumnOrder={setColumnOrder}
-              tableName={analyticsTableName}
-              isV4={analyticsIsV4}
-              onColumnGroupToggle={onColumnGroupToggle}
-              additionalColumnSettings={additionalColumnSettings}
-            />
-          )}
-          {!!rowHeight && !!setRowHeight && (
-            <DataTableRowHeightSwitch
-              rowHeight={rowHeight}
-              setRowHeight={setRowHeight}
-              tableName={analyticsTableName}
-              isV4={analyticsIsV4}
-            />
-          )}
+          <div className="hidden flex-row flex-wrap gap-2 md:flex">
+            {toolbarSettings}
+            {!!columnVisibility && !!setColumnVisibility && (
+              <DataTableColumnVisibilityFilter
+                columns={columns}
+                columnVisibility={columnVisibility}
+                setColumnVisibility={setColumnVisibility}
+                columnOrder={columnOrder}
+                setColumnOrder={setColumnOrder}
+                tableName={analyticsTableName}
+                isV4={analyticsIsV4}
+                onColumnGroupToggle={onColumnGroupToggle}
+                additionalColumnSettings={additionalColumnSettings}
+              />
+            )}
+            {!!rowHeight && !!setRowHeight && (
+              <DataTableRowHeightSwitch
+                rowHeight={rowHeight}
+                setRowHeight={setRowHeight}
+                tableName={analyticsTableName}
+                isV4={analyticsIsV4}
+              />
+            )}
+          </div>
           {actionButtons}
         </div>
       </div>
