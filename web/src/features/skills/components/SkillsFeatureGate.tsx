@@ -1,11 +1,9 @@
 import { type ReactNode } from "react";
 import { ErrorPage } from "@/src/components/error-page";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
-import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 
 export function SkillsFeatureGate({ children }: { children: ReactNode }) {
-  const projectId = useProjectIdFromURL();
-  const enabled = useIsFeatureEnabled("skills", { projectId });
+  const enabled = useInternalFeaturesEnabled();
 
   return enabled ? (
     children

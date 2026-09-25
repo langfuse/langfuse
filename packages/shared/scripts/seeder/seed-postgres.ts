@@ -97,14 +97,6 @@ async function main() {
     },
   });
 
-  await prisma.user.updateMany({
-    where: {
-      id: { in: [seedUserId1, seedUserId2] },
-      NOT: { featureFlags: { has: "skills" } },
-    },
-    data: { featureFlags: { push: "skills" } },
-  });
-
   await prisma.organization.upsert({
     where: { id: seedOrgId },
     update: {

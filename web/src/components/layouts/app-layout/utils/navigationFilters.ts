@@ -71,8 +71,8 @@ const filters = {
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
 
-    if (route.featureFlag === "skills") {
-      return ctx.skillsEnabled ? route : null;
+    if (route.featureFlag === "internalFeatures") {
+      return ctx.internalFeaturesEnabled ? route : null;
     }
 
     if (route.featureFlag === "experimentsV4Enabled") {
@@ -244,7 +244,7 @@ export function applyNavigationFilters(
     .map((route) => applyFiltersToRoute(route, ctx, organization))
     .filter((route): route is Route => route !== null)
     .map((route) =>
-      ctx.skillsEnabled && route.group === RouteGroup.PromptManagement
+      ctx.internalFeaturesEnabled && route.group === RouteGroup.PromptManagement
         ? { ...route, group: RouteGroup.AgentManagement }
         : route,
     );

@@ -22,7 +22,7 @@ import type { NavigationFilterContext } from "../utils/navigationFilters.types";
 import { isPathActive } from "../utils/pathClassification";
 import { resolveRoutePathname } from "../utils/routePathname";
 import { api } from "@/src/utils/api";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
@@ -105,9 +105,7 @@ export function useFilteredNavigation(
     cloudStatus?.status === "degraded" || cloudStatus?.status === "downtime";
 
   const routerProjectId = router.query.projectId as string | undefined;
-  const skillsEnabled = useIsFeatureEnabled("skills", {
-    projectId: routerProjectId,
-  });
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const forceV3Experience = useForceV3Experience(routerProjectId);
   const routerOrganizationId = router.query.organizationId as
     | string
@@ -127,7 +125,7 @@ export function useFilteredNavigation(
       isLangfuseCloud,
       hasActiveCloudIncident,
       forceV3Experience,
-      skillsEnabled,
+      internalFeaturesEnabled,
       currentPath: router.asPath,
     }),
     [
@@ -140,7 +138,7 @@ export function useFilteredNavigation(
       isLangfuseCloud,
       hasActiveCloudIncident,
       forceV3Experience,
-      skillsEnabled,
+      internalFeaturesEnabled,
     ],
   );
 

@@ -11,7 +11,6 @@ export type Flags = {
     | "aiGateway"
     | "sessionTimeline"
     | typeof INTERNAL_FEATURE_FLAG
-    | "skills"
   >]: boolean;
 } & {
   // Optional while older sessions and test fixtures roll across new flags.
@@ -19,5 +18,4 @@ export type Flags = {
   aiGateway?: boolean;
   sessionTimeline?: boolean;
   [INTERNAL_FEATURE_FLAG]?: boolean;
-  skills?: boolean;
 };

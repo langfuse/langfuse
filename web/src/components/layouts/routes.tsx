@@ -158,7 +158,7 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Skills",
-    featureFlag: "skills",
+    featureFlag: "internalFeatures",
     href: "/project/[projectId]/skills",
     icon: FolderCode,
     projectRbacScopes: ["skills:read"],

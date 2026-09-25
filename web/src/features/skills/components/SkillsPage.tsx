@@ -29,6 +29,7 @@ import {
 } from "@/src/features/search-bar";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { InternalFeatureBadge } from "@/src/features/feature-flags";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -49,6 +50,7 @@ export function SkillsPage() {
     <Page
       headerProps={{
         title: "Skills",
+        titleBadges: <InternalFeatureBadge />,
         help: {
           description:
             "Create, version, and distribute reusable agent skills from one place.",
