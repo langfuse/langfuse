@@ -61,7 +61,6 @@ export * from "./features/inAppAgent/types";
 
 // rbac
 export * from "./features/rbac/projectAccessRights";
-export * from "./features/rbac/tags";
 
 // filters
 export * from "./features/filters/internalEnvironments";

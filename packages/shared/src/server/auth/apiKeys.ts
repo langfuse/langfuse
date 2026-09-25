@@ -9,7 +9,7 @@ import {
   OrganizationId,
   ProjectId,
   SystemRoleId,
-} from "../../features/rbac/tags";
+} from "../../features/rbac/types";
 import { logger } from "../logger";
 import { assignRole, revokeRole } from "./assignRole";
 import { invalidateCachedApiKeys } from "./invalidateApiKeys";
@@ -121,18 +121,6 @@ export async function createAndAddApiKeysToDb(p: {
 
   // The role derived from `scope` reproduces today's apiKeyAccessRights[scope].
   // Written on the caller's client so it commits atomically with the key.
-  const tenantId =
-    p.scope === "PROJECT"
-      ? OrganizationId(
-          (
-            await p.prisma.project.findUniqueOrThrow({
-              where: { id: p.entityId },
-              select: { orgId: true },
-            })
-          ).orgId,
-        )
-      : OrganizationId(p.entityId);
-
   await assignRole(p.prisma, {
     principalId: ApiKeyId(apiKey.id),
     roleId: SystemRoleId(p.scope === "PROJECT" ? "PROJECT" : "ORGANIZATION"),
@@ -140,7 +128,6 @@ export async function createAndAddApiKeysToDb(p: {
       p.scope === "PROJECT"
         ? ProjectId(p.entityId)
         : OrganizationId(p.entityId),
-    tenantId,
     tags: [],
   });
 

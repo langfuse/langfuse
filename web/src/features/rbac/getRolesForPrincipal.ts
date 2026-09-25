@@ -1,4 +1,8 @@
-import { hasOrganizationKind, hasProjectKind, untag } from "@langfuse/shared";
+import {
+  hasOrganizationKind,
+  hasProjectKind,
+  untag,
+} from "@langfuse/shared/rbac";
 import {
   prisma as defaultPrisma,
   type PrismaClient,

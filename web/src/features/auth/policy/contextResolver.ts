@@ -3,11 +3,8 @@ import {
   type PrismaClient,
   prisma as defaultPrisma,
 } from "@langfuse/shared/src/db";
-import {
-  ApiKeyId,
-  CloudConfigSchema,
-  type InternalServerError,
-} from "@langfuse/shared";
+import { CloudConfigSchema, type InternalServerError } from "@langfuse/shared";
+import { ApiKeyId } from "@langfuse/shared/rbac";
 
 import { apiKeyAccessRights } from "@/src/features/rbac/constants/apiKeyAccessRights";
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";

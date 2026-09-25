@@ -7,7 +7,7 @@ import {
   type PrincipalId,
   type RoleId,
   type TenantId,
-} from "@langfuse/shared";
+} from "@langfuse/shared/rbac";
 
 import { type Policy } from "@/src/features/auth/policy/types";
 
