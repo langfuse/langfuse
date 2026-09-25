@@ -74,8 +74,10 @@ export function createShaHash(privateKey: string, salt: string): string {
 }
 
 export async function createAndAddApiKeysToDb(p: {
-  // Accepts a transaction client so callers can commit key creation
-  // atomically with linking the key to its owner (e.g. an agent run row).
+  // Accepts a root client or a transaction client. A root client runs the key
+  // create and its role assignment in an owned transaction; a transaction
+  // client joins the caller's transaction so the key can commit atomically with
+  // linking it to its owner (e.g. an agent run row).
   prisma: PrismaClient | Prisma.TransactionClient;
   entityId: string;
   scope: ApiKeyScope;
@@ -107,41 +109,49 @@ export async function createAndAddApiKeysToDb(p: {
   const entity =
     p.scope === "PROJECT" ? { projectId: p.entityId } : { orgId: p.entityId };
 
-  const apiKey = await p.prisma.apiKey.create({
-    data: {
-      ...entity,
-      publicKey: pk,
-      hashedSecretKey: hashedSk,
+  const run = async (tx: PrismaClient | Prisma.TransactionClient) => {
+    const apiKey = await tx.apiKey.create({
+      data: {
+        ...entity,
+        publicKey: pk,
+        hashedSecretKey: hashedSk,
+        displaySecretKey: displaySk,
+        fastHashedSecretKey: hashFromProvidedKey,
+        note: p.note,
+        scope: p.scope,
+        isInAppAgentKey: p.isInAppAgentKey ?? false,
+        createdByUserId: p.createdByUserId,
+        createdByApiKeyId: p.createdByApiKeyId,
+      },
+    });
+
+    // The role derived from `scope` reproduces today's apiKeyAccessRights[scope].
+    // Written on the same client so it commits atomically with the key.
+    await assignRole(tx, {
+      principalId: ApiKeyId(apiKey.id),
+      roleId: SystemRoleId(p.scope === "PROJECT" ? "PROJECT" : "ORGANIZATION"),
+      ownerId:
+        p.scope === "PROJECT"
+          ? ProjectId(p.entityId)
+          : OrganizationId(p.entityId),
+      tags: [],
+    });
+
+    return {
+      id: apiKey.id,
+      createdAt: apiKey.createdAt,
+      note: apiKey.note,
+      publicKey: apiKey.publicKey,
+      secretKey: sk,
       displaySecretKey: displaySk,
-      fastHashedSecretKey: hashFromProvidedKey,
-      note: p.note,
-      scope: p.scope,
-      isInAppAgentKey: p.isInAppAgentKey ?? false,
-      createdByUserId: p.createdByUserId,
-      createdByApiKeyId: p.createdByApiKeyId,
-    },
-  });
-
-  // The role derived from `scope` reproduces today's apiKeyAccessRights[scope].
-  // Written on the caller's client so it commits atomically with the key.
-  await assignRole(p.prisma, {
-    principalId: ApiKeyId(apiKey.id),
-    roleId: SystemRoleId(p.scope === "PROJECT" ? "PROJECT" : "ORGANIZATION"),
-    ownerId:
-      p.scope === "PROJECT"
-        ? ProjectId(p.entityId)
-        : OrganizationId(p.entityId),
-    tags: [],
-  });
-
-  return {
-    id: apiKey.id,
-    createdAt: apiKey.createdAt,
-    note: apiKey.note,
-    publicKey: apiKey.publicKey,
-    secretKey: sk,
-    displaySecretKey: displaySk,
+    };
   };
+
+  // A root client owns the transaction; a transaction client already runs
+  // inside the caller's, so both writes join it directly.
+  return "$transaction" in p.prisma
+    ? p.prisma.$transaction(run)
+    : run(p.prisma);
 }
 
 export async function deleteApiKeyFromDb(p: {

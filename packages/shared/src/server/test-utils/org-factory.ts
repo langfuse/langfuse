@@ -50,28 +50,30 @@ export const createOrgProjectAndApiKey = async (
 
   const auth = createBasicAuthHeader(publicKey, secretKey);
   const apiKeyRowId = v4();
-  await prisma.apiKey.create({
-    data: {
-      id: apiKeyRowId,
-      projectId: projectId,
-      publicKey: publicKey,
-      // Test fixtures use the modern fast-hash auth path. Avoid bcrypt here as
-      // cost-11 hashing adds ~100ms per fixture; keep the legacy hash unique to
-      // satisfy the database constraint without affecting authentication.
-      hashedSecretKey: `test-hashed-secret-key-${v4()}`,
-      fastHashedSecretKey: createShaHash(secretKey, salt),
-      displaySecretKey: getDisplaySecretKey(secretKey),
-      scope: "PROJECT",
-    },
-  });
+  await prisma.$transaction(async (tx) => {
+    await tx.apiKey.create({
+      data: {
+        id: apiKeyRowId,
+        projectId: projectId,
+        publicKey: publicKey,
+        // Test fixtures use the modern fast-hash auth path. Avoid bcrypt here as
+        // cost-11 hashing adds ~100ms per fixture; keep the legacy hash unique to
+        // satisfy the database constraint without affecting authentication.
+        hashedSecretKey: `test-hashed-secret-key-${v4()}`,
+        fastHashedSecretKey: createShaHash(secretKey, salt),
+        displaySecretKey: getDisplaySecretKey(secretKey),
+        scope: "PROJECT",
+      },
+    });
 
-  // Mirror the PROJECT system-role assignment the production create path writes,
-  // so the resolver reading policies from assignments sees this fixture key.
-  await assignRole(prisma, {
-    principalId: ApiKeyId(apiKeyRowId),
-    roleId: SystemRoleId("PROJECT"),
-    ownerId: ProjectId(projectId),
-    tags: [],
+    // Mirror the PROJECT system-role assignment the production create path writes,
+    // so the resolver reading policies from assignments sees this fixture key.
+    await assignRole(tx, {
+      principalId: ApiKeyId(apiKeyRowId),
+      roleId: SystemRoleId("PROJECT"),
+      ownerId: ProjectId(projectId),
+      tags: [],
+    });
   });
 
   return { projectId, orgId: org.id, publicKey, secretKey, auth, org, project };

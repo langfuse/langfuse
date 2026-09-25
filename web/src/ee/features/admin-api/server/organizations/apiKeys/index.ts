@@ -66,14 +66,12 @@ export async function handleCreateApiKey(
   const { note } = validationResult.data;
 
   // Create the API key
-  const apiKeyMeta = await prisma.$transaction((tx) =>
-    createAndAddApiKeysToDb({
-      prisma: tx,
-      entityId: organizationId,
-      note,
-      scope: "ORGANIZATION",
-    }),
-  );
+  const apiKeyMeta = await createAndAddApiKeysToDb({
+    prisma,
+    entityId: organizationId,
+    note,
+    scope: "ORGANIZATION",
+  });
 
   // Log the API key creation
   await auditLog({

@@ -80,15 +80,13 @@ export const organizationApiKeysRouter = createTRPCRouter({
         orgId: input.orgId,
       });
 
-      const apiKeyMeta = await ctx.prisma.$transaction((tx) =>
-        createAndAddApiKeysToDb({
-          prisma: tx,
-          entityId: input.orgId,
-          note: input.note,
-          scope: "ORGANIZATION",
-          createdByUserId: ctx.session.user.id,
-        }),
-      );
+      const apiKeyMeta = await createAndAddApiKeysToDb({
+        prisma: ctx.prisma,
+        entityId: input.orgId,
+        note: input.note,
+        scope: "ORGANIZATION",
+        createdByUserId: ctx.session.user.id,
+      });
 
       await auditLog({
         session: ctx.session,

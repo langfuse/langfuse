@@ -137,15 +137,13 @@ if (env.LANGFUSE_INIT_ORG_ID) {
 
       // Create new key if it doesn't exist or project changed
       if (!existingApiKey || existingApiKey.projectId !== projectId) {
-        await prisma.$transaction((tx) =>
-          createAndAddApiKeysToDb({
-            prisma: tx,
-            entityId: projectId,
-            note: "Provisioned API Key",
-            scope: "PROJECT",
-            predefinedKeys: { secretKey, publicKey },
-          }),
-        );
+        await createAndAddApiKeysToDb({
+          prisma,
+          entityId: projectId,
+          note: "Provisioned API Key",
+          scope: "PROJECT",
+          predefinedKeys: { secretKey, publicKey },
+        });
       }
     }
   }
