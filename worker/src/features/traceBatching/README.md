@@ -122,13 +122,62 @@ These distributions use the `langfuse.trace_batch` prefix:
 | Metric | Sample |
 | --- | --- |
 | `transcript_assembly_duration_ms` | One trace's ordering and assembly time, excluding I/O conversion, stream waits and tokenization; `has_transcript:true\|false`. |
-| `transcript_message_tokens` | Sum of current-turn and history token estimates; zero when empty, omitted if either estimate is unavailable. Replaces full-transcript JSON tokenization under a different name. |
+| `transcript_json_characters` | UTF-16 length of `JSON.stringify(assembleTranscript(...))`, including thread/message wrappers and provenance; zero for a null transcript. Same admitted traces as the Topics length metrics. |
+| `transcript_json_tokens` | o200k estimate of that complete JSON string, tagged `tokenizer:o200k_base`; zero for a null transcript. Attempted on the same admitted traces as `topics_transcript_tokens`; unavailable estimates are omitted. |
+| `generic_transcript_characters` | UTF-16 length of the previous generic plain-text layout, rendered with the same Topics block caps and inclusions. Tool definitions or errors may still render when assembly returns null. |
+| `generic_transcript_tokens` | o200k estimate of that generic text, tagged `tokenizer:o200k_base`. |
+| `transcript_message_tokens` | Sum of current-turn and history message-projection token estimates; zero when empty, omitted if either estimate is unavailable. Distinct from full-transcript JSON. |
 | `transcript_current_turn_tokens` | Token estimate of current-turn messages across all threads, using role and parts only; zero when empty. |
 | `transcript_history_tokens` | Token estimate of history messages across all threads, using the same role/parts representation; zero when empty. |
 | `transcript_content_characters` | Sum of JSON-serialized message-part lengths across history and current turn, in UTF-16 code units; excludes message wrappers and provenance. |
 | `transcript_tool_response_characters` | The subset of content characters belonging to tool-role messages or unmatched tool-result parts; zero when absent. |
 | `transcript_thread_count` | Number of assembled conversation threads, or zero for a null transcript. |
+| `transcript_observation_count` | Ordered, deduplicated observations passed to assembly and the Topics renderer. The `observation_count` span attribute is the raw row count before deduplication. |
+| `transcript_history_message_count`, `transcript_history_part_count` | Replayed messages and their normalized parts across all assembled threads. |
+| `transcript_current_turn_message_count`, `transcript_current_turn_part_count` | This-trace messages and their normalized parts across all assembled threads. |
+| `transcript_current_turn_tool_call_count`, `transcript_current_turn_tool_result_count` | Tool-call parts and tool-result parts in this trace; a tool-role part also counts as a result. |
 | `transcript_assembly_phase_duration_ms` | Two non-overlapping samples per trace tagged `phase:normalization` or `phase:matching`. Normalization includes initial message-key construction and partitioning; matching covers remaining assembly work, including tool matching, deduplication, any rebuilt keys and finalization. Observation ordering is outside these phases but remains in total assembly time. |
+| `topics_transcript_characters` | UTF-16 length of the complete rendered Topics text, including labels, section headings and line breaks; admitted traces only. |
+| `topics_transcript_tokens` | o200k estimate of that same text, tagged `tokenizer:o200k_base`; admitted traces only. |
+| `transcript_comparison_render_duration_ms` | Time to serialize assembled JSON and render generic and Topics text, excluding tokenization. |
+| `transcript_comparison_tokenization_duration_ms` | Wall time for the three sequential JSON, generic and Topics token estimates, excluding the existing current-turn/history estimates. |
+| `topics_transcript_block_characters` | Present block content length tagged `block:user\|assistant\|system\|reasoning\|tool_calls\|tool_results\|tool_definitions\|errors\|run_io\|observations` and `stage:raw\|clipped`; absent blocks emit no sample. |
+| `topics_transcript_blocks_cut` | Number of content blocks cut by their per-block character caps. |
+| `topics_transcript_history_characters`, `topics_transcript_current_turn_characters`, `topics_transcript_history_share` | Rendered content-line characters from replayed input and this run, plus replayed input divided by their sum (0 when both are empty). This-run content includes fallback trace-level I/O, observation markers, and inline errors. |
+
+Topics measurement uses the existing assembled transcript and the inclusive
+Topics preset in `packages/shared/src/server/transcript/topics-renderer-config.ts`. It
+does not call a model or store the text. The preset includes all block types and
+history, caps fallback trace-level input and output at 10,000 characters each,
+and caps each system message at 600 characters. These are separate per-block
+limits, not a combined trace budget. The preset has no total token budget. It
+omits no middle lines. The rendered text has
+`<run_facts>`, optional `<tools>` and `<earlier_conversation source="replayed input">`,
+`<this_run>`, and `<end_of_run>` sections in that order. Observation markers show
+the Langfuse operation type and name in walk order; matched tool results already
+identify their operation. Trace input appears as the request when no current-run
+user message exists. If it differs from the rendered input messages, it appears
+as trace context alongside the user request, capped at the user block limit
+(2,000 characters in this preset). A trace output matching the last assistant
+message or tool
+result labels that message as final output; distinct application output appears
+once as `[final output]`. Thread segments follow observation
+order; the replayed prefix does not claim to come from a previous trace. Tool
+calls and results share a number, and observation errors appear after the last
+message emitted at or before their position in the observation walk. The facts
+line counts rendered user entries and tool calls across threads; repeated
+content in separate threads is not necessarily a distinct user turn. `raw` block
+characters are counted after media redaction and whitespace collapse but before
+a block cap; `clipped` counts the resulting content including any omission marker.
+Block values exclude
+role labels, section headings, run facts and line breaks; media placeholders
+can add characters to the complete text without adding to a block metric. The
+history share uses content lines including role labels, tool exchanges, fallback
+root I/O, observation markers and inline errors, excluding section headings and
+tool definitions. Keep
+numerator and denominator on the same basis when calculating shares. Ingestion
+applies `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` by trace ID before the dispatcher
+and worker; every admitted trace receives Topics measurements.
 
 Transcript token counts use the existing local worker-thread pool and bundled
 tiktoken WASM, without a network or model API call. The `gpt-4o` configuration
@@ -139,8 +188,24 @@ billing counts or a model's full request framing.
 Current turn and history use identical `{ messages: [{ role, parts }] }` JSON
 framing, without observation provenance. Only nonempty partitions are tokenized,
 at most twice per trace. Their sum is `transcript_message_tokens`; it is not
-directly comparable to the retired `transcript_tokens` full-transcript JSON metric.
-Empty transcripts report zero. Thread counts are numeric samples, never metric tags.
+directly comparable to the full assembled-transcript JSON or rendered text. The
+`transcript_json_*`, `generic_transcript_*`, and `topics_transcript_*` length
+distributions are attempted on the same admitted trace cohort and can be
+compared at p50/p90/p99 after checking their sample counts. The generic
+renderer preserves the previous plain-text layout under the same Topics
+per-block preset; it has no trace-root I/O or run-state sections. Empty
+transcripts have zero JSON length and tokens. Thread counts are numeric
+samples, never metric tags.
+
+To diagnose large Topics texts, compare `topics_transcript_tokens` with
+`transcript_observation_count`, the history/current-turn message and part counts,
+current-turn tool-call/result counts, `topics_transcript_history_share`, and
+raw/clipped characters by block type. Structure counts describe the assembled
+source, before the renderer's per-block character caps; they are not a count of
+visible lines. A last-N history policy can use each thread's
+`conversationHistory`, but a per-thread N would still grow with the number of
+threads. A future total history budget should account for all threads; tool
+loops should retain call/result pairs and errors when shortened.
 
 For rough tool-response size share, divide `transcript_tool_response_characters`
 by `transcript_content_characters` (when nonzero). Both sum serialized parts on
@@ -153,7 +218,19 @@ Rejected estimates increment `token_estimation_failed` and stop the remaining
 estimates for that trace; successful earlier samples are retained. Unknown
 estimates do not stop later estimates. The summed estimate is omitted unless
 both partitions are known. Neither failure retries the batch.
-Only current-turn and history message projections are tokenized.
+Current-turn and history message projections are tokenized first. Each admitted
+trace then adds one full-JSON, one generic plain-text, and one Topics plain-text
+tokenization call.
+Missing or failed JSON estimates increment `transcript_json_token_estimation_unavailable`
+or `transcript_json_failed` without stopping later measurements. Generic text
+rendering or token failures increment `generic_transcript_failed`, while an
+unavailable token estimate increments
+`generic_transcript_token_estimation_unavailable`. These do not stop Topics.
+Topics rendering failures increment `topics_transcript_failed` and leave the
+batch successful. An
+unavailable Topics token estimate increments
+`topics_transcript_token_estimation_unavailable`; a rejected estimate increments
+`topics_transcript_failed`. Character metrics remain available in either case.
 
 The worker submits one transcript for tokenization while streaming the next
 trace's observations. Before submitting another transcript it awaits the previous
@@ -164,10 +241,10 @@ partial final trace. Assembly itself remains synchronous. `read_duration_ms`
 includes all this processing.
 
 Memory includes the current trace, the previous transcript being tokenized and
-stream buffers, multiplied by active batch jobs. A single trace remains unbounded.
-The transcript remains referenced until both partitions finish. Each message
-belongs to one partition; there is no additional full-transcript or tool-response
-tokenization pass.
+stream buffers, multiplied by active batch jobs. Each trace also retains its
+assembled JSON, generic text, and Topics text for sequential tokenizer calls.
+A single trace remains unbounded. Each message belongs to one JSON partition;
+there is no additional tool-response tokenization pass.
 The default two-thread tokenizer pool is shared with ingestion; overlap hides
 waiting time but does not remove CPU use or contention. Its existing 30-second
 timeout rejects the promise without cancelling queued/running encoding, so the
@@ -190,19 +267,27 @@ Each completed trace emits a `trace-batch-transcript` child span under the batch
 processing span. Its attributes include `langfuse.project.id`, `langfuse.trace.id`,
 and `langfuse.trace.url` (a peek link using the configured product base URL).
 Under `langfuse.trace_batch`, the span records `transcript_message_tokens`, `transcript_characters`,
+`transcript_json_characters`, `transcript_json_tokens`,
+`generic_transcript_characters`, `generic_transcript_tokens`,
+`topics_transcript_characters`, `topics_transcript_tokens`,
+`transcript_comparison_render_duration_ms`,
+`transcript_comparison_tokenization_duration_ms`,
 `transcript_assembly_duration_ms`, `observation_count` (rows before observation
 deduplication), `has_transcript`, `tokenizer`, and `experiment_id`.
 It also records the token breakdown and content/tool-response character metrics,
 `transcript_thread_count`,
 and each phase as `transcript_assembly_<phase>_duration_ms`.
+It also records the remaining Topics metrics above. Block character attributes use
+`topics_transcript_block_<block>_<stage>_characters`. Topics character metrics
+are absent if rendering failed; the token metric can also be absent if its
+estimate failed.
 No transcript content is attached, and IDs are not distribution metric tags.
-`transcript_characters` measures the complete transcript JSON's JavaScript string
-length (UTF-16 code units, including JSON syntax), or zero for a null transcript.
-This legacy span-only field uses a different basis from the content character
-metrics; use `transcript_content_characters` as the tool-response denominator.
-It is recorded before tokenization, so remains available if token estimation fails.
-Only recording spans serialize this extra temporary copy; it is not retained
-while tokenization runs or included in the assembly-duration measurement.
+`transcript_characters` is the legacy span-only name for the same value as
+`transcript_json_characters`. The full JSON includes syntax and provenance, so
+use `transcript_content_characters` as the tool-response denominator. JSON
+characters are recorded before tokenization and remain available if an estimate
+fails. The JSON string is retained only until its sequential token count settles;
+it is not included in the assembly-duration measurement.
 
 The span stays open until token estimation settles, so its duration includes
 tokenization and pool waits. Use the assembly-duration attribute for assembly
