@@ -338,7 +338,7 @@
     --tertiary-foreground: 222.2 47.4% 11.2%;
 
     --accent: 210 40% 96.1%;
-    --accent-foreground: 220 8.9% 46.1%;
+    --accent-foreground: 217 33% 17%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
@@ -538,7 +538,7 @@
     /* One clear step above --popover (12%) — focus:bg-accent is the only
        focus cue in menus/selects/⌘K, and 14.3% was a near-invisible ~1.13:1. */
     --accent: 0 0% 18%;
-    --accent-foreground: 0 0% 91%;
+    --accent-foreground: 0 0% 70%;
 
     --destructive: 0 78.7% 63.1%;
     --destructive-foreground: 0 0% 100%;
