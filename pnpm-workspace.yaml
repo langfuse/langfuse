@@ -148,6 +148,10 @@ patchedDependencies:
   # "Could not find data for Group with id ...". Guard both (skip detached
   # elements / unmounted groups). Still unfixed upstream as of 4.12.2.
   react-resizable-panels@4.8.0: patches/react-resizable-panels@4.8.0.patch
+  # Safari treats Error.prototype.stack as getter-only. vfile-message assigns
+  # VFileMessage.prototype.stack = '' at module evaluation, which throws and
+  # aborts the react-markdown chunk. Still unfixed upstream as of 4.0.3.
+  vfile-message@4.0.3: patches/vfile-message@4.0.3.patch
 publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
