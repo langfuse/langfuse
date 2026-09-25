@@ -21,19 +21,35 @@ export const transcriptBlockTypes = [
   "tool_results",
   "tool_definitions",
   "errors",
+  "run_io",
 ] as const;
 
 export type TranscriptBlockType = (typeof transcriptBlockTypes)[number];
 type BlockCharacters = { raw: number; clipped: number };
 type Line = { text: string; removable: boolean; history?: boolean };
+type PartEvent = {
+  kind: "part";
+  thread: number;
+  message: NormalizedMessage;
+  part: NormalizedMessagePart;
+  observationIndex: number;
+  sequence: number;
+  history: boolean;
+  callNumber?: number;
+  toolName?: string;
+};
+type ErrorEvent = {
+  kind: "error";
+  observation: Observation;
+  observationIndex: number;
+  thread: number | null;
+};
+type RenderedEvent = { event: PartEvent | ErrorEvent; text: string };
 
 const redactInlineMedia = (text: string): string =>
   text.replace(/data:[^:;,\s]+;base64,[A-Za-z0-9+/=_-]+/g, "[media omitted]");
 
-/**
- * Render an assembled trace as plain text for Topics. The caller can reuse an
- * existing transcript, and a token budget is optional.
- */
+/** Render an assembled trace for Topics without assembling it a second time. */
 export function renderTranscript(
   transcript: Transcript | null,
   observations: Observation[],
@@ -81,22 +97,174 @@ export function renderTranscript(
   ) =>
     maxChars === 0
       ? `[${label}]`
-      : `[${label}] ${clip(content, maxChars, block)}`;
+      : `[${label}] ${clip(content, maxChars, block)}`.trimEnd();
+  const partContent = (part: NormalizedMessagePart): string => {
+    switch (part.type) {
+      case "text":
+        return part.text;
+      case "reasoning":
+        return part.content.kind === "text" ? part.content.text : "";
+      case "tool-call":
+        return `${part.toolName} ${json(part.input)}`;
+      case "tool-result":
+        return json(part.output);
+      case "file":
+        return `[${part.mediaType ?? "file"} omitted]`;
+      case "data":
+        return json(part.value);
+      case "custom":
+        return json({ [part.kind]: part.value });
+    }
+  };
+  const rootContent = (
+    observation: Observation,
+    source: "input" | "output",
+  ) => {
+    const value = observation[source];
+    const parts = normalizeIO({
+      kind: "io",
+      io: {
+        input: source === "input" ? value : undefined,
+        output: source === "output" ? value : undefined,
+        metadata: observation.metadata,
+      },
+    })
+      .messages.filter((message) => message.source === source)
+      .flatMap((message) => message.parts.map(partContent))
+      .filter(Boolean);
+    return parts.length ? parts.join("\n") : json(value);
+  };
 
-  const partLine = (
-    message: NormalizedMessage,
-    part: NormalizedMessagePart,
-  ): string | null => {
+  const observationIndices = new Map(
+    observations.map((observation, index) => [observation.id, index]),
+  );
+  const observationById = new Map(
+    observations.map((observation) => [observation.id, observation]),
+  );
+  const threads = transcript?.threads ?? [];
+  const historyEvents: PartEvent[] = [];
+  const currentEvents: PartEvent[] = [];
+  let sequence = 0;
+  threads.forEach((thread, threadIndex) => {
+    for (const message of config.history === "include"
+      ? thread.conversationHistory
+      : []) {
+      for (const part of message.parts)
+        historyEvents.push({
+          kind: "part",
+          thread: threadIndex,
+          message,
+          part,
+          observationIndex: -1,
+          sequence: sequence++,
+          history: true,
+        });
+    }
+    for (const message of thread.currentTurn.messages) {
+      for (const part of message.parts)
+        currentEvents.push({
+          kind: "part",
+          thread: threadIndex,
+          message,
+          part,
+          observationIndex:
+            observationIndices.get(message.observationId) ??
+            Number.MAX_SAFE_INTEGER,
+          sequence: sequence++,
+          history: false,
+        });
+    }
+  });
+  currentEvents.sort(
+    (a, b) =>
+      a.observationIndex - b.observationIndex || a.sequence - b.sequence,
+  );
+
+  // Match tool results to earlier calls in the same thread, preferring IDs.
+  const allPartEvents = [...historyEvents, ...currentEvents];
+  let nextCallNumber = 0;
+  const callsById = new Map<string, PartEvent[]>();
+  const callsByName = new Map<string, PartEvent[]>();
+  const callKey = (thread: number, value: string) => `${thread}:${value}`;
+  for (const event of allPartEvents) {
+    if (event.part.type !== "tool-call" || !config.toolCalls.include) continue;
+    event.callNumber = ++nextCallNumber;
+    const name = callKey(event.thread, event.part.toolName);
+    const namedCalls = callsByName.get(name) ?? [];
+    namedCalls.push(event);
+    callsByName.set(name, namedCalls);
+    if (event.part.toolCallId) {
+      const id = callKey(event.thread, event.part.toolCallId);
+      const keyedCalls = callsById.get(id) ?? [];
+      keyedCalls.push(event);
+      callsById.set(id, keyedCalls);
+    }
+  }
+  const matchedCalls = new Set<number>();
+  const resultMessages = new WeakMap<NormalizedMessage, number | null>();
+  const takeCall = (calls: PartEvent[] | undefined, before: number) => {
+    while (calls?.length && matchedCalls.has(calls[0].callNumber!))
+      calls.shift();
+    const call = calls?.[0];
+    if (!call || call.sequence >= before) return undefined;
+    calls!.shift();
+    matchedCalls.add(call.callNumber!);
+    return call.callNumber;
+  };
+  for (const event of allPartEvents) {
+    const isResult =
+      event.part.type === "tool-result" || event.message.role === "tool";
+    if (!isResult) continue;
+    event.toolName =
+      (event.part.type === "tool-result" ? event.part.toolName : undefined) ??
+      ("observationId" in event.message
+        ? observationById.get(event.message.observationId as string)?.name
+        : undefined) ??
+      event.message.senderName ??
+      "";
+    if (event.message.role === "tool" && resultMessages.has(event.message)) {
+      event.callNumber = resultMessages.get(event.message) ?? undefined;
+      continue;
+    }
+    const id = event.part.type === "tool-result" ? event.part.toolCallId : null;
+    event.callNumber = id
+      ? takeCall(callsById.get(callKey(event.thread, id)), event.sequence)
+      : takeCall(
+          callsByName.get(callKey(event.thread, event.toolName)),
+          event.sequence,
+        );
+    if (event.message.role === "tool")
+      resultMessages.set(event.message, event.callNumber ?? null);
+  }
+
+  const requestMessage = currentEvents.find(
+    (event) => event.message.role === "user",
+  )?.message;
+  const partLine = (event: PartEvent): string | null => {
+    const { message, part } = event;
     const role =
       message.role === "tool" ? config.toolResults : config[message.role];
     const roleLabel = message.senderName
       ? `${message.role} (${message.senderName})`
       : message.role;
+    const userLabel =
+      message.role === "user" && message === requestMessage
+        ? `${roleLabel} · request`
+        : roleLabel;
+    const resultLabel =
+      `tool ${event.toolName ?? ""}${event.callNumber ? ` #${event.callNumber}` : ""} ←`
+        .replace(/\s+/g, " ")
+        .trim();
+    if (message.role === "tool" && part.type !== "tool-result") {
+      return role.include && !(part.type === "file" && part.reasoning)
+        ? labeled(resultLabel, partContent(part), role.maxChars, "tool_results")
+        : null;
+    }
     switch (part.type) {
       case "text":
         return role.include
           ? labeled(
-              roleLabel,
+              userLabel,
               part.text,
               role.maxChars,
               message.role === "tool" ? "tool_results" : message.role,
@@ -114,7 +282,7 @@ export function renderTranscript(
       case "tool-call":
         return config.toolCalls.include
           ? labeled(
-              `${roleLabel} → ${part.toolName}${part.invalid ? " (invalid)" : ""}`,
+              `${roleLabel} → ${part.toolName}${event.callNumber ? ` #${event.callNumber}` : ""}${part.invalid ? " (invalid)" : ""}`,
               json(part.input),
               config.toolCalls.maxChars,
               "tool_calls",
@@ -123,10 +291,7 @@ export function renderTranscript(
       case "tool-result":
         return config.toolResults.include
           ? labeled(
-              `tool ${part.toolName ?? ""} ←${part.isError ? " ERROR" : ""}`.replace(
-                "  ",
-                " ",
-              ),
+              `${resultLabel}${part.isError ? " ERROR" : ""}`,
               json(part.output),
               config.toolResults.maxChars,
               "tool_results",
@@ -134,47 +299,139 @@ export function renderTranscript(
           : null;
       case "file":
         return role.include && !part.reasoning
-          ? `[${roleLabel}] [${part.mediaType ?? "file"} omitted]`
+          ? `[${userLabel}] [${part.mediaType ?? "file"} omitted]`
           : null;
       case "data":
       case "custom":
         return role.include
           ? labeled(
-              roleLabel,
-              json(
-                part.type === "data" ? part.value : { [part.kind]: part.value },
-              ),
+              userLabel,
+              partContent(part),
               role.maxChars,
               message.role === "tool" ? "tool_results" : message.role,
             )
           : null;
     }
   };
-  const messageLines = (
-    messages: NormalizedMessage[],
-    history: boolean,
-  ): Line[] =>
-    messages.flatMap((message) =>
-      message.parts.flatMap((part) => {
-        const text = partLine(message, part);
-        return text ? [{ text, removable: true, history }] : [];
-      }),
+
+  const history = historyEvents
+    .map((event): RenderedEvent | null => {
+      const text = partLine(event);
+      return text ? { event, text } : null;
+    })
+    .filter((event): event is RenderedEvent => event !== null);
+  const currentWithErrors: Array<PartEvent | ErrorEvent> = [...currentEvents];
+  if (config.errors.include) {
+    const threadByObservation = new Map(
+      currentEvents.map((event) => [event.observationIndex, event.thread]),
     );
+    observations.forEach((observation, observationIndex) => {
+      if (
+        observation.level === "ERROR" ||
+        (observation.level === "WARNING" && observation.statusMessage)
+      )
+        currentWithErrors.push({
+          kind: "error",
+          observation,
+          observationIndex,
+          thread: threadByObservation.get(observationIndex) ?? null,
+        });
+    });
+  }
+  currentWithErrors.sort(
+    (a, b) =>
+      a.observationIndex - b.observationIndex ||
+      (a.kind === "error" ? 1 : 0) - (b.kind === "error" ? 1 : 0) ||
+      (a.kind === "part" && b.kind === "part" ? a.sequence - b.sequence : 0),
+  );
+  const current = currentWithErrors
+    .map((event): RenderedEvent | null => {
+      const text =
+        event.kind === "part"
+          ? partLine(event)
+          : labeled(
+              `${event.observation.level === "WARNING" ? "warning" : "error"} ${event.observation.type} ${event.observation.name ?? ""}`.trim(),
+              event.observation.statusMessage ?? "",
+              config.errors.maxChars,
+              "errors",
+            );
+      return text ? { event, text } : null;
+    })
+    .filter((event): event is RenderedEvent => event !== null);
+
+  const root = observations.find(
+    (observation) => observation.parentObservationId === null,
+  );
+  const rootInput =
+    config.runIO.include && root?.input != null
+      ? rootContent(root, "input")
+      : null;
+  const rootOutput =
+    config.runIO.include && root?.output != null
+      ? rootContent(root, "output")
+      : null;
+  const rootInputLine = rootInput
+    ? labeled("run input", rootInput, config.runIO.maxChars, "run_io")
+    : null;
+  const rootOutputLine = rootOutput
+    ? labeled("run output", rootOutput, config.runIO.maxChars, "run_io")
+    : null;
+
+  const errorObservations = new Set(
+    currentWithErrors
+      .filter((event): event is ErrorEvent => event.kind === "error")
+      .map((event) => event.observation.id),
+  );
+  for (const event of currentEvents) {
+    if (
+      config.toolResults.include &&
+      event.part.type === "tool-result" &&
+      event.part.isError
+    ) {
+      if ("observationId" in event.message)
+        errorObservations.add(event.message.observationId as string);
+    }
+  }
+  const userMessages = new Set(
+    config.user.include
+      ? currentEvents
+          .filter((event) => event.message.role === "user")
+          .map((event) => event.message)
+      : [],
+  );
+  const runToolCalls = config.toolCalls.include
+    ? currentEvents.filter((event) => event.part.type === "tool-call").length
+    : 0;
+  const facts = (omitted: number) =>
+    `threads: ${threads.length} · rendered user entries: ${userMessages.size} · rendered tool calls: ${runToolCalls} · error signals: ${errorObservations.size} · omitted lines: ${omitted}`;
 
   const lines: Line[] = [];
   const header = (text: string) => lines.push({ text, removable: false });
+  header("<run_facts>");
+  const factsLine: Line = { text: facts(0), removable: false };
+  lines.push(factsLine);
+  header("</run_facts>");
 
   if (config.toolDefinitions.include) {
     const definitions = new Map<string, string>();
-    for (const o of observations) {
-      if (o.type !== "GENERATION") continue;
-      const io = { input: o.input, output: undefined, metadata: o.metadata };
-      for (const d of normalizeIO({ kind: "io", io }).toolDefinitions)
-        if (!definitions.has(d.name))
-          definitions.set(d.name, d.description?.split(/(?<=\.)\s/)[0] ?? "");
+    for (const observation of observations) {
+      if (observation.type !== "GENERATION") continue;
+      const io = {
+        input: observation.input,
+        output: undefined,
+        metadata: observation.metadata,
+      };
+      for (const definition of normalizeIO({ kind: "io", io })
+        .toolDefinitions) {
+        if (!definitions.has(definition.name))
+          definitions.set(
+            definition.name,
+            definition.description?.split(/(?<=\.)\s/)[0] ?? "",
+          );
+      }
     }
     if (definitions.size) {
-      header(`AVAILABLE TOOLS (${definitions.size}):`);
+      header("<tools>");
       for (const [name, description] of definitions)
         header(
           labeled(
@@ -184,61 +441,118 @@ export function renderTranscript(
             "tool_definitions",
           ).replace(/^\[(.*?)\]/, "- $1:"),
         );
+      header("</tools>");
     }
   }
 
-  const threads = transcript?.threads ?? [];
-  threads.forEach((thread, index) => {
-    if (threads.length > 1) header(`=== thread ${index + 1} ===`);
-    const history =
-      config.history === "include"
-        ? messageLines(thread.conversationHistory, true)
-        : [];
-    if (history.length) {
-      header("--- earlier conversation ---");
-      lines.push(...history);
-      header("--- this trace ---");
+  const addEvents = (events: RenderedEvent[], historySection: boolean) => {
+    let activeThread: number | null = null;
+    for (const { event, text } of events) {
+      const thread = event.thread;
+      if (threads.length > 1 && thread !== activeThread) {
+        if (activeThread !== null) header("</thread>");
+        if (thread !== null) header(`<thread n="${thread + 1}">`);
+        activeThread = thread;
+      }
+      lines.push({
+        text,
+        removable: event.kind === "part",
+        history: historySection,
+      });
     }
-    lines.push(...messageLines(thread.currentTurn.messages, false));
-  });
-
-  if (config.errors.include) {
-    const errors = observations.filter(
-      (o) => o.level === "ERROR" || (o.level === "WARNING" && o.statusMessage),
-    );
-    if (errors.length) header("ERRORS:");
-    for (const o of errors)
-      header(
-        labeled(
-          `${o.level} ${o.type} ${o.name ?? ""}`.trim(),
-          o.statusMessage ?? "",
-          config.errors.maxChars,
-          "errors",
-        ),
-      );
+    if (threads.length > 1 && activeThread !== null) header("</thread>");
+  };
+  if (history.length) {
+    header('<earlier_conversation source="replayed input">');
+    addEvents(history, true);
+    header("</earlier_conversation>");
+  }
+  if (rootInputLine || current.length || rootOutputLine) {
+    header("<this_run>");
+    if (rootInputLine)
+      lines.push({ text: rootInputLine, removable: false, history: false });
+    addEvents(current, false);
+    if (rootOutputLine)
+      lines.push({ text: rootOutputLine, removable: false, history: false });
+    header("</this_run>");
   }
 
-  // Keep headers, the first and the last messages; drop from the middle.
+  const lastPart = [...current]
+    .reverse()
+    .find(({ event }) => event.kind === "part")?.event;
+  let lastAction = "none";
+  if (lastPart?.kind === "part") {
+    if (lastPart.part.type === "tool-call") lastAction = "assistant tool call";
+    else if (
+      lastPart.part.type === "tool-result" ||
+      lastPart.message.role === "tool"
+    )
+      lastAction = "tool result";
+    else if (lastPart.message.role === "user") lastAction = "user message";
+    else if (lastPart.part.type === "reasoning")
+      lastAction = "assistant reasoning";
+    else if (lastPart.message.role === "assistant")
+      lastAction = "assistant text";
+    else lastAction = `${lastPart.message.role} message`;
+  }
+  const lastAssistantMessage = [...currentEvents]
+    .reverse()
+    .find(
+      (event) =>
+        event.message.role === "assistant" &&
+        (event.part.type === "text" ||
+          event.part.type === "data" ||
+          event.part.type === "custom"),
+    )?.message;
+  const lastAssistantText = lastAssistantMessage?.parts
+    .filter(
+      (part) =>
+        part.type === "text" || part.type === "data" || part.type === "custom",
+    )
+    .map(partContent)
+    .join("\n");
+  const comparable = (value: string) => value.replace(/\s+/g, " ").trim();
+  header("<end_of_run>");
+  header(`last action: ${lastAction}`);
+  if (
+    rootOutput &&
+    (!lastAssistantText ||
+      comparable(rootOutput) !== comparable(lastAssistantText))
+  )
+    header("run output differs from last assistant text");
+  header("</end_of_run>");
+
+  // Keep headings and trace-level I/O; drop ordinary lines from the middle.
   const removable = lines.filter((line) => line.removable);
-  const select = (keep: number) => {
-    if (keep >= removable.length) return lines.map((line) => line.text);
+  const select = (keep: number): Line[] => {
     const kept = new Set([
       ...removable.slice(0, Math.ceil(keep / 2)),
       ...removable.slice(removable.length - Math.floor(keep / 2)),
     ]);
-    const out: string[] = [];
+    const selected: Line[] = [];
     let marked = false;
     for (const line of lines) {
-      if (!line.removable || kept.has(line)) out.push(line.text);
+      if (!line.removable || kept.has(line)) selected.push(line);
       else if (!marked) {
-        out.push(`[… ${removable.length - keep} messages omitted …]`);
+        selected.push({
+          text: `[… ${removable.length - keep} lines omitted …]`,
+          removable: false,
+        });
         marked = true;
       }
     }
-    return out;
+    return selected.map((line) =>
+      line === factsLine
+        ? { ...line, text: facts(removable.length - keep) }
+        : line,
+    );
   };
-  const tokensOf = (keep: number) => countTokens!(select(keep).join("\n"));
-
+  const tokensOf = (keep: number) =>
+    countTokens!(
+      select(keep)
+        .map((line) => line.text)
+        .join("\n"),
+    );
   let keep = removable.length;
   if (
     countTokens &&
@@ -254,11 +568,12 @@ export function renderTranscript(
     }
     keep = low;
   }
-  const text = select(keep).join("\n");
-  const historyCharacters = lines
+  const selected = select(keep);
+  const text = selected.map((line) => line.text).join("\n");
+  const historyCharacters = selected
     .filter((line) => line.history === true)
     .reduce((sum, line) => sum + line.text.length, 0);
-  const currentTurnCharacters = lines
+  const currentTurnCharacters = selected
     .filter((line) => line.history === false)
     .reduce((sum, line) => sum + line.text.length, 0);
   return {

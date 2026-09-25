@@ -14,10 +14,6 @@ import {
   type Transcript,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import {
-  getDeterministicSamplingValue,
-  shouldSampleEvaluation,
-} from "../evaluation/deterministicSampling";
 import { tokenCountAsync } from "../tokenisation/async-usage";
 
 // A fixed tokenizer makes payload sizes comparable across models and projects.
@@ -272,21 +268,11 @@ export function recordTraceBatchTranscript(
       );
     }
 
-    const traceId = observations[0]?.traceId;
-    const samplingRate =
-      env.LANGFUSE_TRACE_BATCH_TOPICS_TRANSCRIPT_SAMPLING_RATE;
-    const topicsText =
-      traceId &&
-      samplingRate > 0 &&
-      (samplingRate === 1 ||
-        shouldSampleEvaluation({
-          samplingValue: getDeterministicSamplingValue(
-            `topics-transcript:${traceId}`,
-          ),
-          samplingRate,
-        }))
-        ? recordTopicsRendering(transcript, orderedObservations, span)
-        : undefined;
+    const topicsText = recordTopicsRendering(
+      transcript,
+      orderedObservations,
+      span,
+    );
 
     if (transcript === null) {
       for (const metric of TOKEN_METRICS) recordTokens(span, metric, 0);

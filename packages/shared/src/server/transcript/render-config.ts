@@ -18,6 +18,7 @@ export const transcriptRenderConfigSchema = z.object({
   toolResults: block(true, 400),
   toolDefinitions: block(false, 120),
   errors: block(true, 300),
+  runIO: block(true, 10000),
   history: z.enum(["include", "omit"]).default("include"),
   collapseWhitespace: z.boolean().default(true),
   headRatio: z.number().min(0).max(1).default(0.6),
@@ -39,5 +40,6 @@ export const topicsTranscriptConfig = {
   toolResults: { maxChars: 500 },
   toolDefinitions: { include: true, maxChars: 120 },
   errors: { maxChars: 500 },
+  runIO: { maxChars: 10000 },
   maxTokens: null,
 } satisfies TranscriptRenderConfig;
