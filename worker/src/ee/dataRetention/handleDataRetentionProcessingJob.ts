@@ -13,6 +13,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
+import { Prisma } from "@prisma/client";
 import { isMissingInAppAgentMcpApiKeyError } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import { env, v4WritesToEventsTable } from "../../env";
@@ -62,7 +63,8 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     Date.now() - currentRetention * 24 * 60 * 60 * 1000,
   );
 
-  while (true) {
+  let processedRuns = 0;
+  while (processedRuns < 10_000) {
     const keyRuns = await prisma.inAppAgentRun.findMany({
       where: {
         projectId,
@@ -71,7 +73,7 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
         mcpApiKeyId: { not: null },
       },
       select: { id: true, mcpApiKeyId: true },
-      take: 100,
+      take: Math.min(100, 10_000 - processedRuns),
     });
     if (keyRuns.length === 0) break;
     for (const run of keyRuns) {
@@ -85,12 +87,22 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
       }).catch((error: unknown) => {
         if (!isMissingInAppAgentMcpApiKeyError(error)) throw error;
       });
-      // Do not clear a key pointer that changed since this run was selected.
-      await prisma.inAppAgentRun.updateMany({
-        where: { id: run.id, projectId, mcpApiKeyId: run.mcpApiKeyId },
-        data: { mcpApiKeyId: null },
-      });
     }
+    await prisma.$executeRaw`
+      UPDATE in_app_agent_runs AS runs
+      SET mcp_api_key_id = NULL, updated_at = NOW()
+      FROM (VALUES ${Prisma.join(
+        keyRuns
+          .filter((run): run is { id: string; mcpApiKeyId: string } =>
+            Boolean(run.mcpApiKeyId),
+          )
+          .map((run) => Prisma.sql`(${run.id}, ${run.mcpApiKeyId})`),
+      )}) AS selected(id, key_id)
+      WHERE runs.id = selected.id
+        AND runs.project_id = ${projectId}
+        AND runs.mcp_api_key_id = selected.key_id
+    `;
+    processedRuns += keyRuns.length;
   }
   // Conversations with unfinished runs are skipped until those runs are reconciled.
   const deleted = await prisma.inAppAgentConversation.deleteMany({
