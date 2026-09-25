@@ -1,4 +1,4 @@
-import { CopyIcon } from "lucide-react";
+import { CopyIcon, Share2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { type ReactNode } from "react";
 
@@ -12,13 +12,10 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import {
-  ShareLinkMenuItem,
-  ShareLinkPopoverController,
-  usePublishSession,
-} from "@/src/components/publish-object-switch";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
+import { api } from "@/src/utils/api";
 
 function buildSessionClickHouseQuery(
   table: "events_full" | "events_core",
@@ -78,7 +75,14 @@ export function ModernSessionHeaderActionsController({
   const session = useSession();
   const capture = usePostHogClientCapture();
   const { copy } = useCopyToClipboard();
-  const publish = usePublishSession({ projectId, sessionId });
+  const utils = api.useUtils();
+  const hasPublishAccess = useHasProjectAccess({
+    projectId,
+    scope: "objects:publish",
+  });
+  const publishMutation = api.sessions.publish.useMutation({
+    onSuccess: () => utils.sessions.invalidate(),
+  });
   const hasDisplaySettings =
     (showCorrections !== undefined && onShowCorrectionsChange) ||
     (showInlineToolCalls !== undefined && onShowInlineToolCallsChange) ||
@@ -88,21 +92,20 @@ export function ModernSessionHeaderActionsController({
     <DropdownMenu>
       {children}
       <DropdownMenuContent align="end">
-        <ShareLinkPopoverController
-          itemName="session"
-          isPublic={isPublic}
-          isLoading={publish.isPending}
-          onToggle={publish.toggle}
+        <DropdownMenuItem
+          disabled={!hasPublishAccess || publishMutation.isPending}
+          onClick={() => {
+            capture("session_detail:publish_button_click");
+            publishMutation.mutate({
+              projectId,
+              sessionId,
+              public: !isPublic,
+            });
+          }}
         >
-          {({ Trigger }) => (
-            <Trigger asChild>
-              <ShareLinkMenuItem
-                isPublic={isPublic}
-                disabled={!publish.hasAccess || publish.isPending}
-              />
-            </Trigger>
-          )}
-        </ShareLinkPopoverController>
+          <Share2 className="mr-2 h-3.5 w-3.5" />
+          {isPublic ? "Unshare (make private)" : "Share (make public)"}
+        </DropdownMenuItem>
         <DropdownMenuItem
           onClick={async () => {
             capture("session_detail:copy_session_id_click");

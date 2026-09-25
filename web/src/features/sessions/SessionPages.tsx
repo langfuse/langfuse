@@ -67,7 +67,6 @@ import {
 import {
   AnnotationQueueItemDropdownMenuController,
   AnnotationQueueItemCountBadge,
-  AnnotationQueueItemSubMenu,
 } from "@/src/features/annotation-queues";
 import {
   useWebCalloutAction,
@@ -115,10 +114,7 @@ import { SessionDetailStoreProvider } from "@/src/features/sessions/SessionDetai
 import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/features/sessions/sessionDetailStore";
 import { ModernSession } from "@/src/features/sessions/ModernSession";
-import {
-  DropdownMenuController,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
 import { useIsFeatureEnabled } from "@/src/features/feature-flags";
@@ -1721,31 +1717,30 @@ const LoadedSessionEventsPage: React.FC<{
                 {webCalloutAction && (
                   <WebCalloutButton action={webCalloutAction} />
                 )}
-                <DropdownMenuController
-                  align="end"
-                  renderMenu={() => (
-                    <AnnotationQueueItemSubMenu
-                      projectId={projectId}
-                      objectId={sessionId}
-                      objectType="SESSION"
-                      analyticsData={{ source: "SessionDetail", isV4: true }}
-                    />
-                  )}
+                <AnnotationQueueItemDropdownMenuController
+                  projectId={projectId}
+                  objectId={sessionId}
+                  objectType="SESSION"
+                  analyticsData={{ source: "SessionDetail", isV4: true }}
                 >
-                  {({ Trigger }) => (
+                  {({ disabled, totalCount, Trigger }) => (
                     <Trigger asChild>
                       <Button
                         variant="ghost"
                         size="sm"
+                        disabled={disabled !== undefined}
                         className={cn(HEADER_ACTION_CLASS, "gap-1.5")}
                       >
                         <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                         Add to
+                        {totalCount > 0 && (
+                          <ActionButtonCountBadge count={totalCount} />
+                        )}
                         <ChevronDown className="h-3 w-3" aria-hidden="true" />
                       </Button>
                     </Trigger>
                   )}
-                </DropdownMenuController>
+                </AnnotationQueueItemDropdownMenuController>
                 <AnnotateDrawerController projectId={projectId}>
                   {({ disabled, openDrawer }) => (
                     <Button

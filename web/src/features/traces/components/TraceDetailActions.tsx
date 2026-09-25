@@ -1,49 +1,46 @@
 import {
-  CopyIcon,
   Download,
+  Globe,
+  Link,
   Loader2,
   MoreVertical,
+  Share2,
   TrashIcon,
 } from "lucide-react";
-import { toast } from "sonner";
 
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
-import { DeleteTraceButton } from "@/src/components/deleteButton";
 import {
-  PublishTraceSwitch,
-  ShareLinkMenuItem,
-  ShareLinkPopoverController,
+  DropdownMenu,
+  type DropdownMenuItemDefinition,
+} from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import {
+  getShareUrl,
   usePublishTrace,
 } from "@/src/components/publish-object-switch";
 import { Button } from "@/src/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
+import { DeleteTraceDialogController } from "@/src/features/traces/components/DeleteTraceDialogController";
 import { useDownloadTraceAsJson } from "@/src/features/traces/hooks/useDownloadTraceAsJson";
 import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
-import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { cn } from "@/src/utils/tailwind";
 
 type TraceDetailData = NonNullable<
   ReturnType<typeof useTraceDetailData>["data"]
 >;
+
+type MenuItem = Extract<DropdownMenuItemDefinition, { type: "item" }>;
+
+const isMenuItem = (item: DropdownMenuItemDefinition): item is MenuItem =>
+  item.type === "item";
 
 /**
  * Trace-level header actions shared by the peek and the standalone trace page.
  *
  * `layout="toolbar"` (default) renders the icon row: Download JSON plus a kebab
  * holding Share, Copy trace ID, Copy trace name and Delete. `layout="menu"`
- * renders the same actions as full-width labeled rows for the peek's overflow
- * popover and the mobile header menu.
+ * renders the same actions as full-width labeled rows for the mobile header
+ * menu.
  *
  * Delete always targets the whole trace. Behavior differs only by surface:
  * - **page**: pass `deleteRedirectUrl` → navigates to the list after delete.
@@ -69,7 +66,6 @@ export function TraceDetailActions({
   onAfterDelete?: (deletedTraceId: string) => void;
   layout?: "toolbar" | "menu";
 }) {
-  const utils = api.useUtils();
   const publish = usePublishTrace({
     traceId: trace.id,
     projectId: trace.projectId,
@@ -81,15 +77,52 @@ export function TraceDetailActions({
     traceContext,
   });
 
-  const onDeleteInvalidate = () => {
-    utils.invalidate();
-    onAfterDelete?.(trace.id);
-  };
+  let shareDisabled: { reason: string } | undefined;
+  if (!publish.hasAccess) {
+    shareDisabled = { reason: "You don't have permission to share this trace." };
+  } else if (publish.isPending) {
+    shareDisabled = { reason: "Updating sharing status." };
+  }
 
-  const copyToClipboard = async (text: string) => {
-    await copyTextToClipboard(text);
-    toast.success("Copied to clipboard");
-  };
+  const shareItems: DropdownMenuItemDefinition[] = trace.public
+    ? [
+        {
+          type: "item",
+          id: "copy-share-link",
+          title: "Copy share link",
+          icon: Link,
+          onClick: () => {
+            copyTextToClipboard(getShareUrl(shareUrl));
+          },
+        },
+        {
+          type: "item",
+          id: "unshare",
+          title: "Unshare (make private)",
+          icon: Globe,
+          disabled: shareDisabled,
+          onClick: () => {
+            publish.toggle(false).catch(() => undefined);
+          },
+        },
+      ]
+    : [
+        {
+          type: "item",
+          id: "share",
+          title: "Share (make public)",
+          icon: Share2,
+          disabled: shareDisabled,
+          onClick: () => {
+            publish.toggle(true).catch(() => undefined);
+          },
+        },
+      ];
+
+  const idItems = [
+    { id: trace.id, name: "trace ID" },
+    ...(trace.name ? [{ id: trace.name, name: "trace name" }] : []),
+  ];
 
   const downloadIcon = isDownloading ? (
     <Loader2 className="h-4 w-4 animate-spin" />
@@ -97,140 +130,94 @@ export function TraceDetailActions({
     <Download className="h-4 w-4" />
   );
 
-  if (layout === "menu") {
-    return (
-      <div className="flex w-full flex-col gap-0.5">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-2 font-normal"
-          disabled={isDownloading}
-          onClick={() => handleDownload()}
-        >
-          {downloadIcon}
-          <span className="text-sm">Download JSON</span>
-        </Button>
-        <PublishTraceSwitch
-          projectId={trace.projectId}
-          traceId={trace.id}
-          timestamp={timestamp}
-          isPublic={trace.public}
-          shareUrl={shareUrl}
-          label="Share (make public)"
-        />
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-2 font-normal"
-          onClick={() => copyToClipboard(trace.id)}
-        >
-          <CopyIcon className="h-4 w-4" />
-          <span className="text-sm">Copy trace ID</span>
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-2 font-normal"
-          disabled={!trace.name}
-          onClick={() => copyToClipboard(trace.name ?? "")}
-        >
-          <CopyIcon className="h-4 w-4" />
-          <span className="text-sm">Copy trace name</span>
-        </Button>
-        <DeleteTraceButton
-          itemId={trace.id}
-          projectId={trace.projectId}
-          redirectUrl={deleteRedirectUrl}
-          invalidateFunc={onDeleteInvalidate}
-          deleteConfirmation={trace.name ?? ""}
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start font-normal"
-        />
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-row items-center gap-1">
-      <HeaderActionButton
-        label="Download JSON"
-        icon={downloadIcon}
-        disabled={isDownloading}
-        onClick={() => handleDownload()}
-      />
-      <DeleteTraceButton
-        itemId={trace.id}
-        projectId={trace.projectId}
-        redirectUrl={deleteRedirectUrl}
-        invalidateFunc={onDeleteInvalidate}
-        deleteConfirmation={trace.name ?? ""}
-      >
-        {({ openDialog, disabled, disabledReason }) => (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <HeaderActionButton
-                label="More actions"
-                icon={<MoreVertical className="h-4 w-4" />}
-              />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <ShareLinkPopoverController
-                itemName="trace"
-                isPublic={trace.public}
-                shareUrl={shareUrl}
-                isLoading={publish.isPending}
-                onToggle={publish.toggle}
-              >
-                {({ Trigger }) => (
-                  <Trigger asChild>
-                    <ShareLinkMenuItem
-                      isPublic={trace.public}
-                      disabled={!publish.hasAccess || publish.isPending}
+    <DeleteTraceDialogController
+      projectId={trace.projectId}
+      traceId={trace.id}
+      traceName={trace.name}
+      redirectUrl={deleteRedirectUrl}
+      onAfterDelete={onAfterDelete}
+    >
+      {({ disabled: deleteDisabled, openDialog: openDeleteDialog }) => (
+        <ConnectedDetailHeaderActionsMenuController
+          idItems={idItems}
+          projectId={trace.projectId}
+          renderMenu={(copyItems) => {
+            const items: DropdownMenuItemDefinition[] = [
+              ...shareItems,
+              ...copyItems,
+              { id: "delete-separator", type: "separator" },
+              {
+                type: "item",
+                id: "delete",
+                title: "Delete",
+                icon: TrashIcon,
+                variant: "destructive",
+                disabled: deleteDisabled,
+                onClick: openDeleteDialog,
+              },
+            ];
+
+            if (layout === "menu") {
+              return (
+                <div className="flex w-full flex-col gap-0.5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start gap-2 font-normal"
+                    disabled={isDownloading}
+                    onClick={() => handleDownload()}
+                  >
+                    {downloadIcon}
+                    Download JSON
+                  </Button>
+                  {items.filter(isMenuItem).map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Button
+                        key={item.id}
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          "w-full justify-start gap-2 font-normal",
+                          item.variant === "destructive" &&
+                            "text-destructive hover:text-destructive",
+                        )}
+                        disabled={item.disabled !== undefined}
+                        title={item.disabled?.reason}
+                        onClick={item.onClick}
+                      >
+                        {Icon && <Icon className="h-4 w-4" />}
+                        {item.title}
+                      </Button>
+                    );
+                  })}
+                </div>
+              );
+            }
+
+            return (
+              <div className="flex flex-row items-center gap-1">
+                <HeaderActionButton
+                  label="Download JSON"
+                  icon={downloadIcon}
+                  disabled={isDownloading}
+                  onClick={() => handleDownload()}
+                />
+                <DropdownMenu items={items} placement="bottom-end">
+                  {({ getTriggerProps }) => (
+                    <HeaderActionButton
+                      label="More actions"
+                      icon={<MoreVertical className="h-4 w-4" />}
+                      {...getTriggerProps()}
                     />
-                  </Trigger>
-                )}
-              </ShareLinkPopoverController>
-              <DropdownMenuItem onClick={() => copyToClipboard(trace.id)}>
-                <CopyIcon className="mr-2 h-4 w-4" />
-                Copy trace ID
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!trace.name}
-                onClick={() => copyToClipboard(trace.name ?? "")}
-              >
-                <CopyIcon className="mr-2 h-4 w-4" />
-                Copy trace name
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {disabledReason ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <DropdownMenuItem
-                      disabled
-                      allowPointerEventsWhenDisabled
-                      className="text-destructive focus:text-destructive"
-                    >
-                      <TrashIcon className="mr-2 h-4 w-4" />
-                      Delete
-                    </DropdownMenuItem>
-                  </TooltipTrigger>
-                  <TooltipContent>{disabledReason}</TooltipContent>
-                </Tooltip>
-              ) : (
-                <DropdownMenuItem
-                  disabled={disabled}
-                  onSelect={openDialog}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <TrashIcon className="mr-2 h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </DeleteTraceButton>
-    </div>
+                  )}
+                </DropdownMenu>
+              </div>
+            );
+          }}
+        />
+      )}
+    </DeleteTraceDialogController>
   );
 }

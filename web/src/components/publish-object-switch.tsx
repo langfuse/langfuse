@@ -1,5 +1,4 @@
 import { Button } from "@/src/components/ui/button";
-import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { Label } from "@/src/components/ui/label";
 import {
   Popover,
@@ -21,7 +20,7 @@ import { cn } from "@/src/utils/tailwind";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { type RouterInput } from "@/src/utils/types";
 import { CheckIcon, Globe, Link, Share2 } from "lucide-react";
-import { forwardRef, type ReactNode, useState } from "react";
+import { useState } from "react";
 
 export function usePublishTrace(props: {
   traceId: string;
@@ -116,43 +115,14 @@ export function usePublishTrace(props: {
   return { hasAccess, isPending: mut.isPending, toggle };
 }
 
-export const PublishTraceSwitch = (props: {
-  traceId: string;
+export const PublishSessionSwitch = (props: {
+  sessionId: string;
   projectId: string;
-  timestamp?: Date;
   isPublic: boolean;
-  shareUrl?: string;
   size?: "icon" | "icon-xs";
   /** When set, render as a full-width labeled menu item instead of an icon. */
   label?: string;
-  /** Hover tooltip for the icon button (suppressed while the popover is open). */
-  tooltip?: string;
 }) => {
-  const publish = usePublishTrace({
-    traceId: props.traceId,
-    projectId: props.projectId,
-    timestamp: props.timestamp,
-  });
-
-  return (
-    <Base
-      itemName="trace"
-      isPublic={props.isPublic}
-      shareUrl={props.shareUrl}
-      size={props.size}
-      label={props.label}
-      tooltip={props.tooltip}
-      onChange={publish.toggle}
-      isLoading={publish.isPending}
-      disabled={!publish.hasAccess}
-    />
-  );
-};
-
-export function usePublishSession(props: {
-  sessionId: string;
-  projectId: string;
-}) {
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
@@ -168,111 +138,25 @@ export function usePublishSession(props: {
     },
   });
 
-  const toggle = (isPublic: boolean) => {
-    capture("session_detail:publish_button_click");
-    return mut.mutateAsync({
-      projectId: props.projectId,
-      sessionId: props.sessionId,
-      public: isPublic,
-    });
-  };
-
-  return { hasAccess, isPending: mut.isPending, toggle };
-}
-
-export const PublishSessionSwitch = (props: {
-  sessionId: string;
-  projectId: string;
-  isPublic: boolean;
-  size?: "icon" | "icon-xs";
-  /** When set, render as a full-width labeled menu item instead of an icon. */
-  label?: string;
-}) => {
-  const publish = usePublishSession({
-    sessionId: props.sessionId,
-    projectId: props.projectId,
-  });
-
   return (
     <Base
       itemName="session"
       isPublic={props.isPublic}
       size={props.size}
       label={props.label}
-      onChange={publish.toggle}
-      isLoading={publish.isPending}
-      disabled={!publish.hasAccess}
+      onChange={(val) => {
+        capture("session_detail:publish_button_click");
+        return mut.mutateAsync({
+          projectId: props.projectId,
+          sessionId: props.sessionId,
+          public: val,
+        });
+      }}
+      isLoading={mut.isPending}
+      disabled={!hasAccess}
     />
   );
 };
-
-export function ShareLinkPopoverController({
-  itemName,
-  isPublic,
-  shareUrl,
-  isLoading,
-  onToggle,
-  children,
-}: {
-  itemName: string;
-  isPublic: boolean;
-  shareUrl?: string;
-  isLoading: boolean;
-  onToggle: (isPublic: boolean) => void;
-  children: (control: { Trigger: typeof PopoverTrigger }) => ReactNode;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <Popover
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!isLoading) setIsOpen(open);
-      }}
-    >
-      {children({ Trigger: PopoverTrigger })}
-      <PopoverContent>
-        <ShareObjectPanel
-          itemName={itemName}
-          isPublic={isPublic}
-          shareUrl={shareUrl}
-          isLoading={isLoading}
-          onToggle={() => {
-            setIsOpen(false);
-            onToggle(!isPublic);
-          }}
-        />
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-export const ShareLinkMenuItem = forwardRef<
-  React.ComponentRef<typeof DropdownMenuItem>,
-  Omit<React.ComponentProps<typeof DropdownMenuItem>, "children"> & {
-    isPublic: boolean;
-  }
->(function ShareLinkMenuItem({ isPublic, ...props }, ref) {
-  return (
-    <DropdownMenuItem
-      ref={ref}
-      onSelect={(event) => event.preventDefault()}
-      {...props}
-    >
-      {isPublic ? (
-        <Globe
-          className="mr-2 h-4 w-4"
-          fill="#b3d9ff"
-          stroke="#4d94ff"
-          strokeWidth={2}
-        />
-      ) : (
-        <Share2 className="mr-2 h-4 w-4" />
-      )}
-      Share (make public)
-    </DropdownMenuItem>
-  );
-});
 
 const getShareUrlWithBasePath = (shareUrl: string) => {
   const basePath = (env.NEXT_PUBLIC_BASE_PATH ?? "").replace(/\/$/, "");
@@ -286,6 +170,14 @@ const getShareUrlWithBasePath = (shareUrl: string) => {
   return shouldPrependBasePath ? `${basePath}${shareUrl}` : shareUrl;
 };
 
+export const getShareUrl = (shareUrl?: string) =>
+  shareUrl
+    ? new URL(
+        getShareUrlWithBasePath(shareUrl),
+        window.location.origin,
+      ).toString()
+    : window.location.href;
+
 const Base = (props: {
   itemName: string;
   onChange: (value: boolean) => Promise<unknown>;
@@ -297,7 +189,14 @@ const Base = (props: {
   label?: string;
   tooltip?: string;
 }) => {
+  const [isCopied, setIsCopied] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+
+  const copyUrl = () => {
+    setIsCopied(true);
+    copyTextToClipboard(getShareUrl(props.shareUrl));
+    setTimeout(() => setIsCopied(false), 2500);
+  };
 
   const handleOnClick = () => {
     if (props.isLoading) return;
@@ -358,101 +257,64 @@ const Base = (props: {
               </Tooltip>
             );
           })()}
-          <PopoverContent>
-            <ShareObjectPanel
-              itemName={props.itemName}
-              isPublic={props.isPublic}
-              shareUrl={props.shareUrl}
-              isLoading={props.isLoading}
-              onToggle={handleOnClick}
-            />
+          <PopoverContent className="flex flex-col gap-3">
+            {props.isPublic ? (
+              <>
+                <Label className="text-base capitalize">
+                  {props.itemName} Shared
+                </Label>
+                <span className="text-muted-foreground text-sm">
+                  This {props.itemName} is public. Anyone with the link can view
+                  this {props.itemName}.
+                </span>
+                <div className="mr-2 flex items-center justify-end gap-2 text-sm">
+                  <Button variant="outline" size="sm" onClick={copyUrl}>
+                    {isCopied ? (
+                      <>
+                        <CheckIcon size={12} className="mr-1" />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Link size={12} className="mr-1" />
+                        Copy
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="destructive-secondary"
+                    size="sm"
+                    loading={props.isLoading}
+                    onClick={handleOnClick}
+                  >
+                    Unshare
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <Label className="text-base capitalize">
+                  {props.itemName} Private
+                </Label>
+                <span className="text-muted-foreground text-sm">
+                  This {props.itemName} is private. Only authorized project
+                  members can view this {props.itemName}.
+                </span>
+                <div className="mr-2 flex items-center justify-end gap-2 text-sm">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    loading={props.isLoading}
+                    onClick={handleOnClick}
+                  >
+                    Share
+                  </Button>
+                </div>
+              </>
+            )}
           </PopoverContent>
         </Popover>
       </div>
     </div>
   );
 };
-
-function ShareObjectPanel({
-  itemName,
-  isPublic,
-  shareUrl,
-  isLoading,
-  onToggle,
-}: {
-  itemName: string;
-  isPublic: boolean;
-  shareUrl?: string;
-  isLoading: boolean;
-  onToggle: () => void;
-}) {
-  const [isCopied, setIsCopied] = useState(false);
-
-  const copyUrl = () => {
-    setIsCopied(true);
-    copyTextToClipboard(
-      shareUrl
-        ? new URL(
-            getShareUrlWithBasePath(shareUrl),
-            window.location.origin,
-          ).toString()
-        : window.location.href,
-    );
-    setTimeout(() => setIsCopied(false), 2500);
-  };
-
-  return (
-    <div className="flex flex-col gap-3">
-      {isPublic ? (
-        <>
-          <Label className="text-base capitalize">{itemName} Shared</Label>
-          <span className="text-muted-foreground text-sm">
-            This {itemName} is public. Anyone with the link can view this{" "}
-            {itemName}.
-          </span>
-          <div className="mr-2 flex items-center justify-end gap-2 text-sm">
-            <Button variant="outline" size="sm" onClick={copyUrl}>
-              {isCopied ? (
-                <>
-                  <CheckIcon size={12} className="mr-1" />
-                  Copied
-                </>
-              ) : (
-                <>
-                  <Link size={12} className="mr-1" />
-                  Copy
-                </>
-              )}
-            </Button>
-            <Button
-              variant="destructive-secondary"
-              size="sm"
-              loading={isLoading}
-              onClick={onToggle}
-            >
-              Unshare
-            </Button>
-          </div>
-        </>
-      ) : (
-        <>
-          <Label className="text-base capitalize">{itemName} Private</Label>
-          <span className="text-muted-foreground text-sm">
-            This {itemName} is private. Only authorized project members can view
-            this {itemName}.
-          </span>
-          <div className="mr-2 flex items-center justify-end gap-2 text-sm">
-            <Button
-              variant="secondary"
-              size="sm"
-              loading={isLoading}
-              onClick={onToggle}
-            >
-              Share
-            </Button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}

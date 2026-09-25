@@ -17,10 +17,9 @@ export type AnnotationQueueItemMenuQueue = {
   status?: string;
 };
 
-type AnnotationQueueItemMenuItemsProps = {
+type AnnotationQueueItemMenuContentProps = {
   projectId: string;
   queues: AnnotationQueueItemMenuQueue[];
-  emptyLabel?: string;
   onQueueItemToggle: (
     queueId: string,
     queueName: string,
@@ -29,30 +28,19 @@ type AnnotationQueueItemMenuItemsProps = {
   onManageClick?: () => void;
 };
 
-export function AnnotationQueueItemMenuContent(
-  props: AnnotationQueueItemMenuItemsProps,
-) {
-  return (
-    <DropdownMenuContent className="max-h-[min(300px,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto">
-      <AnnotationQueueItemMenuItems {...props} />
-    </DropdownMenuContent>
-  );
-}
-
-export function AnnotationQueueItemMenuItems({
+export function AnnotationQueueItemMenuContent({
   projectId,
   queues,
-  emptyLabel = "No queues defined",
   onQueueItemToggle,
   onManageClick,
-}: AnnotationQueueItemMenuItemsProps) {
+}: AnnotationQueueItemMenuContentProps) {
   const preventMenuItemAction = (event: MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
   };
 
   return (
-    <>
+    <DropdownMenuContent className="max-h-[min(300px,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto">
       <DropdownMenuLabel>Add to human annotation queue</DropdownMenuLabel>
       {queues.length ? (
         queues.map((queue) => (
@@ -76,7 +64,7 @@ export function AnnotationQueueItemMenuItems({
         ))
       ) : (
         <DropdownMenuItem onClick={preventMenuItemAction}>
-          {emptyLabel}
+          No queues defined
         </DropdownMenuItem>
       )}
       <DropdownMenuSeparator />
@@ -91,6 +79,6 @@ export function AnnotationQueueItemMenuItems({
           </Link>
         </div>
       </DropdownMenuItem>
-    </>
+    </DropdownMenuContent>
   );
 }

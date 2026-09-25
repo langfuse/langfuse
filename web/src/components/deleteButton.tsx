@@ -15,7 +15,6 @@ import { type ProjectScope } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { showSuccessToast } from "@/src/features/notifications";
-import { useHasEntitlement } from "@/src/features/entitlements";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 export type DeleteButtonProps = {
@@ -35,11 +34,6 @@ export type DeleteButtonProps = {
   // forwarded explicitly because the base component does not spread unknown
   // props onto the rendered button
   "aria-label"?: string;
-  children?: (control: {
-    openDialog: () => void;
-    disabled: boolean;
-    disabledReason?: string;
-  }) => React.ReactNode;
 };
 
 type BaseDeleteButtonProps = Omit<DeleteButtonProps, "itemId"> & {
@@ -87,7 +81,6 @@ export function DeleteButton({
   deleteBlocker,
   onPopoverOpenChange,
   "aria-label": ariaLabel,
-  children,
 }: BaseDeleteButtonProps) {
   const [isDeleted, setIsDeleted] = useState(false);
   const [open, setOpen] = useState(false);
@@ -95,9 +88,6 @@ export function DeleteButton({
   const capture = usePostHogClientCapture();
 
   const hasAccess = useHasProjectAccess({ projectId, scope: scope });
-  const disabledReason = hasAccess
-    ? undefined
-    : `You don't have permission to delete this ${entityToDeleteName}.`;
 
   const onDeleteSuccess = useMemo(() => {
     return () => {
@@ -130,24 +120,17 @@ export function DeleteButton({
         loading={isDeleteMutationLoading || isDeleted}
         onConfirm={() => executeDeleteMutation(onDeleteSuccess)}
       >
-        {({ openDialog }) => {
-          if (children) {
-            return children({
-              openDialog: () => {
-                captureDeleteOpen(capture, isTableAction);
-                onPopoverOpenChange?.(true);
-                openDialog();
-              },
-              disabled: !hasAccess || !enabled,
-              disabledReason,
-            });
-          }
-          return icon ? (
+        {({ openDialog }) =>
+          icon ? (
             <IconOnlyButton
               icon={<TrashIcon className="h-4 w-4" />}
               label={title ?? "Delete"}
               aria-label={ariaLabel ?? "delete"}
-              disabledReason={disabledReason}
+              disabledReason={
+                hasAccess
+                  ? undefined
+                  : `You don't have permission to delete this ${entityToDeleteName}.`
+              }
               variant={variant ?? "outline"}
               size={size ?? "icon"}
               className={className}
@@ -181,8 +164,8 @@ export function DeleteButton({
               )}
               Delete
             </Button>
-          );
-        }}
+          )
+        }
       </ConfirmationDialogController>
     );
   }
@@ -196,22 +179,7 @@ export function DeleteButton({
         onPopoverOpenChange?.(o);
       }}
     >
-      {children && (
-        <PopoverAnchor asChild>
-          <span className="inline-flex">
-            {children({
-              openDialog: () => {
-                captureDeleteOpen(capture, isTableAction);
-                setOpen(true);
-                onPopoverOpenChange?.(true);
-              },
-              disabled: !hasAccess || !enabled,
-              disabledReason,
-            })}
-          </span>
-        </PopoverAnchor>
-      )}
-      {!children && icon && (
+      {icon ? (
         // Icon-only: a compact button with a built-in tooltip; the popover is
         // opened from onClick since the tooltip wrapper can't be a trigger.
         <PopoverAnchor asChild>
@@ -220,7 +188,11 @@ export function DeleteButton({
               icon={<TrashIcon className="h-4 w-4" />}
               label={title ?? "Delete"}
               aria-label={ariaLabel ?? "delete"}
-              disabledReason={disabledReason}
+              disabledReason={
+                hasAccess
+                  ? undefined
+                  : `You don't have permission to delete this ${entityToDeleteName}.`
+              }
               variant={variant ?? "outline"}
               size={size ?? "icon"}
               className={className}
@@ -237,8 +209,7 @@ export function DeleteButton({
             />
           </span>
         </PopoverAnchor>
-      )}
-      {!children && !icon && (
+      ) : (
         <PopoverTrigger asChild>
           <Button
             variant={variant ?? "ghost"}
@@ -265,55 +236,6 @@ export function DeleteButton({
         {deleteBlocker}
       </PopoverContent>
     </Popover>
-  );
-}
-
-export function DeleteTraceButton(props: DeleteButtonProps) {
-  const utils = api.useUtils();
-  const {
-    itemId,
-    projectId,
-    scope = "traces:delete",
-    invalidateFunc = () => utils.traces.all.invalidate(),
-  } = props;
-  const traceMutation = api.traces.deleteMany.useMutation();
-  const executeDeleteMutation = async (onSuccess: () => void) => {
-    try {
-      await traceMutation.mutateAsync({
-        traceIds: [itemId],
-        projectId,
-      });
-    } catch (error) {
-      return Promise.reject(error);
-    }
-    showSuccessToast({
-      title: "Trace deleted",
-      description:
-        "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 24 hours.",
-    });
-    onSuccess();
-  };
-  const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
-  return (
-    <DeleteButton
-      {...props}
-      scope={scope}
-      invalidateFunc={invalidateFunc}
-      captureDeleteOpen={(capture, isTableAction) =>
-        capture("trace:delete_form_open", {
-          source: isTableAction ? "table-single-row" : "trace detail",
-        })
-      }
-      captureDeleteSuccess={(capture, isTableAction) =>
-        capture("trace:delete", {
-          source: isTableAction ? "table-single-row" : "trace",
-        })
-      }
-      entityToDeleteName="trace"
-      executeDeleteMutation={executeDeleteMutation}
-      isDeleteMutationLoading={traceMutation.isPending}
-      enabled={hasTraceDeletionEntitlement}
-    />
   );
 }
 
