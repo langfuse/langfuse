@@ -16,10 +16,13 @@ use crate::{
 };
 use anthropic_messages::AnthropicMessagesCapture;
 pub(crate) use facts::ProviderFacts;
-pub(crate) use facts::{InferenceFacts, RelayOutcome};
+pub(crate) use facts::{InferenceFacts, InputOmission, InputOmissionReason, RelayOutcome};
 use openai_responses::OpenAiResponsesCapture;
 
-const MAX_CAPTURE_BYTES: usize = 1024 * 1024;
+/// Full-mode request bodies up to this size are recorded as the observation input.
+/// Telemetry record and payload limits are sized so an input at this limit is delivered.
+pub(crate) const MAX_INPUT_CAPTURE_BYTES: usize = 5 * 1024 * 1024;
+pub(crate) const MAX_OUTPUT_CAPTURE_BYTES: usize = 1024 * 1024;
 const MAX_ITEMS: usize = 256;
 const MAX_FACT_STRING: usize = 512;
 
@@ -235,6 +238,23 @@ impl Drop for ExecutionCapture {
     fn drop(&mut self) {
         self.finish(RelayOutcome::Cancelled);
     }
+}
+
+/// Parses a request body for capture, or explains why it was left unparsed.
+fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<Map<String, Value>, InputOmission> {
+    let reason = if !identity_encoding(headers) {
+        InputOmissionReason::ContentEncoding
+    } else if body.len() > MAX_INPUT_CAPTURE_BYTES {
+        InputOmissionReason::SizeLimit
+    } else if let Ok(Value::Object(request)) = serde_json::from_slice(body) {
+        return Ok(request);
+    } else {
+        InputOmissionReason::InvalidJson
+    };
+    Err(InputOmission {
+        reason,
+        body_bytes: body.len(),
+    })
 }
 
 fn bounded_string(value: &str) -> Option<String> {

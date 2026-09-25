@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use tokio::sync::Notify;
 
 use super::{
-    otlp::{ExportError, Payload},
+    otlp::{self, ExportError, Payload},
     *,
 };
 use crate::{
@@ -292,7 +292,7 @@ async fn expired_grants_and_oversized_payloads_never_reach_the_network() {
         uploader.export(&expired.grant, &empty_payload()).await,
         Err(ExportError::Expired)
     );
-    let oversized = json!({"oversized": "x".repeat(8 * 1024 * 1024)});
+    let oversized = json!({"oversized": "x".repeat(otlp::MAX_PAYLOAD_BYTES)});
     assert_eq!(
         Payload::encode(&[oversized]).err(),
         Some(ExportError::Payload)
@@ -650,6 +650,35 @@ async fn retained_byte_budget_is_released_after_successful_drain() {
         .shutdown(Instant::now() + Duration::from_secs(2))
         .await;
     assert_eq!(telemetry.0.retained.available_permits(), budget);
+    assert_eq!(telemetry.0.stats.accepted.load(Ordering::Relaxed), 1);
+    assert_eq!(web.calls(), 1);
+}
+
+#[tokio::test]
+async fn full_input_at_capture_limit_is_uploaded() {
+    let web = FakeServer::start(|_| async { response(200, "{}") }).await;
+    let telemetry = Telemetry::with_uploader(
+        uploader(&web.url),
+        1,
+        DEFAULT_RETAINED_BYTES,
+        BatchPolicy::default(),
+        fast_retry(),
+    );
+    let mut large = facts("project-1");
+    large.metadata["ingestion_mode"] = json!("full");
+    // Escaped quotes are the worst case: the span string attribute doubles them again.
+    let quotes = (crate::capture::MAX_INPUT_CAPTURE_BYTES - 16) / 2;
+    let input = json!({"input": "\"".repeat(quotes)});
+    assert!(input.to_string().len() <= crate::capture::MAX_INPUT_CAPTURE_BYTES);
+    large.inference.input = Some(input);
+    large.inference.output = Some(json!([
+        "x".repeat(crate::capture::MAX_OUTPUT_CAPTURE_BYTES - 16)
+    ]));
+    telemetry.record(grant().await, large);
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(5))
+        .await;
+    assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 0);
     assert_eq!(telemetry.0.stats.accepted.load(Ordering::Relaxed), 1);
     assert_eq!(web.calls(), 1);
 }

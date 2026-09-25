@@ -3,7 +3,7 @@ use chrono::{DateTime, SecondsFormat};
 use serde_json::{Map, Value, json};
 
 use super::context::GenerationContext;
-use crate::capture::{InferenceFacts, RelayOutcome};
+use crate::capture::{InferenceFacts, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES, RelayOutcome};
 
 pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value {
     let full = facts.metadata.get("ingestion_mode").and_then(Value::as_str) == Some("full");
@@ -156,6 +156,22 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
     }
     for (key, value) in &facts.inference.request_metadata {
         metadata.insert(format!("langfuse.gateway.request.{key}"), value.clone());
+    }
+    if let Some(omission) = facts.inference.input_omission {
+        metadata.insert(
+            "langfuse.gateway.request.input_omitted".into(),
+            json!(omission.reason),
+        );
+        metadata.insert(
+            "langfuse.gateway.request.body_bytes".into(),
+            json!(omission.body_bytes),
+        );
+        if omission.reason == InputOmissionReason::SizeLimit {
+            metadata.insert(
+                "langfuse.gateway.request.input_limit_bytes".into(),
+                json!(MAX_INPUT_CAPTURE_BYTES),
+            );
+        }
     }
     metadata
 }
@@ -579,6 +595,47 @@ mod tests {
         for key in ["metadata", "prompt_cache_key", "safety_identifier", "user"] {
             assert!(metadata.get(key).is_none());
         }
+    }
+
+    #[test]
+    fn omitted_input_is_explained_in_gateway_metadata() {
+        let mut facts = facts();
+        facts.inference.input = None;
+        facts.inference.input_omission = Some(crate::capture::InputOmission {
+            reason: InputOmissionReason::SizeLimit,
+            body_bytes: MAX_INPUT_CAPTURE_BYTES + 1,
+        });
+        let attrs = attributes(&span(facts, &context()));
+        assert!(!attrs.contains_key("langfuse.observation.input"));
+        let metadata = metadata(&attrs);
+        assert_eq!(
+            metadata["langfuse.gateway.request.input_omitted"],
+            "size_limit"
+        );
+        assert_eq!(
+            metadata["langfuse.gateway.request.body_bytes"],
+            MAX_INPUT_CAPTURE_BYTES + 1
+        );
+        assert_eq!(
+            metadata["langfuse.gateway.request.input_limit_bytes"],
+            MAX_INPUT_CAPTURE_BYTES
+        );
+
+        let mut facts = self::facts();
+        facts.inference.input_omission = Some(crate::capture::InputOmission {
+            reason: InputOmissionReason::ContentEncoding,
+            body_bytes: 10,
+        });
+        let metadata = self::metadata(&attributes(&span(facts, &context())));
+        assert_eq!(
+            metadata["langfuse.gateway.request.input_omitted"],
+            "content_encoding"
+        );
+        assert!(
+            metadata
+                .get("langfuse.gateway.request.input_limit_bytes")
+                .is_none()
+        );
     }
 
     #[test]

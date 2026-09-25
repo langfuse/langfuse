@@ -37,7 +37,16 @@ use retry::RetryPolicy;
 use worker::{Message, Uploads};
 
 const MAX_UPLOADS: usize = 32;
-const MAX_RECORD_BYTES: usize = 4 * 1024 * 1024;
+/// Records are charged against the retained budget at their actual size; this only
+/// caps one record. Input and output are embedded as JSON strings, and escaping can
+/// double their size.
+const MAX_RECORD_BYTES: usize = 16 * 1024 * 1024;
+const _: () = assert!(
+    2 * (crate::capture::MAX_INPUT_CAPTURE_BYTES + crate::capture::MAX_OUTPUT_CAPTURE_BYTES)
+        < MAX_RECORD_BYTES
+);
+// A record larger than the batch byte target is uploaded alone and must fit one payload.
+const _: () = assert!(MAX_RECORD_BYTES < otlp::MAX_PAYLOAD_BYTES);
 pub(crate) const DEFAULT_RETAINED_BYTES: usize = 64 * 1024 * 1024;
 const MAX_QUEUED_RECORDS: usize = 1024;
 
