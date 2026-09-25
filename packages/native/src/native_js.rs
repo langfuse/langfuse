@@ -309,16 +309,19 @@ impl<T: FromJsValue> FromJsValue for BTreeMap<String, T> {
             .map_err(|error| error.to_string())?;
         let mut result = BTreeMap::new();
         for index in 0..length {
-            let key: String = keys.get_element(index).map_err(|error| error.to_string())?;
+            let key: Unknown<'_> = keys.get_element(index).map_err(|error| error.to_string())?;
+            let name: String = unsafe { key.cast() }.map_err(|error| error.to_string())?;
             // JSONEachRow includes only own enumerable string keys.
             if !object
-                .has_own_property(&key)
+                .has_own_property(&name)
                 .map_err(|error| error.to_string())?
             {
                 continue;
             }
-            let value = get_js_property(&object, &key)?;
-            result.insert(key, T::from_js(value)?);
+            let value: Unknown<'_> = object
+                .get_property_unchecked(key)
+                .map_err(|error| format!("cannot read property {name}: {error}"))?;
+            result.insert(name, T::from_js(value)?);
         }
         Ok(result)
     }
