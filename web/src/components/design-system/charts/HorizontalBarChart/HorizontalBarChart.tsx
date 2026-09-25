@@ -215,7 +215,7 @@ export function HorizontalBarChart({
                         <text
                           x={labelOutside ? labelX : left + 8}
                           y={y + rowHeight / 2}
-                          dominantBaseline="middle"
+                          dominantBaseline="central"
                           fontSize={12}
                           fill={
                             labelOutside || inactive
@@ -247,7 +247,7 @@ export function HorizontalBarChart({
                           x={valueRight}
                           y={y + rowHeight / 2}
                           textAnchor="end"
-                          dominantBaseline="middle"
+                          dominantBaseline="central"
                           fontSize={12}
                           fill={inactiveTextColor}
                           {...referenceProps}

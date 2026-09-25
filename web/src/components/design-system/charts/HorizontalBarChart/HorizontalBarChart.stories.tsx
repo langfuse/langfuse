@@ -52,6 +52,28 @@ export const FillsAvailableHeight = meta.story({
   },
 });
 
+export const CenteredRowText = meta.story({
+  name: "(Test) Centered Row Text",
+  play: async ({ canvasElement }) => {
+    const bars =
+      canvasElement.querySelectorAll<SVGRectElement>("[data-bar-fill]");
+    for (const bar of bars) {
+      const row = bar.parentElement;
+      const texts = row?.querySelectorAll<SVGTextElement>("text");
+      if (!texts || texts.length !== 2) throw new Error("Row text not found");
+      const barBounds = bar.getBoundingClientRect();
+      const barCenter = (barBounds.top + barBounds.bottom) / 2;
+      for (const text of texts) {
+        const bounds = text.getBoundingClientRect();
+        await expect(text).toHaveAttribute("dominant-baseline", "central");
+        await expect(
+          Math.abs((bounds.top + bounds.bottom) / 2 - barCenter),
+        ).toBeLessThan(2);
+      }
+    }
+  },
+});
+
 export const LayoutAndCopy = meta.story({
   name: "(Test) Layout and Copy",
   play: async ({ canvasElement }) => {
