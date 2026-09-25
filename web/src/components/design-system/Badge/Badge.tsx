@@ -9,6 +9,10 @@ const badgeVariants = cva(
   "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center rounded-sm border pb-px text-xs leading-none font-normal",
   {
     variants: {
+      size: {
+        default: "h-5.5 gap-1.5 pr-1.5 pl-2",
+        sm: "h-4.5 gap-1 px-1.5",
+      },
       color: {
         primary: "border-border bg-transparent text-foreground-secondary",
         red: "border-transparent bg-light-red/60 text-dark-red/90 dark:bg-light-red/40 dark:text-dark-red/90",
@@ -22,10 +26,6 @@ const badgeVariants = cva(
       interactive: {
         true: "decoration-border-contrast underline decoration-dashed underline-offset-[3px]",
         false: "",
-      },
-      size: {
-        default: "h-5.5 gap-1.5 pr-1.5 pl-2",
-        sm: "h-4.5 gap-1 px-1.5",
       },
     },
     defaultVariants: {
@@ -58,7 +58,7 @@ export function BadgeShell({
 
   return (
     <Component
-      className={badgeVariants({ color, size, interactive })}
+      className={cn(badgeVariants({ color, size, interactive }))}
       {...props}
     />
   );
