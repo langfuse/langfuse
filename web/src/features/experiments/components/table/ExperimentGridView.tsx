@@ -1,3 +1,4 @@
+import { ExperimentInputCell } from "./ExperimentInputCell";
 import { ExperimentGridSummaryValues } from "./ExperimentGridSummary";
 import { DataTable } from "@/src/components/table/data-table";
 import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
@@ -152,11 +153,14 @@ export const ExperimentGridView = ({
               expanded={summaryExpanded}
               showScoreNames={index === 0}
               onToggle={() => setSummaryExpanded((expanded) => !expanded)}
-              comparisonIndex={
-                isBaseline || !baselineExperimentId
-                  ? null
-                  : comparisonExperimentIds.indexOf(expId)
-              }
+              rows={rows}
+              experimentId={expId}
+              baselineExperimentId={baselineExperimentId}
+              observationScoreOrder={observationScoreOrder}
+              traceScoreOrder={traceScoreOrder}
+              columnVisibility={columnVisibility}
+              showScoreLevelLabels={showScoreLevelLabels}
+              isLoading={isLoading}
             />
           </div>
         ),
@@ -232,9 +236,10 @@ export const ExperimentGridView = ({
       } as LangfuseColumnDef<ExperimentItemsTableRow>;
     });
   }, [
+    rows,
+    isLoading,
     summaryExpanded,
     allExperimentIds,
-    comparisonExperimentIds,
     experimentNames,
     baselineExperimentId,
     ioLoading,
@@ -256,14 +261,37 @@ export const ExperimentGridView = ({
       ...(selectActionColumn
         ? [{ ...selectActionColumn, headerClassName: "align-top pt-3" }]
         : []),
-      createIOTableColumn<ExperimentItemsTableRow>({
+      {
         accessorKey: "input",
         header: "Input",
         headerClassName: "align-top pt-3",
+        cellPadding: "none",
         size: 200,
-        getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
-        singleLine,
-      }),
+        cell: ({ row }) => (
+          <ExperimentInputCell
+            projectId={projectId}
+            datasetId={
+              allExperimentIds
+                .filter((experimentId) =>
+                  row.original.experiments.some(
+                    (item) => item.experimentId === experimentId,
+                  ),
+                )
+                .map(
+                  (experimentId) =>
+                    experimentNames.find(
+                      (experiment) => experiment.experimentId === experimentId,
+                    )?.datasetId,
+                )
+                .find((id) => id != null) ?? null
+            }
+            itemId={row.original.itemId}
+            input={row.original.input}
+            isLoading={ioLoading}
+            singleLine={singleLine}
+          />
+        ),
+      },
       // Gated: an empty expected output used to render as two literal quote
       // characters, and a whole column of them is worse than no column.
       ...(showExpectedOutput
@@ -284,6 +312,9 @@ export const ExperimentGridView = ({
     ],
     [
       experimentColumns,
+      projectId,
+      experimentNames,
+      allExperimentIds,
       ioLoading,
       selectActionColumn,
       showExpectedOutput,

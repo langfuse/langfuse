@@ -51,8 +51,6 @@ import {
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import { type RowSelectionState } from "@tanstack/react-table";
-import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
-import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { ExperimentGridView } from "./ExperimentGridView";
@@ -1225,6 +1223,7 @@ export default function ExperimentItemsTable({
                       </span>
                       {diff && (
                         <DiffLabel
+                          variant="ghost"
                           diff={diff}
                           formatValue={(v) => v.toFixed(2)}
                           title={diffTitle}
@@ -1324,8 +1323,8 @@ export default function ExperimentItemsTable({
     if (!diff) return null;
     return (
       <DiffLabel
+        variant="ghost"
         diff={diff}
-        preferNegativeDiff
         formatValue={format}
         title={describeRunComparison({
           baselineName: runNameOf(baselineId),
@@ -1339,19 +1338,11 @@ export default function ExperimentItemsTable({
 
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = [
     ...(hideControls ? [] : [selectActionColumn]),
-    createIdTableColumn<ExperimentItemsTableRow>({
-      accessorKey: "itemId",
-      header: "Item ID",
-      size: 150,
-      enableHiding: true,
-      defaultHidden: true,
-    }),
     createIOTableColumn<ExperimentItemsTableRow>({
       accessorKey: "input",
       header: "Input",
       size: 300,
       enableHiding: true,
-      defaultHidden: true,
       getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
       singleLine: ioSingleLine,
     }),
@@ -1414,8 +1405,7 @@ export default function ExperimentItemsTable({
         );
       },
     },
-    // Cost and latency read as measurements, the ids as lookups — both
-    // sit behind the score columns so the analysis is above the fold.
+    // Measurements sit behind the scores so the analysis is above the fold.
     {
       accessorKey: "totalCost",
       id: "totalCost",
@@ -1497,28 +1487,6 @@ export default function ExperimentItemsTable({
                 })}
               </span>
             )}
-          />
-        );
-      },
-    },
-    {
-      accessorKey: "observationId",
-      id: "observationId",
-      headerLabel: "Observation ID",
-      header: () => renderExperimentSpecificHeader("Observation ID"),
-      size: 180,
-      enableHiding: true,
-      defaultHidden: true,
-      cell: ({ row }) => {
-        const experiments = row.original.experiments;
-        return (
-          <StackedExperimentCell
-            experiments={experiments}
-            allExperimentIds={allExperimentIds}
-            colorExperimentIds={colorExperimentIds}
-            row={row.original}
-            onExperimentClick={onExperimentCellClick}
-            renderValue={(exp) => <IdTableCell value={exp.observationId} />}
           />
         );
       },

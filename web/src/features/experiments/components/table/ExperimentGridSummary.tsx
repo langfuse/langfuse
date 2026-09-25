@@ -1,34 +1,55 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
-
-// Preview fixtures: replace with experiment aggregates when the layout is settled.
-const SUMMARY_SCORES = [
-  {
-    name: "guess_efficiency",
-    baseline: 81.3,
-    comparisons: [22.97, 92.68],
-    improved: [2, 25],
-    regressed: [25, 2],
-  },
-  {
-    name: "solved",
-    baseline: 90.24,
-    comparisons: [36.59, 100],
-    improved: [2, 24],
-    regressed: [24, 0],
-  },
-] as const;
+import { decomposeAggregateScoreKey } from "@/src/features/scores";
+import { summariseScoreColumn } from "../../fns/summariseScoreColumn";
+import {
+  formatScoreColumnAggregate,
+  formatScoreValue,
+} from "../../fns/formatScoreColumnAggregate";
+import { DiffLabel } from "@/src/features/datasets";
+import { type ExperimentItemsTableRow } from "./types";
+import { type VisibilityState } from "@tanstack/react-table";
 
 export function ExperimentGridSummaryValues({
-  comparisonIndex,
+  rows,
+  experimentId,
+  baselineExperimentId,
+  observationScoreOrder,
+  traceScoreOrder,
+  columnVisibility,
+  showScoreLevelLabels,
+  isLoading,
   expanded,
   showScoreNames,
   onToggle,
 }: {
-  comparisonIndex: number | null;
+  rows: ExperimentItemsTableRow[];
+  experimentId: string;
+  baselineExperimentId?: string;
+  observationScoreOrder: string[];
+  traceScoreOrder: string[];
+  columnVisibility: VisibilityState;
+  showScoreLevelLabels: boolean;
+  isLoading: boolean;
   expanded: boolean;
   showScoreNames: boolean;
   onToggle: () => void;
 }) {
+  const hasComparison =
+    !!baselineExperimentId && experimentId !== baselineExperimentId;
+  const scores = [
+    ...observationScoreOrder.map((key) => ({
+      key,
+      field: "observationScores" as const,
+      level: "Observation",
+      columnId: key,
+    })),
+    ...traceScoreOrder.map((key) => ({
+      key,
+      field: "traceScores" as const,
+      level: "Trace",
+      columnId: `Trace-${key}`,
+    })),
+  ].filter((score) => columnVisibility[score.columnId] !== false);
   return (
     <div className="border-t py-1">
       <div className="h-6">
@@ -47,68 +68,115 @@ export function ExperimentGridSummaryValues({
             ) : (
               <ChevronRight className="size-3" />
             )}
-            SUMMARY · sample data
+            SUMMARY · this page ({rows.length} items)
           </button>
         )}
       </div>
       {expanded &&
-        SUMMARY_SCORES.map((score) => {
-          const fixtureIndex =
-            (comparisonIndex ?? 0) % score.comparisons.length;
-          const value =
-            comparisonIndex === null
-              ? score.baseline
-              : score.comparisons[fixtureIndex]!;
-          const delta = value - score.baseline;
-          const deltaLabel = `${delta > 0 ? "+" : ""}${delta.toFixed(2)} pp`;
+        scores.map((score) => {
+          const { name, dataType, source } = decomposeAggregateScoreKey(
+            score.key,
+          );
+          const summary = summariseScoreColumn({
+            pairs: rows.map((row) => ({
+              baseline:
+                row.experiments.find(
+                  (exp) => exp.experimentId === experimentId,
+                )?.[score.field]?.[score.key] ?? null,
+              comparison:
+                row.experiments.find(
+                  (exp) => exp.experimentId === baselineExperimentId,
+                )?.[score.field]?.[score.key] ?? null,
+            })),
+            dataType,
+            hasComparison,
+          });
+          const { baseline: aggregate, delta, movement } = summary;
+          let aggregateLabel = "not scored";
+          if (aggregate) {
+            aggregateLabel =
+              aggregate.kind === "average"
+                ? formatScoreValue(aggregate.value)
+                : formatScoreColumnAggregate(aggregate);
+          }
+          const value = isLoading ? "Loading…" : aggregateLabel;
+          const label = showScoreLevelLabels ? `${score.level}: ${name}` : name;
           return (
             <div
-              key={score.name}
+              key={score.columnId}
               className="flex h-7 min-w-0 items-center gap-4 px-1 font-normal tabular-nums"
-              aria-label={`${score.name}: ${value}`}
+              aria-label={`${label}: ${value}`}
             >
               {showScoreNames && (
                 <span
                   className="min-w-0 flex-1 truncate text-xs"
-                  title={score.name}
+                  title={`${label} (${source.toLowerCase()}, ${dataType.toLowerCase()})`}
                 >
-                  {score.name}
+                  {label}
                 </span>
               )}
-              <div className="flex shrink-0 items-baseline gap-2 whitespace-nowrap">
-                <span className="text-foreground text-xs">{value}</span>
+              <div className="flex min-w-0 items-baseline gap-2 whitespace-nowrap">
                 <span
-                  className="text-muted-foreground text-xs"
-                  title={
-                    comparisonIndex === null
-                      ? "Average score"
-                      : "Percentage-point difference from baseline"
-                  }
+                  className="text-foreground min-w-0 truncate text-xs font-bold"
+                  title={value}
                 >
-                  {comparisonIndex === null ? "AVG" : deltaLabel}
+                  {value}
                 </span>
+                {!isLoading &&
+                  !hasComparison &&
+                  aggregate?.kind === "average" && (
+                    <span className="text-muted-foreground text-xs">AVG</span>
+                  )}
+                {!isLoading && delta !== null && (
+                  <DiffLabel
+                    variant="ghost"
+                    diff={{
+                      type: "NUMERIC",
+                      absoluteDifference: Math.abs(delta),
+                      direction: delta < 0 ? "-" : "+",
+                    }}
+                    formatValue={formatScoreValue}
+                    title="Difference from baseline"
+                  />
+                )}
               </div>
-              {comparisonIndex !== null && (
-                <div className="flex shrink-0 items-center gap-2 text-xs font-normal">
-                  <span
-                    className="text-dark-green"
-                    title="Improved items"
-                    aria-label={`${score.improved[fixtureIndex]} improved items`}
-                  >
-                    ↗ {score.improved[fixtureIndex]}
-                  </span>
-                  <span
-                    className="text-dark-red"
-                    title="Regressed items"
-                    aria-label={`${score.regressed[fixtureIndex]} regressed items`}
-                  >
-                    ↘ {score.regressed[fixtureIndex]}
-                  </span>
+              {!isLoading && movement && (
+                <div
+                  className="flex shrink-0 items-center gap-2 text-xs font-normal"
+                  title={`${movement.unchanged} unchanged; ${movement.notComparable} not comparable`}
+                >
+                  {dataType === "CATEGORICAL" ? (
+                    <span aria-label={`${movement.changed} changed items`}>
+                      ↻ {movement.changed}
+                    </span>
+                  ) : (
+                    <>
+                      <span
+                        className="text-dark-green"
+                        title="Improved items"
+                        aria-label={`${movement.improved} improved items`}
+                      >
+                        ↗ {movement.improved}
+                      </span>
+                      <span
+                        className="text-dark-red"
+                        title="Regressed items"
+                        aria-label={`${movement.regressed} regressed items`}
+                      >
+                        ↘ {movement.regressed}
+                      </span>
+                    </>
+                  )}
                 </div>
               )}
             </div>
           );
         })}
+      {expanded && scores.length === 0 && showScoreNames && (
+        <span className="text-muted-foreground text-xs">
+          {isLoading ? "Loading scores…" : "No scores selected"}
+        </span>
+      )}
     </div>
   );
 }
