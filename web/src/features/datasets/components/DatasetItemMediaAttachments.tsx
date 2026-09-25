@@ -3,7 +3,6 @@ import { type RefObject, useRef, useState } from "react";
 import type { EditorView, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { type Extension } from "@codemirror/state";
 import { Check, Copy, Loader2, Paperclip } from "lucide-react";
-import { cn } from "@/src/utils/tailwind";
 
 import { Button } from "@/src/components/ui/button";
 import { createFileDropPasteExtension } from "@/src/components/editor";
@@ -248,22 +247,13 @@ export function DatasetItemFieldToolbar({
   copyValue,
   onSelectFile,
   disabled,
-  hoverReveal = false,
 }: {
   copyValue: string;
   onSelectFile?: (file: File) => void | Promise<void>;
   disabled?: boolean;
-  /** Hidden until the surrounding `group/field` is hovered or focused. */
-  hoverReveal?: boolean;
 }) {
   return (
-    <div
-      className={cn(
-        "ml-auto flex items-center gap-0.5",
-        hoverReveal &&
-          "opacity-0 transition-opacity group-hover/field:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100",
-      )}
-    >
+    <div className="ml-auto flex items-center gap-0.5">
       <CopyFieldValueButton value={copyValue} />
       {onSelectFile && (
         <DatasetItemMediaUploadButton

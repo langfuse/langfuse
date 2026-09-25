@@ -3,7 +3,8 @@ import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { cn } from "@/src/utils/tailwind";
+import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useMediaTagChips } from "@/src/components/editor/mediaTagWidget";
 import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
 import { DatasetItemFieldSchemaErrors } from "./DatasetItemFieldSchemaErrors";
@@ -72,20 +73,20 @@ export const DatasetItemField = ({
   const showMediaUpload = isFormField && editable && !!onUploadMedia;
   const showPrettyView =
     !isFormField && !editable && renderMode === "pretty" && value !== "";
-  // Objects and arrays render as a bordered table; bare strings render as
-  // markdown without a frame, so they get the frame here. The parsed value is
-  // handed over so the viewer's large-string gate sees the data, not the
+  // Parsed once so the viewer's large-text gate sees the data, not the
   // indented text.
-  const prettyValue = useMemo(() => {
-    if (!showPrettyView) return { json: value, structured: false };
+  const prettyJson = useMemo(() => {
+    if (!showPrettyView) return value;
     try {
       const parsed: unknown = JSON.parse(value);
-      const structured = typeof parsed === "object" && parsed !== null;
-      return { json: structured ? parsed : value, structured };
+      return typeof parsed === "object" && parsed !== null ? parsed : value;
     } catch {
-      return { json: value, structured: false };
+      return value;
     }
   }, [showPrettyView, value]);
+  const schemaHoverCard = schema && schemaType && (
+    <DatasetSchemaHoverCard schema={schema} schemaType={schemaType} showLabel />
+  );
 
   const handleSelectFile = async (file: File) => {
     const referenceString = await onUploadMedia?.(file);
@@ -129,25 +130,16 @@ export const DatasetItemField = ({
 
   const content = (
     <>
-      <div className="flex items-center gap-2">
-        {isFormField ? (
+      {isFormField && (
+        <div className="flex items-center gap-2">
           <FormLabel>{label}</FormLabel>
-        ) : (
-          <label className="text-sm font-bold">{label}</label>
-        )}
-        {schema && schemaType && (
-          <DatasetSchemaHoverCard
-            schema={schema}
-            schemaType={schemaType}
-            showLabel
+          {schemaHoverCard}
+          <DatasetItemFieldToolbar
+            copyValue={value}
+            onSelectFile={showMediaUpload ? handleSelectFile : undefined}
           />
-        )}
-        <DatasetItemFieldToolbar
-          copyValue={value}
-          onSelectFile={showMediaUpload ? handleSelectFile : undefined}
-          hoverReveal={!isFormField}
-        />
-      </div>
+        </div>
+      )}
       {isFormField && (
         <FormControl>
           <CodeMirrorEditor
@@ -162,28 +154,30 @@ export const DatasetItemField = ({
         </FormControl>
       )}
       {!isFormField && showPrettyView && (
-        <div
-          className={cn(
-            "w-full",
-            !prettyValue.structured &&
-              "rounded-sm border pl-3 [&_.io-message-content]:pb-0 [&_.io-message-content_.io-message-content]:pb-1",
-          )}
-        >
-          <PrettyJsonView
-            json={prettyValue.json}
-            currentView="pretty"
-            className="w-full"
-          />
-        </div>
+        <PrettyJsonView
+          json={prettyJson}
+          title={label}
+          currentView="pretty"
+          className="w-full"
+          controlButtons={schemaHoverCard}
+        />
       )}
       {!isFormField && !showPrettyView && (
-        <CodeMirrorEditor
-          mode="json"
-          value={value}
-          editable={editable}
-          minHeight={200}
-          extensions={editorExtensions}
-        />
+        <>
+          <MarkdownJsonViewHeader
+            title={label}
+            handleOnCopy={() => copyTextToClipboard(value)}
+            controlButtons={schemaHoverCard}
+            hoverRevealControls
+          />
+          <CodeMirrorEditor
+            mode="json"
+            value={value}
+            editable={editable}
+            minHeight={200}
+            extensions={editorExtensions}
+          />
+        </>
       )}
       {mediaChipPortals}
       {isFormField && <FormMessage />}
@@ -196,6 +190,6 @@ export const DatasetItemField = ({
   return isFormField ? (
     <FormItem>{content}</FormItem>
   ) : (
-    <div className="group/field space-y-2">{content}</div>
+    <div className="group/iosection">{content}</div>
   );
 };
