@@ -226,13 +226,15 @@ describe("DataTableToolbar presentation controls", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("radio", { name: "JSON" }));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Raw" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Raw" }));
     expect(onIoRenderModeChange).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("radio", { name: "Formatted" }));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Formatted" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Formatted" }));
     expect(onIoRenderModeChange).toHaveBeenCalledExactlyOnceWith("text");
     fireEvent.click(screen.getByRole("button", { name: /^Columns/ }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Row height" })).toBeVisible();
-    expect(screen.getByRole("radio", { name: "JSON" })).toBeVisible();
+    expect(screen.getByRole("tab", { name: "Raw" })).toBeVisible();
   });
 });
