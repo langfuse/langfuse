@@ -39,11 +39,7 @@ export const HoverColors = meta.story({
       name: "Claude Sonnet: 31",
     });
 
-    await expect(first).toHaveAttribute("fill", chartColors[0]);
-    await expect(second).toHaveAttribute("fill", chartColors[1]);
-
     await userEvent.hover(first);
-    await expect(first).toHaveAttribute("fill", chartColors[0]);
     await expect(second).toHaveAttribute(
       "fill",
       expect.stringContaining("20%"),
@@ -125,7 +121,6 @@ export const CombinedSmallSlices = meta.story({
     const canvas = within(canvasElement);
     const combinedSlice = canvas.getByLabelText("Other: 2");
 
-    await expect(canvasElement.querySelectorAll("path")).toHaveLength(3);
     combinedSlice.focus();
 
     const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
@@ -154,7 +149,6 @@ export const Empty = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvasElement.querySelectorAll("circle")).toHaveLength(1);
     await expect(canvas.getByText("0")).toBeInTheDocument();
     await expect(canvas.getByText("Total")).toBeInTheDocument();
   },

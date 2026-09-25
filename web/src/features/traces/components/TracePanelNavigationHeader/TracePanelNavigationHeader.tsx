@@ -47,7 +47,6 @@ import {
   TraceViewOptionsMenuItems,
 } from "../TraceSettingsDropdown";
 import { TracePanelNavigationButton } from "./components/TracePanelNavigationButton";
-import { PlaybackControls, PlaybackMenuItems } from "../PlaybackControls";
 import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
@@ -56,7 +55,6 @@ import { useElementSize } from "@/src/hooks/useElementSize";
 interface TracePanelNavigationHeaderProps {
   isPanelCollapsed: boolean;
   onTogglePanel: () => void;
-  shouldPulseToggle?: boolean;
 }
 
 export function TracePanelNavigationHeader(
@@ -71,14 +69,12 @@ export function TracePanelNavigationHeader(
 function TracePanelNavigationHeaderCollapsed({
   isPanelCollapsed,
   onTogglePanel,
-  shouldPulseToggle = false,
 }: TracePanelNavigationHeaderProps) {
   return (
     <div className="flex w-full flex-row items-center justify-center p-2">
       <TracePanelNavigationButton
         isPanelCollapsed={isPanelCollapsed}
         onTogglePanel={onTogglePanel}
-        shouldPulseToggle={shouldPulseToggle}
       />
     </div>
   );
@@ -87,7 +83,6 @@ function TracePanelNavigationHeaderCollapsed({
 function TracePanelNavigationHeaderExpanded({
   isPanelCollapsed,
   onTogglePanel,
-  shouldPulseToggle = false,
 }: TracePanelNavigationHeaderProps) {
   const { searchInputValue, setSearchInputValue, setSearchQueryImmediate } =
     useSearch();
@@ -186,7 +181,6 @@ function TracePanelNavigationHeaderExpanded({
         )}
         {isEverythingCollapsed ? "Expand all" : "Collapse all"}
       </DropdownMenuItem>
-      <PlaybackMenuItems />
       <DropdownMenuSeparator />
       <TraceViewOptionsMenuItems />
     </>
@@ -228,7 +222,6 @@ function TracePanelNavigationHeaderExpanded({
               <TracePanelNavigationButton
                 isPanelCollapsed={isPanelCollapsed}
                 onTogglePanel={onTogglePanel}
-                shouldPulseToggle={shouldPulseToggle}
               />
             </div>
           )}
@@ -276,13 +269,6 @@ function TracePanelNavigationHeaderExpanded({
                   {renderOverflowMenuItems()}
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
-
-            {/* Playback transport + circular time-progress ring. View-agnostic:
-                shown in both Tree and Timeline views (see PlaybackControls) — and
-                folded into the overflow menu on a narrow panel, like the tools. */}
-            <div className="hidden flex-row items-center @min-[510px]/navheader:flex">
-              <PlaybackControls />
             </div>
 
             <div className="ml-2 hidden @min-[330px]/navheader:block">

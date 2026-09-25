@@ -3,7 +3,7 @@
 import { cva } from "class-variance-authority";
 import { PaperclipIcon, UploadIcon } from "lucide-react";
 import { useMemo } from "react";
-import { useDropzone } from "react-dropzone";
+import { DropzoneController } from "../DropzoneController/DropzoneController";
 import { cn } from "@/src/utils/tailwind";
 
 const renderBytes = (bytes: number) => {
@@ -62,24 +62,6 @@ export const Dropzone = ({
   src,
   variant,
 }: DropzoneProps) => {
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept,
-    maxFiles,
-    maxSize,
-    minSize,
-    onError,
-    disabled: isDisabled,
-    onDrop: (acceptedFiles, fileRejections) => {
-      if (fileRejections.length > 0) {
-        const message = fileRejections.at(0)?.errors.at(0)?.message;
-        onError?.(new Error(message));
-        return;
-      }
-
-      onDrop(acceptedFiles);
-    },
-  });
-
   const contentText = useMemo(() => {
     if (variant === "compact") {
       if (!src?.length) {
@@ -133,52 +115,64 @@ export const Dropzone = ({
     : emptyStateDescription;
 
   return (
-    <button
-      key={JSON.stringify(src)}
-      className={dropzoneVariants({ isDragActive, variant })}
-      disabled={isDisabled}
-      type="button"
-      {...getRootProps()}
+    <DropzoneController
+      accept={accept}
+      maxFiles={maxFiles}
+      maxSize={maxSize}
+      minSize={minSize}
+      onError={onError}
+      isDisabled={isDisabled}
+      onDrop={onDrop}
     >
-      <input {...getInputProps()} disabled={isDisabled} />
-      {variant === "compact" && (
-        <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
-          <PaperclipIcon className="h-4 w-4" />
-          <span className="truncate" title={contentText}>
-            {contentText}
-          </span>
-        </div>
-      )}
-      {variant === "panel" && (
-        <div className="flex flex-col items-center justify-center">
-          <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
-            <UploadIcon size={16} />
-          </div>
-          <p
-            className={cn(
-              "my-2 w-full truncate text-sm font-bold",
-              !src?.length && "text-wrap",
-            )}
-            title={panelTitle}
-          >
-            {panelTitle}
-          </p>
-          <p
-            className={cn(
-              "text-muted-foreground w-full text-xs text-wrap",
-              !src?.length && "truncate",
-            )}
-            title={src?.length ? undefined : panelDescription}
-          >
-            {panelDescription}
-          </p>
-          {!src?.length && caption && (
-            <p className="text-muted-foreground text-xs text-wrap">
-              {caption}.
-            </p>
+      {({ getRootProps, getInputProps, isDragActive }) => (
+        <button
+          key={JSON.stringify(src)}
+          className={dropzoneVariants({ isDragActive, variant })}
+          disabled={isDisabled}
+          type="button"
+          {...getRootProps()}
+        >
+          <input {...getInputProps()} disabled={isDisabled} />
+          {variant === "compact" && (
+            <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
+              <PaperclipIcon className="h-4 w-4" />
+              <span className="truncate" title={contentText}>
+                {contentText}
+              </span>
+            </div>
           )}
-        </div>
+          {variant === "panel" && (
+            <div className="flex flex-col items-center justify-center">
+              <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
+                <UploadIcon size={16} />
+              </div>
+              <p
+                className={cn(
+                  "my-2 w-full truncate text-sm font-bold",
+                  !src?.length && "text-wrap",
+                )}
+                title={panelTitle}
+              >
+                {panelTitle}
+              </p>
+              <p
+                className={cn(
+                  "text-muted-foreground w-full text-xs text-wrap",
+                  !src?.length && "truncate",
+                )}
+                title={src?.length ? undefined : panelDescription}
+              >
+                {panelDescription}
+              </p>
+              {!src?.length && caption && (
+                <p className="text-muted-foreground text-xs text-wrap">
+                  {caption}.
+                </p>
+              )}
+            </div>
+          )}
+        </button>
       )}
-    </button>
+    </DropzoneController>
   );
 };

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
-import { ExperimentFormatSetting } from "@/src/features/experiments";
+import { ExperimentDisplaySettings } from "@/src/features/experiments";
 import {
   DataTableToolbar,
   type MultiSelect,
@@ -212,13 +212,21 @@ describe("DataTableToolbar presentation controls", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps the format switch accessible while the column picker is closed", () => {
+  it("opens display settings independently of the column picker", () => {
     const onIoRenderModeChange = vi.fn();
     render(
       <DataTableToolbar
         {...settingsProps}
         toolbarSettings={
-          <ExperimentFormatSetting
+          <ExperimentDisplaySettings
+            layout="grid"
+            onLayoutChange={vi.fn()}
+            diffMode="comparison"
+            onDiffModeChange={vi.fn()}
+            itemVisibility="all"
+            onItemVisibilityChange={vi.fn()}
+            hasComparisons
+            hasBaseline
             ioRenderMode="json"
             onIoRenderModeChange={onIoRenderModeChange}
           />
@@ -226,13 +234,15 @@ describe("DataTableToolbar presentation controls", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("radio", { name: "JSON" }));
-    expect(onIoRenderModeChange).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("radio", { name: "Formatted" }));
+    expect(screen.queryByRole("menuitem", { name: "Formatted" })).toBeNull();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Display" }), {
+      key: "Enter",
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Formatted" }));
     expect(onIoRenderModeChange).toHaveBeenCalledExactlyOnceWith("text");
     fireEvent.click(screen.getByRole("button", { name: /^Columns/ }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Row height" })).toBeVisible();
-    expect(screen.getByRole("radio", { name: "JSON" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Display" })).toBeVisible();
   });
 });

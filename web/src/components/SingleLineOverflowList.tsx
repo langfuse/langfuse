@@ -1,3 +1,4 @@
+import { cn } from "@/src/utils/tailwind";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 /**
@@ -12,10 +13,10 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 
 // Rows of boxed pills read fine at gap-2; rows of mostly-plain text (the
 // session header's metrics/attributes/links) need more air to scan as
-// separate facts, matching the trace headers' gap-x-3.
+// separate facts, matching the trace headers' gap-6; bordered chips pull to 4px.
 const SPACING_CLASS = {
   compact: "gap-2",
-  comfortable: "gap-3",
+  comfortable: "gap-6",
 } as const;
 export function SingleLineOverflowList<TItem>({
   items,
@@ -25,6 +26,7 @@ export function SingleLineOverflowList<TItem>({
   renderOverflow,
   trailingContent,
   spacing = "compact",
+  isTightItem,
 }: {
   items: readonly TItem[];
   additionalOverflowCount: number;
@@ -36,6 +38,8 @@ export function SingleLineOverflowList<TItem>({
   }) => ReactNode;
   trailingContent?: ReactNode;
   spacing?: keyof typeof SPACING_CLASS;
+  /** Tight items sit 4px from a preceding tight item instead of the row gap. */
+  isTightItem?: (item: TItem) => boolean;
 }) {
   const gapClass = SPACING_CLASS[spacing];
   const measurementRowRef = useRef<HTMLDivElement>(null);
@@ -132,7 +136,11 @@ export function SingleLineOverflowList<TItem>({
             <span
               key={key}
               data-overflow-item-key={key}
-              className="flex items-center"
+              data-tight={isTightItem?.(item) ? "true" : undefined}
+              className={cn(
+                "flex items-center",
+                isTightItem?.(item) && "[[data-tight]+&]:-ml-5",
+              )}
             >
               {renderItem(item)}
             </span>
@@ -148,7 +156,11 @@ export function SingleLineOverflowList<TItem>({
             <span
               key={key}
               data-overflow-visible-item="true"
-              className="flex items-center"
+              data-tight={isTightItem?.(item) ? "true" : undefined}
+              className={cn(
+                "flex items-center",
+                isTightItem?.(item) && "[[data-tight]+&]:-ml-5",
+              )}
             >
               {renderItem(item)}
             </span>

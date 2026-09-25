@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "4.45.4",
+  "version": "4.46.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -47,6 +47,7 @@
     "@codemirror/lang-json": "^6.0.2",
     "@codemirror/lang-python": "^6.2.1",
     "@codemirror/language": "^6.12.3",
+    "@codemirror/legacy-modes": "^6.5.4",
     "@codemirror/lint": "^6.9.5",
     "@codemirror/search": "^6.7.0",
     "@codemirror/state": "^6.6.0",
@@ -130,6 +131,7 @@
     "elkjs": "^0.11.1",
     "exponential-backoff": "^3.1.2",
     "fastest-levenshtein": "^1.0.16",
+    "fflate": "0.8.3",
     "https-proxy-agent": "^7.0.6",
     "ioredis": "^5.10.1",
     "json-schema-faker": "0.6.1",

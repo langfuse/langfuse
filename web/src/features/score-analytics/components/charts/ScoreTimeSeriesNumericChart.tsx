@@ -1,14 +1,6 @@
 import { useMemo } from "react";
 import { LineChart } from "@/src/components/design-system/charts/LineChart/LineChart";
-import {
-  type IntervalConfig,
-  type TimeRange,
-} from "@/src/utils/date-range-utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import {
-  formatChartTimestamp,
-  formatChartTooltipTimestamp,
-} from "../../lib/chart-formatters";
 
 export interface NumericTimeSeriesChartProps {
   data: Array<{
@@ -19,8 +11,6 @@ export interface NumericTimeSeriesChartProps {
   }>;
   score1Name: string;
   score2Name?: string;
-  interval: IntervalConfig;
-  timeRange: TimeRange;
   colors: { score1: string; score2?: string };
 }
 
@@ -28,8 +18,6 @@ export function ScoreTimeSeriesNumericChart({
   data,
   score1Name,
   score2Name,
-  interval,
-  timeRange,
   colors,
 }: NumericTimeSeriesChartProps) {
   const chartData = useMemo(
@@ -86,10 +74,6 @@ export function ScoreTimeSeriesNumericChart({
       series={series}
       xAxis={{
         type: "time",
-        tickFormatter: (value) =>
-          formatChartTimestamp(value, interval, timeRange),
-        tooltipFormatter: (value) =>
-          formatChartTooltipTimestamp(value, interval, timeRange),
       }}
       valueFormatter={compactNumberFormatter}
       showDataPointDots
