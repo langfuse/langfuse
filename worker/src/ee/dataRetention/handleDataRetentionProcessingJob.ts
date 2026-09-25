@@ -80,35 +80,43 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     });
     if (conversations.length === 0) break;
     const conversationIds = conversations.map(({ id }) => id);
-    const keyRuns = await prisma.inAppAgentRun.findMany({
-      where: {
-        projectId,
-        conversationId: { in: conversationIds },
-        finishedAt: { not: null },
-        mcpApiKeyId: { not: null },
-      },
-      select: { id: true, mcpApiKeyId: true },
-    });
-    for (const run of keyRuns) {
-      // Prisma does not narrow the nullable field type from the `not: null` query filter.
-      if (!run.mcpApiKeyId) continue;
-      try {
-        await deleteInAppAgentMcpApiKeyFromDb({
-          prisma,
-          id: run.mcpApiKeyId,
+    let lastRunId: string | undefined;
+    while (true) {
+      const keyRuns = await prisma.inAppAgentRun.findMany({
+        where: {
           projectId,
-          redis,
-        }).catch((error: unknown) => {
-          if (!isMissingInAppAgentMcpApiKeyError(error)) throw error;
-        });
-        await clearRunMcpApiKeyPointer({ prisma, projectId, runId: run.id });
-      } catch (error) {
-        logger.error("Failed to clean up in-app agent MCP key on reconcile", {
-          projectId,
-          runId: run.id,
-          error,
-        });
+          conversationId: { in: conversationIds },
+          finishedAt: { not: null },
+          mcpApiKeyId: { not: null },
+          ...(lastRunId ? { id: { gt: lastRunId } } : {}),
+        },
+        select: { id: true, mcpApiKeyId: true },
+        orderBy: { id: "asc" },
+        take: 100,
+      });
+      if (keyRuns.length === 0) break;
+      for (const run of keyRuns) {
+        // Prisma does not narrow the nullable field type from the `not: null` query filter.
+        if (!run.mcpApiKeyId) continue;
+        try {
+          await deleteInAppAgentMcpApiKeyFromDb({
+            prisma,
+            id: run.mcpApiKeyId,
+            projectId,
+            redis,
+          }).catch((error: unknown) => {
+            if (!isMissingInAppAgentMcpApiKeyError(error)) throw error;
+          });
+          await clearRunMcpApiKeyPointer({ prisma, projectId, runId: run.id });
+        } catch (error) {
+          logger.error("Failed to clean up in-app agent MCP key on reconcile", {
+            projectId,
+            runId: run.id,
+            error,
+          });
+        }
       }
+      lastRunId = keyRuns.at(-1)?.id;
     }
     // worker/src/features/in-app-agent-integrity-runner/index.ts classifies stale runs in the background;
     // unfinished runs block deletion until then.
