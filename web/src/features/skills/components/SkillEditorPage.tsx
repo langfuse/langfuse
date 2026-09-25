@@ -39,10 +39,9 @@ export function NewSkillPage() {
   const metadata = parseSkillFrontmatterMetadata(skillMarkdown);
 
   return (
-    <Page
+    <SkillEditor
       headerProps={{
         title: metadata?.name.trim() ? metadata.name : "Create skill",
-        subtitle: metadata?.description,
         help:
           metadata && !metadata.nameError
             ? {
@@ -55,27 +54,24 @@ export function NewSkillPage() {
           { name: "New skill" },
         ],
       }}
-    >
-      <SkillEditor
-        projectId={projectId ?? ""}
-        store={store}
-        canCreate={canCreate}
-        history={{ kind: "new" }}
-        metadataOptions={{
-          labels: ["production"],
-          tags: filterOptions.data?.tags.map((tag) => tag.value) ?? [],
-        }}
-        onCreated={async (created) => {
-          await Promise.all([
-            utils.skills.all.invalidate(),
-            utils.skills.filterOptions.invalidate(),
-          ]);
-          await router.push(
-            `/project/${projectId}/skills/${encodeURIComponent(created.name)}?version=${created.version}`,
-          );
-        }}
-      />
-    </Page>
+      projectId={projectId ?? ""}
+      store={store}
+      canCreate={canCreate}
+      history={{ kind: "new" }}
+      metadataOptions={{
+        labels: ["production"],
+        tags: filterOptions.data?.tags.map((tag) => tag.value) ?? [],
+      }}
+      onCreated={async (created) => {
+        await Promise.all([
+          utils.skills.all.invalidate(),
+          utils.skills.filterOptions.invalidate(),
+        ]);
+        await router.push(
+          `/project/${projectId}/skills/${encodeURIComponent(created.name)}?version=${created.version}`,
+        );
+      }}
+    />
   );
 }
 
@@ -129,6 +125,19 @@ export function ExistingSkillPage() {
   const error =
     (skill.data ? null : skill.error) ?? (history.data ? null : history.error);
 
+  const headerProps: ComponentProps<typeof Page>["headerProps"] = {
+    title: skill.data?.name ?? skillName,
+    help: skill.data
+      ? {
+          description: "Edit SKILL.md to change the skill name.",
+        }
+      : undefined,
+    breadcrumb: [
+      { name: "Skills", href: `/project/${projectId}/skills` },
+      { name: "Editor" },
+    ],
+  };
+
   let content = <div className="p-6 text-sm">Skill version not found.</div>;
   if (error) {
     content = <div className="ph-no-capture p-6 text-sm">{error.message}</div>;
@@ -140,8 +149,9 @@ export function ExistingSkillPage() {
       </div>
     );
   } else if (skill.data && history.data) {
-    content = (
+    return (
       <SkillEditorForInitialValue
+        headerProps={headerProps}
         key={`${skill.data.id}:${editorSession}`}
         projectId={projectId ?? ""}
         initialValue={toSkillEditorInitialValue({
@@ -205,26 +215,7 @@ export function ExistingSkillPage() {
     );
   }
 
-  return (
-    <Page
-      headerProps={{
-        title: skill.data?.name ?? skillName,
-        subtitle: skill.data?.description,
-        help: skill.data
-          ? {
-              description:
-                "The skill name and description are parsed from the frontmatter in SKILL.md.",
-            }
-          : undefined,
-        breadcrumb: [
-          { name: "Skills", href: `/project/${projectId}/skills` },
-          { name: "Editor" },
-        ],
-      }}
-    >
-      {content}
-    </Page>
-  );
+  return <Page headerProps={headerProps}>{content}</Page>;
 }
 
 function SkillEditorForInitialValue({

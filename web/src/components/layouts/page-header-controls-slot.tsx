@@ -18,11 +18,9 @@ import { createPortal } from "react-dom";
  * already lives (e.g. the table owns the refresh handlers) — only the rendered
  * DOM moves into the header.
  */
-const PageHeaderSlotsContext = createContext<{
-  controlsSlot: HTMLDivElement | null;
-  setControlsSlot: (node: HTMLDivElement | null) => void;
-  actionsSlot: HTMLDivElement | null;
-  setActionsSlot: (node: HTMLDivElement | null) => void;
+const PageHeaderControlsSlotContext = createContext<{
+  slot: HTMLDivElement | null;
+  setSlot: (node: HTMLDivElement | null) => void;
 } | null>(null);
 
 export function PageHeaderControlsSlotProvider({
@@ -30,16 +28,12 @@ export function PageHeaderControlsSlotProvider({
 }: {
   children: ReactNode;
 }) {
-  const [controlsSlot, setControlsSlot] = useState<HTMLDivElement | null>(null);
-  const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
-  const value = useMemo(
-    () => ({ controlsSlot, setControlsSlot, actionsSlot, setActionsSlot }),
-    [actionsSlot, controlsSlot],
-  );
+  const [slot, setSlot] = useState<HTMLDivElement | null>(null);
+  const value = useMemo(() => ({ slot, setSlot }), [slot]);
   return (
-    <PageHeaderSlotsContext.Provider value={value}>
+    <PageHeaderControlsSlotContext.Provider value={value}>
       {children}
-    </PageHeaderSlotsContext.Provider>
+    </PageHeaderControlsSlotContext.Provider>
   );
 }
 
@@ -49,9 +43,9 @@ export function PageHeaderControlsSlotProvider({
  * direct flex items of the surrounding cluster.
  */
 export function PageHeaderControlsSlotTarget() {
-  const ctx = useContext(PageHeaderSlotsContext);
+  const ctx = useContext(PageHeaderControlsSlotContext);
   if (!ctx) return null;
-  return <div className="contents" ref={ctx.setControlsSlot} />;
+  return <div className="contents" ref={ctx.setSlot} />;
 }
 
 /**
@@ -64,19 +58,7 @@ export function PageHeaderControlsPortal({
 }: {
   children: ReactNode;
 }) {
-  const ctx = useContext(PageHeaderSlotsContext);
-  if (!ctx?.controlsSlot) return null;
-  return createPortal(children, ctx.controlsSlot);
-}
-
-export function PageHeaderActionsSlotTarget() {
-  const ctx = useContext(PageHeaderSlotsContext);
-  if (!ctx) return null;
-  return <div className="contents" ref={ctx.setActionsSlot} />;
-}
-
-export function PageHeaderActionsPortal({ children }: { children: ReactNode }) {
-  const ctx = useContext(PageHeaderSlotsContext);
-  if (!ctx?.actionsSlot) return null;
-  return createPortal(children, ctx.actionsSlot);
+  const ctx = useContext(PageHeaderControlsSlotContext);
+  if (!ctx?.slot) return null;
+  return createPortal(children, ctx.slot);
 }

@@ -16,11 +16,8 @@ const LoadSkillInputSchema = z
 
 export const [loadSkillTool, handleLoadSkill] = defineTool({
   name: "loadSkill",
-  description: [
-    "Load a skill's SKILL.md file as Markdown text, including its frontmatter and instructions.",
-    "Specify name and either version or label, not both. Defaults to the 'production' label; use label 'latest' for the newest version.",
-    "Returns only SKILL.md.",
-  ].join("\n"),
+  description:
+    "Read a skill's SKILL.md as text. Select a version or label; defaults to production.",
   action: "skills:read",
   baseSchema: LoadSkillBaseSchema,
   inputSchema: LoadSkillInputSchema,

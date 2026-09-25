@@ -46,7 +46,7 @@ export enum RouteSection {
 export enum RouteGroup {
   Observability = "Observability",
   PromptManagement = "Prompt Management",
-  AgentManagement = "Agent Management",
+  ContextManagement = "Context Management",
   Evaluation = "Evaluation",
 }
 

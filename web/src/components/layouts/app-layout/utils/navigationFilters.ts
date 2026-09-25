@@ -245,7 +245,7 @@ export function applyNavigationFilters(
     .filter((route): route is Route => route !== null)
     .map((route) =>
       ctx.internalFeaturesEnabled && route.group === RouteGroup.PromptManagement
-        ? { ...route, group: RouteGroup.AgentManagement }
+        ? { ...route, group: RouteGroup.ContextManagement }
         : route,
     );
 }

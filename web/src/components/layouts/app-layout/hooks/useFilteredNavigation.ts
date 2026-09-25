@@ -58,7 +58,7 @@ function groupNavigationItems(items: NavigationItem[]): GroupedNavigation {
     ? [
         ...(grouped[RouteGroup.Observability] || []),
         ...(grouped[RouteGroup.PromptManagement] || []),
-        ...(grouped[RouteGroup.AgentManagement] || []),
+        ...(grouped[RouteGroup.ContextManagement] || []),
         ...(grouped[RouteGroup.Evaluation] || []),
       ]
     : [];

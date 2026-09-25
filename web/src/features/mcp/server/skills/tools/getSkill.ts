@@ -16,12 +16,8 @@ const GetSkillInputSchema = z
 
 export const [getSkillTool, handleGetSkill] = defineTool({
   name: "getSkill",
-  description: [
-    "Get a skill version with metadata and its file manifest.",
-    "Specify name and either version or label, not both. Defaults to the 'production' label; use label 'latest' for the newest version.",
-    "File contents are not included in this response.",
-    "Use loadSkill for SKILL.md or loadSkillResource with a file path to read a text resource.",
-  ].join("\n"),
+  description:
+    "Get skill metadata and file paths, without file contents. Select a version or label; defaults to production.",
   action: "skills:read",
   baseSchema: GetSkillBaseSchema,
   inputSchema: GetSkillInputSchema,
