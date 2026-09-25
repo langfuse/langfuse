@@ -265,7 +265,9 @@ export function renderTranscript(
     .filter((event) => event.message.role === "user")
     .at(-1)?.message;
   const root = observations.find(
-    (observation) => observation.parentObservationId === null,
+    (observation) =>
+      observation.parentObservationId === null ||
+      !observationById.has(observation.parentObservationId),
   );
   const rootInputValue =
     config.runIO.include && root?.input != null
@@ -563,9 +565,9 @@ export function renderTranscript(
     let activeThread: number | null = null;
     for (const { event, text } of events) {
       const thread = event.thread;
-      if (threads.length > 1 && thread !== activeThread) {
+      if (threads.length > 1 && thread !== null && thread !== activeThread) {
         if (activeThread !== null) header("</thread>");
-        if (thread !== null) header(`<thread n="${thread + 1}">`);
+        header(`<thread n="${thread + 1}">`);
         activeThread = thread;
       }
       lines.push({

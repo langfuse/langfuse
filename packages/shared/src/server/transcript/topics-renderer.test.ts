@@ -204,6 +204,7 @@ describe("Topics transcript renderer", () => {
   it("shows trace I/O for a pipeline without a user and notes only a distinct output", () => {
     const root = {
       ...observation("root", "SPAN", 0),
+      parentObservationId: "",
       input: "Timer fired",
       output: "Final report",
     };
@@ -253,6 +254,54 @@ describe("Topics transcript renderer", () => {
     expect(matching).toContain("[assistant · final output] Draft");
     expect(matching).not.toContain("[final output] Draft");
     expect(matching).toContain("final output: assistant");
+  });
+
+  it("keeps an unassigned operation marker inside the active thread", () => {
+    const first = observation("first", "GENERATION", 1);
+    const marker = observation("validate", "SPAN", 2);
+    const second = observation("second", "GENERATION", 3);
+    const other = observation("other", "GENERATION", 4);
+    const message = (observationId: string, value: string) => ({
+      role: "assistant" as const,
+      source: "output" as const,
+      parts: [{ type: "text" as const, text: value }],
+      observationId,
+      traceId: "trace",
+    });
+    const transcript: Transcript = {
+      threads: [
+        {
+          conversationHistory: [],
+          currentTurn: {
+            messages: [
+              message(first.id, "First"),
+              message(second.id, "Second"),
+            ],
+            observations: [first, second].map(({ id }) => ({
+              id,
+              traceId: "trace",
+            })),
+          },
+        },
+        {
+          conversationHistory: [],
+          currentTurn: {
+            messages: [message(other.id, "Other")],
+            observations: [{ id: other.id, traceId: "trace" }],
+          },
+        },
+      ],
+    };
+
+    const text = renderTranscript(
+      transcript,
+      [first, marker, second, other],
+      topicsTranscriptConfig,
+    ).text;
+    expect(text).toContain(
+      "[assistant] First\n[span] validate\n[generation] second",
+    );
+    expect(text.match(/<thread n="1">/g)).toHaveLength(1);
   });
 
   it("numbers a failing tool pair, places its error inline, and distinguishes a pending call", () => {
