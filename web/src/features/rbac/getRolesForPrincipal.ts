@@ -22,7 +22,7 @@ import {
   type SystemRolePolicy,
 } from "@/src/features/rbac/types";
 
-/** getRolesForPrincipal loads a principal's system-role assignments and expands them into bound roles; custom roles are a later ticket. */
+/** getRolesForPrincipal loads a principal's system-role assignments and expands them into roles whose policies are bound to concrete resources. */
 export async function getRolesForPrincipal(
   principalId: PrincipalId,
   prisma?: PrismaClient,
@@ -71,12 +71,12 @@ function resourcesForOwner(ownerId: OwnerId): ResourceId[] {
   return [ownerId, ProjectId("*")];
 }
 
-/** toRoleId is the role id an assignment names; the system-only phase has no custom roles. */
+/** toRoleId tags an assignment's system role as its role id. */
 function toRoleId(ra: SystemRoleAssignmentWithRole): RoleId {
   return SystemRoleId(ra.systemRole);
 }
 
-/** bindPolicy binds a catalog policy to the tagged resources of its own kind, dropping a policy whose kind has no matching resource so resolution stays total; a throw here would surface as a request-time 500. */
+/** bindPolicy binds a catalog policy to the tagged resources of its own kind, returning null when the kind has no matching resource so the policy is dropped rather than bound to nothing. */
 function bindPolicy(
   policy: SystemRolePolicy,
   roleId: RoleId,

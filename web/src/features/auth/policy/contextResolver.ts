@@ -111,12 +111,11 @@ async function materialize(
     boundResource: boundResourceFor(apiKey, org),
   };
 
-  const policies =
-    authorization === "publicKey"
-      ? publicBearerPolicies(apiKey, org)
-      : (await getRolesForPrincipal(ApiKeyId(apiKey.id), prisma)).flatMap(
-          (role) => role.policies,
-        );
+  if (authorization === "publicKey") {
+    return { principal, policies: publicBearerPolicies(apiKey, org) };
+  }
+  const roles = await getRolesForPrincipal(ApiKeyId(apiKey.id), prisma);
+  const policies = roles.flatMap((role) => role.policies);
   return { principal, policies };
 }
 
@@ -138,10 +137,28 @@ function publicBearerPolicies(
   }));
 }
 
-/** adminContext is the admin context: no key row and no policies; the PDP grants the superuser directly. */
+/** adminContext is the self-host superuser: an evaluated OWNER on every tenant. It binds the OWNER catalog to the org- and project-kind wildcards under the organization/* tenant, so the PDP grants it exactly what OWNER grants, on every tenant.
+ *
+ * The organization/* tenant is minted only here; a future custom-role loader must reject a wildcard tenant on a stored role. */
 function adminContext(): AuthorizationContext {
   const principal: Principal = { kind: "admin", userId: null };
-  return { principal, policies: [] };
+  const roleId = SystemRoleId("OWNER");
+  const tenantId = OrganizationId("*");
+  const policies: Policy[] = systemRoleAccessRights.OWNER.policies.map(
+    (policy) => ({
+      id: `${roleId}:${policy.resourceKind}`,
+      roleId,
+      tenantId,
+      effect: policy.effect,
+      actions: policy.actions,
+      resources: [
+        policy.resourceKind === "organization"
+          ? OrganizationId("*")
+          : ProjectId("*"),
+      ],
+    }),
+  );
+  return { principal, policies };
 }
 
 /** boundResourceFor is the target a request resolves against with no header: the key's org, narrowed to its project when the key is project-scoped. */

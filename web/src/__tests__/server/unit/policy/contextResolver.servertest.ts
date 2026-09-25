@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { type ApiKey, type PrismaClient } from "@langfuse/shared/src/db";
 import { InternalServerError } from "@langfuse/shared";
-import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
+import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 
 import { authorize } from "@/src/features/rbac/authorize";
 import {
@@ -117,6 +117,25 @@ describe("resolves the admin key", () => {
         OrganizationId("any"),
       ).success,
     ).toBe(true);
+  });
+
+  it("carries OWNER policies bound to the wildcard tenant and resources", async () => {
+    const ctx = await contextFor({ authorization: "admin" });
+    expect(ctx.policies.length).toBeGreaterThan(0);
+    expect(ctx.policies.every((p) => p.tenantId === OrganizationId("*"))).toBe(
+      true,
+    );
+    expect(ctx.policies.every((p) => p.roleId === SystemRoleId("OWNER"))).toBe(
+      true,
+    );
+    const org = ctx.policies.find((p) => p.id === "system/OWNER:organization");
+    const project = ctx.policies.find((p) => p.id === "system/OWNER:project");
+    expect(org?.resources).toEqual([OrganizationId("*")]);
+    expect(project?.resources).toEqual([ProjectId("*")]);
+    // The org wildcard carries an org action and the project wildcard a
+    // project action, i.e. each kind's policy bound to its own resource.
+    expect(org?.actions).toContain("projects:create");
+    expect(project?.actions).toContain("prompts:read");
   });
 });
 

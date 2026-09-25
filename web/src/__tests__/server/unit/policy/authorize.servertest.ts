@@ -15,9 +15,13 @@ import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 const TENANT: TenantId = OrganizationId("org_1");
 const OTHER_TENANT: TenantId = OrganizationId("org_2");
+const WILDCARD_TENANT: TenantId = OrganizationId("*");
 const PRJ: ResourceId = ProjectId("prj_1");
 const OTHER_PRJ: ResourceId = ProjectId("prj_2");
 const WILDCARD: ResourceId = ProjectId("*");
+const ORG: ResourceId = OrganizationId("org_1");
+const OTHER_ORG: ResourceId = OrganizationId("org_2");
+const WILDCARD_ORG: ResourceId = OrganizationId("*");
 
 const policy = (over: Partial<Policy> = {}): Policy => ({
   id: "system/OWNER:project",
@@ -29,24 +33,18 @@ const policy = (over: Partial<Policy> = {}): Policy => ({
   ...over,
 });
 
-const ctx = (
-  policies: Policy[],
-  kind: "apiKey" | "admin" = "apiKey",
-): AuthorizationContext => ({
-  principal:
-    kind === "admin"
-      ? { kind: "admin", userId: null }
-      : {
-          kind: "apiKey",
-          apiKeyId: "key_1",
-          userId: null,
-          isInAppAgentKey: false,
-          publicKey: "pk-lf-1",
-          scope: "PROJECT",
-          presentation: "privateKey",
-          organizations: [],
-          boundResource: { orgId: "org_1", projectId: "prj_1" },
-        },
+const ctx = (policies: Policy[]): AuthorizationContext => ({
+  principal: {
+    kind: "apiKey",
+    apiKeyId: "key_1",
+    userId: null,
+    isInAppAgentKey: false,
+    publicKey: "pk-lf-1",
+    scope: "PROJECT",
+    presentation: "privateKey",
+    organizations: [],
+    boundResource: { orgId: "org_1", projectId: "prj_1" },
+  },
   policies,
 });
 
@@ -151,24 +149,75 @@ describe("authorize — deny-overrides and deny-by-default", () => {
   });
 });
 
-describe("authorize — the project wildcard is never a target", () => {
+describe("authorize — kind wildcards are never a target", () => {
   it("denies an authorization check against project/*", () => {
     const wildcardGrant = ctx([policy({ resources: [WILDCARD] })]);
     expect(
       authorize(wildcardGrant, TENANT, "prompts:read", WILDCARD).success,
     ).toBe(false);
   });
+  it("denies an authorization check against organization/*", () => {
+    const wildcardGrant = ctx([
+      policy({
+        tenantId: WILDCARD_TENANT,
+        resources: [WILDCARD_ORG],
+        actions: ["projects:create"],
+      }),
+    ]);
+    expect(
+      authorize(wildcardGrant, TENANT, "projects:create", WILDCARD_ORG).success,
+    ).toBe(false);
+  });
 });
 
-describe("authorize — admin superuser", () => {
-  const admin = ctx([], "admin");
-  it("authorizes any action on any tenant and resource", () => {
-    expect(authorize(admin, TENANT, "prompts:read", OTHER_PRJ).success).toBe(
-      true,
-    );
+describe("authorize — organization/* tenant spans every tenant", () => {
+  const grant = ctx([
+    policy({ tenantId: WILDCARD_TENANT, resources: [WILDCARD] }),
+  ]);
+  it("grants a project of one tenant", () => {
+    expect(authorize(grant, TENANT, "prompts:read", PRJ).success).toBe(true);
+  });
+  it("grants a project of another tenant with the same policy", () => {
     expect(
-      authorize(admin, OTHER_TENANT, "projects:create", OrganizationId("x"))
-        .success,
+      authorize(grant, OTHER_TENANT, "prompts:read", OTHER_PRJ).success,
+    ).toBe(true);
+  });
+});
+
+describe("authorize — organization/* resource wildcard covers org targets", () => {
+  const grant = ctx([
+    policy({
+      tenantId: WILDCARD_TENANT,
+      resources: [WILDCARD_ORG],
+      actions: ["projects:create"],
+    }),
+  ]);
+  it("grants an org target under any tenant", () => {
+    expect(authorize(grant, TENANT, "projects:create", ORG).success).toBe(true);
+    expect(
+      authorize(grant, OTHER_TENANT, "projects:create", OTHER_ORG).success,
+    ).toBe(true);
+  });
+  it("an exact org resource still overrides the org wildcard", () => {
+    const c = ctx([
+      policy({
+        id: "org-wildcard",
+        tenantId: WILDCARD_TENANT,
+        resources: [WILDCARD_ORG],
+        actions: ["projects:create"],
+        effect: "ALLOW",
+      }),
+      policy({
+        id: "org-exact-deny",
+        tenantId: WILDCARD_TENANT,
+        resources: [ORG],
+        actions: ["projects:create"],
+        effect: "DENY",
+      }),
+    ]);
+    expect(authorize(c, TENANT, "projects:create", ORG).success).toBe(false);
+    expect(
+      authorize(c, OTHER_TENANT, "projects:create", OTHER_ORG).success,
     ).toBe(true);
   });
 });
