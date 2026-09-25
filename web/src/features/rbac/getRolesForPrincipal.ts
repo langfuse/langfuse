@@ -10,54 +10,51 @@ import {
   type RoleId,
   type TenantId,
 } from "@langfuse/shared/rbac";
-import {
-  prisma as defaultPrisma,
-  type PrismaClient,
-  type SystemRoleAssignment,
-} from "@langfuse/shared/src/db";
+import { type PrismaClient } from "@langfuse/shared/src/db";
 
 import {
   type Policy,
   type SystemRolePolicy,
 } from "@/src/features/auth/policy/types";
-import { systemRoleAccessRights } from "@/src/features/rbac/constants/systemRoleAccessRights";
+import {
+  getSystemRoles,
+  type SystemRoleAssignmentWithRole,
+} from "@/src/features/rbac/getSystemRoles";
 import { type Role } from "@/src/features/rbac/types";
 
 /** getRolesForPrincipal loads a principal's system-role assignments and expands them into bound roles; custom roles are a later ticket. */
 export async function getRolesForPrincipal(
   principalId: PrincipalId,
-  prisma: PrismaClient = defaultPrisma,
+  prisma?: PrismaClient,
 ): Promise<Role[]> {
-  const assignments = await prisma.systemRoleAssignment.findMany({
-    where: { principalId },
-  });
+  const assignments = await getSystemRoles(principalId, prisma);
   return toRoles(assignments);
 }
 
 /** toRoles turns each assignment into a role whose policies are bound to the owner's resources. */
-function toRoles(ras: SystemRoleAssignment[]): Role[] {
+function toRoles(ras: SystemRoleAssignmentWithRole[]): Role[] {
   const resourcesByRoleId = toResourcesByRoleId(ras);
   return ras.map((ra) => {
     const roleId = toRoleId(ra);
     const tenantId = OrganizationId(ra.orgId);
     const resources = resourcesByRoleId[roleId] ?? [];
-    const policies = systemRoleAccessRights[ra.systemRole]
+    const policies = ra.role.policies
       .map((policy) => bindPolicy(policy, roleId, tenantId, resources))
       .filter((policy): policy is Policy => policy !== null);
     return {
       id: roleId,
       tenantId,
-      name: ra.systemRole,
-      description: "",
+      name: ra.role.name,
+      description: ra.role.description,
       policies,
-      tags: [],
+      tags: ra.role.tags,
     };
   });
 }
 
 /** toResourcesByRoleId groups every role's bound resources across a principal's assignments. */
 function toResourcesByRoleId(
-  ras: SystemRoleAssignment[],
+  ras: SystemRoleAssignmentWithRole[],
 ): Partial<Record<RoleId, ResourceId[]>> {
   const out: Partial<Record<RoleId, ResourceId[]>> = {};
   for (const ra of ras) {
@@ -75,7 +72,7 @@ function resourcesForOwner(ownerId: OwnerId): ResourceId[] {
 }
 
 /** toRoleId is the role id an assignment names; the system-only phase has no custom roles. */
-function toRoleId(ra: SystemRoleAssignment): RoleId {
+function toRoleId(ra: SystemRoleAssignmentWithRole): RoleId {
   return SystemRoleId(ra.systemRole);
 }
 
