@@ -29,7 +29,9 @@ import {
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import {
   RolePermissionList,
+  rolePermissionCount,
   rolePermissionCountLabel,
+  rolePermissionNoun,
 } from "@/src/features/public-api/components/RolePermissionList";
 import {
   apiKeyRoleIcons,
@@ -285,9 +287,10 @@ function PermissionsPopup({
                 <span>{def.name}</span>
                 <Badge
                   variant="tertiary"
-                  className="ml-1 shrink-0 tabular-nums"
+                  className="ml-1 shrink-0 text-[0.7rem] uppercase tabular-nums"
                 >
-                  {rolePermissionCountLabel(role)}
+                  <span className="font-bold">{rolePermissionCount(role)}</span>{" "}
+                  {rolePermissionNoun(role)}
                 </Badge>
               </DialogTitle>
             </DialogHeader>

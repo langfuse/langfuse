@@ -116,8 +116,8 @@ const entityMeta: Record<string, { title: string; description: string }> = {
   automations: { title: "Automations", description: "Manage automations" },
   alerts: { title: "Alerts", description: "Manage alerts" },
   gateway: {
-    title: "LLM gateway",
-    description: "Invoke the organization's LLM gateway",
+    title: "AI Gateway",
+    description: "Invoke the organization's AI Gateway",
   },
   experiments: { title: "Experiments", description: "Manage experiments" },
   sessions: { title: "Sessions", description: "Read and manage sessions" },
@@ -152,17 +152,19 @@ const groupByEntity = (scopes: string[]): EntityGroup[] => {
 };
 
 /** rolePermissionCount is the total number of actions a role grants across all its policies. */
-const rolePermissionCount = (role: SystemRole): number =>
+export const rolePermissionCount = (role: SystemRole): number =>
   systemRoleAccessRights[role].policies.reduce(
     (total, policy) => total + policy.actions.length,
     0,
   );
 
-/** rolePermissionCountLabel renders the permission count with a singular/plural noun. */
-export const rolePermissionCountLabel = (role: SystemRole): string => {
-  const count = rolePermissionCount(role);
-  return `${count} ${count === 1 ? "permission" : "permissions"}`;
-};
+/** rolePermissionNoun is the singular/plural noun for a role's permission count. */
+export const rolePermissionNoun = (role: SystemRole): string =>
+  rolePermissionCount(role) === 1 ? "permission" : "permissions";
+
+/** rolePermissionCountLabel renders the permission count with its singular/plural noun. */
+export const rolePermissionCountLabel = (role: SystemRole): string =>
+  `${rolePermissionCount(role)} ${rolePermissionNoun(role)}`;
 
 /** SectionHeader is a sticky section label that shows a bottom border only while pinned to the top of the scroll area. */
 const SectionHeader = ({ label }: { label: string }) => {
@@ -189,8 +191,8 @@ const SectionHeader = ({ label }: { label: string }) => {
     <span
       ref={ref}
       className={cn(
-        "bg-modal text-muted-foreground sticky -top-px z-10 mt-4 block px-4 py-2 text-xs font-bold tracking-wider uppercase",
-        stuck && "border-b",
+        "bg-modal text-muted-foreground sticky -top-px z-10 block px-4 pt-4 pb-2 text-xs font-bold tracking-wider uppercase",
+        stuck && "shadow-[0_8px_8px_-4px_hsl(var(--modal))]",
       )}
     >
       {label}
@@ -210,7 +212,7 @@ export const RolePermissionList = ({ role }: { role: SystemRole }) => {
     );
 
   return (
-    <div className="flex flex-col pb-8">
+    <div className="flex flex-col pb-5">
       {resourceKindOrder.map((kind) => {
         const scopes = policies
           .filter((policy) => policy.resourceKind === kind)
@@ -218,7 +220,7 @@ export const RolePermissionList = ({ role }: { role: SystemRole }) => {
         if (scopes.length === 0) return null;
 
         return (
-          <div key={kind} className="flex flex-col">
+          <div key={kind} className="mb-2 flex flex-col">
             <SectionHeader label={resourceKindLabels[kind]} />
             <div className="flex flex-col gap-2 px-4">
               {groupByEntity(scopes).map((group) => (
