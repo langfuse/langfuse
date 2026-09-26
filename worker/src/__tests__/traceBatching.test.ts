@@ -424,6 +424,8 @@ describe("trace micro-batch scheduling with Redis", () => {
   const originalSamplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
   const originalStrategy = env.LANGFUSE_TRACE_BATCH_STRATEGY;
   const originalMaxSize = env.LANGFUSE_TRACE_BATCH_MAX_SIZE;
+  const originalMaxEstimatedBytes =
+    env.LANGFUSE_TRACE_BATCH_MAX_ESTIMATED_BYTES;
   const originalPendingTtl = env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS;
   const originalIdle = env.LANGFUSE_TRACE_BATCH_IDLE_MS;
   let queue: Queue<TQueueJobTypes[QueueName.TraceBatch]>;
@@ -467,6 +469,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 1;
     env.LANGFUSE_TRACE_BATCH_STRATEGY = "project";
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 60;
+    env.LANGFUSE_TRACE_BATCH_MAX_ESTIMATED_BYTES = 0;
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 7_200_000;
     await client().del(dueKey, stateKey, "{trace-batch}:dispatcher");
     const redisConnection = createNewRedisInstance();
@@ -491,6 +494,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = originalSamplingRate;
     env.LANGFUSE_TRACE_BATCH_STRATEGY = originalStrategy;
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = originalMaxSize;
+    env.LANGFUSE_TRACE_BATCH_MAX_ESTIMATED_BYTES = originalMaxEstimatedBytes;
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = originalPendingTtl;
     env.LANGFUSE_TRACE_BATCH_IDLE_MS = originalIdle;
     await queue.obliterate({ force: true });
@@ -1357,6 +1361,100 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect(await client().hlen(stateKey)).toBe(0);
     },
   );
+
+  it.each(["project", "locality"] as const)(
+    "bounds estimated bytes across hydration windows with %s batching",
+    async (strategy) => {
+      env.LANGFUSE_TRACE_BATCH_STRATEGY = strategy;
+      env.LANGFUSE_TRACE_BATCH_MAX_ESTIMATED_BYTES = 200;
+      const events = Array.from({ length: 1_003 }, (_, index) =>
+        event(`trace-${String(index).padStart(4, "0")}`, 1_000_000, 10),
+      );
+      events[998].serializedEventBytes = 201;
+      events[1_000].serializedEventBytes = 200;
+      events[1_001].serializedEventBytes = 0;
+      await trackTraceBatchActivity("project", events);
+      const unknownMember = member("project", events[999].traceId);
+      const unknownState = JSON.parse(
+        (await client().hget(stateKey, unknownMember))!,
+      );
+      delete unknownState.serializedEventBytes;
+      await client().hset(
+        stateKey,
+        unknownMember,
+        JSON.stringify(unknownState),
+      );
+      const due = Date.now() - 10_000;
+      await client().zadd(
+        dueKey,
+        ...events.flatMap(({ traceId }, index) => [
+          due + index,
+          member("project", traceId),
+        ]),
+      );
+      const add = vi.spyOn(queue, "add");
+
+      await runner().processBatch();
+
+      const batches = add.mock.calls.map(([, job]) => job.payload.traces);
+      const sizes = new Map(
+        events.map(({ traceId, serializedEventBytes }) => [
+          traceId,
+          serializedEventBytes,
+        ]),
+      );
+      expect(batches.some((batch) => batch.length === 20)).toBe(true);
+      for (const batch of batches) {
+        expect(batch.length).toBeLessThanOrEqual(60);
+        if (
+          batch.some(
+            ({ traceId }) =>
+              traceId === events[998].traceId ||
+              traceId === events[999].traceId,
+          )
+        ) {
+          expect(batch).toHaveLength(1);
+        } else {
+          expect(
+            batch.reduce((sum, { traceId }) => sum + sizes.get(traceId)!, 0),
+          ).toBeLessThanOrEqual(200);
+        }
+      }
+      const dispatchedIds = batches.flat().map(({ traceId }) => traceId);
+      expect(dispatchedIds).toHaveLength(events.length);
+      expect(new Set(dispatchedIds)).toEqual(
+        new Set(events.map(({ traceId }) => traceId)),
+      );
+      expect(await queue.getWaitingCount()).toBe(batches.length);
+      expect(await client().zcard(dueKey)).toBe(0);
+      expect(await client().hlen(stateKey)).toBe(0);
+    },
+  );
+
+  it("keeps unqueued byte-limited batches pending after enqueue failure", async () => {
+    env.LANGFUSE_TRACE_BATCH_MAX_ESTIMATED_BYTES = 100;
+    const events = ["a", "b", "c"].map((id) => event(id, 1_000_000, 60));
+    await trackTraceBatchActivity("project", events);
+    await makeDue("project", ...events.map(({ traceId }) => traceId));
+    const enqueue = queue.add.bind(queue);
+    const add = vi.spyOn(queue, "add");
+    add
+      .mockImplementationOnce(enqueue)
+      .mockRejectedValueOnce(new Error("enqueue failed"));
+
+    await runner().processBatch();
+
+    expect(await queue.getWaitingCount()).toBe(1);
+    expect(await client().zrange(dueKey, 0, -1)).toEqual([
+      member("project", "b"),
+      member("project", "c"),
+    ]);
+    expect(await client().hlen(stateKey)).toBe(2);
+    await runner().processBatch();
+    expect(await queue.getWaitingCount()).toBe(3);
+    expect(await client().zcard(dueKey)).toBe(0);
+    expect(await client().hlen(stateKey)).toBe(0);
+  });
 
   it("keeps project locality and a bounded partial tail across hydration chunks", async () => {
     env.LANGFUSE_TRACE_BATCH_STRATEGY = "locality";
