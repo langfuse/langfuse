@@ -219,6 +219,11 @@ function lowerSingle(
       return filterNode(key, op, [filter.value]);
     }
     case "numberObject": {
+      if (registry.columnIdOf(filter.column) === "metadata") {
+        const key = `metadata.${quoteIfNeeded(filter.key)}`;
+        const op = filter.operator === "=" ? "=" : filter.operator;
+        return filterNode(key, op, [String(filter.value)]);
+      }
       const path = scorePathOf(filter.column, filter.key, registry);
       if (path === null) return null;
       const op = filter.operator === "=" ? "=" : filter.operator;
@@ -410,7 +415,7 @@ function normalizeFilterValues(
   ) {
     op = "=";
   }
-  const values = normalizeValuesFor(ref, f.values, scoreTypes);
+  const values = normalizeValuesFor(ref, op, f.values, scoreTypes);
   return { ...f, op, values };
 }
 
@@ -433,6 +438,7 @@ function exactEqualsBareForm(ref: FieldRef): boolean {
 
 function normalizeValuesFor(
   ref: FieldRef,
+  op: FilterNode["op"],
   values: string[],
   scoreTypes?: ScoreTypeContext,
 ): string[] {
@@ -453,6 +459,14 @@ function normalizeValuesFor(
     // never folded.
     if (resolveScoreType(scoreTypes, ref.level, ref.key) === "categorical")
       return values;
+    return values.map(normalizeNumberString);
+  }
+  if (
+    ref.type === "metadata" &&
+    (op === ">" || op === "<" || op === ">=" || op === "<=")
+  ) {
+    // Comparisons lower via Number(); canonicalize so `metadata.x:>2.0`
+    // matches the re-derived `:>2` and is not silently rewritten.
     return values.map(normalizeNumberString);
   }
   return values; // metadata text / pseudo — verbatim
