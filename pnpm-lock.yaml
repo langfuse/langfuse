@@ -80,6 +80,7 @@ patchedDependencies:
   '@radix-ui/react-select@2.2.6': c82ebbf31f9b961dce52b75bdeb703852ddf4a1ecea0b96b284218f0c1c07f23
   next-auth@4.24.15: 298683aaa31566643f1899990a065b342ad777d8613f50a25ddc44dd46fb5b4d
   react-resizable-panels@4.8.0: 4b892c72909f6878974d9b325e85a5e369e3e676cef3d3eb563f822660218c60
+  vfile-message@4.0.3: ad448ed2a92f8b2accff74b823d60dfb9ddea08b820a0c33215ba6f4ee592a38
 
 importers:
 
@@ -21298,7 +21299,7 @@ snapshots:
       hast-util-from-parse5: 8.0.3
       parse5: 7.3.0
       vfile: 6.0.3
-      vfile-message: 4.0.3
+      vfile-message: 4.0.3(patch_hash=ad448ed2a92f8b2accff74b823d60dfb9ddea08b820a0c33215ba6f4ee592a38)
 
   hast-util-from-parse5@8.0.3:
     dependencies:
@@ -21395,7 +21396,7 @@ snapshots:
       space-separated-tokens: 2.0.2
       style-to-js: 1.1.21
       unist-util-position: 5.0.0
-      vfile-message: 4.0.3
+      vfile-message: 4.0.3(patch_hash=ad448ed2a92f8b2accff74b823d60dfb9ddea08b820a0c33215ba6f4ee592a38)
     transitivePeerDependencies:
       - supports-color
 
@@ -22368,7 +22369,7 @@ snapshots:
       parse-entities: 4.0.2
       stringify-entities: 4.0.4
       unist-util-stringify-position: 4.0.0
-      vfile-message: 4.0.3
+      vfile-message: 4.0.3(patch_hash=ad448ed2a92f8b2accff74b823d60dfb9ddea08b820a0c33215ba6f4ee592a38)
     transitivePeerDependencies:
       - supports-color
 
@@ -25120,7 +25121,7 @@ snapshots:
       '@types/unist': 3.0.3
       vfile: 6.0.3
 
-  vfile-message@4.0.3:
+  vfile-message@4.0.3(patch_hash=ad448ed2a92f8b2accff74b823d60dfb9ddea08b820a0c33215ba6f4ee592a38):
     dependencies:
       '@types/unist': 3.0.3
       unist-util-stringify-position: 4.0.0
@@ -25128,7 +25129,7 @@ snapshots:
   vfile@6.0.3:
     dependencies:
       '@types/unist': 3.0.3
-      vfile-message: 4.0.3
+      vfile-message: 4.0.3(patch_hash=ad448ed2a92f8b2accff74b823d60dfb9ddea08b820a0c33215ba6f4ee592a38)
 
   vite-plugin-storybook-nextjs@3.3.2(next@16.3.6(@babel/core@7.29.7(supports-color@8.1.1))(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(storybook@10.5.10(@types/react@19.2.14)(prettier@3.8.3)(react@19.2.4))(supports-color@8.1.1)(typescript@7.0.2)(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0)):
     dependencies:
