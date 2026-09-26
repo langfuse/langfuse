@@ -194,8 +194,10 @@ describe.runIf(
     await compare(rows, 16);
   }, 120_000);
 
+  // Vitest retries must exercise the same generated cases after a failure.
+  const seed = Number(process.env.FAST_CHECK_SEED ?? randomInt(2 ** 31));
+
   it("persists generated rows identically through the production JS adapter", async () => {
-    const seed = Number(process.env.FAST_CHECK_SEED ?? randomInt(2 ** 31));
     process.stderr.write(`Native writer parity: seed=${seed}\n`);
     await fc.assert(
       fc.asyncProperty(
