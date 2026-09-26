@@ -7,10 +7,8 @@ import {
   systemRoleAccessRights,
 } from "@langfuse/shared/rbac";
 
-import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
-  Dialog,
   DialogBody,
   DialogContent,
   DialogFooter,
@@ -27,14 +25,10 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
+import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
+import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
+import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 import {
-  RolePermissionList,
-  rolePermissionCount,
-  rolePermissionCountLabel,
-  rolePermissionNoun,
-} from "@/src/features/public-api/components/RolePermissionList";
-import {
-  apiKeyRoleIcons,
   expiryPresetOptions,
   resolveExpiresAt,
   type ExpiryPreset,
@@ -127,7 +121,7 @@ function ApiKeyCreateForm({
   };
 
   const selectedRoleDef = systemRoleAccessRights[role];
-  const SelectedRoleIcon = apiKeyRoleIcons[role];
+  const SelectedRoleIcon = roleIcons[role];
 
   return (
     <DialogContent closeOnInteractionOutside>
@@ -203,7 +197,7 @@ function ApiKeyCreateForm({
               <SelectContent>
                 {roles.map((r) => {
                   const def = systemRoleAccessRights[r];
-                  const Icon = apiKeyRoleIcons[r];
+                  const Icon = roleIcons[r];
                   return (
                     <SelectItem
                       key={r}
@@ -252,7 +246,7 @@ function ApiKeyCreateForm({
           </div>
         </div>
 
-        <PermissionsPopup
+        <RolePermissionPopup
           role={permissionsRole}
           onClose={() => setPermissionsRole(null)}
         />
@@ -263,43 +257,5 @@ function ApiKeyCreateForm({
         </Button>
       </DialogFooter>
     </DialogContent>
-  );
-}
-
-function PermissionsPopup({
-  role,
-  onClose,
-}: {
-  role: SystemRole | null;
-  onClose: () => void;
-}) {
-  const def = role ? systemRoleAccessRights[role] : undefined;
-  const Icon = role ? apiKeyRoleIcons[role] : undefined;
-
-  return (
-    <Dialog open={role !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
-        {role && def && Icon && (
-          <>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Icon className="h-4 w-4 shrink-0" />
-                <span>{def.name}</span>
-                <Badge
-                  variant="tertiary"
-                  className="ml-1 shrink-0 text-[0.7rem] uppercase tabular-nums"
-                >
-                  <span className="font-bold">{rolePermissionCount(role)}</span>{" "}
-                  {rolePermissionNoun(role)}
-                </Badge>
-              </DialogTitle>
-            </DialogHeader>
-            <DialogBody className="p-0">
-              <RolePermissionList role={role} />
-            </DialogBody>
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
   );
 }
