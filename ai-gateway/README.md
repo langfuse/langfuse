@@ -393,9 +393,10 @@ with the available HTTP status in its status message. Full mode also includes a
 bounded provider error code/message; usage mode omits these details because provider
 errors may echo request content.
 
-Provisional upload limits are 32 concurrent uploads, 1024 queued records, 4 MiB
-serialized span and credentials per record, 64 MiB total retained span/credential
-bytes by default (`LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES`), 8 MiB of OTLP JSON per
+Provisional upload limits are 32 concurrent uploads, 1024 queued records, 16 MiB
+serialized span and credentials per record (a 5 MiB input plus 1 MiB output, each
+possibly doubled by JSON string escaping), 64 MiB total retained span/credential
+bytes by default (`LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES`), 20 MiB of OTLP JSON per
 payload before gzip compression, and
 64 KiB ingestion responses. Serialization and mapping have additional bounded memory
 overhead; these byte budgets are not an RSS limit. Uploads have a two-second connect
@@ -613,10 +614,18 @@ hands an owned `InferenceFacts` record to telemetry for a safe debug summary and
 batched upload. Capture and upload run independently of log level; debug emission
 alone is gated.
 
-Capture is limited to 1 MiB request inspection, 1 MiB JSON/SSE event inspection,
+Capture is limited to 5 MiB request inspection, 1 MiB JSON/SSE event inspection,
 1 MiB retained output and 256 output items per execution. The active-request limit
 bounds the number of captures. Trusted key metadata is bounded by the resolver's
-256 KiB response limit. Oversized input is omitted; oversized output items
+256 KiB response limit. In full mode, an input that is not recorded (over 5 MiB,
+content-encoded or not a JSON object) is explained in generation metadata:
+`langfuse.gateway.request.input_omitted` (`size_limit`, `content_encoding` or
+`invalid_json`), `langfuse.gateway.request.body_bytes`, and, for `size_limit`,
+`langfuse.gateway.request.input_limit_bytes`. If a generation with its input would
+exceed the telemetry record limit (capped at the retained buffer size) or the buffer
+is full, the input is dropped from that record and the generation is still uploaded,
+with `input_omitted` set to `record_limit` or `telemetry_buffer` and
+`langfuse.gateway.request.input_bytes`. Oversized output items
 are skipped and completeness is false. Malformed, truncated or compressed bodies
 do not interrupt the relay. Capture buffers are independent of forwarding, so
 these limits never cap the actual provider response. Media is not fetched/uploaded.

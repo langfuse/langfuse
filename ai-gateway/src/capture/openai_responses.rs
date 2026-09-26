@@ -1,7 +1,7 @@
 //! `OpenAI` Responses request, JSON response and completed SSE item capture.
 use super::{
-    MAX_CAPTURE_BYTES, MAX_FACT_STRING, MAX_ITEMS, bounded_string, facts::ProviderFacts,
-    identity_encoding, response::ResponseBody,
+    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, bounded_string, facts::ProviderFacts,
+    parse_request, response::ResponseBody,
 };
 use crate::{resolution::IngestionMode, telemetry};
 use axum::http::HeaderMap;
@@ -35,12 +35,15 @@ impl OpenAiResponsesCapture {
             response_valid: true,
             client_metadata: None,
         };
-        if identity_encoding(headers)
-            && body.len() <= MAX_CAPTURE_BYTES
-            && let Ok(Value::Object(request)) = serde_json::from_slice(body)
-        {
-            capture.capture_request(request);
-            capture.request_complete = true;
+        match parse_request(headers, body) {
+            Ok(request) => {
+                capture.capture_request(request);
+                capture.request_complete = true;
+            }
+            Err(omission) if mode == IngestionMode::Full => {
+                capture.facts.input_omission = Some(omission);
+            }
+            Err(_) => {}
         }
         capture
     }
@@ -252,7 +255,7 @@ impl OpenAiResponsesCapture {
             .items
             .get(&index)
             .map_or(0, |item| item.to_string().len());
-        if self.output_bytes - previous + size > MAX_CAPTURE_BYTES
+        if self.output_bytes - previous + size > MAX_OUTPUT_CAPTURE_BYTES
             || (!self.items.contains_key(&index) && self.items.len() >= MAX_ITEMS)
         {
             self.response_valid = false;

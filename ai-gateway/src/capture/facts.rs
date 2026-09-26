@@ -22,6 +22,24 @@ impl RelayOutcome {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum InputOmissionReason {
+    SizeLimit,
+    ContentEncoding,
+    InvalidJson,
+    /// The mapped generation exceeded the telemetry record limit.
+    RecordLimit,
+    /// The telemetry buffer had no room for the generation with its input.
+    TelemetryBuffer,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+pub(crate) struct InputOmission {
+    pub reason: InputOmissionReason,
+    pub body_bytes: usize,
+}
+
 #[derive(Serialize)]
 pub(crate) struct InferenceFacts {
     pub api_format: &'static str,
@@ -46,6 +64,8 @@ pub(crate) struct ProviderFacts {
     pub error_message: Option<String>,
     pub usage_details: Option<Value>,
     pub input: Option<Value>,
+    /// Set in full mode when the request body could not be recorded as `input`.
+    pub input_omission: Option<InputOmission>,
     pub output: Option<Value>,
     pub provider_response_id: Option<String>,
     pub provider_request_id: Option<String>,

@@ -3,7 +3,7 @@ use chrono::{DateTime, SecondsFormat};
 use serde_json::{Map, Value, json};
 
 use super::context::GenerationContext;
-use crate::capture::{InferenceFacts, RelayOutcome};
+use crate::capture::{InferenceFacts, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES, RelayOutcome};
 
 pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value {
     let full = facts.metadata.get("ingestion_mode").and_then(Value::as_str) == Some("full");
@@ -91,6 +91,41 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
     span
 }
 
+/// Removes the recorded input from a mapped span and explains the omission in its
+/// metadata. Returns false when the span carries no input.
+pub(super) fn omit_input(span: &mut Value, reason: InputOmissionReason) -> bool {
+    let Some(attributes) = span["attributes"].as_array_mut() else {
+        return false;
+    };
+    let Some(index) = attributes
+        .iter()
+        .position(|attribute| attribute["key"] == "langfuse.observation.input")
+    else {
+        return false;
+    };
+    let input = attributes.remove(index);
+    let input_bytes = input["value"]["stringValue"].as_str().map_or(0, str::len);
+    if let Some(value) = attributes
+        .iter_mut()
+        .find(|attribute| attribute["key"] == "langfuse.observation.metadata")
+        .map(|attribute| &mut attribute["value"]["stringValue"])
+        && let Some(Value::Object(mut metadata)) = value
+            .as_str()
+            .and_then(|value| serde_json::from_str(value).ok())
+    {
+        metadata.insert(
+            "langfuse.gateway.request.input_omitted".into(),
+            json!(reason),
+        );
+        metadata.insert(
+            "langfuse.gateway.request.input_bytes".into(),
+            json!(input_bytes),
+        );
+        *value = Value::String(Value::Object(metadata).to_string());
+    }
+    true
+}
+
 fn reserved_metadata(key: &str) -> bool {
     [
         "langfuse.gateway",
@@ -156,6 +191,22 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
     }
     for (key, value) in &facts.inference.request_metadata {
         metadata.insert(format!("langfuse.gateway.request.{key}"), value.clone());
+    }
+    if let Some(omission) = facts.inference.input_omission {
+        metadata.insert(
+            "langfuse.gateway.request.input_omitted".into(),
+            json!(omission.reason),
+        );
+        metadata.insert(
+            "langfuse.gateway.request.body_bytes".into(),
+            json!(omission.body_bytes),
+        );
+        if omission.reason == InputOmissionReason::SizeLimit {
+            metadata.insert(
+                "langfuse.gateway.request.input_limit_bytes".into(),
+                json!(MAX_INPUT_CAPTURE_BYTES),
+            );
+        }
     }
     metadata
 }
@@ -579,6 +630,47 @@ mod tests {
         for key in ["metadata", "prompt_cache_key", "safety_identifier", "user"] {
             assert!(metadata.get(key).is_none());
         }
+    }
+
+    #[test]
+    fn omitted_input_is_explained_in_gateway_metadata() {
+        let mut facts = facts();
+        facts.inference.input = None;
+        facts.inference.input_omission = Some(crate::capture::InputOmission {
+            reason: InputOmissionReason::SizeLimit,
+            body_bytes: MAX_INPUT_CAPTURE_BYTES + 1,
+        });
+        let attrs = attributes(&span(facts, &context()));
+        assert!(!attrs.contains_key("langfuse.observation.input"));
+        let metadata = metadata(&attrs);
+        assert_eq!(
+            metadata["langfuse.gateway.request.input_omitted"],
+            "size_limit"
+        );
+        assert_eq!(
+            metadata["langfuse.gateway.request.body_bytes"],
+            MAX_INPUT_CAPTURE_BYTES + 1
+        );
+        assert_eq!(
+            metadata["langfuse.gateway.request.input_limit_bytes"],
+            MAX_INPUT_CAPTURE_BYTES
+        );
+
+        let mut facts = self::facts();
+        facts.inference.input_omission = Some(crate::capture::InputOmission {
+            reason: InputOmissionReason::ContentEncoding,
+            body_bytes: 10,
+        });
+        let metadata = self::metadata(&attributes(&span(facts, &context())));
+        assert_eq!(
+            metadata["langfuse.gateway.request.input_omitted"],
+            "content_encoding"
+        );
+        assert!(
+            metadata
+                .get("langfuse.gateway.request.input_limit_bytes")
+                .is_none()
+        );
     }
 
     #[test]
