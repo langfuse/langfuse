@@ -28,7 +28,8 @@ const _unsafeNonSecureCopyToClipboard = (text: string) => {
     document.execCommand("copy");
     document.body.removeChild(textArea);
   } catch (error) {
-    console.error("Unable to copy to clipboard", error);
+    // warn, not error: console.error is captured by Sentry.
+    console.warn("Unable to copy to clipboard", error);
   }
 };
 
@@ -40,7 +41,13 @@ const _unsafeNonSecureCopyToClipboard = (text: string) => {
  */
 export const copyTextToClipboard = async (text: string) => {
   if (typeof navigator.clipboard?.writeText === "function") {
-    return navigator.clipboard.writeText(text);
+    try {
+      return await navigator.clipboard.writeText(text);
+    } catch {
+      // writeText exists but rejected (Safari permission denial, missing
+      // user gesture, or an insecure context that still exposes the API).
+      // Fall through so the copy can still land via execCommand.
+    }
   }
   return _unsafeNonSecureCopyToClipboard(text);
 };
