@@ -1,0 +1,337 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=observation time=from+to 1`] = `
+{
+  "params": {
+    "param1": "golden-project",
+    "param2": "GENERATION",
+    "param3": [
+      "prompt-a",
+      "prompt-b",
+    ],
+    "param4": 2026-01-01T00:00:00.000Z,
+    "param5": 2026-01-31T23:59:59.000Z,
+    "param6": 0,
+    "param7": 0,
+    "param8": [
+      "NUMERIC",
+      "BOOLEAN",
+      "CATEGORICAL",
+      "TEXT",
+    ],
+  },
+  "sql": "WITH
+    prompt_events AS
+    (
+        SELECT
+            e.project_id AS project_id,
+            e.prompt_id AS prompt_id,
+            e.trace_id AS trace_id,
+            e.span_id AS span_id,
+            e.is_deleted AS is_deleted
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String}) AND (e.type = {param2:String}) AND (e.prompt_id IN ({param3:Array(String)})) AND (e.start_time >= {param4:DateTime64(3)}) AND (e.start_time <= {param5:DateTime64(3)})
+        ORDER BY e.event_ts DESC
+        LIMIT 1 BY
+            e.span_id,
+            e.project_id
+    )
+SELECT
+    e.prompt_id AS prompt_id,
+    s.id AS id,
+    s.name AS name,
+    s.string_value AS string_value,
+    s.value AS value,
+    s.source AS source,
+    s.data_type AS data_type,
+    s.comment AS comment,
+    s.timestamp AS timestamp,
+    length(mapKeys(s.metadata)) > {param6:Int64} AS has_metadata
+FROM scores AS s
+FINAL
+INNER JOIN prompt_events AS e ON (s.project_id = e.project_id) AND (s.trace_id = e.trace_id) AND (s.observation_id = e.span_id)
+WHERE (s.project_id = {param1:String}) AND (e.is_deleted = {param7:UInt8}) AND (s.name IS NOT NULL) AND (s.data_type IN ({param8:Array(String)})) AND (s.observation_id IS NOT NULL) AND ((s.trace_id, s.observation_id) IN (
+    SELECT
+        trace_id,
+        span_id
+    FROM prompt_events
+    WHERE is_deleted = {param7:UInt8}
+))
+GROUP BY
+    e.prompt_id,
+    s.id,
+    s.name,
+    s.string_value,
+    s.value,
+    s.source,
+    s.data_type,
+    s.comment,
+    s.timestamp,
+    s.metadata",
+}
+`;
+
+exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=observation time=unset 1`] = `
+{
+  "params": {
+    "param1": "golden-project",
+    "param2": "GENERATION",
+    "param3": [
+      "prompt-a",
+      "prompt-b",
+    ],
+    "param4": 0,
+    "param5": 0,
+    "param6": [
+      "NUMERIC",
+      "BOOLEAN",
+      "CATEGORICAL",
+      "TEXT",
+    ],
+  },
+  "sql": "WITH
+    prompt_events AS
+    (
+        SELECT
+            e.project_id AS project_id,
+            e.prompt_id AS prompt_id,
+            e.trace_id AS trace_id,
+            e.span_id AS span_id,
+            e.is_deleted AS is_deleted
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String}) AND (e.type = {param2:String}) AND (e.prompt_id IN ({param3:Array(String)}))
+        ORDER BY e.event_ts DESC
+        LIMIT 1 BY
+            e.span_id,
+            e.project_id
+    )
+SELECT
+    e.prompt_id AS prompt_id,
+    s.id AS id,
+    s.name AS name,
+    s.string_value AS string_value,
+    s.value AS value,
+    s.source AS source,
+    s.data_type AS data_type,
+    s.comment AS comment,
+    s.timestamp AS timestamp,
+    length(mapKeys(s.metadata)) > {param4:Int64} AS has_metadata
+FROM scores AS s
+FINAL
+INNER JOIN prompt_events AS e ON (s.project_id = e.project_id) AND (s.trace_id = e.trace_id) AND (s.observation_id = e.span_id)
+WHERE (s.project_id = {param1:String}) AND (e.is_deleted = {param5:UInt8}) AND (s.name IS NOT NULL) AND (s.data_type IN ({param6:Array(String)})) AND (s.observation_id IS NOT NULL) AND ((s.trace_id, s.observation_id) IN (
+    SELECT
+        trace_id,
+        span_id
+    FROM prompt_events
+    WHERE is_deleted = {param5:UInt8}
+))
+GROUP BY
+    e.prompt_id,
+    s.id,
+    s.name,
+    s.string_value,
+    s.value,
+    s.source,
+    s.data_type,
+    s.comment,
+    s.timestamp,
+    s.metadata",
+}
+`;
+
+exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=trace time=from 1`] = `
+{
+  "params": {
+    "param1": "golden-project",
+    "param2": "GENERATION",
+    "param3": [
+      "prompt-a",
+      "prompt-b",
+    ],
+    "param4": 2026-01-01T00:00:00.000Z,
+    "param5": 0,
+    "param6": 0,
+    "param7": [
+      "NUMERIC",
+      "BOOLEAN",
+      "CATEGORICAL",
+      "TEXT",
+    ],
+  },
+  "sql": "WITH
+    prompt_events AS
+    (
+        SELECT
+            e.project_id AS project_id,
+            e.prompt_id AS prompt_id,
+            e.trace_id AS trace_id,
+            e.span_id AS span_id,
+            e.is_deleted AS is_deleted
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String}) AND (e.type = {param2:String}) AND (e.prompt_id IN ({param3:Array(String)})) AND (e.start_time >= {param4:DateTime64(3)})
+        ORDER BY e.event_ts DESC
+        LIMIT 1 BY
+            e.span_id,
+            e.project_id
+    )
+SELECT
+    e.prompt_id AS prompt_id,
+    s.id AS id,
+    s.name AS name,
+    s.string_value AS string_value,
+    s.value AS value,
+    s.source AS source,
+    s.data_type AS data_type,
+    s.comment AS comment,
+    s.timestamp AS timestamp,
+    length(mapKeys(s.metadata)) > {param5:Int64} AS has_metadata
+FROM scores AS s
+FINAL
+INNER JOIN prompt_events AS e ON (s.project_id = e.project_id) AND (s.trace_id = e.trace_id)
+WHERE (s.project_id = {param1:String}) AND (e.is_deleted = {param6:UInt8}) AND (s.name IS NOT NULL) AND (s.data_type IN ({param7:Array(String)})) AND (s.observation_id IS NULL) AND (s.trace_id IN (
+    SELECT trace_id
+    FROM prompt_events
+    WHERE is_deleted = {param6:UInt8}
+))
+GROUP BY
+    e.prompt_id,
+    s.id,
+    s.name,
+    s.string_value,
+    s.value,
+    s.source,
+    s.data_type,
+    s.comment,
+    s.timestamp,
+    s.metadata",
+}
+`;
+
+exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=trace time=unset 1`] = `
+{
+  "params": {
+    "param1": "golden-project",
+    "param2": "GENERATION",
+    "param3": [
+      "prompt-a",
+      "prompt-b",
+    ],
+    "param4": 0,
+    "param5": 0,
+    "param6": [
+      "NUMERIC",
+      "BOOLEAN",
+      "CATEGORICAL",
+      "TEXT",
+    ],
+  },
+  "sql": "WITH
+    prompt_events AS
+    (
+        SELECT
+            e.project_id AS project_id,
+            e.prompt_id AS prompt_id,
+            e.trace_id AS trace_id,
+            e.span_id AS span_id,
+            e.is_deleted AS is_deleted
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String}) AND (e.type = {param2:String}) AND (e.prompt_id IN ({param3:Array(String)}))
+        ORDER BY e.event_ts DESC
+        LIMIT 1 BY
+            e.span_id,
+            e.project_id
+    )
+SELECT
+    e.prompt_id AS prompt_id,
+    s.id AS id,
+    s.name AS name,
+    s.string_value AS string_value,
+    s.value AS value,
+    s.source AS source,
+    s.data_type AS data_type,
+    s.comment AS comment,
+    s.timestamp AS timestamp,
+    length(mapKeys(s.metadata)) > {param4:Int64} AS has_metadata
+FROM scores AS s
+FINAL
+INNER JOIN prompt_events AS e ON (s.project_id = e.project_id) AND (s.trace_id = e.trace_id)
+WHERE (s.project_id = {param1:String}) AND (e.is_deleted = {param5:UInt8}) AND (s.name IS NOT NULL) AND (s.data_type IN ({param6:Array(String)})) AND (s.observation_id IS NULL) AND (s.trace_id IN (
+    SELECT trace_id
+    FROM prompt_events
+    WHERE is_deleted = {param5:UInt8}
+))
+GROUP BY
+    e.prompt_id,
+    s.id,
+    s.name,
+    s.string_value,
+    s.value,
+    s.source,
+    s.data_type,
+    s.comment,
+    s.timestamp,
+    s.metadata",
+}
+`;
+
+exports[`golden: scores.getScoresForExperimentItems > experimentIds set 1`] = `
+{
+  "params": {
+    "param1": 0,
+    "param2": "golden-project",
+    "param3": [
+      "exp-a",
+      "exp-b",
+    ],
+    "param4": "",
+    "param5": [
+      "NUMERIC",
+      "BOOLEAN",
+      "CATEGORICAL",
+    ],
+  },
+  "sql": "SELECT
+    s.id AS id,
+    s.timestamp AS timestamp,
+    s.project_id AS project_id,
+    s.environment AS environment,
+    s.trace_id AS trace_id,
+    s.session_id AS session_id,
+    s.observation_id AS observation_id,
+    s.dataset_run_id AS dataset_run_id,
+    s.name AS name,
+    s.value AS value,
+    s.source AS source,
+    s.comment AS comment,
+    s.author_user_id AS author_user_id,
+    s.config_id AS config_id,
+    s.data_type AS data_type,
+    s.string_value AS string_value,
+    s.queue_id AS queue_id,
+    s.execution_trace_id AS execution_trace_id,
+    s.created_at AS created_at,
+    s.updated_at AS updated_at,
+    s.event_ts AS event_ts,
+    s.is_deleted AS is_deleted,
+    length(mapKeys(s.metadata)) > {param1:Int64} AS has_metadata,
+    e.experiment_id AS experiment_id
+FROM
+(
+    SELECT
+        e.project_id,
+        e.experiment_id,
+        e.trace_id
+    FROM events_core AS e
+    WHERE (e.project_id = {param2:String}) AND (e.experiment_id IN ({param3:Array(String)})) AND (e.experiment_id != {param4:String})
+) AS e
+INNER JOIN scores AS s
+FINAL ON (e.trace_id = s.trace_id) AND (e.project_id = s.project_id) AND (s.project_id = {param2:String})
+WHERE s.data_type IN ({param5:Array(String)})
+ORDER BY s.event_ts DESC
+LIMIT 1 BY
+    s.id,
+    s.project_id,
+    e.experiment_id",
+}
+`;

@@ -37,7 +37,7 @@
 - Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
 - Query-builder AST (server half, WIP): `src/server/query-ast/*` — the Kysely
-  ClickHouse dialect (ARRAY JOIN / LIMIT BY / metadata indexOf nodes,
+  ClickHouse dialect (ARRAY JOIN / LIMIT BY / FINAL / metadata indexOf nodes,
   `ExecutionContext` tenancy injection, per-table dedup lowering, virtual views,
   catalog parity). Compile only through `compileClickhouseQuery` in
   `src/server/query-ast/compile.ts`. SQL correctness is proven by a golden-SQL
@@ -46,6 +46,7 @@
   `clickhouse format`); each migrated call site keeps its `*.golden.test.ts`
   baseline next to the call site (e.g.
   `src/server/repositories/environments.golden.test.ts`,
+  `src/server/repositories/scores.golden.test.ts`,
   `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`
