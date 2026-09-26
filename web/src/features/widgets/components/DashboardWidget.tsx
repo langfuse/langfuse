@@ -62,6 +62,10 @@ import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hook
 import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Badge } from "@/src/components/ui/badge";
+import {
+  dashboardDateRangeAggregationSettings,
+  findClosestDashboardInterval,
+} from "@/src/utils/date-range-utils";
 
 export interface WidgetPlacement {
   id: string;
@@ -185,6 +189,14 @@ export function DashboardWidget({
       ? dateRange.from
       : new Date(new Date().getTime() - 1000);
     const toTimestamp = dateRange ? dateRange.to : new Date();
+    const dashboardAggregation = findClosestDashboardInterval({
+      from: fromTimestamp,
+      to: toTimestamp,
+    });
+    const dashboardGranularity = dashboardAggregation
+      ? (dashboardDateRangeAggregationSettings[dashboardAggregation].dateTrunc ??
+        "day")
+      : "auto";
 
     const isTimeSeries = isTimeSeriesChart(
       widget.data?.chartType ?? "LINE_TIME_SERIES",
@@ -236,7 +248,9 @@ export function DashboardWidget({
           aggregation: metric.agg as z.infer<typeof metricAggregations>,
         })) ?? [],
       filters: mergedFilters,
-      timeDimension: isTimeSeries ? { granularity: "auto" as const } : null,
+      timeDimension: isTimeSeries
+        ? { granularity: dashboardGranularity }
+        : null,
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
       orderBy,
