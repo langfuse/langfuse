@@ -317,7 +317,7 @@ export function Table<TData extends object>({
                 <tr
                   key={row.id}
                   className={cn(
-                    "hover:bg-accent h-12 transition-colors",
+                    "group/row hover:bg-accent h-12 transition-colors",
                     rowHeight === "m" && "h-24",
                     rowHeight === "l" && "h-64",
                     onRowClick ? "cursor-pointer" : "cursor-default",

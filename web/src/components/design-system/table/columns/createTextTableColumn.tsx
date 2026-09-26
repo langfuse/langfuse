@@ -7,6 +7,7 @@ import { IconButton } from "@/src/components/design-system/IconButton/IconButton
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
+import { cn } from "@/src/utils/tailwind";
 import {
   createTableColumn,
   type TableColumnOptions,
@@ -33,6 +34,10 @@ type TextTableColumnTrailingAction<TData extends RowData, TValue> =
       type: "custom";
       icon: LucideIcon;
       label: string;
+      // Reveal the action only while the row is hovered or focus is within the
+      // cell. Requires an ancestor with the `group/row` class (the table body
+      // row provides it).
+      showOnHover?: boolean;
       onClick: (context: CellContext<TData, TValue>) => void;
     };
 
@@ -139,6 +144,7 @@ function TextWithTrailingAction<TData extends RowData, TValue>({
   return (
     <TextWithAction
       value={value}
+      showOnHover={action.showOnHover}
       action={
         <IconButton
           icon={action.icon}
@@ -154,9 +160,11 @@ function TextWithTrailingAction<TData extends RowData, TValue>({
 function TextWithAction({
   action,
   value,
+  showOnHover,
 }: {
   action: ReactNode;
   value?: string;
+  showOnHover?: boolean;
 }) {
   return (
     <div className="flex w-full min-w-0 items-center gap-1">
@@ -165,7 +173,15 @@ function TextWithAction({
           {value}
         </span>
       ) : null}
-      <span className="shrink-0 p-1">{action}</span>
+      <span
+        className={cn(
+          "shrink-0 p-1",
+          showOnHover &&
+            "opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100",
+        )}
+      >
+        {action}
+      </span>
     </div>
   );
 }

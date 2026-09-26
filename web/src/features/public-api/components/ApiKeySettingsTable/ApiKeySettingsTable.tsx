@@ -31,11 +31,21 @@ export function ApiKeySettingsTable({
 }) {
   const columns = useMemo<LangfuseColumnDef<ApiKeySettingsTableRow>[]>(
     () => [
-      createDateTableColumn<ApiKeySettingsTableRow>({
-        accessorKey: "createdAt",
-        header: "Created",
-        hideBelowMd: true,
+      createTextTableColumn<ApiKeySettingsTableRow>({
+        id: "note",
+        accessorFn: (apiKey) => apiKey.note || null,
+        header: "Name",
         enableResizing: false,
+        nullValue: "—",
+        trailingAction: editNoteAction.hasAccess
+          ? {
+              type: "custom",
+              icon: Pencil,
+              label: "Edit name",
+              showOnHover: true,
+              onClick: ({ row }) => editNoteAction.onClick(row.original),
+            }
+          : undefined,
       }),
       createUserTableColumn<ApiKeySettingsTableRow>({
         accessorKey: "createdByUser",
@@ -62,21 +72,6 @@ export function ApiKeySettingsTable({
         },
       }),
       createTextTableColumn<ApiKeySettingsTableRow>({
-        id: "note",
-        accessorFn: (apiKey) => apiKey.note || null,
-        header: "Note",
-        enableResizing: false,
-        nullValue: "—",
-        trailingAction: editNoteAction.hasAccess
-          ? {
-              type: "custom",
-              icon: Pencil,
-              label: "Edit note",
-              onClick: ({ row }) => editNoteAction.onClick(row.original),
-            }
-          : undefined,
-      }),
-      createTextTableColumn<ApiKeySettingsTableRow>({
         accessorKey: "publicKey",
         header: "Public Key",
         trailingAction: { type: "copy-to-clipboard" },
@@ -85,6 +80,12 @@ export function ApiKeySettingsTable({
       createTextTableColumn<ApiKeySettingsTableRow>({
         accessorKey: "displaySecretKey",
         header: "Secret Key",
+        enableResizing: false,
+      }),
+      createDateTableColumn<ApiKeySettingsTableRow>({
+        accessorKey: "createdAt",
+        header: "Created",
+        hideBelowMd: true,
         enableResizing: false,
       }),
     ],
@@ -113,6 +114,7 @@ export function ApiKeySettingsTable({
   return (
     <SettingsTable
       tableName="API keys"
+      columnOrderKey="apiKeysColumnOrder-v2"
       columns={columns}
       actions={actions}
       {...tableProps}
