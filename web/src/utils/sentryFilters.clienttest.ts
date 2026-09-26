@@ -1124,6 +1124,74 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("L. drops javascript: bookmarklet script errors", () => {
+    // Real shape: Firefox global onerror for a user-clicked `javascript:`
+    // bookmarklet whose source failed to parse (LANGFUSE-62A). The engine
+    // reports the entire bookmarklet as the frame filename. Langfuse never
+    // evaluates javascript: URLs. Synthetic source only — do not paste a
+    // production bookmarklet (they often prompt for API keys).
+    const SYNTHETIC_BOOKMARKLET = "javascript:(function(){void 0})()";
+
+    const bookmarkletEvent = ({
+      type = "SyntaxError",
+      value = "missing } after function body",
+      mechanismType = "auto.browser.global_handlers.onerror",
+      filename = SYNTHETIC_BOOKMARKLET,
+      extraFrames = [],
+    }: {
+      type?: string;
+      value?: string;
+      mechanismType?: string;
+      filename?: string;
+      extraFrames?: { filename: string; function?: string }[];
+    } = {}): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type,
+              value,
+              mechanism: { type: mechanismType, handled: false },
+              stacktrace: {
+                frames: [
+                  { filename, function: "?" },
+                  ...extraFrames.map((frame) => ({
+                    filename: frame.filename,
+                    function: frame.function ?? "?",
+                  })),
+                ],
+              },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops a Firefox bookmarklet SyntaxError", () => {
+      expect(isDenylistedNoiseEvent(bookmarkletEvent())).toBe(true);
+    });
+
+    it("drops a bookmarklet runtime error of another type", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          bookmarkletEvent({
+            type: "TypeError",
+            value: "foo is not a function",
+          }),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops a percent-encoded javascript: filename", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          bookmarkletEvent({
+            filename: "javascript%3A(function(){void 0})()",
+          }),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1786,6 +1854,95 @@ describe("isDenylistedNoiseEvent", () => {
         },
       } as ErrorEvent;
       expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a bookmarklet-worded SyntaxError with no javascript: frame", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "SyntaxError",
+              value: "missing } after function body",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/project/example/sessions",
+                    function: "?",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a bookmarklet SyntaxError when a first-party chunk is on the stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "SyntaxError",
+              value: "missing } after function body",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename: "javascript:(function(){void 0})()",
+                    function: "?",
+                  },
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/sessions-abc.js",
+                    function: "onClick",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured bookmarklet-worded SyntaxError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent("missing } after function body", "SyntaxError"),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "SyntaxError",
+              value: "missing } after function body",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename: "javascript:(function(){void 0})()",
+                    function: "?",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
     });
 
     it("keeps an event with no exception values", () => {
