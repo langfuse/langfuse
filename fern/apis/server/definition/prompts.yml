@@ -139,7 +139,7 @@ types:
     properties:
       name: string
       prompt: list<ChatMessageWithPlaceholders>
-      config: optional<unknown>
+      config: optional<map<string, unknown>>
       type: CreateChatPromptType
       labels:
         type: optional<list<string>>
@@ -155,7 +155,7 @@ types:
     properties:
       name: string
       prompt: string
-      config: optional<unknown>
+      config: optional<map<string, unknown>>
       type: optional<CreateTextPromptType>
       labels:
         type: optional<list<string>>
@@ -181,7 +181,7 @@ types:
     properties:
       name: string
       version: integer
-      config: unknown
+      config: map<string, unknown>
       labels:
         type: list<string>
         docs: List of deployment labels of this prompt version.
