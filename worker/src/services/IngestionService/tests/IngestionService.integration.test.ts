@@ -607,6 +607,30 @@ describe("Ingestion end-to-end tests", () => {
         output_reasoning_tokens: 4,
       },
     },
+    // Native Anthropic Messages usage with TTL-split cache writes
+    {
+      usage: null,
+      usageDetails: {
+        input_tokens: 3,
+        output_tokens: 94,
+        cache_creation_input_tokens: 12256,
+        cache_read_input_tokens: 16399,
+        cache_creation: {
+          ephemeral_5m_input_tokens: 2000,
+          ephemeral_1h_input_tokens: 10256,
+        },
+        server_tool_use: { web_search_requests: 0 },
+        service_tier: "standard",
+      },
+      expectedUsageDetails: {
+        input_tokens: 3,
+        output_tokens: 94,
+        cache_read_input_tokens: 16399,
+        input_cache_creation_5m: 2000,
+        input_cache_creation_1h: 10256,
+      },
+      absentUsageDetailKeys: ["cache_creation_input_tokens"],
+    },
   ].forEach((testConfig) => {
     it(`should create trace, generation and score without matching models ${JSON.stringify(
       testConfig,
@@ -769,6 +793,9 @@ describe("Ingestion end-to-end tests", () => {
       expect(generation.usage_details).toMatchObject(
         testConfig.expectedUsageDetails,
       );
+      for (const key of testConfig.absentUsageDetailKeys ?? []) {
+        expect(generation.usage_details).not.toHaveProperty(key);
+      }
       expect(generation.output).toEqual(
         JSON.stringify({
           key: "this is a great gpt output",

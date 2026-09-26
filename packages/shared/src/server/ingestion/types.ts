@@ -102,8 +102,48 @@ const RawUsageDetails = z.record(z.string(), z.unknown()).transform((val) => {
     }
   }
 
+  splitAnthropicCacheCreation(val.cache_creation, result);
+
   return Object.keys(result).length > 0 ? result : undefined;
 });
+
+/**
+ * Native Anthropic usage nests cache writes by TTL under `cache_creation`.
+ * The 5-minute and 1-hour writes are priced differently, so they are stored
+ * as `input_cache_creation_5m` / `input_cache_creation_1h`; the aggregate
+ * `cache_creation_input_tokens` keeps only the unattributed remainder so no
+ * write is priced twice.
+ */
+function splitAnthropicCacheCreation(
+  cacheCreation: unknown,
+  result: Record<string, number>,
+) {
+  if (typeof cacheCreation !== "object" || cacheCreation === null) return;
+
+  const split = cacheCreation as Record<string, unknown>;
+  const isCount = (value: unknown): value is number =>
+    typeof value === "number" && Number.isInteger(value) && value >= 0;
+  const fiveMinute = split["ephemeral_5m_input_tokens"];
+  const oneHour = split["ephemeral_1h_input_tokens"];
+  if (!isCount(fiveMinute) && !isCount(oneHour)) return;
+
+  let attributed = 0;
+  if (isCount(fiveMinute)) {
+    result["input_cache_creation_5m"] = fiveMinute;
+    attributed += fiveMinute;
+  }
+  if (isCount(oneHour)) {
+    result["input_cache_creation_1h"] = oneHour;
+    attributed += oneHour;
+  }
+
+  const remainder = (result["cache_creation_input_tokens"] ?? 0) - attributed;
+  if (remainder > 0) {
+    result["cache_creation_input_tokens"] = remainder;
+  } else {
+    delete result["cache_creation_input_tokens"];
+  }
+}
 
 const OpenAICompletionUsageSchema = z
   .object({
