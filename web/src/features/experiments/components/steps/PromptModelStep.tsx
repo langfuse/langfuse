@@ -31,6 +31,7 @@ import {
 import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground";
 import {
   hasPromptToolStructuredOutputConflict,
+  PROMPT_MODEL_CONFIG_INVALID_MESSAGE,
   PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
   type LlmSchema,
 } from "@langfuse/shared";
@@ -56,6 +57,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
     setSelectedPromptName,
     selectedPromptVersion,
     setSelectedPromptVersion,
+    selectedPromptModelConfig,
     selectedPromptToolConfig,
   } = promptModelState;
   const {
@@ -273,6 +275,12 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                 <TriangleAlert className="h-4 w-4 shrink-0" />
                 Invalid tool config detected on this prompt version. Its tools
                 will be ignored when running the experiment.
+              </p>
+            )}
+            {selectedPromptModelConfig.status === "invalid" && (
+              <p className="text-dark-yellow flex items-center gap-1.5 text-sm">
+                <TriangleAlert className="h-4 w-4 shrink-0" />
+                {PROMPT_MODEL_CONFIG_INVALID_MESSAGE}
               </p>
             )}
             <FormMessage />
