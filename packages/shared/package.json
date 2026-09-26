@@ -167,7 +167,7 @@
     "@ai-sdk/azure": "^4.0.5",
     "@ai-sdk/google": "^4.0.6",
     "@ai-sdk/google-vertex": "^5.0.8",
-    "@ai-sdk/openai": "^4.0.0",
+    "@ai-sdk/openai": "^4.0.71",
     "@ai-sdk/openai-compatible": "^3.0.3",
     "@ai-sdk/typesafe-ai": "^3.0.4",
     "@aws-sdk/client-cloudwatch": "catalog:",
