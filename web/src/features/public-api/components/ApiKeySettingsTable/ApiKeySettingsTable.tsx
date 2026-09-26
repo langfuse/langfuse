@@ -83,6 +83,13 @@ export function ApiKeySettingsTable({
         enableResizing: false,
       }),
       createDateTableColumn<ApiKeySettingsTableRow>({
+        accessorKey: "expiresAt",
+        header: "Expiration",
+        emptyValue: "Never",
+        hideBelowMd: true,
+        enableResizing: false,
+      }),
+      createDateTableColumn<ApiKeySettingsTableRow>({
         accessorKey: "createdAt",
         header: "Created",
         hideBelowMd: true,
