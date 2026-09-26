@@ -9,6 +9,7 @@ import {
 import {
   type DatasetItemMediaField,
   InternalServerError,
+  isBaseError,
   LangfuseNotFoundError,
   MediaAssociationOrigin,
 } from "@langfuse/shared";
@@ -128,11 +129,9 @@ export async function createMediaUploadUrl(params: {
 
     return GetMediaUploadUrlResponseSchema.parse({ mediaId, uploadUrl });
   } catch (error) {
-    if (error instanceof InternalServerError) throw error;
+    if (isBaseError(error)) throw error;
 
-    logger.error(
-      `Failed to get media upload URL for trace ${traceId} and observation ${observationId}.`,
-    );
+    logger.error("Failed to get media upload URL", error);
     throw new InternalServerError("Failed to get media upload URL");
   }
 }
