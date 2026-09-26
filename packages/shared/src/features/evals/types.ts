@@ -4,6 +4,7 @@ import {
   type EvalTemplate,
 } from "@prisma/client";
 import z from "zod";
+import { jsonSchema } from "../../utils/zod";
 
 /**
  * Client-safe mirrors of the Prisma enums. The barrel only reaches the Prisma
@@ -329,6 +330,24 @@ export type ObservationVariableMapping = z.infer<
   typeof observationVariableMapping
 >;
 
+export const constantVariableMapping = z
+  .object({
+    templateVariable: z.string(),
+    constantValue: jsonSchema,
+  })
+  .strict();
+
+export const decisionModelVariableMapping = z.union([
+  observationVariableMapping.strict(),
+  constantVariableMapping,
+]);
+export const decisionModelVariableMappingList = z.array(
+  decisionModelVariableMapping,
+);
+export type DecisionModelVariableMapping = z.infer<
+  typeof decisionModelVariableMapping
+>;
+
 /**
  * Per-evaluator mapping override for a one-shot batch evaluation. `null`
  * inherits the evaluator version's mapping. Absent from the payload means
@@ -336,7 +355,7 @@ export type ObservationVariableMapping = z.infer<
  */
 export const BatchEvalEvaluatorMappingSchema = z.object({
   evaluatorId: z.string().min(1),
-  variableMapping: observationVariableMappingList.nullable(),
+  variableMapping: decisionModelVariableMappingList.nullable(),
 });
 export type BatchEvalEvaluatorMapping = z.infer<
   typeof BatchEvalEvaluatorMappingSchema

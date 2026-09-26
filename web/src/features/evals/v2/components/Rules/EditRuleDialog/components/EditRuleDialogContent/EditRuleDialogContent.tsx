@@ -1,15 +1,14 @@
 import { showSuccessToast } from "@/src/features/notifications";
-import {
-  EvalTemplateType,
-  observationVariableMappingList,
-  singleFilterList,
-} from "@langfuse/shared";
+import { EvalTemplateType, singleFilterList } from "@langfuse/shared";
 import { useState } from "react";
 import { DialogBody } from "@/src/components/ui/dialog";
 import { RuleDialogFooter } from "@/src/features/evals/v2/components/Rules/RuleDialogFooter/RuleDialogFooter";
 import { RuleSetup } from "@/src/features/evals/v2/components/Rules/RuleSetup/RuleSetup";
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
-import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
+import {
+  parseModernRuleVariableMapping,
+  prepareModernRuleVariableMapping,
+} from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -47,18 +46,20 @@ export function EditRuleDialogContent({
           assignment.evaluator.latestVersion?.variableMapping,
           assignment.evaluator.type,
         );
+        const variableMapping =
+          assignment.evaluator.type === EvalTemplateType.CODE ||
+          assignment.variableMapping == null
+            ? preparedDefault.initialVariableMapping
+            : parseModernRuleVariableMapping(
+                assignment.variableMapping,
+                assignment.evaluator.type,
+              );
         return {
           evaluatorId: assignment.evaluator.id,
           evaluatorName: assignment.evaluator.name,
           evaluatorType: assignment.evaluator.type,
           defaultVariableMapping: preparedDefault.defaultVariableMapping,
-          variableMapping:
-            assignment.evaluator.type === EvalTemplateType.CODE ||
-            assignment.variableMapping == null
-              ? preparedDefault.initialVariableMapping
-              : observationVariableMappingList
-                  .catch([])
-                  .parse(assignment.variableMapping),
+          variableMapping,
         };
       }),
     }),

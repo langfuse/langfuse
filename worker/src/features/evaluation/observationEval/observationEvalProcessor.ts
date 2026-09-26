@@ -8,6 +8,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowed";
 import {
+  decisionModelVariableMappingList,
   getCodeEvalVariableMapping,
   observationForEvalSchema,
   observationVariableMappingList,
@@ -223,9 +224,10 @@ export async function processObservationEval(
   }
 
   // Extract variables from observation
-  const parsedVariableMapping = observationVariableMappingList.parse(
-    evalJobConfig.variableMapping,
-  );
+  const parsedVariableMapping =
+    template.type === EvalTemplateType.DECISION_MODEL
+      ? decisionModelVariableMappingList.parse(evalJobConfig.variableMapping)
+      : observationVariableMappingList.parse(evalJobConfig.variableMapping);
 
   const extractedVariables = extractObservationVariables({
     observation: observationData,

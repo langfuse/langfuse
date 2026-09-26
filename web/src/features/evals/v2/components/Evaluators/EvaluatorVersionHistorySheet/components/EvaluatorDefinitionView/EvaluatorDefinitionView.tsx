@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import {
   type EvalTemplateSourceCodeLanguage,
   EvalTemplateTypeEnum,
+  type DecisionModelVariableMapping,
   type EvalTemplateType,
   type ObservationVariableMapping,
   type EvaluatorPromptMessage,
@@ -50,7 +51,7 @@ export type EvaluatorDefinition =
       type: Extract<EvalTemplateType, "DECISION_MODEL">;
       questions: unknown;
       selectedModel: JudgeModel | null;
-      variableMapping: ObservationVariableMapping[];
+      variableMapping: DecisionModelVariableMapping[];
     };
 
 // A saved version is immutable, so every control below is the live editing
@@ -239,10 +240,18 @@ function DecisionModelDefinitionView({
           variableDisplay="stateKey"
           mappings={definition.variableMapping.map((mapping) => ({
             variable: mapping.templateVariable,
-            fieldState: {
-              selectedColumnId: mapping.selectedColumnId,
-              jsonSelector: mapping.jsonSelector ?? null,
-            },
+            fieldState:
+              "constantValue" in mapping
+                ? {
+                    selectedColumnId: null,
+                    jsonSelector: null,
+                    valueSource: "constant",
+                    constantValue: JSON.stringify(mapping.constantValue),
+                  }
+                : {
+                    selectedColumnId: mapping.selectedColumnId,
+                    jsonSelector: mapping.jsonSelector ?? null,
+                  },
           }))}
         />
       </section>

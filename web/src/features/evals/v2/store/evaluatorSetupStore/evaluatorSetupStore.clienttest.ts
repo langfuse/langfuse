@@ -67,6 +67,30 @@ describe("createEvaluatorSetupStore", () => {
     });
   });
 
+  it("preserves a constant value when renaming its state key", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      initialType: "DECISION_MODEL",
+      mode: "create",
+    });
+    const { actions } = store.getState();
+    actions.setVariableField("input", {
+      selectedColumnId: null,
+      jsonSelector: null,
+      valueSource: "constant",
+      constantValue: '{"policy":"strict"}',
+    });
+
+    actions.renameStateKey("input", "context");
+
+    expect(store.getState().variableFields.context).toEqual({
+      selectedColumnId: null,
+      jsonSelector: null,
+      valueSource: "constant",
+      constantValue: '{"policy":"strict"}',
+    });
+  });
+
   it("initializes an existing code evaluator", () => {
     const store = createEvaluatorSetupStore({
       initialEvaluator: {

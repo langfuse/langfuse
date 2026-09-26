@@ -1,4 +1,5 @@
 import {
+  decisionModelVariableMappingList,
   EvalTemplateType,
   extractVariables,
   InvalidRequestError,
@@ -20,6 +21,7 @@ import {
   EvaluatorModelConfigurationError,
 } from "./evaluatorErrors";
 import type { EvaluatorDefinition } from "./evaluatorTypes";
+import { env } from "@/src/env.mjs";
 
 export function extractEvaluatorPromptVariables(
   promptMessages: Array<{ content: string }>,
@@ -58,7 +60,50 @@ export function assertCompleteEvaluatorVariableMapping(params: {
     throw new InvalidRequestError("Evaluator variable mapping is invalid");
   }
 
-  for (const mapping of parsed.data) {
+  assertCompleteParsedVariableMapping({
+    promptVariables: params.promptVariables,
+    variableMapping: parsed.data,
+  });
+}
+
+export function assertCompleteDecisionModelVariableMapping(params: {
+  stateKeys: string[];
+  variableMapping: unknown;
+}) {
+  const parsed = decisionModelVariableMappingList.safeParse(
+    params.variableMapping,
+  );
+  if (!parsed.success) {
+    throw new InvalidRequestError("Decision-model state mapping is invalid");
+  }
+  if (
+    parsed.data.some((mapping) => "constantValue" in mapping) &&
+    env.LANGFUSE_ENABLE_DECISION_MODEL_CONSTANTS !== "true"
+  ) {
+    throw new InvalidRequestError(
+      "Decision-model constant state values are not enabled for this deployment.",
+    );
+  }
+
+  assertCompleteParsedVariableMapping({
+    promptVariables: params.stateKeys,
+    variableMapping: parsed.data,
+  });
+}
+
+function assertCompleteParsedVariableMapping(params: {
+  promptVariables: string[];
+  variableMapping: Array<
+    | {
+        templateVariable: string;
+        selectedColumnId: string;
+        jsonSelector?: string | null;
+      }
+    | { templateVariable: string; constantValue: unknown }
+  >;
+}) {
+  for (const mapping of params.variableMapping) {
+    if (!("selectedColumnId" in mapping)) continue;
     const compatibilityError = getJsonPathCompatibilityWarning(
       mapping.jsonSelector,
     );
@@ -67,7 +112,7 @@ export function assertCompleteEvaluatorVariableMapping(params: {
     }
   }
 
-  const mappedVariables = parsed.data.map(
+  const mappedVariables = params.variableMapping.map(
     ({ templateVariable }) => templateVariable,
   );
   const duplicateVariables = mappedVariables.filter(
@@ -213,8 +258,8 @@ async function assertDecisionModelDefinitionValid(params: {
       "Decision-model evaluators need at least one state field",
     );
   }
-  assertCompleteEvaluatorVariableMapping({
-    promptVariables: params.definition.vars,
+  assertCompleteDecisionModelVariableMapping({
+    stateKeys: params.definition.vars,
     variableMapping: params.definition.variableMapping,
   });
 

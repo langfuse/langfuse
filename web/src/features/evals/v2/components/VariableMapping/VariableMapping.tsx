@@ -43,13 +43,23 @@ function ReadOnlyVariableMapping({
           variable={mapping.variable}
           variableDisplay={variableDisplay}
           mapping={
-            <VariableMappingBinding
-              columnLabel={
-                evalVariableColumnLabel(mapping.fieldState.selectedColumnId) ??
-                ""
-              }
-              jsonSelector={mapping.fieldState.jsonSelector}
-            />
+            mapping.fieldState.valueSource === "constant" ? (
+              <span
+                className="block max-w-full truncate font-mono text-xs"
+                title={mapping.fieldState.constantValue}
+              >
+                constant · {mapping.fieldState.constantValue}
+              </span>
+            ) : (
+              <VariableMappingBinding
+                columnLabel={
+                  evalVariableColumnLabel(
+                    mapping.fieldState.selectedColumnId,
+                  ) ?? ""
+                }
+                jsonSelector={mapping.fieldState.jsonSelector}
+              />
+            )
           }
         />
       ))}

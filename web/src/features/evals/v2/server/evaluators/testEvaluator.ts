@@ -1,4 +1,5 @@
 import {
+  decisionModelVariableMappingList,
   getCodeEvalVariableMapping,
   observationVariableMappingList,
 } from "@langfuse/shared";
@@ -28,6 +29,7 @@ import {
 import { getObservationForEvalById } from "@/src/features/evals/server/getObservationForEvalById";
 import type { NormalizedEvaluatorDefinition } from "./evaluatorTypes";
 import {
+  assertCompleteDecisionModelVariableMapping,
   assertCompleteEvaluatorVariableMapping,
   extractEvaluatorPromptVariables,
 } from "./evaluatorValidation";
@@ -55,11 +57,11 @@ export async function testEvaluator(params: {
   if (params.definition.type === "CODE") {
     variableMapping = getCodeEvalVariableMapping();
   } else if (params.definition.type === "DECISION_MODEL") {
-    assertCompleteEvaluatorVariableMapping({
-      promptVariables: params.definition.vars,
+    assertCompleteDecisionModelVariableMapping({
+      stateKeys: params.definition.vars,
       variableMapping: params.definition.variableMapping,
     });
-    variableMapping = observationVariableMappingList.parse(
+    variableMapping = decisionModelVariableMappingList.parse(
       params.definition.variableMapping,
     );
   } else {

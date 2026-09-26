@@ -1,6 +1,6 @@
 import {
+  decisionModelVariableMappingList,
   EvalTargetObject,
-  observationVariableMappingList,
   paginationLimitZod,
   singleFilterList,
 } from "@langfuse/shared";
@@ -14,7 +14,7 @@ export const RuleMetadataSchema = z.object({
 
 export const RuleAssignmentInputSchema = z.object({
   evaluatorId: z.string().min(1),
-  variableMapping: observationVariableMappingList.nullable(),
+  variableMapping: decisionModelVariableMappingList.nullable(),
 });
 
 export const RuleIdSchema = z.object({
@@ -94,7 +94,7 @@ export const SetRuleEnabledSchema = RuleIdSchema.extend({
 
 export const RuleAssignmentSchema = RuleIdSchema.extend({
   evaluatorId: z.string(),
-  variableMapping: observationVariableMappingList.nullable(),
+  variableMapping: decisionModelVariableMappingList.nullable(),
   enableRule: z.boolean().optional(),
 });
 
