@@ -11,3 +11,11 @@ scripts/code-eval-runners/
 # path-only, so the whole file is skipped; list further traced *.lock.yml files
 # here individually rather than widening to a glob.
 .github/workflows/dependabot-security-maintainer.lock.yml
+
+# The review-tests skill scans test sources by building small regexes from code
+# identifiers it has already regex-escaped (see escapeRe in candidates.mjs and
+# measure.mjs). semgrep's detect-non-literal-regexp fires on any non-literal
+# RegExp regardless of escaping; here the inputs are trusted repo symbols read
+# at dev time, never a runtime user-input path, so the finding is noise, not
+# signal. Path-only, so the whole scripts dir is skipped.
+.agents/skills/review-tests/scripts/
