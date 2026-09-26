@@ -4,48 +4,14 @@ import {
   ForbiddenError,
   InternalServerError,
   LangfuseNotFoundError,
-  projectScopes,
   ServiceUnavailableError,
   UnauthorizedError,
   type ApiKeyScope,
   type CloudConfigRateLimit,
   type Plan,
-  type ProjectScope,
 } from "@langfuse/shared";
-import {
-  organizationScopes,
-  type OrganizationScope,
-} from "@/src/features/rbac/constants/organizationAccessRights";
 
-/** wildcard matches any resource in a policy. */
-export const wildcard = "*" as const;
-
-/** allProjectActions is the full project action vocabulary. */
-export const allProjectActions: ProjectAction[] = [...projectScopes];
-
-/** allOrganizationActions is the full organization action vocabulary. */
-export const allOrganizationActions: OrganizationAction[] = [
-  ...organizationScopes,
-];
-
-/** organizationActionSet is allOrganizationActions indexed for membership tests. */
-const organizationActionSet: ReadonlySet<string> = new Set(organizationScopes);
-
-/** isOrgAction reports whether an action belongs to the disjoint org vocabulary. */
-export const isOrgAction = (action: Action): action is OrganizationAction =>
-  organizationActionSet.has(action);
-
-/** Wildcard is the type of the wildcard resource matcher literal. */
-type Wildcard = typeof wildcard;
-
-/** ProjectAction is an action assignable to a project policy. */
-export type ProjectAction = ProjectScope;
-
-/** OrganizationAction is an action assignable to an organization policy. */
-export type OrganizationAction = OrganizationScope;
-
-/** Action is any checkable action. */
-export type Action = ProjectAction | OrganizationAction;
+import { type Policy } from "@/src/features/rbac/types";
 
 /** PrincipalOrganization carries an org's static caps and its ingestion-suspension liveness state, enforced at the seam not the PDP. */
 export type PrincipalOrganization = {
@@ -73,9 +39,6 @@ export type Principal =
       boundResource: BoundResource;
     };
 
-/** Source describes where a policy came from: a role or an explicit grant. */
-type Source = { kind: "role"; id: string } | { kind: "grant" };
-
 /** ProjectResource identifies a project by its globally-unique id. */
 type ProjectResource = { projectId: string };
 
@@ -87,30 +50,6 @@ export type Resource = ProjectResource | OrgResource;
 
 /** BoundResource is what a credential is bound to: its organization, narrowed to one project when the credential is project-scoped. */
 export type BoundResource = OrgResource & { projectId?: string };
-
-/** BasePolicy carries the origin and effect every policy shares. */
-type BasePolicy = {
-  source: Source;
-  effect: "allow" | "deny";
-};
-
-/** OrganizationSystemPolicy is a resource-less org-level policy. */
-type OrganizationSystemPolicy = BasePolicy & {
-  kind: "organization";
-  actions: OrganizationAction[];
-};
-
-/** ProjectSystemPolicy is a resource-less project-level policy. */
-type ProjectSystemPolicy = BasePolicy & {
-  kind: "project";
-  actions: ProjectAction[];
-};
-
-/** SystemPolicy is a policy before its resource is bound. */
-export type SystemPolicy = OrganizationSystemPolicy | ProjectSystemPolicy;
-
-/** Policy is a SystemPolicy bound to the flat ids its kind targets, or the wildcard. */
-export type Policy = SystemPolicy & { resources: string[] | Wildcard };
 
 /** AuthorizationContext is the PIP output and PDP input for one principal. */
 export type AuthorizationContext = {

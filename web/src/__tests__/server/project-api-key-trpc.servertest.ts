@@ -173,6 +173,41 @@ describe("project API keys trpc", () => {
     });
   });
 
+  describe("system role assignments", () => {
+    it("writes a PROJECT assignment on create and revokes it on delete", async () => {
+      const { caller, projectId } = await createProjectCaller();
+
+      const key = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: projectId,
+        scope: "PROJECT",
+        note: "Key for role assignment test",
+      });
+
+      const project = await prisma.project.findUniqueOrThrow({
+        where: { id: projectId },
+        select: { orgId: true },
+      });
+
+      const assignment = await prisma.systemRoleAssignment.findFirstOrThrow({
+        where: { principalId: `apiKey/${key.id}` },
+      });
+      expect(assignment.systemRole).toBe("PROJECT");
+      expect(assignment.ownerId).toBe(`project/${projectId}`);
+      expect(assignment.orgId).toBe(project.orgId);
+
+      await expect(
+        caller.projectApiKeys.delete({ projectId, id: key.id }),
+      ).resolves.toBe(true);
+
+      await expect(
+        prisma.systemRoleAssignment.count({
+          where: { principalId: `apiKey/${key.id}` },
+        }),
+      ).resolves.toBe(0);
+    });
+  });
+
   describe("projectApiKeys.delete", () => {
     it("does not delete in-app agent API keys", async () => {
       const { caller, projectId } = await createProjectCaller();

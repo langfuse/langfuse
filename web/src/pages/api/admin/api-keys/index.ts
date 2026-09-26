@@ -6,6 +6,8 @@ import {
   logger,
   redis,
 } from "@langfuse/shared/src/server";
+import { revokeApiKeyRolesForOwners } from "@langfuse/shared/rbac/server";
+import { ProjectId } from "@langfuse/shared/rbac";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server";
 /* 
@@ -60,27 +62,36 @@ export default async function handler(
     }
 
     if (body.data.action === "delete") {
+      const projectIds = body.data.projectIds;
       logger.info(
-        `trying to remove API keys for projects ${body.data.projectIds.join(", ")}`,
+        `trying to remove API keys for projects ${projectIds.join(", ")}`,
       );
 
       // delete the API keys in the database first
       const apiKeysToBeDeleted = await prisma.apiKey.findMany({
         where: {
           projectId: {
-            in: body.data.projectIds,
+            in: projectIds,
           },
           scope: "PROJECT",
         },
       });
 
-      await prisma.apiKey.deleteMany({
-        where: {
-          projectId: {
-            in: body.data.projectIds,
+      // Delete the keys and revoke assignments by owner in one transaction, so
+      // a key created for these projects mid-delete cannot orphan its assignment.
+      await prisma.$transaction(async (tx) => {
+        await tx.apiKey.deleteMany({
+          where: {
+            projectId: {
+              in: projectIds,
+            },
+            scope: "PROJECT",
           },
-          scope: "PROJECT",
-        },
+        });
+        await revokeApiKeyRolesForOwners(
+          tx,
+          projectIds.map((id) => ProjectId(id)),
+        );
       });
 
       // then delete from the cache

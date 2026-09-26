@@ -13,11 +13,11 @@
 // putting those tables on the barrel pulled CreateProjectMemberDialog
 // (react-hook-form) into instrumentation and API routes.
 //
-// auth/policy/types.ts keeps importing organizationAccessRights by file
+// rbac/types.ts keeps importing organizationAccessRights by file
 // path: it needs the runtime `organizationScopes` value, and routing
 // that module through this door would pull the React access hooks into
-// the policy types graph. auth/policy/contextResolver.ts keeps importing
-// apiKeyAccessRights by file path for the same reason, and because that
+// the rbac types graph. auth/policy/contextResolver.ts keeps importing
+// systemRoleAccessRights by file path for the same reason, and because that
 // file already imports auth/policy/types — putting it on this door would
 // close a cycle if types ever moved onto the door too.
 export {

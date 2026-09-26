@@ -9,15 +9,16 @@ import {
   createShaHash,
   getDisplaySecretKey,
 } from "@langfuse/shared/src/server";
+import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 
 import { env } from "@/src/env.mjs";
-import { authorize } from "@/src/features/auth/policy/authorize";
+import { authorize } from "@/src/features/rbac/authorize";
 import { type ShadowAuthParams } from "@/src/features/public-api/server";
 import {
-  type AuthorizationContext,
   type OrganizationAction,
   type ProjectAction,
-} from "@/src/features/auth/policy/types";
+} from "@/src/features/rbac/types";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 // The seam is imported dynamically so the authenticator singleton captures
 // the admin key set in beforeAll.
@@ -43,6 +44,7 @@ let authenticator: Authenticator;
 let orgId = "";
 let projectId = "";
 let foreignProjectId = "";
+let foreignOrgId = "";
 let orgAuth = "";
 let projectAuth = "";
 let projectPublicKey = "";
@@ -131,15 +133,26 @@ const scopeOf = (result: ShadowResult): Record<string, unknown> => {
 const createOrgApiKey = async (targetOrgId: string) => {
   const publicKey = `pk-lf-${randomUUID()}`;
   const secretKey = `sk-lf-${randomUUID()}`;
+  const apiKeyRowId = randomUUID();
   await prisma.apiKey.create({
     data: {
-      id: randomUUID(),
+      id: apiKeyRowId,
       orgId: targetOrgId,
       publicKey,
       hashedSecretKey: `test-hashed-secret-key-${randomUUID()}`,
       fastHashedSecretKey: createShaHash(secretKey, env.SALT as string),
       displaySecretKey: getDisplaySecretKey(secretKey),
       scope: "ORGANIZATION",
+    },
+  });
+  // Mirror the ORGANIZATION system-role assignment the production create path
+  // writes, so the resolver reading policies from assignments sees this key.
+  await prisma.systemRoleAssignment.create({
+    data: {
+      orgId: targetOrgId,
+      principalId: `apiKey/${apiKeyRowId}`,
+      systemRole: "ORGANIZATION",
+      ownerId: `organization/${targetOrgId}`,
     },
   });
   return createBasicAuthHeader(publicKey, secretKey);
@@ -192,6 +205,7 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
 
     const foreign = await createOrgProjectAndApiKey();
     foreignProjectId = foreign.projectId;
+    foreignOrgId = foreign.orgId;
   });
 
   afterAll(() => {
@@ -316,22 +330,83 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
   it("an organization key is granted project:read on a project it owns", async () => {
     const context = await contextFor(orgAuth);
     expect(ownedProjectIds(context)).toContain(projectId);
-    expect(authorize(context, "project:read", { projectId }).success).toBe(
-      true,
-    );
+    expect(
+      authorize(
+        context,
+        OrganizationId(orgId),
+        "project:read",
+        ProjectId(projectId),
+      ).success,
+    ).toBe(true);
   });
 
-  it("an organization key is denied project:read on a project it does not own", async () => {
+  it("an organization key is denied project:read on a project in another tenant", async () => {
     const context = await contextFor(orgAuth);
     expect(
-      authorize(context, "project:read", { projectId: foreignProjectId })
-        .success,
+      authorize(
+        context,
+        OrganizationId(foreignOrgId),
+        "project:read",
+        ProjectId(foreignProjectId),
+      ).success,
     ).toBe(false);
   });
 
   it("an organization with no projects exposes no project ids to the per-project gate", async () => {
     const { auth } = await createOrgWithoutProjects();
     expect(ownedProjectIds(await contextFor(auth))).toEqual([]);
+  });
+
+  it("an organization key's project wildcard covers every live project of its org and stops at a soft-deleted one, like the old live-project cascade", async () => {
+    const org = await prisma.organization.create({
+      data: { id: randomUUID(), name: randomUUID() },
+    });
+    const live1 = await prisma.project.create({
+      data: { id: randomUUID(), name: randomUUID(), orgId: org.id },
+    });
+    const live2 = await prisma.project.create({
+      data: { id: randomUUID(), name: randomUUID(), orgId: org.id },
+    });
+    const deleted = await prisma.project.create({
+      data: {
+        id: randomUUID(),
+        name: randomUUID(),
+        orgId: org.id,
+        deletedAt: new Date(),
+      },
+    });
+    const auth = await createOrgApiKey(org.id);
+    const context = await contextFor(auth);
+
+    // Only live projects reach the per-project gate, as under the old cascade.
+    expect([...ownedProjectIds(context)].sort()).toEqual(
+      [live1.id, live2.id].sort(),
+    );
+
+    // enforce authorizes every live project through the project-nested route ...
+    for (const projectId of [live1.id, live2.id]) {
+      const { enforce } = await projectNestedUnderModes(auth, projectId);
+      expect(scopeOf(enforce).projectId).toBe(projectId);
+    }
+    // ... and 404s the soft-deleted one, which the key does not own.
+    const { enforce: deletedEnforce } = await projectNestedUnderModes(
+      auth,
+      deleted.id,
+    );
+    expect(deletedEnforce).toMatchObject({
+      success: false,
+      error: { httpCode: 404 },
+    });
+
+    // The wildcard grants the same project actions the old cascade bound per project.
+    expect(
+      authorize(
+        context,
+        OrganizationId(org.id),
+        "project:read",
+        ProjectId(live2.id),
+      ).success,
+    ).toBe(true);
   });
 
   it("the admin key is refused on both dispatch families in both modes", async () => {

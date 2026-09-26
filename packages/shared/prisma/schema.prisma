@@ -125,6 +125,7 @@ model Organization {
   verifiedDomains                  VerifiedDomain[]
   gatewayConfig                    GatewayConfig?
   gatewayAiConnections             GatewayAiConnection[]
+  SystemRoleAssignment             SystemRoleAssignment[]
 
   @@map("organizations")
 }
@@ -237,6 +238,34 @@ model ApiKey {
   @@index(hashedSecretKey)
   @@index(fastHashedSecretKey)
   @@map("api_keys")
+}
+
+enum SystemRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+  NONE
+  PROJECT
+  ORGANIZATION
+  SCORES_INGEST
+  INGEST
+  LLM_GATEWAY
+}
+
+model SystemRoleAssignment {
+  id           String       @id @default(cuid())
+  orgId        String       @map("org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  principalId  String       @map("principal_id") // tagged: "user/u" | "apiKey/a"
+  systemRole   SystemRole   @map("system_role")
+  ownerId      String       @map("owner_id") // tagged: "organization/o" | "project/p"
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([principalId, ownerId, systemRole])
+  @@index([orgId])
+  @@map("system_role_assignments")
 }
 
 enum GatewayIngestionMode {

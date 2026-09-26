@@ -5,6 +5,8 @@ import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKey
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { CloudConfigSchema } from "@langfuse/shared";
+import { ApiKeyId } from "@langfuse/shared/rbac";
+import { revokeRolesForPrincipals } from "@langfuse/shared/rbac/server";
 import {
   initializeClickhouseCompatibility,
   logger,
@@ -117,34 +119,30 @@ if (env.LANGFUSE_INIT_ORG_ID) {
       env.LANGFUSE_INIT_PROJECT_SECRET_KEY &&
       env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY
     ) {
+      const projectId = env.LANGFUSE_INIT_PROJECT_ID;
+      const publicKey = env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY;
+      const secretKey = env.LANGFUSE_INIT_PROJECT_SECRET_KEY;
+
       const existingApiKey = await prisma.apiKey.findUnique({
-        where: { publicKey: env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY },
+        where: { publicKey },
       });
 
       // Delete key if project changed
-      if (
-        existingApiKey &&
-        existingApiKey.projectId !== env.LANGFUSE_INIT_PROJECT_ID
-      ) {
-        await prisma.apiKey.delete({
-          where: { publicKey: env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY },
+      if (existingApiKey && existingApiKey.projectId !== projectId) {
+        await prisma.$transaction(async (tx) => {
+          await tx.apiKey.delete({ where: { publicKey } });
+          await revokeRolesForPrincipals(tx, [ApiKeyId(existingApiKey.id)]);
         });
       }
 
       // Create new key if it doesn't exist or project changed
-      if (
-        !existingApiKey ||
-        existingApiKey.projectId !== env.LANGFUSE_INIT_PROJECT_ID
-      ) {
+      if (!existingApiKey || existingApiKey.projectId !== projectId) {
         await createAndAddApiKeysToDb({
           prisma,
-          entityId: env.LANGFUSE_INIT_PROJECT_ID,
+          entityId: projectId,
           note: "Provisioned API Key",
           scope: "PROJECT",
-          predefinedKeys: {
-            secretKey: env.LANGFUSE_INIT_PROJECT_SECRET_KEY,
-            publicKey: env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY,
-          },
+          predefinedKeys: { secretKey, publicKey },
         });
       }
     }

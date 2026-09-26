@@ -1,30 +1,40 @@
-import { type ApiKey } from "@langfuse/shared/src/db";
+import {
+  type ApiKey,
+  type PrismaClient,
+  prisma as defaultPrisma,
+} from "@langfuse/shared/src/db";
 import { CloudConfigSchema, type InternalServerError } from "@langfuse/shared";
+import {
+  ApiKeyId,
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+} from "@langfuse/shared/rbac";
 
-import { apiKeyAccessRights } from "@/src/features/rbac/constants/apiKeyAccessRights";
+import { systemRoleAccessRights } from "@/src/features/rbac/constants/systemRoleAccessRights";
+import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import {
   OrganizationRepository,
   type GetOrganizationResult,
   type OrganizationWithProjects,
 } from "./organizationRepository";
+import { type Policy } from "@/src/features/rbac/types";
 import {
   internalServerError,
-  wildcard,
   type AuthorizationContext,
   type BoundResource,
   type ErrorResult,
-  type Policy,
   type Principal,
   type PrincipalOrganization,
   type Success,
-  type SystemPolicy,
 } from "./types";
 
 /** ContextResolver materializes an authenticated credential into its `AuthorizationContext`, loading and enriching the org it implies. */
 export class ContextResolver {
   constructor(
     private readonly orgs: OrganizationRepository = new OrganizationRepository(),
+    private readonly prisma: PrismaClient = defaultPrisma,
   ) {}
 
   /** resolve turns a verified credential into its context, collapsing a missing org to a 500 invariant break. */
@@ -36,10 +46,11 @@ export class ContextResolver {
     if (!org.success) return org;
     return {
       success: true,
-      context: materialize(
+      context: await materialize(
         params.apiKey,
         params.authorization,
         org.organization,
+        this.prisma,
       ),
     };
   }
@@ -82,11 +93,12 @@ export class ContextResolver {
 }
 
 /** materialize expands the `ApiKey` row and its presentation into the policies the credential implies. */
-function materialize(
+async function materialize(
   apiKey: ApiKey,
   authorization: "publicKey" | "privateKey",
   org: PrincipalOrganization,
-): AuthorizationContext {
+  prisma: PrismaClient,
+): Promise<AuthorizationContext> {
   const principal: Principal = {
     kind: "apiKey",
     apiKeyId: apiKey.id,
@@ -99,21 +111,54 @@ function materialize(
     boundResource: boundResourceFor(apiKey, org),
   };
 
-  const grants =
-    authorization === "publicKey"
-      ? apiKeyAccessRights.SCORES_INGEST
-      : apiKeyAccessRights[apiKey.scope];
-  const policies = grants.map((p) => bind(p, principal));
+  if (authorization === "publicKey") {
+    return { principal, policies: publicBearerPolicies(apiKey, org) };
+  }
+  const roles = await getRolesForPrincipal(ApiKeyId(apiKey.id), prisma);
+  const policies = roles.flatMap((role) => role.policies);
   return { principal, policies };
 }
 
-/** adminContext is the admin context: no key row, the ADMIN role bound to the wildcard resource. */
+/** publicBearerPolicies narrows a public-key bearer to scores:create on its own project, regardless of any stored assignment. */
+function publicBearerPolicies(
+  apiKey: ApiKey,
+  org: PrincipalOrganization,
+): Policy[] {
+  const tenantId = OrganizationId(org.orgId);
+  const resources = [ProjectId(apiKey.projectId!)];
+  const roleId = SystemRoleId("SCORES_INGEST");
+  return systemRoleAccessRights.SCORES_INGEST.policies.map((policy) => ({
+    id: `${roleId}:${policy.resourceKind}`,
+    roleId,
+    tenantId,
+    effect: policy.effect,
+    actions: policy.actions,
+    resources,
+  }));
+}
+
+/** adminContext is the self-host superuser: an evaluated OWNER on every tenant. It binds the OWNER catalog to the org- and project-kind wildcards under the organization/* tenant, so the PDP grants it exactly what OWNER grants, on every tenant.
+ *
+ * The organization/* tenant is minted only here; a future custom-role loader must reject a wildcard tenant on a stored role. */
 function adminContext(): AuthorizationContext {
   const principal: Principal = { kind: "admin", userId: null };
-  return {
-    principal,
-    policies: apiKeyAccessRights.ADMIN.map((policy) => bind(policy, principal)),
-  };
+  const roleId = SystemRoleId("OWNER");
+  const tenantId = OrganizationId("*");
+  const policies: Policy[] = systemRoleAccessRights.OWNER.policies.map(
+    (policy) => ({
+      id: `${roleId}:${policy.resourceKind}`,
+      roleId,
+      tenantId,
+      effect: policy.effect,
+      actions: policy.actions,
+      resources: [
+        policy.resourceKind === "organization"
+          ? OrganizationId("*")
+          : ProjectId("*"),
+      ],
+    }),
+  );
+  return { principal, policies };
 }
 
 /** boundResourceFor is the target a request resolves against with no header: the key's org, narrowed to its project when the key is project-scoped. */
@@ -123,37 +168,6 @@ function boundResourceFor(
 ): BoundResource {
   if (apiKey.scope === "ORGANIZATION") return { orgId: org.orgId };
   return { orgId: org.orgId, projectId: apiKey.projectId! };
-}
-
-/** bind fixes a resource-less SystemPolicy to the resources the principal covers, by the policy's kind. */
-function bind(policy: SystemPolicy, principal: Principal): Policy {
-  return policy.kind === "organization"
-    ? { ...policy, resources: orgResources(principal) }
-    : { ...policy, resources: projectResources(principal) };
-}
-
-/** orgResources are the org ids an org-kind policy binds to: the bound org, or the wildcard for admin. */
-function orgResources(principal: Principal): Policy["resources"] {
-  if (principal.kind === "admin") return wildcard;
-  return boundOrgs(principal).map((o) => o.orgId);
-}
-
-/** projectResources are the project ids a project-kind policy binds to: the bound project, the bound org's projects, or the wildcard for admin. */
-function projectResources(principal: Principal): Policy["resources"] {
-  if (principal.kind === "admin") return wildcard;
-  const bound =
-    principal.kind === "apiKey" ? principal.boundResource : undefined;
-  if (bound?.projectId) return [bound.projectId];
-  return boundOrgs(principal).flatMap((o) => o.projectIds);
-}
-
-/** boundOrgs are the principal's organizations, narrowed to the bound org when the credential bound one. */
-function boundOrgs(principal: NonAdminPrincipal): PrincipalOrganization[] {
-  const bound =
-    principal.kind === "apiKey" ? principal.boundResource : undefined;
-  return bound
-    ? principal.organizations.filter((o) => o.orgId === bound.orgId)
-    : principal.organizations;
 }
 
 /** toPrincipalOrganization derives an org's `PrincipalOrganization` caps and liveness from its raw row. */
@@ -190,6 +204,3 @@ export type ResolveContextParams =
 export type Resolved =
   | (Success & { context: AuthorizationContext })
   | ErrorResult<InternalServerError>;
-
-/** NonAdminPrincipal is a user or api-key principal, the credentials that carry organizations. */
-type NonAdminPrincipal = Exclude<Principal, { kind: "admin" }>;

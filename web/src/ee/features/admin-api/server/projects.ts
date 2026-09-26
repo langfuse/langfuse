@@ -1,11 +1,14 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
-
-import { authorize } from "@/src/features/auth/policy/authorize";
 import {
-  type Action,
-  type AuthorizationContext,
-} from "@/src/features/auth/policy/types";
+  OrganizationId,
+  ProjectId,
+  type TenantId,
+} from "@langfuse/shared/rbac";
+
+import { authorize } from "@/src/features/rbac/authorize";
+import { type Action } from "@/src/features/rbac/types";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 // GET - Retrieve all projects in an organization
 export async function handleGetProjects(
@@ -30,7 +33,7 @@ export async function handleGetProjects(
 
   return res.status(200).json({
     projects: projects
-      .filter(hasPermission(ctx, "project:read"))
+      .filter(hasPermission(ctx, OrganizationId(orgId), "project:read"))
       .map((project) => ({
         id: project.id,
         name: project.name,
@@ -41,8 +44,8 @@ export async function handleGetProjects(
   });
 }
 
-/** hasPermission tests whether ctx permits action on a project, allowing all when ctx is absent. */
+/** hasPermission tests whether ctx permits action on a project in the tenant, allowing all when ctx is absent. */
 const hasPermission =
-  (ctx: AuthorizationContext | undefined, action: Action) =>
+  (ctx: AuthorizationContext | undefined, tenant: TenantId, action: Action) =>
   (project: { id: string }) =>
-    !ctx || authorize(ctx, action, { projectId: project.id }).success;
+    !ctx || authorize(ctx, tenant, action, ProjectId(project.id)).success;

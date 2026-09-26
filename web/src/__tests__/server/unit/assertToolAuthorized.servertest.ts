@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 
 import { ForbiddenError } from "@langfuse/shared";
+import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 
 const { env } = vi.hoisted(() => ({
   env: { API_AUTH_MIGRATION: "enforce" as string },
@@ -22,22 +23,20 @@ import {
   type ApiAction,
 } from "@/src/features/public-api/server";
 import type { ServerContext } from "@/src/features/mcp/types";
-import {
-  type AuthorizationContext,
-  type Policy,
-  type ProjectAction,
-} from "@/src/features/auth/policy/types";
+import { type Policy, type ProjectAction } from "@/src/features/rbac/types";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 const { assertToolAuthorized } = __test;
 
 const PRJ = "prj_1";
 
 const allowPrompts: Policy = {
-  kind: "project",
-  source: { kind: "role", id: "PROJECT" },
+  id: "system/PROJECT:project",
+  tenantId: OrganizationId("org_1"),
+  roleId: SystemRoleId("PROJECT"),
   actions: ["prompts:read"] as ProjectAction[] as never,
-  resources: [PRJ],
-  effect: "allow",
+  resources: [ProjectId(PRJ)],
+  effect: "ALLOW",
 };
 
 const authContext = (policies: Policy[]): AuthorizationContext => ({
