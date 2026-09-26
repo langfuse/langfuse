@@ -43,6 +43,9 @@
 - `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues
   opaque `PreparedEvent` handles for `events_full`. Use `shutdownAll()` to drain
   both singletons.
+- `LANGFUSE_NATIVE_CLICKHOUSE_ENCODING_ENABLED` defaults to false. When enabled,
+  `IngestionService.writeEventRecord()` prepares Native handles after TS overflow
+  handling and accounting; transformations remain in TS.
 - Rust addon (`@langfuse/native`): telemetry init and the startup hello call live
   in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code
   records its own metrics and logs; see `../packages/native/AGENTS.md`.
