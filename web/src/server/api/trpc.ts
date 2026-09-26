@@ -29,6 +29,7 @@ import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 type CreateContextOptions = {
   session: Session | null;
   headers: IncomingHttpHeaders;
+  requestSpan?: opentelemetry.Span;
 };
 
 /**
@@ -45,6 +46,7 @@ export const createInnerTRPCContext = (opts: CreateContextOptions) => {
   return {
     session: opts.session,
     headers: opts.headers,
+    requestSpan: opts.requestSpan,
     prisma,
   };
 };
@@ -68,7 +70,12 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
     userId: session?.user?.id,
   });
 
-  return createInnerTRPCContext({ session, headers });
+  return createInnerTRPCContext({
+    session,
+    headers,
+    // http.server span; procedure middlewares run inside the child "TRPC" span
+    requestSpan: opentelemetry.trace.getActiveSpan(),
+  });
 };
 
 /**
@@ -356,6 +363,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
         organizationId: dbProject.orgId,
         projectId,
       });
+      addUserToSpan({ projectId, orgId: dbProject.orgId }, ctx.requestSpan);
       return next({
         ctx: {
           // infers the `session` as non-nullable
@@ -391,6 +399,10 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
     organizationId: sessionProject.organization.id,
     projectId,
   });
+  addUserToSpan(
+    { projectId, orgId: sessionProject.organization.id },
+    ctx.requestSpan,
+  );
 
   return next({
     ctx: {
@@ -637,6 +649,7 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
         projectId,
       });
     }
+    addUserToSpan({ projectId }, ctx.requestSpan);
 
     return next({
       ctx: {
@@ -723,6 +736,7 @@ const enforceSessionAccess = t.middleware(async (opts) => {
       projectId,
     });
   }
+  addUserToSpan({ projectId }, ctx.requestSpan);
 
   return next({
     ctx: {
