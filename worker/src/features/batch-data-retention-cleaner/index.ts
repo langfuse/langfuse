@@ -88,9 +88,11 @@ function summarizeBacklog(workloads: ProjectWorkload[]) {
 
 /**
  * Hash projectId to a short key for ClickHouse parameter names.
+ * sha256 rather than md5: an OpenSSL FIPS provider refuses md5. The key only
+ * names query parameters within one query, so it is never persisted.
  */
 function toParamKey(projectId: string): string {
-  return createHash("md5").update(projectId).digest("hex").slice(0, 8);
+  return createHash("sha256").update(projectId).digest("hex").slice(0, 8);
 }
 
 /**

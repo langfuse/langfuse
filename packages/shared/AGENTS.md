@@ -98,6 +98,9 @@
   `@langfuse/shared/src/server/auth/apiKeys`,
   `@langfuse/shared/src/server/clickhouse/clickhouseIdentifiers`,
   `@langfuse/shared/src/server/ee/ingestionMasking`,
+  `@langfuse/shared/src/server/ee/fips` (startup FIPS-mode enforcement; it
+  loads only env and the license check, so it can run before anything
+  connects),
   `@langfuse/shared/src/server/llm/llmText`, and
   `@langfuse/shared/src/utils/chatml`. The
   `@langfuse/shared/src/utils/normalized-io` parser is client-safe and is the

@@ -16,7 +16,7 @@ import { hello } from "@langfuse/native";
 | `src/telemetry.rs`    | Metrics and log setup shared by all native code; see Observability.          |
 | `Cargo.toml`          | Crate manifest (`cdylib`). `Cargo.lock` is committed.                        |
 | `build.rs`            | napi-rs build hook.                                                          |
-| `rust-toolchain.toml` | Pinned compiler version, kept equal to the Rust shipped in `node:24-alpine`. |
+| `rust-toolchain.toml` | Pinned compiler version, kept equal to the one `worker/Dockerfile` installs. |
 | `package.json`        | npm package; `napi.binaryName` names the compiled `.node` file.              |
 | `index.js`            | Generated loader that picks the `.node` file for the current platform.       |
 | `index.d.ts`          | Generated TypeScript declarations, derived from the `#[napi]` signatures.    |
@@ -67,9 +67,9 @@ is always present when the worker starts or its tests run. A direct
 
 ## How it ships
 
-`worker/Dockerfile` copies the toolchain pinned in `rust-toolchain.toml` from
-the official `rust:<version>-alpine` image into the builder stage;
-`turbo run build --filter=worker...` compiles the addon for musl, and
+`worker/Dockerfile` installs the toolchain pinned in `rust-toolchain.toml` from
+the checksum-verified standalone Rust installer into its UBI9 builder stage;
+`turbo run build --filter=worker...` compiles the addon for glibc, and
 `pnpm deploy` copies the `.node` file into the runtime image next to the
 loader. Each architecture builds on a native runner, so no cross
 compilation is involved. The runtime image gains only the compiled library.

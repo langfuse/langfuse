@@ -4,6 +4,10 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["views", "relationJoins", "metrics"]
+  // rhel-openssl-3.0.x: UBI9 runtime images (glibc); these engines link the
+  // system libcrypto.so.3, so Postgres TLS runs inside the platform's
+  // FIPS-validated OpenSSL module.
+  binaryTargets   = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {

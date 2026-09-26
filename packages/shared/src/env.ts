@@ -612,6 +612,10 @@ const EnvSchema = z.object({
   // EE License
   LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
 
+  // FIPS mode (EE feature): refuse to start without an enterprise license or
+  // an active OpenSSL FIPS provider. See server/ee/fips.
+  LANGFUSE_REQUIRE_FIPS: z.enum(["true", "false"]).default("false"),
+
   // Ingestion Masking (EE feature)
   LANGFUSE_INGESTION_MASKING_CALLBACK_URL: z.url().optional(),
   LANGFUSE_INGESTION_MASKING_CALLBACK_TIMEOUT_MS: z.coerce
