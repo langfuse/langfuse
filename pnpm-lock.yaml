@@ -280,8 +280,8 @@ importers:
         specifier: ^0.0.52
         version: 0.0.52
       '@ai-sdk/amazon-bedrock':
-        specifier: ^5.0.25
-        version: 5.0.25(zod@4.3.6)
+        specifier: ^5.0.87
+        version: 5.0.87(zod@4.3.6)
       '@ai-sdk/anthropic':
         specifier: ^4.0.5
         version: 4.0.16(zod@4.3.6)
@@ -1332,8 +1332,8 @@ packages:
     peerDependencies:
       zod: 4.3.6
 
-  '@ai-sdk/amazon-bedrock@5.0.25':
-    resolution: {integrity: sha512-cWDjIbD6CoFicwGjgwsU6sWMS9gpBBIQlMDgV5YfnPpmQVsQ3G+wBEwRyxCNxFVtxKxkMz8Bt6Uo6oTbfDCCNQ==}
+  '@ai-sdk/amazon-bedrock@5.0.87':
+    resolution: {integrity: sha512-af2EuotJ75+9pPtUxdpsFXbgSrXk1Qev98C5LBBqLBGv/ZKRkwQRH8DO2MCuLMj7tCjLC8lNaL/Czi1wZDefRQ==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: 4.3.6
@@ -1358,6 +1358,12 @@ packages:
 
   '@ai-sdk/anthropic@4.0.5':
     resolution: {integrity: sha512-JyJYKWGYz8vfoQ1pCm48a9zgX3Gvb2/6iGHb+8pEelpqnOiUq3aDHVq+nYMf9VepqcjCuH0JSOwBrKiPg/PD9w==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      zod: 4.3.6
+
+  '@ai-sdk/anthropic@4.0.57':
+    resolution: {integrity: sha512-alc6hlZVlaXvu7WrRcCGP5LLuJhnx6xryaKAWpzLPtAB4ZNxDkcSBDqgnO2uTNhwxG8gAEG3P4aTrPy3oH2GnA==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: 4.3.6
@@ -1440,6 +1446,12 @@ packages:
     peerDependencies:
       zod: 4.3.6
 
+  '@ai-sdk/openai@4.0.70':
+    resolution: {integrity: sha512-D2JjGOPnn67HYqMn/22/xtel0Gdz/0jSwe6Ig7HMa0piGmAekBfg71vAmFwx3GN9PZPKB+JUIpuzTASRLUBVKw==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      zod: 4.3.6
+
   '@ai-sdk/provider-utils@2.2.8':
     resolution: {integrity: sha512-fqhG+4sCVv8x7nFzYnFo19ryhAa3w096Kmc3hWxMQfW/TubPOmt3A6tYZhl4mUfQWWQMsuSkLrtjlWuXBVSGQA==}
     engines: {node: '>=18'}
@@ -1472,6 +1484,12 @@ packages:
 
   '@ai-sdk/provider-utils@5.0.3':
     resolution: {integrity: sha512-El0JOXXGcHFe6+owJ1UV0VgB9XtdivP8vcZni+rUIt6lt+cBHCnUdddaA6LE2avJGJ5AD0uXSY+uAvRL2tSvgw==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      zod: 4.3.6
+
+  '@ai-sdk/provider-utils@5.0.44':
+    resolution: {integrity: sha512-TZGr0Al1mMnRh7Wd+3qTnSdWvBDIst2Abl8mglkob8rbXF1TG5xoeVLV19rD/AtB+NL/LUPITdbQ0EFGHRBcSw==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: 4.3.6
@@ -12763,12 +12781,12 @@ snapshots:
       aws4fetch: 1.0.20
       zod: 4.3.6
 
-  '@ai-sdk/amazon-bedrock@5.0.25(zod@4.3.6)':
+  '@ai-sdk/amazon-bedrock@5.0.87(zod@4.3.6)':
     dependencies:
-      '@ai-sdk/anthropic': 4.0.16(zod@4.3.6)
-      '@ai-sdk/openai': 4.0.16(zod@4.3.6)
-      '@ai-sdk/provider': 4.0.3
-      '@ai-sdk/provider-utils': 5.0.11(zod@4.3.6)
+      '@ai-sdk/anthropic': 4.0.57(zod@4.3.6)
+      '@ai-sdk/openai': 4.0.70(zod@4.3.6)
+      '@ai-sdk/provider': 4.0.17
+      '@ai-sdk/provider-utils': 5.0.44(zod@4.3.6)
       '@smithy/eventstream-codec': 4.4.14
       '@smithy/util-utf8': 4.4.14
       aws4fetch: 1.0.20
@@ -12796,6 +12814,12 @@ snapshots:
     dependencies:
       '@ai-sdk/provider': 4.0.1
       '@ai-sdk/provider-utils': 5.0.3(zod@4.3.6)
+      zod: 4.3.6
+
+  '@ai-sdk/anthropic@4.0.57(zod@4.3.6)':
+    dependencies:
+      '@ai-sdk/provider': 4.0.17
+      '@ai-sdk/provider-utils': 5.0.44(zod@4.3.6)
       zod: 4.3.6
 
   '@ai-sdk/azure@4.0.5(zod@4.3.6)':
@@ -12892,6 +12916,12 @@ snapshots:
       '@ai-sdk/provider-utils': 5.0.3(zod@4.3.6)
       zod: 4.3.6
 
+  '@ai-sdk/openai@4.0.70(zod@4.3.6)':
+    dependencies:
+      '@ai-sdk/provider': 4.0.17
+      '@ai-sdk/provider-utils': 5.0.44(zod@4.3.6)
+      zod: 4.3.6
+
   '@ai-sdk/provider-utils@2.2.8(zod@4.3.6)':
     dependencies:
       '@ai-sdk/provider': 1.1.3
@@ -12935,6 +12965,15 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.0
+      zod: 4.3.6
+
+  '@ai-sdk/provider-utils@5.0.44(zod@4.3.6)':
+    dependencies:
+      '@ai-sdk/provider': 4.0.17
+      '@standard-schema/spec': 1.1.0
+      '@workflow/serde': 4.1.0
+      eventsource-parser: 3.1.0
+      undici: 7.29.1
       zod: 4.3.6
 
   '@ai-sdk/provider-utils@5.0.45(zod@4.3.6)':
