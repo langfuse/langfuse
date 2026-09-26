@@ -15,25 +15,17 @@ export { EXCEPTION_TAG_HEADER_NAME } from "@clickhouse/client";
 
 export type ClickhouseClientType = ReturnType<typeof createClient>;
 
-/**
- * Pass `ReadWrite` explicitly only for reads that must see their own writes;
- * the query-outcome metric counts those as `read_after_write`, separately from
- * reads that land on the writer by default.
- */
 export type PreferredClickhouseService =
   | "ReadWrite"
   | "ReadOnly"
   | "EventsReadOnly";
 
 /** Node a query actually lands on once unset replica URLs fall back. */
-export type ClickhouseServiceTarget =
-  | "main"
-  | "read_replica"
-  | "events_read_replica";
+export type ClickhouseService = "main" | "read_replica" | "events_read_replica";
 
-export function resolveClickhouseServiceTarget(
+export function resolveClickhouseService(
   preferredClickhouseService: PreferredClickhouseService = "ReadWrite",
-): ClickhouseServiceTarget {
+): ClickhouseService {
   switch (preferredClickhouseService) {
     case "ReadWrite":
       return "main";
@@ -175,7 +167,7 @@ export class ClickHouseClientManager {
   private getClickhouseUrl = (
     preferredClickhouseService: PreferredClickhouseService,
   ) => {
-    switch (resolveClickhouseServiceTarget(preferredClickhouseService)) {
+    switch (resolveClickhouseService(preferredClickhouseService)) {
       case "events_read_replica":
         return env.CLICKHOUSE_EVENTS_READ_ONLY_URL;
       case "read_replica":

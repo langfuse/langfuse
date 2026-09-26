@@ -1,6 +1,6 @@
 import { recordIncrement } from "../instrumentation";
 import { type NormalizedClickHouseQueryTags } from "./queryTags";
-import { type ClickhouseServiceTarget } from "./client";
+import { type ClickhouseService } from "./client";
 
 /**
  * Terminal outcome of one logical ClickHouse query, counted once per query
@@ -212,21 +212,12 @@ export function clickHouseQueryShape(query: string): ClickHouseQueryShape {
   return OTHER_SHAPE_LABEL;
 }
 
-/**
- * Where the query ran, so load on the writer can be split into reads that must
- * stay there (`readAfterWrite`) and reads that could move to a replica.
- */
-export type ClickHouseQueryTarget = {
-  service: ClickhouseServiceTarget;
-  readAfterWrite: boolean;
-};
-
 export function recordClickHouseQueryOutcome(
   outcome: ClickHouseQueryOutcome,
   tags: NormalizedClickHouseQueryTags,
   table: ClickHouseQueryTable,
   shape: ClickHouseQueryShape,
-  target: ClickHouseQueryTarget,
+  clickhouseService: ClickhouseService,
 ): void {
   recordIncrement(CLICKHOUSE_QUERY_OUTCOME_METRIC, 1, {
     outcome,
@@ -234,7 +225,6 @@ export function recordClickHouseQueryOutcome(
     route: clickHouseQueryOutcomeRouteLabel(tags.route),
     table,
     query_shape: shape,
-    clickhouse_service: target.service,
-    read_after_write: String(target.readAfterWrite),
+    clickhouse_service: clickhouseService,
   });
 }

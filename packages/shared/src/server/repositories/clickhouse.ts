@@ -5,7 +5,7 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
   EXCEPTION_TAG_HEADER_NAME,
-  resolveClickhouseServiceTarget,
+  resolveClickhouseService,
 } from "../clickhouse/client";
 import { ClickhouseExecExceptionTagTransform } from "./clickhouseExecExceptionTag";
 import { logger } from "../logger";
@@ -37,7 +37,6 @@ import {
   clickHouseQueryShape,
   clickHouseQueryTableLabel,
   recordClickHouseQueryOutcome,
-  type ClickHouseQueryTarget,
 } from "../clickhouse/queryOutcome";
 
 /**
@@ -707,10 +706,9 @@ export async function queryClickhouse<T>(
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
   const table = clickHouseQueryTableLabel(opts.query);
   const shape = clickHouseQueryShape(opts.query);
-  const target: ClickHouseQueryTarget = {
-    service: resolveClickhouseServiceTarget(opts.preferredClickhouseService),
-    readAfterWrite: opts.preferredClickhouseService === "ReadWrite",
-  };
+  const clickhouseService = resolveClickhouseService(
+    opts.preferredClickhouseService,
+  );
   return await instrumentAsync(
     { name: "clickhouse-query", spanKind: SpanKind.CLIENT },
     async (span) => {
@@ -774,7 +772,7 @@ export async function queryClickhouse<T>(
           normalizedTags,
           table,
           shape,
-          target,
+          clickhouseService,
         );
         throw wrapped;
       });
@@ -784,7 +782,7 @@ export async function queryClickhouse<T>(
         normalizedTags,
         table,
         shape,
-        target,
+        clickhouseService,
       );
       return rows;
     },

@@ -43,7 +43,7 @@ vi.mock("@clickhouse/client", async (importOriginal) => {
 import {
   ClickHouseClientManager,
   clickhouseClient,
-  resolveClickhouseServiceTarget,
+  resolveClickhouseService,
   type PreferredClickhouseService,
 } from "./client";
 import { setClickHouseCompatibilityVersionForTests } from "./compatibility";
@@ -189,7 +189,7 @@ describe("ClickHouseClientManager compatibility settings", () => {
   });
 });
 
-describe("resolveClickhouseServiceTarget", () => {
+describe("resolveClickhouseService", () => {
   const MAIN = "http://main:8123";
   const READ_REPLICA = "http://read-replica:8123";
   const EVENTS_READ_REPLICA = "http://events-read-replica:8123";
@@ -236,7 +236,7 @@ describe("resolveClickhouseServiceTarget", () => {
       preferred,
       readOnlyUrl,
       eventsReadOnlyUrl,
-      expectedTarget,
+      expectedService,
       expectedUrl,
     ) => {
       const originalUrl = mocks.env.CLICKHOUSE_URL;
@@ -244,7 +244,7 @@ describe("resolveClickhouseServiceTarget", () => {
       mocks.env.CLICKHOUSE_READ_ONLY_URL = readOnlyUrl;
       mocks.env.CLICKHOUSE_EVENTS_READ_ONLY_URL = eventsReadOnlyUrl;
       try {
-        expect(resolveClickhouseServiceTarget(preferred)).toBe(expectedTarget);
+        expect(resolveClickhouseService(preferred)).toBe(expectedService);
 
         clickhouseClient({}, preferred);
         expect(mocks.createClient.mock.calls[0][0].url).toBe(expectedUrl);
