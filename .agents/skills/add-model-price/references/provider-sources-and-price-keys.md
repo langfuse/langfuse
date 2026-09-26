@@ -744,6 +744,30 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   the same `gpt-6-astra`-precedent scope boundary (Batch is a distinct async
   endpoint, not an ordinary `service_tier` value Langfuse observes in
   synchronous request usage).
+- **September 26 2026 audit: full re-fetch found no price or catalog drift** —
+  Re-fetched the full Anthropic pricing page (all sections, verbatim) and the
+  Anthropic models-overview comparison table, the OpenAI aggregate pricing
+  page plus the full model catalog and dedicated pages for `gpt-6-astra`,
+  `gpt-6-sol`, `gpt-6-luna`, `gpt-5.6-sol`, `gpt-5-chat-latest`, and
+  `gpt-5.3-codex`, plus a consolidated compact-format price check for
+  `gpt-5.5`, `gpt-5.5-pro`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`,
+  `gpt-5.4-pro`, `gpt-5.2`, `gpt-5.1`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`,
+  `gpt-5-pro`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-4o`,
+  `gpt-4o-mini`, `o1`, `o1-pro`, `o3`, `o3-pro`, `o3-mini`, and `o4-mini`, and
+  both Gemini pricing pages (3.x family and 2.5 family) plus the Gemini models
+  catalog. Every price already in the file matched verbatim; no updates were
+  needed. Lesson confirmed useful again: asking the aggregate OpenAI pricing
+  page for a compact "model: input/cached/output" plain-text list (instead of
+  a verbatim markdown quote) avoids the per-quote character-limit refusal a
+  full verbatim table request triggered this run. No new general-purpose
+  text/chat/reasoning model was found: the OpenAI catalog's new-looking
+  entries this run (`gpt-5-search-api`, `gpt-image-2.5-sunburst`/`-flare`,
+  `gpt-live-1`, `gpt-realtime-2.1` variants, `gpt-realtime-translate`,
+  `gpt-live-transcribe`) are all search-tool, image-generation, or
+  realtime/voice endpoints, and the Gemini catalog surfaced no model beyond
+  the already-catalogued text/chat lineup. The Daybreak cyber/Rosalind
+  restricted family and the AWS Bedrock Public Extended Access SKU were not
+  re-checked this run — no new evidence, standing exclusions.
 - **September 22 2026 audit: full re-fetch found Claude Opus 5.5 and GPT-6
   Sol/Luna as the only drift; everything else confirmed unchanged** —
   Re-fetched the full Anthropic pricing page (all sections, not just the
