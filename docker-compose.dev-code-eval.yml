@@ -1,0 +1,9 @@
+services:
+  floci:
+    # Lambda execution needs Docker access. Floci starts as root to map the
+    # host socket GID, then drops to its unprivileged user.
+    user: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./scripts/code-eval-runners:/opt/code-eval-runners:ro
+      - ./scripts/code-eval-runners/bootstrap-floci.py:/etc/floci/init/ready.d/02-bootstrap-code-eval-runners.py:ro

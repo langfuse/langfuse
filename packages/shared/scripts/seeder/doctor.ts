@@ -1,4 +1,6 @@
+import { HeadBucketCommand, S3Client } from "@aws-sdk/client-s3";
 import { prisma } from "../../src/db";
+import { env as sharedEnv } from "../../src/env";
 import { clickhouseClient, redis } from "../../src/server";
 import { SeedError } from "./scenarios/types";
 
@@ -309,25 +311,55 @@ const checkHttp = async (
   }
 };
 
-const checkMinio = async (): Promise<CheckResult> => {
-  // CLI script, not a turbo task — probes the dev env directly.
-  // eslint-disable-next-line turbo/no-undeclared-env-vars
-  const endpoint = process.env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT;
+const checkBlobStorage = async (): Promise<CheckResult> => {
+  const endpoint = sharedEnv.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT;
   if (!endpoint) {
     return {
       name: "blob-storage",
       status: "warn",
       detail:
         "LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT not set (only needed for media/event uploads)",
-      fix: "set LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT in .env (e.g. http://localhost:9090) if media/event upload tests are needed",
+      fix: "set LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT in .env (e.g. http://localhost:4566) if media/event upload tests are needed",
     };
   }
-  return checkHttp(
-    "blob-storage",
-    `${endpoint.replace(/\/$/, "")}/minio/health/live`,
-    FIX.infraUp,
-    `reachable at ${endpoint}`,
-  );
+
+  const accessKeyId = sharedEnv.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID;
+  const secretAccessKey = sharedEnv.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY;
+  const region = sharedEnv.LANGFUSE_S3_EVENT_UPLOAD_REGION ?? "us-east-1";
+  const bucket = sharedEnv.LANGFUSE_S3_EVENT_UPLOAD_BUCKET;
+  const forcePathStyle =
+    sharedEnv.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true";
+
+  const client = new S3Client({
+    endpoint,
+    region,
+    forcePathStyle,
+    credentials:
+      accessKeyId && secretAccessKey
+        ? { accessKeyId, secretAccessKey }
+        : undefined,
+  });
+
+  try {
+    await withTimeout(
+      client.send(new HeadBucketCommand({ Bucket: bucket })),
+      4000,
+    );
+    return {
+      name: "blob-storage",
+      status: "pass",
+      detail: `bucket ${bucket} reachable at ${endpoint}`,
+    };
+  } catch (error) {
+    return {
+      name: "blob-storage",
+      status: "warn",
+      detail: `cannot reach bucket ${bucket} at ${endpoint}: ${(error as Error).message}`,
+      fix: FIX.infraUp,
+    };
+  } finally {
+    client.destroy();
+  }
 };
 
 export const runDoctor = async (
@@ -346,7 +378,7 @@ export const runDoctor = async (
     clickhouse,
     clickhouseMemory,
     redisCheck,
-    minio,
+    blobStorage,
     web,
   ] = await Promise.all([
     checkPostgres(),
@@ -355,7 +387,7 @@ export const runDoctor = async (
     checkClickhouse(),
     checkClickhouseMemory(),
     checkRedis(),
-    checkMinio(),
+    checkBlobStorage(),
     checkHttp(
       "web-app",
       `${baseUrl}/api/public/health`,
@@ -374,7 +406,7 @@ export const runDoctor = async (
     clickhouse.v4Tables,
     clickhouseMemory,
     redisCheck,
-    minio,
+    blobStorage,
     web,
   ];
   return { ok: checks.every((check) => check.status !== "fail"), checks };
