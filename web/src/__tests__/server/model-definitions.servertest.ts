@@ -665,4 +665,37 @@ describe("/models API Endpoints", () => {
     );
     expect(modelsAfterDelete.status).toBe(200);
   });
+
+  it("GET /models with fromTimestamp and toTimestamp filters", async () => {
+    const pastDate = new Date(Date.now() - 60000).toISOString();
+    const futureDate = new Date(Date.now() + 60000).toISOString();
+    const farPastDate = new Date(Date.now() - 3600000).toISOString();
+
+    const response = await makeZodVerifiedAPICall(
+      GetModelsV1Response,
+      "GET",
+      `/api/public/models?fromTimestamp=${encodeURIComponent(pastDate)}&toTimestamp=${encodeURIComponent(futureDate)}`,
+      undefined,
+      auth,
+    );
+    expect(response.status).toBe(200);
+    expect(response.body.data.length).toBeGreaterThanOrEqual(1);
+
+    const emptyResponse = await makeZodVerifiedAPICall(
+      GetModelsV1Response,
+      "GET",
+      `/api/public/models?toTimestamp=${encodeURIComponent(farPastDate)}`,
+      undefined,
+      auth,
+    );
+    expect(emptyResponse.status).toBe(200);
+
+    const invalidResponse = await makeAPICall(
+      "GET",
+      "/api/public/models?fromTimestamp=invalid-date",
+      undefined,
+      auth,
+    );
+    expect(invalidResponse.status).toBe(400);
+  });
 });
