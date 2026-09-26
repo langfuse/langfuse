@@ -153,15 +153,16 @@ function normalizeGeminiPart(
     );
   }
 
-  // Gemini text/thought parts: a bare `text` field, optionally flagged as
-  // thought with a signature sibling.
+  // Gemini text/thought parts: a bare `text` field. Only the `thought` flag
+  // marks reasoning; generateContent can also attach a thoughtSignature to
+  // regular answer text.
   if (typeof value.text === "string") {
-    const signature = optionalString(
-      value.thoughtSignature ?? value.thought_signature,
-    );
     return claimed(
-      value.thought === true || signature
-        ? reasoningPart(value.text, signature)
+      value.thought === true
+        ? reasoningPart(
+            value.text,
+            optionalString(value.thoughtSignature ?? value.thought_signature),
+          )
         : { type: "text", text: value.text },
     );
   }
