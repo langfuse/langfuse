@@ -70,6 +70,11 @@ declare module "next-auth" {
       // opt out of product traces. Optional so existing session mocks need
       // not set it.
       aiFeaturesTracingConfigured?: boolean;
+      // Mirrors LANGFUSE_MODEL_DEFINITIONS_ENABLED so the client can withdraw
+      // the Models surfaces on an instance that resolves no model definitions.
+      // Optional so existing session mocks need not set it; the real session
+      // callback always populates it.
+      modelDefinitionsEnabled?: boolean;
       // Enables features that are only available under an enterprise/commercial license when self-hosting Langfuse
       selfHostedInstancePlan: Plan | null;
       // V4 migration write mode. Mirrors LANGFUSE_MIGRATION_V4_WRITE_MODE so the

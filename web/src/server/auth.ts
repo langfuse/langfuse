@@ -71,6 +71,7 @@ import {
   logger,
   resolveProjectRole,
   isLangfuseAITracingConfigured,
+  isModelDefinitionsEnabled,
 } from "@langfuse/shared/src/server";
 import {
   getOrganizationPlanServerSide,
@@ -863,6 +864,7 @@ export async function getAuthOptions(signupAttribution?: {
                 env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
               inAppAgentEnabled: isInAppAgentInstanceEnabled(),
               aiFeaturesTracingConfigured: isLangfuseAITracingConfigured(),
+              modelDefinitionsEnabled: isModelDefinitionsEnabled(),
               // Enables features that are only available under an enterprise license when self-hosting Langfuse
               // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
               selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),

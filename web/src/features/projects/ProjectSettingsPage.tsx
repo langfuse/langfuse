@@ -40,6 +40,7 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { WebCalloutIntegrationCard } from "@/src/features/web-callouts";
 import { DeveloperToolsSettings } from "@/src/features/developer-tools";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useModelDefinitionsEnabled } from "@/src/features/models/hooks/useModelDefinitionsEnabled";
 import { api } from "@/src/utils/api";
 
 type ProjectSettingsPageEntry = {
@@ -66,6 +67,7 @@ export function useProjectSettingsPages(): ProjectSettingsPageEntry[] {
     scope: "scoreConfigs:read",
   });
   const showV4Migration = useV4UpgradeUiFlag();
+  const showModelsSettings = useModelDefinitionsEnabled();
   if (!project || !organization || !router.query.projectId) {
     return [];
   }
@@ -80,6 +82,7 @@ export function useProjectSettingsPages(): ProjectSettingsPageEntry[] {
     showProjectNotificationChannels,
     showScoreConfigSettings,
     showV4Migration,
+    showModelsSettings,
   });
 }
 
@@ -93,6 +96,7 @@ const getProjectSettingsPages = ({
   showProjectNotificationChannels,
   showScoreConfigSettings,
   showV4Migration,
+  showModelsSettings,
 }: {
   project: { id: string; name: string; metadata: Record<string, unknown> };
   organization: { id: string; name: string; metadata: Record<string, unknown> };
@@ -103,6 +107,7 @@ const getProjectSettingsPages = ({
   showProjectNotificationChannels: boolean;
   showScoreConfigSettings: boolean;
   showV4Migration: boolean;
+  showModelsSettings: boolean;
 }): ProjectSettingsPageEntry[] => [
   {
     title: "General",
@@ -231,6 +236,7 @@ const getProjectSettingsPages = ({
     slug: "models",
     cmdKKeywords: ["cost", "token"],
     content: <ModelsSettings projectId={project.id} />,
+    show: showModelsSettings,
   },
   {
     title: "Protected Labels",
