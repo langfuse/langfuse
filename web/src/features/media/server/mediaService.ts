@@ -82,12 +82,13 @@ export async function createMediaUploadUrl(params: {
       existingMedia.uploadHttpStatus === 200 &&
       existingMedia.contentType === contentType
     ) {
-      await linkUploadedMedia(mediaId);
-
-      return GetMediaUploadUrlResponseSchema.parse({
-        mediaId,
-        uploadUrl: null,
-      });
+      const linked = await linkUploadedMedia(mediaId);
+      if (linked !== false) {
+        return GetMediaUploadUrlResponseSchema.parse({
+          mediaId,
+          uploadUrl: null,
+        });
+      }
     }
 
     const uploadBucket = env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET;
@@ -124,7 +125,12 @@ export async function createMediaUploadUrl(params: {
       contentLength,
     });
 
-    await linkUploadedMedia(mediaId);
+    const linked = await linkUploadedMedia(mediaId);
+    if (linked === false) {
+      throw new InternalServerError(
+        `Media asset ${mediaId} not found after upload URL creation`,
+      );
+    }
 
     return GetMediaUploadUrlResponseSchema.parse({ mediaId, uploadUrl });
   } catch (error) {
