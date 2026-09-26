@@ -46,6 +46,13 @@ const ALL_KINDS: ObservationType[] = [
 // collapsed-by-default graph panel).
 const PLAIN_KINDS: ObservationType[] = ["SPAN", "GENERATION", "EVENT"];
 
+const AI_SDK_SCHEMA = {
+  type: "object",
+  properties: { answer: { type: "string" } },
+  required: ["answer"],
+  additionalProperties: false,
+};
+
 const NAME_BY_KIND: Record<string, string[]> = {
   AGENT: ["router-agent", "support-agent", "planner-agent"],
   CHAIN: ["rag-chain", "summarize-chain"],
@@ -154,6 +161,7 @@ const run = async (
   const payloadStyle = params["payload-style"] as PayloadStyle;
   const withV4 = params["v4"] as boolean;
   const asyncParents = params["async-parents"] as boolean;
+  const aiSdkSchema = params["ai-sdk-schema"] as boolean;
   // Type restriction is index-keyed (jitter), not rng-stream-keyed, so the
   // default (--plain absent) output stays byte-identical.
   const kinds = (params["plain"] as boolean) ? PLAIN_KINDS : ALL_KINDS;
@@ -452,6 +460,9 @@ const run = async (
         attributes: JSON.stringify({
           "flue.tool.name": isGeneration ? "lookup_weather" : "noop",
           "flue.tool.call_id": `call_${node.index}`,
+          ...(aiSdkSchema && isGeneration
+            ? { "ai.schema": JSON.stringify(AI_SDK_SCHEMA) }
+            : {}),
         }),
       },
       provided_model_name: isGeneration ? "gpt-5.4" : null,
@@ -756,6 +767,13 @@ export const traceTreeScenario: ScenarioDefinition = {
       default: false,
       description:
         "restrict observation types to SPAN/GENERATION/EVENT (no agentic types) — the shape whose graph panel is collapsed by default (LFE-10665)",
+    },
+    {
+      flag: "ai-sdk-schema",
+      type: "boolean",
+      default: false,
+      description:
+        "attach an AI SDK structured output schema to generation OTel attributes for Jump to Playground testing",
     },
     {
       flag: "scores-per-node",
