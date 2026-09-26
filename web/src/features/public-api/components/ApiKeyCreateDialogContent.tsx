@@ -291,7 +291,7 @@ function PermissionsPopup({
                 </Badge>
               </DialogTitle>
             </DialogHeader>
-            <DialogBody>
+            <DialogBody className="p-0">
               <RolePermissionList role={role} />
             </DialogBody>
           </>
