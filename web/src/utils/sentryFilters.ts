@@ -264,6 +264,11 @@ const NOISE_MESSAGE_PREFIXES: readonly string[] = [
   // the fallback message always STARTS with this literal (`(undefined)`,
   // `(null)`, ...). It is a framework artifact with no real error attached.
   "_error.js called with falsy error",
+  // MetaMask injects into the page and `console.error`s its own RPC / init
+  // failures. `captureConsoleIntegration` mints a new issue per wording; we
+  // do not integrate MetaMask (LANGFUSE-627).
+  "MetaMask:",
+  "MetaMask -",
 ];
 
 /**
@@ -291,6 +296,12 @@ const BENIGN_NON_ERROR_REJECTION_VALUES: readonly string[] = [
   // `Promise.reject()` / `reject(undefined)`: zero diagnostic content — no
   // stack, no message, no value. Nobody can act on it (LANGFUSE-5TA).
   "undefined",
+  // Wallet/provider extensions (MetaMask EIP-1193 code 4001) reject a
+  // dismissed connect/sign prompt with this bare string. Observed as an
+  // UnhandledRejection with no stack on /auth/sign-in (LANGFUSE-626).
+  "user rejected the request",
+  // Canonical EIP-1193 / MetaMask casing of the same cancellation.
+  "User rejected the request",
 ];
 
 /**
