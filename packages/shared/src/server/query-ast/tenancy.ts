@@ -12,6 +12,7 @@ import {
   ReferenceNode,
   SelectQueryNode,
   TableNode,
+  PrimitiveValueListNode,
   ValueNode,
   WhereNode,
   type KyselyPlugin,
@@ -30,11 +31,14 @@ import { ClickHouseOperationNodeTransformer } from "./transformer";
 /**
  * Compile-time tenancy scope. Every ClickHouse query compiled through
  * {@link compileClickhouseQuery} must carry one of these; the tenancy
- * injection pass keys off `projectId`.
+ * injection pass keys off the scope.
+ *
+ * Single-project reads use `projectId` (equality). Org-level scans that are
+ * already authorized across a known set use `projectIds` (`IN`).
  */
-export type ExecutionContext = {
-  projectId: string;
-};
+export type ExecutionContext =
+  | { projectId: string; projectIds?: undefined }
+  | { projectId?: undefined; projectIds: readonly string[] };
 
 const PROJECT_ID_COLUMN = "project_id";
 
@@ -52,9 +56,10 @@ type Relation =
   | { kind: "other" };
 
 /**
- * Mandatory tenancy injection. Attaches `project_id = {projectId}` to every
- * tenanted physical relation that does not already have that predicate, then
- * stamps the tree so {@link ClickHouseQueryCompiler} will compile it.
+ * Mandatory tenancy injection. Attaches `project_id = {projectId}` (or
+ * `project_id IN {projectIds}` for an org-level scan) to every tenanted
+ * physical relation that does not already have that predicate, then stamps
+ * the tree so {@link ClickHouseQueryCompiler} will compile it.
  *
  * Any `RawNode` whose SQL fragments introduce a relation (`SELECT` / `FROM` /
  * `JOIN`) is rejected — not only FROM/JOIN table sources. Kysely's own
@@ -62,11 +67,7 @@ type Relation =
  */
 export class TenancyInjectionPlugin implements KyselyPlugin {
   constructor(private readonly ctx: ExecutionContext) {
-    if (!ctx?.projectId) {
-      throw new QueryCompileError(
-        "ExecutionContext.projectId is required for tenancy injection",
-      );
-    }
+    requireExecutionContext(ctx);
   }
 
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
@@ -145,10 +146,8 @@ function injectSelect(
 
   let where = node.where;
   for (const table of tenantedFrom) {
-    if (
-      !predicateCovers(where?.where, table, ctx.projectId, requireQualified)
-    ) {
-      const predicate = projectIdPredicate(table, ctx.projectId);
+    if (!predicateCovers(where?.where, table, ctx, requireQualified)) {
+      const predicate = projectIdPredicate(table, ctx);
       // Prepend: the tenancy scope is the leading WHERE predicate, so its bound
       // value keeps a stable (first) parameter position regardless of the other
       // predicates a caller wrote.
@@ -164,12 +163,12 @@ function injectSelect(
     }
     const onExpr = join.on?.on;
     if (
-      predicateCovers(onExpr, relation, ctx.projectId, requireQualified) ||
-      predicateCovers(where?.where, relation, ctx.projectId, requireQualified)
+      predicateCovers(onExpr, relation, ctx, requireQualified) ||
+      predicateCovers(where?.where, relation, ctx, requireQualified)
     ) {
       return join;
     }
-    const predicate = projectIdPredicate(relation, ctx.projectId);
+    const predicate = projectIdPredicate(relation, ctx);
     if (!join.on) {
       return JoinNode.createWithOn(join.joinType, join.table, predicate);
     }
@@ -221,59 +220,81 @@ function identifierName(node: OperationNode): string | undefined {
   return undefined;
 }
 
-function projectIdPredicate(
+function projectIdColumn(
   table: Extract<Relation, { kind: "table" }>,
-  projectId: string,
 ): OperationNode {
   const column = ColumnNode.create(PROJECT_ID_COLUMN);
-  const left = table.alias
+  return table.alias
     ? ReferenceNode.create(column, TableNode.create(table.alias))
     : column;
+}
+
+function projectIdPredicate(
+  table: Extract<Relation, { kind: "table" }>,
+  ctx: ExecutionContext,
+): OperationNode {
+  const left = projectIdColumn(table);
+  if (ctx.projectIds) {
+    return BinaryOperationNode.create(
+      left,
+      OperatorNode.create("in"),
+      PrimitiveValueListNode.create(ctx.projectIds),
+    );
+  }
   return BinaryOperationNode.create(
     left,
     OperatorNode.create("="),
-    ValueNode.create(projectId),
+    ValueNode.create(ctx.projectId),
   );
 }
 
 /**
- * True only when `expr` provably constrains `table` to `projectId`. Both halves
- * matter: the left operand must be `table`'s `project_id` column (qualified when
- * {@link requireQualified}, see {@link injectSelect}) *and* the right operand
- * must be the literal `projectId` from the {@link ExecutionContext}. A predicate
- * such as `project_id = <someOtherProject>` or `o.project_id = t.project_id`
- * does not scope the relation to the request's project, so it is not covered and
- * the pass injects the correct predicate.
+ * True only when `expr` provably constrains `table` to the
+ * {@link ExecutionContext} scope. Both halves matter: the left operand must be
+ * `table`'s `project_id` column (qualified when {@link requireQualified}, see
+ * {@link injectSelect}) *and* the right operand must be the context's
+ * `projectId` (`=`) or `projectIds` (`IN`). A predicate such as
+ * `project_id = <someOtherProject>` or `o.project_id = t.project_id` does not
+ * scope the relation to the request, so it is not covered and the pass injects
+ * the correct predicate.
  */
 function predicateCovers(
   expr: OperationNode | undefined,
   table: Extract<Relation, { kind: "table" }>,
-  projectId: string,
+  ctx: ExecutionContext,
   requireQualified: boolean,
 ): boolean {
   if (!expr) return false;
   if (AndNode.is(expr)) {
     return (
-      predicateCovers(expr.left, table, projectId, requireQualified) ||
-      predicateCovers(expr.right, table, projectId, requireQualified)
+      predicateCovers(expr.left, table, ctx, requireQualified) ||
+      predicateCovers(expr.right, table, ctx, requireQualified)
     );
   }
   if (OrNode.is(expr)) {
     return (
-      predicateCovers(expr.left, table, projectId, requireQualified) &&
-      predicateCovers(expr.right, table, projectId, requireQualified)
+      predicateCovers(expr.left, table, ctx, requireQualified) &&
+      predicateCovers(expr.right, table, ctx, requireQualified)
     );
   }
   if (ParensNode.is(expr)) {
-    return predicateCovers(expr.node, table, projectId, requireQualified);
+    return predicateCovers(expr.node, table, ctx, requireQualified);
   }
-  if (!BinaryOperationNode.is(expr)) return false;
-  if (!OperatorNode.is(expr.operator) || expr.operator.operator !== "=") {
+  if (!BinaryOperationNode.is(expr) || !OperatorNode.is(expr.operator)) {
     return false;
   }
+  if (!isProjectIdColumn(expr.leftOperand, table, requireQualified)) {
+    return false;
+  }
+  if (ctx.projectIds) {
+    return (
+      expr.operator.operator === "in" &&
+      isProjectIdList(expr.rightOperand, ctx.projectIds)
+    );
+  }
   return (
-    isProjectIdColumn(expr.leftOperand, table, requireQualified) &&
-    isProjectIdValue(expr.rightOperand, projectId)
+    expr.operator.operator === "=" &&
+    isProjectIdValue(expr.rightOperand, ctx.projectId)
   );
 }
 
@@ -303,19 +324,43 @@ function isProjectIdColumn(
   return false;
 }
 
-function isProjectIdValue(node: OperationNode, projectId: string): boolean {
-  return ValueNode.is(node) && node.value === projectId;
+function isProjectIdValue(
+  node: OperationNode,
+  projectId: string | undefined,
+): boolean {
+  return (
+    projectId !== undefined && ValueNode.is(node) && node.value === projectId
+  );
+}
+
+function isProjectIdList(
+  node: OperationNode,
+  projectIds: readonly string[],
+): boolean {
+  const values = PrimitiveValueListNode.is(node)
+    ? node.values
+    : ValueNode.is(node) && Array.isArray(node.value)
+      ? node.value
+      : null;
+  return (
+    values !== null &&
+    values.length === projectIds.length &&
+    values.every((value, i) => value === projectIds[i])
+  );
 }
 
 export function requireExecutionContext(
   ctx: ExecutionContext | undefined,
 ): ExecutionContext {
-  if (!ctx?.projectId) {
-    throw new QueryCompileError(
-      "ExecutionContext is required: a query with no tenancy scope cannot compile.",
-    );
+  if (ctx?.projectId) {
+    return ctx;
   }
-  return ctx;
+  if (ctx?.projectIds && ctx.projectIds.length > 0) {
+    return ctx;
+  }
+  throw new QueryCompileError(
+    "ExecutionContext is required: a query with no tenancy scope cannot compile.",
+  );
 }
 
 function stampTenancy<T extends object>(node: T): T {

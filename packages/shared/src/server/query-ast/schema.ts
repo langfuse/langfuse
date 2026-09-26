@@ -94,6 +94,25 @@ function defineTable<const Cols extends Record<string, ChColumnType>>(spec: {
   };
 }
 
+const EVENTS_COLUMNS = {
+  environment: "String",
+  project_id: "String",
+  start_time: "DateTime",
+  span_id: "String",
+  trace_id: "String",
+  event_ts: "DateTime",
+  type: "String",
+  total_cost: "Float",
+  metadata_names: "Array(String)",
+  metadata_values: "Array(String)",
+  user_id: "String",
+  session_id: "String",
+  name: "String",
+  parent_span_id: "String",
+  end_time: "DateTime",
+  tags: "Array(String)",
+} as const satisfies Record<string, ChColumnType>;
+
 const TABLE_REGISTRY = {
   traces: defineTable({
     columns: {
@@ -114,19 +133,15 @@ const TABLE_REGISTRY = {
     },
   }),
   events_core: defineTable({
-    columns: {
-      environment: "String",
-      project_id: "String",
-      start_time: "DateTime",
-      span_id: "String",
-      trace_id: "String",
-      event_ts: "DateTime",
-      type: "String",
-      total_cost: "Float",
-      metadata_names: "Array(String)",
-      metadata_values: "Array(String)",
-    },
+    columns: EVENTS_COLUMNS,
     // Immutable at read time. Do not inject LIMIT BY or FINAL.
+    dedup: { strategy: "none" },
+  }),
+  // Same projection as events_core with full I/O. Tenanted and immutable
+  // for the same reasons; selected when a point-read needs untruncated
+  // input/output or metadata.
+  events_full: defineTable({
+    columns: EVENTS_COLUMNS,
     dedup: { strategy: "none" },
   }),
   scores: defineTable({
