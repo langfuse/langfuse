@@ -40,6 +40,9 @@
   stream's partial final trace; completion covers the query window, not future arrivals.
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
+- `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues
+  opaque `PreparedEvent` handles for `events_full`. Use `shutdownAll()` to drain
+  both singletons.
 - Rust addon (`@langfuse/native`): telemetry init and the startup hello call live
   in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code
   records its own metrics and logs; see `../packages/native/AGENTS.md`.

@@ -9,12 +9,17 @@ import {
   buildClickHouseLogComment,
 } from "@langfuse/shared/src/server";
 
+import { context, ROOT_CONTEXT } from "@opentelemetry/api";
+
+import type { PreparedEvent } from "@langfuse/native";
+
 import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 import { backOff } from "exponential-backoff";
 import {
   jsonWriteStrategy,
+  createNativeWriteStrategy,
   type ClickhouseWriteStrategy,
 } from "./writeStrategies";
 import { TableName, type RecordInsertType } from "./types";
@@ -26,10 +31,14 @@ export class ClickhouseWriter<
   PayloadMap extends WriterPayloadMap = JsonWriterPayloadMap,
 > {
   private static instance: ClickhouseWriter<JsonWriterPayloadMap> | null = null;
+  private static nativeInstance: ClickhouseWriter<NativeWriterPayloadMap> | null =
+    null;
   private client: ClickhouseClientType | null;
   private readonly strategyFactory: () => ClickhouseWriteStrategy<
     PayloadMap[TableName]
   >;
+  private readonly allowedTable: TableName | undefined;
+  private readonly logger: typeof logger;
   private readonly activeFlushes = new Set<Promise<void>>();
   batchSize: number;
   writeInterval: number;
@@ -42,9 +51,13 @@ export class ClickhouseWriter<
   private constructor(
     client: ClickhouseClientType | undefined,
     strategyFactory: () => ClickhouseWriteStrategy<PayloadMap[TableName]>,
+    private readonly format: "json" | "native",
+    allowedTable?: TableName,
   ) {
     this.client = client ?? null;
     this.strategyFactory = strategyFactory;
+    this.allowedTable = allowedTable;
+    this.logger = logger.child({ format });
     this.batchSize = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE;
     this.writeInterval = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS;
     this.maxAttempts = env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS;
@@ -74,6 +87,7 @@ export class ClickhouseWriter<
       instance = new ClickhouseWriter<JsonWriterPayloadMap>(
         client,
         () => jsonWriteStrategy,
+        "json",
       );
       ClickhouseWriter.instance = instance;
     } else if (client) {
@@ -82,24 +96,56 @@ export class ClickhouseWriter<
     return instance;
   }
 
+  /** Get the singleton Native writer, which accepts only prepared events for events_full. */
+  public static getNativeInstance(
+    client?: ClickhouseClientType,
+  ): ClickhouseWriter<NativeWriterPayloadMap> {
+    let instance = ClickhouseWriter.nativeInstance;
+    if (!instance) {
+      instance = new ClickhouseWriter<NativeWriterPayloadMap>(
+        client,
+        createNativeWriteStrategy,
+        "native",
+        TableName.EventsFull,
+      );
+      ClickhouseWriter.nativeInstance = instance;
+    } else if (client) {
+      instance.client = client;
+    }
+    return instance;
+  }
+
+  /** Stop every writer instance created in this process. */
+  public static async shutdownAll(): Promise<void> {
+    await Promise.all([
+      ClickhouseWriter.instance?.shutdown(),
+      ClickhouseWriter.nativeInstance?.shutdown(),
+    ]);
+    ClickhouseWriter.instance = null;
+    ClickhouseWriter.nativeInstance = null;
+  }
+
   private start() {
-    logger.info(
+    this.logger.info(
       `Starting ClickhouseWriter. Max interval: ${this.writeInterval} ms, Max batch size: ${this.batchSize}`,
     );
 
-    this.intervalId = setInterval(() => {
-      if (this.isIntervalFlushInProgress) return;
+    // The singleton outlives its first caller; timer flushes must not inherit that job's trace.
+    this.intervalId = context.with(ROOT_CONTEXT, () =>
+      setInterval(() => {
+        if (this.isIntervalFlushInProgress) return;
 
-      this.isIntervalFlushInProgress = true;
+        this.isIntervalFlushInProgress = true;
 
-      this.flushAll().finally(() => {
-        this.isIntervalFlushInProgress = false;
-      });
-    }, this.writeInterval);
+        this.flushAll().finally(() => {
+          this.isIntervalFlushInProgress = false;
+        });
+      }, this.writeInterval),
+    );
   }
 
   public async shutdown(): Promise<void> {
-    logger.info("Shutting down ClickhouseWriter...");
+    this.logger.info("Shutting down ClickhouseWriter...");
 
     if (this.intervalId) {
       clearInterval(this.intervalId);
@@ -112,28 +158,29 @@ export class ClickhouseWriter<
 
     await this.flushAll(true);
 
-    logger.info("ClickhouseWriter shutdown complete.");
+    this.logger.info("ClickhouseWriter shutdown complete.");
   }
 
   public async flushAll(fullQueue = false) {
+    const tables = this.allowedTable
+      ? [this.allowedTable]
+      : Object.values(TableName);
+    if (!tables.some((table) => this.queue[table].length > 0)) return;
+
     return this.trackActiveFlush(
       instrumentAsync(
         {
           name: "write-to-clickhouse",
         },
-        async () => {
-          recordIncrement("langfuse.queue.clickhouse_writer.request");
-          await Promise.all([
-            this.flush(TableName.Traces, fullQueue),
-            this.flush(TableName.TracesNull, fullQueue),
-            this.flush(TableName.Scores, fullQueue),
-            this.flush(TableName.Observations, fullQueue),
-            this.flush(TableName.ObservationsBatchStaging, fullQueue),
-            this.flush(TableName.BlobStorageFileLog, fullQueue),
-            this.flush(TableName.DatasetRunItems, fullQueue),
-            this.flush(TableName.EventsFull, fullQueue),
-          ]).catch((err) => {
-            logger.error("ClickhouseWriter.flushAll", err);
+        async (span) => {
+          span.setAttribute("format", this.format);
+          recordIncrement("langfuse.queue.clickhouse_writer.request", 1, {
+            format: this.format,
+          });
+          await Promise.all(
+            tables.map((table) => this.flush(table, fullQueue)),
+          ).catch((err) => {
+            this.logger.error("ClickhouseWriter.flushAll", err);
           });
         },
       ),
@@ -205,7 +252,7 @@ export class ClickhouseWriter<
     if (queueItems.length === 1) {
       const record = queueItems[0].data;
       const truncatedRecord = truncate(tableName, record);
-      logger.warn(
+      this.logger.warn(
         `String length error with single record for ${tableName}, falling back to truncation`,
         {
           recordId: strategy.droppedId(record).id,
@@ -226,7 +273,7 @@ export class ClickhouseWriter<
     const retryItems = queueItems.slice(0, splitPoint);
     const requeueItems = queueItems.slice(splitPoint);
 
-    logger.info(
+    this.logger.info(
       `Splitting batch for ${tableName} due to string length error. Retrying ${retryItems.length}, requeueing ${requeueItems.length}`,
     );
 
@@ -248,6 +295,7 @@ export class ClickhouseWriter<
     queueItems.forEach((item) => {
       const waitTime = Date.now() - item.createdAt;
       recordHistogram("langfuse.queue.clickhouse_writer.wait_time", waitTime, {
+        format: this.format,
         unit: "milliseconds",
       });
       recordDistribution(
@@ -256,6 +304,7 @@ export class ClickhouseWriter<
         {
           entity_type: tableName,
           type: "wait",
+          format: this.format,
           unit: "milliseconds",
         },
       );
@@ -294,7 +343,7 @@ export class ClickhouseWriter<
             const isStringLengthError = this.isStringLengthError(error);
 
             if (isRetryable) {
-              logger.warn(
+              this.logger.warn(
                 `ClickHouse Writer failed with retryable error for ${tableName} (attempt ${attemptNumber}/${env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS}): ${error.message}`,
                 {
                   error: error.message,
@@ -307,7 +356,7 @@ export class ClickhouseWriter<
               });
               return true;
             } else if (isStringLengthError && truncate) {
-              logger.warn(
+              this.logger.warn(
                 `ClickHouse Writer failed with string length error for ${tableName} (attempt ${attemptNumber}/${env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS}): Splitting batch and retrying`,
                 {
                   error: error.message,
@@ -340,7 +389,7 @@ export class ClickhouseWriter<
               });
               return true;
             } else if (isSizeError && truncate && !hasBeenTruncated) {
-              logger.warn(
+              this.logger.warn(
                 `ClickHouse Writer failed with size error for ${tableName} (attempt ${attemptNumber}/${env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS}): Truncating oversized records and retrying`,
                 {
                   error: error.message,
@@ -362,7 +411,7 @@ export class ClickhouseWriter<
               return true;
             }
 
-            logger.error(
+            this.logger.error(
               `ClickHouse query failed with non-retryable error: ${error.message}`,
               {
                 error: error.message,
@@ -383,6 +432,7 @@ export class ClickhouseWriter<
         "langfuse.queue.clickhouse_writer.processing_time",
         processingTime,
         {
+          format: this.format,
           unit: "milliseconds",
         },
       );
@@ -392,11 +442,12 @@ export class ClickhouseWriter<
         {
           entity_type: tableName,
           type: "processing",
+          format: this.format,
           unit: "milliseconds",
         },
       );
 
-      logger.debug(
+      this.logger.debug(
         `Flushed ${queueItems.length} records to Clickhouse ${tableName}. New queue length: ${entityQueue.length}`,
       );
 
@@ -404,12 +455,13 @@ export class ClickhouseWriter<
         "ingestion_clickhouse_insert_queue_length",
         entityQueue.length,
         {
+          format: this.format,
           unit: "records",
           entityType: tableName,
         },
       );
     } catch (err) {
-      logger.error(`ClickhouseWriter.flush ${tableName}`, err);
+      this.logger.error(`ClickhouseWriter.flush ${tableName}`, err);
 
       // Re-add the records to the queue with incremented attempts
       let droppedCount = 0;
@@ -421,7 +473,9 @@ export class ClickhouseWriter<
           });
         } else {
           // TODO - Add to a dead letter queue in Redis rather than dropping
-          recordIncrement("langfuse.queue.clickhouse_writer.error");
+          recordIncrement("langfuse.queue.clickhouse_writer.error", 1, {
+            format: this.format,
+          });
           droppedCount++;
         }
       });
@@ -430,14 +484,14 @@ export class ClickhouseWriter<
         recordIncrement(
           "langfuse.queue.clickhouse_writer.rows_dropped",
           droppedCount,
-          { entity_type: tableName },
+          { entity_type: tableName, format: this.format },
         );
 
         const droppedIds = queueItems
           .filter((item) => item.attempts >= this.maxAttempts)
           .map((item) => writeStrategy.droppedId(item.data));
 
-        logger.error(
+        this.logger.error(
           `ClickhouseWriter: Max attempts reached, dropped ${droppedCount} ${tableName} record(s)`,
           { droppedIds },
         );
@@ -446,6 +500,12 @@ export class ClickhouseWriter<
   }
 
   public addToQueue<T extends TableName>(tableName: T, data: PayloadMap[T]) {
+    if (this.allowedTable && tableName !== this.allowedTable) {
+      throw new Error(
+        `Native ClickHouse writer only accepts ${this.allowedTable}, got ${tableName}`,
+      );
+    }
+
     const entityQueue = this.queue[tableName];
     entityQueue.push({
       createdAt: Date.now(),
@@ -454,10 +514,10 @@ export class ClickhouseWriter<
     });
 
     if (entityQueue.length >= this.batchSize) {
-      logger.debug(`Queue is full. Flushing ${tableName}...`);
+      this.logger.debug(`Queue is full. Flushing ${tableName}...`);
 
       this.trackActiveFlush(this.flush(tableName)).catch((err) => {
-        logger.error("ClickhouseWriter.addToQueue flush", err);
+        this.logger.error("ClickhouseWriter.addToQueue flush", err);
       });
     }
   }
@@ -482,14 +542,16 @@ export class ClickhouseWriter<
         },
       })
       .catch((err) => {
-        logger.error(`ClickhouseWriter.writeToClickhouse ${err}`);
+        this.logger.error(`ClickhouseWriter.writeToClickhouse ${err}`);
         throw err;
       });
 
-    logger.debug(
+    this.logger.debug(
       `ClickhouseWriter.writeToClickhouse: ${Date.now() - startTime} ms`,
     );
-    recordGauge("ingestion_clickhouse_insert", params.records.length);
+    recordGauge("ingestion_clickhouse_insert", params.records.length, {
+      format: this.format,
+    });
   }
 }
 
@@ -497,6 +559,10 @@ type WriterPayloadMap = { [T in TableName]: object };
 
 type JsonWriterPayloadMap = {
   [T in TableName]: RecordInsertType<T>;
+};
+
+type NativeWriterPayloadMap = {
+  [T in TableName]: T extends TableName.EventsFull ? PreparedEvent : never;
 };
 
 type ClickhouseQueue<PayloadMap extends WriterPayloadMap> = {

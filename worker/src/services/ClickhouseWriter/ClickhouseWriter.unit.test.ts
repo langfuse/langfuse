@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Readable } from "node:stream";
 
 import * as serverExports from "@langfuse/shared/src/server";
+import type { NativeEventBlock } from "@langfuse/native";
+import type { PreparedEvent } from "@langfuse/native";
 
 import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
@@ -10,6 +13,23 @@ import {
   clampDecimal64Value,
   truncateOversizedRecord,
 } from "./jsonRecords";
+
+const { encodeClickhouseEventsMock } = vi.hoisted(() => ({
+  encodeClickhouseEventsMock: vi.fn(),
+}));
+
+vi.mock("@langfuse/native", () => ({
+  encodeClickhouseEvents: encodeClickhouseEventsMock,
+}));
+
+const preparedEvent = (id: string): PreparedEvent =>
+  ({
+    ids: {
+      project_id: "project-1",
+      trace_id: "trace-1",
+      id,
+    },
+  }) as PreparedEvent;
 
 // Mock recordHistogram, recordDistribution, recordCount, recordGauge
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
@@ -26,6 +46,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
       debug: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
+      child: vi.fn().mockReturnThis(),
     },
   };
 });
@@ -45,13 +66,18 @@ vi.mock("../../env", async (importOriginal) => {
 describe("ClickhouseWriter", () => {
   let clickhouseClientMock: {
     insert: ReturnType<typeof vi.fn>;
+    exec: ReturnType<typeof vi.fn>;
   };
   let writer: ClickhouseWriter;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    encodeClickhouseEventsMock.mockResolvedValue([
+      { bytes: Buffer.from("native-block"), rowCount: 1 },
+    ] satisfies NativeEventBlock[]);
     clickhouseClientMock = {
       insert: vi.fn(),
+      exec: vi.fn(),
     };
     vi.useFakeTimers();
     writer = ClickhouseWriter.getInstance(clickhouseClientMock);
@@ -60,10 +86,7 @@ describe("ClickhouseWriter", () => {
   afterEach(async () => {
     vi.useRealTimers();
 
-    // Reset singleton instance
-    await writer.shutdown();
-
-    ClickhouseWriter.instance = null;
+    await ClickhouseWriter.shutdownAll();
     vi.restoreAllMocks();
     vi.clearAllMocks();
   });
@@ -73,6 +96,69 @@ describe("ClickhouseWriter", () => {
     const instance2 = ClickhouseWriter.getInstance();
 
     expect(instance1).toBe(instance2);
+  });
+
+  it("uses a replacement client only for the selected singleton", async () => {
+    const jsonReplacementClient = {
+      insert: vi.fn().mockResolvedValue(),
+      exec: vi.fn(),
+    };
+    const nativeReplacementClient = {
+      insert: vi.fn(),
+      exec: vi.fn().mockResolvedValue({ stream: Readable.from([]) }),
+    };
+    const nativeWriter =
+      ClickhouseWriter.getNativeInstance(clickhouseClientMock);
+    vi.spyOn(clickhouseClientMock, "exec").mockResolvedValue({
+      stream: Readable.from([]),
+    });
+
+    expect(ClickhouseWriter.getInstance(jsonReplacementClient)).toBe(writer);
+    writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
+    nativeWriter.addToQueue(TableName.EventsFull, preparedEvent("native-1"));
+    await Promise.all([
+      writer["flushAll"](true),
+      nativeWriter["flushAll"](true),
+    ]);
+
+    expect(jsonReplacementClient.insert).toHaveBeenCalledTimes(1);
+    expect(jsonReplacementClient.exec).not.toHaveBeenCalled();
+    expect(clickhouseClientMock.insert).not.toHaveBeenCalled();
+    expect(clickhouseClientMock.exec).toHaveBeenCalledTimes(1);
+
+    expect(ClickhouseWriter.getNativeInstance(nativeReplacementClient)).toBe(
+      nativeWriter,
+    );
+    writer.addToQueue(TableName.Traces, { id: "2", name: "test" });
+    nativeWriter.addToQueue(TableName.EventsFull, preparedEvent("native-2"));
+    await Promise.all([
+      writer["flushAll"](true),
+      nativeWriter["flushAll"](true),
+    ]);
+
+    expect(jsonReplacementClient.insert).toHaveBeenCalledTimes(2);
+    expect(jsonReplacementClient.exec).not.toHaveBeenCalled();
+    expect(nativeReplacementClient.exec).toHaveBeenCalledTimes(1);
+    expect(nativeReplacementClient.insert).not.toHaveBeenCalled();
+    expect(clickhouseClientMock.insert).not.toHaveBeenCalled();
+    expect(clickhouseClientMock.exec).toHaveBeenCalledTimes(1);
+    expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+    expect(nativeWriter["queue"][TableName.EventsFull]).toHaveLength(0);
+  });
+
+  it("keeps JSON and Native writers as separate singletons", () => {
+    const nativeWriter =
+      ClickhouseWriter.getNativeInstance(clickhouseClientMock);
+
+    expect(nativeWriter).not.toBe(writer);
+    expect(ClickhouseWriter.getInstance()).toBe(writer);
+    expect(ClickhouseWriter.getNativeInstance()).toBe(nativeWriter);
+    expect(logger.child).toHaveBeenNthCalledWith(1, { format: "json" });
+    expect(logger.child).toHaveBeenNthCalledWith(2, { format: "native" });
+
+    expect(() =>
+      nativeWriter.addToQueue(TableName.Traces, {} as never),
+    ).toThrow("Native ClickHouse writer only accepts events_full");
   });
 
   it("should initialize with correct values", () => {
@@ -119,6 +205,236 @@ describe("ClickhouseWriter", () => {
     await vi.advanceTimersByTimeAsync(writer.writeInterval);
 
     expect(mockInsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("writes events_full rows through the JSON singleton", async () => {
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockResolvedValue();
+    const event = {
+      id: "event-1",
+      project_id: "project-1",
+      trace_id: "trace-1",
+    };
+
+    writer.addToQueue(TableName.EventsFull, event as any);
+    await writer["flushAll"](true);
+
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        table: TableName.EventsFull,
+        format: "JSONEachRow",
+        values: [event],
+      }),
+    );
+    expect(clickhouseClientMock.exec).not.toHaveBeenCalled();
+  });
+
+  it("encodes a selected Native batch once and reuses its bytes on a transport retry", async () => {
+    const event = preparedEvent("event-1");
+    const bytes = Buffer.from("native-block");
+    encodeClickhouseEventsMock.mockResolvedValueOnce([
+      { bytes, rowCount: 1 },
+    ] satisfies NativeEventBlock[]);
+    const responseStream = Readable.from([]);
+    const streamedBuffers: Buffer[] = [];
+    const mockExec = vi
+      .spyOn(clickhouseClientMock, "exec")
+      .mockImplementationOnce(async ({ values }) => {
+        for await (const chunk of values as Readable) {
+          streamedBuffers.push(chunk as Buffer);
+        }
+        throw new Error("Timeout error.");
+      })
+      .mockImplementationOnce(async ({ values }) => {
+        for await (const chunk of values as Readable) {
+          streamedBuffers.push(chunk as Buffer);
+        }
+        return { stream: responseStream };
+      });
+
+    const nativeWriter =
+      ClickhouseWriter.getNativeInstance(clickhouseClientMock);
+    nativeWriter.addToQueue(TableName.EventsFull, event);
+    await vi.advanceTimersByTimeAsync(nativeWriter.writeInterval);
+    await vi.advanceTimersByTimeAsync(200);
+
+    expect(encodeClickhouseEventsMock).toHaveBeenCalledTimes(1);
+    expect(encodeClickhouseEventsMock).toHaveBeenCalledWith([event], 1);
+    expect(mockExec).toHaveBeenCalledTimes(2);
+    expect(mockExec.mock.calls[0][0]).toMatchObject({
+      query: "INSERT INTO events_full FORMAT Native",
+      clickhouse_settings: { wait_end_of_query: 1 },
+    });
+    expect(
+      JSON.parse(mockExec.mock.calls[0][0].clickhouse_settings.log_comment),
+    ).toMatchObject({
+      surface: "worker",
+      route: "clickhouse-writer",
+      projectId: "MULTI_PROJECT",
+    });
+    expect(mockExec.mock.calls[1][0]).toMatchObject({
+      query: "INSERT INTO events_full FORMAT Native",
+    });
+    expect(mockExec.mock.calls[0][0].values).not.toBe(
+      mockExec.mock.calls[1][0].values,
+    );
+    expect(streamedBuffers).toHaveLength(2);
+    expect(streamedBuffers[0]).toBe(bytes);
+    expect(streamedBuffers[1]).toBe(bytes);
+    expect(responseStream.readableEnded).toBe(true);
+    expect(nativeWriter["queue"][TableName.EventsFull]).toHaveLength(0);
+  });
+
+  it("requeues the prepared event after a failed flush and encodes it again later", async () => {
+    const event = preparedEvent("event-1");
+    const mockExec = vi
+      .spyOn(clickhouseClientMock, "exec")
+      .mockRejectedValueOnce(new Error("permanent insert error"))
+      .mockResolvedValueOnce({ stream: Readable.from([]) });
+    const nativeWriter =
+      ClickhouseWriter.getNativeInstance(clickhouseClientMock);
+
+    nativeWriter.addToQueue(TableName.EventsFull, event);
+    await nativeWriter["flushAll"](true);
+
+    expect(clickhouseClientMock.insert).not.toHaveBeenCalled();
+    expect(nativeWriter["queue"][TableName.EventsFull]).toHaveLength(1);
+    expect(nativeWriter["queue"][TableName.EventsFull][0].data).toBe(event);
+    expect(nativeWriter["queue"][TableName.EventsFull][0].attempts).toBe(2);
+    expect(encodeClickhouseEventsMock).toHaveBeenCalledTimes(1);
+
+    await nativeWriter["flushAll"](true);
+
+    expect(mockExec).toHaveBeenCalledTimes(2);
+    expect(encodeClickhouseEventsMock).toHaveBeenCalledTimes(2);
+    expect(nativeWriter["queue"][TableName.EventsFull]).toHaveLength(0);
+  });
+
+  it("requeues Native rows when the response stream fails while draining", async () => {
+    const event = preparedEvent("event-1");
+    const streamError = new Error("response stream failed");
+    const responseStream = new Readable({
+      read() {
+        this.destroy(streamError);
+      },
+    });
+    const mockExec = vi
+      .spyOn(clickhouseClientMock, "exec")
+      .mockResolvedValue({ stream: responseStream });
+    const nativeWriter =
+      ClickhouseWriter.getNativeInstance(clickhouseClientMock);
+
+    nativeWriter.addToQueue(TableName.EventsFull, event);
+    await nativeWriter["flushAll"](true);
+
+    expect(mockExec).toHaveBeenCalledTimes(1);
+    expect(nativeWriter["queue"][TableName.EventsFull][0].data).toBe(event);
+    expect(nativeWriter["queue"][TableName.EventsFull][0].attempts).toBe(2);
+    const flushError = vi
+      .mocked(logger.error)
+      .mock.calls.find(
+        ([message]) =>
+          message === `ClickhouseWriter.flush ${TableName.EventsFull}`,
+      )?.[1];
+    expect(flushError).toBe(streamError);
+  });
+
+  it("requeues Native rows when ClickHouse returns exception text", async () => {
+    const event = preparedEvent("event-1");
+    const exceptionText = "Code: 60. DB::Exception: Table '表🔥' doesn't exist";
+    const paddedException = `${exceptionText}${"x".repeat(4095 - exceptionText.length)}🔥`;
+    const responseBytes = Buffer.from(
+      `${paddedException}${"x".repeat(10_000)}`,
+    );
+    const splitOffset =
+      Buffer.byteLength("Code: 60. DB::Exception: Table '") + 1;
+    // Split inside both the three-byte character and the four-byte emoji.
+    const responseStream = Readable.from([
+      responseBytes.subarray(0, splitOffset),
+      responseBytes.subarray(splitOffset, splitOffset + 3),
+      responseBytes.subarray(splitOffset + 3),
+    ]);
+    vi.spyOn(clickhouseClientMock, "exec").mockResolvedValue({
+      stream: responseStream,
+    });
+    const nativeWriter =
+      ClickhouseWriter.getNativeInstance(clickhouseClientMock);
+
+    nativeWriter.addToQueue(TableName.EventsFull, event);
+    await nativeWriter["flushAll"](true);
+
+    expect(nativeWriter["queue"][TableName.EventsFull][0].data).toBe(event);
+    expect(nativeWriter["queue"][TableName.EventsFull][0].attempts).toBe(2);
+    expect(responseStream.readableEnded).toBe(true);
+
+    const flushError = vi
+      .mocked(logger.error)
+      .mock.calls.find(
+        ([message]) =>
+          message === `ClickhouseWriter.flush ${TableName.EventsFull}`,
+      )?.[1] as Error;
+    expect(flushError.message).toContain(exceptionText);
+    expect(flushError.message.length).toBeLessThanOrEqual(4200);
+    expect(flushError.message).not.toMatch(/[\uD800-\uDBFF]$/);
+  });
+
+  it("batches prepared Native rows into one encoder invocation", async () => {
+    const nativeWriter =
+      ClickhouseWriter.getNativeInstance(clickhouseClientMock);
+    nativeWriter.batchSize = 3;
+    const firstEvent = preparedEvent("event-1");
+    const secondEvent = preparedEvent("event-2");
+    const bytes = Buffer.from("combined");
+    encodeClickhouseEventsMock.mockResolvedValueOnce([
+      { bytes, rowCount: 2 },
+    ] satisfies NativeEventBlock[]);
+    const mockExec = vi.spyOn(clickhouseClientMock, "exec").mockResolvedValue({
+      stream: Readable.from([]),
+    });
+
+    nativeWriter.addToQueue(TableName.EventsFull, firstEvent);
+    nativeWriter.addToQueue(TableName.EventsFull, secondEvent);
+    await nativeWriter["flushAll"](true);
+
+    expect(encodeClickhouseEventsMock).toHaveBeenCalledTimes(1);
+    expect(encodeClickhouseEventsMock).toHaveBeenCalledWith(
+      [firstEvent, secondEvent],
+      2,
+    );
+    expect(mockExec).toHaveBeenCalledTimes(1);
+    const request = mockExec.mock.calls[0][0];
+    const streamed: Buffer[] = [];
+    for await (const chunk of request.values as Readable) {
+      streamed.push(chunk as Buffer);
+    }
+    expect(streamed).toEqual([bytes]);
+    expect(streamed[0]).toBe(bytes);
+    expect(nativeWriter["queue"][TableName.EventsFull]).toHaveLength(0);
+  });
+
+  it("counts prepared rows and logs their IDs when dropping a failed flush", async () => {
+    const nativeWriter =
+      ClickhouseWriter.getNativeInstance(clickhouseClientMock);
+    nativeWriter.maxAttempts = 1;
+    const event = preparedEvent("event-1");
+    vi.spyOn(clickhouseClientMock, "exec").mockRejectedValue(
+      new Error("permanent insert error"),
+    );
+
+    nativeWriter.addToQueue(TableName.EventsFull, event);
+    await nativeWriter["flushAll"](true);
+
+    expect(serverExports.recordIncrement).toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.rows_dropped",
+      1,
+      { entity_type: TableName.EventsFull, format: "native" },
+    );
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("Max attempts reached"),
+      expect.objectContaining({ droppedIds: [event.ids] }),
+    );
+    expect(nativeWriter["queue"][TableName.EventsFull]).toHaveLength(0);
   });
 
   it("should mark writer insert log comments as multi-project", async () => {
@@ -192,7 +508,7 @@ describe("ClickhouseWriter", () => {
     expect(serverExports.recordIncrement).toHaveBeenCalledWith(
       "langfuse.queue.clickhouse_writer.rows_dropped",
       1,
-      { entity_type: TableName.Traces },
+      { entity_type: TableName.Traces, format: "json" },
     );
   });
 
@@ -217,16 +533,27 @@ describe("ClickhouseWriter", () => {
     );
   });
 
-  it("should shutdown gracefully", async () => {
+  it("should shutdown both writers gracefully", async () => {
+    const nativeWriter =
+      ClickhouseWriter.getNativeInstance(clickhouseClientMock);
     writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
+    nativeWriter.addToQueue(TableName.EventsFull, preparedEvent("native-1"));
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")
       .mockResolvedValue();
+    const mockExec = vi.spyOn(clickhouseClientMock, "exec").mockResolvedValue({
+      stream: Readable.from([]),
+    });
 
-    await writer.shutdown();
+    await ClickhouseWriter.shutdownAll();
 
     expect(mockInsert).toHaveBeenCalledTimes(1);
+    expect(mockExec).toHaveBeenCalledTimes(1);
+    expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+    expect(nativeWriter["queue"][TableName.EventsFull]).toHaveLength(0);
     expect(writer["intervalId"]).toBeNull();
+    expect(nativeWriter["intervalId"]).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
     expect(logger.info).toHaveBeenCalledWith(
       "ClickhouseWriter shutdown complete.",
     );
@@ -322,6 +649,37 @@ describe("ClickhouseWriter", () => {
     expect(writer["queue"][TableName.Scores]).toHaveLength(0);
   });
 
+  it("skips idle interval flushes and flushes queued Native events", async () => {
+    const nativeWriter =
+      ClickhouseWriter.getNativeInstance(clickhouseClientMock);
+    const instrumentAsyncSpy = vi.spyOn(serverExports, "instrumentAsync");
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockResolvedValue();
+    const mockExec = vi.spyOn(clickhouseClientMock, "exec").mockResolvedValue({
+      stream: Readable.from([]),
+    });
+
+    await vi.advanceTimersByTimeAsync(writer.writeInterval);
+
+    expect(instrumentAsyncSpy).not.toHaveBeenCalled();
+    expect(serverExports.recordIncrement).not.toHaveBeenCalled();
+    expect(mockInsert).not.toHaveBeenCalled();
+    expect(mockExec).not.toHaveBeenCalled();
+
+    nativeWriter.addToQueue(TableName.EventsFull, preparedEvent("native-1"));
+    await vi.advanceTimersByTimeAsync(nativeWriter.writeInterval);
+
+    expect(instrumentAsyncSpy).toHaveBeenCalledTimes(1);
+    expect(serverExports.recordIncrement).toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.request",
+      1,
+      { format: "native" },
+    );
+    expect(mockExec).toHaveBeenCalledTimes(1);
+    expect(mockInsert).not.toHaveBeenCalled();
+  });
+
   it("should handle adding items to queue while flush is in progress", async () => {
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")
@@ -374,13 +732,13 @@ describe("ClickhouseWriter", () => {
     expect(histogramSpy).toHaveBeenCalledWith(
       "langfuse.queue.clickhouse_writer.wait_time",
       expect.any(Number),
-      { unit: "milliseconds" },
+      { format: "json", unit: "milliseconds" },
     );
 
     expect(histogramSpy).toHaveBeenCalledWith(
       "langfuse.queue.clickhouse_writer.processing_time",
       expect.any(Number),
-      { unit: "milliseconds" },
+      { format: "json", unit: "milliseconds" },
     );
 
     expect(distributionSpy).toHaveBeenCalledWith(
@@ -389,6 +747,7 @@ describe("ClickhouseWriter", () => {
       {
         entity_type: TableName.Traces,
         type: "wait",
+        format: "json",
         unit: "milliseconds",
       },
     );
@@ -399,7 +758,51 @@ describe("ClickhouseWriter", () => {
       {
         entity_type: TableName.Traces,
         type: "processing",
+        format: "json",
         unit: "milliseconds",
+      },
+    );
+  });
+
+  it("tags events_full queue gauges by writer format", async () => {
+    const nativeWriter =
+      ClickhouseWriter.getNativeInstance(clickhouseClientMock);
+    vi.spyOn(clickhouseClientMock, "insert").mockResolvedValue();
+    vi.spyOn(clickhouseClientMock, "exec").mockResolvedValue({
+      stream: Readable.from([]),
+    });
+
+    // Enqueue below the default batch size, then lower it to leave distinct
+    // queue lengths after each writer flushes one row.
+    writer.addToQueue(TableName.EventsFull, { id: "json-1" } as any);
+    writer.addToQueue(TableName.EventsFull, { id: "json-2" } as any);
+    nativeWriter.addToQueue(TableName.EventsFull, preparedEvent("native-1"));
+    nativeWriter.addToQueue(TableName.EventsFull, preparedEvent("native-2"));
+    nativeWriter.addToQueue(TableName.EventsFull, preparedEvent("native-3"));
+    writer.batchSize = 1;
+    nativeWriter.batchSize = 1;
+
+    await writer["flushAll"]();
+    await nativeWriter["flushAll"]();
+
+    expect(writer["queue"][TableName.EventsFull]).toHaveLength(1);
+    expect(nativeWriter["queue"][TableName.EventsFull]).toHaveLength(2);
+    expect(serverExports.recordGauge).toHaveBeenCalledWith(
+      "ingestion_clickhouse_insert_queue_length",
+      1,
+      {
+        unit: "records",
+        entityType: TableName.EventsFull,
+        format: "json",
+      },
+    );
+    expect(serverExports.recordGauge).toHaveBeenCalledWith(
+      "ingestion_clickhouse_insert_queue_length",
+      2,
+      {
+        unit: "records",
+        entityType: TableName.EventsFull,
+        format: "native",
       },
     );
   });

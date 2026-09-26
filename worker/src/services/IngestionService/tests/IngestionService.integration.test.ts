@@ -79,10 +79,7 @@ describe("Ingestion end-to-end tests", () => {
     vi.restoreAllMocks();
     vi.useRealTimers();
 
-    // Reset singleton instance
-    await clickhouseWriter.shutdown();
-
-    ClickhouseWriter.instance = null;
+    await ClickhouseWriter.shutdownAll();
   });
 
   it("should correctly ingest a trace", async () => {
