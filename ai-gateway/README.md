@@ -434,6 +434,7 @@ The following optional headers enrich the generation, including in usage mode:
 | `langfuse-trace-name` | String | `langfuse_trace_name` |
 | `langfuse-session-id` | String | `langfuse_session_id` |
 | `langfuse-user-id` | String | `langfuse_user_id` |
+| `langfuse-environment` | Environment name | `langfuse_environment` |
 | `langfuse-tags` | Comma-separated strings | `langfuse_tags` |
 | `langfuse-metadata` | Comma-separated `key:value` entries | `langfuse_metadata_<key>` |
 
@@ -443,6 +444,7 @@ For example:
 langfuse-trace-name: support-workflow
 langfuse-session-id: conversation-123
 langfuse-user-id: user-456
+langfuse-environment: production
 langfuse-tags: support,production
 langfuse-metadata: team:search,variant:B,note:hello%2C%20world
 ```
@@ -455,8 +457,13 @@ metadata merges by key with explicit entries winning. Invalid entries are ignore
 independently, and invalid overrides leave valid baggage intact. Caller metadata
 cannot replace protected gateway facts or trusted API-key attribution.
 
-Extraction is bounded to 8 KiB across the eight context header values above
-(`traceparent`, `tracestate`, `baggage` and the five custom headers). Above that
+The environment follows the SDK rule: at most 40 lowercase letters, digits, `-`
+or `_`, not starting with the reserved `langfuse` prefix. An invalid value is
+ignored like any other invalid field, so the generation lands in the `default`
+environment unless valid baggage supplies one.
+
+Extraction is bounded to 8 KiB across the nine context header values above
+(`traceparent`, `tracestate`, `baggage` and the six custom headers). Above that
 limit, context is ignored and a fresh generation trace is created. Decoded fields
 are limited to 1 KiB; each baggage/tag/metadata list is limited to 64 entries.
 Repeated list header lines are combined in order within that same entry limit.
