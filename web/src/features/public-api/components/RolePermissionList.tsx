@@ -177,7 +177,7 @@ export const RolePermissionList = ({ role }: { role: SystemRole }) => {
 
         return (
           <div key={kind} className="flex flex-col">
-            <span className="bg-modal text-muted-foreground sticky top-0 z-10 block px-4 pt-3 pb-2 text-xs font-bold tracking-wider uppercase">
+            <span className="bg-modal text-muted-foreground sticky top-0 z-10 block px-4 pt-6 pb-2 text-xs font-bold tracking-wider uppercase">
               {resourceKindLabels[kind]}
             </span>
             <div className="flex flex-col gap-2 px-4">
