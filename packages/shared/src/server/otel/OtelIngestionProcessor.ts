@@ -3007,6 +3007,43 @@ export class OtelIngestionProcessor {
           }
         }
 
+        // Fallback to standardized OTel GenAI semconv cache attributes
+        // (e.g. emitted by AI SDK v7 for Google/Gemini). Map to the same
+        // normalized buckets the generic path + cost engine already use.
+        //
+        // Only apply when provider-specific extraction above did not already
+        // populate an equivalent cache bucket; otherwise the same cached tokens
+        // would be counted (and subtracted from input) twice (e.g. Bedrock
+        // fills input_cache_read from providerMetadata). Non-numeric values are
+        // ignored so an otherwise valid input count is preserved.
+        if (
+          "gen_ai.usage.cache_read.input_tokens" in attributes &&
+          usageDetails["input_cached_tokens"] === undefined &&
+          usageDetails["input_cache_read"] === undefined
+        ) {
+          const cacheRead = parseInt(
+            attributes["gen_ai.usage.cache_read.input_tokens"]?.toString() ??
+              "0",
+          );
+          if (!Number.isNaN(cacheRead)) {
+            usageDetails["input_cached_tokens"] = cacheRead;
+          }
+        }
+        if (
+          "gen_ai.usage.cache_creation.input_tokens" in attributes &&
+          usageDetails["input_cache_creation"] === undefined &&
+          usageDetails["input_cache_write"] === undefined
+        ) {
+          const cacheCreation = parseInt(
+            attributes[
+              "gen_ai.usage.cache_creation.input_tokens"
+            ]?.toString() ?? "0",
+          );
+          if (!Number.isNaN(cacheCreation)) {
+            usageDetails["input_cache_creation"] = cacheCreation;
+          }
+        }
+
         // Subtract cached token count from total input and output
         usageDetails["input"] = Math.max(
           (usageDetails["input"] ?? 0) -
