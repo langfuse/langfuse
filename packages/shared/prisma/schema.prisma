@@ -247,7 +247,7 @@ enum SystemRole {
   ORGANIZATION
   SCORES_INGEST
   INGEST
-  LLM_GATEWAY
+  AI_GATEWAY
 }
 
 model SystemRoleAssignment {

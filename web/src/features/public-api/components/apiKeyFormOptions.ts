@@ -60,5 +60,5 @@ export const apiKeyRoleIcons: Record<SystemRole, LucideIcon> = {
   ORGANIZATION: Building2,
   SCORES_INGEST: Star,
   INGEST: Radio,
-  LLM_GATEWAY: Network,
+  AI_GATEWAY: Network,
 };

@@ -159,10 +159,10 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       ],
       tags: ["principal:apiKey"],
     },
-    LLM_GATEWAY: {
-      id: "LLM_GATEWAY",
-      name: "LLM gateway",
-      description: "Invoke the organization's LLM gateway.",
+    AI_GATEWAY: {
+      id: "AI_GATEWAY",
+      name: "AI Gateway",
+      description: "Invoke the organization's AI Gateway.",
       policies: [allow("organization", ["gateway:invoke"])],
       tags: ["principal:apiKey"],
     },

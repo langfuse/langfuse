@@ -188,7 +188,7 @@ describe("createApiKey assignment rows", () => {
       await expect(
         createApiKey(asTx(tx), {
           owner: ProjectId("proj_1"),
-          role: SystemRoleId("LLM_GATEWAY"),
+          role: SystemRoleId("AI_GATEWAY"),
           creator: UserId("user_1"),
         }),
       ).rejects.toThrow(/cannot back a project API key/);
