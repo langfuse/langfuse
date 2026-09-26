@@ -5,6 +5,7 @@ import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { showErrorToast } from "@/src/features/notifications";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { env } from "@/src/env.mjs";
 import { isEnterpriseSupportPlan } from "./formConstants";
 import {
   SupportForm,
@@ -22,11 +23,19 @@ export function ConnectedSupportFormSection({
   const { organization, project } = useQueryProjectOrOrganization();
   const { initialTopic } = useSupportDrawer();
   const showV4MigrationTopic = useV4UpgradeUiEnabled(project?.id);
+  // Every Langfuse Cloud user is a member of the demo organization, which runs
+  // on an Enterprise plan so the demo shows the full feature set. Gating on the
+  // plan alone therefore lets any user raise Severity 1/2 from a demo page, and
+  // Severity 1 pages the on-call team.
+  const isDemoOrganization =
+    !!env.NEXT_PUBLIC_DEMO_ORG_ID &&
+    organization?.id === env.NEXT_PUBLIC_DEMO_ORG_ID;
   // The support drawer is mounted globally and reachable from pages without an
   // org/project in the URL (home, setup, onboarding, account settings), where
   // `organization` is null. Without an org context the plan is unknown, so
-  // Severity 1/2 are gated there. The server applies the same rule.
-  const canSelectHighSeverity = isEnterpriseSupportPlan(organization?.plan);
+  // Severity 1/2 are gated there. The server applies the same rules.
+  const canSelectHighSeverity =
+    isEnterpriseSupportPlan(organization?.plan) && !isDemoOrganization;
 
   const createSupportThread =
     api.supportRouter.createSupportThread.useMutation();
