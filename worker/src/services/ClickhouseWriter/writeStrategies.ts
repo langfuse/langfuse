@@ -28,29 +28,40 @@ export type ClickhouseWriteStrategy<Row> = {
   };
 };
 
-export const jsonWriteStrategy: ClickhouseWriteStrategy<
+export type ClickhouseWriteStrategyFactory<Row> = {
+  readonly format: "json" | "native";
+  create(): ClickhouseWriteStrategy<Row>;
+};
+
+const jsonWriteStrategy: ClickhouseWriteStrategy<RecordInsertType<TableName>> =
+  {
+    write(client, { table, records, clickhouse_settings }) {
+      return client
+        .insert({
+          table,
+          format: "JSONEachRow",
+          values: records,
+          clickhouse_settings,
+        })
+        .then(() => {});
+    },
+    prepare: clampDecimal64Fields,
+    truncate: truncateOversizedRecord,
+    droppedId(record) {
+      return {
+        project_id: record.project_id,
+        trace_id:
+          ("trace_id" in record ? record.trace_id : undefined) ?? record.id,
+        id: record.id,
+      };
+    },
+  };
+
+export const jsonWriteStrategyFactory: ClickhouseWriteStrategyFactory<
   RecordInsertType<TableName>
 > = {
-  write(client, { table, records, clickhouse_settings }) {
-    return client
-      .insert({
-        table,
-        format: "JSONEachRow",
-        values: records,
-        clickhouse_settings,
-      })
-      .then(() => {});
-  },
-  prepare: clampDecimal64Fields,
-  truncate: truncateOversizedRecord,
-  droppedId(record) {
-    return {
-      project_id: record.project_id,
-      trace_id:
-        ("trace_id" in record ? record.trace_id : undefined) ?? record.id,
-      id: record.id,
-    };
-  },
+  format: "json",
+  create: () => jsonWriteStrategy,
 };
 
 const MAX_NATIVE_RESPONSE_EXCERPT_LENGTH = 4096;
@@ -59,7 +70,7 @@ const MAX_NATIVE_RESPONSE_EXCERPT_LENGTH = 4096;
  * Encode one selected row batch once, then send the owned buffers on every transport attempt.
  * Requeued rows are deliberately encoded again when they enter a later flush.
  */
-export function createNativeWriteStrategy(): ClickhouseWriteStrategy<PreparedEvent> {
+function createNativeWriteStrategy(): ClickhouseWriteStrategy<PreparedEvent> {
   let encodedBlocks: Promise<NativeEventBlock[]> | undefined;
 
   return {
@@ -108,3 +119,9 @@ export function createNativeWriteStrategy(): ClickhouseWriteStrategy<PreparedEve
     },
   };
 }
+
+export const nativeWriteStrategyFactory: ClickhouseWriteStrategyFactory<PreparedEvent> =
+  {
+    format: "native",
+    create: createNativeWriteStrategy,
+  };

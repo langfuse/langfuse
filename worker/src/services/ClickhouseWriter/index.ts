@@ -18,9 +18,10 @@ import { logger } from "@langfuse/shared/src/server";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 import { backOff } from "exponential-backoff";
 import {
-  jsonWriteStrategy,
-  createNativeWriteStrategy,
+  jsonWriteStrategyFactory,
+  nativeWriteStrategyFactory,
   type ClickhouseWriteStrategy,
+  type ClickhouseWriteStrategyFactory,
 } from "./writeStrategies";
 import { TableName, type RecordInsertType } from "./types";
 export { TableName } from "./types";
@@ -34,7 +35,7 @@ export class ClickhouseWriter<
   private static nativeInstance: ClickhouseWriter<NativeWriterPayloadMap> | null =
     null;
   private client: ClickhouseClientType | null;
-  private readonly strategyFactory: () => ClickhouseWriteStrategy<
+  private readonly strategyFactory: ClickhouseWriteStrategyFactory<
     PayloadMap[TableName]
   >;
   private readonly allowedTable: TableName | undefined;
@@ -50,14 +51,13 @@ export class ClickhouseWriter<
 
   private constructor(
     client: ClickhouseClientType | undefined,
-    strategyFactory: () => ClickhouseWriteStrategy<PayloadMap[TableName]>,
-    private readonly format: "json" | "native",
+    strategyFactory: ClickhouseWriteStrategyFactory<PayloadMap[TableName]>,
     allowedTable?: TableName,
   ) {
     this.client = client ?? null;
     this.strategyFactory = strategyFactory;
     this.allowedTable = allowedTable;
-    this.logger = logger.child({ format });
+    this.logger = logger.child({ format: strategyFactory.format });
     this.batchSize = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE;
     this.writeInterval = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS;
     this.maxAttempts = env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS;
@@ -86,8 +86,7 @@ export class ClickhouseWriter<
     if (!instance) {
       instance = new ClickhouseWriter<JsonWriterPayloadMap>(
         client,
-        () => jsonWriteStrategy,
-        "json",
+        jsonWriteStrategyFactory,
       );
       ClickhouseWriter.instance = instance;
     } else if (client) {
@@ -104,8 +103,7 @@ export class ClickhouseWriter<
     if (!instance) {
       instance = new ClickhouseWriter<NativeWriterPayloadMap>(
         client,
-        createNativeWriteStrategy,
-        "native",
+        nativeWriteStrategyFactory,
         TableName.EventsFull,
       );
       ClickhouseWriter.nativeInstance = instance;
@@ -173,9 +171,9 @@ export class ClickhouseWriter<
           name: "write-to-clickhouse",
         },
         async (span) => {
-          span.setAttribute("format", this.format);
+          span.setAttribute("format", this.strategyFactory.format);
           recordIncrement("langfuse.queue.clickhouse_writer.request", 1, {
-            format: this.format,
+            format: this.strategyFactory.format,
           });
           await Promise.all(
             tables.map((table) => this.flush(table, fullQueue)),
@@ -288,14 +286,14 @@ export class ClickhouseWriter<
       0,
       fullQueue ? entityQueue.length : this.batchSize,
     );
-    const writeStrategy = this.strategyFactory();
+    const writeStrategy = this.strategyFactory.create();
     const { prepare, truncate } = writeStrategy;
 
     // Log wait time
     queueItems.forEach((item) => {
       const waitTime = Date.now() - item.createdAt;
       recordHistogram("langfuse.queue.clickhouse_writer.wait_time", waitTime, {
-        format: this.format,
+        format: this.strategyFactory.format,
         unit: "milliseconds",
       });
       recordDistribution(
@@ -304,7 +302,7 @@ export class ClickhouseWriter<
         {
           entity_type: tableName,
           type: "wait",
-          format: this.format,
+          format: this.strategyFactory.format,
           unit: "milliseconds",
         },
       );
@@ -432,7 +430,7 @@ export class ClickhouseWriter<
         "langfuse.queue.clickhouse_writer.processing_time",
         processingTime,
         {
-          format: this.format,
+          format: this.strategyFactory.format,
           unit: "milliseconds",
         },
       );
@@ -442,7 +440,7 @@ export class ClickhouseWriter<
         {
           entity_type: tableName,
           type: "processing",
-          format: this.format,
+          format: this.strategyFactory.format,
           unit: "milliseconds",
         },
       );
@@ -455,7 +453,7 @@ export class ClickhouseWriter<
         "ingestion_clickhouse_insert_queue_length",
         entityQueue.length,
         {
-          format: this.format,
+          format: this.strategyFactory.format,
           unit: "records",
           entityType: tableName,
         },
@@ -474,7 +472,7 @@ export class ClickhouseWriter<
         } else {
           // TODO - Add to a dead letter queue in Redis rather than dropping
           recordIncrement("langfuse.queue.clickhouse_writer.error", 1, {
-            format: this.format,
+            format: this.strategyFactory.format,
           });
           droppedCount++;
         }
@@ -484,7 +482,7 @@ export class ClickhouseWriter<
         recordIncrement(
           "langfuse.queue.clickhouse_writer.rows_dropped",
           droppedCount,
-          { entity_type: tableName, format: this.format },
+          { entity_type: tableName, format: this.strategyFactory.format },
         );
 
         const droppedIds = queueItems
@@ -550,7 +548,7 @@ export class ClickhouseWriter<
       `ClickhouseWriter.writeToClickhouse: ${Date.now() - startTime} ms`,
     );
     recordGauge("ingestion_clickhouse_insert", params.records.length, {
-      format: this.format,
+      format: this.strategyFactory.format,
     });
   }
 }
