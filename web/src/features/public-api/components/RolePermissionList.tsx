@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { type SystemRole } from "@langfuse/shared/src/db";
 import {
   systemRoleAccessRights,
@@ -5,6 +6,7 @@ import {
 } from "@langfuse/shared/rbac";
 
 import { Badge } from "@/src/components/ui/badge";
+import { cn } from "@/src/utils/tailwind";
 
 type ResourceKind = SystemRolePolicy["resourceKind"];
 
@@ -156,6 +158,40 @@ export const rolePermissionCount = (role: SystemRole): number =>
     0,
   );
 
+/** SectionHeader is a sticky section label that shows a bottom border only while pinned to the top of the scroll area. */
+const SectionHeader = ({ label }: { label: string }) => {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [stuck, setStuck] = useState(false);
+
+  // Observe the header against its scroll container: pinned at top-[-1px] it
+  // clips by 1px, so an intersection ratio below 1 means it is stuck.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let root: HTMLElement | null = el.parentElement;
+    while (root && getComputedStyle(root).overflowY === "visible")
+      root = root.parentElement;
+    const observer = new IntersectionObserver(
+      ([entry]) => setStuck(entry.intersectionRatio < 1),
+      { root, threshold: [1] },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <span
+      ref={ref}
+      className={cn(
+        "bg-modal text-muted-foreground sticky -top-px z-10 mt-4 block px-4 py-2 text-xs font-bold tracking-wider uppercase",
+        stuck && "border-b",
+      )}
+    >
+      {label}
+    </span>
+  );
+};
+
 /** RolePermissionList renders a role's granted scopes grouped by resource kind, then by entity with a title and description. */
 export const RolePermissionList = ({ role }: { role: SystemRole }) => {
   const { policies } = systemRoleAccessRights[role];
@@ -177,9 +213,7 @@ export const RolePermissionList = ({ role }: { role: SystemRole }) => {
 
         return (
           <div key={kind} className="flex flex-col">
-            <span className="bg-modal text-muted-foreground sticky top-0 z-10 block px-4 pt-6 pb-2 text-xs font-bold tracking-wider uppercase">
-              {resourceKindLabels[kind]}
-            </span>
+            <SectionHeader label={resourceKindLabels[kind]} />
             <div className="flex flex-col gap-2 px-4">
               {groupByEntity(scopes).map((group) => (
                 <div key={group.entity} className="flex items-start gap-3">
