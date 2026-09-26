@@ -130,7 +130,7 @@ type EntityGroup = {
   actions: string[];
 };
 
-/** groupByEntity splits each scope at the first `:` and groups the trailing actions under their entity, preserving first-seen order. */
+/** groupByEntity splits each scope at the first `:` and groups the trailing actions under their entity, each group's actions sorted. */
 const groupByEntity = (scopes: string[]): EntityGroup[] => {
   const byEntity = new Map<string, string[]>();
   for (const scope of scopes) {
@@ -145,7 +145,7 @@ const groupByEntity = (scopes: string[]): EntityGroup[] => {
     entity,
     title: entityMeta[entity]?.title ?? entity,
     description: entityMeta[entity]?.description ?? "",
-    actions,
+    actions: [...actions].sort(),
   }));
 };
 
