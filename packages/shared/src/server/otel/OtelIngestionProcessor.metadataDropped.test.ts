@@ -126,7 +126,7 @@ describe("gateway metadata", () => {
     ["v3", "other-instrumentation"],
     ["v4", "other-instrumentation"],
   ])(
-    "preserves canonical fields and metadata for %s %s",
+    "preserves canonical fields and non-duplicate metadata for %s %s",
     async (path, scope) => {
       const completionStartTime = "2025-07-13T05:20:00.500Z";
       const modelParameters = {
@@ -145,6 +145,11 @@ describe("gateway metadata", () => {
         "langfuse.observation.usage_details": JSON.stringify(usageDetails),
         "langfuse.observation.cost_details": JSON.stringify({ total: 0.001 }),
         "langfuse.observation.completion_start_time": completionStartTime,
+        "user.id": "user-test",
+        "session.id": "session-test",
+        "langfuse.trace.name": "trace-test",
+        "langfuse.trace.tags": JSON.stringify(["tag-a", "tag-b"]),
+        "langfuse.environment": "staging",
       };
       const batch = buildBatch(
         Object.entries({
@@ -178,11 +183,16 @@ describe("gateway metadata", () => {
           reasoning: '{"effort":"low"}',
         },
         completionStartTime,
+        environment: "staging",
         input: '[{"role":"user","content":"Hi"}]',
         output: '[{"type":"message","content":[]}]',
         ...(path === "v4"
           ? {
               type: "GENERATION",
+              userId: "user-test",
+              sessionId: "session-test",
+              traceName: "trace-test",
+              tags: ["tag-a", "tag-b"],
               modelName: "test-model",
               providedUsageDetails: usageDetails,
               providedCostDetails: { total: 0.001 },
