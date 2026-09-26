@@ -37,6 +37,11 @@ const AnnotationQueueSchema = z
 export type AnnotationQueueItem = z.infer<typeof AnnotationQueueItemSchema>;
 export type AnnotationQueue = z.infer<typeof AnnotationQueueSchema>;
 
+const queryDateTime = z.iso
+  .datetime({ offset: true })
+  .transform((value) => new Date(value))
+  .nullish();
+
 /**
  * Endpoints
  */
@@ -45,6 +50,8 @@ export type AnnotationQueue = z.infer<typeof AnnotationQueueSchema>;
 export const GetAnnotationQueuesQuery = z
   .object({
     ...publicApiPaginationZod,
+    fromTimestamp: queryDateTime,
+    toTimestamp: queryDateTime,
   })
   .strict();
 

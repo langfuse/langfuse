@@ -25,6 +25,8 @@ export const [listScoreConfigsTool, handleListScoreConfigs] = defineTool({
           projectId: context.projectId,
           page: input.page,
           limit: input.limit,
+          fromTimestamp: input.fromTimestamp,
+          toTimestamp: input.toTimestamp,
         });
 
         span.setAttribute("mcp.result_count", result.data.length);
