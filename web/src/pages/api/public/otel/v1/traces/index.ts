@@ -16,6 +16,7 @@ import {
   readOtelRequestBody,
 } from "@/src/server/otel/otelRequestBody";
 import { processOtelIngestion } from "@/src/server/otel/processOtelIngestion";
+import type { OtelIngestionWorkerContext } from "@/src/server/otel/otelIngestionWorkerContext";
 
 export const config = {
   api: {
@@ -42,27 +43,56 @@ export default withMiddlewares({
       // Mark project as using OTEL API
       await markProjectAsOtelUser(auth.scope.projectId);
 
+      const useWorker = env.LANGFUSE_OTEL_INGESTION_USE_WORKER === "true";
+      const useShadow =
+        !useWorker &&
+        env.LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED === "true";
       const maxBodyBytes = env.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES;
-      // Start reading before shadow work so a fast request cannot finish while
-      // the stream is still unobserved.
-      const bodyResultPromise = readOtelRequestBody(req, maxBodyBytes).then(
-        (body) => ({ success: true as const, body }),
-        (error: unknown) => ({ success: false as const, error }),
-      );
-
-      if (env.LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED === "true") {
-        const { startOtelIngestionWorkerAdmissionShadow } =
-          await import("@/src/server/otel/otelIngestionWorkerShadow");
-        startOtelIngestionWorkerAdmissionShadow(res, auth.scope.projectId);
-      }
 
       let body: Buffer;
       let encodedBodyBytes: number;
+      let workerContext: OtelIngestionWorkerContext | undefined;
       let bodyFailureMessage = "Failed to read request body";
       try {
-        const bodyResult = await bodyResultPromise;
-        if (!bodyResult.success) throw bodyResult.error;
-        body = bodyResult.body;
+        // Acquire worker admission before reading so queued request bodies remain paused.
+        if (useWorker) {
+          req.pause();
+          let workerContextModule;
+          try {
+            workerContextModule =
+              await import("@/src/server/otel/otelIngestionWorkerContext");
+          } catch (error) {
+            req.resume();
+            throw error;
+          }
+          const contextResult =
+            await workerContextModule.createOtelIngestionWorkerContext(
+              req,
+              res,
+              auth.scope.projectId,
+              maxBodyBytes,
+            );
+          if ("response" in contextResult) {
+            return contextResult.response;
+          }
+          workerContext = contextResult;
+          body = contextResult.body;
+        } else {
+          // Attach the reader before loading shadow code so a fast request
+          // cannot finish while the stream is still unobserved.
+          const bodyResultPromise = readOtelRequestBody(req, maxBodyBytes).then(
+            (body) => ({ success: true as const, body }),
+            (error: unknown) => ({ success: false as const, error }),
+          );
+          if (useShadow) {
+            const { startOtelIngestionWorkerAdmissionShadow } =
+              await import("@/src/server/otel/otelIngestionWorkerShadow");
+            startOtelIngestionWorkerAdmissionShadow(res, auth.scope.projectId);
+          }
+          const bodyResult = await bodyResultPromise;
+          if (!bodyResult.success) throw bodyResult.error;
+          body = bodyResult.body;
+        }
         encodedBodyBytes = body.byteLength;
 
         if (req.headers["content-encoding"]?.includes("gzip")) {
@@ -107,7 +137,7 @@ export default withMiddlewares({
         }
       }
 
-      const result = await processOtelIngestion({
+      const ingestionRequest = {
         body,
         contentType,
         encodedBodyBytes,
@@ -124,7 +154,13 @@ export default withMiddlewares({
           rejectionSdkName: req.headers["x-langfuse-sdk-name"],
           ingestionVersion,
         },
-      });
+      };
+      const result = workerContext
+        ? await workerContext.process(ingestionRequest)
+        : await processOtelIngestion(ingestionRequest);
+      if (!result) {
+        return {};
+      }
       if (result.kind === "http") {
         res.status(result.status);
         return result.body;
