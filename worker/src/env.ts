@@ -446,6 +446,11 @@ const EnvSchema = z.object({
     .positive()
     .default(8),
 
+  // Requires ClickHouse 25.10+ and merge-time materialization of the index.
+  LANGFUSE_EVENT_PROPAGATION_DEFER_NGRAM_INDEX: z
+    .enum(["true", "false"])
+    .default("false"),
+
   // Optional propagation-only overrides; unset values use ClickHouse profile settings.
   LANGFUSE_EVENT_PROPAGATION_MAX_BLOCK_SIZE: z.coerce
     .number()
