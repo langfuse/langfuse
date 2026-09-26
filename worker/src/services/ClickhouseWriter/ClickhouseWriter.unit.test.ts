@@ -649,7 +649,7 @@ describe("ClickhouseWriter", () => {
     expect(writer["queue"][TableName.Scores]).toHaveLength(0);
   });
 
-  it("preserves idle JSON telemetry while skipping idle Native flushes", async () => {
+  it("instruments idle ticks for both writers without issuing inserts", async () => {
     const nativeWriter =
       ClickhouseWriter.getNativeInstance(clickhouseClientMock);
     const instrumentAsyncSpy = vi.spyOn(serverExports, "instrumentAsync");
@@ -662,11 +662,17 @@ describe("ClickhouseWriter", () => {
 
     await vi.advanceTimersByTimeAsync(writer.writeInterval);
 
-    expect(instrumentAsyncSpy).toHaveBeenCalledTimes(1);
-    expect(serverExports.recordIncrement).toHaveBeenCalledExactlyOnceWith(
+    expect(instrumentAsyncSpy).toHaveBeenCalledTimes(2);
+    expect(serverExports.recordIncrement).toHaveBeenCalledTimes(2);
+    expect(serverExports.recordIncrement).toHaveBeenCalledWith(
       "langfuse.queue.clickhouse_writer.request",
       1,
       { format: "json" },
+    );
+    expect(serverExports.recordIncrement).toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.request",
+      1,
+      { format: "native" },
     );
     expect(mockInsert).not.toHaveBeenCalled();
     expect(mockExec).not.toHaveBeenCalled();
@@ -674,12 +680,8 @@ describe("ClickhouseWriter", () => {
     nativeWriter.addToQueue(TableName.EventsFull, preparedEvent("native-1"));
     await vi.advanceTimersByTimeAsync(nativeWriter.writeInterval);
 
-    expect(instrumentAsyncSpy).toHaveBeenCalledTimes(3);
-    expect(serverExports.recordIncrement).toHaveBeenCalledWith(
-      "langfuse.queue.clickhouse_writer.request",
-      1,
-      { format: "native" },
-    );
+    expect(instrumentAsyncSpy).toHaveBeenCalledTimes(4);
+    expect(serverExports.recordIncrement).toHaveBeenCalledTimes(4);
     expect(mockExec).toHaveBeenCalledTimes(1);
     expect(mockInsert).not.toHaveBeenCalled();
   });

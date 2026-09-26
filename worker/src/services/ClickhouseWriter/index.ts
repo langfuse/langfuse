@@ -169,8 +169,6 @@ export class ClickhouseWriter<
           TableName.DatasetRunItems,
           TableName.EventsFull,
         ];
-    if (this.allowedTable && this.queue[this.allowedTable].length === 0) return;
-
     return this.trackActiveFlush(
       instrumentAsync(
         {
