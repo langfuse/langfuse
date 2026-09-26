@@ -40,6 +40,7 @@ export class ClickhouseWriter<
   >;
   private readonly allowedTable: TableName | undefined;
   private readonly logger: typeof logger;
+  private readonly logPrefix: string;
   private readonly activeFlushes = new Set<Promise<void>>();
   batchSize: number;
   writeInterval: number;
@@ -58,6 +59,7 @@ export class ClickhouseWriter<
     this.strategyFactory = strategyFactory;
     this.allowedTable = allowedTable;
     this.logger = logger.child({ format: strategyFactory.format });
+    this.logPrefix = strategyFactory.format === "native" ? "[native] " : "";
     this.batchSize = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE;
     this.writeInterval = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS;
     this.maxAttempts = env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS;
@@ -125,7 +127,7 @@ export class ClickhouseWriter<
 
   private start() {
     this.logger.info(
-      `Starting ClickhouseWriter. Max interval: ${this.writeInterval} ms, Max batch size: ${this.batchSize}`,
+      `${this.logPrefix}Starting ClickhouseWriter. Max interval: ${this.writeInterval} ms, Max batch size: ${this.batchSize}`,
     );
 
     // The singleton outlives its first caller; timer flushes must not inherit that job's trace.
@@ -143,7 +145,7 @@ export class ClickhouseWriter<
   }
 
   public async shutdown(): Promise<void> {
-    this.logger.info("Shutting down ClickhouseWriter...");
+    this.logger.info(`${this.logPrefix}Shutting down ClickhouseWriter...`);
 
     if (this.intervalId) {
       clearInterval(this.intervalId);
@@ -156,7 +158,7 @@ export class ClickhouseWriter<
 
     await this.flushAll(true);
 
-    this.logger.info("ClickhouseWriter shutdown complete.");
+    this.logger.info(`${this.logPrefix}ClickhouseWriter shutdown complete.`);
   }
 
   public async flushAll(fullQueue = false) {
@@ -178,7 +180,10 @@ export class ClickhouseWriter<
           await Promise.all(
             tables.map((table) => this.flush(table, fullQueue)),
           ).catch((err) => {
-            this.logger.error("ClickhouseWriter.flushAll", err);
+            this.logger.error(
+              `${this.logPrefix}ClickhouseWriter.flushAll`,
+              err,
+            );
           });
         },
       ),
@@ -251,7 +256,7 @@ export class ClickhouseWriter<
       const record = queueItems[0].data;
       const truncatedRecord = truncate(tableName, record);
       this.logger.warn(
-        `String length error with single record for ${tableName}, falling back to truncation`,
+        `${this.logPrefix}String length error with single record for ${tableName}, falling back to truncation`,
         {
           recordId: strategy.droppedId(record).id,
         },
@@ -272,7 +277,7 @@ export class ClickhouseWriter<
     const requeueItems = queueItems.slice(splitPoint);
 
     this.logger.info(
-      `Splitting batch for ${tableName} due to string length error. Retrying ${retryItems.length}, requeueing ${requeueItems.length}`,
+      `${this.logPrefix}Splitting batch for ${tableName} due to string length error. Retrying ${retryItems.length}, requeueing ${requeueItems.length}`,
     );
 
     return { retryItems, requeueItems };
@@ -342,7 +347,7 @@ export class ClickhouseWriter<
 
             if (isRetryable) {
               this.logger.warn(
-                `ClickHouse Writer failed with retryable error for ${tableName} (attempt ${attemptNumber}/${env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS}): ${error.message}`,
+                `${this.logPrefix}ClickHouse Writer failed with retryable error for ${tableName} (attempt ${attemptNumber}/${env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS}): ${error.message}`,
                 {
                   error: error.message,
                   attemptNumber,
@@ -355,7 +360,7 @@ export class ClickhouseWriter<
               return true;
             } else if (isStringLengthError && truncate) {
               this.logger.warn(
-                `ClickHouse Writer failed with string length error for ${tableName} (attempt ${attemptNumber}/${env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS}): Splitting batch and retrying`,
+                `${this.logPrefix}ClickHouse Writer failed with string length error for ${tableName} (attempt ${attemptNumber}/${env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS}): Splitting batch and retrying`,
                 {
                   error: error.message,
                   attemptNumber,
@@ -388,7 +393,7 @@ export class ClickhouseWriter<
               return true;
             } else if (isSizeError && truncate && !hasBeenTruncated) {
               this.logger.warn(
-                `ClickHouse Writer failed with size error for ${tableName} (attempt ${attemptNumber}/${env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS}): Truncating oversized records and retrying`,
+                `${this.logPrefix}ClickHouse Writer failed with size error for ${tableName} (attempt ${attemptNumber}/${env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS}): Truncating oversized records and retrying`,
                 {
                   error: error.message,
                   attemptNumber,
@@ -410,7 +415,7 @@ export class ClickhouseWriter<
             }
 
             this.logger.error(
-              `ClickHouse query failed with non-retryable error: ${error.message}`,
+              `${this.logPrefix}ClickHouse query failed with non-retryable error: ${error.message}`,
               {
                 error: error.message,
               },
@@ -446,7 +451,7 @@ export class ClickhouseWriter<
       );
 
       this.logger.debug(
-        `Flushed ${queueItems.length} records to Clickhouse ${tableName}. New queue length: ${entityQueue.length}`,
+        `${this.logPrefix}Flushed ${queueItems.length} records to Clickhouse ${tableName}. New queue length: ${entityQueue.length}`,
       );
 
       recordGauge(
@@ -459,7 +464,10 @@ export class ClickhouseWriter<
         },
       );
     } catch (err) {
-      this.logger.error(`ClickhouseWriter.flush ${tableName}`, err);
+      this.logger.error(
+        `${this.logPrefix}ClickhouseWriter.flush ${tableName}`,
+        err,
+      );
 
       // Re-add the records to the queue with incremented attempts
       let droppedCount = 0;
@@ -490,7 +498,7 @@ export class ClickhouseWriter<
           .map((item) => writeStrategy.droppedId(item.data));
 
         this.logger.error(
-          `ClickhouseWriter: Max attempts reached, dropped ${droppedCount} ${tableName} record(s)`,
+          `${this.logPrefix}ClickhouseWriter: Max attempts reached, dropped ${droppedCount} ${tableName} record(s)`,
           { droppedIds },
         );
       }
@@ -512,10 +520,15 @@ export class ClickhouseWriter<
     });
 
     if (entityQueue.length >= this.batchSize) {
-      this.logger.debug(`Queue is full. Flushing ${tableName}...`);
+      this.logger.debug(
+        `${this.logPrefix}Queue is full. Flushing ${tableName}...`,
+      );
 
       this.trackActiveFlush(this.flush(tableName)).catch((err) => {
-        this.logger.error("ClickhouseWriter.addToQueue flush", err);
+        this.logger.error(
+          `${this.logPrefix}ClickhouseWriter.addToQueue flush`,
+          err,
+        );
       });
     }
   }
@@ -540,12 +553,14 @@ export class ClickhouseWriter<
         },
       })
       .catch((err) => {
-        this.logger.error(`ClickhouseWriter.writeToClickhouse ${err}`);
+        this.logger.error(
+          `${this.logPrefix}ClickhouseWriter.writeToClickhouse ${err}`,
+        );
         throw err;
       });
 
     this.logger.debug(
-      `ClickhouseWriter.writeToClickhouse: ${Date.now() - startTime} ms`,
+      `${this.logPrefix}ClickhouseWriter.writeToClickhouse: ${Date.now() - startTime} ms`,
     );
     recordGauge("ingestion_clickhouse_insert", params.records.length, {
       format: this.strategyFactory.format,

@@ -335,7 +335,7 @@ describe("ClickhouseWriter", () => {
       .mocked(logger.error)
       .mock.calls.find(
         ([message]) =>
-          message === `ClickhouseWriter.flush ${TableName.EventsFull}`,
+          message === `[native] ClickhouseWriter.flush ${TableName.EventsFull}`,
       )?.[1];
     expect(flushError).toBe(streamError);
   });
@@ -372,7 +372,7 @@ describe("ClickhouseWriter", () => {
       .mocked(logger.error)
       .mock.calls.find(
         ([message]) =>
-          message === `ClickhouseWriter.flush ${TableName.EventsFull}`,
+          message === `[native] ClickhouseWriter.flush ${TableName.EventsFull}`,
       )?.[1] as Error;
     expect(flushError.message).toContain(exceptionText);
     expect(flushError.message.length).toBeLessThanOrEqual(4200);
