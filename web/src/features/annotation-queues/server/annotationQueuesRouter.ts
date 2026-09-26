@@ -507,10 +507,18 @@ export const queueRouter = createTRPCRouter({
 
         return queue;
       } catch (error) {
-        logger.error(error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || isBaseError(error)) {
           throw error;
         }
+
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025"
+        ) {
+          throw new LangfuseNotFoundError("Queue not found in project");
+        }
+
+        logger.error(error);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Deleting annotation queue failed.",
