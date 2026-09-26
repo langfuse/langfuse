@@ -55,6 +55,7 @@ import {
   ScoreDataTypeArray,
   ScoreDataTypeEnum,
   LISTABLE_SCORE_TYPES,
+  LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server";
@@ -629,50 +630,37 @@ export const traceRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "objects:publish",
       });
-      try {
-        await auditLog({
-          session: ctx.session,
-          resourceType: "trace",
-          resourceId: input.traceId,
-          action: "publish",
-          after: input.public,
-        });
+      await auditLog({
+        session: ctx.session,
+        resourceType: "trace",
+        resourceId: input.traceId,
+        action: "publish",
+        after: input.public,
+      });
 
-        // eslint-disable-next-line @typescript-eslint/no-deprecated
-        const clickhouseTrace = await getTraceById({
-          traceId: input.traceId,
-          projectId: input.projectId,
-        });
-        if (!clickhouseTrace) {
-          logger.error(
-            `Trace not found in Clickhouse: ${input.traceId}. Skipping publishing.`,
-          );
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Trace not found",
-          });
-        }
-        clickhouseTrace.public = input.public;
-        const promises = [
-          upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
-        ];
-        if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy") {
-          promises.push(
-            updateEvents(
-              input.projectId,
-              { traceIds: [clickhouseTrace.id] },
-              { public: input.public },
-            ),
-          );
-        }
-        await Promise.all(promises);
-        return clickhouseTrace;
-      } catch (error) {
-        logger.error("Failed to call traces.publish", error);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-        });
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      const clickhouseTrace = await getTraceById({
+        traceId: input.traceId,
+        projectId: input.projectId,
+      });
+      if (!clickhouseTrace) {
+        throw new LangfuseNotFoundError("Trace not found");
       }
+      clickhouseTrace.public = input.public;
+      const promises = [
+        upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
+      ];
+      if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy") {
+        promises.push(
+          updateEvents(
+            input.projectId,
+            { traceIds: [clickhouseTrace.id] },
+            { public: input.public },
+          ),
+        );
+      }
+      await Promise.all(promises);
+      return clickhouseTrace;
     }),
   getAgentGraphData: protectedGetTraceProcedure
     .input(
