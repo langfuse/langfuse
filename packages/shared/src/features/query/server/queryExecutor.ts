@@ -81,6 +81,8 @@ export function toClickhouseQueryOpts(
   return {
     query: prepared.compiledQuery,
     params: prepared.parameters,
+    // Large filter values (e.g. long IN lists) would overflow the URL.
+    useMultipartParamsAuto: true,
     clickhouseSettings: prepared.clickhouseSettings,
     tags: prepared.tags,
     preferredClickhouseService: prepared.preferredClickhouseService,
