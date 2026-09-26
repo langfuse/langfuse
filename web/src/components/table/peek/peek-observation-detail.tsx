@@ -42,9 +42,8 @@ export const TablePeekViewObservationDetail = (
 
   const actionProps = trace.data
     ? {
-        traceId: trace.data.id,
-        projectId: trace.data.projectId,
-        isPublic: trace.data.public,
+        trace: trace.data,
+        traceContext: "peek" as const,
         shareUrl: buildTracePath({
           projectId: trace.data.projectId,
           traceId: trace.data.id,
@@ -55,7 +54,6 @@ export const TablePeekViewObservationDetail = (
           timestamp:
             typeof router.query.traceId === "string" ? undefined : timestamp,
         }),
-        name: trace.data.name,
         timestamp,
         onAfterDelete: (deletedTraceId: string) => {
           if (shouldClosePeekAfterDelete(traceIdRef.current, deletedTraceId)) {
@@ -69,6 +67,7 @@ export const TablePeekViewObservationDetail = (
     <TablePeekView
       {...props}
       title={traceId}
+      hideExpandToggle
       actions={
         actionProps ? <TraceDetailActions {...actionProps} /> : undefined
       }

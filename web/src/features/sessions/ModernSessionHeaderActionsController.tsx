@@ -1,21 +1,16 @@
-import { CopyIcon, Share2 } from "lucide-react";
+import { CopyIcon, MoreVertical } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { type ReactNode } from "react";
 
+import { HeaderActionButton } from "@/src/components/HeaderActionButton";
+import { HeaderActionMenuRows } from "@/src/components/HeaderActionMenuRow";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-} from "@/src/components/ui/dropdown-menu";
+  type DropdownMenuItemDefinition,
+} from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { useShareMenuItems } from "@/src/components/useShareMenuItems";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
-import { api } from "@/src/utils/api";
 
 function buildSessionClickHouseQuery(
   table: "events_full" | "events_core",
@@ -49,131 +44,150 @@ WHERE project_id = target_project_id
 ORDER BY start_time ASC, event_ts DESC;`;
 }
 
-export function ModernSessionHeaderActionsController({
-  projectId,
-  sessionId,
-  isPublic,
-  showCorrections,
-  showInlineToolCalls,
-  showSystemPrompt,
-  onShowCorrectionsChange,
-  onShowInlineToolCallsChange,
-  onShowSystemPromptChange,
-  children,
-}: {
-  projectId: string;
-  sessionId: string;
-  isPublic: boolean;
+type DisplaySettingProps = {
   showCorrections?: boolean;
   showInlineToolCalls?: boolean;
   showSystemPrompt?: boolean;
   onShowCorrectionsChange?: (isEnabled: boolean) => void;
   onShowInlineToolCallsChange?: (isEnabled: boolean) => void;
   onShowSystemPromptChange?: (isEnabled: boolean) => void;
-  children: ReactNode;
+};
+
+function buildDisplayItems({
+  showCorrections,
+  showInlineToolCalls,
+  showSystemPrompt,
+  onShowCorrectionsChange,
+  onShowInlineToolCallsChange,
+  onShowSystemPromptChange,
+}: DisplaySettingProps): DropdownMenuItemDefinition[] {
+  const settings = [
+    {
+      id: "show-corrections",
+      title: "Show corrections",
+      checked: showCorrections,
+      onChange: onShowCorrectionsChange,
+    },
+    {
+      id: "show-tool-calls",
+      title: "Show tool calls",
+      checked: showInlineToolCalls,
+      onChange: onShowInlineToolCallsChange,
+    },
+    {
+      id: "show-system-prompt",
+      title: "Show system prompt",
+      checked: showSystemPrompt,
+      onChange: onShowSystemPromptChange,
+    },
+  ];
+
+  return settings.flatMap(({ id, title, checked, onChange }) =>
+    checked !== undefined && onChange
+      ? [
+          {
+            type: "checkbox" as const,
+            id,
+            title,
+            checked,
+            onCheckedChange: onChange,
+          },
+        ]
+      : [],
+  );
+}
+
+/**
+ * Session header kebab: share items, Copy session ID, admin-only ClickHouse
+ * query copies and a Display submenu. `layout="menu"` renders the clickable
+ * items as full-width rows for the mobile header overflow menu.
+ */
+export function ModernSessionHeaderActionsController({
+  projectId,
+  sessionId,
+  isPublic,
+  layout = "toolbar",
+  ...displaySettings
+}: DisplaySettingProps & {
+  projectId: string;
+  sessionId: string;
+  isPublic: boolean;
+  layout?: "toolbar" | "menu";
 }) {
   const session = useSession();
   const capture = usePostHogClientCapture();
   const { copy } = useCopyToClipboard();
-  const utils = api.useUtils();
-  const hasPublishAccess = useHasProjectAccess({
+  const shareItems = useShareMenuItems({
+    kind: "session",
     projectId,
-    scope: "objects:publish",
+    objectId: sessionId,
+    isPublic,
   });
-  const publishMutation = api.sessions.publish.useMutation({
-    onSuccess: () => utils.sessions.invalidate(),
-  });
-  const hasDisplaySettings =
-    (showCorrections !== undefined && onShowCorrectionsChange) ||
-    (showInlineToolCalls !== undefined && onShowInlineToolCallsChange) ||
-    (showSystemPrompt !== undefined && onShowSystemPromptChange);
+  const displayItems = buildDisplayItems(displaySettings);
+
+  const adminItems: DropdownMenuItemDefinition[] =
+    session.data?.user?.admin === true
+      ? (["events_full", "events_core"] as const).map((table) => ({
+          type: "item" as const,
+          id: `copy-${table}-query`,
+          title: `Copy ${table} query`,
+          icon: CopyIcon,
+          onClick: async () => {
+            await copy(
+              buildSessionClickHouseQuery(table, projectId, sessionId),
+            );
+          },
+        }))
+      : [];
 
   return (
-    <DropdownMenu>
-      {children}
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem
-          disabled={!hasPublishAccess || publishMutation.isPending}
-          onClick={() => {
-            capture("session_detail:publish_button_click");
-            publishMutation.mutate({
-              projectId,
-              sessionId,
-              public: !isPublic,
-            });
-          }}
-        >
-          <Share2 className="mr-2 h-3.5 w-3.5" />
-          {isPublic ? "Unshare (make private)" : "Share (make public)"}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={async () => {
-            capture("session_detail:copy_session_id_click");
-            await copy(sessionId);
-          }}
-        >
-          <CopyIcon className="mr-2 h-3.5 w-3.5" />
-          Copy session ID
-        </DropdownMenuItem>
-        {session.data?.user?.admin === true &&
-          (["events_full", "events_core"] as const).map((table) => (
-            <DropdownMenuItem
-              key={table}
-              onClick={async () => {
-                await copy(
-                  buildSessionClickHouseQuery(table, projectId, sessionId),
-                );
-              }}
-            >
-              <CopyIcon className="mr-2 h-3.5 w-3.5" />
-              Copy {table} query
-            </DropdownMenuItem>
-          ))}
-        {hasDisplaySettings ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>Display</DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {showCorrections !== undefined && onShowCorrectionsChange ? (
-                  <DropdownMenuCheckboxItem
-                    checked={showCorrections}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      onShowCorrectionsChange(!showCorrections);
-                    }}
-                  >
-                    Show corrections
-                  </DropdownMenuCheckboxItem>
-                ) : null}
-                {showInlineToolCalls !== undefined &&
-                onShowInlineToolCallsChange ? (
-                  <DropdownMenuCheckboxItem
-                    checked={showInlineToolCalls}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      onShowInlineToolCallsChange(!showInlineToolCalls);
-                    }}
-                  >
-                    Show tool calls
-                  </DropdownMenuCheckboxItem>
-                ) : null}
-                {showSystemPrompt !== undefined && onShowSystemPromptChange ? (
-                  <DropdownMenuCheckboxItem
-                    checked={showSystemPrompt}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      onShowSystemPromptChange(!showSystemPrompt);
-                    }}
-                  >
-                    Show system prompt
-                  </DropdownMenuCheckboxItem>
-                ) : null}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          </>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <ConnectedDetailHeaderActionsMenuController
+      idItems={[{ id: sessionId, name: "session ID" }]}
+      projectId={projectId}
+      renderMenu={(copyItems) => {
+        const items: DropdownMenuItemDefinition[] = [
+          ...shareItems,
+          ...copyItems.map((item) =>
+            item.type === "item" && item.onClick
+              ? {
+                  ...item,
+                  onClick: () => {
+                    capture("session_detail:copy_session_id_click");
+                    item.onClick();
+                  },
+                }
+              : item,
+          ),
+          ...adminItems,
+          ...(displayItems.length > 0
+            ? [
+                { id: "display-separator", type: "separator" as const },
+                {
+                  type: "submenu" as const,
+                  id: "display",
+                  title: "Display",
+                  items: displayItems,
+                },
+              ]
+            : []),
+        ];
+
+        if (layout === "menu") {
+          return <HeaderActionMenuRows items={items} />;
+        }
+
+        return (
+          <DropdownMenu items={items} placement="bottom-end">
+            {({ getTriggerProps }) => (
+              <HeaderActionButton
+                label="Session actions"
+                icon={<MoreVertical className="h-4 w-4" />}
+                {...getTriggerProps()}
+              />
+            )}
+          </DropdownMenu>
+        );
+      }}
+    />
   );
 }
