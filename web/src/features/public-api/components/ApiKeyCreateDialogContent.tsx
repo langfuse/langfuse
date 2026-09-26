@@ -29,7 +29,7 @@ import {
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import {
   RolePermissionList,
-  rolePermissionCount,
+  rolePermissionCountLabel,
 } from "@/src/features/public-api/components/RolePermissionList";
 import {
   apiKeyRoleIcons,
@@ -243,7 +243,7 @@ function ApiKeyCreateForm({
             >
               View{" "}
               <span className="inline-flex items-center gap-0.5 underline">
-                {rolePermissionCount(role)} permissions
+                {rolePermissionCountLabel(role)}
                 <ArrowUpRight className="h-3 w-3" />
               </span>
             </button>
@@ -287,7 +287,7 @@ function PermissionsPopup({
                   variant="tertiary"
                   className="ml-1 shrink-0 tabular-nums"
                 >
-                  {rolePermissionCount(role)} permissions
+                  {rolePermissionCountLabel(role)}
                 </Badge>
               </DialogTitle>
             </DialogHeader>

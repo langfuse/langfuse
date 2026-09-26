@@ -152,11 +152,17 @@ const groupByEntity = (scopes: string[]): EntityGroup[] => {
 };
 
 /** rolePermissionCount is the total number of actions a role grants across all its policies. */
-export const rolePermissionCount = (role: SystemRole): number =>
+const rolePermissionCount = (role: SystemRole): number =>
   systemRoleAccessRights[role].policies.reduce(
     (total, policy) => total + policy.actions.length,
     0,
   );
+
+/** rolePermissionCountLabel renders the permission count with a singular/plural noun. */
+export const rolePermissionCountLabel = (role: SystemRole): string => {
+  const count = rolePermissionCount(role);
+  return `${count} ${count === 1 ? "permission" : "permissions"}`;
+};
 
 /** SectionHeader is a sticky section label that shows a bottom border only while pinned to the top of the scroll area. */
 const SectionHeader = ({ label }: { label: string }) => {
@@ -204,7 +210,7 @@ export const RolePermissionList = ({ role }: { role: SystemRole }) => {
     );
 
   return (
-    <div className="flex flex-col pb-4">
+    <div className="flex flex-col pb-8">
       {resourceKindOrder.map((kind) => {
         const scopes = policies
           .filter((policy) => policy.resourceKind === kind)
