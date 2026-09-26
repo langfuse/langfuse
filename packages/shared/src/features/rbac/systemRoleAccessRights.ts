@@ -94,7 +94,7 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
     OWNER: {
       id: "OWNER",
       name: "Owner",
-      description: "Full organization and project access.",
+      description: "Full access, plus billing and account deletion.",
       policies: userRoleAccessRights("OWNER"),
       tags: ["principal:user"],
     },
