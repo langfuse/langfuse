@@ -130,7 +130,6 @@ export function TracePage({
                 return `/project/${projectId as string}/traces/${entry.id}${finalQueryString}`;
               }}
               listKey="traces"
-              size="sm"
             />
             <TraceDetailActions
               traceId={trace.data.id}

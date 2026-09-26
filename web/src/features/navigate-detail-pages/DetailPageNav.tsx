@@ -1,7 +1,6 @@
 /* eslint-disable @repo/no-null-render */
-import { Button, type ButtonProps } from "@/src/components/ui/button";
+import { Button } from "@/src/components/ui/button";
 import { InputCommandShortcut } from "@/src/components/ui/input-command";
-import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   Tooltip,
   TooltipContent,
@@ -27,16 +26,8 @@ export const DetailPageNav = (props: {
   path: (entry: ListEntry) => string;
   listKey: string;
   onNavigate?: (entry: ListEntry) => void;
-  /** Button size; defaults to the cva default. Pass "sm" to match icon-xs rows. */
-  size?: ButtonProps["size"];
-  /**
-   * Compact mode for dense toolbars (e.g. the peek header): icon-only ghost
-   * arrows with the K/J hint moved to the tooltip, so the buttons match a row
-   * of icon-xs controls instead of standing out. Shortcuts still work.
-   */
-  compact?: boolean;
 }) => {
-  const { currentId, path, listKey, onNavigate, size, compact } = props;
+  const { currentId, path, listKey, onNavigate } = props;
   const { detailPagelists } = useDetailPageLists();
   const entries = detailPagelists[listKey] ?? [];
   const [shortcutPulse, setShortcutPulse] = useState<ShortcutPulse>(null);
@@ -141,7 +132,6 @@ export const DetailPageNav = (props: {
     const buttonClassName = (active: boolean) =>
       cn(
         "transition-[background-color,border-color,box-shadow,color] duration-150",
-        !compact && "gap-1.5 px-2",
         active && "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
       );
     return (
@@ -149,9 +139,9 @@ export const DetailPageNav = (props: {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant={compact ? "ghost" : "outline"}
+              variant="ghost"
               type="button"
-              size={compact ? "icon-xs" : size}
+              size="icon-xs"
               className={buttonClassName(shortcutPulse === "previous")}
               disabled={!previousPageEntry}
               onClick={() => {
@@ -161,11 +151,6 @@ export const DetailPageNav = (props: {
               }}
             >
               <ArrowUp className="h-4 w-4" />
-              {!compact && (
-                <span className="hidden md:inline-flex">
-                  <KeyboardShortcut keys={["K"]} />
-                </span>
-              )}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -177,9 +162,9 @@ export const DetailPageNav = (props: {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant={compact ? "ghost" : "outline"}
+              variant="ghost"
               type="button"
-              size={compact ? "icon-xs" : size}
+              size="icon-xs"
               className={buttonClassName(shortcutPulse === "next")}
               disabled={!nextPageEntry}
               onClick={() => {
@@ -189,11 +174,6 @@ export const DetailPageNav = (props: {
               }}
             >
               <ArrowDown className="h-4 w-4" />
-              {!compact && (
-                <span className="hidden md:inline-flex">
-                  <KeyboardShortcut keys={["J"]} />
-                </span>
-              )}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
