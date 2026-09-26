@@ -107,6 +107,39 @@ export function checkHeaderBasedDirectWrite(params: {
   return false;
 }
 
+function countSpans(resourceSpans: ResourceSpan[]): number {
+  return resourceSpans.reduce(
+    (total, resourceSpan) =>
+      total +
+      (resourceSpan?.scopeSpans ?? []).reduce(
+        (spans, scopeSpan) => spans + (scopeSpan?.spans?.length ?? 0),
+        0,
+      ),
+    0,
+  );
+}
+
+/**
+ * Whether the legacy ingestion representation has to be built for this batch.
+ *
+ * `processToIngestionEvents` plus the ingestion-schema parse feed exactly two
+ * consumers: the legacy write path, and the SDK-version fallback that decides
+ * the write path when neither the env override nor the request headers already
+ * established a direct write. A deployment that skips legacy tables and already
+ * knows the batch is written directly needs neither, and the batch is converted
+ * again through `processToEvent` for the events-table write.
+ */
+export function needsLegacyIngestionRepresentation(params: {
+  writesToLegacyTables: boolean;
+  forceDirectWrite: boolean;
+  headerBasedDirectWrite: boolean;
+}): boolean {
+  return (
+    params.writesToLegacyTables ||
+    !(params.forceDirectWrite || params.headerBasedDirectWrite)
+  );
+}
+
 export type OtelWritePath =
   | "dual"
   | "direct_header"
@@ -543,8 +576,22 @@ export const otelIngestionQueueProcessorBuilder = (
         fileKey,
         isLangfuseInternal,
       });
-      const events: IngestionEventType[] =
-        await processor.processToIngestionEvents(parsedSpans);
+      const headerBasedDirectWrite = checkHeaderBasedDirectWrite({
+        sdkName: job.data.payload.sdkName,
+        sdkVersion: job.data.payload.sdkVersion,
+        ingestionVersion: job.data.payload.ingestionVersion,
+      });
+      const envForcesDirect = v4ForceDirectOtelWrite(env);
+      const writesToLegacyTables = v4WritesToLegacyTables(env);
+      const buildLegacyRepresentation = needsLegacyIngestionRepresentation({
+        writesToLegacyTables,
+        forceDirectWrite: envForcesDirect,
+        headerBasedDirectWrite,
+      });
+
+      const events: IngestionEventType[] = buildLegacyRepresentation
+        ? await processor.processToIngestionEvents(parsedSpans)
+        : [];
 
       // Here, we split the events into observations and non-observations.
       // Observations go into the IngestionService directly whereas the non-observations make another run through the processEventBatch method.
@@ -588,19 +635,24 @@ export const otelIngestionQueueProcessorBuilder = (
       }
 
       // In the next row, we only consider observations. The traces will be recorded in processEventBatch.
-      recordIncrement("langfuse.ingestion.event", observations.length, {
+      // Without the legacy representation there is no observation list to count,
+      // and one span is one observation on the direct path.
+      const observationCount = buildLegacyRepresentation
+        ? observations.length
+        : countSpans(parsedSpans);
+      recordIncrement("langfuse.ingestion.event", observationCount, {
         source: "otel",
       });
       // Record more stats specific to the Otel processing
       recordDistribution("langfuse.ingestion.otel.trace_count", traces.length);
       recordDistribution(
         "langfuse.ingestion.otel.observation_count",
-        observations.length,
+        observationCount,
       );
       span?.setAttribute("langfuse.ingestion.otel.trace_count", traces.length);
       span?.setAttribute(
         "langfuse.ingestion.otel.observation_count",
-        observations.length,
+        observationCount,
       );
 
       // Ensure required infra config is present
@@ -627,16 +679,11 @@ export const otelIngestionQueueProcessorBuilder = (
       //
       // Priority 3 (last resort): the owning organization signed up past the
       //   Cloud direct-write cutoff. Non-Langfuse-SDK exports only (see below).
-      const headerBasedDirectWrite = checkHeaderBasedDirectWrite({
-        sdkName: job.data.payload.sdkName,
-        sdkVersion: job.data.payload.sdkVersion,
-        ingestionVersion: job.data.payload.ingestionVersion,
-      });
-
-      // Priority 0: deployment-level override.
-      //   LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct forces every batch
-      //   onto the direct events_full path regardless of SDK headers/scopes.
-      const envForcesDirect = v4ForceDirectOtelWrite(env);
+      // headerBasedDirectWrite and envForcesDirect (priority 0: the
+      // deployment-level LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct
+      // override, which forces every batch onto the direct events_full path
+      // regardless of SDK headers/scopes) are resolved above, because whether
+      // the legacy representation is needed at all depends on them.
 
       // Evaluated whenever the higher-precedence header/env signals did not
       // already qualify, so the write_path label can attribute the decision
@@ -705,7 +752,6 @@ export const otelIngestionQueueProcessorBuilder = (
       // validation already guarantees useDirectEventWrite is true here, so
       // observations and traces don't need the mergeAndWrite / IngestionQueue
       // detour that would otherwise populate the legacy tables.
-      const writesToLegacyTables = v4WritesToLegacyTables(env);
       const skipLegacyWrites = !writesToLegacyTables;
       const shouldProcessLegacyMedia = shouldProcessLegacyOtelMedia({
         mediaUploadEnabled: env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true",
