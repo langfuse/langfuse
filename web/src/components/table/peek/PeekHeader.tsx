@@ -213,7 +213,7 @@ export function PeekHeader({
     <TooltipProvider delayDuration={TOOLTIP_DELAY_MS}>
       <div
         ref={headerRef}
-        className="bg-muted flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
+        className="flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
       >
         <div className="flex min-w-0 flex-row items-center gap-2">
           {/* Type never truncates: the word when it fits, the icon when not. */}
@@ -225,7 +225,7 @@ export function PeekHeader({
             )}
           </div>
           <span
-            className="truncate text-sm font-bold focus:outline-hidden"
+            className="truncate text-lg leading-7 font-bold focus:outline-hidden"
             tabIndex={0}
             title={typeof title === "string" ? title : undefined}
           >
@@ -297,7 +297,7 @@ export function PeekHeader({
                   currentId={itemId}
                   path={resolveDetailNavigationPath!}
                   listKey={detailNavigationKey!}
-                  compact={plan.navCompact}
+                  compact
                 />
               </div>
             )}
