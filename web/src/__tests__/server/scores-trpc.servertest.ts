@@ -1027,6 +1027,42 @@ describe("scores trpc", () => {
     });
   });
 
+  describe("scoreConfigs.create", () => {
+    it("accepts null categories for a numeric config", async () => {
+      const config = await caller.scoreConfigs.create({
+        projectId,
+        name: `numeric-null-categories-${randomUUID().slice(0, 8)}`,
+        dataType: ScoreConfigDataType.NUMERIC,
+        categories: null,
+      });
+
+      expect(config).toMatchObject({
+        projectId,
+        dataType: ScoreConfigDataType.NUMERIC,
+        categories: null,
+      });
+    });
+
+    it("does not persist a categorical config with null categories", async () => {
+      const name = `categorical-null-categories-${randomUUID().slice(0, 8)}`;
+
+      await expect(
+        caller.scoreConfigs.create({
+          projectId,
+          name,
+          dataType: ScoreConfigDataType.CATEGORICAL,
+          categories: null,
+        }),
+      ).rejects.toBeDefined();
+
+      expect(
+        await prisma.scoreConfig.count({
+          where: { projectId, name },
+        }),
+      ).toBe(0);
+    });
+  });
+
   describe("scoreConfigs.appendCategory", () => {
     it("keeps both categories when two appends race", async () => {
       const config = await prisma.scoreConfig.create({
