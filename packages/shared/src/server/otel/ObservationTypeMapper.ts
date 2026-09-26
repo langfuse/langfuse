@@ -115,6 +115,26 @@ class CustomAttributeMapper implements ObservationTypeMapper {
   }
 }
 
+const LANGFUSE_SDK_SCOPE_NAME = "langfuse-sdk";
+
+const OPENINFERENCE_SPAN_KIND_ATTRIBUTE = "openinference.span.kind";
+
+// Format:
+// OpenInference Value: Langfuse ObservationType
+const OPENINFERENCE_SPAN_KIND_MAPPINGS: Record<
+  string,
+  LangfuseObservationType
+> = {
+  CHAIN: "CHAIN",
+  RETRIEVER: "RETRIEVER",
+  LLM: "GENERATION",
+  EMBEDDING: "EMBEDDING",
+  AGENT: "AGENT",
+  TOOL: "TOOL",
+  GUARDRAIL: "GUARDRAIL",
+  EVALUATOR: "EVALUATOR",
+};
+
 // value is not null, undefined, empty string, or empty object/array
 function hasMeaningfulValue(value: unknown): boolean {
   if (value === null || value === undefined || value === "") {
@@ -213,6 +233,51 @@ export class ObservationTypeMapperRegistry {
       },
     ),
 
+    // Priority 0: third-party OpenInference spans stamped with the SDK's default type
+    // The Python SDK's update_current_*() helpers resolve the observation type
+    // from langfuse.observation.type alone, fall back to "span" when it is
+    // absent, and then write that fallback onto the current OTel span - even
+    // when the span belongs to a third-party instrumentor. On an OpenInference
+    // span this silently downgrades AGENT/TOOL/... to SPAN, and only for the
+    // spans a hook happened to touch.
+    // Disjoint with PythonSDKv330Override above, which requires the
+    // langfuse-sdk scope that this mapper excludes.
+    new CustomAttributeMapper(
+      "ThirdPartyOpenInferenceSpanKind",
+      0, // Priority
+      // canMap?
+      (attributes, _resourceAttributes, scopeData) => {
+        // Only "span" is ambiguous: it is what the SDK writes when the caller
+        // asked for no type at all. Any other value is a deliberate choice.
+        if (
+          attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE] !== "span"
+        ) {
+          return false;
+        }
+
+        // Spans the Langfuse SDK created own their type. Only defer to the
+        // instrumentor when another scope is the identified owner of the span;
+        // an unknown scope keeps the explicit attribute.
+        const scopeName = scopeData?.name;
+        if (
+          typeof scopeName !== "string" ||
+          scopeName === "" ||
+          scopeName === LANGFUSE_SDK_SCOPE_NAME
+        ) {
+          return false;
+        }
+
+        return hasMeaningfulValue(
+          attributes[OPENINFERENCE_SPAN_KIND_ATTRIBUTE],
+        );
+      },
+      // map!
+      (attributes) =>
+        OPENINFERENCE_SPAN_KIND_MAPPINGS[
+          attributes[OPENINFERENCE_SPAN_KIND_ATTRIBUTE] as string
+        ] ?? null,
+    ),
+
     // Priority 1: maps langfuse.observation.type directly
     new SimpleAttributeMapper(
       "LangfuseObservationTypeDirectMapping",
@@ -233,18 +298,12 @@ export class ObservationTypeMapperRegistry {
     ),
 
     // Priority 2: OpenInference span kind
-    new SimpleAttributeMapper("OpenInference", 2, "openinference.span.kind", {
-      // Format:
-      // OpenInference Value: Langfuse ObservationType
-      CHAIN: "CHAIN",
-      RETRIEVER: "RETRIEVER",
-      LLM: "GENERATION",
-      EMBEDDING: "EMBEDDING",
-      AGENT: "AGENT",
-      TOOL: "TOOL",
-      GUARDRAIL: "GUARDRAIL",
-      EVALUATOR: "EVALUATOR",
-    }),
+    new SimpleAttributeMapper(
+      "OpenInference",
+      2,
+      OPENINFERENCE_SPAN_KIND_ATTRIBUTE,
+      OPENINFERENCE_SPAN_KIND_MAPPINGS,
+    ),
 
     // Priority 3: OpenTelemetry GenAI operation
     new SimpleAttributeMapper(
