@@ -194,6 +194,40 @@ describe("geminiAdapter", () => {
       expect(toolCall.args).toBeUndefined();
     });
 
+    it("should extract text from OTel GenAI parts using the 'content' field (#15790)", () => {
+      // OTel GenAI messages carry the text under parts[].content rather than
+      // parts[].text. The Gemini adapter must read both, like the generic one.
+      const input = [
+        {
+          role: "assistant",
+          parts: [{ type: "text", content: "Hello" }],
+          finish_reason: "stop",
+        },
+      ];
+
+      const result = geminiAdapter.preprocess(input, "input", {}) as any[];
+
+      expect(result.length).toBe(1);
+      expect(result[0].role).toBe("assistant");
+      expect(result[0].content).toBe("Hello");
+      expect(result[0].finish_reason).toBe("stop");
+      // parts is consumed once its text is extracted
+      expect(result[0].parts).toBeUndefined();
+    });
+
+    it("should still prefer parts[].text when both text and content are present (#15790)", () => {
+      const input = [
+        {
+          role: "assistant",
+          parts: [{ type: "text", text: "from-text", content: "from-content" }],
+        },
+      ];
+
+      const result = geminiAdapter.preprocess(input, "input", {}) as any[];
+
+      expect(result[0].content).toBe("from-text");
+    });
+
     it("should handle Google ADK format with tool calls and function responses", () => {
       // This is the format from google-adk-2025-08-28.json
       const input = {
