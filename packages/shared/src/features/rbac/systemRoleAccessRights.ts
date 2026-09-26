@@ -101,7 +101,7 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
     ADMIN: {
       id: "ADMIN",
       name: "Admin",
-      description: "Administer the organization and its projects.",
+      description: "All read and write privileges.",
       policies: userRoleAccessRights("ADMIN"),
       tags: ["principal:user", "principal:apiKey"],
     },
@@ -115,7 +115,7 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
     VIEWER: {
       id: "VIEWER",
       name: "Viewer",
-      description: "Read-only access to the organization and its projects.",
+      description: "Read-only privileges.",
       policies: userRoleAccessRights("VIEWER"),
       tags: ["principal:user", "principal:apiKey"],
     },
@@ -146,14 +146,14 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
     SCORES_INGEST: {
       id: "SCORES_INGEST",
       name: "Scores ingestion",
-      description: "Create scores in a project.",
+      description: "Submit scores from a web application.",
       policies: [allow("project", ["scores:create"])],
       tags: ["principal:apiKey"],
     },
     INGEST: {
       id: "INGEST",
       name: "Ingestion",
-      description: "Create traces, scores, and media in a project.",
+      description: "Create scores and traces from application telemetry.",
       policies: [
         allow("project", ["traces:create", "scores:create", "media:create"]),
       ],
@@ -162,7 +162,7 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
     AI_GATEWAY: {
       id: "AI_GATEWAY",
       name: "AI Gateway",
-      description: "Invoke the organization's AI Gateway.",
+      description: "Route model requests through the AI Gateway.",
       policies: [allow("organization", ["gateway:invoke"])],
       tags: ["principal:apiKey"],
     },
