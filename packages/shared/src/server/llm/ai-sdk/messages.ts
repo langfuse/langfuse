@@ -27,7 +27,9 @@ const toSafeContent = (content: unknown): string =>
  * `ModelMessage[]`:
  * - the first system/developer message becomes `system`, later ones `user`
  * - non-string content is safely JSON-stringified
- * - messages with empty content are dropped unless they carry tool calls
+ * - blank content is preserved: a conversation replayed from a trace keeps the
+ *   exact turns it was recorded with, so an empty or whitespace-only message is
+ *   sent as-is rather than silently disappearing from the request
  * - tool results resolve their `toolName` from the preceding assistant
  *   tool-call messages; orphan tool results fail fast as a non-retryable
  *   error instead of a provider-side 400
@@ -43,10 +45,7 @@ export function mapChatMessagesToModelMessages(
     options?.adapter !== undefined &&
     PROVIDERS_WITH_REQUIRED_USER_MESSAGE.includes(options.adapter)
   ) {
-    const safeContent = toSafeContent(messages[0].content);
-    return safeContent.length > 0
-      ? [{ role: "user", content: safeContent }]
-      : [];
+    return [{ role: "user", content: toSafeContent(messages[0].content) }];
   }
 
   const toolCallIdToName = new Map<string, string>();
@@ -64,18 +63,22 @@ export function mapChatMessagesToModelMessages(
     const safeContent = toSafeContent(message.content);
 
     if (message.type === ChatMessageType.AssistantToolCall) {
-      const content: AssistantContent = [
-        ...(safeContent.length > 0
-          ? [{ type: "text" as const, text: safeContent }]
-          : []),
-        ...(message.toolCalls as LLMToolCall[]).map((toolCall) => ({
+      const toolCalls = (message.toolCalls as LLMToolCall[]).map(
+        (toolCall) => ({
           type: "tool-call" as const,
           toolCallId: toolCall.id,
           toolName: toolCall.name,
           input: toolCall.args,
-        })),
-      ];
-      if (content.length === 0) return; // mirror empty-content filter
+        }),
+      );
+
+      // An assistant turn that only selected tools has no text to send; keep
+      // the empty text part only when there is nothing else in the message.
+      const content: AssistantContent =
+        safeContent.length > 0 || toolCalls.length === 0
+          ? [{ type: "text" as const, text: safeContent }, ...toolCalls]
+          : toolCalls;
+
       modelMessages.push({ role: "assistant", content });
 
       return;
@@ -91,8 +94,6 @@ export function mapChatMessagesToModelMessages(
         });
       }
 
-      if (safeContent.length === 0) return; // mirror empty-content filter
-
       modelMessages.push({
         role: "tool",
         content: [
@@ -107,8 +108,6 @@ export function mapChatMessagesToModelMessages(
 
       return;
     }
-
-    if (safeContent.length === 0) return; // mirror empty-content filter
 
     if (message.role === ChatMessageRole.User) {
       modelMessages.push({ role: "user", content: safeContent });
