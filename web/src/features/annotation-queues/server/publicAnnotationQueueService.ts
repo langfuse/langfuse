@@ -583,26 +583,36 @@ export const createAnnotationQueueAssignmentForApi = async ({
     userId: input.userId,
   };
 
-  // Create the assignment (upsert to handle duplicates gracefully)
-  const assignment = await prisma.annotationQueueAssignment.upsert({
-    where: {
-      projectId_queueId_userId: assignmentWhere,
-    },
-    create: assignmentWhere,
-    update: {},
+  // Insert-if-absent in a single statement. skipDuplicates makes the returned count the
+  // authoritative answer to "did this call create the assignment?" — a read followed by
+  // an upsert cannot answer that, because two concurrent calls can both observe no row
+  // while only one of them inserts, and a delete landing in between can drop a real
+  // create. `update` used to be empty, so the upsert never changed existing rows.
+  const { count } = await prisma.annotationQueueAssignment.createMany({
+    data: [assignmentWhere],
+    skipDuplicates: true,
   });
 
-  // TODO: only create audit log if upsert actually creates a new record
-  if (auditScope) {
-    await auditLog({
-      action: "create",
-      resourceType: "annotationQueueAssignment",
-      resourceId: assignment.id,
-      projectId: auditScope.projectId,
-      orgId: auditScope.orgId,
-      apiKeyId: auditScope.apiKeyId,
-      after: assignment,
+  // Only audit an actual state change: re-posting an existing assignment inserts
+  // nothing and must not be recorded as a "create".
+  if (auditScope && count > 0) {
+    const created = await prisma.annotationQueueAssignment.findUnique({
+      where: {
+        projectId_queueId_userId: assignmentWhere,
+      },
     });
+
+    if (created) {
+      await auditLog({
+        action: "create",
+        resourceType: "annotationQueueAssignment",
+        resourceId: created.id,
+        projectId: auditScope.projectId,
+        orgId: auditScope.orgId,
+        apiKeyId: auditScope.apiKeyId,
+        after: created,
+      });
+    }
   }
 
   return {
