@@ -109,6 +109,7 @@ import {
 import { convertEventsObservation } from "./observations_converters";
 import {
   EventsQueryBuilder,
+  EventsSessionAggregationQueryBuilder,
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   buildEventsFullTableSplitQuery,
@@ -1367,6 +1368,9 @@ type PublicApiObservationsQuery = {
   traceId?: string;
   userId?: string;
   sessionId?: string;
+  minSessionDuration?: number;
+  /** Access boundary for session metrics, independent of the requested row range. */
+  sessionDataAccessFrom?: Date;
   name?: string;
   type?: string;
   level?: string;
@@ -1509,6 +1513,50 @@ function buildObservationsQueryComponents(
       ),
     )
     .where(appliedFilter);
+
+  if (opts.minSessionDuration !== undefined) {
+    // Row filters and cursors must not truncate a session's duration.
+    // ponytail: scans project history per page; preselect session IDs if costly.
+    const sessionEvents = new EventsQueryBuilder({ projectId })
+      .selectRaw(
+        "e.project_id",
+        "e.trace_id",
+        "e.span_id",
+        "e.start_time",
+        "e.end_time",
+        "e.session_id",
+        "e.is_deleted",
+      )
+      .orderByColumns([{ column: "e.event_ts", direction: "DESC" }])
+      .limitBy("e.project_id", "e.trace_id", "e.span_id", "e.start_time");
+    if (opts.sessionDataAccessFrom) {
+      sessionEvents.whereRaw(
+        "e.start_time >= {sessionDataAccessFrom: DateTime64(3)}",
+        {
+          sessionDataAccessFrom: convertDateToClickhouseDateTime(
+            opts.sessionDataAccessFrom,
+          ),
+        },
+      );
+    }
+    // Resolve versions before session membership or deletion filtering so an
+    // older value cannot revive a moved/deleted observation or extend its end.
+    const sessions = new EventsSessionAggregationQueryBuilder({
+      projectId,
+      source: sessionEvents,
+    })
+      .selectFieldSet("duration")
+      .whereRaw("session_id != ''")
+      .whereRaw("e.is_deleted = 0");
+    externalCTEs.push({
+      name: "session_duration",
+      queryWithParams: sessions.buildWithParams(),
+    });
+    queryBuilder.whereRaw(
+      "e.session_id IN (SELECT session_id FROM session_duration WHERE duration >= {minSessionDuration: Float64})",
+      { minSessionDuration: opts.minSessionDuration },
+    );
+  }
 
   return { queryBuilder, externalCTEs, filtersNeedFullTable };
 }

@@ -1516,6 +1516,7 @@ const EVENTS_SESSION_AGGREGATION_FIELDS = {
  * Field sets for session aggregation queries
  */
 const SESSION_AGGREGATION_FIELD_SETS = {
+  duration: ["session_id", "duration"],
   all: Object.keys(EVENTS_SESSION_AGGREGATION_FIELDS) as Array<
     keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS
   >,
@@ -1543,8 +1544,19 @@ const SESSION_AGGREGATION_FIELD_SETS = {
 export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder<
   typeof EVENTS_SESSION_AGGREGATION_FIELDS
 > {
-  constructor(options: { projectId: string }) {
+  private source?: QueryWithParams;
+
+  constructor(options: { projectId: string; source?: QueryWithParams }) {
     super(EVENTS_SESSION_AGGREGATION_FIELDS, options);
+    this.source = options.source;
+  }
+
+  /** Aggregate a supplied observation query, or events_core by default. */
+  protected override getTableName(): string {
+    if (!this.source) return super.getTableName();
+    const { query, params } = this.source.buildWithParams();
+    this.params = { ...this.params, ...params };
+    return `(${query})`;
   }
 
   /**
