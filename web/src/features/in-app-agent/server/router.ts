@@ -17,6 +17,7 @@ import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
   IN_APP_AGENT_PRODUCT_ENVIRONMENT,
+  InAppAgentUserInputPayloadSchema,
 } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMessageFeedbackValueSchema } from "../schema";
 import {
@@ -41,6 +42,7 @@ import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/
 import {
   cancelBackgroundRun,
   decideBackgroundApproval,
+  decideBackgroundUserInput,
   deleteBackgroundConversation,
   getBackgroundConversationSnapshot,
   serializeConversationLatestRun,
@@ -86,6 +88,12 @@ const DecideToolApprovalInput = ConversationIdInput.extend({
 }).refine((input) => input.approved || input.approvalScope === "once", {
   message: "A rejection cannot grant a tool",
   path: ["approvalScope"],
+});
+
+const DecideUserInputInput = ConversationIdInput.extend({
+  runId: z.string(),
+  toolCallId: z.string(),
+  payload: InAppAgentUserInputPayloadSchema,
 });
 
 const SubmitFeedbackInput = ConversationIdInput.extend({
@@ -300,6 +308,42 @@ export const inAppAgentRouter = createTRPCRouter({
         toolCallId: input.toolCallId,
         approved: input.approved,
         approvalScope: input.approvalScope,
+        userId: ctx.session.user.id,
+        model: modelConfig.modelId,
+      });
+    }),
+
+  decideUserInput: protectedProjectProcedureWithoutTracing
+    .input(DecideUserInputInput)
+    .mutation(async ({ ctx, input }) => {
+      const projectAvailability = await assertInAppAgentAvailable({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        user: ctx.session.user,
+      });
+      const modelConfig = assertInAppAgentModelConfigured();
+
+      const rateLimitScope = getInAppAgentApiAccessScope(
+        ctx.session.user,
+        input.projectId,
+        projectAvailability,
+      );
+
+      await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
+      await assertInAppAgentRunCapacity({
+        prisma: ctx.prisma,
+        orgId: rateLimitScope.orgId,
+        plan: rateLimitScope.plan,
+        userId: ctx.session.user.id,
+      });
+
+      return decideBackgroundUserInput({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        conversationId: input.conversationId,
+        runId: input.runId,
+        toolCallId: input.toolCallId,
+        payload: input.payload,
         userId: ctx.session.user.id,
         model: modelConfig.modelId,
       });

@@ -12,13 +12,19 @@ import { MCPClient } from "@mastra/mcp";
 import type { Langfuse } from "langfuse";
 
 import {
+  IN_APP_AGENT_ASK_USER_TOOL_NAME,
+  IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
   type AgUiEvent,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
 import { getToolFailureMessage } from "@langfuse/shared/in-app-agent/server/toolErrors";
 import { IN_APP_AGENT_MAX_STEPS } from "@langfuse/shared/in-app-agent/server/tunables";
 import type { AgUiRunAgentInput, ResumeForwardedProps } from "./types";
-import { createManualToolApprovalRunInput } from "./human-in-the-loop";
+import {
+  createManualToolApprovalRunInput,
+  createManualUserInputRunInput,
+} from "./human-in-the-loop";
 import type {
   InAppAgentPromptMetadata,
   InAppAgentTracingConfig,
@@ -30,6 +36,7 @@ import {
 } from "./mcpRateLimitWait";
 import {
   createSandboxTools,
+  createAskUserTool,
   createRedirectActionTool,
   getToolCallId,
   hasCallableExecute,
@@ -52,10 +59,6 @@ import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./skills";
 import type { InAppAgentSandbox } from "./sandbox";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
-import {
-  IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
-  IN_APP_AGENT_REDIRECT_TOOL_NAME,
-} from "@langfuse/shared/in-app-agent";
 import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { applyPromptCacheToCall } from "./promptCache";
 import {
@@ -333,6 +336,7 @@ export async function createAgUiStream(params: {
     useLocalPrompt: params.options.useLocalPrompt,
     variables: {
       redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+      askUserToolName: IN_APP_AGENT_ASK_USER_TOOL_NAME,
       sandboxFilesystem: formatSandboxContext(params.options.sandbox),
       sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
         (environment) => `"${environment}"`,
@@ -706,12 +710,19 @@ export async function createAgUiStream(params: {
           cleanupAdapter = currentAdapter.cleanup;
           interruptAdapter = currentAdapter.interrupt;
 
-          const runInput = await createManualToolApprovalRunInput({
+          const approvalRunInput = await createManualToolApprovalRunInput({
             input: params.input,
             executeToolCall: currentAdapter.executeToolCall,
             onApprovedToolCallExecuted:
               params.options.onApprovedToolCallExecuted,
           });
+          const userInputRunInput = createManualUserInputRunInput({
+            input: params.input,
+          });
+          const runInput =
+            userInputRunInput.syntheticEvents.length > 0
+              ? userInputRunInput
+              : approvalRunInput;
           const humanApprovedToolCallId =
             runInput.toolCallApproval?.status === "approved"
               ? runInput.toolCallApproval.toolCallId
@@ -721,7 +732,9 @@ export async function createAgUiStream(params: {
 
           // Drop a one-off override after its call; standing grants remain in the policy.
           const oneOffApprovedToolName =
-            forwardedProps?.command?.resume?.approved === true
+            forwardedProps?.command?.resume &&
+            "approved" in forwardedProps.command.resume &&
+            forwardedProps.command.resume.approved === true
               ? getInAppAgentRegistryToolName(
                   forwardedProps.command.resume.approvalRequest?.toolName,
                 )
@@ -1235,6 +1248,7 @@ async function createMastraAdapter(params: {
             projectId: params.options.redirectAction.projectId,
             isV4Enabled: params.options.redirectAction.isV4Enabled,
           }),
+          [IN_APP_AGENT_ASK_USER_TOOL_NAME]: createAskUserTool(),
           ...(params.options.sandbox
             ? createSandboxTools(params.options.sandbox)
             : {}),
@@ -1305,9 +1319,12 @@ async function createMastraAdapter(params: {
     const adapter = new MastraAgent({
       agent,
       resourceId: params.input.threadId,
-      // The structured RUN_FINISHED interrupt outcome targets CopilotKit
-      // >= 1.61.2 clients; ours consumes the legacy on_interrupt CUSTOM
-      // events, so keep the pre-flag behavior.
+      // The structured RUN_FINISHED interrupt outcome is the long-term AG-UI
+      // wire format (`outcome.type === "interrupt"` plus `resume[]`). Our
+      // client still reads the legacy on_interrupt CUSTOM events, and the
+      // parsed envelope is already AG-UI Interrupt-shaped (`reason`,
+      // `responseSchema`, `toolCallId`). Keep the pre-flag behavior until that
+      // translation lands.
       emitInterruptOutcome: false,
     });
     patchMastraApprovalChunks(adapter);
@@ -1580,6 +1597,7 @@ async function getSystemPromptInstructions(params: {
   variables: {
     currentDate: string;
     redirectToolName: string;
+    askUserToolName: string;
     sandboxFilesystem: string;
     screenContext: string;
     userContext: string;

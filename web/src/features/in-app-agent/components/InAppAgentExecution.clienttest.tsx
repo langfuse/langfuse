@@ -22,6 +22,7 @@ const providerMocks = vi.hoisted(() => {
   const startRun = vi.fn();
   const cancelRun = vi.fn();
   const decideToolApproval = vi.fn();
+  const decideUserInput = vi.fn();
   const activityQuery = {
     data: undefined as undefined,
     refetch: vi.fn(() => Promise.resolve({ data: undefined })),
@@ -38,10 +39,12 @@ const providerMocks = vi.hoisted(() => {
     startRun,
     cancelRun,
     decideToolApproval,
+    decideUserInput,
     mutations: {
       startRun: { mutateAsync: startRun },
       cancelRun: { isPending: false, mutateAsync: cancelRun },
       decideToolApproval: { mutateAsync: decideToolApproval },
+      decideUserInput: { mutateAsync: decideUserInput },
     },
     getConversation: vi.fn(),
     activityQuery,
@@ -71,6 +74,18 @@ const providerMocks = vi.hoisted(() => {
               runId: string;
               approvalRequest: {
                 type: "tool_approval_request";
+                toolCallId: string;
+                toolName: string;
+                runId: string;
+              };
+            }>;
+            pendingUserInputs?: Array<{
+              runId: string;
+              userInputRequest: {
+                type: "user_input_request";
+                id: string;
+                reason: "input_required";
+                message: string;
                 toolCallId: string;
                 toolName: string;
                 runId: string;
@@ -179,6 +194,9 @@ vi.mock("@/src/utils/api", () => ({
       },
       decideToolApproval: {
         useMutation: () => providerMocks.mutations.decideToolApproval,
+      },
+      decideUserInput: {
+        useMutation: () => providerMocks.mutations.decideUserInput,
       },
     },
   },

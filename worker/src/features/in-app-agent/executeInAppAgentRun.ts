@@ -17,10 +17,13 @@ import {
   InAppAgentRunRequestSchema,
   InAppAgentRunStatus,
   getInAppAgentInstrumentationTraceId,
+  isInAppAgentToolApprovalRequest,
+  isInAppAgentUserInputRequest,
   parseInAppAgentInterruptEvent,
   type AgUiEvent,
   type InAppAgentRunRequest,
   type InAppAgentToolApprovalRequest,
+  type InAppAgentUserInputRequest,
 } from "@langfuse/shared/in-app-agent";
 import {
   createSandboxToolCallFileAccumulator,
@@ -281,10 +284,20 @@ export async function executeInAppAgentRun(params: {
       request.kind === "approvalDecision"
         ? findPersistedApprovalRequest(conversationEvents, request)
         : undefined;
+    const userInputRequest =
+      request.kind === "userInputDecision"
+        ? findPersistedUserInputRequest(conversationEvents, request)
+        : undefined;
 
     if (request.kind === "approvalDecision" && !approvalRequest) {
       throw new InAppAgentRunInitError(
         "Approval request not found in conversation history",
+      );
+    }
+
+    if (request.kind === "userInputDecision" && !userInputRequest) {
+      throw new InAppAgentRunInitError(
+        "User input request not found in conversation history",
       );
     }
 
@@ -320,7 +333,29 @@ export async function executeInAppAgentRun(params: {
                 },
               },
             }
-          : {},
+          : request.kind === "userInputDecision" && userInputRequest
+            ? {
+                command: {
+                  resume: {
+                    kind: "user_input" as const,
+                    status: request.status,
+                    ...(request.payload ? { payload: request.payload } : {}),
+                    continuationNumber: request.continuationNumber ?? 1,
+                    ...(request.rootRunId
+                      ? { rootRunId: request.rootRunId }
+                      : {}),
+                    ...(request.traceStartedAt
+                      ? { traceStartedAt: request.traceStartedAt }
+                      : {}),
+                    ...(request.approvalRequestedAt
+                      ? { approvalRequestedAt: request.approvalRequestedAt }
+                      : {}),
+                    approvalDecidedAt: run.createdAt.toISOString(),
+                    userInputRequest,
+                  },
+                },
+              }
+            : {},
     };
 
     isApprovedContinuation =
@@ -746,8 +781,31 @@ function findPersistedApprovalRequest(
 
     const approvalRequest = parseInAppAgentInterruptEvent(event);
 
-    if (approvalRequest?.toolCallId === request.toolCallId) {
+    if (
+      isInAppAgentToolApprovalRequest(approvalRequest) &&
+      approvalRequest.toolCallId === request.toolCallId
+    ) {
       return approvalRequest;
+    }
+  }
+
+  return undefined;
+}
+
+function findPersistedUserInputRequest(
+  events: readonly PersistedConversationEvent[],
+  request: Extract<InAppAgentRunRequest, { kind: "userInputDecision" }>,
+): InAppAgentUserInputRequest | undefined {
+  for (const { event, runId } of events) {
+    if (runId !== request.parentRunId) continue;
+
+    const userInputRequest = parseInAppAgentInterruptEvent(event);
+
+    if (
+      isInAppAgentUserInputRequest(userInputRequest) &&
+      userInputRequest.toolCallId === request.toolCallId
+    ) {
+      return userInputRequest;
     }
   }
 

@@ -10,10 +10,13 @@ import type { InAppAgentRun, PrismaClient } from "../../db";
 import { logger } from "../../server";
 import { recordRunTerminalOutcome } from "./runMetrics";
 import { buildInAppAgentApprovalDecisionEvent } from "../approvalEvents";
+import { buildInAppAgentUserInputDecisionEvent } from "../userInputEvents";
+import type { InAppAgentUserInputPayload } from "../schema";
 import type { AgUiEvent } from "../schema";
 import type { InAppAgentPrefixedLangfuseMcpToolName } from "./mcpPolicy";
 import {
   InAppAgentRunRequestSchema,
+  isContinuationRunRequest,
   resolveInAppAgentRootRunId,
   type InAppAgentRunRequest,
 } from "../../features/inAppAgent/types";
@@ -297,24 +300,7 @@ export async function decideToolApproval(params: {
       );
     }
 
-    const parentRequest = InAppAgentRunRequestSchema.safeParse(
-      parentRun.request,
-    );
-    // Preserve tracing lineage across durable approval continuation runs.
-    const continuationNumber =
-      parentRequest.success && parentRequest.data.kind === "approvalDecision"
-        ? (parentRequest.data.continuationNumber ?? 1) + 1
-        : 1;
-    const rootRunId = resolveInAppAgentRootRunId(
-      parentRun.request,
-      params.parentRunId,
-    );
-    const traceStartedAt =
-      parentRequest.success &&
-      parentRequest.data.kind === "approvalDecision" &&
-      parentRequest.data.traceStartedAt
-        ? parentRequest.data.traceStartedAt
-        : (parentRun.claimedAt ?? parentRun.createdAt).toISOString();
+    const lineage = getContinuationLineage(parentRun, params.parentRunId);
 
     // Persist the grant in the same transaction as the exactly-once decision CAS.
     if (params.alwaysAllowToolName) {
@@ -372,15 +358,15 @@ export async function decideToolApproval(params: {
         request: {
           kind: "approvalDecision",
           parentRunId: params.parentRunId,
-          rootRunId,
-          traceStartedAt,
+          rootRunId: lineage.rootRunId,
+          traceStartedAt: lineage.traceStartedAt,
           ...(parentRun.finishedAt
             ? { approvalRequestedAt: parentRun.finishedAt.toISOString() }
             : {}),
-          continuationNumber,
+          continuationNumber: lineage.continuationNumber,
           toolCallId: params.toolCallId,
           approved: params.approved,
-          context: parentRequest.success ? parentRequest.data.context : [],
+          context: lineage.context,
         },
       }),
     };
@@ -401,6 +387,166 @@ export async function decideToolApproval(params: {
   });
 
   return outcome.run;
+}
+
+/** Record one user-input answer and create its continuation under the lock. */
+export async function decideUserInput(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  parentRunId: string;
+  continuationRunId: string;
+  toolCallId: string;
+  status: "resolved" | "cancelled";
+  payload?: InAppAgentUserInputPayload;
+  decidedByUserId: string;
+  model?: string;
+}): Promise<InAppAgentRun> {
+  const outcome = await params.prisma.$transaction(async (tx) => {
+    await lockConversation(tx, params.projectId, params.conversationId);
+
+    const parentRun = await tx.inAppAgentRun.findFirst({
+      where: {
+        id: params.parentRunId,
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+      },
+      select: {
+        status: true,
+        finishedAt: true,
+        claimedAt: true,
+        createdAt: true,
+        request: true,
+      },
+    });
+
+    if (
+      !parentRun ||
+      parentRun.status !== InAppAgentRunStatus.AWAITING_APPROVAL
+    ) {
+      throw new LangfuseConflictError(
+        "This question is no longer pending. Reload the conversation.",
+      );
+    }
+
+    const parkedAt = parentRun.finishedAt;
+    if (
+      parkedAt &&
+      Date.now() - parkedAt.getTime() > IN_APP_AGENT_APPROVAL_TTL_MS
+    ) {
+      const { count } = await tx.inAppAgentRun.updateMany({
+        where: {
+          id: params.parentRunId,
+          projectId: params.projectId,
+          status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        },
+        data: {
+          status: InAppAgentRunStatus.FAILED,
+          errorCode: InAppAgentRunErrorCode.APPROVAL_EXPIRED,
+          errorMessage: "The question expired",
+        },
+      });
+
+      return { type: "expired" as const, expired: count > 0 };
+    }
+
+    const { count } = await tx.inAppAgentRun.updateMany({
+      where: {
+        id: params.parentRunId,
+        projectId: params.projectId,
+        status: InAppAgentRunStatus.AWAITING_APPROVAL,
+      },
+      data: { status: InAppAgentRunStatus.SUCCEEDED },
+    });
+
+    if (count === 0) {
+      throw new LangfuseConflictError(
+        "This question was already answered. Reload the conversation.",
+      );
+    }
+
+    const lineage = getContinuationLineage(parentRun, params.parentRunId);
+
+    await appendConversationEventInTransaction({
+      tx,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      runId: params.parentRunId,
+      event: buildInAppAgentUserInputDecisionEvent({
+        toolCallId: params.toolCallId,
+        status: params.status,
+        decidedByUserId: params.decidedByUserId,
+        ...(params.payload ? { payload: params.payload } : {}),
+      }),
+    });
+
+    return {
+      type: "continued" as const,
+      run: await createRunRow(tx, {
+        runId: params.continuationRunId,
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        triggeredByUserId: params.decidedByUserId,
+        model: params.model,
+        request: {
+          kind: "userInputDecision",
+          parentRunId: params.parentRunId,
+          rootRunId: lineage.rootRunId,
+          traceStartedAt: lineage.traceStartedAt,
+          ...(parentRun.finishedAt
+            ? { approvalRequestedAt: parentRun.finishedAt.toISOString() }
+            : {}),
+          continuationNumber: lineage.continuationNumber,
+          toolCallId: params.toolCallId,
+          status: params.status,
+          ...(params.payload ? { payload: params.payload } : {}),
+          context: lineage.context,
+        },
+      }),
+    };
+  });
+
+  if (outcome.type === "expired") {
+    if (outcome.expired) {
+      recordRunTerminalOutcome({
+        status: InAppAgentRunStatus.FAILED,
+        errorCode: InAppAgentRunErrorCode.APPROVAL_EXPIRED,
+      });
+    }
+    throw new LangfuseConflictError("The question expired.");
+  }
+
+  recordRunTerminalOutcome({
+    status: InAppAgentRunStatus.SUCCEEDED,
+  });
+
+  return outcome.run;
+}
+
+function getContinuationLineage(
+  parentRun: {
+    request: unknown;
+    claimedAt: Date | null;
+    createdAt: Date;
+  },
+  parentRunId: string,
+) {
+  const parentRequest = InAppAgentRunRequestSchema.safeParse(parentRun.request);
+  const continuationRequest =
+    parentRequest.success && isContinuationRunRequest(parentRequest.data)
+      ? parentRequest.data
+      : undefined;
+
+  return {
+    continuationNumber: continuationRequest
+      ? (continuationRequest.continuationNumber ?? 1) + 1
+      : 1,
+    rootRunId: resolveInAppAgentRootRunId(parentRun.request, parentRunId),
+    traceStartedAt: continuationRequest?.traceStartedAt
+      ? continuationRequest.traceStartedAt
+      : (parentRun.claimedAt ?? parentRun.createdAt).toISOString(),
+    context: parentRequest.success ? parentRequest.data.context : [],
+  };
 }
 
 export type CancelRunResult = {
