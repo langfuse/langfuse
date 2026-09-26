@@ -1,4 +1,5 @@
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { useState } from "react";
 
 import preview from "../../../../.storybook/preview";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
@@ -9,6 +10,71 @@ const meta = preview.meta({
   component: DialogController,
   parameters: {
     layout: "fullscreen",
+  },
+});
+
+function StatefulContent({
+  closeDialog,
+  initialValue,
+}: {
+  closeDialog: () => void;
+  initialValue: string;
+}) {
+  const [value, setValue] = useState(initialValue);
+
+  return (
+    <Dialog title="Stateful content">
+      <Dialog.Body>
+        <input
+          aria-label="Draft"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+        />
+        <button type="button" onClick={closeDialog}>
+          Close from content
+        </button>
+      </Dialog.Body>
+    </Dialog>
+  );
+}
+
+export const FreshContentOnOpen = meta.story({
+  render: () => (
+    <DialogController<string>
+      renderDialog={({ state, closeDialog }) => (
+        <StatefulContent closeDialog={closeDialog} initialValue={state} />
+      )}
+    >
+      {({ openDialog }) => (
+        <>
+          <button type="button" onClick={() => openDialog("")}>
+            Open
+          </button>
+          <button type="button" onClick={() => openDialog("updated")}>
+            Open updated
+          </button>
+        </>
+      )}
+    </DialogController>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Open" }));
+    await userEvent.type(body.getByRole("textbox", { name: "Draft" }), "old");
+    await userEvent.click(
+      body.getByRole("button", { name: "Close from content" }),
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "Open" }));
+
+    expect(body.getByRole("textbox", { name: "Draft" })).toHaveValue("");
+
+    await userEvent.click(
+      body.getByRole("button", { name: "Close from content" }),
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "Open updated" }));
+    expect(body.getByRole("textbox", { name: "Draft" })).toHaveValue("updated");
   },
 });
 

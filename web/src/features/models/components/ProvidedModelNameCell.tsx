@@ -1,6 +1,6 @@
 import { PlusCircle } from "lucide-react";
 import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
-import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";
+import { UpsertModelFormDialogController } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
 
 /**
  * Renders the "Provided Model Name" cell shared by the generations and events
@@ -48,27 +48,25 @@ export function ProvidedModelNameCell({
       : undefined;
 
   return (
-    <UpsertModelFormDialog
+    <UpsertModelFormDialogController
       action="create"
       projectId={projectId}
       prefilledModelData={{ modelName, prices }}
-      className="cursor-pointer"
     >
-      {/*
-        Native <button> (not a styled span): DialogTrigger's Slot only forwards
-        onClick, so Enter/Space activation must come from the element itself.
-        A real button also matches the table row's interactive-skip selector, so
-        activating it never opens the row's peek view.
-      */}
-      <button
-        type="button"
-        title={`Add a model definition for "${modelName}"`}
-        onClick={(e) => e.stopPropagation()}
-        className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1 text-left"
-      >
-        <IdTableCell value={modelName} />
-        <PlusCircle className="h-3.5 w-3.5 shrink-0" />
-      </button>
-    </UpsertModelFormDialog>
+      {({ openDialog }) => (
+        <button
+          type="button"
+          title={`Add a model definition for "${modelName}"`}
+          onClick={(e) => {
+            e.stopPropagation();
+            openDialog();
+          }}
+          className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1 text-left"
+        >
+          <IdTableCell value={modelName} />
+          <PlusCircle className="h-3.5 w-3.5 shrink-0" />
+        </button>
+      )}
+    </UpsertModelFormDialogController>
   );
 }
