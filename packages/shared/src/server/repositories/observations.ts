@@ -1033,6 +1033,8 @@ export const getObservationsGroupedByName = async (
 export const getObservationsGroupedByToolName = async (
   projectId: string,
   filter: FilterState,
+  sessionOnly = false,
+  traceTimestampFilter?: FilterState,
 ) => {
   const observationsFilter = new FilterList([
     new StringFilter({
@@ -1053,12 +1055,26 @@ export const getObservationsGroupedByToolName = async (
   );
 
   const appliedObservationsFilter = observationsFilter.apply();
+  const traceLowerBound = traceTimestampFilter?.find(
+    (item) =>
+      item.type === "datetime" &&
+      (item.operator === ">=" || item.operator === ">"),
+  );
 
   const query = `
     SELECT arrayJoin(mapKeys(o.tool_definitions)) as toolName
-    FROM observations o
-    WHERE ${appliedObservationsFilter.query}
-    AND length(mapKeys(o.tool_definitions)) > 0
+      FROM observations o
+      WHERE ${appliedObservationsFilter.query}
+      ${
+        sessionOnly
+          ? `AND o.trace_id IN (
+        SELECT id FROM traces
+        WHERE project_id = {projectId: String} AND session_id IS NOT NULL AND session_id != ''
+        ${traceLowerBound && traceLowerBound.type === "datetime" ? "AND timestamp >= {traceStartTime: DateTime64(3)}" : ""}
+      )`
+          : ""
+      }
+      AND length(mapKeys(o.tool_definitions)) > 0
     GROUP BY toolName
     ORDER BY count() DESC
     LIMIT 1000;
@@ -1068,6 +1084,14 @@ export const getObservationsGroupedByToolName = async (
     query,
     params: {
       ...appliedObservationsFilter.params,
+      projectId,
+      ...(traceLowerBound && traceLowerBound.type === "datetime"
+        ? {
+            traceStartTime: convertDateToClickhouseDateTime(
+              traceLowerBound.value,
+            ),
+          }
+        : {}),
     },
     tags: { projectId },
     preferredClickhouseService: "ReadOnly",
@@ -1078,6 +1102,8 @@ export const getObservationsGroupedByToolName = async (
 export const getObservationsGroupedByCalledToolName = async (
   projectId: string,
   filter: FilterState,
+  sessionOnly = false,
+  traceTimestampFilter?: FilterState,
 ) => {
   const observationsFilter = new FilterList([
     new StringFilter({
@@ -1098,12 +1124,26 @@ export const getObservationsGroupedByCalledToolName = async (
   );
 
   const appliedObservationsFilter = observationsFilter.apply();
+  const traceLowerBound = traceTimestampFilter?.find(
+    (item) =>
+      item.type === "datetime" &&
+      (item.operator === ">=" || item.operator === ">"),
+  );
 
   const query = `
     SELECT arrayJoin(o.tool_call_names) as calledToolName
-    FROM observations o
-    WHERE ${appliedObservationsFilter.query}
-    AND length(o.tool_call_names) > 0
+      FROM observations o
+      WHERE ${appliedObservationsFilter.query}
+      ${
+        sessionOnly
+          ? `AND o.trace_id IN (
+        SELECT id FROM traces
+        WHERE project_id = {projectId: String} AND session_id IS NOT NULL AND session_id != ''
+        ${traceLowerBound && traceLowerBound.type === "datetime" ? "AND timestamp >= {traceStartTime: DateTime64(3)}" : ""}
+      )`
+          : ""
+      }
+      AND length(o.tool_call_names) > 0
     GROUP BY calledToolName
     ORDER BY count() DESC
     LIMIT 1000;
@@ -1113,6 +1153,14 @@ export const getObservationsGroupedByCalledToolName = async (
     query,
     params: {
       ...appliedObservationsFilter.params,
+      projectId,
+      ...(traceLowerBound && traceLowerBound.type === "datetime"
+        ? {
+            traceStartTime: convertDateToClickhouseDateTime(
+              traceLowerBound.value,
+            ),
+          }
+        : {}),
     },
     tags: { projectId },
     preferredClickhouseService: "ReadOnly",

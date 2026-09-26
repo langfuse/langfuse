@@ -44,6 +44,7 @@ import {
 } from "@langfuse/shared";
 
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
+import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { useOrderByState } from "@/src/features/orderBy";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -240,6 +241,23 @@ export default function SessionsTable({
   );
 
   const filterOptions = isV4 ? filterOptionsV4 : filterOptionsV3;
+  const eventToolOptions = useEventsFilterOptions({
+    projectId,
+    refiningFilter: [
+      {
+        column: "sessionId",
+        type: "string",
+        operator: "is not empty",
+        value: "",
+      },
+    ],
+    startTimeFilter: (dateRangeFilter as TimeFilter[]).map((item) => ({
+      ...item,
+      column: "startTime" as const,
+    })),
+    columns: ["toolNames", "calledToolNames"],
+    enabled: isV4,
+  });
 
   const newFilterOptions = useMemo(() => {
     const scoreCategories =
@@ -263,6 +281,14 @@ export default function SessionsTable({
         })) ?? undefined,
       // tags don't have counts; they read A→Z
       tags: sortOptionValues(filterOptions.data?.tags.map((t) => t.value)),
+      toolNames: isV4
+        ? eventToolOptions.filterOptions.toolNames
+        : sortOptionValues(filterOptions.data?.toolNames?.map((t) => t.value)),
+      calledToolNames: isV4
+        ? eventToolOptions.filterOptions.calledToolNames
+        : sortOptionValues(
+            filterOptions.data?.calledToolNames?.map((t) => t.value),
+          ),
       sessionDuration: [],
       countTraces: [],
       inputTokens: [],
@@ -275,10 +301,18 @@ export default function SessionsTable({
       scores_avg: scoresNumeric,
       score_booleans: scoresBoolean,
     };
-  }, [environmentOptions, filterOptions.data]);
+  }, [
+    environmentOptions,
+    filterOptions.data,
+    isV4,
+    eventToolOptions.filterOptions.toolNames,
+    eventToolOptions.filterOptions.calledToolNames,
+  ]);
 
   const isSidebarFilterLoading =
-    filterOptions.isPending || environmentFilterOptions.isPending;
+    filterOptions.isPending ||
+    environmentFilterOptions.isPending ||
+    (isV4 && eventToolOptions.isFilterOptionsPending);
 
   const { viewControllersRef, onExplicitFilterStateChange } =
     useTableViewFilterChange();
