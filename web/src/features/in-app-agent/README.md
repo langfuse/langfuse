@@ -169,7 +169,8 @@ statuses remain separate project concerns.
 
 Environment ownership:
 
-- Worker: queue concurrency, sandbox provider and Lambda MicroVM values,
+- Worker: queue concurrency, sandbox provider and Lambda MicroVM values, the
+  optional per-step output-token cap (`LANGFUSE_IN_APP_AGENT_MAX_OUTPUT_TOKENS`),
   and development-only `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`. Enablement is
   `LANGFUSE_IN_APP_AGENT_ENABLED` (shared with web); optional `"false"`
   queue and integrity flags opt a split-role worker out.
