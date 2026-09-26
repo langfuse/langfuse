@@ -4,9 +4,10 @@ import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 
 describe("project API keys trpc", () => {
   // The session user is persisted as the API key creator, so it must exist
@@ -77,11 +78,11 @@ describe("project API keys trpc", () => {
     it("filters in-app agent API keys", async () => {
       const { caller, projectId } = await createProjectCaller();
 
-      const inAppAgentKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: projectId,
-        scope: "PROJECT",
-        note: "In-app agent key hidden from project UI",
+      const inAppAgentKey = await createApiKey(prisma, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("PROJECT"),
+        creator: UserId("user-1"),
+        name: "In-app agent key hidden from project UI",
         isInAppAgentKey: true,
       });
 
@@ -145,16 +146,53 @@ describe("project API keys trpc", () => {
         }),
       ).resolves.toBe(0);
     });
+
+    // A project key whose role grants no project-kind actions (e.g. the
+    // org-only LLM gateway role) would grant nothing on the project it is
+    // scoped to, so the handler rejects it before persisting.
+    it("rejects an organization-only role on a project key", async () => {
+      const { caller, projectId } = await createProjectCaller();
+
+      await expect(
+        caller.projectApiKeys.create({
+          projectId,
+          note: "org-only role on project key",
+          role: "LLM_GATEWAY",
+        }),
+      ).rejects.toThrow(/cannot back a project API key/);
+
+      await expect(
+        prisma.apiKey.count({
+          where: { projectId, note: "org-only role on project key" },
+        }),
+      ).resolves.toBe(0);
+    });
+
+    it("creates a project key with a project-capable role", async () => {
+      const { caller, projectId } = await createProjectCaller();
+
+      const key = await caller.projectApiKeys.create({
+        projectId,
+        note: "viewer project key",
+        role: "VIEWER",
+      });
+
+      const assignment = await prisma.systemRoleAssignment.findFirstOrThrow({
+        where: { principalId: `apiKey/${key.id}` },
+      });
+      expect(assignment.systemRole).toBe("VIEWER");
+      expect(assignment.ownerId).toBe(`project/${projectId}`);
+    });
   });
 
   describe("projectApiKeys.updateNote", () => {
     it("does not update in-app agent API keys", async () => {
       const { caller, projectId } = await createProjectCaller();
-      const inAppAgentKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: projectId,
-        scope: "PROJECT",
-        note: "Original in-app agent note",
+      const inAppAgentKey = await createApiKey(prisma, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("PROJECT"),
+        creator: UserId("user-1"),
+        name: "Original in-app agent note",
         isInAppAgentKey: true,
       });
 
@@ -177,11 +215,11 @@ describe("project API keys trpc", () => {
     it("writes a PROJECT assignment on create and revokes it on delete", async () => {
       const { caller, projectId } = await createProjectCaller();
 
-      const key = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: projectId,
-        scope: "PROJECT",
-        note: "Key for role assignment test",
+      const key = await createApiKey(prisma, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("PROJECT"),
+        creator: UserId("user-1"),
+        name: "Key for role assignment test",
       });
 
       const project = await prisma.project.findUniqueOrThrow({
@@ -211,10 +249,10 @@ describe("project API keys trpc", () => {
   describe("projectApiKeys.delete", () => {
     it("does not delete in-app agent API keys", async () => {
       const { caller, projectId } = await createProjectCaller();
-      const inAppAgentKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: projectId,
-        scope: "PROJECT",
+      const inAppAgentKey = await createApiKey(prisma, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("PROJECT"),
+        creator: UserId("user-1"),
         isInAppAgentKey: true,
       });
 

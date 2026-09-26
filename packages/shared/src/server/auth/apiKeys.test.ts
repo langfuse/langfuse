@@ -1,8 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { type Prisma } from "@prisma/client";
+
+// Give createApiKey a SALT without depending on the ambient env.
+vi.mock("../../env", () => ({ env: { SALT: "test-salt" } }));
+
 import {
+  createApiKey,
   formatSubmittedPublicKeyForLog,
   redactLangfuseSecretKeys,
 } from "./apiKeys";
+import {
+  ApiKeyId,
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "../../features/rbac/types";
 
 const SECRET_KEY = "sk-lf-0f2a4c6e-8b1d-4e3f-9a7c-5d6e7f8a9b0c";
 const PUBLIC_KEY = "pk-lf-1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
@@ -48,5 +61,107 @@ describe("formatSubmittedPublicKeyForLog", () => {
   it("does not echo short values whose head and tail would overlap", () => {
     expect(formatSubmittedPublicKeyForLog("None")).toBe("****");
     expect(formatSubmittedPublicKeyForLog("")).toBe("****");
+  });
+});
+
+describe("createApiKey assignment rows", () => {
+  const KEY_ID = "key_abc";
+  const ORG_ID = "org_1";
+
+  // A transaction-client double that records the api-key create input and the
+  // assignment rows written and resolves a project's tenant, so the row-writing
+  // contract can be asserted without a live database. Lacking `$transaction`, it
+  // is treated as a joined transaction client, so createApiKey runs directly
+  // against it.
+  function makeTx() {
+    const assignments: Array<{
+      orgId: string;
+      principalId: string;
+      ownerId: string;
+      systemRole: string;
+    }> = [];
+    let apiKeyData: Record<string, unknown> = {};
+    const tx = {
+      apiKey: {
+        create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+          apiKeyData = data;
+          return {
+            id: KEY_ID,
+            createdAt: new Date(),
+            note: (data.note as string | null) ?? null,
+            publicKey: data.publicKey,
+            displaySecretKey: data.displaySecretKey,
+          };
+        }),
+      },
+      systemRoleAssignment: {
+        create: vi.fn(
+          async ({ data }: { data: (typeof assignments)[number] }) => {
+            assignments.push(data);
+            return data;
+          },
+        ),
+      },
+      project: {
+        findFirstOrThrow: vi.fn(async () => ({ orgId: ORG_ID })),
+      },
+    };
+    return { tx, assignments, getApiKeyData: () => apiKeyData };
+  }
+
+  const asTx = (tx: ReturnType<typeof makeTx>["tx"]) =>
+    tx as unknown as Prisma.TransactionClient;
+
+  it("writes exactly one role@project row for a PROJECT-owner key", async () => {
+    const { tx, assignments, getApiKeyData } = makeTx();
+
+    await createApiKey(asTx(tx), {
+      owner: ProjectId("proj_1"),
+      role: SystemRoleId("VIEWER"),
+      creator: UserId("user_1"),
+      name: "project key",
+    });
+
+    expect(assignments).toEqual([
+      {
+        orgId: ORG_ID,
+        principalId: `apiKey/${KEY_ID}`,
+        ownerId: "project/proj_1",
+        systemRole: "VIEWER",
+      },
+    ]);
+    const data = getApiKeyData();
+    expect(data.projectId).toBe("proj_1");
+    expect(data.orgId).toBeUndefined();
+    expect(data.note).toBe("project key");
+    expect(data.createdByUserId).toBe("user_1");
+    expect(data.createdByApiKeyId).toBeUndefined();
+  });
+
+  it("writes exactly one role@organization row for an ORGANIZATION-owner key", async () => {
+    const { tx, assignments, getApiKeyData } = makeTx();
+
+    await createApiKey(asTx(tx), {
+      owner: OrganizationId(ORG_ID),
+      role: SystemRoleId("OWNER"),
+      creator: ApiKeyId("key_creator"),
+      name: "org key",
+    });
+
+    expect(assignments).toEqual([
+      {
+        orgId: ORG_ID,
+        principalId: `apiKey/${KEY_ID}`,
+        ownerId: `organization/${ORG_ID}`,
+        systemRole: "OWNER",
+      },
+    ]);
+    const data = getApiKeyData();
+    expect(data.orgId).toBe(ORG_ID);
+    expect(data.projectId).toBeUndefined();
+    expect(data.createdByApiKeyId).toBe("key_creator");
+    expect(data.createdByUserId).toBeUndefined();
+    // An organization owner resolves to itself; no project lookup is needed.
+    expect(tx.project.findFirstOrThrow).not.toHaveBeenCalled();
   });
 });

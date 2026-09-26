@@ -13,10 +13,11 @@ import {
 } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 
 const authMocks = vi.hoisted(() => ({
   getServerAuthSessionForRequest: vi.fn(),
@@ -46,10 +47,13 @@ describe("in-app agent public API route auth", () => {
 
   async function createInAppAgentAuthHeader() {
     const { projectId } = await createOrgProjectAndApiKey();
-    const apiKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
-      scope: "PROJECT",
+    const keyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const apiKey = await createApiKey(prisma, {
+      owner: ProjectId(projectId),
+      role: SystemRoleId("PROJECT"),
+      creator: UserId(keyCreator.id),
       isInAppAgentKey: true,
     });
 

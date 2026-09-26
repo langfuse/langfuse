@@ -3,14 +3,14 @@ import { describe, expect, it } from "vitest";
 
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import {
   revokeApiKeyRolesForOwners,
   transferRoleAssignments,
 } from "@langfuse/shared/rbac/server";
-import { ProjectId, UserId } from "@langfuse/shared/rbac";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 
 async function addUserAssignment(orgId: string, projectId: string) {
   await prisma.systemRoleAssignment.create({
@@ -57,10 +57,13 @@ describe("revokeApiKeyRolesForOwners", () => {
     const otherProject = await prisma.project.create({
       data: { id: v4(), name: v4(), orgId },
     });
-    await createAndAddApiKeysToDb({
-      prisma,
-      entityId: otherProject.id,
-      scope: "PROJECT",
+    const keyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${v4()}@example.com` },
+    });
+    await createApiKey(prisma, {
+      owner: ProjectId(otherProject.id),
+      role: SystemRoleId("PROJECT"),
+      creator: UserId(keyCreator.id),
     });
 
     await revokeApiKeyRolesForOwners(prisma, [ProjectId(projectId)]);

@@ -4,10 +4,11 @@ import {
 } from "@/src/__tests__/test-utils";
 import { z } from "zod";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { randomUUID } from "crypto";
 
 // Schema for SCIM User response
@@ -141,10 +142,13 @@ describe("SCIM API", () => {
   let testUserId: string;
 
   beforeAll(async () => {
-    await createAndAddApiKeysToDb({
-      prisma,
-      entityId: orgId,
-      scope: "ORGANIZATION",
+    const keyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    await createApiKey(prisma, {
+      owner: OrganizationId(orgId),
+      role: SystemRoleId("ORGANIZATION"),
+      creator: UserId(keyCreator.id),
       predefinedKeys: {
         publicKey: orgApiKey,
         secretKey: orgSecretKey,
@@ -1307,10 +1311,10 @@ describe("SCIM API", () => {
 
         scopedOrgPublicKey = `pk-lf-org-${randomUUID().substring(0, 8)}`;
         scopedOrgSecretKey = `sk-lf-org-${randomUUID().substring(0, 8)}`;
-        await createAndAddApiKeysToDb({
-          prisma,
-          entityId: scopedOrgId,
-          scope: "ORGANIZATION",
+        await createApiKey(prisma, {
+          owner: OrganizationId(scopedOrgId),
+          role: SystemRoleId("ORGANIZATION"),
+          creator: UserId(owner.id),
           predefinedKeys: {
             publicKey: scopedOrgPublicKey,
             secretKey: scopedOrgSecretKey,
@@ -1648,10 +1652,13 @@ describe("SCIM API", () => {
       hobbyOrgId = hobbyOrg.id;
       hobbyPublicKey = `pk-lf-org-${randomUUID().substring(0, 8)}`;
       hobbySecretKey = `sk-lf-org-${randomUUID().substring(0, 8)}`;
-      await createAndAddApiKeysToDb({
-        prisma,
-        entityId: hobbyOrgId,
-        scope: "ORGANIZATION",
+      const hobbyKeyCreator = await prisma.user.create({
+        data: { email: `apikey-creator-${randomUUID()}@example.com` },
+      });
+      await createApiKey(prisma, {
+        owner: OrganizationId(hobbyOrgId),
+        role: SystemRoleId("ORGANIZATION"),
+        creator: UserId(hobbyKeyCreator.id),
         predefinedKeys: {
           publicKey: hobbyPublicKey,
           secretKey: hobbySecretKey,
@@ -1669,10 +1676,13 @@ describe("SCIM API", () => {
       teamOrgId = teamOrg.id;
       teamPublicKey = `pk-lf-org-${randomUUID().substring(0, 8)}`;
       teamSecretKey = `sk-lf-org-${randomUUID().substring(0, 8)}`;
-      await createAndAddApiKeysToDb({
-        prisma,
-        entityId: teamOrgId,
-        scope: "ORGANIZATION",
+      const teamKeyCreator = await prisma.user.create({
+        data: { email: `apikey-creator-${randomUUID()}@example.com` },
+      });
+      await createApiKey(prisma, {
+        owner: OrganizationId(teamOrgId),
+        role: SystemRoleId("ORGANIZATION"),
+        creator: UserId(teamKeyCreator.id),
         predefinedKeys: {
           publicKey: teamPublicKey,
           secretKey: teamSecretKey,

@@ -3,7 +3,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { z } from "zod";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { ApiKeyId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 
 export const validateQueryAndExtractId = (query: unknown): string | null => {
   const inputQuerySchema = z.object({
@@ -93,14 +94,19 @@ export async function handleCreateApiKey(
     }
   }
 
+  if (!createdByApiKeyId) {
+    return res.status(400).json({
+      message: "Missing authenticating API key",
+    });
+  }
+
   try {
     // Create the API key
-    const apiKeyMeta = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
-      note,
-      scope: "PROJECT",
-      createdByApiKeyId,
+    const apiKeyMeta = await createApiKey(prisma, {
+      owner: ProjectId(projectId),
+      role: SystemRoleId("PROJECT"),
+      creator: ApiKeyId(createdByApiKeyId),
+      name: note,
       predefinedKeys:
         publicKey && secretKey ? { publicKey, secretKey } : undefined,
     });

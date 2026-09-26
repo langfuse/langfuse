@@ -7,8 +7,14 @@ import {
 import * as z from "zod";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
-import { StringNoHTML } from "@langfuse/shared";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { InvalidRequestError, StringNoHTML } from "@langfuse/shared";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import { SystemRole } from "@langfuse/shared/src/db";
+import {
+  isAssignableAtCreate,
+  roleHasProjectPolicy,
+} from "@/src/features/rbac/constants/systemRoleAccessRights";
 
 export const projectApiKeysRouter = createTRPCRouter({
   byProjectId: protectedProjectProcedure
@@ -63,6 +69,8 @@ export const projectApiKeysRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         note: StringNoHTML.optional(),
+        role: z.enum(SystemRole).default(SystemRole.ADMIN),
+        expiresAt: z.date().nullish(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -72,12 +80,23 @@ export const projectApiKeysRouter = createTRPCRouter({
         scope: "apiKeys:CUD",
       });
 
-      const apiKeyMeta = await createAndAddApiKeysToDb({
-        prisma: ctx.prisma,
-        entityId: input.projectId,
-        note: input.note,
-        scope: "PROJECT",
-        createdByUserId: ctx.session.user.id,
+      // A project key must carry a role that is offered at create time and that
+      // actually grants project-kind actions; an org-only role would produce a
+      // key that grants nothing on the project it is scoped to.
+      if (
+        !isAssignableAtCreate(input.role) ||
+        !roleHasProjectPolicy(input.role)
+      )
+        throw new InvalidRequestError(
+          `Role ${input.role} cannot back a project API key`,
+        );
+
+      const apiKeyMeta = await createApiKey(ctx.prisma, {
+        owner: ProjectId(input.projectId),
+        role: SystemRoleId(input.role),
+        creator: UserId(ctx.session.user.id),
+        name: input.note,
+        expiresAt: input.expiresAt,
       });
 
       await auditLog({
@@ -85,6 +104,7 @@ export const projectApiKeysRouter = createTRPCRouter({
         resourceType: "apiKey",
         resourceId: apiKeyMeta.id,
         action: "create",
+        after: { role: input.role, expiresAt: input.expiresAt ?? null },
       });
 
       return apiKeyMeta;

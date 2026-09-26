@@ -17,11 +17,16 @@ import {
   type ScoreDataTypeType,
 } from "../../src/index";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   getDisplaySecretKey,
   hashSecretKey,
   logger,
 } from "../../src/server";
+import {
+  OrganizationId,
+  SystemRoleId,
+  UserId,
+} from "../../src/features/rbac/types";
 import { redis } from "../../src/server/redis/redis";
 import {
   DEFAULT_SEED_API_KEY,
@@ -604,12 +609,11 @@ async function seedAiGateway(params: {
   });
   const key =
     existingKey ??
-    (await createAndAddApiKeysToDb({
-      prisma,
-      entityId: params.organizationId,
-      scope: "ORGANIZATION",
-      note: "Seeded gateway key",
-      createdByUserId: params.userId,
+    (await createApiKey(prisma, {
+      owner: OrganizationId(params.organizationId),
+      role: SystemRoleId("ORGANIZATION"),
+      creator: UserId(params.userId),
+      name: "Seeded gateway key",
       predefinedKeys: {
         publicKey,
         secretKey: "sk-lf-gateway-seed",

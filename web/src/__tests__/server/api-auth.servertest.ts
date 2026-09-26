@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 import {
   OrgEnrichedApiKey,
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
   createShaHash,
@@ -14,6 +14,7 @@ import { Prisma, type PrismaClient, prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { v4 } from "uuid";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import {
   clearRedisKeysByPatternSafely,
   createRedisTestClient,
@@ -291,10 +292,13 @@ describe("Authenticate API calls", () => {
     });
 
     it("rejects in-app agent API keys by default", async () => {
-      const apiKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: testApiKey.projectId,
-        scope: "PROJECT",
+      const keyCreator = await prisma.user.create({
+        data: { email: `apikey-creator-${v4()}@example.com` },
+      });
+      const apiKey = await createApiKey(prisma, {
+        owner: ProjectId(testApiKey.projectId),
+        role: SystemRoleId("PROJECT"),
+        creator: UserId(keyCreator.id),
         isInAppAgentKey: true,
       });
 
@@ -313,10 +317,13 @@ describe("Authenticate API calls", () => {
     });
 
     it("allows in-app agent API keys when explicitly enabled", async () => {
-      const apiKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: testApiKey.projectId,
-        scope: "PROJECT",
+      const keyCreator = await prisma.user.create({
+        data: { email: `apikey-creator-${v4()}@example.com` },
+      });
+      const apiKey = await createApiKey(prisma, {
+        owner: ProjectId(testApiKey.projectId),
+        role: SystemRoleId("PROJECT"),
+        creator: UserId(keyCreator.id),
         isInAppAgentKey: true,
       });
 

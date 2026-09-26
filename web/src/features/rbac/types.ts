@@ -67,8 +67,8 @@ export type Role = {
   tags: string[];
 };
 
-/** SystemRolePrincipalTag marks the principal kind a system role is intended for. */
-type SystemRolePrincipalTag = "principal:apiKey" | "principal:user";
+/** SystemRoleTag marks a role's intended principal kind, or `"legacy"` for a role still valid on existing keys but no longer offered for new ones. */
+type SystemRoleTag = "principal:apiKey" | "principal:user" | "legacy";
 
 /** SystemRoleDefinition is an in-code system role's catalog entry: metadata plus its resource-less policies. */
 export type SystemRoleDefinition = {
@@ -76,5 +76,5 @@ export type SystemRoleDefinition = {
   name: string;
   description: string;
   policies: SystemRolePolicy[];
-  tags: SystemRolePrincipalTag[];
+  tags: SystemRoleTag[];
 };

@@ -83,7 +83,7 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       name: "Project API key",
       description: "Read and write within a single project.",
       policies: [allow("project", projectKeyActions)],
-      tags: ["principal:apiKey"],
+      tags: ["principal:apiKey", "legacy"],
     },
     ORGANIZATION: {
       id: "ORGANIZATION",
@@ -93,7 +93,7 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
         allow("organization", allOrganizationActions),
         allow("project", orgKeyProjectActions),
       ],
-      tags: ["principal:apiKey"],
+      tags: ["principal:apiKey", "legacy"],
     },
     SCORES_INGEST: {
       id: "SCORES_INGEST",
@@ -119,3 +119,25 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       tags: ["principal:apiKey"],
     },
   };
+
+/** roleHasProjectPolicy reports whether a role grants any project-kind policy. */
+export const roleHasProjectPolicy = (role: SystemRole): boolean =>
+  systemRoleAccessRights[role].policies.some(
+    (policy) => policy.resourceKind === "project",
+  );
+
+/** isAssignableAtCreate reports whether a role may back a newly created api key: offered to api keys and not retired as legacy. */
+export const isAssignableAtCreate = (role: SystemRole): boolean => {
+  const { tags } = systemRoleAccessRights[role];
+  return tags.includes("principal:apiKey") && !tags.includes("legacy");
+};
+
+/** apiKeyRolesForScope lists, in catalog order, the roles offered when creating an api key at the given scope: project-capable roles for a project key, every creatable api-key role for an organization key. */
+export const apiKeyRolesForScope = (
+  scope: "project" | "organization",
+): SystemRole[] =>
+  (Object.keys(systemRoleAccessRights) as SystemRole[]).filter((role) =>
+    scope === "project"
+      ? isAssignableAtCreate(role) && roleHasProjectPolicy(role)
+      : isAssignableAtCreate(role),
+  );

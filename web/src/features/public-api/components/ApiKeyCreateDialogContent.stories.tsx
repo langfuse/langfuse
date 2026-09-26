@@ -22,8 +22,15 @@ export const Default = meta.story({
   args: {
     type: "form",
     scope: "project",
-    note: "Production key",
-    onNoteChange: fn(),
+    onSubmit: fn(),
+    isPending: false,
+  },
+});
+
+export const OrganizationScope = meta.story({
+  args: {
+    type: "form",
+    scope: "organization",
     onSubmit: fn(),
     isPending: false,
   },

@@ -23,7 +23,7 @@ const apiKeyPrincipalPrefix = ApiKeyId("");
 /** userPrincipalPrefix is the tag prefix every user principal id carries. */
 const userPrincipalPrefix = UserId("");
 
-/** assignRole derives the owner's tenant, then persists the assignment. */
+/** assignRole persists the assignment, deriving the owner's tenant from the database. */
 export async function assignRole(
   tx: Tx,
   ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt" | "tenantId">,

@@ -3,7 +3,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { z } from "zod";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 
 export const validateQueryAndExtractId = (query: unknown): string | null => {
   const inputQuerySchema = z.object({
@@ -65,12 +66,26 @@ export async function handleCreateApiKey(
 
   const { note } = validationResult.data;
 
+  // The admin API authenticates with the static ADMIN_API_KEY, so there is no
+  // user or API-key principal to record as the key's creator. Attribute it to
+  // an organization member so the createApiKey creator contract is satisfied.
+  const member = await prisma.organizationMembership.findFirst({
+    where: { orgId: organizationId },
+    orderBy: { createdAt: "asc" },
+    select: { userId: true },
+  });
+  if (!member) {
+    return res.status(400).json({
+      error: "Organization has no members to own the API key",
+    });
+  }
+
   // Create the API key
-  const apiKeyMeta = await createAndAddApiKeysToDb({
-    prisma,
-    entityId: organizationId,
-    note,
-    scope: "ORGANIZATION",
+  const apiKeyMeta = await createApiKey(prisma, {
+    owner: OrganizationId(organizationId),
+    role: SystemRoleId("ORGANIZATION"),
+    creator: UserId(member.userId),
+    name: note,
   });
 
   // Log the API key creation

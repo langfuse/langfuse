@@ -13,7 +13,8 @@ vi.mock("@/src/ee/features/billing/server/chb/chbProjectEvents", () => ({
   emitChbProjectEvent: mocks.emit,
 }));
 
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server";
+import { createApiKey } from "@langfuse/shared/src/server";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -184,10 +185,10 @@ describe("projectsRouter system role assignments", () => {
     const user = await createUserInOrgs([orgId]);
     const caller = makeCaller({ userId: user.id, orgIds: [orgId], projectId });
 
-    const key = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
-      scope: "PROJECT",
+    const key = await createApiKey(prisma, {
+      owner: ProjectId(projectId),
+      role: SystemRoleId("PROJECT"),
+      creator: UserId(user.id),
     });
 
     await expect(
@@ -216,10 +217,10 @@ describe("projectsRouter system role assignments", () => {
       projectId,
     });
 
-    const key = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
-      scope: "PROJECT",
+    const key = await createApiKey(prisma, {
+      owner: ProjectId(projectId),
+      role: SystemRoleId("PROJECT"),
+      creator: UserId(user.id),
     });
 
     const before = await prisma.systemRoleAssignment.findFirstOrThrow({

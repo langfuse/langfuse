@@ -7,9 +7,15 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import { Role } from "@langfuse/shared";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 
 // Schema for membership response
 const MembershipResponseSchema = z.object({
@@ -61,11 +67,11 @@ describe("Memberships APIs", () => {
     testUserId = user.id;
 
     // Create an organization API key
-    const apiKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: testOrgId,
-      scope: "ORGANIZATION",
-      note: "Test API Key for Memberships API",
+    const apiKey = await createApiKey(prisma, {
+      owner: OrganizationId(testOrgId),
+      role: SystemRoleId("ORGANIZATION"),
+      creator: UserId(testUserId),
+      name: "Test API Key for Memberships API",
       predefinedKeys: {
         publicKey: `pk-lf-org-${randomUUID().substring(0, 8)}`,
         secretKey: `sk-lf-org-${randomUUID().substring(0, 8)}`,
@@ -137,11 +143,11 @@ describe("Memberships APIs", () => {
 
       it("should return 403 when using a non-organization API key", async () => {
         // Create a project API key
-        const projectApiKey = await createAndAddApiKeysToDb({
-          prisma,
-          entityId: testProjectId,
-          scope: "PROJECT",
-          note: "Test API Key for Memberships API",
+        const projectApiKey = await createApiKey(prisma, {
+          owner: ProjectId(testProjectId),
+          role: SystemRoleId("PROJECT"),
+          creator: UserId(testUserId),
+          name: "Test API Key for Memberships API",
           predefinedKeys: {
             publicKey: `pk-lf-project-${randomUUID().substring(0, 8)}`,
             secretKey: `sk-lf-project-${randomUUID().substring(0, 8)}`,

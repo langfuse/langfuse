@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { randomUUID } from "crypto";
+
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 
@@ -11,6 +13,7 @@ import {
   OrganizationId,
   ProjectId,
   SystemRoleId,
+  UserId,
 } from "@langfuse/shared/rbac";
 
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
@@ -22,10 +25,13 @@ import { systemRoleAccessRights } from "@/src/features/rbac/constants/systemRole
 describe("getRolesForPrincipal decision-equivalence", () => {
   it("a PROJECT key resolves to the project policy bound to its project", async () => {
     const { projectId, orgId } = await createOrgProjectAndApiKey();
-    const key = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
-      scope: "PROJECT",
+    const creator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const key = await createApiKey(prisma, {
+      owner: ProjectId(projectId),
+      role: SystemRoleId("PROJECT"),
+      creator: UserId(creator.id),
     });
 
     const policies = (await getRolesForPrincipal(ApiKeyId(key.id))).flatMap(
@@ -46,10 +52,13 @@ describe("getRolesForPrincipal decision-equivalence", () => {
 
   it("an ORGANIZATION key resolves to the org policy plus its project policy over the org's project wildcard", async () => {
     const { orgId } = await createOrgProjectAndApiKey();
-    const key = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: orgId,
-      scope: "ORGANIZATION",
+    const creator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const key = await createApiKey(prisma, {
+      owner: OrganizationId(orgId),
+      role: SystemRoleId("ORGANIZATION"),
+      creator: UserId(creator.id),
     });
 
     const policies = (await getRolesForPrincipal(ApiKeyId(key.id))).flatMap(

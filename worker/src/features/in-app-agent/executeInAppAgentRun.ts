@@ -9,9 +9,10 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   deleteInAppAgentMcpApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunRequestSchema,
@@ -245,9 +246,10 @@ export async function executeInAppAgentRun(params: {
       // implicitly mean "trusted system".
       throw new InAppAgentRunInitError("Run has no triggering user");
     }
+    const triggeredByUserId = run.triggeredByUserId;
 
     const access = await resolveUserProjectAccess({
-      userId: run.triggeredByUserId,
+      userId: triggeredByUserId,
       projectId,
       orgId: project.orgId,
     });
@@ -383,13 +385,12 @@ export async function executeInAppAgentRun(params: {
     // ---- Temp MCP key: mint + link to the run in one transaction, so no
     // crash window can leave a key that is not discoverable from its run. ----
     mcpApiKey = await prisma.$transaction(async (tx) => {
-      const key = await createAndAddApiKeysToDb({
-        prisma: tx,
-        entityId: projectId,
-        scope: "PROJECT",
-        note: IN_APP_AGENT_API_KEY_NOTE,
+      const key = await createApiKey(tx, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("PROJECT"),
+        creator: UserId(triggeredByUserId),
+        name: IN_APP_AGENT_API_KEY_NOTE,
         isInAppAgentKey: true,
-        createdByUserId: run.triggeredByUserId ?? undefined,
       });
 
       await tx.inAppAgentRun.updateMany({

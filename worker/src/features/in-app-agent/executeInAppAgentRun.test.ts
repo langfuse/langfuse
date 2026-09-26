@@ -6,7 +6,8 @@ import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME } from "@langfuse/shared/in-app-agent";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { ResumeForwardedPropsSchema } from "./runtime/types";
 import { env } from "../../env";
 
@@ -895,13 +896,12 @@ describe("executeInAppAgentRun", () => {
       status: "RUNNING",
     });
     const twoMinutesAgo = new Date(Date.now() - 2 * 60_000);
-    const key = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
-      scope: "PROJECT",
-      note: "stale-run mcp key",
+    const key = await createApiKey(prisma, {
+      owner: ProjectId(projectId),
+      role: SystemRoleId("PROJECT"),
+      creator: UserId(user.id),
+      name: "stale-run mcp key",
       isInAppAgentKey: true,
-      createdByUserId: user.id,
     });
     await prisma.inAppAgentRun.update({
       where: { id_projectId: { id: run.id, projectId } },
@@ -935,13 +935,12 @@ describe("executeInAppAgentRun", () => {
       status: "RUNNING",
     });
     const twoMinutesAgo = new Date(Date.now() - 2 * 60_000);
-    const key = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
-      scope: "PROJECT",
-      note: "already-deleted mcp key",
+    const key = await createApiKey(prisma, {
+      owner: ProjectId(projectId),
+      role: SystemRoleId("PROJECT"),
+      creator: UserId(user.id),
+      name: "already-deleted mcp key",
       isInAppAgentKey: true,
-      createdByUserId: user.id,
     });
     await prisma.inAppAgentRun.update({
       where: { id_projectId: { id: run.id, projectId } },
@@ -986,13 +985,12 @@ describe("executeInAppAgentRun", () => {
       status: "RUNNING",
     });
     const twoMinutesAgo = new Date(Date.now() - 2 * 60_000);
-    const userKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
-      scope: "PROJECT",
-      note: "user project key",
+    const userKey = await createApiKey(prisma, {
+      owner: ProjectId(projectId),
+      role: SystemRoleId("PROJECT"),
+      creator: UserId(user.id),
+      name: "user project key",
       isInAppAgentKey: false,
-      createdByUserId: user.id,
     });
     await prisma.inAppAgentRun.update({
       where: { id_projectId: { id: run.id, projectId } },

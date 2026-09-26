@@ -8,7 +8,11 @@ import {
 import * as z from "zod";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { InvalidRequestError } from "@langfuse/shared";
+import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import { SystemRole } from "@langfuse/shared/src/db";
+import { isAssignableAtCreate } from "@/src/features/rbac/constants/systemRoleAccessRights";
 
 export const organizationApiKeysRouter = createTRPCRouter({
   byOrganizationId: protectedOrganizationProcedure
@@ -63,6 +67,8 @@ export const organizationApiKeysRouter = createTRPCRouter({
       z.object({
         orgId: z.string(),
         note: z.string().optional(),
+        role: z.enum(SystemRole).default(SystemRole.ADMIN),
+        expiresAt: z.date().nullish(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -80,12 +86,17 @@ export const organizationApiKeysRouter = createTRPCRouter({
         orgId: input.orgId,
       });
 
-      const apiKeyMeta = await createAndAddApiKeysToDb({
-        prisma: ctx.prisma,
-        entityId: input.orgId,
-        note: input.note,
-        scope: "ORGANIZATION",
-        createdByUserId: ctx.session.user.id,
+      if (!isAssignableAtCreate(input.role))
+        throw new InvalidRequestError(
+          `Role ${input.role} cannot back an organization API key`,
+        );
+
+      const apiKeyMeta = await createApiKey(ctx.prisma, {
+        owner: OrganizationId(input.orgId),
+        role: SystemRoleId(input.role),
+        creator: UserId(ctx.session.user.id),
+        name: input.note,
+        expiresAt: input.expiresAt,
       });
 
       await auditLog({
@@ -93,6 +104,10 @@ export const organizationApiKeysRouter = createTRPCRouter({
         resourceType: "apiKey",
         resourceId: apiKeyMeta.id,
         action: "create",
+        after: {
+          role: input.role,
+          expiresAt: input.expiresAt ?? null,
+        },
       });
 
       return apiKeyMeta;

@@ -49,6 +49,14 @@ export const untag = (tagged: `${string}/${string}`): string =>
 export const hasProjectKind = (id: OwnerId | ResourceId): id is ProjectId =>
   id.startsWith("project/");
 
+/** hasApiKeyKind narrows a principal id to an api key. */
+export const hasApiKeyKind = (id: PrincipalId): id is ApiKeyId =>
+  id.startsWith("apiKey/");
+
+/** hasUserKind narrows a principal id to a user. */
+export const hasUserKind = (id: PrincipalId): id is UserId =>
+  id.startsWith("user/");
+
 /** hasOrganizationKind narrows an owner/resource id to an organization. */
 export const hasOrganizationKind = (
   id: OwnerId | ResourceId,

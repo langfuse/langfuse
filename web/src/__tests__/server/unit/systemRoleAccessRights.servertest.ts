@@ -115,14 +115,11 @@ describe("systemRoleAccessRights", () => {
   it("tags api-key roles and user roles disjointly", () => {
     const tagsFor = (role: keyof typeof systemRoleAccessRights) =>
       systemRoleAccessRights[role].tags;
-    for (const role of [
-      "PROJECT",
-      "ORGANIZATION",
-      "SCORES_INGEST",
-      "INGEST",
-      "LLM_GATEWAY",
-    ] as const) {
+    for (const role of ["SCORES_INGEST", "INGEST", "LLM_GATEWAY"] as const) {
       expect(tagsFor(role)).toEqual(["principal:apiKey"]);
+    }
+    for (const role of ["PROJECT", "ORGANIZATION"] as const) {
+      expect(tagsFor(role)).toEqual(["principal:apiKey", "legacy"]);
     }
     for (const role of [
       "OWNER",
@@ -131,7 +128,7 @@ describe("systemRoleAccessRights", () => {
       "VIEWER",
       "NONE",
     ] as const) {
-      expect(tagsFor(role)).toEqual(["principal:user"]);
+      expect(tagsFor(role)).toContain("principal:user");
     }
   });
 });

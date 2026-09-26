@@ -6,9 +6,15 @@ import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 
 const BlobStorageIntegrationStatusResponseSchema = z
   .object({
@@ -64,11 +70,14 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
     });
     testProjectId = testProject.id;
 
-    const orgApiKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: testOrgId,
-      scope: "ORGANIZATION",
-      note: "Test API Key for Blob Status API",
+    const orgKeyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const orgApiKey = await createApiKey(prisma, {
+      owner: OrganizationId(testOrgId),
+      role: SystemRoleId("ORGANIZATION"),
+      creator: UserId(orgKeyCreator.id),
+      name: "Test API Key for Blob Status API",
       predefinedKeys: {
         publicKey: `pk-lf-bstat-${randomUUID().substring(0, 8)}`,
         secretKey: `sk-lf-bstat-${randomUUID().substring(0, 8)}`,
@@ -118,11 +127,14 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
   });
 
   it("should return 403 with project-scoped API key", async () => {
-    const projectApiKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: testProjectId,
-      scope: "PROJECT",
-      note: "Project API Key for status test",
+    const keyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const projectApiKey = await createApiKey(prisma, {
+      owner: ProjectId(testProjectId),
+      role: SystemRoleId("PROJECT"),
+      creator: UserId(keyCreator.id),
+      name: "Project API Key for status test",
       predefinedKeys: {
         publicKey: `pk-lf-pstat-${randomUUID().substring(0, 8)}`,
         secretKey: `sk-lf-pstat-${randomUUID().substring(0, 8)}`,

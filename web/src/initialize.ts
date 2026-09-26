@@ -1,11 +1,16 @@
 import { env } from "@/src/env.mjs";
 import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { prisma } from "@langfuse/shared/src/db";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { CloudConfigSchema } from "@langfuse/shared";
-import { ApiKeyId } from "@langfuse/shared/rbac";
+import {
+  ApiKeyId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import { revokeRolesForPrincipals } from "@langfuse/shared/rbac/server";
 import {
   initializeClickhouseCompatibility,
@@ -113,42 +118,10 @@ if (env.LANGFUSE_INIT_ORG_ID) {
         retentionDays,
       },
     });
-
-    // Add API Keys: Project -> API Key
-    if (
-      env.LANGFUSE_INIT_PROJECT_SECRET_KEY &&
-      env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY
-    ) {
-      const projectId = env.LANGFUSE_INIT_PROJECT_ID;
-      const publicKey = env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY;
-      const secretKey = env.LANGFUSE_INIT_PROJECT_SECRET_KEY;
-
-      const existingApiKey = await prisma.apiKey.findUnique({
-        where: { publicKey },
-      });
-
-      // Delete key if project changed
-      if (existingApiKey && existingApiKey.projectId !== projectId) {
-        await prisma.$transaction(async (tx) => {
-          await tx.apiKey.delete({ where: { publicKey } });
-          await revokeRolesForPrincipals(tx, [ApiKeyId(existingApiKey.id)]);
-        });
-      }
-
-      // Create new key if it doesn't exist or project changed
-      if (!existingApiKey || existingApiKey.projectId !== projectId) {
-        await createAndAddApiKeysToDb({
-          prisma,
-          entityId: projectId,
-          note: "Provisioned API Key",
-          scope: "PROJECT",
-          predefinedKeys: { secretKey, publicKey },
-        });
-      }
-    }
   }
 
   // Create User: Org -> User
+  let initUserId: string | undefined;
   if (env.LANGFUSE_INIT_USER_EMAIL && env.LANGFUSE_INIT_USER_PASSWORD) {
     const email = env.LANGFUSE_INIT_USER_EMAIL.toLowerCase();
     const existingUser = await prisma.user.findUnique({
@@ -165,6 +138,8 @@ if (env.LANGFUSE_INIT_ORG_ID) {
         env.LANGFUSE_INIT_USER_NAME ?? "Provisioned User",
       );
     }
+
+    initUserId = userId;
 
     // Create OrgMembership: Org -> OrgMembership <- User
     const orgMembership = await prisma.organizationMembership.upsert({
@@ -205,6 +180,48 @@ if (env.LANGFUSE_INIT_ORG_ID) {
           role: "OWNER",
         },
       });
+    }
+  }
+
+  // Add API Keys: Project -> API Key. Minted after the user so the provisioned
+  // key can be attributed to the init user, which createApiKey requires.
+  if (
+    env.LANGFUSE_INIT_PROJECT_ID &&
+    env.LANGFUSE_INIT_PROJECT_SECRET_KEY &&
+    env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY
+  ) {
+    if (!initUserId) {
+      logger.warn(
+        `[Langfuse Init] Skipping API key creation: set LANGFUSE_INIT_USER_EMAIL and ` +
+          `LANGFUSE_INIT_USER_PASSWORD so the provisioned key has an owning user.`,
+      );
+    } else {
+      const projectId = env.LANGFUSE_INIT_PROJECT_ID;
+      const publicKey = env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY;
+      const secretKey = env.LANGFUSE_INIT_PROJECT_SECRET_KEY;
+
+      const existingApiKey = await prisma.apiKey.findUnique({
+        where: { publicKey },
+      });
+
+      // Delete key if project changed
+      if (existingApiKey && existingApiKey.projectId !== projectId) {
+        await prisma.$transaction(async (tx) => {
+          await tx.apiKey.delete({ where: { publicKey } });
+          await revokeRolesForPrincipals(tx, [ApiKeyId(existingApiKey.id)]);
+        });
+      }
+
+      // Create new key if it doesn't exist or project changed
+      if (!existingApiKey || existingApiKey.projectId !== projectId) {
+        await createApiKey(prisma, {
+          owner: ProjectId(projectId),
+          role: SystemRoleId("PROJECT"),
+          creator: UserId(initUserId),
+          name: "Provisioned API Key",
+          predefinedKeys: { secretKey, publicKey },
+        });
+      }
     }
   }
 }
