@@ -4,7 +4,7 @@ import { ModelParameters } from "@/src/components/ModelParameters";
 import { CardContent, Card } from "@/src/components/ui/card";
 import { useModelParams } from "@/src/features/playground";
 import { Button } from "@/src/components/ui/button";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationModel";
@@ -57,34 +57,46 @@ function useDefaultEvalModelSetup({
     setModelParams,
   );
 
-  const { mutateAsync: upsertDefaultModel, isPending: isUpsertLoading } =
-    api.defaultLlmModel.upsertDefaultModel.useMutation({
-      onSuccess: () => {
-        showSuccessToast(successMessage);
+  const {
+    mutate: upsertDefaultModel,
+    mutateAsync: upsertDefaultModelAsync,
+    isPending: isUpsertLoading,
+  } = api.defaultLlmModel.upsertDefaultModel.useMutation({
+    onSuccess: () => {
+      showSuccessToast(successMessage);
 
-        utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId });
-        setFormError(null);
-        onSuccess?.();
-      },
-      onError: (error) => {
-        setFormError(error.message);
-      },
-    });
+      utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId });
+      setFormError(null);
+      onSuccess?.();
+    },
+    onError: (error) => {
+      setFormError(error.message);
+      reportTrpcErrorWithoutToast(error, "evals");
+    },
+  });
 
-  const executeUpsertMutation = async () => {
-    await upsertDefaultModel({
-      projectId,
-      provider: modelParams.provider.value,
-      adapter: modelParams.adapter.value,
-      model: modelParams.model.value,
-      modelParams: getFinalModelParams(modelParams),
-    });
+  const getUpsertInput = () => ({
+    projectId,
+    provider: modelParams.provider.value,
+    adapter: modelParams.adapter.value,
+    model: modelParams.model.value,
+    modelParams: getFinalModelParams(modelParams),
+  });
+
+  // mutate() does not reject to the click handler. mutateAsync() is for
+  // ConfirmationDialogController, which awaits and swallows so the dialog
+  // stays open when the model config is invalid.
+  const saveDefaultModel = () => {
+    upsertDefaultModel(getUpsertInput());
   };
+
+  const executeUpsertMutation = () => upsertDefaultModelAsync(getUpsertInput());
 
   return {
     availableModels,
     availableProviders,
     executeUpsertMutation,
+    saveDefaultModel,
     formError,
     hasWriteAccess,
     isDefaultModelLoading,
@@ -230,7 +242,7 @@ export function DefaultEvalModelSetup({
                     disabled={
                       !setup.hasWriteAccess || !setup.modelParams.provider.value
                     }
-                    onClick={setup.executeUpsertMutation}
+                    onClick={setup.saveDefaultModel}
                   >
                     Save
                   </Button>
@@ -278,7 +290,7 @@ export function InlineDefaultEvalModelSetup({
         <Button
           loading={setup.isUpsertLoading}
           disabled={!setup.hasWriteAccess || !setup.modelParams.provider.value}
-          onClick={setup.executeUpsertMutation}
+          onClick={setup.saveDefaultModel}
         >
           {submitLabel}
         </Button>
