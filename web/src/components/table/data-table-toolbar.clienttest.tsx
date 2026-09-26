@@ -1,10 +1,44 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
+import type { ColumnDefinition } from "@langfuse/shared";
 import { ExperimentDisplaySettings } from "@/src/features/experiments";
 import {
   DataTableToolbar,
   type MultiSelect,
 } from "@/src/components/table/data-table-toolbar";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { useStore } from "zustand";
+
+const captureSpy = vi.fn();
+vi.mock("posthog-js/react", () => ({
+  usePostHog: () => ({ capture: captureSpy }),
+}));
+
+function MobileSearchHarness() {
+  const { store } = useEventsSearchBar({
+    tableName: "test-table",
+    enabled: true,
+    isV4: false,
+    filterState: [],
+    searchQuery: null,
+    searchType: ["id"],
+    observed: undefined,
+    setFilterState: vi.fn(),
+    setSearchQuery: vi.fn(),
+    setSearchType: vi.fn(),
+  });
+  const draft = useStore(store, (state) => state.draft);
+
+  return (
+    <input
+      aria-label="Mobile search"
+      value={draft}
+      onChange={(event) =>
+        store.getState().actions.setDraft(event.target.value)
+      }
+    />
+  );
+}
 
 const baseMultiSelect = (overrides: Partial<MultiSelect>): MultiSelect => ({
   selectAll: false,
@@ -244,5 +278,82 @@ describe("DataTableToolbar presentation controls", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Row height" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Display" })).toBeVisible();
+  });
+
+  it("opens legacy filters and search together in the mobile sheet", () => {
+    captureSpy.mockClear();
+    const filterColumns: ColumnDefinition[] = [
+      {
+        id: "status",
+        name: "Status",
+        type: "stringOptions",
+        internal: "status",
+        options: [{ value: "active" }],
+      },
+    ];
+
+    render(
+      <DataTableToolbar
+        columns={[]}
+        tableName="test-table"
+        filterColumnDefinition={filterColumns}
+        filterState={[]}
+        setFilterState={vi.fn()}
+        mobileSearch={<MobileSearchHarness />}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Filters" })[0]!);
+
+    expect(screen.getByRole("dialog", { name: "Filters" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Add filter" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Mobile search" }), {
+      target: { value: "unsubmitted draft" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Close filters" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Filters" })[0]!);
+
+    expect(screen.getByRole("textbox", { name: "Mobile search" })).toHaveValue(
+      "unsubmitted draft",
+    );
+    expect(
+      captureSpy.mock.calls.filter(
+        ([event]) => event === "filters:sidebar_toggled",
+      ),
+    ).toEqual([
+      [
+        "filters:sidebar_toggled",
+        {
+          tableName: "test-table",
+          isV4: false,
+          open: true,
+          trigger: "toolbar",
+        },
+        undefined,
+      ],
+      [
+        "filters:sidebar_toggled",
+        {
+          tableName: "test-table",
+          isV4: false,
+          open: false,
+          trigger: "header",
+        },
+        undefined,
+      ],
+      [
+        "filters:sidebar_toggled",
+        {
+          tableName: "test-table",
+          isV4: false,
+          open: true,
+          trigger: "toolbar",
+        },
+        undefined,
+      ],
+    ]);
   });
 });

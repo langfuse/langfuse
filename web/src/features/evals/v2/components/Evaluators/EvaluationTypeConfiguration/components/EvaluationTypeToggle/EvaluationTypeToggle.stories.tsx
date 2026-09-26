@@ -38,6 +38,21 @@ export const Code = meta.story({
   args: { value: EvalTemplateTypeEnum.CODE, onValueChange: fn() },
   render: StatefulEvaluationTypeToggle,
 });
+export const Narrow = meta.story({
+  globals: { viewport: { value: "evaluation-type-phone", isRotated: false } },
+  parameters: {
+    viewport: {
+      options: {
+        "evaluation-type-phone": {
+          name: "Phone",
+          styles: { width: "390px", height: "844px" },
+        },
+      },
+    },
+  },
+  args: { value: EvalTemplateTypeEnum.LLM_AS_JUDGE, onValueChange: fn() },
+  render: StatefulEvaluationTypeToggle,
+});
 export const LockedForEdit = meta.story({
   args: {
     value: EvalTemplateTypeEnum.LLM_AS_JUDGE,

@@ -13,7 +13,7 @@ import { createLinkTableColumn } from "@/src/components/design-system/table/colu
 import { createLinkListTableColumn } from "@/src/components/design-system/table/columns/createLinkListTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { StickySearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   useColumnVisibility,
@@ -818,79 +818,75 @@ export default function SessionsTable({
             setTimeRange={setTimeRange}
           />
         )}
-        {/* In bar mode the composer and the toolbar stick together as one band
-            (matching EventsTable) so the toolbar cannot scroll under the
-            composer and render half-clipped; pb-1.5 gives the band the same
-            breathing room above the table that the events tables have. */}
-        <div className="bg-background sticky top-0 z-30 pb-1.5">
-          <TableSearchBar
-            key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
-            isV4={isV4}
-            filterState={queryFilter.searchBarFilterState}
-            setFilterState={setFiltersWrapper}
-            projectId={projectId}
-            tableName={sessionsFilterConfig.tableName}
-            observed={observedOptions}
-            registry={searchRegistry}
-          />
-          {/* Toolbar spanning full width */}
-          <DataTableToolbar
-            rowClassName="my-1"
-            filterState={queryFilter.explicitFilterState}
-            actionButtons={[
-              selectedSessionIds.length > 0 || selectAll ? (
-                <TableActionMenu
-                  key="sessions-multi-select-actions"
-                  projectId={projectId}
-                  actions={tableActions}
-                  tableName={BatchExportTableName.Sessions}
-                  selectedCount={selectedSessionCount}
-                  onClearSelection={() => {
-                    setSelectedRows({});
-                    setSelectAll(false);
-                  }}
-                />
-              ) : null,
-              hasBatchExportAccess ? (
-                <BatchExportTableButton
-                  {...{
-                    projectId,
-                    filterState: backendFilterState,
-                    orderByState,
-                  }}
-                  tableName={BatchExportTableName.Sessions}
-                  key="batchExport"
-                />
-              ) : null,
-            ]}
-            columns={columns}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={handleColumnVisibilityChange}
-            columnOrder={columnOrder}
-            setColumnOrder={handleColumnOrderChange}
-            viewConfig={{
-              tableName: TableViewPresetTableName.Sessions,
-              projectId,
-              controllers: viewControllers,
-            }}
-            timeRange={showControlsInPageHeader ? undefined : timeRange}
-            setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-            columnsWithCustomSelect={["userIds"]}
-            rowHeight={rowHeight}
-            setRowHeight={setRowHeight}
-            multiSelect={{
-              selectAll,
-              setSelectAll,
-              selectedRowIds: selectedSessionIds,
-              setRowSelection: setSelectedRows,
-              totalCount,
-              ...paginationState,
-            }}
-          />
-        </div>
-
-        {/* Content area with sidebar and table */}
-        <ResizableFilterLayout>
+        <StickySearchableTableFilterLayout
+          search={
+            <TableSearchBar
+              key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+              isV4={isV4}
+              filterState={queryFilter.searchBarFilterState}
+              setFilterState={setFiltersWrapper}
+              projectId={projectId}
+              tableName={sessionsFilterConfig.tableName}
+              observed={observedOptions}
+              registry={searchRegistry}
+            />
+          }
+          toolbar={
+            <DataTableToolbar
+              rowClassName="my-1"
+              filterState={queryFilter.explicitFilterState}
+              actionButtons={[
+                selectedSessionIds.length > 0 || selectAll ? (
+                  <TableActionMenu
+                    key="sessions-multi-select-actions"
+                    projectId={projectId}
+                    actions={tableActions}
+                    tableName={BatchExportTableName.Sessions}
+                    selectedCount={selectedSessionCount}
+                    onClearSelection={() => {
+                      setSelectedRows({});
+                      setSelectAll(false);
+                    }}
+                  />
+                ) : null,
+                hasBatchExportAccess ? (
+                  <BatchExportTableButton
+                    {...{
+                      projectId,
+                      filterState: backendFilterState,
+                      orderByState,
+                    }}
+                    tableName={BatchExportTableName.Sessions}
+                    key="batchExport"
+                  />
+                ) : null,
+              ]}
+              columns={columns}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={handleColumnVisibilityChange}
+              columnOrder={columnOrder}
+              setColumnOrder={handleColumnOrderChange}
+              viewConfig={{
+                tableName: TableViewPresetTableName.Sessions,
+                projectId,
+                controllers: viewControllers,
+              }}
+              timeRange={showControlsInPageHeader ? undefined : timeRange}
+              setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+              columnsWithCustomSelect={["userIds"]}
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+              multiSelect={{
+                selectAll,
+                setSelectAll,
+                selectedRowIds: selectedSessionIds,
+                setRowSelection: setSelectedRows,
+                totalCount,
+                ...paginationState,
+              }}
+            />
+          }
+        >
           <DataTableControls
             // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
             key={viewControllers.filterEditorResetKey}
@@ -958,7 +954,7 @@ export default function SessionsTable({
               rowHeight={rowHeight}
             />
           </div>
-        </ResizableFilterLayout>
+        </StickySearchableTableFilterLayout>
       </div>
     </DataTableControlsProvider>
   );

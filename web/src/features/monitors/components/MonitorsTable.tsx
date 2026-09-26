@@ -9,7 +9,7 @@ import { useMediaQuery } from "react-responsive";
 import { DeleteMonitorButton } from "@/src/components/deleteButton";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableControls } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -305,33 +305,41 @@ export function MonitorsTable() {
 
   return (
     <div className="flex h-full w-full flex-col">
-      <TableSearchBar
-        key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
-        projectId={projectId}
-        tableName="monitors"
-        registry={monitorsFieldRegistry(monitorFilterConfig)}
-        filterState={queryFilter.searchBarFilterState}
-        setFilterState={queryFilter.setFilterState}
-        observed={toObservedOptions(newFilterOptions, filterOptions.isPending)}
-        isV4={false}
-      />
-      <DataTableToolbar
-        tableName="monitors"
-        columns={columns}
-        filterState={queryFilter.explicitFilterState}
-        columnVisibility={columnVisibility}
-        setColumnVisibility={handleColumnVisibilityChange}
-        columnOrder={columnOrder}
-        setColumnOrder={handleColumnOrderChange}
-        orderByState={orderByState}
-        isV4={false}
-        viewConfig={{
-          tableName: TableViewPresetTableName.Monitors,
-          projectId,
-          controllers: viewControllers,
-        }}
-      />
-      <ResizableFilterLayout>
+      <SearchableTableFilterLayout
+        search={
+          <TableSearchBar
+            key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+            projectId={projectId}
+            tableName="monitors"
+            registry={monitorsFieldRegistry(monitorFilterConfig)}
+            filterState={queryFilter.searchBarFilterState}
+            setFilterState={queryFilter.setFilterState}
+            observed={toObservedOptions(
+              newFilterOptions,
+              filterOptions.isPending,
+            )}
+            isV4={false}
+          />
+        }
+        toolbar={
+          <DataTableToolbar
+            tableName="monitors"
+            columns={columns}
+            filterState={queryFilter.explicitFilterState}
+            columnVisibility={columnVisibility}
+            setColumnVisibility={handleColumnVisibilityChange}
+            columnOrder={columnOrder}
+            setColumnOrder={handleColumnOrderChange}
+            orderByState={orderByState}
+            isV4={false}
+            viewConfig={{
+              tableName: TableViewPresetTableName.Monitors,
+              projectId,
+              controllers: viewControllers,
+            }}
+          />
+        }
+      >
         <DataTableControls
           key={viewControllers.filterEditorResetKey}
           queryFilter={queryFilter}
@@ -376,7 +384,7 @@ export function MonitorsTable() {
             cellPadding="comfortable"
           />
         </div>
-      </ResizableFilterLayout>
+      </SearchableTableFilterLayout>
     </div>
   );
 }

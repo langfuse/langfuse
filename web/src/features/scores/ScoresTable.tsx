@@ -2,7 +2,10 @@
 import { type ViewVersion } from "@langfuse/shared/query";
 import { DataTable } from "@/src/components/table/data-table";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import {
+  DataTableMobileFilterControls,
+  DataTableToolbar,
+} from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
   DataTableControls,
@@ -14,7 +17,7 @@ import { createLinkTableColumn } from "@/src/components/design-system/table/colu
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import {
@@ -1138,85 +1141,108 @@ export default function ScoresTable({
           <TableHeaderControls
             timeRange={timeRange}
             setTimeRange={setTimeRange}
+            desktopOnly
           />
         )}
-        <ScoresSearchBar
-          key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
-          isV4={isV4}
-          projectId={projectId}
-          filterConfig={scoresFilterConfig}
-          filterState={queryFilter.searchBarFilterState}
-          setFilterState={setFiltersWrapper}
-          filterOptions={newFilterOptions}
-          isLoading={isSidebarFilterLoading}
-        />
-        {/* Toolbar spanning full width */}
-        <DataTableToolbar
-          columns={columns}
-          filterState={queryFilter.explicitFilterState}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={handleColumnVisibilityChange}
-          columnOrder={columnOrder}
-          setColumnOrder={handleColumnOrderChange}
-          viewConfig={{
-            tableName: TableViewPresetTableName.Scores,
-            projectId,
-            controllers: viewControllers,
-          }}
-          actionButtons={[
-            visibleSelectedScoreIds.length > 0 || selectAll ? (
-              <TableActionMenu
-                key="scores-multi-select-actions"
-                projectId={projectId}
-                actions={tableActions}
-                tableName={BatchExportTableName.Scores}
-                selectedCount={selectedScoreCount}
-                onClearSelection={() => {
-                  setSelectedRows({});
-                  setSelectAll(false);
-                }}
-              />
-            ) : null,
-            hasBatchExportAccess ? (
-              <BatchExportTableButton
-                {...{
-                  projectId,
-                  filterState: backendFilterState,
-                  orderByState,
-                }}
-                tableName={BatchExportTableName.Scores}
-                key="batchExport"
-              />
-            ) : null,
-          ]}
-          rowHeight={rowHeight}
-          setRowHeight={setRowHeight}
-          timeRange={
-            showControlsInPageHeader || isTraceScoped ? undefined : timeRange
+        <SearchableTableFilterLayout
+          search={
+            <ScoresSearchBar
+              key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+              isV4={isV4}
+              projectId={projectId}
+              filterConfig={scoresFilterConfig}
+              filterState={queryFilter.searchBarFilterState}
+              setFilterState={setFiltersWrapper}
+              filterOptions={newFilterOptions}
+              isLoading={isSidebarFilterLoading}
+            />
           }
-          setTimeRange={
-            showControlsInPageHeader || isTraceScoped ? undefined : setTimeRange
+          toolbar={
+            <DataTableToolbar
+              columns={columns}
+              filterState={queryFilter.explicitFilterState}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={handleColumnVisibilityChange}
+              columnOrder={columnOrder}
+              setColumnOrder={handleColumnOrderChange}
+              viewConfig={{
+                tableName: TableViewPresetTableName.Scores,
+                projectId,
+                controllers: viewControllers,
+              }}
+              actionButtons={[
+                visibleSelectedScoreIds.length > 0 || selectAll ? (
+                  <TableActionMenu
+                    key="scores-multi-select-actions"
+                    projectId={projectId}
+                    actions={tableActions}
+                    tableName={BatchExportTableName.Scores}
+                    selectedCount={selectedScoreCount}
+                    onClearSelection={() => {
+                      setSelectedRows({});
+                      setSelectAll(false);
+                    }}
+                  />
+                ) : null,
+                hasBatchExportAccess ? (
+                  <BatchExportTableButton
+                    {...{
+                      projectId,
+                      filterState: backendFilterState,
+                      orderByState,
+                    }}
+                    tableName={BatchExportTableName.Scores}
+                    key="batchExport"
+                  />
+                ) : null,
+              ]}
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+              timeRange={
+                showControlsInPageHeader || isTraceScoped
+                  ? undefined
+                  : timeRange
+              }
+              setTimeRange={
+                showControlsInPageHeader || isTraceScoped
+                  ? undefined
+                  : setTimeRange
+              }
+              viewModeToggle={
+                chartEnabled && chartTimeRange ? (
+                  <ViewModeToggle
+                    mode={chartViewMode}
+                    onModeChange={setChartViewMode}
+                  />
+                ) : undefined
+              }
+              multiSelect={{
+                selectAll,
+                setSelectAll,
+                selectedRowIds: visibleSelectedScoreIds,
+                setRowSelection: setSelectedRows,
+                totalCount,
+                ...paginationState,
+              }}
+              hideMobileFilterControls
+            />
           }
-          viewModeToggle={
-            chartEnabled && chartTimeRange ? (
-              <ViewModeToggle
-                mode={chartViewMode}
-                onModeChange={setChartViewMode}
-              />
-            ) : undefined
+          mobileControls={
+            <DataTableMobileFilterControls
+              viewConfig={{
+                tableName: TableViewPresetTableName.Scores,
+                projectId,
+                controllers: viewControllers,
+              }}
+              orderByState={orderByState}
+              filterState={queryFilter.explicitFilterState}
+              columnOrder={columnOrder}
+              columnVisibility={columnVisibility}
+              timeRange={isTraceScoped ? undefined : timeRange}
+              setTimeRange={isTraceScoped ? undefined : setTimeRange}
+            />
           }
-          multiSelect={{
-            selectAll,
-            setSelectAll,
-            selectedRowIds: visibleSelectedScoreIds,
-            setRowSelection: setSelectedRows,
-            totalCount,
-            ...paginationState,
-          }}
-        />
-
-        {/* Content area with sidebar and table */}
-        <ResizableFilterLayout>
+        >
           <DataTableControls
             // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
             key={viewControllers.filterEditorResetKey}
@@ -1300,7 +1326,7 @@ export default function ScoresTable({
               />
             )}
           </div>
-        </ResizableFilterLayout>
+        </SearchableTableFilterLayout>
         {peekEnabled &&
           renderTracePeek?.({
             closePeek: closeScorePeek,

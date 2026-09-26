@@ -357,25 +357,28 @@ export function DatasetItemsTable({
   ) : null;
 
   const setFilterStateWithDebounce = useDebounce(setFilterState);
+  const searchBar = (
+    <TableSearchBar
+      key={`${projectId}:${datasetId}:${selectedVersion?.toISOString() ?? "latest"}`}
+      projectId={projectId}
+      tableName="dataset-items"
+      registry={DATASET_ITEMS_FIELD_REGISTRY}
+      filterState={filterState}
+      setFilterState={setFilterState}
+      observed={undefined}
+      isV4={false}
+      search={{
+        query: searchQuery,
+        type: searchType,
+        setQuery: setSearchQuery,
+        setType: setSearchType,
+      }}
+    />
+  );
 
   return (
     <>
-      <TableSearchBar
-        key={`${projectId}:${datasetId}:${selectedVersion?.toISOString() ?? "latest"}`}
-        projectId={projectId}
-        tableName="dataset-items"
-        registry={DATASET_ITEMS_FIELD_REGISTRY}
-        filterState={filterState}
-        setFilterState={setFilterState}
-        observed={undefined}
-        isV4={false}
-        search={{
-          query: searchQuery,
-          type: searchType,
-          setQuery: setSearchQuery,
-          setType: setSearchType,
-        }}
-      />
+      <div className="hidden md:block">{searchBar}</div>
       <DataTableToolbar
         columns={columns}
         tableName="dataset-items"
@@ -389,6 +392,7 @@ export function DatasetItemsTable({
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        mobileSearch={searchBar}
         actionButtons={[menuItems, batchExportButton].filter(Boolean)}
       />
       <DataTable
