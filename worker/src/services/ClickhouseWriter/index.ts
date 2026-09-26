@@ -9,8 +9,6 @@ import {
   buildClickHouseLogComment,
 } from "@langfuse/shared/src/server";
 
-import { context, ROOT_CONTEXT } from "@opentelemetry/api";
-
 import type { PreparedEvent } from "@langfuse/native";
 
 import { env } from "../../env";
@@ -130,18 +128,15 @@ export class ClickhouseWriter<
       `${this.logPrefix}Starting ClickhouseWriter. Max interval: ${this.writeInterval} ms, Max batch size: ${this.batchSize}`,
     );
 
-    // The singleton outlives its first caller; timer flushes must not inherit that job's trace.
-    this.intervalId = context.with(ROOT_CONTEXT, () =>
-      setInterval(() => {
-        if (this.isIntervalFlushInProgress) return;
+    this.intervalId = setInterval(() => {
+      if (this.isIntervalFlushInProgress) return;
 
-        this.isIntervalFlushInProgress = true;
+      this.isIntervalFlushInProgress = true;
 
-        this.flushAll().finally(() => {
-          this.isIntervalFlushInProgress = false;
-        });
-      }, this.writeInterval),
-    );
+      this.flushAll().finally(() => {
+        this.isIntervalFlushInProgress = false;
+      });
+    }, this.writeInterval);
   }
 
   public async shutdown(): Promise<void> {
@@ -164,8 +159,17 @@ export class ClickhouseWriter<
   public async flushAll(fullQueue = false) {
     const tables = this.allowedTable
       ? [this.allowedTable]
-      : Object.values(TableName);
-    if (!tables.some((table) => this.queue[table].length > 0)) return;
+      : [
+          TableName.Traces,
+          TableName.TracesNull,
+          TableName.Scores,
+          TableName.Observations,
+          TableName.ObservationsBatchStaging,
+          TableName.BlobStorageFileLog,
+          TableName.DatasetRunItems,
+          TableName.EventsFull,
+        ];
+    if (this.allowedTable && this.queue[this.allowedTable].length === 0) return;
 
     return this.trackActiveFlush(
       instrumentAsync(
