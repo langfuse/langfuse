@@ -12,12 +12,12 @@ import {
   assertValidFtsMatchFilter,
   bareFtsField,
   FTS_OPERATOR_DESCRIPTORS,
-  hasFtsSearchToken,
   isFtsEventsTable,
   isFtsMetadataField,
   isFtsTextField,
   isFtsTextTarget,
   isNgramSubstringTarget,
+  shouldUseFtsTokenPrefilter,
 } from "./fts";
 
 export type ClickhouseOperator =
@@ -135,7 +135,7 @@ export class StringFilter implements Filter {
             fieldWithPrefix,
             `{${varName}: String}`,
             query,
-            hasFtsSearchToken(this.value),
+            shouldUseFtsTokenPrefilter(this.value),
           );
         } else if (ngramTarget) {
           query = `(lower(${fieldWithPrefix}) = lower({${varName}: String}) AND ${query})`;
@@ -176,10 +176,9 @@ export class StringFilter implements Filter {
           fieldWithPrefix,
           `{${varName}: String}`,
           // `matches` shares the descriptor signature with exact filters but
-          // does not need a base exact predicate, and always has a token
-          // (guaranteed by assertValidFtsMatchFilter above).
+          // does not need a base exact predicate.
           "",
-          true,
+          shouldUseFtsTokenPrefilter(this.value),
         );
         break;
       default:
@@ -483,7 +482,7 @@ export class StringObjectFilter implements Filter {
             valuesColumn,
             valueAccessor,
             valueParam,
-            hasToken: hasFtsSearchToken(this.value),
+            hasToken: shouldUseFtsTokenPrefilter(this.value),
           });
           break;
         case "contains":
@@ -518,7 +517,7 @@ export class StringObjectFilter implements Filter {
             valuesColumn,
             valueAccessor,
             valueParam,
-            hasToken: true,
+            hasToken: shouldUseFtsTokenPrefilter(this.value),
           });
           break;
         default:

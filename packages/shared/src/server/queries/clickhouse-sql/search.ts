@@ -5,7 +5,11 @@ import {
   TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
   type TracingSearchType,
 } from "../../../interfaces/search";
-import { bareFtsField, ftsTextTokenPredicate, hasFtsSearchToken } from "./fts";
+import {
+  bareFtsField,
+  ftsTextTokenPredicate,
+  shouldUseFtsTokenPrefilter,
+} from "./fts";
 
 const regexIndefiniteCharacters = "%";
 
@@ -83,11 +87,9 @@ export const clickhouseSearchCondition = ({
     param = "{searchString: String}",
     hasToken = false,
   ) =>
-    // Fast-mode UI search intentionally narrows IO search to token matches
-    // before applying ILIKE. This gives ClickHouse an inverted-index lookup,
-    // but drops embedded-word substring matches like "foobarneedle". The token
-    // prefilter is only meaningful when the value yields tokens; a tokenless
-    // value leans on ILIKE alone.
+    // Fast-mode UI search narrows token-friendly IO queries to the text index
+    // first, but skips that prefilter for scripts ClickHouse cannot segment
+    // into words (Thai/CJK), where substring matching is the correct fallback.
     useEventsTablePath && hasToken
       ? `(${col} ILIKE ${param} AND ${ftsTextTokenPredicate(col, param)})`
       : `${col} ILIKE ${param}`;
@@ -128,9 +130,9 @@ export const clickhouseSearchCondition = ({
 
   // `hasFtsSearchToken` mirrors ClickHouse's `tokens()` emptiness, so the token
   // prefilter can be gated per search value at build time.
-  const searchStringHasToken = !!query && hasFtsSearchToken(query);
+  const searchStringHasToken = !!query && shouldUseFtsTokenPrefilter(query);
   const searchStringEscapedHasToken =
-    hasEscapedVariant && hasFtsSearchToken(escapedQuery!);
+    hasEscapedVariant && shouldUseFtsTokenPrefilter(escapedQuery!);
 
   const ioColumnMatch = (col: string) =>
     hasEscapedVariant
