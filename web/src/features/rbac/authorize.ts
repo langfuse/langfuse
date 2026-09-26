@@ -1,12 +1,14 @@
 import {
   hasProjectKind,
+  type Action,
+  type Effect,
   type OrganizationId,
   type ProjectId,
   type ResourceId,
   type TenantId,
 } from "@langfuse/shared/rbac";
 
-import { type Action, type Effect, type Policy } from "./types";
+import { type Policy } from "./types";
 import {
   forbiddenError,
   type AuthorizationContext,

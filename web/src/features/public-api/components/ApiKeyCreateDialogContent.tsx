@@ -2,6 +2,10 @@ import React, { useState } from "react";
 import { ArrowUpRight, SquareArrowOutUpRight } from "lucide-react";
 
 import { type SystemRole } from "@langfuse/shared/src/db";
+import {
+  apiKeyRolesForScope,
+  systemRoleAccessRights,
+} from "@langfuse/shared/rbac";
 
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -23,10 +27,6 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
-import {
-  apiKeyRolesForScope,
-  systemRoleAccessRights,
-} from "@/src/features/rbac/constants/systemRoleAccessRights";
 import {
   RolePermissionList,
   rolePermissionCount,

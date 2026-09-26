@@ -1,12 +1,13 @@
-import { type PrincipalId } from "@langfuse/shared/rbac";
+import {
+  systemRoleAccessRights,
+  type PrincipalId,
+  type SystemRoleDefinition,
+} from "@langfuse/shared/rbac";
 import {
   prisma as defaultPrisma,
   type PrismaClient,
   type SystemRoleAssignment,
 } from "@langfuse/shared/src/db";
-
-import { systemRoleAccessRights } from "@/src/features/rbac/constants/systemRoleAccessRights";
-import { type SystemRoleDefinition } from "@/src/features/rbac/types";
 
 /** SystemRoleAssignmentWithRole pairs an assignment with the definition of the role it names. */
 export type SystemRoleAssignmentWithRole = SystemRoleAssignment & {

@@ -40,7 +40,7 @@ import {
   shadowAuthorize,
   __dangerouslySkipAuthz,
 } from "@/src/features/public-api/server";
-import { type ProjectAction } from "@/src/features/rbac/types";
+import { type ProjectAction } from "@langfuse/shared/rbac";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 export const config = {

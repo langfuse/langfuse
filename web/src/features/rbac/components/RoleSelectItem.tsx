@@ -14,7 +14,7 @@ import {
 import {
   organizationRoleAccessRights,
   orgNoneRoleComment,
-} from "@/src/features/rbac/constants/organizationAccessRights";
+} from "@langfuse/shared/rbac";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 
 export const RoleSelectItem = ({

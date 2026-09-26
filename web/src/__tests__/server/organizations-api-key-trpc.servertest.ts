@@ -569,7 +569,7 @@ describe("organization API keys trpc", () => {
     });
 
     // Legacy roles carry api-key policies but are retired from the creation UI,
-    // so isAssignableAtCreate rejects them before a key is persisted.
+    // so they are not among the roles the create input accepts.
     it("rejects a legacy role that is not assignable at create time", async () => {
       const orgId = `org-${randomUUID()}`;
       await prisma.organization.create({ data: { id: orgId, name: "Scoped" } });
@@ -579,7 +579,7 @@ describe("organization API keys trpc", () => {
           orgId,
           role: "ORGANIZATION",
         }),
-      ).rejects.toThrow(/cannot back an organization API key/);
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
       await expect(prisma.apiKey.count({ where: { orgId } })).resolves.toBe(0);
     });

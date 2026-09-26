@@ -9,15 +9,16 @@ import {
   createShaHash,
   getDisplaySecretKey,
 } from "@langfuse/shared/src/server";
-import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  type OrganizationAction,
+  type ProjectAction,
+} from "@langfuse/shared/rbac";
 
 import { env } from "@/src/env.mjs";
 import { authorize } from "@/src/features/rbac/authorize";
 import { type ShadowAuthParams } from "@/src/features/public-api/server";
-import {
-  type OrganizationAction,
-  type ProjectAction,
-} from "@/src/features/rbac/types";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 // The seam is imported dynamically so the authenticator singleton captures

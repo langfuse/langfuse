@@ -13,13 +13,8 @@
 // putting those tables on the barrel pulled CreateProjectMemberDialog
 // (react-hook-form) into instrumentation and API routes.
 //
-// rbac/types.ts keeps importing organizationAccessRights by file
-// path: it needs the runtime `organizationScopes` value, and routing
-// that module through this door would pull the React access hooks into
-// the rbac types graph. auth/policy/contextResolver.ts keeps importing
-// systemRoleAccessRights by file path for the same reason, and because that
-// file already imports auth/policy/types — putting it on this door would
-// close a cycle if types ever moved onto the door too.
+// The role catalog (definitions, policies, tags, and access-right tables)
+// lives in `@langfuse/shared/rbac`; only policy resolution stays here.
 export {
   hasProjectAccess,
   throwIfNoProjectAccess,
@@ -35,4 +30,4 @@ export {
 export {
   organizationRoleAccessRights,
   type OrganizationScope,
-} from "@/src/features/rbac/constants/organizationAccessRights";
+} from "@langfuse/shared/rbac";

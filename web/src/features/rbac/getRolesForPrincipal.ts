@@ -8,6 +8,7 @@ import {
   type PrincipalId,
   type ResourceId,
   type RoleId,
+  type SystemRolePolicy,
   type TenantId,
 } from "@langfuse/shared/rbac";
 import { type PrismaClient } from "@langfuse/shared/src/db";
@@ -16,11 +17,7 @@ import {
   getSystemRoles,
   type SystemRoleAssignmentWithRole,
 } from "@/src/features/rbac/getSystemRoles";
-import {
-  type Policy,
-  type Role,
-  type SystemRolePolicy,
-} from "@/src/features/rbac/types";
+import { type Policy, type Role } from "@/src/features/rbac/types";
 
 /** getRolesForPrincipal loads a principal's system-role assignments and expands them into roles whose policies are bound to concrete resources. */
 export async function getRolesForPrincipal(

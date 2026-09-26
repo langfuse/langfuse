@@ -149,7 +149,7 @@ describe("project API keys trpc", () => {
 
     // A project key whose role grants no project-kind actions (e.g. the
     // org-only LLM gateway role) would grant nothing on the project it is
-    // scoped to, so the handler rejects it before persisting.
+    // scoped to, so it is not among the roles the create input accepts.
     it("rejects an organization-only role on a project key", async () => {
       const { caller, projectId } = await createProjectCaller();
 
@@ -159,7 +159,7 @@ describe("project API keys trpc", () => {
           note: "org-only role on project key",
           role: "LLM_GATEWAY",
         }),
-      ).rejects.toThrow(/cannot back a project API key/);
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
       await expect(
         prisma.apiKey.count({

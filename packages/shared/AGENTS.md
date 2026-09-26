@@ -87,8 +87,16 @@
   tagged-id primitives (`UserId`/`ApiKeyId`/`OrganizationId`/`ProjectId`/
   `SystemRoleId`/`CustomRoleId`), the `PrincipalId`/`ResourceId`/`OwnerId`/
   `TenantId`/`RoleId` unions, their kind predicates/`untag`, and the
-  `RoleAssignment` type. `SystemRole` is imported type-only, so no Prisma
-  runtime leaks to the browser. Policy resolution stays in `web`.
+  `RoleAssignment` type. It also owns the role catalog: the system-role
+  definitions/policies/tags and the helpers over them (`systemRoleAccessRights`,
+  `isAssignableAtCreate`, `roleHasProjectPolicy`, `apiKeyRolesForScope`), the
+  action vocabulary (`ProjectAction`/`OrganizationAction`/`Action`/`Effect`,
+  `allProjectActions`/`allOrganizationActions`/`isOrgAction`), and the
+  organization access-right table (`organizationRoleAccessRights`,
+  `OrganizationScope`; the project table lives in the root `@langfuse/shared`
+  barrel). `SystemRole`/`Role` are imported type-only, so no Prisma runtime
+  leaks to the browser. Policy *resolution/evaluation* (binding a catalog policy
+  to concrete resources) stays in `web`.
 - `@langfuse/shared/rbac/server` via `src/features/rbac/server.ts`: server-only
   barrel for the role-assignment repository (`assignRole`,
   `revokeRolesForPrincipals`, `revokeRolesForOwner`,

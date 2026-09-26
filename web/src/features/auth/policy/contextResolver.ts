@@ -9,9 +9,9 @@ import {
   OrganizationId,
   ProjectId,
   SystemRoleId,
+  systemRoleAccessRights,
 } from "@langfuse/shared/rbac";
 
-import { systemRoleAccessRights } from "@/src/features/rbac/constants/systemRoleAccessRights";
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import {

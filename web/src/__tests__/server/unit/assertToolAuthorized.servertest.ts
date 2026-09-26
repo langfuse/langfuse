@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 
 import { ForbiddenError } from "@langfuse/shared";
-import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  type ProjectAction,
+} from "@langfuse/shared/rbac";
 
 const { env } = vi.hoisted(() => ({
   env: { API_AUTH_MIGRATION: "enforce" as string },
@@ -23,7 +28,7 @@ import {
   type ApiAction,
 } from "@/src/features/public-api/server";
 import type { ServerContext } from "@/src/features/mcp/types";
-import { type Policy, type ProjectAction } from "@/src/features/rbac/types";
+import { type Policy } from "@/src/features/rbac/types";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 const { assertToolAuthorized } = __test;

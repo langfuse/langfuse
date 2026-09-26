@@ -4,15 +4,23 @@ import { randomUUID } from "crypto";
 import * as crypto from "crypto";
 import type { Cluster, Redis } from "ioredis";
 import { env } from "../../env";
+import { InvalidRequestError } from "../../errors";
 import {
   ApiKeyId,
   hasApiKeyKind,
   hasOrganizationKind,
+  hasProjectKind,
+  hasSystemRoleKind,
+  toSystemRole,
   untag,
   type OwnerId,
   type RoleId,
   type UserId,
 } from "../../features/rbac/types";
+import {
+  isApiKeyRole,
+  roleHasProjectPolicy,
+} from "../../features/rbac/systemRoleAccessRights";
 import { logger } from "../logger";
 import {
   assignRole,
@@ -99,6 +107,23 @@ export async function createApiKey(
   const salt = env.SALT;
   if (!salt) {
     throw new Error("SALT is not set");
+  }
+
+  if (hasSystemRoleKind(opts.role)) {
+    const role = toSystemRole(opts.role);
+    const isProjectOwner = hasProjectKind(opts.owner);
+    // A key can only carry a role tagged for api keys; a project owner also
+    // needs a project-kind policy, or the key grants nothing on its project.
+    if (
+      !isApiKeyRole(role) ||
+      (isProjectOwner && !roleHasProjectPolicy(role))
+    ) {
+      throw new InvalidRequestError(
+        `Role ${role} cannot back ${
+          isProjectOwner ? "a project" : "an organization"
+        } API key`,
+      );
+    }
   }
 
   const { pk, sk } = opts.predefinedKeys

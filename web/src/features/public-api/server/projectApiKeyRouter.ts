@@ -8,13 +8,19 @@ import * as z from "zod";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import { InvalidRequestError, StringNoHTML } from "@langfuse/shared";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
-import { SystemRole } from "@langfuse/shared/src/db";
+import { StringNoHTML } from "@langfuse/shared";
 import {
-  isAssignableAtCreate,
-  roleHasProjectPolicy,
-} from "@/src/features/rbac/constants/systemRoleAccessRights";
+  apiKeyRolesForScope,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+import { SystemRole } from "@langfuse/shared/src/db";
+
+const projectApiKeyRoles = apiKeyRolesForScope("project") as [
+  SystemRole,
+  ...SystemRole[],
+];
 
 export const projectApiKeysRouter = createTRPCRouter({
   byProjectId: protectedProjectProcedure
@@ -69,7 +75,7 @@ export const projectApiKeysRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         note: StringNoHTML.optional(),
-        role: z.enum(SystemRole).default(SystemRole.ADMIN),
+        role: z.enum(projectApiKeyRoles).default(SystemRole.ADMIN),
         expiresAt: z.date().nullish(),
       }),
     )
@@ -79,17 +85,6 @@ export const projectApiKeysRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "apiKeys:CUD",
       });
-
-      // A project key must carry a role that is offered at create time and that
-      // actually grants project-kind actions; an org-only role would produce a
-      // key that grants nothing on the project it is scoped to.
-      if (
-        !isAssignableAtCreate(input.role) ||
-        !roleHasProjectPolicy(input.role)
-      )
-        throw new InvalidRequestError(
-          `Role ${input.role} cannot back a project API key`,
-        );
 
       const apiKeyMeta = await createApiKey(ctx.prisma, {
         owner: ProjectId(input.projectId),

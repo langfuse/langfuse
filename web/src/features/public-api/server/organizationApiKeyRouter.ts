@@ -9,10 +9,18 @@ import * as z from "zod";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import { InvalidRequestError } from "@langfuse/shared";
-import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  apiKeyRolesForScope,
+  OrganizationId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import { SystemRole } from "@langfuse/shared/src/db";
-import { isAssignableAtCreate } from "@/src/features/rbac/constants/systemRoleAccessRights";
+
+const organizationApiKeyRoles = apiKeyRolesForScope("organization") as [
+  SystemRole,
+  ...SystemRole[],
+];
 
 export const organizationApiKeysRouter = createTRPCRouter({
   byOrganizationId: protectedOrganizationProcedure
@@ -67,7 +75,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
       z.object({
         orgId: z.string(),
         note: z.string().optional(),
-        role: z.enum(SystemRole).default(SystemRole.ADMIN),
+        role: z.enum(organizationApiKeyRoles).default(SystemRole.ADMIN),
         expiresAt: z.date().nullish(),
       }),
     )
@@ -85,11 +93,6 @@ export const organizationApiKeysRouter = createTRPCRouter({
         sessionUser: ctx.session.user,
         orgId: input.orgId,
       });
-
-      if (!isAssignableAtCreate(input.role))
-        throw new InvalidRequestError(
-          `Role ${input.role} cannot back an organization API key`,
-        );
 
       const apiKeyMeta = await createApiKey(ctx.prisma, {
         owner: OrganizationId(input.orgId),

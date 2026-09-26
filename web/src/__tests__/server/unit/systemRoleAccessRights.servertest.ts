@@ -1,13 +1,12 @@
 import { projectRoleAccessRights } from "@langfuse/shared";
-import { describe, expect, it } from "vitest";
-
-import { organizationRoleAccessRights } from "@/src/features/rbac/constants/organizationAccessRights";
-import { systemRoleAccessRights } from "@/src/features/rbac/constants/systemRoleAccessRights";
 import {
   allOrganizationActions,
   allProjectActions,
+  organizationRoleAccessRights,
+  systemRoleAccessRights,
   type ProjectAction,
-} from "@/src/features/rbac/types";
+} from "@langfuse/shared/rbac";
+import { describe, expect, it } from "vitest";
 
 // The project-administration actions an ORGANIZATION key reserves and a
 // PROJECT key does not hold.

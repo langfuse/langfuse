@@ -1,8 +1,10 @@
 import { type SystemRole } from "@langfuse/shared/src/db";
+import {
+  systemRoleAccessRights,
+  type SystemRolePolicy,
+} from "@langfuse/shared/rbac";
 
 import { Badge } from "@/src/components/ui/badge";
-import { systemRoleAccessRights } from "@/src/features/rbac/constants/systemRoleAccessRights";
-import { type SystemRolePolicy } from "@/src/features/rbac/types";
 
 type ResourceKind = SystemRolePolicy["resourceKind"];
 

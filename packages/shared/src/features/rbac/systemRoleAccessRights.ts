@@ -1,14 +1,62 @@
-import { projectRoleAccessRights } from "@langfuse/shared";
-import { type Role, type SystemRole } from "@langfuse/shared/src/db";
-
-import { organizationRoleAccessRights } from "@/src/features/rbac/constants/organizationAccessRights";
+import { type Role, type SystemRole } from "../../db";
 import {
-  allOrganizationActions,
-  allProjectActions,
-  type ProjectAction,
-  type SystemRoleDefinition,
-  type SystemRolePolicy,
-} from "@/src/features/rbac/types";
+  organizationRoleAccessRights,
+  organizationScopes,
+  type OrganizationScope,
+} from "./organizationAccessRights";
+import {
+  projectRoleAccessRights,
+  projectScopes,
+  type ProjectScope,
+} from "./projectAccessRights";
+
+/** allProjectActions is the full project action vocabulary. */
+export const allProjectActions: ProjectAction[] = [...projectScopes];
+
+/** allOrganizationActions is the full organization action vocabulary. */
+export const allOrganizationActions: OrganizationAction[] = [
+  ...organizationScopes,
+];
+
+/** organizationActionSet is allOrganizationActions indexed for membership tests. */
+const organizationActionSet: ReadonlySet<string> = new Set(organizationScopes);
+
+/** isOrgAction reports whether an action belongs to the disjoint org vocabulary. */
+export const isOrgAction = (action: Action): action is OrganizationAction =>
+  organizationActionSet.has(action);
+
+/** Effect is whether a policy grants or denies its actions. */
+export type Effect = "ALLOW" | "DENY";
+
+/** ProjectAction is an action assignable to a project policy. */
+export type ProjectAction = ProjectScope;
+
+/** OrganizationAction is an action assignable to an organization policy. */
+export type OrganizationAction = OrganizationScope;
+
+/** Action is any checkable action. */
+export type Action = ProjectAction | OrganizationAction;
+
+/** SystemRolePolicy is a catalog policy before its resource is bound. */
+export type SystemRolePolicy =
+  | {
+      resourceKind: "organization";
+      actions: OrganizationAction[];
+      effect: Effect;
+    }
+  | { resourceKind: "project"; actions: ProjectAction[]; effect: Effect };
+
+/** SystemRoleTag marks a role's intended principal kind, or `"legacy"` for a role still valid on existing keys but no longer offered for new ones. */
+export type SystemRoleTag = "principal:apiKey" | "principal:user" | "legacy";
+
+/** SystemRoleDefinition is an in-code system role's catalog entry: metadata plus its resource-less policies. */
+export type SystemRoleDefinition = {
+  id: SystemRole;
+  name: string;
+  description: string;
+  policies: SystemRolePolicy[];
+  tags: SystemRoleTag[];
+};
 
 /** allow builds a resource-less `SystemRolePolicy`, correlating its action vocabulary to the resource kind. */
 const allow = <K extends SystemRolePolicy["resourceKind"]>(
@@ -126,11 +174,13 @@ export const roleHasProjectPolicy = (role: SystemRole): boolean =>
     (policy) => policy.resourceKind === "project",
   );
 
-/** isAssignableAtCreate reports whether a role may back a newly created api key: offered to api keys and not retired as legacy. */
-export const isAssignableAtCreate = (role: SystemRole): boolean => {
-  const { tags } = systemRoleAccessRights[role];
-  return tags.includes("principal:apiKey") && !tags.includes("legacy");
-};
+/** isApiKeyRole reports whether a role may back an api key at all, including legacy roles still valid on existing keys. */
+export const isApiKeyRole = (role: SystemRole): boolean =>
+  systemRoleAccessRights[role].tags.includes("principal:apiKey");
+
+/** isAssignableAtCreate reports whether a role is offered when creating a new api key: an api-key role that is not retired as legacy. */
+export const isAssignableAtCreate = (role: SystemRole): boolean =>
+  isApiKeyRole(role) && !systemRoleAccessRights[role].tags.includes("legacy");
 
 /** apiKeyRolesForScope lists, in catalog order, the roles offered when creating an api key at the given scope: project-capable roles for a project key, every creatable api-key role for an organization key. */
 export const apiKeyRolesForScope = (

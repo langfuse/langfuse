@@ -12,12 +12,12 @@ import {
   ApiKeyId,
   OrganizationId,
   ProjectId,
+  systemRoleAccessRights,
   SystemRoleId,
   UserId,
 } from "@langfuse/shared/rbac";
 
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
-import { systemRoleAccessRights } from "@/src/features/rbac/constants/systemRoleAccessRights";
 
 // Decision-equivalence: resolving policies from system-role assignments must
 // yield the catalog grants bound to the same tenant and resources the key

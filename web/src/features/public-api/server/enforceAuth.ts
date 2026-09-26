@@ -9,8 +9,10 @@ import {
 import { type ApiAccessScope } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  isOrgAction,
   OrganizationId,
   ProjectId,
+  type Action,
   type ResourceId,
   type TenantId,
 } from "@langfuse/shared/rbac";
@@ -18,7 +20,6 @@ import {
 import { authorize } from "@/src/features/rbac/authorize";
 import { authenticator } from "@/src/features/apiKey/server";
 import { toApiAccessScope } from "@/src/features/public-api/server/toApiAccessScope";
-import { isOrgAction, type Action } from "@/src/features/rbac/types";
 import {
   forbiddenError,
   internalServerError,
