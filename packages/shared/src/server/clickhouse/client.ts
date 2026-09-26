@@ -15,10 +15,36 @@ export { EXCEPTION_TAG_HEADER_NAME } from "@clickhouse/client";
 
 export type ClickhouseClientType = ReturnType<typeof createClient>;
 
+/**
+ * Pass `ReadWrite` explicitly only for reads that must see their own writes;
+ * the query-outcome metric counts those as `read_after_write`, separately from
+ * reads that land on the writer by default.
+ */
 export type PreferredClickhouseService =
   | "ReadWrite"
   | "ReadOnly"
   | "EventsReadOnly";
+
+/** Node a query actually lands on once unset replica URLs fall back. */
+export type ClickhouseServiceTarget =
+  | "main"
+  | "read_replica"
+  | "events_read_replica";
+
+export function resolveClickhouseServiceTarget(
+  preferredClickhouseService: PreferredClickhouseService = "ReadWrite",
+): ClickhouseServiceTarget {
+  switch (preferredClickhouseService) {
+    case "ReadWrite":
+      return "main";
+    case "EventsReadOnly":
+      if (env.CLICKHOUSE_EVENTS_READ_ONLY_URL) return "events_read_replica";
+      return env.CLICKHOUSE_READ_ONLY_URL ? "read_replica" : "main";
+    case "ReadOnly":
+    default:
+      return env.CLICKHOUSE_READ_ONLY_URL ? "read_replica" : "main";
+  }
+}
 
 type ServiceClickhouseSettings = ClickHouseSettings & {
   enable_full_text_index?: 1;
@@ -149,18 +175,13 @@ export class ClickHouseClientManager {
   private getClickhouseUrl = (
     preferredClickhouseService: PreferredClickhouseService,
   ) => {
-    switch (preferredClickhouseService) {
-      case "ReadWrite":
+    switch (resolveClickhouseServiceTarget(preferredClickhouseService)) {
+      case "events_read_replica":
+        return env.CLICKHOUSE_EVENTS_READ_ONLY_URL;
+      case "read_replica":
+        return env.CLICKHOUSE_READ_ONLY_URL;
+      case "main":
         return env.CLICKHOUSE_URL;
-      case "EventsReadOnly":
-        return (
-          env.CLICKHOUSE_EVENTS_READ_ONLY_URL ||
-          env.CLICKHOUSE_READ_ONLY_URL ||
-          env.CLICKHOUSE_URL
-        );
-      case "ReadOnly":
-      default:
-        return env.CLICKHOUSE_READ_ONLY_URL || env.CLICKHOUSE_URL;
     }
   };
 
