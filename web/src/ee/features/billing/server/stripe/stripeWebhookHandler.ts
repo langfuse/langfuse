@@ -97,7 +97,7 @@ export async function stripeWebhookHandler(req: NextRequest) {
       logger.info("[Stripe Webhook] Start customer.subscription.created", {
         payload: subscription,
       });
-      await handleSubscriptionChanged(subscription, "created");
+      await handleSubscriptionChanged(subscription, "created", event.created);
       break;
     case "customer.subscription.updated":
       // update the active product id on the organization linked to the subscription + customer and subscription id (if null or same)
@@ -105,7 +105,11 @@ export async function stripeWebhookHandler(req: NextRequest) {
       logger.info("[Stripe Webhook] Start customer.subscription.updated", {
         payload: updatedSubscription,
       });
-      await handleSubscriptionChanged(updatedSubscription, "updated");
+      await handleSubscriptionChanged(
+        updatedSubscription,
+        "updated",
+        event.created,
+      );
       break;
     case "customer.subscription.deleted":
       // remove the active product id on the organization linked to the subscription + subscription, keep customer id
@@ -113,7 +117,11 @@ export async function stripeWebhookHandler(req: NextRequest) {
       logger.info("[Stripe Webhook] Start customer.subscription.deleted", {
         payload: deletedSubscription,
       });
-      await handleSubscriptionChanged(deletedSubscription, "deleted");
+      await handleSubscriptionChanged(
+        deletedSubscription,
+        "deleted",
+        event.created,
+      );
       break;
     default:
       logger.warn(`Unhandled event type ${event.type}`);
@@ -554,6 +562,11 @@ export async function createDefaultSpendAlerts({
 export async function handleSubscriptionChanged(
   subscription: Stripe.Subscription,
   action: "created" | "deleted" | "updated",
+  // Unix seconds from Stripe.Event.created. Defaults to now for direct
+  // (non-webhook) callers such as tests, which never carry a stale
+  // lastEventCreatedAt on the org they operate on, so the ordering guard
+  // below cannot trigger on the default.
+  eventCreatedAt: number = Math.floor(Date.now() / 1000),
 ) {
   const currentEnvironment = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
@@ -607,6 +620,25 @@ export async function handleSubscriptionChanged(
     return;
   }
   const parsedOrg = lookup.org;
+
+  // Ordering guard: Stripe does not guarantee webhook delivery order for the
+  // same object. Without this, a delayed subscription.updated snapshot that
+  // still carries an "active" status can land after subscription.deleted (or
+  // after a newer subscription.updated) and overwrite the org's cloudConfig
+  // back to a paid plan. Mirrors the lastEventCreatedAt guard in
+  // chbWebhookHandler.ts.
+  const eventCreatedAtIso = new Date(eventCreatedAt * 1000).toISOString();
+  const lastEventCreatedAt = parsedOrg.cloudConfig?.stripe?.lastEventCreatedAt;
+  if (
+    lastEventCreatedAt &&
+    Date.parse(eventCreatedAtIso) <= Date.parse(lastEventCreatedAt)
+  ) {
+    logger.info(
+      `[Stripe Webhook] (${currentEnvironment}) Out-of-order subscription.${action} for ${subscriptionId}, skipping`,
+      { eventCreatedAt: eventCreatedAtIso, lastEventCreatedAt },
+    );
+    return;
+  }
 
   if (
     parsedOrg.cloudConfig?.stripe?.activeSubscriptionId &&
@@ -719,6 +751,7 @@ export async function handleSubscriptionChanged(
           activeSubscriptionId: subscriptionId,
           customerId: stripeCustomerId,
           subscriptionStatus: subscription.status,
+          lastEventCreatedAt: eventCreatedAtIso,
         }),
       },
     };
@@ -800,6 +833,7 @@ export async function handleSubscriptionChanged(
         customerId: stripeCustomerId,
         // Explicitly omit activeProductId, activeSubscriptionId, activeUsageProductId, subscriptionStatus
         // They will not be present in the saved JSON rather than being null
+        lastEventCreatedAt: eventCreatedAtIso,
       },
     };
 
