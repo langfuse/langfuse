@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Button } from "@/src/components/ui/button";
 import { X, Plus, Link, MoreVertical, Pen, Lock } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
@@ -70,12 +71,11 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useDefaultViewMutations } from "../hooks/useDefaultViewMutations";
 import { summarizeTableViewPreset } from "../lib/viewPreview";
 import { TableViewPresetsButton } from "./TableViewPresetsButton";

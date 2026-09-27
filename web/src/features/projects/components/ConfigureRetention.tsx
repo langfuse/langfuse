@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Card } from "@/src/components/ui/card";
 import { Input } from "@/src/components/ui/input";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";

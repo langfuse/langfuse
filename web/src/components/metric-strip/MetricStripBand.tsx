@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { forwardRef, type ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
 

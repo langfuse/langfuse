@@ -88,6 +88,13 @@ different response and billing dimensions.
 - State why cache, reasoning, or modality families are not applicable.
 - Do not reuse Claude cache keys or rates without provider evidence.
 
+## TypeSafe Jev
+
+TypeSafe's usage object reports only `input_tokens` and `output_tokens`, which
+Langfuse stores as `input` and `output`. Price `input` per token and set
+`output` to `0`, since TypeSafe does not charge for output tokens. Jev has no
+cache, reasoning, or modality dimensions, so those key families do not apply.
+
 ## Deterministic validation
 
 The pricing validator always checks structural catalog invariants. It checks

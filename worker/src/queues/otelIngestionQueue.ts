@@ -37,24 +37,14 @@ import {
   v4WritesToLegacyTables,
 } from "../env";
 import { IngestionService } from "../services/IngestionService";
-import { trackTraceBatchActivity } from "../features/traceBatching/traceBatching";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
+import { ForbiddenError } from "@langfuse/shared";
 import {
-  ForbiddenError,
-  convertEventRecordToObservationForEval,
-} from "@langfuse/shared";
-import {
-  fetchObservationEvalRules,
-  isObservationAllowedForQueuedObservationEvals,
-  scheduleObservationEvals,
-  createObservationEvalSchedulerDeps,
-} from "../features/evaluation/observationEval";
-import {
-  createDirectOtelMediaTargets,
   createLegacyOtelMediaTargets,
   processOtelEventMedia,
 } from "../features/otel-media/processOtelMedia";
+import { processOtelEvents } from "../features/otel-ingestion/processOtelEvents";
 
 /**
  * Legacy media processing follows legacy persistence, independently of
@@ -778,140 +768,17 @@ export const otelIngestionQueueProcessorBuilder = (
         ]);
       }
 
-      // Process events for observation evals and direct event writes
-      // This phase handles two independent concerns:
-      // 1. Scheduling observation-level evals (if eval configs exist)
-      // 2. Writing directly to events table (if SDK version requirements are met)
-      //
-      // Both require enriched event records with trace-level attributes
-      // (userId, sessionId, tags, release) that processToEvent provides.
-      const eventInputs = processor.processToEvent(parsedSpans);
-
-      if (eventInputs.length === 0) {
-        return;
-      }
-
       // Determine what processing is needed
       const shouldWriteToEventsTable =
         v4WritesToEventsTable(env) && useDirectEventWrite;
-
-      const evalConfigs = await fetchObservationEvalRules(projectId).catch(
-        (error) => {
-          traceException(error);
-          logger.warn(
-            `Failed to fetch observation eval configs for project ${projectId}`,
-            error,
-          );
-
-          return [];
-        },
-      );
-      const hasEvalConfigs = evalConfigs.length > 0;
-
-      // Early exit if no processing needed
-      if (!hasEvalConfigs && !shouldWriteToEventsTable) {
-        return;
-      }
-
-      if (
-        env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true" &&
-        shouldWriteToEventsTable
-      ) {
-        await processOtelEventMedia({
-          targets: createDirectOtelMediaTargets(eventInputs),
-          writePath: "direct",
-          projectId,
-          fileKey,
-          mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
-          mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
-        });
-      }
-
-      // Create scheduler deps only if we have eval configs
-      const evalSchedulerDeps = hasEvalConfigs
-        ? createObservationEvalSchedulerDeps()
-        : null;
-
-      const traceBatchEvents: { traceId: string; startTimeISO: string }[] = [];
-
-      await Promise.all(
-        // Process each event independently
-        eventInputs.map(async (eventInput) => {
-          // Step 1: Create enriched event record (required for both evals and writes)
-          let eventRecord;
-          try {
-            eventRecord = await ingestionService.createEventRecord(
-              eventInput,
-              fileKey,
-            );
-          } catch (error) {
-            traceException(error);
-            logger.error(
-              `Failed to create event record for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
-              { error, fileKey },
-            );
-
-            return;
-          }
-
-          // Step 2: Schedule observation evals (independent of event writes).
-          // Internal langfuse-* environments are excluded to prevent
-          // eval-on-eval recursion, except experiment run-item roots; see
-          // isObservationAllowedForQueuedObservationEvals.
-          if (hasEvalConfigs && evalSchedulerDeps) {
-            try {
-              const observation =
-                convertEventRecordToObservationForEval(eventRecord);
-
-              if (isObservationAllowedForQueuedObservationEvals(observation)) {
-                await scheduleObservationEvals({
-                  observation,
-                  configs: evalConfigs,
-                  schedulerDeps: evalSchedulerDeps,
-                });
-              }
-            } catch (error) {
-              traceException(error);
-
-              logger.error(
-                `Failed to schedule observation evals for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
-                { error, fileKey },
-              );
-            }
-          }
-
-          // Step 3: Write to events table (independent of eval scheduling)
-          if (shouldWriteToEventsTable) {
-            try {
-              await ingestionService.writeEventRecord(eventRecord);
-              if (
-                env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-                env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED === "true"
-              ) {
-                traceBatchEvents.push({
-                  traceId: eventInput.traceId,
-                  startTimeISO: eventInput.startTimeISO,
-                });
-              }
-            } catch (error) {
-              traceException(error);
-              logger.error(
-                `Failed to write event record for ${eventInput.spanId}`,
-                { error, fileKey },
-              );
-            }
-          }
-        }),
-      );
-
-      if (traceBatchEvents.length > 0) {
-        recordDistribution(
-          "langfuse.trace_batch.ingestion_trace_count",
-          new Set(traceBatchEvents.map((event) => event.traceId)).size,
-        );
-        // The writer has accepted these records; its flush completes separately.
-        await trackTraceBatchActivity(projectId, traceBatchEvents);
-      }
+      await processOtelEvents({
+        processor,
+        resourceSpans: parsedSpans,
+        ingestionService,
+        projectId,
+        fileKey,
+        shouldWriteToEventsTable,
+      });
     } catch (e) {
       const fileKey = job.data.payload.data.fileKey;
       if (e instanceof ForbiddenError) {

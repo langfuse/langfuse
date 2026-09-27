@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 import { useState, type ReactNode } from "react";
 import Link from "next/link";

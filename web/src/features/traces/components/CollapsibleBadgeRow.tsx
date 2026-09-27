@@ -28,7 +28,7 @@ export function CollapsibleBadgeRow({
   // Desktop: unchanged full wrapped badge row.
   if (!isMobile) {
     return (
-      <div className={cn("flex flex-wrap items-center gap-1", className)}>
+      <div className={cn("flex flex-wrap items-center gap-6", className)}>
         {children}
       </div>
     );
@@ -39,7 +39,7 @@ export function CollapsibleBadgeRow({
     <div className="flex items-start gap-1">
       <div
         className={cn(
-          "flex min-w-0 flex-1 items-center gap-1",
+          "flex min-w-0 flex-1 items-center gap-6",
           // Collapsed: one clipped line. `[&>*]:shrink-0` stops flex from
           // squeezing badges below their content width (which made long ones
           // like "Time to first token" wrap vertically into a multi-line row);

@@ -1,5 +1,5 @@
 import { experimentItemsFilterConfig } from "@/src/features/experiments/config/experiment-items-filter-config";
-import { fieldRegistryFromColumns } from "@/src/features/search-bar/lib/fields";
+import { fieldRegistryFromColumns } from "@/src/features/search-bar";
 
 const facetColumns = new Set(
   experimentItemsFilterConfig.facets.map((facet) => facet.column),

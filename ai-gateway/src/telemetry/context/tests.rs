@@ -251,6 +251,201 @@ fn agent_metadata_preserves_original_identifiers() {
     );
 }
 
+/// The Codex turn snapshot shape, including nested inventories that must not be copied.
+fn codex_turn_metadata() -> Value {
+    json!({
+        "installation_id": "install-1",
+        "session_id": "routing-session",
+        "thread_id": "thread-1",
+        "agent_name": "/root/explorer",
+        "turn_id": "turn-1",
+        "window_id": "thread-1:1",
+        "window_number": 1,
+        "context_window_id": "context-1",
+        "request_kind": "compaction",
+        "compaction": {
+            "trigger": "auto", "reason": "context_limit", "implementation": "remote",
+            "phase": "pre_turn", "strategy": "memento", "nested": {"skip": true}
+        },
+        "root_turn_id": "root-turn",
+        "parent_turn_id": "parent-turn",
+        "parent_thread_id": "parent-thread",
+        "subagent_kind": "collab_spawn",
+        "thread_source": "user",
+        "turn_trigger": "composer",
+        "sandbox": "seatbelt",
+        "sandbox_mode": "workspace-write",
+        "auto_review_enabled": true,
+        "node_repl_auto_review_required": true,
+        "node_repl_disabled": false,
+        "turn_started_at_unix_ms": 1_789_726_284_881_i64,
+        "workspace_kind": "projectless",
+        "workspaces": {"/Users/dev/project": {"has_changes": true}},
+        "tool_namespaces_info": {"functions": {"name": "functions", "functions": {"exec": {"name": "exec"}}}},
+        "custom_extra": "from-config",
+        "name": "spoofed-agent-name"
+    })
+}
+
+fn codex_client_metadata(turn_metadata: Option<&Value>) -> Map<String, Value> {
+    let mut metadata = json!({
+        "root_turn_id": "root-turn",
+        "session_id": "routing-session",
+        "thread_id": "thread-1",
+        "turn_id": "turn-1",
+        "x-codex-installation-id": "install-1",
+        "x-codex-window-id": "thread-1:1",
+    });
+    if let Some(turn_metadata) = turn_metadata {
+        metadata["x-codex-turn-metadata"] = turn_metadata.to_string().into();
+    }
+    metadata.as_object().unwrap().clone()
+}
+
+#[test]
+fn codex_client_metadata_supplies_agent_fields_without_headers() {
+    let client_metadata = codex_client_metadata(Some(&codex_turn_metadata()));
+    let context = GenerationContext::from_request(&HeaderMap::new(), Some(&client_metadata));
+    assert_eq!(context.attributes["session.id"], "codex:thread-1");
+    assert_eq!(context.attributes["langfuse.trace.name"], "codex");
+    assert!(!context.attributes.contains_key("user.id"));
+    assert_eq!(
+        context.metadata,
+        json!({
+            "agent.name": "codex",
+            "agent.id": "/root/explorer",
+            "agent.installation_id": "install-1",
+            "agent.session_id": "routing-session",
+            "agent.thread_id": "thread-1",
+            "agent.turn_id": "turn-1",
+            "agent.root_turn_id": "root-turn",
+            "agent.parent_turn_id": "parent-turn",
+            "agent.parent_thread_id": "parent-thread",
+            "agent.window_id": "thread-1:1",
+            "agent.window_number": 1,
+            "agent.context_window_id": "context-1",
+            "agent.request_kind": "compaction",
+            "agent.compaction.trigger": "auto",
+            "agent.compaction.reason": "context_limit",
+            "agent.compaction.implementation": "remote",
+            "agent.compaction.phase": "pre_turn",
+            "agent.compaction.strategy": "memento",
+            "agent.subagent_kind": "collab_spawn",
+            "agent.thread_source": "user",
+            "agent.turn_trigger": "composer",
+            "agent.sandbox": "seatbelt",
+            "agent.sandbox_mode": "workspace-write",
+            "agent.auto_review_enabled": true,
+            "agent.turn_started_at_unix_ms": 1_789_726_284_881_i64,
+            "agent.workspace_kind": "projectless",
+        })
+        .as_object()
+        .unwrap()
+        .clone()
+    );
+    // The body snapshot and the compatibility header identify the same turn.
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "x-codex-turn-metadata",
+        r#"{"session_id":"routing-session","thread_id":"thread-1","turn_id":"turn-1"}"#
+            .parse()
+            .unwrap(),
+    );
+    assert_eq!(
+        GenerationContext::from_headers(&headers).trace_id,
+        context.trace_id
+    );
+}
+
+#[test]
+fn codex_body_snapshot_is_preferred_and_flat_keys_fill_missing_snapshots() {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "x-codex-turn-metadata",
+        r#"{"thread_id":"thread-1","turn_id":"header-turn"}"#
+            .parse()
+            .unwrap(),
+    );
+    let mut turn_metadata = codex_turn_metadata();
+    turn_metadata["turn_id"] = "body-turn".into();
+    let client_metadata = codex_client_metadata(Some(&turn_metadata));
+    let context = GenerationContext::from_request(&headers, Some(&client_metadata));
+    assert_eq!(context.metadata["agent.turn_id"], "body-turn");
+    assert_eq!(context.metadata["agent.id"], "/root/explorer");
+
+    let context =
+        GenerationContext::from_request(&HeaderMap::new(), Some(&codex_client_metadata(None)));
+    assert_eq!(context.attributes["session.id"], "codex:thread-1");
+    assert_eq!(
+        context.metadata,
+        json!({
+            "agent.name": "codex",
+            "agent.installation_id": "install-1",
+            "agent.session_id": "routing-session",
+            "agent.thread_id": "thread-1",
+            "agent.turn_id": "turn-1",
+            "agent.root_turn_id": "root-turn",
+            "agent.window_id": "thread-1:1",
+        })
+        .as_object()
+        .unwrap()
+        .clone()
+    );
+
+    for snapshot in [
+        "{malformed".to_owned(),
+        json!({"thread_id": "thread-1", "turn_id": "a".repeat(MAX_CLIENT_METADATA_BYTES)})
+            .to_string(),
+        "[]".to_owned(),
+    ] {
+        let mut client_metadata = codex_client_metadata(None);
+        client_metadata.insert("x-codex-turn-metadata".into(), snapshot.into());
+        let context = GenerationContext::from_request(&headers, Some(&client_metadata));
+        assert_eq!(context.metadata["agent.turn_id"], "header-turn");
+        assert_eq!(context.metadata["agent.root_turn_id"], "root-turn");
+    }
+
+    let unknown: Map<String, Value> = json!({"team": "search", "turn_id": "turn-1"})
+        .as_object()
+        .unwrap()
+        .clone();
+    let context = GenerationContext::from_request(&HeaderMap::new(), Some(&unknown));
+    assert!(context.metadata.is_empty());
+    assert!(!context.attributes.contains_key("session.id"));
+}
+
+#[test]
+fn agent_client_metadata_is_taken_only_when_recognized_and_bounded() {
+    let mut request: Map<String, Value> = json!({
+        "input": "hello",
+        "client_metadata": codex_client_metadata(Some(&codex_turn_metadata())),
+    })
+    .as_object()
+    .unwrap()
+    .clone();
+    let taken = take_agent_client_metadata(&mut request).unwrap();
+    assert_eq!(taken["x-codex-installation-id"], "install-1");
+    assert_eq!(
+        request,
+        json!({"input": "hello"}).as_object().unwrap().clone()
+    );
+
+    for client_metadata in [
+        json!({"team": "search"}),
+        json!("x-codex-turn-metadata"),
+        json!({"x-codex-turn-metadata": "a".repeat(MAX_CLIENT_METADATA_BYTES)}),
+    ] {
+        let mut request: Map<String, Value> =
+            json!({"input": "hello", "client_metadata": client_metadata})
+                .as_object()
+                .unwrap()
+                .clone();
+        let before = request.clone();
+        assert!(take_agent_client_metadata(&mut request).is_none());
+        assert_eq!(request, before);
+    }
+}
+
 #[test]
 fn explicit_context_overrides_inferred_agent_context() {
     let mut headers = HeaderMap::new();

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
@@ -7,8 +8,7 @@ import { chartConfigToWidgetInput } from "./lib/chartConfigToWidget";
 import { toChartFilters } from "./lib/chartFilterCompatibility";
 import { ChartViewPanel } from "./components/ChartViewPanel";
 import { AddToDashboardButton } from "./components/AddToDashboardButton";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-
+import { useHasProjectAccess } from "@/src/features/rbac";
 /**
  * Production chart view for the v4 events table. Builds the observations
  * aggregate query from the same filters + time window the table is showing,

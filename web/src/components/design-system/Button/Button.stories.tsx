@@ -1,3 +1,4 @@
+import { BookOpen } from "lucide-react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -14,6 +15,25 @@ export const Primary = meta.story({
   args: {
     onClick: fn(),
   },
+});
+
+export const VariantMatrix = meta.story({
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <div className="grid grid-cols-2 items-center gap-3">
+      {(["primary", "secondary", "destructive", "ghost"] as const).map(
+        (variant) =>
+          (["default", "sm"] as const).map((size) => (
+            <Button
+              key={`${variant}-${size}`}
+              text={`${variant} / ${size}`}
+              variant={variant}
+              size={size}
+            />
+          )),
+      )}
+    </div>
+  ),
 });
 
 export const ExternalLangfuseLink = meta.story({
@@ -50,6 +70,7 @@ export const SecondaryLink = meta.story({
   name: "(Test) Secondary Link",
   args: {
     href: "/docs",
+    icon: BookOpen,
     text: "View docs",
     variant: "secondary",
   },

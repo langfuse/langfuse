@@ -1,6 +1,7 @@
 import { type CaptureResult, type CaptureOptions } from "posthog-js";
 import { usePostHog } from "posthog-js/react";
 import { useCallback } from "react";
+import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAnalytics";
 
 export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
 
@@ -26,7 +27,6 @@ const events = {
     "observation_tree_toggle_scores",
     "observation_tree_toggle_metrics",
     "io_mode_switch",
-    "io_parser_comparison",
     "test_in_playground_button_click",
     "display_mode_switch",
     "download_button_click",
@@ -42,13 +42,6 @@ const events = {
     // Fired from the tree, timeline, graph, and search-result click handlers;
     // `source` says which surface drove the navigation.
     "node_selected",
-    // Trace playhead transport in the navigation header (and the overflow
-    // menu on a narrow panel). Distinguishes play vs pause vs stop; `viewMode`
-    // is tree vs timeline at click time; `observationCount` is the loaded
-    // trace size. Metadata only — never a trace/observation id.
-    "playback_play",
-    "playback_pause",
-    "playback_stop",
     // Download from the large-string IO fallback (LFE-10991): a top-level
     // string over the render limit is shown as a bounded preview + download
     // instead of the full Pretty/JSON viewer. Measures how often users hit it.
@@ -138,7 +131,13 @@ const events = {
     "create_form_open",
     "update_comment",
     "delete_comment",
+    "form_abandoned",
+    "value_set",
+    "level_changed",
+    "level_added",
   ],
+  annotation: ["entry_click"],
+  annotation_queues: ["item_added", "item_removed", "manage_click"],
   score_configs: [
     "create_form_submit",
     "update_form_submit",
@@ -156,6 +155,7 @@ const events = {
     "bulk_export",
     "bulk_import_submit",
   ],
+  skills: ["new_form_open", "version_create", "version_download", "delete"],
   prompt_detail: [
     "test_in_playground_button_click",
     "add_label_submit",
@@ -174,7 +174,6 @@ const events = {
     "inline_tools_toggled",
     "system_prompt_toggled",
     "metadata_jsonpath_config_changed",
-    "header_detail_visibility_changed",
   ],
   eval_config: [
     "new_form_submit",
@@ -467,15 +466,22 @@ type EventName = {
   [Resource in keyof typeof events]: `${Resource}:${(typeof events)[Resource][number]}`;
 }[keyof typeof events];
 
+type EventProperties = AnnotationEventMap & {
+  [E in Exclude<EventName, keyof AnnotationEventMap>]: Record<
+    string,
+    any
+  > | null;
+};
+
 export const usePostHogClientCapture = () => {
   const posthog = usePostHog();
 
   // wrapped posthog.capture function that only allows events that are in the
   // allowlist; stable identity so it is safe in useCallback/useMemo deps
   return useCallback(
-    function capture(
-      eventName: EventName,
-      properties?: Record<string, any> | null,
+    function capture<E extends EventName>(
+      eventName: E,
+      properties?: EventProperties[E],
       options?: CaptureOptions,
     ): CaptureResult | void {
       return posthog.capture(eventName, properties, options);

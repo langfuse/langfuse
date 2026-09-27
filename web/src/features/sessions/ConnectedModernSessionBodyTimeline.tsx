@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 
@@ -404,7 +405,7 @@ export function ConnectedModernSessionBodyTimeline({
   };
 
   return (
-    <div className="bg-background relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden lg:grid-cols-[clamp(200px,24vw,296px)_minmax(0,1fr)] lg:grid-rows-1">
+    <div className="bg-background session-review-stack:grid-rows-[minmax(7rem,9rem)_minmax(0,1fr)] session-review-stack:gap-x-0 relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden @3xl/session-workspace:grid-cols-[clamp(200px,24cqw,296px)_minmax(0,1fr)] @3xl/session-workspace:grid-rows-1">
       {tracesState.type === "loading" ? (
         <ModernSessionSidebar state="loading" />
       ) : (
@@ -431,7 +432,7 @@ export function ConnectedModernSessionBodyTimeline({
           }
         />
       )}
-      <div className="bg-card dark:bg-background relative min-h-0 min-w-[320px]">
+      <div className="bg-card dark:bg-background session-review-stack:min-w-0 relative min-h-0 min-w-[320px]">
         <ConnectedSessionConversationTimeline
           traces={timelineTraces}
           projectId={projectId}

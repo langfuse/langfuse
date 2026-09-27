@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import ModelTable from "@/src/components/table/use-cases/models";
+import ModelsTable from "@/src/features/models/ModelsTable";
 
 export function ModelsSettings(props: { projectId: string }) {
   return (
@@ -11,7 +11,7 @@ export function ModelsSettings(props: { projectId: string }) {
         Langfuse to automatically calculate the price of generations based on
         token usage.
       </p>
-      <ModelTable projectId={props.projectId} />
+      <ModelsTable projectId={props.projectId} />
     </>
   );
 }

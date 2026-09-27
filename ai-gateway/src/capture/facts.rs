@@ -11,6 +11,17 @@ pub(crate) enum RelayOutcome {
     TransportError,
 }
 
+impl RelayOutcome {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Eof => "eof",
+            Self::Cancelled => "cancelled",
+            Self::Timeout => "timeout",
+            Self::TransportError => "transport_error",
+        }
+    }
+}
+
 #[derive(Serialize)]
 pub(crate) struct InferenceFacts {
     pub api_format: &'static str,

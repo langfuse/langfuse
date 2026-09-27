@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useState, type ReactNode } from "react";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";

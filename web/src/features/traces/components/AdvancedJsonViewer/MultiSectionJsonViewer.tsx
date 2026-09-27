@@ -26,7 +26,7 @@ import {
 } from "./SimpleMultiSectionViewer";
 import { SectionContextProvider } from "./contexts/SectionContext";
 import { searchInTree, getMatchCountsPerNode } from "./utils/searchJson";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { type CommentedPathsByField } from "./utils/commentRanges";
 
 export interface MultiSectionJsonViewerHandle {

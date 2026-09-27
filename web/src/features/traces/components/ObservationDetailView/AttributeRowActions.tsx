@@ -13,10 +13,10 @@ import {
 import { getCopyValue } from "@/src/components/table/ValueCell";
 import { type JsonTableRow } from "@/src/components/table/utils/jsonExpansionUtils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { buildEventsTablePathForColumnFilter } from "@/src/features/events/lib/eventsTablePaths";
+import { buildEventsTablePathForColumnFilter } from "@/src/features/events";
 import { attributeColumnFilter } from "@/src/features/traces/fns/attributeColumnFilter";
 import { attributeGrammar } from "@/src/features/traces/fns/attributeGrammar";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 export type AttributeTableAction = "copy" | "include_filter" | "exclude_filter";
 

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useState, useMemo } from "react";
 import {
   Card,

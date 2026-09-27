@@ -79,6 +79,13 @@ export const scoresTableCols: ColumnDefinition[] = [
     options: [],
   },
   {
+    name: "Evaluator Test",
+    id: "isEvaluatorTest",
+    type: "boolean",
+    // ClickHouse-only virtual column; see mapScoresTable.ts.
+    internal: "",
+  },
+  {
     name: "Metadata",
     id: "metadata",
     type: "stringObject",

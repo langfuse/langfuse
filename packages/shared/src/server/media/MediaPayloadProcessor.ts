@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-exotic-operators */
 import { isMediaContentType, type MediaContentType } from "../../domain/media";
 

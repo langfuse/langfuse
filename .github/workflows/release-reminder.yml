@@ -63,7 +63,13 @@ jobs:
           query="repo:${REPOSITORY} is:pr is:merged base:main merged:>=${released_at}"
           pull_requests="$(gh api --method GET --paginate search/issues -f q="$query" -f per_page=100 \
             --jq '[.items[] | select(.title | test("^(feat|fix|perf|security|revert)(\\([^)]*\\))?!?:"))]')"
-          pull_requests="$(jq -s 'add | sort_by(.pull_request.merged_at) | reverse' <<<"$pull_requests")"
+          pull_requests="$(jq -s '
+            add
+            | sort_by([
+                ({security: 0, feat: 1, fix: 2, perf: 3, revert: 4}[.title | capture("^(?<type>security|feat|fix|perf|revert)").type]),
+                -(.pull_request.merged_at | fromdateiso8601)
+              ])
+          ' <<<"$pull_requests")"
           count="$(jq 'length' <<<"$pull_requests")"
 
           if [ "$count" -eq 0 ]; then
@@ -72,14 +78,19 @@ jobs:
             exit 0
           fi
 
-          shown="$(jq -r '.[0:10][] | .title |= (gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;")) | "• <\(.html_url)|#\(.number)> \(.title)"' <<<"$pull_requests")"
+          shown="$(jq -r '.[0:10][] | "• #\(.number) \(.title)\n  \(.html_url)"' <<<"$pull_requests")"
           if [ "$count" -gt 10 ]; then
             shown="$(printf '%s\n…and %s more' "$shown" "$((count - 10))")"
           fi
 
           compare_url="${{ github.server_url }}/${REPOSITORY}/compare/${release_tag}...main"
-          message="$(printf 'The latest release <%s|%s> is more than 16 hours old and %s release-worthy PR(s) have been merged since:\n%s\n\n<%s|View all unreleased changes>' \
-            "${{ github.server_url }}/${REPOSITORY}/releases/tag/${release_tag}" "$release_tag" "$count" "$shown" "$compare_url")"
+          if [ "$count" -eq 1 ]; then
+            pull_request_label="PR has"
+          else
+            pull_request_label="PRs have"
+          fi
+          message="$(printf 'The latest release %s is more than 16 hours old:\n%s\n\n%s release-worthy %s been merged since:\n%s\n\nView all unreleased changes:\n%s' \
+            "$release_tag" "${{ github.server_url }}/${REPOSITORY}/releases/tag/${release_tag}" "$count" "$pull_request_label" "$shown" "$compare_url")"
 
           delimiter="MESSAGE_EOF_${RANDOM}${RANDOM}"
           {
@@ -106,7 +117,8 @@ jobs:
             -H 'Content-type: application/json; charset=utf-8' \
             --data "$(jq -nc --arg text "$MESSAGE" '{text: $text}')")"
 
-          if [ "$response" != "ok" ]; then
+          # Workflow Builder returns JSON; classic incoming webhooks return "ok".
+          if [ "$response" != "ok" ] && ! jq -e '.ok == true' >/dev/null 2>&1 <<<"$response"; then
             echo "::error::Slack post failed: $response"
             exit 1
           fi

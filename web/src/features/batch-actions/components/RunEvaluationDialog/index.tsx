@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "zustand";
@@ -52,6 +53,7 @@ type RunEvaluationDialogProps = {
   selectAll: boolean;
   totalCount: number;
   onClose: () => void;
+  onSuccess: () => void;
   experimentCount?: number;
   exampleObservation?: {
     id: string;
@@ -307,6 +309,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
       },
     });
 
+    props.onSuccess();
     props.onClose();
   };
 
@@ -317,7 +320,12 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
 
   return (
     <>
-      <Dialog open onOpenChange={(open) => !open && props.onClose()}>
+      <Dialog
+        open
+        onOpenChange={(open) =>
+          !open && !runEvaluationMutation.isPending && props.onClose()
+        }
+      >
         <DialogContent
           {...(showMappingEditor ? { size: "lg" as const } : {})}
           className={

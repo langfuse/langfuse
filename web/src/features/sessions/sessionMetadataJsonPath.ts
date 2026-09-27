@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { evaluateJsonPath } from "@langfuse/shared";
 import { z } from "zod";
 

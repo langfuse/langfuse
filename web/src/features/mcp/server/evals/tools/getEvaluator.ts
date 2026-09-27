@@ -10,6 +10,7 @@ export const [getEvaluatorTool, handleGetEvaluator] = defineTool({
   name: "getEvaluator",
   description:
     "Fetch a single evaluator by id, including its prompt or source code, output definition, and how many evaluation rules reference it.",
+  action: "evaluator:read",
   baseSchema: GetEvaluatorInput,
   inputSchema: GetEvaluatorInput,
   handler: async (input, context) =>

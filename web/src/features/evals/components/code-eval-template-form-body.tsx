@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { showErrorToast } from "@/src/features/notifications";
 import CodeMirror, {
   Decoration,

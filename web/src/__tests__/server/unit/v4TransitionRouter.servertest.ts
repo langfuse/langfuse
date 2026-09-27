@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
@@ -427,14 +429,7 @@ const session: Session = {
         ],
       },
     ],
-    featureFlags: {
-      excludeClickhouseRead: false,
-      observationEvals: false,
-      templateFlag: false,
-      searchBar: false,
-      v4BetaToggleVisible: false,
-      experimentsV4Enabled: false,
-    },
+    featureFlags: testFeatureFlags({ templateFlag: false }),
     admin: false,
   },
   environment: {

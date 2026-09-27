@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { v4 } from "uuid";
 import { executeQuery } from "@langfuse/shared/query/server";
 import { type QueryType } from "@langfuse/shared/query";
@@ -510,14 +512,7 @@ describe("dashboard v1 vs v2 consistency", () => {
             ],
           },
         ],
-        featureFlags: {
-          excludeClickhouseRead: false,
-          templateFlag: true,
-          v4BetaToggleVisible: false,
-          observationEvals: false,
-          experimentsV4Enabled: false,
-          searchBar: false,
-        },
+        featureFlags: testFeatureFlags(),
         admin: true,
       },
       environment: {} as any,

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React, { useState } from "react";

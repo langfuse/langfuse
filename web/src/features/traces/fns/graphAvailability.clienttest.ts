@@ -5,7 +5,7 @@ import {
   MAX_NODES_FOR_GRAPH_UI,
   resolveGraphAvailability,
 } from "./graphAvailability";
-import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
+import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view";
 
 const obs = (
   over: Partial<AgentGraphDataResponse> = {},

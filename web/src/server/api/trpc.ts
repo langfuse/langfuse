@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * YOU PROBABLY DON'T NEED TO EDIT THIS FILE, UNLESS:
  * 1. You want to modify request context (see Part 1).
@@ -92,7 +93,7 @@ import {
   getActiveTraceId,
 } from "@langfuse/shared/src/server";
 
-import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
+import { AdminApiAuthService } from "@/src/ee/features/admin-api/server";
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
 import { recordBackendActivity } from "@/src/features/posthog-analytics/server/backendActivity";

@@ -5,6 +5,7 @@ import {
   EventsAggregationQueryBuilder,
   EventsQueryBuilder,
   EventsSessionAggregationQueryBuilder,
+  ExperimentsAggregationQueryBuilder,
 } from "./event-query-builder";
 
 describe("EventsQueryBuilder public API v2 field groups", () => {
@@ -207,17 +208,31 @@ describe("buildEventsFullTableSplitQuery", () => {
 
     // The bound is derived from base (no re-serialized params) so events_full
     // can prune partitions/primary key; the semi-join stays for join exactness.
+    // Both bounds read one byte-identical (min, max) scalar subquery so
+    // ClickHouse's scalar cache evaluates base's bounds pass once, not twice.
+    expect(query).not.toContain("io_bounds");
     expect(query).toContain(
-      "SELECT min(start_time) AS io_min_start_time, max(start_time) AS io_max_start_time FROM base",
+      "AND e.start_time >= (SELECT (min(start_time), max(start_time)) FROM base).1",
     );
     expect(query).toContain(
-      "AND e.start_time >= (SELECT io_min_start_time FROM io_bounds)",
-    );
-    expect(query).toContain(
-      "AND e.start_time <= (SELECT io_max_start_time FROM io_bounds)",
+      "AND e.start_time <= (SELECT (min(start_time), max(start_time)) FROM base).2",
     );
     expect(query).toContain(
       'AND (e.start_time, e.trace_id, e.span_id) IN (SELECT "start_time", "trace_id", id FROM base)',
+    );
+  });
+});
+
+describe("ExperimentsAggregationQueryBuilder", () => {
+  it("reads non propagated experiment-level attributes from experiment item root spans", () => {
+    const { query } = new ExperimentsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("base")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "anyIf(e.experiment_description, e.span_id = e.experiment_item_root_span_id) AS experiment_description",
     );
   });
 });

@@ -1,15 +1,14 @@
-import { percentile, type ScoreDomain } from "@langfuse/shared";
-import { ArrowUpRight, Eye, EyeOff, Plus, Search, X } from "lucide-react";
-import { type ReactNode, type SyntheticEvent, useRef, useState } from "react";
+/* eslint-disable no-nested-ternary */
+import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
+import { type ScoreDomain } from "@langfuse/shared";
+import { ArrowUpRight, Plus, Search, X } from "lucide-react";
+import { type ReactNode, type SyntheticEvent, useState } from "react";
 
+import Link from "next/link";
+
+import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
-import { ModernSessionHeaderPill } from "@/src/features/sessions/ModernSessionHeaderPill";
-import {
-  MAX_STORED_HIDDEN_SESSION_HEADER_DETAILS,
-  parseStoredHiddenSessionHeaderDetails,
-  sessionHeaderDynamicDetailKey,
-  sessionHeaderVisibilityStorageKey,
-} from "@/src/features/sessions/sessionHeaderVisibility";
+import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import {
   getMetadataJsonPathLabel,
   resolveMetadataJsonPath,
@@ -28,7 +27,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {
@@ -36,40 +34,25 @@ import {
   numberFormatter,
   usdFormatter,
 } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 type ModernSessionHeaderProps = {
   projectId: string;
   countTraces: number;
-  traces:
-    | { state: "loading" }
-    | {
-        state: "loaded";
-        data: ReadonlyArray<{
-          latencyMs: number | null;
-          observationCount: number;
-        }>;
-      };
+  minTimestamp: Date;
+  maxTimestamp: Date;
   tokensIn: number;
   tokensOut: number;
   totalTokens: number;
   totalCost: number;
-  environment: string | null;
   users: readonly string[];
   metadataJsonPaths: SessionMetadataJsonPathState;
-  scores: ReadonlyArray<
-    Pick<
-      WithStringifiedMetadata<ScoreDomain>,
-      "id" | "name" | "dataType" | "value" | "stringValue"
-    >
-  >;
+  scores: ReadonlyArray<WithStringifiedMetadata<ScoreDomain>>;
 };
 
 type SessionHeaderDetailType =
   | "cost"
-  | "environment"
-  | "latency"
+  | "duration"
   | "metadata"
   | "score"
   | "tokens"
@@ -79,20 +62,13 @@ type SessionHeaderDetailType =
 type SessionHeaderDetail = {
   key: string;
   searchText: string;
-  visibilityLabel: string;
   type: SessionHeaderDetailType;
   content: ReactNode;
 };
 
-type SessionHeaderDetailControlLocation = "header" | "overflow";
-
-const EMPTY_HIDDEN_SESSION_HEADER_DETAILS: readonly string[] = [];
-
-const ChipValue = ({ children }: { children: React.ReactNode }) => (
-  <span className="text-foreground">{children}</span>
+const ChipKey = ({ children }: { children: React.ReactNode }) => (
+  <span>{children}</span>
 );
-
-const ChipDot = () => <span className="text-foreground-tertiary">·</span>;
 
 const compactTokenFormatter = (tokens: number) =>
   compactNumberFormatter(tokens, 0).toLowerCase();
@@ -108,64 +84,20 @@ const scoreChipValue = (
 };
 
 const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
-  <ModernSessionHeaderPill
-    variant="link"
+  <Link
     href={`/project/${projectId}/users/${encodeURIComponent(user)}`}
+    className="ph-no-capture inline-flex max-w-[280px] min-w-0"
   >
-    user{" "}
-    <span
-      className="text-foreground group-hover:text-link truncate"
-      title={user}
-    >
-      {user}
-    </span>
-    <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
-  </ModernSessionHeaderPill>
+    <Badge
+      color="ghost"
+      data-session-header-pill="true"
+      label="user"
+      text={user}
+      trailingIcon={ArrowUpRight}
+      trailingIconTone="link"
+    />
+  </Link>
 );
-
-const SessionHeaderDetailWithVisibilityControl = ({
-  detail,
-  isHidden,
-  location,
-  onVisibilityChange,
-}: {
-  detail: SessionHeaderDetail;
-  isHidden: boolean;
-  location: SessionHeaderDetailControlLocation;
-  onVisibilityChange: (
-    detail: SessionHeaderDetail,
-    isHidden: boolean,
-    location: SessionHeaderDetailControlLocation,
-    control: HTMLButtonElement,
-  ) => void;
-}) => {
-  const action = isHidden ? "Show" : "Hide";
-  return (
-    <span
-      className={cn(
-        "group relative flex items-center",
-        detail.type === "metadata" ? "pr-6" : "[@media(hover:none)]:pr-6",
-      )}
-    >
-      {detail.content}
-      <button
-        type="button"
-        aria-label={`${action} ${detail.visibilityLabel} in session header`}
-        title={`${action} in session header`}
-        className="bg-header hover:bg-muted focus-visible:ring-ring absolute right-0 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border opacity-0 shadow-sm transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none [@media(hover:none)]:opacity-100"
-        onClick={(event) =>
-          onVisibilityChange(detail, !isHidden, location, event.currentTarget)
-        }
-      >
-        {isHidden ? (
-          <Eye aria-hidden="true" className="h-3 w-3" />
-        ) : (
-          <EyeOff aria-hidden="true" className="h-3 w-3" />
-        )}
-      </button>
-    </span>
-  );
-};
 
 const resolveAgainstSource = (
   source: FirstVisibleObservationMetadataState,
@@ -205,14 +137,14 @@ const MetadataJsonPathPill = ({
   onRemove: (path: string) => void;
 }) => (
   <span className="group flex items-center">
-    <ModernSessionHeaderPill variant="display">
-      <span className="max-w-40 truncate" title={display.path}>
+    <BadgeShell data-session-header-pill="true">
+      <span
+        className="text-muted-foreground max-w-40 truncate"
+        title={display.path}
+      >
         {display.label}
       </span>
-      <span
-        className="text-foreground max-w-56 truncate"
-        title={display.displayValue}
-      >
+      <span className="max-w-56 truncate" title={display.displayValue}>
         {display.displayValue}
       </span>
       <span className="-ml-1.5 inline-flex w-0 overflow-hidden transition-[width,margin] group-focus-within:ml-0 group-focus-within:w-4 group-hover:ml-0 group-hover:w-4">
@@ -226,7 +158,7 @@ const MetadataJsonPathPill = ({
           <X className="h-3 w-3" />
         </button>
       </span>
-    </ModernSessionHeaderPill>
+    </BadgeShell>
   </span>
 );
 
@@ -334,28 +266,17 @@ const MetadataJsonPathEditorContent = ({
 export function ModernSessionHeader({
   projectId,
   countTraces,
-  traces,
+  minTimestamp,
+  maxTimestamp,
   tokensIn,
   tokensOut,
   totalTokens,
   totalCost,
-  environment,
   users,
   metadataJsonPaths,
   scores,
 }: ModernSessionHeaderProps) {
   const capture = usePostHogClientCapture();
-  const [rawHiddenDetailKeys, setRawHiddenDetailKeys] =
-    useLocalStorage<unknown>(
-      sessionHeaderVisibilityStorageKey(projectId),
-      EMPTY_HIDDEN_SESSION_HEADER_DETAILS,
-    );
-  const hiddenDetailKeys =
-    parseStoredHiddenSessionHeaderDetails(rawHiddenDetailKeys);
-  const hiddenDetailKeySet = new Set(hiddenDetailKeys);
-  const overflowButtonRef = useRef<HTMLButtonElement>(null);
-  const metadataEditorButtonRef = useRef<HTMLButtonElement>(null);
-  const overflowSearchInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const [visibleUserCount, setVisibleUserCount] = useState(
     SESSION_USERS_PER_PAGE,
@@ -381,170 +302,87 @@ export function ModernSessionHeader({
       isV4: true,
     });
   };
-  const latencies =
-    traces.state === "loaded"
-      ? traces.data.flatMap((trace) =>
-          trace.latencyMs !== null && trace.latencyMs > 0
-            ? [trace.latencyMs]
-            : [],
-        )
-      : [];
-  const spanCount =
-    traces.state === "loaded"
-      ? traces.data.reduce((total, trace) => total + trace.observationCount, 0)
-      : null;
-  const p50LatencyMs = latencies.length > 0 ? percentile(latencies, 0.5) : null;
-  const p95LatencyMs =
-    latencies.length > 0 ? percentile(latencies, 0.95) : null;
+  const durationSeconds = Math.max(
+    (maxTimestamp.getTime() - minTimestamp.getTime()) / 1000,
+    0,
+  );
   const pills: SessionHeaderDetail[] = [
     {
       key: "traces",
-      searchText: `traces ${countTraces} spans ${spanCount ?? ""}`,
-      visibilityLabel: "trace and span counts",
+      searchText: `traces ${countTraces}`,
       type: "traces",
       content: (
-        <ModernSessionHeaderPill variant="display">
+        <BadgeShell color="ghost" data-session-header-pill="true">
           <span>
-            <ChipValue>{numberFormatter(countTraces, 0)}</ChipValue> traces
+            {numberFormatter(countTraces, 0)}{" "}
+            <ChipKey>{countTraces === 1 ? "trace" : "traces"}</ChipKey>
           </span>
-          {spanCount !== null ? (
-            <>
-              <ChipDot />
-              <span>
-                <ChipValue>{numberFormatter(spanCount, 0)}</ChipValue> spans
-              </span>
-            </>
-          ) : null}
-        </ModernSessionHeaderPill>
+        </BadgeShell>
       ),
     },
   ];
 
-  if (p50LatencyMs !== null) {
-    pills.push({
-      key: "latency",
-      searchText: `latency p50 ${p50LatencyMs} p95 ${p95LatencyMs ?? ""}`,
-      visibilityLabel: "latency percentiles",
-      type: "latency",
-      content: (
-        <ModernSessionHeaderPill variant="display">
-          <span>
-            p50{" "}
-            <ChipValue>{formatIntervalSeconds(p50LatencyMs / 1000)}</ChipValue>
-          </span>
-          {p95LatencyMs !== null ? (
-            <>
-              <ChipDot />
-              <span>
-                p95{" "}
-                <ChipValue>
-                  {formatIntervalSeconds(p95LatencyMs / 1000)}
-                </ChipValue>
-              </span>
-            </>
-          ) : null}
-        </ModernSessionHeaderPill>
-      ),
-    });
-  }
-
-  if (totalTokens > 0) {
-    const exactTokenCounts = `${numberFormatter(tokensIn, 0)} → ${numberFormatter(tokensOut, 0)} (Σ ${numberFormatter(totalTokens, 0)})`;
-    pills.push({
-      key: "tokens",
-      searchText: `tokens ${tokensIn} ${tokensOut} ${totalTokens}`,
-      visibilityLabel: "token usage",
-      type: "tokens",
-      content: (
-        <ModernSessionHeaderPill
-          variant="display"
-          title={`tokens ${exactTokenCounts}`}
-        >
-          <span>
-            tokens{" "}
-            <ChipValue>
-              {compactTokenFormatter(tokensIn)} →{" "}
-              {compactTokenFormatter(tokensOut)} (Σ{" "}
-              {compactTokenFormatter(totalTokens)})
-            </ChipValue>
-          </span>
-        </ModernSessionHeaderPill>
-      ),
-    });
-  }
+  pills.push({
+    key: "duration",
+    searchText: `duration ${durationSeconds}`,
+    type: "duration",
+    content: (
+      <Badge
+        color="ghost"
+        data-session-header-pill="true"
+        text={formatIntervalSeconds(durationSeconds)}
+        title="session duration"
+      />
+    ),
+  });
 
   pills.push({
     key: "cost",
     searchText: `cost ${totalCost}`,
-    visibilityLabel: "cost",
     type: "cost",
     content: (
-      <ModernSessionHeaderPill
-        variant="display"
+      <Badge
+        color="ghost"
+        data-session-header-pill="true"
+        text={usdFormatter(totalCost, 2, 3)}
         title={`exact $${totalCost.toFixed(6)}`}
-      >
-        <span>
-          cost <ChipValue>{usdFormatter(totalCost, 2, 3)}</ChipValue>
-        </span>
-      </ModernSessionHeaderPill>
+      />
     ),
   });
 
-  scores.forEach((score, index) => {
-    const value = scoreChipValue(score);
-    const isFraction =
-      score.dataType === "NUMERIC" &&
-      score.value !== null &&
-      score.value !== undefined &&
-      score.value >= 0 &&
-      score.value <= 1;
+  if (totalTokens > 0) {
     pills.push({
-      key: sessionHeaderDynamicDetailKey("score", score.id),
-      searchText: `score ${score.name} ${value}`,
-      visibilityLabel: `score ${index + 1}`,
-      type: "score",
+      key: "tokens",
+      searchText: `tokens ${tokensIn} ${tokensOut} ${totalTokens}`,
+      type: "tokens",
       content: (
-        <ModernSessionHeaderPill variant="display" title={score.name}>
-          {isFraction ? (
-            <span className="bg-dark-yellow h-1.5 w-1.5 shrink-0 rounded-[1px]" />
-          ) : null}
-          <span className="max-w-40 truncate" title={score.name}>
-            {score.name}
-          </span>
-          <ChipValue>{value}</ChipValue>
-        </ModernSessionHeaderPill>
-      ),
-    });
-  });
-
-  if (environment) {
-    pills.push({
-      key: "environment",
-      searchText: `environment env ${environment}`,
-      visibilityLabel: "environment",
-      type: "environment",
-      content: (
-        <ModernSessionHeaderPill variant="display">
-          <span>
-            env <ChipValue>{environment}</ChipValue>
-          </span>
-        </ModernSessionHeaderPill>
+        <BreakdownTooltip
+          details={{ input: tokensIn, output: tokensOut, total: totalTokens }}
+          isCost={false}
+        >
+          <Badge
+            color="ghost"
+            interactive
+            data-session-header-pill="true"
+            text={`${compactTokenFormatter(totalTokens)} tokens`}
+          />
+        </BreakdownTooltip>
       ),
     });
   }
 
   const userDetails = users.map(
-    (user, index): SessionHeaderDetail => ({
-      key: sessionHeaderDynamicDetailKey("user", user),
+    (user): SessionHeaderDetail => ({
+      key: `user-${user}`,
       searchText: `user ${user}`,
-      visibilityLabel: `user ${index + 1}`,
       type: "user",
       content: <UserChip projectId={projectId} user={user} />,
     }),
   );
-  const visibleUserDetails = userDetails
-    .filter((detail) => !hiddenDetailKeySet.has(detail.key))
-    .slice(0, INITIAL_SESSION_USERS_DISPLAY_COUNT);
+  const visibleUserDetails = userDetails.slice(
+    0,
+    INITIAL_SESSION_USERS_DISPLAY_COUNT,
+  );
   visibleUserDetails.forEach((detail) => pills.push(detail));
   const visibleUserDetailKeySet = new Set(
     visibleUserDetails.map((detail) => detail.key),
@@ -553,15 +391,27 @@ export function ModernSessionHeader({
     (detail) => !visibleUserDetailKeySet.has(detail.key),
   );
 
-  metadataJsonPaths.paths.forEach((path, index) => {
+  scores.forEach((score) => {
+    pills.push({
+      key: `score-${score.id}`,
+      searchText: `score ${score.name} ${scoreChipValue(score)}`,
+      type: "score",
+      content: (
+        <span data-session-header-pill="true" className="inline-flex min-w-0">
+          <ScoreBadge name={score.name} scores={[score]} />
+        </span>
+      ),
+    });
+  });
+
+  metadataJsonPaths.paths.forEach((path) => {
     const display = getConfiguredMetadataDisplay(
       path,
       metadataJsonPaths.source,
     );
     pills.push({
-      key: sessionHeaderDynamicDetailKey("metadata", path),
+      key: `metadata-${path}`,
       searchText: `metadata ${display.path} ${display.label} ${display.displayValue}`,
-      visibilityLabel: `metadata ${index + 1}`,
       type: "metadata",
       content: (
         <MetadataJsonPathPill
@@ -571,81 +421,26 @@ export function ModernSessionHeader({
       ),
     });
   });
-  const visiblePills = pills.filter(
-    (pill) => !hiddenDetailKeySet.has(pill.key),
-  );
-  const manuallyHiddenPills = pills.filter((pill) =>
-    hiddenDetailKeySet.has(pill.key),
-  );
-  const changeDetailVisibility = (
-    detail: SessionHeaderDetail,
-    isHidden: boolean,
-    location: SessionHeaderDetailControlLocation,
-    control: HTMLButtonElement,
-  ) => {
-    if (hiddenDetailKeySet.has(detail.key) === isHidden) return;
-
-    setRawHiddenDetailKeys((current: unknown) => {
-      const currentKeys = parseStoredHiddenSessionHeaderDetails(current);
-      return isHidden
-        ? currentKeys
-            .concat(detail.key)
-            .slice(-MAX_STORED_HIDDEN_SESSION_HEADER_DETAILS)
-        : currentKeys.filter((key) => key !== detail.key);
-    });
-    capture("session_detail:header_detail_visibility_changed", {
-      action: isHidden ? "hide" : "show",
-      detailType: detail.type,
-      storedHiddenDetailCount: Math.min(
-        Math.max(hiddenDetailKeys.length + (isHidden ? 1 : -1), 0),
-        MAX_STORED_HIDDEN_SESSION_HEADER_DETAILS,
-      ),
-      isV4: true,
-    });
-    window.requestAnimationFrame(() => {
-      if (control.isConnected) return;
-
-      const preferredTarget =
-        location === "overflow"
-          ? overflowSearchInputRef.current
-          : overflowButtonRef.current;
-      (
-        preferredTarget ??
-        overflowButtonRef.current ??
-        metadataEditorButtonRef.current
-      )?.focus();
-    });
-  };
-
   return (
-    <div className="bg-header border-b px-4 py-2">
+    <div className="border-b px-4 pt-0 pb-1.5">
       <SingleLineOverflowList
-        items={visiblePills}
-        additionalOverflowCount={
-          overflowUserDetails.length + manuallyHiddenPills.length
-        }
+        spacing="comfortable"
+        items={pills}
+        additionalOverflowCount={overflowUserDetails.length}
         getKey={(pill) => pill.key}
-        renderItem={(pill) => (
-          <SessionHeaderDetailWithVisibilityControl
-            detail={pill}
-            isHidden={false}
-            location="header"
-            onVisibilityChange={changeDetailVisibility}
-          />
-        )}
+        isTightItem={(pill) => pill.type === "score"}
+        renderItem={(pill) => pill.content}
         trailingContent={
           <Popover
             open={isMetadataEditorOpen}
             onOpenChange={handleMetadataEditorOpenChange}
           >
             <PopoverTrigger asChild>
-              <ModernSessionHeaderPill
-                variant="button"
-                ariaLabel="Add metadata JSONPath"
-                ref={metadataEditorButtonRef}
-              >
-                <Plus className="h-3 w-3" />
-              </ModernSessionHeaderPill>
+              <BadgeShell asChild data-session-header-pill="true">
+                <button type="button" aria-label="Add metadata JSONPath">
+                  <Plus className="h-3 w-3" />
+                </button>
+              </BadgeShell>
             </PopoverTrigger>
             {isMetadataEditorOpen ? (
               <MetadataJsonPathEditorContent
@@ -656,16 +451,8 @@ export function ModernSessionHeader({
             ) : null}
           </Popover>
         }
-        renderOverflow={({ hiddenItems: hiddenPills, overflowItemCount }) => {
+        renderOverflow={({ hiddenItems: overflowPills, overflowItemCount }) => {
           const normalizedSearch = search.trim().toLocaleLowerCase();
-          const overflowPillKeys = new Set(
-            hiddenPills
-              .map((pill) => pill.key)
-              .concat(manuallyHiddenPills.map((pill) => pill.key)),
-          );
-          const overflowPills = pills.filter((pill) =>
-            overflowPillKeys.has(pill.key),
-          );
           const filteredPills = normalizedSearch
             ? overflowPills.filter((pill) =>
                 pill.searchText.toLocaleLowerCase().includes(normalizedSearch),
@@ -691,13 +478,14 @@ export function ModernSessionHeader({
               }}
             >
               <PopoverTrigger asChild>
-                <ModernSessionHeaderPill
-                  variant="button"
-                  ariaLabel={`Show ${overflowItemCount} hidden session details`}
-                  ref={overflowButtonRef}
-                >
-                  +{overflowItemCount}
-                </ModernSessionHeaderPill>
+                <BadgeShell asChild data-session-header-pill="true">
+                  <button
+                    type="button"
+                    aria-label={`Show ${overflowItemCount} more session details`}
+                  >
+                    +{overflowItemCount}
+                  </button>
+                </BadgeShell>
               </PopoverTrigger>
               <PopoverContent
                 align="end"
@@ -707,7 +495,6 @@ export function ModernSessionHeader({
                 <div className="relative border-b p-2">
                   <Search className="text-muted-foreground absolute top-1/2 left-4 h-3.5 w-3.5 -translate-y-1/2" />
                   <Input
-                    ref={overflowSearchInputRef}
                     value={search}
                     onChange={(event) => {
                       setSearch(event.target.value);
@@ -741,22 +528,14 @@ export function ModernSessionHeader({
                   {hasResults ? (
                     <>
                       {filteredPills.map((pill) => (
-                        <SessionHeaderDetailWithVisibilityControl
-                          key={pill.key}
-                          detail={pill}
-                          isHidden={hiddenDetailKeySet.has(pill.key)}
-                          location="overflow"
-                          onVisibilityChange={changeDetailVisibility}
-                        />
+                        <span key={pill.key} className="flex items-center">
+                          {pill.content}
+                        </span>
                       ))}
                       {visibleUsers.map((detail) => (
-                        <SessionHeaderDetailWithVisibilityControl
-                          key={detail.key}
-                          detail={detail}
-                          isHidden={hiddenDetailKeySet.has(detail.key)}
-                          location="overflow"
-                          onVisibilityChange={changeDetailVisibility}
-                        />
+                        <span key={detail.key} className="flex items-center">
+                          {detail.content}
+                        </span>
                       ))}
                     </>
                   ) : (

@@ -9,6 +9,7 @@ export const [listDatasetsTool, handleListDatasets] = defineTool({
   name: "listDatasets",
   description:
     "List datasets, named collections of input and optional expected-output examples for experiments and evaluations. Optionally filter by dataset name to find a dataset ID.",
+  action: "datasets:read",
   baseSchema: GetDatasetsMcpInput,
   inputSchema: GetDatasetsMcpInput,
   handler: async (input, context) =>

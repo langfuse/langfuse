@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   autocompletion,
   type Completion,

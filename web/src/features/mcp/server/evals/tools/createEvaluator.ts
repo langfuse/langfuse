@@ -15,6 +15,7 @@ export const [createEvaluatorTool, handleCreateEvaluator] = defineTool({
     "Set type to `LLM_AS_JUDGE` and provide prompt + outputDefinition. Omit modelConfig to use the project default, or provide modelConfig with provider, model, and optional modelParams. For `CODE`, provide sourceCode + sourceCodeLanguage.",
     "Use updateEvaluator with the returned evaluatorId to update it or append a new immutable definition version.",
   ].join(" "),
+  action: "evaluator:CUD",
   baseSchema: McpEvaluatorInputBase,
   inputSchema: McpEvaluatorInput,
   handler: (input, context) =>

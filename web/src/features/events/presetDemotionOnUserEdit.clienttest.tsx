@@ -13,14 +13,14 @@ import {
 } from "@langfuse/shared";
 import { useCallback, useRef } from "react";
 import { useStore } from "zustand";
-import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { useEventsSearchBar } from "@/src/features/search-bar";
 import {
   type FilterConfig,
   useSidebarFilterState,
 } from "@/src/features/filters";
 import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
 import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import {
   demoteViewOnUserFilterEdit,
   type ViewDemotionControllers,

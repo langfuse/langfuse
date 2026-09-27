@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Fragment, useMemo, type ReactNode } from "react";
 import {
   Decoration,

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { LangfuseConflictError } from "../../index";
 import {
   InAppAgentRunErrorCode,

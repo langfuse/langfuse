@@ -17,6 +17,53 @@ const MAX_FIELD_BYTES: usize = 1024;
 const MAX_ENTRIES: usize = 64;
 const MAX_AGENT_HEADER_BYTES: usize = 8 * 1024;
 const MAX_AGENT_METADATA_BYTES: usize = 4 * 1024;
+/// Codex's body blob additionally carries its tool inventory, so it is bounded separately.
+const MAX_CLIENT_METADATA_BYTES: usize = 64 * 1024;
+const CODEX_TURN_METADATA_KEY: &str = "x-codex-turn-metadata";
+/// Codex turn metadata retained as `agent.*`. Nested objects such as the tool inventory
+/// and workspaces are not copied; the tool inventory already lives in the captured input.
+const CODEX_STRING_FIELDS: [(&str, &str); 18] = [
+    ("session_id", "agent.session_id"),
+    ("thread_id", "agent.thread_id"),
+    ("turn_id", "agent.turn_id"),
+    ("agent_name", "agent.id"),
+    ("installation_id", "agent.installation_id"),
+    ("root_turn_id", "agent.root_turn_id"),
+    ("parent_turn_id", "agent.parent_turn_id"),
+    ("parent_thread_id", "agent.parent_thread_id"),
+    ("forked_from_thread_id", "agent.forked_from_thread_id"),
+    ("window_id", "agent.window_id"),
+    ("context_window_id", "agent.context_window_id"),
+    ("request_kind", "agent.request_kind"),
+    ("subagent_kind", "agent.subagent_kind"),
+    ("thread_source", "agent.thread_source"),
+    ("turn_trigger", "agent.turn_trigger"),
+    ("sandbox", "agent.sandbox"),
+    ("sandbox_mode", "agent.sandbox_mode"),
+    ("workspace_kind", "agent.workspace_kind"),
+];
+const CODEX_SCALAR_FIELDS: [(&str, &str); 4] = [
+    ("window_number", "agent.window_number"),
+    (
+        "forked_from_ordinal_exclusive",
+        "agent.forked_from_ordinal_exclusive",
+    ),
+    ("turn_started_at_unix_ms", "agent.turn_started_at_unix_ms"),
+    ("auto_review_enabled", "agent.auto_review_enabled"),
+];
+const CODEX_COMPACTION_FIELDS: [&str; 5] =
+    ["trigger", "reason", "implementation", "phase", "strategy"];
+/// Flat `client_metadata` keys Codex projects from the same snapshot, used when the blob is absent.
+const CODEX_FLAT_FIELDS: [(&str, &str); 8] = [
+    ("session_id", "session_id"),
+    ("thread_id", "thread_id"),
+    ("turn_id", "turn_id"),
+    ("root_turn_id", "root_turn_id"),
+    ("parent_turn_id", "parent_turn_id"),
+    ("x-codex-installation-id", "installation_id"),
+    ("x-codex-window-id", "window_id"),
+    ("x-codex-parent-thread-id", "parent_thread_id"),
+];
 const HEADERS: [&str; 8] = [
     "traceparent",
     "tracestate",
@@ -63,7 +110,14 @@ pub(super) struct GenerationContext {
 }
 
 impl GenerationContext {
+    #[cfg(test)]
     pub fn from_headers(headers: &HeaderMap) -> Self {
+        Self::from_request(headers, None)
+    }
+
+    /// `client_metadata` is the request body's agent metadata object, already
+    /// removed from the captured input by [`take_agent_client_metadata`].
+    pub fn from_request(headers: &HeaderMap, client_metadata: Option<&Map<String, Value>>) -> Self {
         let ids = RandomIdGenerator::default();
         let mut result = Self {
             trace_id: ids.new_trace_id().to_string(),
@@ -105,13 +159,13 @@ impl GenerationContext {
             result.parent_span_id = Some(parent.span_id().to_string());
             result.trace_state = parent.trace_state().header();
         }
-        result.baggage(headers);
+        result.apply_baggage(headers);
         for (header, _, attribute) in SCALARS {
             if let Some(value) = single_header(headers, header).and_then(|v| decode(v, false)) {
                 result.attributes.insert(attribute.into(), value.into());
             }
         }
-        result.tags(
+        result.apply_tags(
             list_entries(headers, "langfuse-tags")
                 .filter_map(|tag| decode(tag.trim(), false))
                 .collect(),
@@ -124,11 +178,11 @@ impl GenerationContext {
                 result.metadata.insert(key, value.into());
             }
         }
-        result.agent(headers);
+        result.apply_agent(headers, client_metadata);
         result
     }
 
-    fn baggage(&mut self, headers: &HeaderMap) {
+    fn apply_baggage(&mut self, headers: &HeaderMap) {
         // Do not use the generic baggage propagator: malformed input must never
         // be logged, and Python's exporter encodes spaces with quote_plus.
         for entry in list_entries(headers, "baggage") {
@@ -146,7 +200,7 @@ impl GenerationContext {
                 self.attributes.insert((*attribute).into(), value.into());
             } else if key == "langfuse_tags" {
                 if let Some(tags) = parse_tags(&value) {
-                    self.tags(tags);
+                    self.apply_tags(tags);
                 }
             } else if let Some(key) = key.strip_prefix("langfuse_metadata_")
                 && valid(key)
@@ -156,7 +210,7 @@ impl GenerationContext {
         }
     }
 
-    fn tags(&mut self, tags: Vec<String>) {
+    fn apply_tags(&mut self, tags: Vec<String>) {
         let mut seen = HashSet::new();
         let tags: Vec<Value> = tags
             .into_iter()
@@ -170,12 +224,12 @@ impl GenerationContext {
         }
     }
 
-    fn agent(&mut self, headers: &HeaderMap) {
-        let Some(agent) = AgentContext::from_headers(headers) else {
+    fn apply_agent(&mut self, headers: &HeaderMap, client_metadata: Option<&Map<String, Value>>) {
+        let Some(agent) = AgentContext::from_request(headers, client_metadata) else {
             return;
         };
-        for (key, value) in &agent.metadata {
-            self.metadata.insert((*key).into(), value.clone().into());
+        for (key, value) in agent.metadata {
+            self.metadata.insert(key, value);
         }
         self.metadata.insert("agent.name".into(), agent.name.into());
         if let Some(session_id) = &agent.session_id
@@ -202,11 +256,14 @@ struct AgentContext {
     name: &'static str,
     session_id: Option<String>,
     turn_id: Option<String>,
-    metadata: Vec<(&'static str, String)>,
+    metadata: Vec<(String, Value)>,
 }
 
 impl AgentContext {
-    fn from_headers(headers: &HeaderMap) -> Option<Self> {
+    fn from_request(
+        headers: &HeaderMap,
+        client_metadata: Option<&Map<String, Value>>,
+    ) -> Option<Self> {
         let bytes = AGENT_HEADERS
             .iter()
             .flat_map(|name| headers.get_all(*name))
@@ -215,13 +272,13 @@ impl AgentContext {
         if bytes > MAX_AGENT_HEADER_BYTES {
             return None;
         }
-        Self::claude_code(headers)
-            .or_else(|| Self::codex(headers))
-            .or_else(|| Self::opencode(headers))
-            .or_else(|| Self::pi(headers))
+        Self::parse_claude_code(headers)
+            .or_else(|| Self::parse_codex(headers, client_metadata))
+            .or_else(|| Self::parse_opencode(headers))
+            .or_else(|| Self::parse_pi(headers))
     }
 
-    fn claude_code(headers: &HeaderMap) -> Option<Self> {
+    fn parse_claude_code(headers: &HeaderMap) -> Option<Self> {
         let session_id = agent_header(headers, "x-claude-code-session-id");
         let agent_id = agent_header(headers, "x-claude-code-agent-id");
         let parent_agent_id = agent_header(headers, "x-claude-code-parent-agent-id");
@@ -240,23 +297,58 @@ impl AgentContext {
         })
     }
 
-    fn codex(headers: &HeaderMap) -> Option<Self> {
-        let value = single_header(headers, "x-codex-turn-metadata")?;
-        if value.len() > MAX_AGENT_METADATA_BYTES {
+    /// Codex sends its turn snapshot canonically as `client_metadata["x-codex-turn-metadata"]`
+    /// in the request body; the same-named header and the flat `client_metadata` keys are
+    /// compatibility projections of that snapshot.
+    fn parse_codex(
+        headers: &HeaderMap,
+        client_metadata: Option<&Map<String, Value>>,
+    ) -> Option<Self> {
+        let header = single_header(headers, CODEX_TURN_METADATA_KEY);
+        let client_metadata = client_metadata.filter(|metadata| is_codex_client_metadata(metadata));
+        if header.is_none() && client_metadata.is_none() {
             return None;
         }
-        let value = serde_json::from_str::<Value>(value).ok()?;
-        let value = value.as_object()?;
-        let session_id = agent_json_field(value, "session_id");
-        let thread_id = agent_json_field(value, "thread_id");
-        let turn_id = agent_json_field(value, "turn_id");
+        let mut fields = client_metadata
+            .and_then(|metadata| metadata.get(CODEX_TURN_METADATA_KEY)?.as_str())
+            .and_then(|blob| parse_turn_metadata(blob, MAX_CLIENT_METADATA_BYTES))
+            .or_else(|| header.and_then(|blob| parse_turn_metadata(blob, MAX_AGENT_METADATA_BYTES)))
+            .unwrap_or_default();
+        for (source, target) in CODEX_FLAT_FIELDS {
+            if let Some(value) = client_metadata.and_then(|metadata| metadata.get(source))
+                && value.is_string()
+                && !fields.contains_key(target)
+            {
+                fields.insert(target.to_owned(), value.clone());
+            }
+        }
+        let session_id = agent_json_field(&fields, "session_id");
+        let thread_id = agent_json_field(&fields, "thread_id");
+        let turn_id = agent_json_field(&fields, "turn_id");
         if session_id.is_none() && thread_id.is_none() && turn_id.is_none() {
             return None;
         }
         let mut metadata = Vec::new();
-        push_metadata(&mut metadata, "agent.session_id", session_id.as_ref());
-        push_metadata(&mut metadata, "agent.thread_id", thread_id.as_ref());
-        push_metadata(&mut metadata, "agent.turn_id", turn_id.as_ref());
+        for (source, target) in CODEX_STRING_FIELDS {
+            if let Some(value) = agent_json_field(&fields, source) {
+                metadata.push((target.to_owned(), Value::String(value)));
+            }
+        }
+        for (source, target) in CODEX_SCALAR_FIELDS {
+            if let Some(value) = fields
+                .get(source)
+                .filter(|value| value.is_number() || value.is_boolean())
+            {
+                metadata.push((target.to_owned(), value.clone()));
+            }
+        }
+        if let Some(compaction) = fields.get("compaction").and_then(Value::as_object) {
+            for key in CODEX_COMPACTION_FIELDS {
+                if let Some(value) = agent_json_field(compaction, key) {
+                    metadata.push((format!("agent.compaction.{key}"), Value::String(value)));
+                }
+            }
+        }
         Some(Self {
             name: "codex",
             session_id: thread_id,
@@ -265,7 +357,7 @@ impl AgentContext {
         })
     }
 
-    fn opencode(headers: &HeaderMap) -> Option<Self> {
+    fn parse_opencode(headers: &HeaderMap) -> Option<Self> {
         let project_id = agent_header(headers, "x-opencode-project");
         let direct_session_id = agent_header(headers, "x-opencode-session");
         let turn_id = agent_header(headers, "x-opencode-request");
@@ -297,7 +389,7 @@ impl AgentContext {
         })
     }
 
-    fn pi(headers: &HeaderMap) -> Option<Self> {
+    fn parse_pi(headers: &HeaderMap) -> Option<Self> {
         let identified = user_agent(headers)
             .is_some_and(|value| value.starts_with("pi/") || value.starts_with("pi ("));
         if !identified {
@@ -318,13 +410,46 @@ impl AgentContext {
     }
 }
 
-fn push_metadata(
-    metadata: &mut Vec<(&'static str, String)>,
-    key: &'static str,
-    value: Option<&String>,
-) {
+/// Remove a coding agent's `client_metadata` object from a captured request so its
+/// identifiers are recorded as `agent.*` metadata rather than as prompt input.
+/// Unrecognized or oversized objects stay in the request untouched.
+pub(crate) fn take_agent_client_metadata(
+    request: &mut Map<String, Value>,
+) -> Option<Map<String, Value>> {
+    let recognized = request
+        .get("client_metadata")
+        .and_then(Value::as_object)
+        .is_some_and(|metadata| {
+            is_codex_client_metadata(metadata)
+                && serde_json::to_vec(metadata)
+                    .is_ok_and(|bytes| bytes.len() <= MAX_CLIENT_METADATA_BYTES)
+        });
+    if !recognized {
+        return None;
+    }
+    match request.remove("client_metadata") {
+        Some(Value::Object(metadata)) => Some(metadata),
+        _ => None,
+    }
+}
+
+fn is_codex_client_metadata(metadata: &Map<String, Value>) -> bool {
+    metadata.keys().any(|key| key.starts_with("x-codex-"))
+}
+
+fn parse_turn_metadata(blob: &str, limit: usize) -> Option<Map<String, Value>> {
+    if blob.len() > limit {
+        return None;
+    }
+    match serde_json::from_str::<Value>(blob).ok()? {
+        Value::Object(fields) => Some(fields),
+        _ => None,
+    }
+}
+
+fn push_metadata(metadata: &mut Vec<(String, Value)>, key: &str, value: Option<&String>) {
     if let Some(value) = value {
-        metadata.push((key, value.clone()));
+        metadata.push((key.to_owned(), Value::String(value.clone())));
     }
 }
 

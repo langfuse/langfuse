@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
 import { redis as defaultRedis } from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";

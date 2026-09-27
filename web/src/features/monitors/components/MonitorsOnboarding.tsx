@@ -4,7 +4,7 @@ import { ChevronRight, Github, Plus, Slack, Webhook } from "lucide-react";
 import { ActionButton } from "@/src/components/ActionButton";
 import { Button } from "@/src/components/ui/button";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
-import { automationCreateHref } from "@/src/features/automations/components/automationForm";
+import { automationCreateHref } from "@/src/features/automations";
 import { type ActionTypes } from "@langfuse/shared";
 
 /** OnboardingChannel describes one notification-channel CTA shown in step 1 of the splash. */

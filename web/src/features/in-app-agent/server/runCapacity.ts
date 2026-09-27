@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { BaseError, type Plan } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import {

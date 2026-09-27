@@ -16,17 +16,22 @@ import {
   type RouteAccessLevel,
 } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
 import {
+  __dangerouslySkipAuthz,
   enforceAuth,
+  type ApiAction,
   type EnforceAuthParams,
   type EnforceAuthResult,
 } from "@/src/features/public-api/server/enforceAuth";
 import { shadowAuthDiff } from "@/src/features/public-api/server/shadowAuthDiff";
+import { authorize } from "@/src/features/auth/policy/authorize";
 import {
   forbiddenError,
   serviceUnavailableError,
   unauthorizedError,
   type AuthorizationContext,
+  type Decision,
   type ErrorResult,
+  type Resource,
   type Success,
 } from "@/src/features/auth/policy/types";
 import { isPrismaException } from "@/src/utils/exceptions";
@@ -52,7 +57,9 @@ async function legacyWithShadow(
   const legacyAuth = await runLegacyAuth(params);
   const newAuth = await runNewAuth(params);
   shadowAuthDiff(newAuth, legacyAuth, params.action);
-  return legacyResult(legacyAuth);
+  const result = legacyResult(legacyAuth);
+  if (result.success && newAuth.success) return { ...result, ctx: newAuth.ctx };
+  return result;
 }
 
 /** legacyOnly authorizes solely with the legacy verify. */
@@ -134,9 +141,34 @@ function isOrgFamily(allowedAccessLevels: ApiAccessLevel[]): boolean {
   );
 }
 
+/** shadowAuthorize authorizes one item against a shadowAuth-resolved context for the active migration mode: legacy and ungated items pass, shadow only diffs against legacy's implicit allow, and enforce returns the decision the caller disposes of. */
+export function shadowAuthorize(params: ShadowAuthorizeParams): Decision {
+  if (params.action === __dangerouslySkipAuthz || !params.ctx) {
+    return { success: true };
+  }
+  const decision = authorize(params.ctx, params.action, params.resource);
+  if (env.API_AUTH_MIGRATION === "shadow") {
+    shadowAuthDiff(
+      decision,
+      { success: true, scope: { accessLevel: params.accessLevel } },
+      params.action,
+    );
+    return { success: true };
+  }
+  return decision;
+}
+
 /** ShadowAuthParams is enforceAuth's params plus the access levels the legacy verify gates on. */
 export type ShadowAuthParams = EnforceAuthParams & {
   allowedAccessLevels: ApiAccessLevel[];
+};
+
+/** ShadowAuthorizeParams is one per-item authorization: the resolved context, the action the item asserts or the explicit opt-out, the resource it targets, and the access level the shadow diff records. */
+export type ShadowAuthorizeParams = {
+  ctx: AuthorizationContext | undefined;
+  action: ApiAction;
+  resource: Resource;
+  accessLevel: ApiAccessLevel;
 };
 
 /** ShadowAuthAccessResult is a verified scope; the authorizing context rides along only when the new pipeline produced it. */

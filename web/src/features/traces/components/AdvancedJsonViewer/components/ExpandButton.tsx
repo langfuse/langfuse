@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * ExpandButton - Chevron button for expanding/collapsing rows
  *

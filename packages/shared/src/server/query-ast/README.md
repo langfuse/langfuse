@@ -41,10 +41,13 @@ ClickHouse server needed). Each migrated call site keeps its SQL baseline next t
 that call site, e.g. `../repositories/environments.golden.test.ts` and
 `../queries/clickhouse-sql/event-filter-options.golden.test.ts`.
 
-Regenerate baselines with `-u` after an intentional SQL change:
+Regenerate baselines with `-u` after an intentional SQL change. Filter by the
+`.golden.test` name so every relocated suite is picked up regardless of its
+directory (the same selector CI uses), not by `src/server/query-ast` — two of
+the three baselines now live outside this folder:
 
 ```
-pnpm --filter @langfuse/shared run test src/server/query-ast -- -u
+pnpm --filter @langfuse/shared run test .golden.test -- -u
 ```
 
 ## CI and the `clickhouse format` version
@@ -242,8 +245,12 @@ stay live.
 
 ### Verifying changes
 
+The two positional filters cover the dialect unit tests under this folder plus
+every `.golden.test` suite (two of which now live in `../repositories/` and
+`../queries/clickhouse-sql/`):
+
 ```
-CLICKHOUSE_BIN=clickhouse pnpm --filter @langfuse/shared run test src/server/query-ast
+CLICKHOUSE_BIN=clickhouse pnpm --filter @langfuse/shared run test src/server/query-ast .golden.test
 ```
 
 The `*.golden.test.ts` suites assert `compile(AST) ≡ referenceSQL` after

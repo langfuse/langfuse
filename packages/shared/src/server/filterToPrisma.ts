@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Prisma } from "@prisma/client";
 import { ColumnDefinition, type TableNames } from "../tableDefinitions";
 import { FilterState } from "../types";

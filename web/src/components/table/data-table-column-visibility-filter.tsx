@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, {
   useCallback,
   useMemo,
@@ -12,7 +13,7 @@ import {
 } from "@tanstack/react-table";
 import { ChevronDown, ChevronRight, Menu } from "lucide-react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import {
   closestCenter,

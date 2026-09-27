@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * Reusable ClickHouse query fragments and CTEs
  */

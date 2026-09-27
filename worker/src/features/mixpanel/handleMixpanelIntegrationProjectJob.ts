@@ -323,6 +323,9 @@ export const handleMixpanelIntegrationProjectJob = async (
       status: "success",
       runStartTime,
       maxExportedTimestamp: executionConfig.maxTimestamp,
+      // maxTimestamp is always present-minus-30min (no per-run window cap), so
+      // a successful run has reached the tail rather than chunking a backlog.
+      catchup: false,
     });
     logger.info(
       `[MIXPANEL] Mixpanel integration processing complete for project ${projectId}`,

@@ -5,6 +5,11 @@ import * as serverExports from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
+import {
+  clampDecimal64Map,
+  clampDecimal64Value,
+  truncateOversizedRecord,
+} from "./jsonRecords";
 
 // Mock recordHistogram, recordDistribution, recordCount, recordGauge
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
@@ -226,6 +231,42 @@ describe("ClickhouseWriter", () => {
       "ClickhouseWriter shutdown complete.",
     );
   });
+
+  it.each(["batch-size", "interval"] as const)(
+    "waits for an in-flight %s flush before shutdown completes",
+    async (flushTrigger) => {
+      let resolveInsert!: () => void;
+      const mockInsert = vi
+        .spyOn(clickhouseClientMock, "insert")
+        .mockImplementation(
+          () => new Promise<void>((resolve) => (resolveInsert = resolve)),
+        );
+      if (flushTrigger === "batch-size") writer.batchSize = 1;
+      writer.addToQueue(TableName.Traces, { id: "1", name: "trace" } as any);
+      if (flushTrigger === "interval") {
+        await vi.advanceTimersByTimeAsync(writer.writeInterval);
+      }
+
+      let shutdown: Promise<void> | undefined;
+      try {
+        await vi.waitFor(() => expect(mockInsert).toHaveBeenCalledTimes(1));
+        let shutdownComplete = false;
+        shutdown = writer.shutdown().then(() => {
+          shutdownComplete = true;
+        });
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(shutdownComplete).toBe(false);
+
+        resolveInsert();
+        await shutdown;
+        expect(shutdownComplete).toBe(true);
+      } finally {
+        resolveInsert?.();
+        await shutdown;
+      }
+    },
+  );
 
   it("should handle multiple table types", async () => {
     const mockInsert = vi
@@ -465,15 +506,13 @@ describe("ClickhouseWriter", () => {
         { input: Infinity, expected: [0, true], name: "positive Infinity" },
         { input: -Infinity, expected: [0, true], name: "negative Infinity" },
       ])("$name ($input)", ({ input, expected }) => {
-        expect(ClickhouseWriter["clampDecimal64Value"](input)).toEqual(
-          expected,
-        );
+        expect(clampDecimal64Value(input)).toEqual(expected);
       });
     });
 
     describe("clampDecimal64Map", () => {
       it("returns undefined for undefined input", () => {
-        const result = writer["clampDecimal64Map"](undefined, {
+        const result = clampDecimal64Map(undefined, {
           recordId: "r1",
           projectId: "p1",
           fieldName: "cost_details",
@@ -483,7 +522,7 @@ describe("ClickhouseWriter", () => {
 
       it("returns original map when no values need clamping", () => {
         const map = { input: 0.001, output: 42.5 };
-        const result = writer["clampDecimal64Map"](map, {
+        const result = clampDecimal64Map(map, {
           recordId: "r1",
           projectId: "p1",
           fieldName: "cost_details",
@@ -493,7 +532,7 @@ describe("ClickhouseWriter", () => {
       });
 
       it("clamps multiple overflowing entries correctly", () => {
-        const result = writer["clampDecimal64Map"](
+        const result = clampDecimal64Map(
           { input: 2_000_000, output: -5_000_000, total: NaN },
           { recordId: "r1", projectId: "p1", fieldName: "cost_details" },
         );
@@ -505,7 +544,7 @@ describe("ClickhouseWriter", () => {
       });
 
       it("clamps only overflowing entries and logs once", () => {
-        const result = writer["clampDecimal64Map"](
+        const result = clampDecimal64Map(
           { input: 0.001, output: 8_859_794 },
           { recordId: "r1", projectId: "p1", fieldName: "cost_details" },
         );
@@ -554,10 +593,7 @@ describe("ClickhouseWriter", () => {
         metadata: { key: "value" },
       } as any;
 
-      const truncatedRecord = writer["truncateOversizedRecord"](
-        TableName.Traces,
-        record,
-      );
+      const truncatedRecord = truncateOversizedRecord(TableName.Traces, record);
 
       expect(truncatedRecord.id).toBe("1");
       expect((truncatedRecord as any).output).toBe("normal output");
@@ -582,10 +618,7 @@ describe("ClickhouseWriter", () => {
         metadata: { key: "value" },
       };
 
-      const truncatedRecord = writer["truncateOversizedRecord"](
-        TableName.Traces,
-        record,
-      );
+      const truncatedRecord = truncateOversizedRecord(TableName.Traces, record);
 
       expect(truncatedRecord.id).toBe("1");
       expect(truncatedRecord.input).toBe("normal input");
@@ -612,10 +645,7 @@ describe("ClickhouseWriter", () => {
         },
       };
 
-      const truncatedRecord = writer["truncateOversizedRecord"](
-        TableName.Traces,
-        record,
-      );
+      const truncatedRecord = truncateOversizedRecord(TableName.Traces, record);
 
       expect(truncatedRecord.id).toBe("1");
       expect(truncatedRecord.input).toBe("normal input");
@@ -643,7 +673,7 @@ describe("ClickhouseWriter", () => {
         metadata: { key: "value" },
       };
 
-      const truncatedRecord = writer["truncateOversizedRecord"](
+      const truncatedRecord = truncateOversizedRecord(
         TableName.Traces,
         normalRecord,
       );

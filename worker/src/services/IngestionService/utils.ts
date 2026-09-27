@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { JsonNested, Prisma } from "@langfuse/shared";
 import { mergeWith, merge } from "lodash";
 
@@ -49,12 +50,15 @@ export const convertPostgresJsonToMetadataRecord = (
 export const convertRecordValuesToString = (
   record: Record<string, unknown>,
 ): Record<string, string> => {
-  const result: Record<string, string> = {};
-  for (const key in record) {
-    const value = record[key];
-    result[key] = typeof value === "string" ? value : JSON.stringify(value);
-  }
-  return result;
+  // Built via Object.fromEntries rather than `result[key] = ...` so a key
+  // named `__proto__` becomes an ordinary own property instead of invoking
+  // Object.prototype's `__proto__` setter, which would silently drop it.
+  return Object.fromEntries(
+    Object.entries(record).map(([key, value]) => [
+      key,
+      typeof value === "string" ? value : JSON.stringify(value),
+    ]),
+  );
 };
 
 export function overwriteObject(

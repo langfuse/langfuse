@@ -25,6 +25,7 @@ import {
   monitorRunners,
   inAppAgentDlqRetryRunner,
   traceBatchDispatcher,
+  traceBatchMetricsRunner,
 } from "../app";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
@@ -86,6 +87,7 @@ const runDrainAndClose = async () => {
 
   // Stop queue metrics runner
   queueMetricsRunner?.stop();
+  traceBatchMetricsRunner?.stop();
 
   // Stop monitor runners
   for (const runner of monitorRunners) {

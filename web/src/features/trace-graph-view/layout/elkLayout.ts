@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import type { ELK, ElkNode } from "elkjs";
 
 import {

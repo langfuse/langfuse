@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { EXPERIMENT_IO_TRUNCATE_LENGTH } from "../../constants";
 import { matchesUiColumnMapping } from "../../tableDefinitions";
 import { env } from "../../env";

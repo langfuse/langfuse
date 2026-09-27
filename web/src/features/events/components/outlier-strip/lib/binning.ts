@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { format } from "date-fns";
 import {
   latencyFormatter,

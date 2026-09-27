@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { FileIcon } from "lucide-react";
 import { assertUnreachable } from "@langfuse/shared";
 import {

@@ -8,10 +8,6 @@ other workspace package:
 import { hello } from "@langfuse/native";
 ```
 
-Today the addon exports a single hello-world function. It exists to put the
-build, packaging, and deployment pipeline for native code in place; real
-functionality lands on top of it.
-
 ## Layout
 
 | Path                  | Purpose                                                                      |
@@ -29,6 +25,12 @@ functionality lands on top of it.
 type checks and tooling work without a Rust toolchain. `*.node` binaries and
 `target/` are ignored.
 
+The encoder uses a small local source overlay for the pinned `clickhouse`
+0.15.2 crate. `scripts/prepare-clickhouse-rs.sh` downloads the exact crate
+archive, verifies its checksum, applies the delta in `patches/`, and writes an
+ignored Cargo patch configuration. The repository keeps the delta and setup
+script, not a vendored copy of the crate.
+
 ## Building
 
 Install Rust through [rustup](https://rustup.rs), the same prerequisite the AI
@@ -44,6 +46,7 @@ Run from the repo root:
 pnpm --filter @langfuse/native run build        # release build for the current platform
 pnpm --filter @langfuse/native run build:debug  # unoptimised build
 pnpm --filter @langfuse/native run lint         # cargo fmt --check && cargo clippy -D warnings
+pnpm --filter @langfuse/native run test         # Rust tests; uses ClickHouse when available
 ```
 
 `pnpm run dev`, `pnpm run build`, `pnpm run test`, and the worker's

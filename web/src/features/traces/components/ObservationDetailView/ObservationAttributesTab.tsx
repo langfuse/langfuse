@@ -54,7 +54,6 @@ export function ObservationAttributesTab({
           <div className={SECTION_CLASS}>
             <PrettyJsonView
               title="Attributes"
-              showHeader={false}
               json={attributes}
               currentView={currentView}
               rowActions={(row) => (
@@ -73,7 +72,6 @@ export function ObservationAttributesTab({
           <div className={SECTION_CLASS}>
             <PrettyJsonView
               title="Model parameters"
-              showHeader={false}
               json={modelParameters}
               currentView={currentView}
             />
@@ -92,7 +90,6 @@ export function ObservationAttributesTab({
             ) : (
               <PrettyJsonView
                 title="Metadata"
-                showHeader={false}
                 json={metadata}
                 parsedJson={parsedMetadata}
                 currentView={currentView}

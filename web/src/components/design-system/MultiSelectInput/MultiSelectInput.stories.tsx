@@ -94,6 +94,35 @@ export const LargeList = meta.story({
   },
 });
 
+export const MultipleSelected = meta.story({
+  args: {
+    value: ["production", "regression"],
+    options,
+    onValueChange: fn(),
+    placeholder: "Choose score fields",
+    selectedLabel: "2 score fields selected",
+    searchPlaceholder: "Search score fields...",
+    emptyMessage: "No score fields found.",
+  },
+  render: (args) => {
+    const [value, setValue] = useState(args.value);
+
+    return (
+      <div className="w-[640px] max-w-full">
+        <MultiSelectInput
+          {...args}
+          value={value}
+          selectedLabel={`${value.length} score fields selected`}
+          onValueChange={(newValue) => {
+            setValue(newValue);
+            args.onValueChange(newValue);
+          }}
+        />
+      </div>
+    );
+  },
+});
+
 export const TestSelectsMultipleOptions = meta.story({
   name: "(Test) Selects Multiple Options",
   args: {

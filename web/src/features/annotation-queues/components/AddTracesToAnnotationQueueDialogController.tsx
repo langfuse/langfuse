@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { type ReactNode, useState } from "react";
 import { ActionId, BatchExportTableName } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
