@@ -101,10 +101,9 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
     // each measurement travel with its node, so offsets stay correct.
     getItemKey: (index) => flattenedItems[index]!.node.id,
     overscan,
-    measureElement:
-      typeof window !== "undefined"
-        ? (element) => element.getBoundingClientRect().height
-        : undefined,
+    // Keep the library default. A live getBoundingClientRect measure on the
+    // callback ref remasures during React 19 layout; that flushSyncs and can
+    // exceed max update depth when row height is unstable.
   });
 
   // Scroll the selected node into view whenever the selection changes — so
