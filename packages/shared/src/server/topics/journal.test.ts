@@ -11,6 +11,7 @@ import { type TopicExecutionInput } from "../../topics";
 const state = vi.hoisted(() => ({
   rows: new Map<string, Record<string, unknown>>(),
   batches: new Map<string, Record<string, unknown>>(),
+  findBatch: vi.fn(),
   writes: vi.fn(),
 }));
 vi.mock("./postgres", () => ({
@@ -41,6 +42,8 @@ vi.mock("../../db", () => {
     findMany: async ({ where }: { where: Record<string, unknown> }) =>
       [...state.batches.values()].filter((row) => matches(row, where)),
     create: async ({ data }: { data: Record<string, unknown> }) => {
+      if (state.batches.has(String(data.id)))
+        throw new Error("Duplicate execution");
       const row = {
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -66,7 +69,6 @@ vi.mock("../../db", () => {
       return updated;
     },
   };
-  let pending = Promise.resolve<unknown>(undefined);
   const transaction = {
     topicClusteringRun,
     batchAction,
@@ -76,12 +78,12 @@ vi.mock("../../db", () => {
   return {
     prisma: {
       topicClusteringRun,
-      batchAction,
-      $transaction: (fn: (tx: typeof transaction) => Promise<unknown>) => {
-        const next = pending.then(() => fn(transaction));
-        pending = next.catch(() => undefined);
-        return next;
+      batchAction: {
+        ...batchAction,
+        findFirst: state.findBatch.mockImplementation(batchAction.findFirst),
       },
+      $transaction: (fn: (tx: typeof transaction) => Promise<unknown>) =>
+        fn(transaction),
     },
   };
 });
@@ -117,10 +119,11 @@ const updateInput: TopicExecutionInput = {
 beforeEach(() => {
   state.rows.clear();
   state.batches.clear();
+  state.findBatch.mockClear();
   state.writes.mockClear();
 });
 
-describe("compact Topics execution storage", () => {
+describe("Topics journal application contract", () => {
   it("returns uncapped trace input to the caller but persists only settings and aggregate progress", async () => {
     const traceIds = Array.from(
       { length: 2001 },
@@ -131,15 +134,6 @@ describe("compact Topics execution storage", () => {
         ...input,
         traceIds,
         ruleId: "rule-a",
-        traceSelection: {
-          filter: [],
-          from: new Date("2026-09-01"),
-          to: new Date("2026-09-02"),
-          limit: null,
-          sampling: "random",
-          seed: "seed",
-          excludedTraceIds: ["excluded"],
-        },
       },
       undefined,
       "user-a",
@@ -148,7 +142,6 @@ describe("compact Topics execution storage", () => {
       traceIds,
       ruleId: "rule-a",
       processingConfig: input.processingConfig,
-      traceSelection: { excludedTraceIds: ["excluded"] },
     });
     expect(state.rows.size).toBe(0);
     expect(state.batches.size).toBe(1);
@@ -184,22 +177,19 @@ describe("compact Topics execution storage", () => {
     const database = JSON.stringify([...state.batches.values()]);
     for (const value of [
       "traceIds",
-      "traceSelection",
       "traceErrors",
       "request:0/opaque",
-      "excluded",
       "failed-trace",
     ])
       expect(database).not.toContain(value);
   });
 
   it.each([input, updateInput])(
-    "admits concurrent $operation requests once and scopes their journal to the project",
+    "rechecks an existing $operation request after an optimistic read misses it and preserves project scope",
     async (request) => {
-      const [a, b] = await Promise.all([
-        createTopicExecution(request, "request-hash", "user-a"),
-        createTopicExecution(request, "request-hash", "user-a"),
-      ]);
+      const a = await createTopicExecution(request, "request-hash", "user-a");
+      state.findBatch.mockResolvedValueOnce(null);
+      const b = await createTopicExecution(request, "request-hash", "user-a");
       expect(a.id).toBe(b.id);
       expect(state.batches.size).toBe(1);
       expect([...state.rows.values()]).toEqual(
@@ -248,19 +238,16 @@ describe("compact Topics execution storage", () => {
     },
   );
 
-  it("rejects a different resolved cohort racing under the same original request", async () => {
-    const results = await Promise.allSettled([
-      createTopicExecution(input, "request-hash", "user-a"),
+  it("rejects a different resolved cohort found during the transaction recheck", async () => {
+    await createTopicExecution(input, "request-hash", "user-a");
+    state.findBatch.mockResolvedValueOnce(null);
+    await expect(
       createTopicExecution(
         { ...input, traceIds: ["new-trace"] },
         "request-hash",
         "user-a",
       ),
-    ]);
-    expect(results.map((result) => result.status)).toEqual([
-      "fulfilled",
-      "rejected",
-    ]);
+    ).rejects.toThrow("different Topics request");
     expect(state.batches.size).toBe(1);
     expect(state.batches.values().next().value).toMatchObject({
       totalCount: 2,

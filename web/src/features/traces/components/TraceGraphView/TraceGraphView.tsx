@@ -12,7 +12,6 @@ import {
   type GraphViewMode,
 } from "@/src/features/trace-graph-view";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
-import { useActiveObservationIds } from "@/src/features/traces/contexts/PlayheadContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
@@ -21,7 +20,6 @@ import { useMobileLayoutContextOptional } from "../TraceLayoutMobile";
 
 export function TraceGraphView() {
   const { agentGraphData, isLoading } = useTraceGraphData();
-  const activeObservationIds = useActiveObservationIds();
   const { graphViewMode, setGraphViewMode } = useViewPreferences();
   // The trace panel's search box, resolved by the same hook the Timeline reads.
   // The graph projects these observation ids onto its own nodes, which is
@@ -73,7 +71,6 @@ export function TraceGraphView() {
   return (
     <TraceGraphViewComponent
       agentGraphData={agentGraphData}
-      activeObservationIds={activeObservationIds}
       viewMode={graphViewMode}
       onViewModeChange={handleViewModeChange}
       onObservationSelect={handleObservationSelect}

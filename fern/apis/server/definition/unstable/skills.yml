@@ -1,0 +1,183 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  pagination: ../utils/pagination.yml
+service:
+  auth: true
+  base-path: /api/public/unstable
+  endpoints:
+    list:
+      docs: List skills with metadata and timestamps from their latest version, shared tags, and the version assigned to production when present.
+      method: GET
+      path: /skills
+      request:
+        name: ListSkillsRequest
+        query-parameters:
+          name:
+            type: optional<string>
+            docs: Filter by exact skill name.
+          search:
+            type: optional<string>
+            docs: Case-insensitive search across skill names and latest-version descriptions.
+          tag:
+            type: optional<string>
+            docs: Filter by a shared skill tag.
+          page: optional<integer>
+          limit: optional<integer>
+          fromUpdatedAt:
+            type: optional<datetime>
+            docs: Include skills whose latest version was updated at or after this timestamp.
+          toUpdatedAt:
+            type: optional<datetime>
+            docs: Include skills whose latest version was updated before this timestamp.
+      response: SkillMetaListResponse
+
+    createVersion:
+      docs: |
+        Create skill version
+      method: POST
+      path: /skills
+      request: CreateSkillVersionRequest
+      response:
+        status-code: 201
+        type: SkillVersion
+
+    get:
+      docs: Resolve a skill's metadata and file manifest by version or label. Defaults to the production label. Use each file's id with getFileContent to read its text content.
+      method: GET
+      path: /skills/{skillName}
+      path-parameters:
+        skillName: string
+      request:
+        name: GetSkillRequest
+        query-parameters:
+          version: optional<integer>
+          label: optional<string>
+      response: SkillVersion
+
+    update:
+      docs: Replace the shared tags across all versions of a skill. An empty tags list clears all tags. Returns the latest skill version with the updated tags.
+      method: PATCH
+      path: /skills/{skillName}
+      path-parameters:
+        skillName: string
+      request: UpdateSkillRequest
+      response: SkillVersion
+
+    getFileContent:
+      docs: Read one text file from a persisted skill version using its file id, not its blob id. Returns JSON containing the text content with Cache-Control no-store.
+      method: GET
+      path: /skills/files/{fileId}/content
+      path-parameters:
+        fileId: string
+      response: SkillFileContentResponse
+
+    setLabels:
+      docs: Replace the labels on a skill version and atomically move them from other versions.
+      method: PATCH
+      path: /skills/{skillName}/versions/{skillVersion}
+      path-parameters:
+        skillName: string
+        skillVersion: integer
+      request: UpdateSkillLabelsRequest
+      response: SkillVersion
+
+    deleteVersion:
+      docs: Delete one immutable skill version. Unreferenced blobs are retained for asynchronous cleanup.
+      method: DELETE
+      path: /skills/{skillName}/versions/{skillVersion}
+      path-parameters:
+        skillName: string
+        skillVersion: integer
+      response: DeleteSkillVersionResponse
+
+types:
+  SkillMetaListResponse:
+    properties:
+      data: list<SkillMeta>
+      meta: SkillListPagination
+
+  SkillListPagination:
+    extends: pagination.MetaResponse
+    properties:
+      hasNextPage: boolean
+
+  SkillMeta:
+    properties:
+      name: string
+      description: string
+      tags: list<string>
+      latestVersion: integer
+      latestVersionCreatedAt: datetime
+      latestVersionLastUpdatedAt: datetime
+      productionVersion:
+        type: nullable<integer>
+        docs: Version assigned the production label, or null when no version is assigned.
+
+  SkillVersionFileInput:
+    properties:
+      path: string
+      content:
+        type: string
+        docs: UTF-8 text content. The server computes the hash and byte length.
+
+  SkillVersionFileReference:
+    properties:
+      path: string
+      sha256Hash:
+        type: string
+        docs: Canonical base64-encoded SHA-256 from a skill file manifest. The content must already exist in this project.
+
+  SkillVersionFileCreateInput:
+    docs: Provide exactly one of content or sha256Hash for each path.
+    discriminated: false
+    union:
+      - SkillVersionFileInput
+      - SkillVersionFileReference
+
+  CreateSkillVersionRequest:
+    properties:
+      files: list<SkillVersionFileCreateInput>
+      commitMessage: optional<nullable<string>>
+
+  SkillFile:
+    properties:
+      id: string
+      path: string
+      blobId: string
+      sha256Hash: string
+      contentType: string
+      contentLength: long
+
+  SkillFileContentResponse:
+    properties:
+      content: string
+
+  SkillVersion:
+    properties:
+      id: string
+      createdAt: datetime
+      updatedAt: datetime
+      projectId: string
+      createdBy: string
+      name: string
+      description: string
+      frontmatter: unknown
+      version: integer
+      tags: list<string>
+      labels: list<string>
+      commitMessage: nullable<string>
+      files: list<SkillFile>
+
+  UpdateSkillRequest:
+    properties:
+      tags:
+        type: list<string>
+        docs: The complete set of tags to apply to every version of the skill. Pass an empty list to clear all tags.
+
+  UpdateSkillLabelsRequest:
+    properties:
+      labels: list<string>
+
+  DeleteSkillVersionResponse:
+    properties:
+      deleted: boolean

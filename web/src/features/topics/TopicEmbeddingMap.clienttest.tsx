@@ -38,6 +38,7 @@ it("fits a tall cohort across the landscape plot while preserving pairwise dista
       topics={[]}
       selectedTopic={null}
       selectedTraceId={null}
+      onSelectTrace={vi.fn()}
       onSelectTopic={vi.fn()}
     />,
   );

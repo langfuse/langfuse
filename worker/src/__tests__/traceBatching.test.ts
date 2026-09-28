@@ -54,6 +54,12 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
+const topicsProjects = vi.hoisted(() => new Set<string>());
+vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
+  isTopicsProjectEnabled: (projectId: string) => topicsProjects.has(projectId),
+}));
+
 vi.mock("../features/evaluation/observationEval", async (importOriginal) => ({
   ...(await importOriginal<
     typeof import("../features/evaluation/observationEval")
@@ -887,6 +893,24 @@ describe("trace micro-batch scheduling with Redis", () => {
     }
   }, 30_000);
 
+  it("at rate 0 tracks only Topics-enabled projects and skips all work for others", async () => {
+    const samplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
+    env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 0;
+    topicsProjects.add("topics-project");
+    try {
+      vi.mocked(recordIncrement).mockClear();
+      await trackTraceBatchActivity("other-project", [event("other-trace")]);
+      expect(recordIncrement).not.toHaveBeenCalled();
+      await trackTraceBatchActivity("topics-project", [event("topics-trace")]);
+      expect(await client().hkeys(stateKey)).toEqual([
+        member("topics-project", "topics-trace"),
+      ]);
+    } finally {
+      topicsProjects.clear();
+      env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = samplingRate;
+    }
+  });
+
   it("keeps stable nested trace samples across replay and counts decisions once per trace in each ingestion batch", async () => {
     const traceIds = Array.from({ length: 1_000 }, (_, i) =>
       i.toString(16).padStart(32, "0"),
@@ -894,7 +918,6 @@ describe("trace micro-batch scheduling with Redis", () => {
     let previous: string[] = [];
     // Fixed fixtures pin the evaluator's sampling cohort, including both endpoints.
     for (const [rate, expectedCount] of [
-      [0, 0],
       [0.1, 78],
       [0.1, 78],
       [0.5, 478],

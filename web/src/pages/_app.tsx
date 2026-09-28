@@ -195,7 +195,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
           adapter={NextAdapterPagesWithReadyGuard}
           options={{ enableBatching: true }}
         >
-          <TooltipProvider>
+          <TooltipProvider delayDuration={300}>
             <CommandMenuProvider>
               <PostHogProvider client={posthog}>
                 <SessionProvider

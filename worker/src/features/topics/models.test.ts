@@ -132,7 +132,9 @@ describe("Topics naming boundary", () => {
         "Trace evidence. ".repeat(1000),
         topicProcessingConfigSchema.parse({ maxInputTokens: 256 }),
       ),
-    ).rejects.toThrow("transcript is never shortened per facet");
+    ).rejects.toThrow(
+      /are \d+ tokens, above this run's 256-token input limit\. No model call was made; the transcript is never shortened per facet\./,
+    );
     expect(state.call).not.toHaveBeenCalled();
   });
 

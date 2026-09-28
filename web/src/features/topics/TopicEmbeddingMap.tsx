@@ -99,8 +99,8 @@ export function TopicEmbeddingMap({
   onSelectTopic: (id: string | null) => void;
   headerActions?: ReactNode;
   headerStats?: ReactNode;
-  onSelectTrace?: (traceId: string | null) => void;
-  selectedTraceId?: string | null;
+  onSelectTrace: (traceId: string | null) => void;
+  selectedTraceId: string | null;
 }) {
   const query = api.topics.map.useQuery({
     projectId,
@@ -162,8 +162,8 @@ function EmbeddingMapView({
   onSelectTopic: (id: string | null) => void;
   headerActions?: ReactNode;
   headerStats?: ReactNode;
-  onSelectTrace?: (traceId: string | null) => void;
-  selectedTraceId?: string | null;
+  onSelectTrace: (traceId: string | null) => void;
+  selectedTraceId: string | null;
 }) {
   const { openPeek } = usePeekNavigation({
     tableName: "topics-traces",
@@ -177,16 +177,13 @@ function EmbeddingMapView({
     selectedTopic === null
       ? data.points
       : data.points.filter((point) => pointGroup(point) === selectedTopic);
-  const [localSelectedId, setSelectedId] = useState<string | null>(null);
-  const selectedId =
-    selectedTraceId === undefined ? localSelectedId : selectedTraceId;
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const tabStopId = plotted.some((point) => point.traceId === focusedId)
     ? focusedId
     : plotted[0]?.traceId;
   const active =
-    plotted.find((point) => point.traceId === selectedId) ??
+    plotted.find((point) => point.traceId === selectedTraceId) ??
     plotted.find((point) => point.traceId === hoveredId);
   const groups = [
     ...topics.map((topic, index) => ({
@@ -246,9 +243,9 @@ function EmbeddingMapView({
             );
             const isActive = active?.traceId === point.traceId;
             const select = () => {
-              const deselect = selectedId === point.traceId;
-              setSelectedId(deselect ? null : point.traceId);
-              onSelectTrace?.(deselect ? null : point.traceId);
+              onSelectTrace(
+                selectedTraceId === point.traceId ? null : point.traceId,
+              );
             };
             return (
               <circle
@@ -264,7 +261,7 @@ function EmbeddingMapView({
                 role="button"
                 tabIndex={point.traceId === tabStopId ? 0 : -1}
                 aria-label={`${point.traceId}: ${point.summary}`}
-                aria-pressed={selectedId === point.traceId}
+                aria-pressed={selectedTraceId === point.traceId}
                 className="cursor-pointer focus:outline-2 focus:outline-offset-4"
                 onClick={select}
                 onKeyDown={(event) => {

@@ -18,10 +18,10 @@ project permissions. Processing additionally requires the project allowlist.
   submits the retained configuration. Overlay owners stay outside the responsive
   header menu. Facet versions contain only prompts; processing settings and
   embedding dimensions are frozen on executions.
-- `TopicPipelineForm.tsx` owns the configuration dialog, operation, facet versions
-  and submission. Its state stays mounted when the dialog closes; the action
-  remains outside the dialog and uses the reviewed selection. The render prop
-  separates header actions from the mounted dialog. Preview trace clicks close
+- `useTopicPipelineForm` owns the configuration dialog, operation, facet versions
+  and submission. The workspace renders its header actions and dialog separately;
+  configuration changes preserve the current results and selection. Its state
+  stays mounted when the dialog closes. Preview trace clicks close
   configuration before opening the trace peek in the panel layer.
   Every available facet starts selected. Process traces is the default operation:
   it summarizes, embeds, and assigns only the selected batch to current topics.
@@ -39,12 +39,12 @@ project permissions. Processing additionally requires the project allowlist.
   prompt version; editing criteria or facets becomes an ad hoc run until explicitly
   saved. Rules do not create separate maps or invalidate summaries and embeddings.
   These local PoC operations and rule saving add no product analytics event.
-- `TopicTraceSelector.tsx` reuses the eval filter builder and query editor, with
+- `useTopicTraceSelector` reuses the eval filter builder and query editor, with
   a time range, all matching traces selected by default, and optional random/latest
-  sampling with a user-chosen size. Rule criteria initialize a keyed selector;
-  dates stay specific to each execution. The render prop supplies selection,
-  criteria and controls so the dialog can unmount without losing the reviewed
-  cohort. Explicit preview counts the cohort;
+  sampling with a user-chosen size. Selecting a rule or changing the operation
+  resets only the trace-selection draft; dates stay specific to each execution.
+  The hook supplies selection, criteria and controls so the dialog can unmount
+  without losing the reviewed cohort. Explicit preview counts the cohort;
   changing criteria invalidates it. Rows can be excluded across preview pages.
   The form submits reviewed criteria and exclusions. Paste IDs remains available.
   `server/traceSelection.ts` applies canonical observation filters within a

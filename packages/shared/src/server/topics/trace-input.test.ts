@@ -16,11 +16,8 @@ const row = {
   parent_span_id: null as string | null,
   is_app_root: false,
   start_time: "2026-09-15 10:00:00.000",
-  end_time: "2026-09-15 10:00:01.000",
   type: "GENERATION",
   name: "chat",
-  level: "DEFAULT",
-  status_message: null,
   input: JSON.stringify([
     { role: "user", content: "Please cancel my subscription." },
   ]),

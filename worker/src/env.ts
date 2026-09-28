@@ -113,7 +113,7 @@ const EnvSchema = z.object({
     .number()
     .min(0)
     .max(1)
-    .default(1),
+    .default(0),
   LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -151,11 +151,7 @@ const EnvSchema = z.object({
   LANGFUSE_TRACE_BATCH_STRATEGY: z
     .enum(["project", "locality"])
     .default("project"),
-  LANGFUSE_TRACE_BATCH_IDLE_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(600_000),
+  LANGFUSE_TRACE_BATCH_IDLE_MS: z.coerce.number().int().positive(),
   LANGFUSE_TRACE_BATCH_PENDING_TTL_MS: z.coerce
     .number()
     .int()
@@ -822,7 +818,12 @@ const validateInAppAgentSandboxConfig = (parsed: ParsedEnv): void => {
 };
 
 const parseEnv = (): ParsedEnv => {
-  const parsed = EnvSchema.parse(removeEmptyEnvVariables(process.env));
+  const source = { ...removeEmptyEnvVariables(process.env) };
+  if (source.LANGFUSE_TRACE_BATCH_IDLE_MS === undefined) {
+    source.LANGFUSE_TRACE_BATCH_IDLE_MS =
+      source.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? "120000" : "600000";
+  }
+  const parsed = EnvSchema.parse(source);
   validateV4Flags(parsed);
   validateInAppAgentSandboxConfig(parsed);
   return parsed;

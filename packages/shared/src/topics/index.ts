@@ -24,7 +24,7 @@ export const topicEmbeddingConfigSchema = z.object({
 export type TopicEmbeddingConfig = z.infer<typeof topicEmbeddingConfigSchema>;
 export const topicProcessingConfigSchema = z.object({
   summaryModel: z.literal(TOPICS_SUMMARY_MODEL).default(TOPICS_SUMMARY_MODEL),
-  maxInputTokens: z.number().int().min(256).max(8000).default(8000),
+  maxInputTokens: z.number().int().min(256).max(120_000).default(120_000),
   maxOutputTokens: z.number().int().min(64).max(512).default(512),
 });
 export type TopicProcessingConfig = z.infer<typeof topicProcessingConfigSchema>;
@@ -88,7 +88,6 @@ export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
       traceIds: z.array(topicTraceIdSchema).min(1),
       reuseExistingSummaries: z.boolean().default(false),
       ruleId: topicIdSchema.optional(),
-      traceSelection: topicTraceSelectionSnapshotSchema.optional(),
       processingConfig: topicProcessingConfigSchema.default(() =>
         topicProcessingConfigSchema.parse({}),
       ),
@@ -308,9 +307,6 @@ export type TopicExecutionSummary = Omit<
   "input" | "traceErrors"
 > & {
   input:
-    | Omit<
-        Extract<TopicExecutionInput, { operation: "process" }>,
-        "traceIds" | "traceSelection"
-      >
+    | Omit<Extract<TopicExecutionInput, { operation: "process" }>, "traceIds">
     | Extract<TopicExecutionInput, { operation: "update" }>;
 };

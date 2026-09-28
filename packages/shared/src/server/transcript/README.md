@@ -53,6 +53,31 @@ without I/O, once for the `GENERATION` and `TOOL` observations with I/O, then
 merge the two by id so the walk order comes from the structure and the
 messages from the content.
 
+### Why a trace renderer also needs observations
+
+`assembleTranscript` returns normalized conversation threads, not a complete
+trace. It retains the messages and minimal observation references needed to
+connect them, but does not retain the fields a trace-level view needs:
+
+- A root `SPAN` or `AGENT` can carry the trace input and final application
+  output, including output produced after the last model or tool call. Those
+  fields are absent from the assembled conversation.
+- Non-generation operations, unmatched tool observations, and observation
+  type/name/level/status are not represented as conversation messages. A
+  renderer needs them to show the operation sequence and inline failures.
+- Available tool definitions can occur in generation input or metadata. They
+  are not part of the normalized messages returned by the assembler.
+
+The Topics renderer therefore accepts both the assembled transcript and the
+already loaded, ordered observations. It uses the transcript for roles, threads,
+replayed history, and matched tool results; it uses observations for trace-level
+context and for locating messages among operations. This adds no repository
+read. If other consumers need the same trace context, an explicit optional
+context field or richer observation references on the assembled result could
+remove that second input. Such an extension should keep conversation assembly
+and trace-level facts distinct, so root I/O and operation metadata do not become
+duplicate conversation messages.
+
 ## Character limit
 
 `assembleTranscript(observations, { maxCharacters: 10_000 })` guarantees
@@ -212,7 +237,11 @@ and observation provenance are excluded. All fields inside parts are included.
 ```
 transcript/
 ├── README.md
-├── index.ts               public surface: assembleTranscript, orderObservations, types
+├── index.ts               public surface: assembly, renderers, types
+├── topics-renderer.ts     Topics trace-level layout
+├── topics-renderer-config.ts  Topics block caps and inclusions
+├── topics-renderer.test.ts    Topics layout behavior
+├── generic-renderer.ts    preserved plain-text comparison layout
 ├── ordering.ts            orderObservations, the trace tree walk
 ├── ordering.test.ts       ordering rules
 ├── transcript.ts          assembleTranscript

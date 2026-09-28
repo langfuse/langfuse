@@ -11,7 +11,7 @@ import {
   useQuery,
 } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TopicTraceSelector } from "./TopicTraceSelector";
+import { useTopicTraceSelector } from "./TopicTraceSelector";
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn(), push: vi.fn() }));
 vi.mock("next/router", () => ({
@@ -57,6 +57,20 @@ vi.mock(
   }),
 );
 
+function TraceSelector({ onOpenTrace }: { onOpenTrace: () => void }) {
+  const { selection, controls } = useTopicTraceSelector({
+    projectId: "project",
+    onOpenTrace,
+    enabled: true,
+  });
+  return (
+    <>
+      {controls}
+      <output data-testid="selected">{JSON.stringify(selection)}</output>
+    </>
+  );
+}
+
 function setup() {
   const onOpenTrace = vi.fn();
   const client = new QueryClient({
@@ -64,14 +78,7 @@ function setup() {
   });
   render(
     <QueryClientProvider client={client}>
-      <TopicTraceSelector projectId="project" onOpenTrace={onOpenTrace}>
-        {(selection, _criteria, controls) => (
-          <>
-            {controls}
-            <output data-testid="selected">{JSON.stringify(selection)}</output>
-          </>
-        )}
-      </TopicTraceSelector>
+      <TraceSelector onOpenTrace={onOpenTrace} />
     </QueryClientProvider>,
   );
   return { client, onOpenTrace };

@@ -128,7 +128,10 @@ export function createMcpServer(context: ServerContext): Server {
       content: [
         {
           type: "text",
-          text: JSON.stringify(result, null, 2),
+          text:
+            typeof result === "string"
+              ? result
+              : JSON.stringify(result, null, 2),
         },
       ],
     };

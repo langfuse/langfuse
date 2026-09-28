@@ -15,9 +15,9 @@ which traces are processed:
 - `facet_rules`: editable names, observation filters and optional random/latest
   sample size. `facet_rule_assignments` attaches stable facets to rules;
   editing a rule does not create prompt versions.
-- At trigger, the request freezes the rule ID, filter, time window,
-  sampling seed, exclusions, resolved trace IDs, selected prompt versions and
-  runtime summary/embedding configuration. Retries never re-evaluate a rule.
+- At trigger, the request freezes the rule ID, resolved trace IDs, selected prompt
+  versions and runtime summary/embedding configuration. A hash identifies the
+  original request, including its selection criteria. Retries never re-evaluate a rule.
 
 ## Setup
 
@@ -90,6 +90,30 @@ resume under the new schema. Old execution history remains readable.
 After changing the summary model, start a new **Process traces** execution;
 stored-summary reuse cannot reuse results from a different summary model.
 Existing topic names remain until their definitions change during **Update topics**.
+
+## Trace-batch connection
+
+After the trace-batch job assembles a transcript, it summarizes that same
+transcript for each current facet of an allowlisted project. It does not load
+the trace from ClickHouse again. Projects outside
+`LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` are skipped. A finished facet version is
+skipped on retry; a model or embedding failure fails the batch job so BullMQ
+can retry it. Summaries and embeddings use the same Bedrock models as manual
+processing.
+
+Required for a local run, in addition to Postgres, ClickHouse, and Redis:
+
+| Variable                                      | Role                                                                                                                                                                                                                                                 |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION`           | Must be set or the batch job is discarded. Local dev uses `DEV`.                                                                                                                                                                                     |
+| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | Track accepted writes. Default off.                                                                                                                                                                                                                  |
+| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | Enqueue idle traces. Default off.                                                                                                                                                                                                                    |
+| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | Register the batch worker. Default off.                                                                                                                                                                                                              |
+| `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | Allow the ClickHouse read. Default off.                                                                                                                                                                                                              |
+| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | Idle time before a trace is ready. Unset is 2 minutes on `DEV` and 10 minutes otherwise.                                                                                                                                                             |
+| `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`         | Same allowlist on web and worker. Unset defaults to the demo project. These projects bypass trace-batch sampling at ingestion, so every trace is summarized automatically; set `LANGFUSE_TRACE_BATCH_SAMPLING_RATE=0` to run the flow for them only. |
+| `LANGFUSE_AI_AWS_BEDROCK_REGION`              | Bedrock region for summaries and embeddings.                                                                                                                                                                                                         |
+| `LANGFUSE_TOPICS_AWS_PROFILE`                 | Optional local AWS profile. `AWS_PROFILE` takes precedence.                                                                                                                                                                                          |
 
 ## Run the experiment
 
@@ -181,8 +205,8 @@ hashes; older consumers require those fields and cannot consume new references.
 2. Embedding saves its vector with the staged summary before the combined
    ClickHouse insert. A completed embedding job acknowledges that insert;
    no unfinished summary rows reach ClickHouse.
-3. The coordinator releases its slot while waiting. Pending batch IDs live in its
-   BullMQ job; unchanged polls read Redis queue state without database work.
+3. The coordinator releases its slot while its saved phase is `embedding`.
+   It polls the embedding job for its batch ID in Redis without database work.
 4. After assignment inserts succeed, save terminal BullMQ state before deleting
    payloads. Cleanup failures leave them to expire. Repeated writes keep their
    identity. Inserts are bounded by 10,000 rows / 8 MiB and await async acknowledgement.
@@ -331,8 +355,8 @@ Naming requests above 272,000 input tokens use $4/$18 for the whole request.
 Embedding costs use Bedrock-reported input tokens at $0.12/million. Missing usage
 is logged and omitted from usage/cost maps, never estimated with an OpenAI tokenizer.
 Model prices and token budgets live in [models.ts](models.ts) and the shared
-Topics contracts. Oversized naming input fails before calling the provider;
-member summaries are never silently discarded.
+Topics contracts. Summary input defaults to 120,000 tokens. Oversized naming
+input fails before calling the provider; member summaries are never silently discarded.
 Provider SDK retries are disabled. Embedding queue jobs retry transient failures
 up to three attempts with exponential backoff; authentication and invalid
 input/output failures stop immediately. A manual resume can retry a failed batch
