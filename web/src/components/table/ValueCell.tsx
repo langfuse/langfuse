@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { memo, type JSX, useState } from "react";
 import { useRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";
@@ -534,16 +533,20 @@ export const ValueCell = memo(
           <DropdownMenuController
             align="end"
             maxWidth="320px"
-            renderMenu={() =>
-              rowActions ? (
-                rowActions(row)
-              ) : metadataActions ? (
-                <ValueCellActionsMenuContent
-                  row={row}
-                  metadataActions={metadataActions}
-                />
-              ) : null
-            }
+            renderMenu={() => {
+              if (rowActions) {
+                return rowActions(row);
+              }
+              if (metadataActions) {
+                return (
+                  <ValueCellActionsMenuContent
+                    row={row}
+                    metadataActions={metadataActions}
+                  />
+                );
+              }
+              return null;
+            }}
           >
             {({ isOpen, Trigger }) => (
               <Trigger asChild>

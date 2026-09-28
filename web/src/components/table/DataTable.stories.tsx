@@ -569,24 +569,27 @@ function useAsyncPagedData<TRow>({
   const lastPageIndex = Math.ceil(totalCount / pagination.pageSize) - 1;
   const hasNextPage = pagination.pageIndex < lastPageIndex;
 
-  const paginationProp =
-    mode === "none"
-      ? undefined
-      : mode === "offset"
-        ? {
-            totalCount,
-            onChange,
-            state: pagination,
-            options: [10, 20, 50],
-          }
-        : {
-            totalCount: null,
-            hasNextPage,
-            canJumpPages: false,
-            onChange,
-            state: pagination,
-            options: [10, 20, 50],
-          };
+  const paginationProp = (() => {
+    if (mode === "none") {
+      return undefined;
+    }
+    if (mode === "offset") {
+      return {
+        totalCount,
+        onChange,
+        state: pagination,
+        options: [10, 20, 50],
+      };
+    }
+    return {
+      totalCount: null,
+      hasNextPage,
+      canJumpPages: false,
+      onChange,
+      state: pagination,
+      options: [10, 20, 50],
+    };
+  })();
 
   return { data, paginationProp, pagination };
 }
