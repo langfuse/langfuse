@@ -86,14 +86,13 @@ function getKeyboardKeyLabel(key: KeyboardKey, isMac: boolean) {
 }
 
 const keyboardShortcutVariants = cva(
-  "pointer-events-none inline-flex items-center justify-center gap-1 rounded-sm border leading-none font-normal select-none",
+  "pointer-events-none inline-flex items-center justify-center gap-1 rounded-sm leading-none font-normal select-none",
   {
     variants: {
       variant: {
-        default: "border-border bg-transparent text-muted-foreground",
-        subtle: "border-transparent bg-transparent text-muted-foreground",
-        inverse:
-          "border-primary-foreground/30 bg-transparent text-primary-foreground",
+        default: "bg-muted text-muted-foreground",
+        subtle: "bg-transparent text-muted-foreground",
+        inverse: "bg-primary-foreground/20 text-primary-foreground",
       },
       size: {
         default: "h-5 min-w-5 px-1.5 text-[11px]",
