@@ -29,13 +29,11 @@ export const StorageProviderFields = ({
   const integrationType =
     useWatch({ control, name: "type" }) ?? BlobStorageIntegrationType.S3;
 
-  function getConditionalText(__nestedTernaryValues: {
-    integrationType: typeof integrationType;
-  }) {
-    if (__nestedTernaryValues.integrationType === "AZURE_BLOB_STORAGE") {
+  function getAccessKeyLabel(provider: typeof integrationType) {
+    if (provider === "AZURE_BLOB_STORAGE") {
       return "Storage Account Name";
     }
-    if (__nestedTernaryValues.integrationType === "S3") {
+    if (provider === "S3") {
       return "AWS Access Key ID";
     }
     return "Access Key ID";
@@ -172,7 +170,7 @@ export const StorageProviderFields = ({
         render={({ field }) => (
           <FormItem>
             <FormLabel>
-              {getConditionalText({ integrationType })}
+              {getAccessKeyLabel(integrationType)}
               {/* Show optional indicator for S3 types on self-hosted instances with entitlement */}
               {isSelfHosted && integrationType === "S3" && (
                 <span className="text-muted-foreground"> (optional)</span>
