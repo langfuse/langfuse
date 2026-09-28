@@ -20,7 +20,8 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { handleDataRetentionProcessingJob } from "../ee/dataRetention/handleDataRetentionProcessingJob";
 import { Job } from "bullmq";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 
 describe("DataRetentionProcessingJob", () => {
@@ -82,10 +83,16 @@ describe("DataRetentionProcessingJob", () => {
     });
 
     try {
-      const key = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: projectId,
-        scope: "PROJECT",
+      const creator = await prisma.user.create({
+        data: {
+          email: `retention-${randomUUID()}@langfuse.com`,
+          name: "retention-user",
+        },
+      });
+      const key = await createApiKey(prisma, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("PROJECT"),
+        creator: UserId(creator.id),
         isInAppAgentKey: true,
       });
       keyIds.push(key.id);
