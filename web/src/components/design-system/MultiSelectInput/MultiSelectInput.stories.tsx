@@ -148,6 +148,40 @@ export const TestSelectsMultipleOptions = meta.story({
   },
 });
 
+export const TestHidesSelectAllWhileSearching = meta.story({
+  name: "(Test) Hides Select All While Searching",
+  args: {
+    value: [],
+    options,
+    onValueChange: fn(),
+    placeholder: "Select datasets",
+    selectedLabel: "",
+    searchPlaceholder: "Search datasets...",
+    emptyMessage: "No datasets found.",
+    selectAllLabel: "Select All",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("combobox"));
+    await expect(
+      body.getByRole("button", { name: "Select All" }),
+    ).toBeVisible();
+
+    const search = body.getByPlaceholderText("Search datasets...");
+    await userEvent.type(search, "production");
+    await expect(
+      body.queryByRole("button", { name: "Select All" }),
+    ).not.toBeInTheDocument();
+
+    await userEvent.clear(search);
+    await expect(
+      body.getByRole("button", { name: "Select All" }),
+    ).toBeVisible();
+  },
+});
+
 export const TestKeepsWheelInsidePopover = meta.story({
   name: "(Test) Keeps Wheel Inside Popover",
   args: {

@@ -52,13 +52,20 @@ function MultiSelectInputInner<V extends string>(
 ) {
   const container = useLayerContainer("popover");
   const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState("");
   const listId = React.useId();
   const allSelected =
     options.length > 0 &&
     options.every((option) => option.disabled || value.includes(option.value));
 
   return (
-    <PopoverPrimitive.Root open={!disabled && open} onOpenChange={setOpen}>
+    <PopoverPrimitive.Root
+      open={!disabled && open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setSearch("");
+      }}
+    >
       <InputControl contentLayout="spread" error={error} disabled={disabled}>
         <PopoverPrimitive.Trigger
           ref={ref}
@@ -92,9 +99,14 @@ function MultiSelectInputInner<V extends string>(
             <InputDropdown.Root>
               <CommandPrimitive>
                 <InputDropdown.Search>
-                  <CommandPrimitive.Input placeholder={searchPlaceholder} />
+                  <CommandPrimitive.Input
+                    placeholder={searchPlaceholder}
+                    value={search}
+                    onValueChange={setSearch}
+                  />
                 </InputDropdown.Search>
                 {selectAllLabel &&
+                  !search.trim() &&
                   options.some((option) => !option.disabled) && (
                     <InputDropdown.Option
                       highlight="focus"
