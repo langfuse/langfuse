@@ -24,7 +24,7 @@ const badgeVariants = cva(
         ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
       },
       interactive: {
-        true: "decoration-border-contrast underline decoration-dashed underline-offset-[3px]",
+        true: "decoration-border-contrast underline decoration-dashed decoration-1 underline-offset-[3px]",
         false: "",
       },
     },
@@ -90,7 +90,7 @@ export function Badge({
         className={cn(
           "overflow-x-clip overflow-y-visible text-ellipsis whitespace-nowrap",
           interactive &&
-            "decoration-border-contrast underline decoration-dashed underline-offset-[3px]",
+            "decoration-border-contrast underline decoration-dashed decoration-1 underline-offset-[3px]",
         )}
         title={title ?? (interactive ? undefined : text)}
       >
