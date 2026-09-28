@@ -18,6 +18,19 @@ import { type BlobStorageFormControl } from "@/src/features/blobstorage-integrat
 
 // Field-group checkboxes; descriptions and available groups depend on the
 // selected export source and file type.
+function getExportFieldGroupsDescription(
+  includesLegacyExport: boolean,
+  isLegacyOnlyExport: boolean,
+) {
+  if (includesLegacyExport) {
+    if (isLegacyOnlyExport) {
+      return " Traces and scores are always exported in full. Field groups that only exist on the enriched observations (e.g. Trace Context) are not available for this export source.";
+    }
+    return " Traces and scores are always exported in full. Fields that only exist on the enriched observations (e.g. Trace Context) are omitted from the legacy observations export.";
+  }
+  return " Scores are always exported in full.";
+}
+
 export const ExportFieldGroupsField = ({
   control,
 }: {
@@ -43,18 +56,6 @@ export const ExportFieldGroupsField = ({
     watchedExportSource ===
       AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS;
 
-  function getConditionalText(__nestedTernaryValues: {
-    includesLegacyExport: typeof includesLegacyExport;
-    isLegacyOnlyExport: typeof isLegacyOnlyExport;
-  }) {
-    if (__nestedTernaryValues.includesLegacyExport) {
-      if (__nestedTernaryValues.isLegacyOnlyExport) {
-        return " Traces and scores are always exported in full. Field groups that only exist on the enriched observations (e.g. Trace Context) are not available for this export source.";
-      }
-      return " Traces and scores are always exported in full. Fields that only exist on the enriched observations (e.g. Trace Context) are omitted from the legacy observations export.";
-    }
-    return " Scores are always exported in full.";
-  }
   return (
     <FormField
       control={control}
@@ -67,7 +68,10 @@ export const ExportFieldGroupsField = ({
             Deselect large groups (e.g. Input / Output) to reduce export size,
             or privacy-sensitive groups (e.g. Metadata) to avoid storing user
             data.
-            {getConditionalText({ includesLegacyExport, isLegacyOnlyExport })}
+            {getExportFieldGroupsDescription(
+              includesLegacyExport,
+              isLegacyOnlyExport,
+            )}
           </FormDescription>
           <div className="mt-2 space-y-2">
             {EXPORT_FIELD_GROUP_OPTIONS.filter(
