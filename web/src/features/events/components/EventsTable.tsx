@@ -14,6 +14,7 @@ import {
 
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { DataTable } from "@/src/components/table/data-table";
+import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/data-table-pagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
@@ -1133,11 +1134,15 @@ export default function ObservationsEventsTable({
   );
 
   const isSelectAllCountUnavailable = isTotalCountLoading || isTotalCountError;
-  const selectAllCountUnavailableReason = isTotalCountLoading
-    ? "Counting selected observations."
-    : isTotalCountError
-      ? "Could not count selected observations. Clear selection and try again."
-      : undefined;
+  const selectAllCountUnavailableReason = (() => {
+    if (isTotalCountLoading) {
+      return "Counting selected observations.";
+    }
+    if (isTotalCountError) {
+      return "Could not count selected observations. Clear selection and try again.";
+    }
+    return undefined;
+  })();
   const tableActions: TableAction[] = [
     ...(hasTraceDeletionEntitlement
       ? [
@@ -2314,6 +2319,7 @@ export default function ObservationsEventsTable({
                           pageIndex: paginationState.page - 1,
                           pageSize: paginationState.limit,
                         },
+                        options: TRACING_PAGE_SIZE_OPTIONS,
                       }
                 }
                 rowSelection={selectedRows}

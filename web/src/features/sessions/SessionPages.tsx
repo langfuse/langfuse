@@ -1691,6 +1691,7 @@ const LoadedSessionEventsPage: React.FC<{
           headerProps={{
             title: sessionId,
             itemType: "SESSION",
+            divider: false,
             breadcrumb: [
               {
                 name: "Sessions",

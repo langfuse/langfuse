@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
@@ -203,20 +202,27 @@ function FileViewer({
     image.src = src;
   };
 
-  const previewContent = isImage ? (
-    <ResizableImage
-      src={src}
-      alt={fileName}
-      isDefaultVisible={true}
-      shouldValidateImageSource={false}
-      fitContent
-      compactWidth={compactImageWidth}
-    />
-  ) : isAudio ? (
-    <AudioPlayer src={src} />
-  ) : isVideo ? (
-    <VideoPlayer src={src} />
-  ) : null;
+  const previewContent = (() => {
+    if (isImage) {
+      return (
+        <ResizableImage
+          src={src}
+          alt={fileName}
+          isDefaultVisible={true}
+          shouldValidateImageSource={false}
+          fitContent
+          compactWidth={compactImageWidth}
+        />
+      );
+    }
+    if (isAudio) {
+      return <AudioPlayer src={src} />;
+    }
+    if (isVideo) {
+      return <VideoPlayer src={src} />;
+    }
+    return null;
+  })();
 
   return (
     <div

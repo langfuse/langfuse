@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useId, useState, type ReactNode } from "react";
 import { ChevronDown, Plus, TriangleAlert } from "lucide-react";
 
@@ -142,14 +141,18 @@ export function ScoreOutputSection({
 
   const minimum = state.minValue.trim();
   const maximum = state.maxValue.trim();
-  const numericBoundsLabel =
-    minimum && maximum
-      ? `between ${minimum} and ${maximum}`
-      : minimum
-        ? `of at least ${minimum}`
-        : maximum
-          ? `of at most ${maximum}`
-          : "without limits";
+  const numericBoundsLabel = (() => {
+    if (minimum && maximum) {
+      return `between ${minimum} and ${maximum}`;
+    }
+    if (minimum) {
+      return `of at least ${minimum}`;
+    }
+    if (maximum) {
+      return `of at most ${maximum}`;
+    }
+    return "without limits";
+  })();
 
   return (
     <div className="flex flex-col gap-2">

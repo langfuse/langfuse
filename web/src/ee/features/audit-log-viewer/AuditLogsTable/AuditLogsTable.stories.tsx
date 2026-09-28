@@ -82,6 +82,7 @@ export const Default = meta.story({
     tableName: "auditLogs",
     data: { status: "success", data: rows },
     pagination: {
+      mode: "offset",
       totalCount: rows.length,
       state: { pageIndex: 0, pageSize: 50 },
       onChange: fn(),

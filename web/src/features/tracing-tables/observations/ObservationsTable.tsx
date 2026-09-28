@@ -1,6 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
+import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/data-table-pagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
@@ -1482,6 +1483,7 @@ export default function ObservationsTable({
                       totalCount,
                       onChange: setPaginationState,
                       state: paginationState,
+                      options: TRACING_PAGE_SIZE_OPTIONS,
                     }
               }
               setOrderBy={handleOrderByChange}
@@ -1724,12 +1726,15 @@ const GenerationsDynamicCell = ({
     },
   );
 
-  const data =
-    col === "output"
-      ? observation.data?.output
-      : col === "input"
-        ? observation.data?.input
-        : observation.data?.metadata;
+  const data = (() => {
+    if (col === "output") {
+      return observation.data?.output;
+    }
+    if (col === "input") {
+      return observation.data?.input;
+    }
+    return observation.data?.metadata;
+  })();
 
   if (observation.isPending) {
     return <ConnectedIOTableCell isLoading singleLine={singleLine} />;

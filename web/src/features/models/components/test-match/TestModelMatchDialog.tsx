@@ -35,6 +35,26 @@ export function TestModelMatchDialog({
   open,
   onOpenChange,
 }: TestModelMatchDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <TestModelMatchDialogContent
+        projectId={projectId}
+        open={open}
+        onClose={() => onOpenChange(false)}
+      />
+    </Dialog>
+  );
+}
+
+export function TestModelMatchDialogContent({
+  projectId,
+  open,
+  onClose,
+}: {
+  projectId: string;
+  open: boolean;
+  onClose: () => void;
+}) {
   const [modelName, setModelName] = useState("");
   const [usageDetails, setUsageDetails] = useState<Record<string, number>>({});
   const [modelParameterEntries, setModelParameterEntries] = useState<
@@ -82,7 +102,7 @@ export function TestModelMatchDialog({
   }, [open]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
       <DialogContent size="lg" className="min-h-[62vh] overflow-y-auto">
         <form onSubmit={handleSubmit} className="flex flex-1 flex-col">
           <DialogHeader>
@@ -138,7 +158,7 @@ export function TestModelMatchDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => onOpenChange(false)}
+                  onClick={onClose}
                   className="flex-1"
                 >
                   Close
@@ -214,6 +234,6 @@ export function TestModelMatchDialog({
           </DialogBody>
         </form>
       </DialogContent>
-    </Dialog>
+    </>
   );
 }

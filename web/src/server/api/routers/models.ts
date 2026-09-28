@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 
@@ -443,14 +442,18 @@ export const modelRouter = createTRPCRouter({
 
       // Without usage details, fall back to the model's default pricing tier.
       const defaultTier = pricingTiers.find((tier) => tier.isDefault);
-      const matchResult = hasPricingTierUsageDetails(usageDetails)
-        ? matchPricingTier(pricingTiers, usageDetails ?? {}, {
+      const matchResult = (() => {
+        if (hasPricingTierUsageDetails(usageDetails)) {
+          return matchPricingTier(pricingTiers, usageDetails ?? {}, {
             modelParameters,
             metadata,
-          })
-        : defaultTier
-          ? { pricingTierId: defaultTier.id }
-          : null;
+          });
+        }
+        if (defaultTier) {
+          return { pricingTierId: defaultTier.id };
+        }
+        return null;
+      })();
 
       if (!matchResult) {
         return { matched: false as const };
