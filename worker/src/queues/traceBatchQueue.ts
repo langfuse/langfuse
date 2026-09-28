@@ -1,23 +1,32 @@
 import { type Processor } from "bullmq";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { type Observation } from "@langfuse/shared";
 import {
   convertObservation,
   getCurrentSpan,
   getTraceBatchEventStream,
   logger,
+  QueueJobs,
   recordDistribution,
   recordGauge,
   recordIncrement,
   TraceBatchEventSchema,
+  TraceBatchQueue,
   type QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
+import { TopicsProviderUnavailable } from "../features/topics/provider-error";
 import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTrace";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
 
-function summarizeTraceBatch(observations: Observation[]): Promise<void> {
+type TraceOutcome =
+  | { outcome: "disabled" | "unchanged" | "summarized" }
+  | { outcome: "failed"; projectId: string; traceId: string; reason: string };
+
+async function summarizeTraceBatch(
+  observations: Observation[],
+): Promise<TraceOutcome> {
   const first = observations[0];
   const traceId = first?.traceId;
   if (
@@ -33,16 +42,105 @@ function summarizeTraceBatch(observations: Observation[]): Promise<void> {
   const traceTimestamp = new Date(
     Math.min(...observations.map((row) => row.startTime.getTime())),
   ).toISOString();
-  return recordTraceBatchTranscript(observations, (transcript) =>
-    summarizeAssembledTrace({
-      projectId: first.projectId,
-      traceId,
-      traceTimestamp,
-      environment: first.environment,
-      traceName: first.name ?? "",
-      transcript,
-    }),
+  let outcome: TraceOutcome = { outcome: "disabled" };
+  await recordTraceBatchTranscript(observations, async (transcript) => {
+    try {
+      outcome = {
+        outcome: await summarizeAssembledTrace({
+          projectId: first.projectId,
+          traceId,
+          traceTimestamp,
+          environment: first.environment,
+          traceName: first.name ?? "",
+          transcript,
+        }),
+      };
+    } catch (error) {
+      // One trace's failure must not stop the batch; the job re-enqueues it.
+      const reason =
+        error instanceof TopicsProviderUnavailable ? error.reason : "other";
+      outcome = {
+        outcome: "failed",
+        projectId: first.projectId,
+        traceId,
+        reason,
+      };
+      logger.warn("Topics summary failed for trace", {
+        projectId: first.projectId,
+        traceId,
+        reason,
+      });
+    }
+  });
+  return outcome;
+}
+
+/**
+ * Reports the batch's Topics outcomes and re-enqueues failed traces as a new
+ * job with a retry counter and doubling delay. Unclassified errors (for example
+ * the input limit) cannot succeed on retry and are dropped.
+ */
+async function retryFailedTopicsTraces(
+  batch: {
+    traces: ReturnType<typeof TraceBatchEventSchema.parse>["payload"]["traces"];
+    topicsRetry?: number;
+  },
+  outcomes: TraceOutcome[],
+): Promise<void> {
+  const counts = new Map<string, number>();
+  for (const result of outcomes) {
+    const key = JSON.stringify([
+      result.outcome,
+      result.outcome === "failed" ? result.reason : undefined,
+    ]);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  for (const [key, count] of counts) {
+    const [outcome, reason] = JSON.parse(key) as [string, string | null];
+    recordIncrement("langfuse.topics.trace_outcomes", count, {
+      outcome,
+      ...(reason ? { reason } : {}),
+    });
+  }
+  const failed = outcomes.filter((result) => result.outcome === "failed");
+  if (!failed.length) return;
+  const attempt = (batch.topicsRetry ?? 0) + 1;
+  const retryable = failed.filter(({ reason }) => reason !== "other");
+  const decision = (name: string, count: number) =>
+    count &&
+    recordIncrement("langfuse.topics.trace_retries", count, { decision: name });
+  decision("not_retryable", failed.length - retryable.length);
+  if (attempt > env.LANGFUSE_TOPICS_TRACE_MAX_RETRIES) {
+    decision("exhausted", retryable.length);
+    return;
+  }
+  const keys = new Set(
+    retryable.map(({ projectId, traceId }) =>
+      JSON.stringify([projectId, traceId]),
+    ),
   );
+  const traces = batch.traces.filter(({ projectId, traceId }) =>
+    keys.has(JSON.stringify([projectId, traceId])),
+  );
+  const queue = TraceBatchQueue.getInstance();
+  if (!traces.length || !queue) return;
+  const id = createHash("sha256")
+    .update(JSON.stringify([traces, attempt]))
+    .digest("hex");
+  await queue.add(
+    QueueJobs.TraceBatch,
+    {
+      id,
+      timestamp: new Date(),
+      name: QueueJobs.TraceBatch,
+      payload: { traces, topicsRetry: attempt },
+    },
+    {
+      jobId: id,
+      delay: env.LANGFUSE_TOPICS_TRACE_RETRY_DELAY_MS * 2 ** (attempt - 1),
+    },
+  );
+  decision("requeued", traces.length);
 }
 
 const JOB_MAX_AGE_MS = 2 * 60 * 60_000;
@@ -52,11 +150,11 @@ export function recordTraceBatchActiveReads(): void {
   recordGauge("langfuse.trace_batch.active_reads", activeReads);
 }
 
-export function createTraceBatchQueueProcessor(
+function createTraceBatchQueueProcessor(
   processTrace: (
     observations: Observation[],
     job: Parameters<Processor<TQueueJobTypes[QueueName.TraceBatch]>>[0],
-  ) => Promise<void> = summarizeTraceBatch,
+  ) => Promise<TraceOutcome> = summarizeTraceBatch,
 ): Processor<TQueueJobTypes[QueueName.TraceBatch]> {
   return async (job) => {
     const startedAt = performance.now();
@@ -115,6 +213,7 @@ export function createTraceBatchQueueProcessor(
         return { discarded: "expired" };
       }
       const batch = event.payload;
+      const topicsOutcomes: TraceOutcome[] = [];
       const queryOptions = {
         maxThreads: env.LANGFUSE_TRACE_BATCH_MAX_THREADS,
         maxBlockSize: env.LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE,
@@ -193,7 +292,9 @@ export function createTraceBatchQueueProcessor(
             // Overlap tokenization with reading the next trace, but allow only
             // one pending estimate per batch so queued payloads stay bounded.
             await pendingTokenization;
-            pendingTokenization = processTrace(traceObservations, job);
+            pendingTokenization = processTrace(traceObservations, job).then(
+              (result) => void topicsOutcomes.push(result),
+            );
             traceObservations = [];
           }
           traceObservations.push(
@@ -216,7 +317,9 @@ export function createTraceBatchQueueProcessor(
         // Reaching EOF completes the last trace; a failed stream must not flush it.
         if (traceObservations.length) {
           await pendingTokenization;
-          pendingTokenization = processTrace(traceObservations, job);
+          pendingTokenization = processTrace(traceObservations, job).then(
+            (result) => void topicsOutcomes.push(result),
+          );
         }
       } catch (error) {
         // Only rows consumed before the failure; never count these as successful throughput.
@@ -265,6 +368,7 @@ export function createTraceBatchQueueProcessor(
         batch.traces.length - foundTraces.size,
       );
 
+      await retryFailedTopicsTraces(batch, topicsOutcomes);
       // Retries can repeat this read; observation payloads never enter job results.
       outcome = "success";
       return {

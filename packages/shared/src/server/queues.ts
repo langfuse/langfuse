@@ -520,7 +520,13 @@ export const TraceBatchEventSchema = z.object({
   id: z.string(),
   name: z.literal(QueueJobs.TraceBatch),
   payload: z.union([
-    z.object({ traces: z.array(TraceBatchTraceSchema).min(1) }).strict(),
+    z
+      .object({
+        traces: z.array(TraceBatchTraceSchema).min(1),
+        // Set on jobs that re-run traces whose Topics summary failed.
+        topicsRetry: z.number().int().min(1).optional(),
+      })
+      .strict(),
     // Persisted single-project jobs must remain readable while consumers drain.
     z
       .object({

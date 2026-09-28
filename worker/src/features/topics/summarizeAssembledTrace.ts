@@ -13,7 +13,7 @@ import {
   type TopicFacetVersion,
   type TopicSummary,
 } from "@langfuse/shared/topics";
-import type { Transcript } from "@langfuse/shared/src/server";
+import { recordIncrement, type Transcript } from "@langfuse/shared/src/server";
 import { prepareAssembledTopicTranscript } from "./assembledTranscript";
 import { embedTopicSummary, summarizeTopicTrace } from "./models";
 import { TopicsProviderUnavailable } from "./provider-error";
@@ -29,8 +29,8 @@ export async function summarizeAssembledTrace(input: {
   environment: string;
   traceName: string;
   transcript: Transcript | null;
-}): Promise<void> {
-  if (!isTopicsProjectEnabled(input.projectId)) return;
+}): Promise<"disabled" | "unchanged" | "summarized"> {
+  if (!isTopicsProjectEnabled(input.projectId)) return "disabled";
   const prepared = prepareAssembledTopicTranscript(input.transcript);
   const facets = await ensureDefaultTopicFacets(input.projectId);
   const versions = facets.flatMap((facet) =>
@@ -38,6 +38,7 @@ export async function summarizeAssembledTrace(input: {
   );
   const config = topicProcessingConfigSchema.parse({});
   const dimensions = topicEmbeddingConfigSchema.parse({}).embeddingDimensions;
+  let written = 0;
   for (const facet of versions) {
     const stored = await listTopicSummaries(input.projectId, {
       traceIds: [input.traceId],
@@ -50,17 +51,21 @@ export async function summarizeAssembledTrace(input: {
       )
     )
       continue;
-    await writeTopicSummaries([
-      await summarizeFacet({
-        ...input,
-        facet,
-        text: prepared.text,
-        hasContent: prepared.hasContent,
-        config,
-        dimensions,
-      }),
-    ]);
+    const summary = await summarizeFacet({
+      ...input,
+      facet,
+      text: prepared.text,
+      hasContent: prepared.hasContent,
+      config,
+      dimensions,
+    });
+    await writeTopicSummaries([summary]);
+    recordIncrement("langfuse.topics.facet_summaries", 1, {
+      state: summary.state,
+    });
+    written++;
   }
+  return written ? "summarized" : "unchanged";
 }
 
 async function summarizeFacet(input: {
