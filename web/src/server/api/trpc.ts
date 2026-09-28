@@ -73,8 +73,10 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
   return createInnerTRPCContext({
     session,
     headers,
-    // http.server span; procedure middlewares run inside the child "TRPC" span
-    requestSpan: opentelemetry.trace.getActiveSpan(),
+    // http.server span; procedure middlewares run inside the child "TRPC" span.
+    // Batched calls may target different projects, so they tag their own span.
+    requestSpan:
+      req.query.batch === "1" ? undefined : opentelemetry.trace.getActiveSpan(),
   });
 };
 
