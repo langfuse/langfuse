@@ -232,7 +232,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   });
   const mappingRunDisabledReason = (() => {
     if (selectedCount === 0) {
-      return "Attach at least one evaluator.";
+      return "Select at least one evaluator.";
     }
     if (mappingsComplete) {
       return null;
