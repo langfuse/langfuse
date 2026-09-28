@@ -18,6 +18,11 @@ use std::{
 };
 
 const RESOLVE_PATH: &str = "/api/internal/ai-gateway/v1/resolve";
+// Web sits behind load balancers that drop idle connections after 60s by default
+// (AWS ALB). Evicting pooled connections first keeps the resolver from sending on a
+// socket the balancer is closing, which would fail without a retry.
+const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(50);
+const TCP_KEEPALIVE: Duration = Duration::from_secs(30);
 
 struct ResolutionLimits {
     timeout: Duration,
@@ -98,6 +103,8 @@ impl ControlPlaneClient {
             .no_brotli()
             .no_zstd()
             .no_deflate()
+            .pool_idle_timeout(POOL_IDLE_TIMEOUT)
+            .tcp_keepalive(TCP_KEEPALIVE)
             .build()
             .map_err(|_| ResolutionError::Configuration)?;
         Ok(Self {

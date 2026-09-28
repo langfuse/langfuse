@@ -1,6 +1,6 @@
 use super::{
-    MAX_CAPTURE_BYTES, MAX_FACT_STRING, MAX_ITEMS, bounded_string, facts::ProviderFacts,
-    identity_encoding, response::ResponseBody,
+    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, bounded_string, facts::ProviderFacts,
+    parse_request, response::ResponseBody,
 };
 use crate::resolution::IngestionMode;
 use axum::http::HeaderMap;
@@ -192,7 +192,7 @@ impl AssistantMessage {
 
 fn reserve(used: &mut usize, bytes: usize) -> Result<(), Gap> {
     match used.checked_add(bytes) {
-        Some(total) if total <= MAX_CAPTURE_BYTES => {
+        Some(total) if total <= MAX_OUTPUT_CAPTURE_BYTES => {
             *used = total;
             Ok(())
         }
@@ -216,12 +216,15 @@ impl AnthropicMessagesCapture {
             request_complete: false,
             response_valid: true,
         };
-        if identity_encoding(headers)
-            && body.len() <= MAX_CAPTURE_BYTES
-            && let Ok(Value::Object(request)) = serde_json::from_slice(body)
-        {
-            capture.capture_request(request);
-            capture.request_complete = true;
+        match parse_request(headers, body) {
+            Ok(request) => {
+                capture.capture_request(request);
+                capture.request_complete = true;
+            }
+            Err(omission) if mode == IngestionMode::Full => {
+                capture.facts.input_omission = Some(omission);
+            }
+            Err(_) => {}
         }
         capture
     }

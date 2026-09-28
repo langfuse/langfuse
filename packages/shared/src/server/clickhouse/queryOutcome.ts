@@ -43,6 +43,8 @@ export const CLICKHOUSE_RESOURCE_ERROR_OUTCOMES = {
  * route here when it gains an SLO.
  */
 const LABELLED_ROUTES = new Set([
+  "GET /api/public/experiments",
+  "GET /api/public/experiment-items",
   "GET /api/public/v2/observations",
   "GET /api/public/v2/metrics",
   "GET /api/public/v3/scores",

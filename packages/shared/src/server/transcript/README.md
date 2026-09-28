@@ -12,8 +12,8 @@ Status: generation-led builder with tool responses matched by ID or name and ord
 ## Interface
 
 ```ts
-orderObservations(observations: Observation[]): Observation[];
-assembleTranscript(orderedObservations: Observation[]): Transcript | null;
+orderObservations<T extends TranscriptObservation>(observations: T[]): Array<T & { nestingLevel: number }>;
+assembleTranscript(orderedObservations: OrderedObservation[]): Transcript | null;
 
 type Transcript = { threads: Thread[] };
 
@@ -23,6 +23,7 @@ type Thread = {
 };
 
 type Turn = {
+  nestingLevel: number;
   messages: ThreadMessage[];
   observations: { id: string; traceId: string }[]; // observations that contributed, in order
 };
@@ -30,6 +31,8 @@ type Turn = {
 type ThreadMessage = NormalizedMessage & {
   observationId: string; // observation that first emitted the message
   traceId: string;
+  startTime: Date; // source observation start, not an individual message timestamp
+  endTime: Date | null; // source observation end, when available
 };
 ```
 
@@ -235,3 +238,10 @@ Run with console output enabled to see it:
 ```bash
 pnpm --filter @langfuse/shared run test src/server/transcript --disableConsoleIntercept
 ```
+
+`currentTurn.nestingLevel` is the observation-tree depth of the first GENERATION
+that contributes retained messages to the current turn. All ancestor types count;
+fetched roots and observations with missing parents are level 0. Cyclic rows
+that cannot be reached by the tree walk also use level 0. Earlier conversation
+history, replay-only generations, later generations, and TOOL contributors do
+not determine the value. Ordering attaches depth without changing source observations.
