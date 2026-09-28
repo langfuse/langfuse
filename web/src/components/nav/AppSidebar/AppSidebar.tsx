@@ -477,7 +477,7 @@ function NavUser({
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar
-                size="lg"
+                size="md"
                 shape="rounded"
                 src={user.avatar}
                 displayName={user.name}
