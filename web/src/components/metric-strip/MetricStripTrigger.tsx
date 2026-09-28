@@ -43,7 +43,7 @@ export const MetricStripTrigger = forwardRef<
     )}
   >
     {label}
-    <ChevronDown className="h-2.5 w-2.5" />
+    <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
   </button>
 ));
 MetricStripTrigger.displayName = "MetricStripTrigger";

@@ -586,7 +586,10 @@ export function TimeRangePicker({
             >
               {getDisplayContent()}
               <ChevronDown
-                className={cn("h-4 w-4 opacity-50", compact && "shrink-0")}
+                className={cn(
+                  "text-foreground-tertiary size-3 translate-y-px",
+                  compact && "shrink-0",
+                )}
               />
             </div>
           </Button>

@@ -103,7 +103,7 @@ function FilterPillWithTarget({
             <span className="max-w-[100px] truncate" title={experimentName}>
               {experimentName}
             </span>
-            <ChevronsUpDown className="h-3 w-3 opacity-50" />
+            <ChevronsUpDown className="text-foreground-tertiary size-3 translate-y-px" />
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-[200px] p-1" align="start">

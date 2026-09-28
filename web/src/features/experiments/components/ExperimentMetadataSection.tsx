@@ -24,9 +24,9 @@ export const ExperimentMetadataSection = ({
           >
             <span className="text-sm font-bold">Metadata</span>
             {isOpen ? (
-              <ChevronDown className="text-muted-foreground h-4 w-4" />
+              <ChevronDown className="text-foreground-tertiary size-3" />
             ) : (
-              <ChevronRight className="text-muted-foreground h-4 w-4" />
+              <ChevronRight className="text-foreground-tertiary size-3" />
             )}
           </button>
         </CollapsibleTrigger>

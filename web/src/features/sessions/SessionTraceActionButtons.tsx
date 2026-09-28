@@ -81,7 +81,7 @@ export function SessionTraceActionButtons({
             >
               <PlusIcon className="h-4 w-4" />
               <span>Add to</span>
-              <ChevronDown className="h-3 w-3" />
+              <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
             </Button>
           )}
         </ConnectedTraceObservationAddToDropdownMenuController>

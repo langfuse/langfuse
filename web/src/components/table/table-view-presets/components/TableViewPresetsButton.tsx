@@ -41,7 +41,10 @@ export function TableViewPresetsButton({
         {label}
       </span>
       {selectedView ? (
-        <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
+        <ChevronDown
+          className="text-foreground-tertiary size-3 shrink-0 translate-y-px"
+          aria-hidden
+        />
       ) : (
         <span className="bg-input rounded-sm px-1 text-xs">{count}</span>
       )}

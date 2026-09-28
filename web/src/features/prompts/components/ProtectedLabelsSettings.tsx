@@ -170,7 +170,7 @@ export default function ProtectedLabelsSettings({
                           disabled={!hasAccess || !hasEntitlement}
                         >
                           {field.value || "Select or enter a label"}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          <ChevronsUpDown className="text-foreground-tertiary ml-2 size-3 shrink-0" />
                         </Button>
                       </FormControl>
                     </PopoverTrigger>

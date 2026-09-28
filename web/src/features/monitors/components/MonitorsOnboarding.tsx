@@ -74,7 +74,10 @@ export function MonitorsOnboarding({
                         {channel.icon}
                         {channel.label}
                       </span>
-                      <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                      <ChevronRight
+                        className="text-foreground-tertiary size-3"
+                        aria-hidden="true"
+                      />
                     </Link>
                   </Button>
                 ))}

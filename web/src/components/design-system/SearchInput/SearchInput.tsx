@@ -102,7 +102,7 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
                 </span>
                 {dropdown.labelAccessory}
               </span>
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              <ChevronDown className="text-foreground-tertiary size-3 shrink-0" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">

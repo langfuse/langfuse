@@ -646,7 +646,10 @@ function AssistantActivityGroup({
         </span>
         <ChevronRight
           aria-hidden="true"
-          className={cn("size-3.5 transition-transform", isOpen && "rotate-90")}
+          className={cn(
+            "text-foreground-tertiary size-3 translate-y-px transition-transform",
+            isOpen && "rotate-90",
+          )}
         />
       </button>
       {isOpen && hasDetails ? (

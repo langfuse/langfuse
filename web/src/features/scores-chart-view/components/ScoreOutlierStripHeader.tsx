@@ -76,7 +76,7 @@ export function ScoreOutlierStripHeader({
         className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 text-xs leading-none font-bold"
       >
         {modeLabel(mode)}
-        <ChevronDown className="h-2.5 w-2.5" />
+        <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
@@ -107,7 +107,7 @@ export function ScoreOutlierStripHeader({
             className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 text-xs leading-none underline-offset-2 hover:underline"
           >
             {aggregation}
-            <ChevronDown className="h-2.5 w-2.5" />
+            <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="start"

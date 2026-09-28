@@ -126,7 +126,7 @@ const DatasetRunTableMultiSelectAction = ({
               onClick={() => capture("dataset_run:compare_view_click")}
             >
               Actions ({selectedRunIds.length} selected)
-              <ChevronDown className="h-5 w-5" />
+              <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent key="dropdown-menu-content">

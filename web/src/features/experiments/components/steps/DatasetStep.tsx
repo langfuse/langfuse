@@ -96,7 +96,7 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
                     {field.value
                       ? datasets?.find((d) => d.id === field.value)?.name
                       : "Select a dataset"}
-                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <ChevronDown className="text-foreground-tertiary ml-2 size-3 shrink-0" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent

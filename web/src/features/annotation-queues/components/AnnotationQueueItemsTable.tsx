@@ -113,7 +113,7 @@ const QueueItemTableMultiSelectAction = ({
         {({ getTriggerProps }) => (
           <Button disabled={selectedItemIds.length < 1} {...getTriggerProps()}>
             Actions ({selectedItemIds.length} selected)
-            <ChevronDown className="h-5 w-5" />
+            <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
           </Button>
         )}
       </DropdownMenu>

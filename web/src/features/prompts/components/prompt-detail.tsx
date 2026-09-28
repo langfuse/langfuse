@@ -475,7 +475,7 @@ export const PromptDetail = ({
                   >
                     {prompt.commitMessage ?? prompt.name}
                   </span>
-                  <ChevronDown className="h-4 w-4 shrink-0" />
+                  <ChevronDown className="text-foreground-tertiary size-3 shrink-0" />
                 </Button>
               </DrawerTrigger>
               <DrawerContent className="max-h-[85dvh]">
@@ -548,7 +548,7 @@ export const PromptDetail = ({
                       >
                         <Terminal className="h-4 w-4" />
                         <span className="hidden md:inline">Playground</span>
-                        <ChevronDown className="h-3 w-3" />
+                        <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
                       </Button>
                     </Trigger>
                   )}

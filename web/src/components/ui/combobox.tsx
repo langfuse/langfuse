@@ -155,7 +155,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
               {selectedOption.badge}
             </Badge>
           )}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="text-foreground-tertiary ml-2 size-3 shrink-0" />
         </Button>
       </PopoverTrigger>
       <PopoverContent

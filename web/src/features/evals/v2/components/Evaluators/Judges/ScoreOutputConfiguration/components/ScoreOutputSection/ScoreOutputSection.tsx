@@ -228,7 +228,7 @@ export function ScoreOutputSection({
                   disabled={readOnly}
                 >
                   {numericBoundsLabel}
-                  <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                  <ChevronDown className="text-foreground-tertiary size-3 shrink-0" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-72">
@@ -327,7 +327,7 @@ export function ScoreOutputSection({
                       </Tooltip>
                     ) : null}
                     {!readOnly ? (
-                      <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                      <ChevronDown className="text-foreground-tertiary size-3 shrink-0" />
                     ) : null}
                   </Button>
                 </PopoverTrigger>
