@@ -109,14 +109,14 @@ export function EvaluatorMigrationDialog({
     }
   };
 
-  function getConditionalText(__nestedTernaryValues: {
-    effectiveAction: typeof effectiveAction;
-    isSingleEvaluator: typeof isSingleEvaluator;
-  }) {
-    if (__nestedTernaryValues.effectiveAction === "assistant") {
+  function getMigrationDialogTitle(
+    action: typeof effectiveAction,
+    singleEvaluator: boolean,
+  ) {
+    if (action === "assistant") {
       return "Ready to start your evaluator upgrade?";
     }
-    if (__nestedTernaryValues.isSingleEvaluator) {
+    if (singleEvaluator) {
       return "How would you like to upgrade this evaluator?";
     }
     return "How would you like to upgrade your evaluators?";
@@ -133,7 +133,7 @@ export function EvaluatorMigrationDialog({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {getConditionalText({ effectiveAction, isSingleEvaluator })}
+              {getMigrationDialogTitle(effectiveAction, isSingleEvaluator)}
             </DialogTitle>
           </DialogHeader>
           <DialogBody className="gap-3">
