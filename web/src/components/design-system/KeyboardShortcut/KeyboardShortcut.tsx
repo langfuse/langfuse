@@ -133,10 +133,7 @@ export function KeyboardShortcut({
         // Modifier and arrow glyphs draw small in the mono face; scale them up.
         const isSymbol = /^[^\p{L}\p{N}]$/u.test(label);
         return (
-          <span
-            key={index}
-            className={isSymbol ? "font-sans text-[1.35em]" : undefined}
-          >
+          <span key={index} className={isSymbol ? "text-[1.25em]" : undefined}>
             {label}
           </span>
         );
