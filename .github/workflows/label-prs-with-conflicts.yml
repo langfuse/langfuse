@@ -20,16 +20,30 @@ jobs:
     steps:
       - name: Check mergeability and update label
         env:
-          # The token should only have the following permissions:
-          # - Issues: read/write
-          # - Pull requests: read-only.
-          GH_TOKEN: ${{ secrets.PR_LABELER_TOKEN }}
+          # Requires Issues: read/write and Pull requests: read-only.
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
           REPO: ${{ github.repository }}
           EVENT_NAME: ${{ github.event_name }}
           LABEL_NAME: has-conflicts
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
+
+          gh_api() {
+            local response
+
+            if response=$(gh api "$@" 2>&1); then
+              printf '%s\n' "${response}"
+              return 0
+            fi
+
+            if grep -Eqi 'rate limit exceeded|secondary rate limit' <<<"${response}"; then
+              return 2
+            fi
+
+            printf '%s\n' "${response}" >&2
+            return 1
+          }
 
           update_label_if_needed() {
             local pr_number="$1"
@@ -40,9 +54,14 @@ jobs:
               local response
               local mergeable
 
-              if ! response=$(gh api "repos/${REPO}/pulls/${pr_number}" 2>&1); then
-                response="${response//$'\n'/ }"
-                echo "::warning::PR #${pr_number}: failed to fetch mergeability: ${response}" >&2
+              if response=$(gh_api "repos/${REPO}/pulls/${pr_number}"); then
+                :
+              else
+                status=$?
+                if [ "${status}" -eq 2 ]; then
+                  return 2
+                fi
+                echo "::warning::PR #${pr_number}: failed to fetch mergeability" >&2
                 return 1
               fi
 
@@ -61,8 +80,10 @@ jobs:
               printf '%s\n' "${mergeable}"
             }
 
-            if ! mergeable=$(get_mergeable "${pr_number}"); then
-              return 1
+            if mergeable=$(get_mergeable "${pr_number}"); then
+              :
+            else
+              return $?
             fi
 
             for delay in 3 6; do
@@ -71,8 +92,10 @@ jobs:
               fi
 
               sleep "${delay}"
-              if ! mergeable=$(get_mergeable "${pr_number}"); then
-                return 1
+              if mergeable=$(get_mergeable "${pr_number}"); then
+                :
+              else
+                return $?
               fi
             done
 
@@ -84,15 +107,21 @@ jobs:
             fi
 
             if [ "${mergeable}" = "false" ]; then
-              if ! gh api \
+              if gh_api \
                 --method POST \
                 "repos/${REPO}/issues/${pr_number}/labels" \
                 -f "labels[]=${LABEL_NAME}"; then
+                :
+              else
+                status=$?
+                if [ "${status}" -eq 2 ]; then
+                  return 2
+                fi
                 echo "::warning::PR #${pr_number}: failed to add ${LABEL_NAME} label" >&2
                 return 1
               fi
             elif [ "${mergeable}" = "true" ] && [ "${remove_stale_label}" = "true" ]; then
-              gh api \
+              gh_api \
                 --method DELETE \
                 "repos/${REPO}/issues/${pr_number}/labels/${LABEL_NAME}" \
                 --silent || true
@@ -100,18 +129,32 @@ jobs:
           }
 
           if [ "${EVENT_NAME}" = "pull_request" ]; then
-            update_label_if_needed "${PR_NUMBER}" true
+            update_label_if_needed "${PR_NUMBER}" true || [ "$?" -eq 2 ]
           else
             sleep 10
             cutoff_date=$(date -u -d "14 days ago" +%F)
             # On main pushes, only scan same-repo PRs that are not already labeled.
             # Stale has-conflicts labels are intentionally removed only on PR updates.
-            gh api --paginate "search/issues?q=repo:${REPO}+is:pr+is:open+-label:${LABEL_NAME}+updated:>=${cutoff_date}&per_page=100" --jq '.items[].number' \
-              | while read -r pr; do
-                  head_repo=$(gh api "repos/${REPO}/pulls/${pr}" --jq '.head.repo.full_name') || continue
-                  if [ "${head_repo}" != "${REPO}" ]; then
-                    continue
-                  fi
-                  update_label_if_needed "${pr}" || true
-                done
+            if prs=$(gh_api --paginate "search/issues?q=repo:${REPO}+is:pr+is:open+-label:${LABEL_NAME}+updated:>=${cutoff_date}&per_page=100" --jq '.items[].number'); then
+              while read -r pr; do
+                [ -n "${pr}" ] || continue
+                if head_repo=$(gh_api "repos/${REPO}/pulls/${pr}" --jq '.head.repo.full_name'); then
+                  :
+                elif [ "$?" -eq 2 ]; then
+                  break
+                else
+                  continue
+                fi
+                if [ "${head_repo}" != "${REPO}" ]; then
+                  continue
+                fi
+                if update_label_if_needed "${pr}"; then
+                  :
+                elif [ "$?" -eq 2 ]; then
+                  break
+                fi
+              done <<<"${prs}"
+            elif [ "$?" -ne 2 ]; then
+              exit 1
+            fi
           fi
