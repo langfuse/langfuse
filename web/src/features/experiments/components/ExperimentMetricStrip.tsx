@@ -311,7 +311,7 @@ export function ExperimentMetricStrip({
               {isSelectedNameAmbiguous && selectedLevel && (
                 <ScoreTag level={SCORE_LEVEL_TAGS[selectedLevel]} />
               )}
-              <ChevronDown className="text-foreground-tertiary size-3.5 translate-y-px" />
+              <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
             </SelectTrigger>
             <SelectContent>
               {Array.from(groupedOptions.entries()).map(([group, options]) => (
