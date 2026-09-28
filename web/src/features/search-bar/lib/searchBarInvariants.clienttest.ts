@@ -804,6 +804,7 @@ describe("search bar invariants — sessions registry", () => {
 
   it("exposes the sidebar's facets and nothing else", () => {
     expect(SESSIONS_FIELD_REGISTRY.fields.map((f) => f.id).sort()).toEqual([
+      "calledToolNames",
       "commentContent",
       "commentCount",
       "countTraces",
@@ -815,6 +816,8 @@ describe("search bar invariants — sessions registry", () => {
       "outputTokens",
       "sessionDuration",
       "tags",
+      "toolCalls",
+      "toolNames",
       "totalCost",
       "totalTokens",
       "userIds",
