@@ -1,6 +1,8 @@
-import type { Observation } from "../../domain";
+import type { TranscriptObservation } from "./types";
 
-export type OrderedObservation = Observation & { nestingLevel: number };
+export type OrderedObservation = TranscriptObservation & {
+  nestingLevel: number;
+};
 
 /**
  * Order observations the way the trace tree walks them: depth first, with
@@ -8,10 +10,10 @@ export type OrderedObservation = Observation & { nestingLevel: number };
  * row per id where the earliest start wins, and a row whose parent is not in
  * the list becomes a root. For a flat trace this is plain start-time order.
  */
-export function orderObservations(
-  observations: Observation[],
-): OrderedObservation[] {
-  const byId = new Map<string, Observation>();
+export function orderObservations<T extends TranscriptObservation>(
+  observations: T[],
+): Array<T & { nestingLevel: number }> {
+  const byId = new Map<string, T>();
   for (const observation of observations) {
     const existing = byId.get(observation.id);
     if (!existing || observation.startTime < existing.startTime) {
@@ -19,7 +21,7 @@ export function orderObservations(
     }
   }
 
-  const children = new Map<string | null, Observation[]>();
+  const children = new Map<string | null, T[]>();
   for (const observation of byId.values()) {
     const parentId =
       observation.parentObservationId !== null &&
@@ -29,9 +31,9 @@ export function orderObservations(
     children.set(parentId, [...(children.get(parentId) ?? []), observation]);
   }
 
-  const byStartTime = (a: Observation, b: Observation) =>
+  const byStartTime = (a: T, b: T) =>
     a.startTime.getTime() - b.startTime.getTime();
-  const ordered: OrderedObservation[] = [];
+  const ordered: Array<T & { nestingLevel: number }> = [];
   const visited = new Set<string>();
   const walk = (parentId: string | null, nestingLevel: number) => {
     for (const observation of (children.get(parentId) ?? []).sort(

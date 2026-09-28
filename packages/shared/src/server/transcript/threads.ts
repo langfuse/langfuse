@@ -1,10 +1,13 @@
-import type { Observation } from "../../domain";
 import type { NormalizedMessage } from "../../utils/normalized-io";
-import type { Thread, ThreadMessage, Turn } from "./types";
-import type { OrderedObservation } from "./ordering";
+import type {
+  Thread,
+  ThreadMessage,
+  Turn,
+  TranscriptObservation as InputObservation,
+} from "./types";
 import type { createToolCallRegistry } from "./tool-calls";
 
-export type TranscriptObservation = Observation & { traceId: string };
+export type TranscriptObservation = InputObservation & { traceId: string };
 
 export type KeyedMessage = {
   message: NormalizedMessage;
@@ -135,10 +138,7 @@ export function addContributor(
 /** Split a thread into replayed history and the turn the last trace added. */
 export function splitTurn(
   thread: AssembledTurn,
-  observationsByTrace: ReadonlyMap<
-    string,
-    ReadonlyMap<string, OrderedObservation>
-  >,
+  generationDepths: ReadonlyMap<string, number>,
 ): Thread {
   const { messages, observations } = thread;
   // Earlier traces of a session are history; the last contributing trace is
@@ -163,16 +163,19 @@ export function splitTurn(
       (message) => message.observationId === id && message.traceId === traceId,
     ),
   );
-  const firstGeneration = currentObservations
-    .map(({ id, traceId }) => observationsByTrace.get(traceId)?.get(id))
-    .find((observation) => observation?.type === "GENERATION");
+  const nestingLevel =
+    currentObservations
+      .map(({ id, traceId }) =>
+        generationDepths.get(JSON.stringify([traceId, id])),
+      )
+      .find((depth) => depth !== undefined) ?? 0;
   return {
     conversationHistory: messages
       .slice(0, turnStart)
       .map(({ observationId, traceId, ...message }) => message),
     currentTurn: {
       messages: current,
-      nestingLevel: firstGeneration?.nestingLevel ?? 0,
+      nestingLevel,
       observations: currentObservations,
     },
   };

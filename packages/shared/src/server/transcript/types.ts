@@ -1,4 +1,19 @@
+import type { Observation } from "../../domain";
 import type { NormalizedMessage } from "../../utils/normalized-io/types";
+
+/** Observation fields consumed by ordering and transcript assembly. */
+export type TranscriptObservation = Pick<
+  Observation,
+  | "id"
+  | "traceId"
+  | "parentObservationId"
+  | "type"
+  | "name"
+  | "startTime"
+  | "input"
+  | "output"
+  | "metadata"
+>;
 
 export type ThreadMessage = NormalizedMessage & {
   /** Observation that first emitted this message. */

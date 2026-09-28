@@ -54,18 +54,7 @@ export function assembleTranscript(
   let normalizationMs = 0;
   const states: ThreadState[] = [];
   const toolCalls = createToolCallRegistry();
-  const observationsByTrace = new Map<
-    string,
-    Map<string, OrderedObservation>
-  >();
-  for (const observation of orderedObservations) {
-    if (observation.traceId === null) continue;
-    if (!observationsByTrace.has(observation.traceId))
-      observationsByTrace.set(observation.traceId, new Map());
-    observationsByTrace
-      .get(observation.traceId)!
-      .set(observation.id, observation);
-  }
+  const generationDepths = new Map<string, number>();
 
   for (const observation of orderedObservations.filter(isRelevantObservation)) {
     const normalizationStart = onTimings ? performance.now() : 0;
@@ -76,6 +65,11 @@ export function assembleTranscript(
       continue;
     }
     if (input.length === 0 && output.length === 0) continue;
+
+    generationDepths.set(
+      JSON.stringify([observation.traceId, observation.id]),
+      observation.nestingLevel,
+    );
 
     // Registered responses do not participate in thread selection.
     let state = findThread(states, input);
@@ -95,7 +89,7 @@ export function assembleTranscript(
   const transcript = states.length
     ? {
         threads: states.map(({ thread }) =>
-          splitTurn(thread, observationsByTrace),
+          splitTurn(thread, generationDepths),
         ),
       }
     : null;
