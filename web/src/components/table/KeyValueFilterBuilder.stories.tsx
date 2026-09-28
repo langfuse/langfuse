@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import type {
   BooleanKeyValueFilterEntry,
@@ -131,5 +131,78 @@ export const String = meta.story({
         />
       </div>
     );
+  },
+});
+
+export const FreeFormKey = meta.story({
+  args: {
+    mode: "numeric",
+    keyOptions: [],
+    activeFilters: [{ key: "custom.metric", operator: ">=", value: 0.8 }],
+    onChange: fn(),
+  },
+  render: (args) => {
+    const [filters, setFilters] = useState<NumericKeyValueFilterEntry[]>(
+      args.activeFilters as NumericKeyValueFilterEntry[],
+    );
+    return (
+      <div className="w-80">
+        <KeyValueFilterBuilder
+          mode="numeric"
+          keyOptions={args.keyOptions}
+          activeFilters={filters}
+          onChange={setFilters}
+        />
+      </div>
+    );
+  },
+});
+
+export const TestObservedKeySuggestionPreservesValue = meta.story({
+  name: "(Test) Observed Key Suggestion Preserves Value",
+  args: {
+    mode: "string",
+    keyOptions: ["environment", "region"],
+    keyDetails: { environment: "string", region: "string" },
+    valueOptions: { environment: ["production"], region: ["eu", "us"] },
+    activeFilters: [{ key: "environment", operator: "=", value: "production" }],
+    onChange: fn(),
+  },
+  render: (args) => {
+    const [filters, setFilters] = useState<StringKeyValueFilterEntry[]>(
+      args.activeFilters as StringKeyValueFilterEntry[],
+    );
+    return (
+      <div className="w-80">
+        <KeyValueFilterBuilder
+          mode="string"
+          keyOptions={args.keyOptions}
+          keyDetails={args.mode === "string" ? args.keyDetails : undefined}
+          valueOptions={args.mode === "string" ? args.valueOptions : undefined}
+          activeFilters={filters}
+          onChange={(nextFilters) => {
+            setFilters(nextFilters);
+            args.onChange(nextFilters);
+          }}
+        />
+      </div>
+    );
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const key = canvas.getByPlaceholderText("Key");
+
+    await userEvent.click(key);
+    await expect(body.getByRole("option", { name: /region/ })).toBeVisible();
+    await userEvent.click(body.getByRole("option", { name: /region/ }));
+
+    await expect(key).toHaveValue("region");
+    await expect(canvas.getByPlaceholderText("Value")).toHaveValue(
+      "production",
+    );
+    await expect(args.onChange).toHaveBeenCalledWith([
+      { key: "region", operator: "=", value: "production" },
+    ]);
   },
 });
