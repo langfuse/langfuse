@@ -1,8 +1,7 @@
 # Export staleness
 
 Scheduled integrations (blob, PostHog, Mixpanel) emit one sample per enabled
-integration on every scheduler tick. Provenance: LFE-16783, replacing the
-per-run freshness lag from LFE-15853.
+integration on every scheduler tick. Provenance: LFE-16783.
 
 ## Metric
 
