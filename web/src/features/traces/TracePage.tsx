@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { useRouter } from "next/router";
 import { ErrorPage } from "@/src/components/error-page";
@@ -59,31 +58,38 @@ export function TracePage({
   const encodedTargetPath = encodeURIComponent(
     stripBasePath(router.asPath || "/"),
   );
-  const leadingControl = showPublicIndicators ? (
-    session.status === "authenticated" ? (
-      <Button
-        asChild
-        size="sm"
-        variant="outline"
-        title="Back to Langfuse"
-        className="px-3"
-      >
-        <Link href="/">Langfuse</Link>
-      </Button>
-    ) : (
-      <Button
-        asChild
-        size="sm"
-        variant="default"
-        title="Sign in to Langfuse"
-        className="px-3"
-      >
-        <Link href={`/auth/sign-in?targetPath=${encodedTargetPath}`}>
-          Sign in
-        </Link>
-      </Button>
-    )
-  ) : undefined;
+  const leadingControl = (() => {
+    if (showPublicIndicators) {
+      if (session.status === "authenticated") {
+        return (
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            title="Back to Langfuse"
+            className="px-3"
+          >
+            <Link href="/">Langfuse</Link>
+          </Button>
+        );
+      }
+      return (
+        <Button
+          asChild
+          size="sm"
+          variant="default"
+          title="Sign in to Langfuse"
+          className="px-3"
+        >
+          <Link href={`/auth/sign-in?targetPath=${encodedTargetPath}`}>
+            Sign in
+          </Link>
+        </Button>
+      );
+    }
+    return undefined;
+  })();
+  const traceContext = router.query.peek !== undefined ? "peek" : "fullscreen";
   const sharedBadge = showPublicIndicators ? (
     <Badge variant="outline" className="text-xs font-bold">
       Public
@@ -131,13 +137,11 @@ export function TracePage({
                 return `/project/${projectId as string}/traces/${entry.id}${finalQueryString}`;
               }}
               listKey="traces"
-              size="sm"
+              compact
             />
             <TraceDetailActions
-              traceId={traceData.id}
-              projectId={traceData.projectId}
-              isPublic={traceData.public}
-              name={traceData.name}
+              trace={traceData}
+              traceContext={traceContext}
               timestamp={timestamp}
               deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
             />
@@ -148,10 +152,8 @@ export function TracePage({
         // inline icon toolbar. Trace-to-trace nav is desktop-only.
         actionButtonsMenu: (
           <TraceDetailActions
-            traceId={traceData.id}
-            projectId={traceData.projectId}
-            isPublic={traceData.public}
-            name={traceData.name}
+            trace={traceData}
+            traceContext={traceContext}
             timestamp={timestamp}
             deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
             layout="menu"
@@ -162,7 +164,7 @@ export function TracePage({
       <div className="flex max-h-full min-h-0 flex-1 overflow-hidden">
         <TraceDetailBody
           trace={traceData}
-          context={router.query.peek !== undefined ? "peek" : "fullscreen"}
+          context={traceContext}
           truncatedAtObservations={trace.truncatedAtObservations}
         />
       </div>

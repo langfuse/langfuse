@@ -115,7 +115,11 @@ function validateUsageKeyCoverage(model) {
         model,
         tier,
         "OpenAI cache-write",
-        ["input_cache_creation", "cache_write_tokens"],
+        [
+          "input_cache_creation",
+          "cache_write_tokens",
+          "input_cache_write_tokens",
+        ],
         false,
       );
       requireAliasFamily(

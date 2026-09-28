@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { scaleOrdinal } from "d3-scale";
 import { arc, pie, type PieArcDatum } from "d3-shape";
 
-import { ChartContainer } from "@/src/components/design-system/charts/ChartContainer";
+import { ChartContainer } from "@/src/components/design-system/internal/charts/ChartContainer";
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
 import {
   chartColors,

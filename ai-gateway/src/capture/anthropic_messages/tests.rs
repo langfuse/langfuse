@@ -1,6 +1,9 @@
 use super::*;
 use crate::{
-    capture::{ExecutionCapture, ProtocolCapture, ProviderFacts},
+    capture::{
+        ExecutionCapture, InputOmission, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES,
+        ProtocolCapture, ProviderFacts,
+    },
     providers::{ProviderLimits, ProviderTransport, Route},
     resolution::ApiFormat,
     test_support::{FakeServer, resolved_request_context_for},
@@ -600,5 +603,63 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
         "provider-secret",
     ] {
         assert!(!serialized.contains(canary), "usage mode uploaded {canary}");
+    }
+}
+
+#[tokio::test]
+async fn full_mode_marks_requests_it_cannot_record_as_input() {
+    let at_limit = format!(
+        r#"{{"model":"claude-sonnet-4-5","messages":[{{"role":"user","content":"{}"}}]}}"#,
+        "x".repeat(MAX_INPUT_CAPTURE_BYTES - 128)
+    );
+    let over_limit = format!(
+        "{at_limit}{}",
+        " ".repeat(MAX_INPUT_CAPTURE_BYTES - at_limit.len() + 1)
+    );
+    assert!(at_limit.len() <= MAX_INPUT_CAPTURE_BYTES);
+    let mut gzip = HeaderMap::new();
+    gzip.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+    for (mode, headers, body, omission) in [
+        ("full", HeaderMap::new(), at_limit.as_str(), None),
+        (
+            "full",
+            HeaderMap::new(),
+            over_limit.as_str(),
+            Some(InputOmissionReason::SizeLimit),
+        ),
+        (
+            "full",
+            gzip.clone(),
+            at_limit.as_str(),
+            Some(InputOmissionReason::ContentEncoding),
+        ),
+        (
+            "full",
+            HeaderMap::new(),
+            "not json",
+            Some(InputOmissionReason::InvalidJson),
+        ),
+        ("usage", HeaderMap::new(), over_limit.as_str(), None),
+    ] {
+        let context =
+            resolved_request_context_for(ApiFormat::AnthropicMessages, "provider-secret", mode)
+                .await;
+        let observer = ExecutionCapture::for_request(
+            ApiFormat::AnthropicMessages,
+            &context,
+            &headers,
+            body.as_bytes(),
+        );
+        let facts = &captured(&observer).facts;
+        assert_eq!(
+            facts.input_omission,
+            omission.map(|reason| InputOmission {
+                reason,
+                body_bytes: body.len(),
+            }),
+            "{mode} {} bytes",
+            body.len()
+        );
+        assert_eq!(facts.input.is_some(), mode == "full" && omission.is_none());
     }
 }

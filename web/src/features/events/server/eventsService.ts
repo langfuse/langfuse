@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-exotic-operators */
 import { type z } from "zod";
 import {
@@ -837,12 +836,15 @@ export async function getEventFilterOptions(
     score: { name: string; dataType: string },
     level: "observation" | "trace",
   ): void => {
-    const typeClass =
-      score.dataType === "NUMERIC"
-        ? "numeric"
-        : score.dataType === "BOOLEAN"
-          ? "boolean"
-          : "categorical"; // CATEGORICAL + TEXT
+    const typeClass = (() => {
+      if (score.dataType === "NUMERIC") {
+        return "numeric";
+      }
+      if (score.dataType === "BOOLEAN") {
+        return "boolean";
+      }
+      return "categorical";
+    })(); // CATEGORICAL + TEXT
     const levels = (scoreNameLevelsByType[typeClass][score.name] ??= []);
     if (!levels.includes(level)) levels.push(level);
   };

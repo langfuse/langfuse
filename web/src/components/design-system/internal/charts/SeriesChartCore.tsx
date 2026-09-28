@@ -4,7 +4,7 @@ import { useId, useMemo, useState, type PointerEvent } from "react";
 import { scaleLinear, scalePoint, scaleUtc } from "d3-scale";
 import { area, line } from "d3-shape";
 
-import { ChartContainer } from "@/src/components/design-system/charts/ChartContainer";
+import { ChartContainer } from "@/src/components/design-system/internal/charts/ChartContainer";
 import { CHART_TRANSITION_DURATION } from "@/src/components/design-system/charts/constants";
 import { CartesianChart } from "@/src/components/design-system/internal/charts/CartesianChart";
 import { CartesianLayout } from "@/src/components/design-system/internal/charts/CartesianLayout";

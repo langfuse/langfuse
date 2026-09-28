@@ -3,8 +3,9 @@
 ## Purpose
 
 - Rust native addon (napi-rs) loaded by the worker as `@langfuse/native`.
-  Topics clustering runs in a Node child so its synchronous fit can be killed
-  at the deadline. See `README.md` for layout, commands, and image packaging.
+  Exports telemetry, the startup probe, the prepared-event Native codec, and
+  Topics clustering. Topics runs in a Node child so its synchronous fit can be
+  killed at the deadline. See `README.md` for build and deployment layout.
 
 ## Maintenance Contract
 
@@ -20,6 +21,9 @@
   mirrors dd-trace and the winston logger (`DD_*`, `LANGFUSE_LOG_*`).
 - The worker calls `initTelemetry()` once in `worker/src/initialize.ts` and
   imports functions from `@langfuse/native` directly; keep call sites few.
+- `PreparedEvent` snapshots finalized JS rows into owned Rust fields;
+  `encodeClickhouseEvents()` asynchronously encodes batches of those handles.
+  Keep column definitions in `src/native_schema.rs` and JS handles off worker threads.
 
 ## Verification
 
