@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 
@@ -265,14 +264,18 @@ export function ConnectedModernSessionBodyTimeline({
       lastRelevantQuery?.isPending || lastRelevantQuery?.data?.hasMore,
     );
     if (mayHaveMoreObservations) incompleteTimelineTraceIds.add(trace.id);
-    const observations =
-      isPending && !hasLoadedObservations
-        ? undefined
-        : isError
-          ? null
-          : mayHaveMoreObservations && !hasLoadedObservations
-            ? undefined
-            : (observationsByTraceId.get(trace.id) ?? []);
+    const observations = (() => {
+      if (isPending && !hasLoadedObservations) {
+        return undefined;
+      }
+      if (isError) {
+        return null;
+      }
+      if (mayHaveMoreObservations && !hasLoadedObservations) {
+        return undefined;
+      }
+      return observationsByTraceId.get(trace.id) ?? [];
+    })();
 
     if (
       searchQuery &&
@@ -374,13 +377,18 @@ export function ConnectedModernSessionBodyTimeline({
   const timelineTraces: ConnectedSessionConversationTimelineItem[] = traces.map(
     (trace, index) => {
       const sidebarTrace = sidebarTraceById.get(trace.id);
-      const observations =
-        sidebarTrace?.observations === null
-          ? null
-          : sidebarTrace?.observations === undefined ||
-              incompleteTimelineTraceIds.has(trace.id)
-            ? undefined
-            : (timelineObservationsByTraceId.get(trace.id) ?? []);
+      const observations = (() => {
+        if (sidebarTrace?.observations === null) {
+          return null;
+        }
+        if (
+          sidebarTrace?.observations === undefined ||
+          incompleteTimelineTraceIds.has(trace.id)
+        ) {
+          return undefined;
+        }
+        return timelineObservationsByTraceId.get(trace.id) ?? [];
+      })();
 
       return {
         trace,

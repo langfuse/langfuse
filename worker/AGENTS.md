@@ -47,6 +47,9 @@
 - Direct-event replay: `pnpm --filter worker run test:otel-replay` exercises the
   production OTEL event phase with isolated ClickHouse tables. Setup and scope:
   `src/features/otel-ingestion/README.md`.
+- Native codec checks: `pnpm --filter worker run test:native-codec` selects
+  `nativeCodec` suites. Build the addon first; the command requires ClickHouse
+  whenever the live parity suite is present.
 
 ## Shared Package Imports
 

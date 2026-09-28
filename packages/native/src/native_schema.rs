@@ -1,64 +1,13 @@
 //! The insertable part of `events_full` and its prepared Rust row.
 //!
 //! The macro invocation below is the only per-column declaration. It drives the prepared row,
-//! the live-schema metadata, JSON conversion, and the typed Native column writes together.
+//! column type metadata, JS reads, and typed Native column writes.
 
 use clickhouse::native::builder::BlockBuilder;
-use serde_json::Value;
+use clickhouse::native::encode::Encode;
+use napi::bindgen_prelude::{Object, Unknown};
 
-use crate::native_codec::{DateTime64Micros, Decimal64, FromJson};
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ColumnKind {
-    String,
-    DateTime64,
-    NullableDateTime64,
-    NullableString,
-    NullableUInt16,
-    Bool,
-    UInt8,
-    UInt16,
-    UInt64,
-    Decimal,
-    ArrayString,
-    MapStringString,
-    MapStringUInt64,
-    MapStringDecimal,
-}
-
-impl ColumnKind {
-    /// Convert the type spelling returned by `system.columns` to the codec's logical type.
-    #[cfg(test)]
-    pub(crate) fn from_clickhouse_type(value: &str) -> Result<Self, String> {
-        let normalized: String = value
-            .chars()
-            .filter(|character| !character.is_whitespace())
-            .collect();
-        match normalized.as_str() {
-            "String" | "LowCardinality(String)" => Ok(Self::String),
-            "DateTime64(6)" => Ok(Self::DateTime64),
-            "Nullable(DateTime64(6))" => Ok(Self::NullableDateTime64),
-            "Nullable(String)" | "Nullable(LowCardinality(String))" => Ok(Self::NullableString),
-            "Nullable(UInt16)" => Ok(Self::NullableUInt16),
-            "Bool" => Ok(Self::Bool),
-            "UInt8" => Ok(Self::UInt8),
-            "UInt16" => Ok(Self::UInt16),
-            "UInt64" => Ok(Self::UInt64),
-            "Decimal(18,12)" => Ok(Self::Decimal),
-            "Array(String)" | "Array(LowCardinality(String))" => Ok(Self::ArrayString),
-            "Map(String,String)" | "Map(LowCardinality(String),String)" => {
-                Ok(Self::MapStringString)
-            }
-            "Map(String,UInt64)" | "Map(LowCardinality(String),UInt64)" => {
-                Ok(Self::MapStringUInt64)
-            }
-            "Map(String,Decimal(18,12))" | "Map(LowCardinality(String),Decimal(18,12))" => {
-                Ok(Self::MapStringDecimal)
-            }
-            _ => Err(format!("unsupported events_full column type {value:?}")),
-        }
-    }
-}
+use crate::native_codec::{DateTime64Micros, Decimal64};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum DefaultPolicy {
@@ -67,13 +16,6 @@ pub(crate) enum DefaultPolicy {
     Metadata(&'static str),
     MetadataFallback(&'static str, &'static str),
     MetadataEquals(&'static str, &'static str),
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct ColumnSpec {
-    pub(crate) name: &'static str,
-    pub(crate) kind: ColumnKind,
-    pub(crate) default_policy: DefaultPolicy,
 }
 
 macro_rules! schema_column_name {
@@ -85,29 +27,76 @@ macro_rules! schema_column_name {
     };
 }
 
-macro_rules! prepared_json_value {
+macro_rules! prepare_metadata_field {
     (
-        $value:ident,
-        $event_bytes:ident,
-        event_bytes $(as $name:literal)?,
+        $metadata:ident,
+        $field:ident $(as $name:literal)?,
+        $ty:ty,
+        $policy:expr,
+        metadata_names
+    ) => {
+        let $field = $metadata.take_names();
+    };
+    (
+        $metadata:ident,
+        $field:ident $(as $name:literal)?,
+        $ty:ty,
+        $policy:expr,
+        metadata_values
+    ) => {
+        let $field = $metadata.take_values();
+    };
+    (
+        $metadata:ident,
+        $field:ident $(as $name:literal)?,
+        $ty:ty,
+        $policy:expr $(, $source:ident)?
+    ) => {};
+}
+
+macro_rules! prepare_js_field {
+    (
+        $object:ident,
+        $metadata:ident,
+        $field:ident $(as $name:literal)?,
         $ty:ty,
         $policy:expr,
         computed
     ) => {
-        $event_bytes
+        let $field = crate::native_js::required_js_field::<$ty>(
+            $object,
+            schema_column_name!($field $(as $name)?),
+        )?;
     };
     (
-        $value:ident,
-        $event_bytes:ident,
+        $object:ident,
+        $metadata:ident,
+        $field:ident $(as $name:literal)?,
+        $ty:ty,
+        $policy:expr,
+        metadata_names
+    ) => {};
+    (
+        $object:ident,
+        $metadata:ident,
+        $field:ident $(as $name:literal)?,
+        $ty:ty,
+        $policy:expr,
+        metadata_values
+    ) => {};
+    (
+        $object:ident,
+        $metadata:ident,
         $field:ident $(as $name:literal)?,
         $ty:ty,
         $policy:expr
     ) => {
-        crate::native_codec::from_json_field::<$ty>(
-            $value,
+        let $field = crate::native_js::from_js_field::<$ty>(
+            $object,
             schema_column_name!($field $(as $name)?),
             $policy,
-        )?
+            &$metadata,
+        )?;
     };
 }
 
@@ -118,43 +107,66 @@ macro_rules! clickhouse_table_schema {
             $field:ident $(as $name:literal)? : $ty:ty => $( @ $source:ident )? $policy:expr
         ),* $(,)?
     ) => {
-        #[derive(Clone, Debug)]
-        pub(crate) struct PreparedEvent {
+        #[derive(Debug)]
+        pub(crate) struct PreparedEventRow {
             $(pub(crate) $field: $ty,)*
         }
 
-pub(crate) const EVENTS_FULL_INSERT_COLUMNS: &[ColumnSpec] = &[
-            $(ColumnSpec {
-                name: schema_column_name!($field $(as $name)?),
-                kind: <$ty as FromJson>::COLUMN_KIND,
-                default_policy: $policy,
-            },)*
-        ];
-
-        impl PreparedEvent {
-            /// Convert one prepared ingestion object and compute accounting before typed defaults.
-            pub(crate) fn from_json(value: &Value) -> Result<Self, String> {
-                // `event_bytes` describes the immutable prepared JSON row. In particular, it
-                // intentionally sees raw decimal values and omitted DEFAULT-backed fields.
-                let event_bytes = crate::native_codec::event_bytes(value)?;
-
+        impl PreparedEventRow {
+            /// Convert one finalized JavaScript row directly into owned Rust fields.
+            ///
+            /// The schema macro generates typed reads for the declared columns and ignores
+            /// unrelated properties. Only owned typed fields leave the NAPI call.
+            pub(crate) fn from_js(value: Unknown<'_>) -> Result<Self, String> {
+                let object: Object<'_> = match value.get_type().map_err(|error| error.to_string())? {
+                    napi::ValueType::Object => unsafe { value.cast() }
+                        .map_err(|error| error.to_string())?,
+                    value_type => {
+                        return Err(format!(
+                            "prepared event must be an object, got {value_type:?}"
+                        ));
+                    }
+                };
+                let mut metadata = crate::native_js::MetadataValues::from_js(&object)?;
+                $(
+                    prepare_js_field!(
+                        object,
+                        metadata,
+                        $field $(as $name)?,
+                        $ty,
+                        $policy $(, $source)?
+                    );
+                )*
+                $(
+                    prepare_metadata_field!(
+                        metadata,
+                        $field $(as $name)?,
+                        $ty,
+                        $policy $(, $source)?
+                    );
+                )*
                 Ok(Self {
                     $(
-                        $field: prepared_json_value!(
-                            value,
-                            event_bytes,
-                            $field $(as $name)?,
-                            $ty,
-                            $policy $(, $source)?
-                        ),
+                        $field,
                     )*
                 })
             }
 
-            /// Write this row type through clickhouse-rs's typed `Encode` implementations.
-            pub(crate) fn encode_into(
+            /// Return the insertable columns and their Native type names from this declaration.
+            pub(crate) fn columns() -> Vec<(String, String, bool)> {
+                vec![$(
+                    (
+                        schema_column_name!($field $(as $name)?).to_owned(),
+                        <$ty as Encode>::produces().to_string(),
+                        $policy != DefaultPolicy::None,
+                    ),
+                )*]
+            }
+
+            /// Write shared prepared rows through clickhouse-rs's typed `Encode` implementations.
+            pub(crate) fn encode_arcs(
                 builder: &mut BlockBuilder,
-                rows: &[Self],
+                rows: &[std::sync::Arc<Self>],
             ) -> Result<(), String> {
                 $(
                     let name = schema_column_name!($field $(as $name)?);
@@ -217,8 +229,8 @@ clickhouse_table_schema! {
     telemetry_sdk_version: String => DefaultPolicy::None,
     blob_storage_file_path: String => DefaultPolicy::None,
     ingestion_api_key: String => DefaultPolicy::None,
-    ingestion_sdk_name: String => DefaultPolicy::None,
-    ingestion_sdk_version: String => DefaultPolicy::None,
+    ingestion_sdk_name: String => DefaultPolicy::Literal("unknown"),
+    ingestion_sdk_version: String => DefaultPolicy::Literal("unknown"),
     event_type as "type": String => DefaultPolicy::None,
     start_time: DateTime64Micros => DefaultPolicy::None,
     created_at: DateTime64Micros => DefaultPolicy::None,
@@ -239,8 +251,8 @@ clickhouse_table_schema! {
     tags: Vec<String> => DefaultPolicy::None,
     tool_calls: Vec<String> => DefaultPolicy::None,
     tool_call_names: Vec<String> => DefaultPolicy::None,
-    metadata_names: Vec<String> => DefaultPolicy::None,
-    metadata_values: Vec<String> => DefaultPolicy::None,
+    metadata_names: Vec<String> => @metadata_names DefaultPolicy::None,
+    metadata_values: Vec<String> => @metadata_values DefaultPolicy::None,
     experiment_metadata_names: Vec<String> => DefaultPolicy::None,
     experiment_metadata_values: Vec<String> => DefaultPolicy::None,
     experiment_item_metadata_names: Vec<String> => DefaultPolicy::None,
@@ -252,11 +264,4 @@ clickhouse_table_schema! {
     usage_pricing_tier_id: Option<String> => DefaultPolicy::None,
     usage_pricing_tier_name: Option<String> => DefaultPolicy::None,
     tool_definitions: std::collections::BTreeMap<String, String> => DefaultPolicy::None,
-}
-
-#[cfg(test)]
-pub(crate) fn find_column(name: &str) -> Option<&'static ColumnSpec> {
-    EVENTS_FULL_INSERT_COLUMNS
-        .iter()
-        .find(|column| column.name == name)
 }
