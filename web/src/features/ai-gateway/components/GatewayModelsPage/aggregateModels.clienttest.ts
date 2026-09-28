@@ -29,4 +29,27 @@ describe("aggregateModels", () => {
       aggregateModels(results, [first, second]).map((model) => model.id),
     ).toEqual(["b-model", "z-model", "a-model"]);
   });
+
+  it("does not duplicate badges for connections repeated across pages", () => {
+    const connection = {
+      id: "first",
+      name: "First",
+      provider: "OPENAI",
+    } as Connection;
+    const result = {
+      connectionId: "first",
+      success: true,
+      models: ["model"],
+    } as Result;
+
+    expect(
+      aggregateModels([result], [connection, connection])[0]?.availableVia,
+    ).toEqual([
+      {
+        connectionId: "first",
+        connectionName: "First",
+        provider: "OPENAI",
+      },
+    ]);
+  });
 });

@@ -29,8 +29,11 @@ export function aggregateModels(
     results.map((result) => [result.connectionId, result]),
   );
   const models = new Map<string, ModelRow>();
+  const seenConnectionIds = new Set<string>();
 
   for (const connection of connections) {
+    if (seenConnectionIds.has(connection.id)) continue;
+    seenConnectionIds.add(connection.id);
     const result = resultsByConnectionId.get(connection.id);
     if (!result?.success) continue;
     for (const modelId of result.models.toSorted((left, right) =>

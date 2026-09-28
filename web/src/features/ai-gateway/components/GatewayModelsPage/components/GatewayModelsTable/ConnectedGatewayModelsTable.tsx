@@ -161,6 +161,7 @@ export function ConnectedGatewayModelsTable({
         return;
       }
       if (!hasMoreProviders || isLoadingMoreProviders) return;
+      setPageIndex(currentPageIndex);
       setPendingPage({ index: nextPageIndex, filterKey });
       onLoadMoreProviders();
     },
