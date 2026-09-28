@@ -317,6 +317,8 @@ const EnvSchema = z.object({
   LANGFUSE_TOPICS_REASONING_EFFORT: z
     .enum(["none", "low", "medium", "high"])
     .default("none"),
+  LANGFUSE_TOPICS_BUNDLE_FACETS: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_TOPICS_BUNDLE_VARIANT: z.enum(["v1", "v2", "v3"]).default("v1"),
   LANGFUSE_TOPICS_MODEL_TIMEOUT_MS: z.coerce
     .number()
     .int()

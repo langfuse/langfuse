@@ -11,11 +11,9 @@ export type TopicReasoningEffort = "none" | "low" | "medium" | "high";
 /**
  * Uses the shared AI SDK and AWS credentials for Topics structured text.
  *
- * OpenAI models take `reasoning.effort` and cache prompt prefixes
- * automatically. Anthropic models get an explicit cache point after the system
- * message; with reasoning on they return prompt-instructed JSON, because the
- * SDK's forced JSON tool suppresses thinking and Bedrock rejects the native
- * JSON-schema format for Claude Sonnet 5.
+ * OpenAI models take `reasoning.effort`; Bedrock caches their prompts only on
+ * exact repeats. Anthropic models get an explicit cache point after the system
+ * message, so the static system prompt is shared across traces.
  */
 export async function generateTopicText<T>(params: {
   model: string;
@@ -55,34 +53,29 @@ export async function generateTopicText<T>(params: {
     return { output: result.output, usage: result.usage };
   }
 
+  // Anthropic models return prompt-instructed JSON: the SDK's forced JSON tool
+  // suppresses thinking and, for nested schemas, Claude Sonnet 5 leaks
+  // parameter markup into the tool input; Bedrock rejects its native format.
   const thinking = reasoning !== "none";
   const messages = params.messages.map((message) =>
     message.role === "system"
       ? {
           ...message,
-          content: thinking
-            ? `${message.content}\n\nRespond with only a JSON object that matches this JSON schema, with no prose and no code fences:\n${JSON.stringify(z.toJSONSchema(params.schema))}`
-            : message.content,
+          content: `${message.content}\n\nRespond with only a JSON object that matches this JSON schema, with no prose and no code fences:\n${JSON.stringify(z.toJSONSchema(params.schema))}`,
           providerOptions: { bedrock: { cachePoint: { type: "default" } } },
         }
       : message,
   );
-  const reasoningConfig = thinking
-    ? { type: "adaptive", maxReasoningEffort: reasoning }
-    : { type: "disabled" };
-  if (!thinking) {
-    const result = await generateText({
-      ...common,
-      messages,
-      output: Output.object({ schema: params.schema }),
-      providerOptions: { bedrock: { reasoningConfig } },
-    });
-    return { output: result.output, usage: result.usage };
-  }
   const result = await generateText({
     ...common,
     messages,
-    providerOptions: { bedrock: { reasoningConfig } },
+    providerOptions: {
+      bedrock: {
+        reasoningConfig: thinking
+          ? { type: "adaptive", maxReasoningEffort: reasoning }
+          : { type: "disabled" },
+      },
+    },
   });
   const json = result.text.trim().replace(/^```(?:json)?\s*|\s*```$/g, "");
   return { output: params.schema.parse(JSON.parse(json)), usage: result.usage };

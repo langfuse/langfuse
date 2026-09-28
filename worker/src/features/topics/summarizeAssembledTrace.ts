@@ -20,6 +20,7 @@ import {
   countTopicTokens,
   embedTopicSummary,
   summarizeTopicTrace,
+  summarizeTopicTraceFacets,
 } from "./models";
 import { TopicsProviderUnavailable } from "./provider-error";
 
@@ -39,7 +40,7 @@ export async function summarizeAssembledTrace(input: {
 }): Promise<void> {
   if (!isTopicsProjectEnabled(input.projectId)) return;
   // Experiment switch: the rendered Topics text instead of the JSON projection.
-  const format =
+  const format: "json" | "text" =
     env.LANGFUSE_TOPICS_TRANSCRIPT_FORMAT === "text" &&
     input.topicsText !== undefined
       ? "text"
@@ -58,6 +59,7 @@ export async function summarizeAssembledTrace(input: {
   );
   const config = topicProcessingConfigSchema.parse({});
   const dimensions = topicEmbeddingConfigSchema.parse({}).embeddingDimensions;
+  const pending: TopicFacetVersion[] = [];
   for (const facet of versions) {
     const stored = await listTopicSummaries(input.projectId, {
       traceIds: [input.traceId],
@@ -65,27 +67,92 @@ export async function summarizeAssembledTrace(input: {
       facetVersion: facet.version,
     });
     if (
-      stored.some(
+      !stored.some(
         (row) => row.traceId === input.traceId && row.state !== "summarized",
       )
     )
-      continue;
-    await writeTopicSummaries([
-      await summarizeFacet({
-        ...input,
-        facet,
-        text: prepared.text,
-        hasContent: prepared.hasContent,
-        format,
-        transcriptMetrics,
-        config,
-        dimensions,
-      }),
-    ]);
+      pending.push(facet);
   }
+  const shared = {
+    ...input,
+    text: prepared.text,
+    hasContent: prepared.hasContent,
+    format,
+    transcriptMetrics,
+    config,
+    dimensions,
+  };
+  // Experiment switch: one model call for all pending facets of the trace.
+  if (
+    env.LANGFUSE_TOPICS_BUNDLE_FACETS === "true" &&
+    pending.length > 1 &&
+    prepared.hasContent
+  ) {
+    const names = new Map(facets.map((facet) => [facet.id, facet.name]));
+    const keyed = pending.map((facet, index) => ({
+      facet,
+      key: `${(names.get(facet.facetId) ?? "facet").toLowerCase().replace(/[^a-z0-9]+/g, "_")}_${index + 1}`,
+    }));
+    const result = await summarizeTopicTraceFacets(
+      keyed,
+      prepared.text,
+      config,
+      format,
+    );
+    const rows: TopicSummary[] = [];
+    for (const [index, { facet, key }] of keyed.entries()) {
+      const base = baseSummary({ ...shared, facet });
+      // The call's usage belongs to the trace; record it on the first row only.
+      const usage =
+        index === 0
+          ? result
+          : {
+              providedUsageDetails: {},
+              usageDetails: {},
+              providedCostDetails: {},
+              costDetails: {},
+            };
+      rows.push(
+        await finalizeSummary(
+          {
+            ...base,
+            metadata: {
+              ...base.metadata,
+              bundledFacets: keyed.length,
+              bundleVariant: env.LANGFUSE_TOPICS_BUNDLE_VARIANT,
+            },
+          },
+          {
+            providedUsageDetails: usage.providedUsageDetails,
+            usageDetails: usage.usageDetails,
+            providedCostDetails: usage.providedCostDetails,
+            costDetails: usage.costDetails,
+            output: (result.output as Record<string, SummaryOutput>)[key],
+          },
+          dimensions,
+        ),
+      );
+    }
+    await writeTopicSummaries(rows);
+    return;
+  }
+  for (const facet of pending)
+    await writeTopicSummaries([await summarizeFacet({ ...shared, facet })]);
 }
 
-async function summarizeFacet(input: {
+type SummaryOutput = {
+  summary: string;
+  status: "applicable" | "not_applicable" | "insufficient_input";
+};
+type SummaryResult = Pick<
+  TopicSummary,
+  | "providedUsageDetails"
+  | "usageDetails"
+  | "providedCostDetails"
+  | "costDetails"
+> & { output: SummaryOutput };
+
+type FacetInput = {
   projectId: string;
   traceId: string;
   traceTimestamp: string;
@@ -98,7 +165,21 @@ async function summarizeFacet(input: {
   transcriptMetrics: Record<string, number>;
   config: ReturnType<typeof topicProcessingConfigSchema.parse>;
   dimensions: number;
-}): Promise<TopicSummary> {
+};
+
+async function summarizeFacet(input: FacetInput): Promise<TopicSummary> {
+  const base = baseSummary(input);
+  if (!input.hasContent) return base;
+  const result = await summarizeTopicTrace(
+    input.facet,
+    input.text,
+    input.config,
+    input.format,
+  );
+  return finalizeSummary(base, result, input.dimensions);
+}
+
+function baseSummary(input: FacetInput): TopicSummary {
   const source = {
     projectId: input.projectId,
     facetId: input.facet.facetId,
@@ -106,7 +187,7 @@ async function summarizeFacet(input: {
     traceId: input.traceId,
     sessionId: null,
   };
-  const base: TopicSummary = {
+  return {
     ...source,
     triggerType: "manual_poc",
     unitStartTime: input.traceTimestamp,
@@ -132,13 +213,13 @@ async function summarizeFacet(input: {
       ...input.transcriptMetrics,
     },
   };
-  if (!input.hasContent) return base;
-  const result = await summarizeTopicTrace(
-    input.facet,
-    input.text,
-    input.config,
-    input.format,
-  );
+}
+
+async function finalizeSummary(
+  base: TopicSummary,
+  result: SummaryResult,
+  dimensions: number,
+): Promise<TopicSummary> {
   const applicable = result.output.status === "applicable";
   const summary = result.output.summary.trim();
   if (applicable && (!summary || summary.length > 2000))
@@ -164,7 +245,7 @@ async function summarizeFacet(input: {
       costDetails: result.costDetails,
     };
   }
-  const embedded = await embedTopicSummary(summary, input.dimensions);
+  const embedded = await embedTopicSummary(summary, dimensions);
   return {
     ...base,
     state: "complete",

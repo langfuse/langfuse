@@ -100,9 +100,27 @@ async function structuredCall<T>(
     reasoning: isNaming ? undefined : env.LANGFUSE_TOPICS_REASONING_EFFORT,
     timeoutMs: env.LANGFUSE_TOPICS_MODEL_TIMEOUT_MS,
   }).catch((error: unknown) => {
+    if (process.env.EVAL_DEBUG)
+      console.log(
+        "EVAL_DEBUG",
+        error instanceof Error ? error.message.slice(0, 400) : error,
+        "| text:",
+        String((error as { text?: unknown }).text ?? "").slice(0, 1500),
+        "| cause:",
+        String(
+          (error as { cause?: { message?: string } }).cause?.message ?? "",
+        ).slice(0, 300),
+      );
     logger.warn("Topics model request failed", {
       model,
       errorType: error instanceof Error ? error.name : "unknown",
+      // Experiment diagnostics: the SDK message names the failing output shape.
+      errorMessage:
+        error instanceof Error ? error.message.slice(0, 300) : undefined,
+      responseText:
+        typeof (error as { text?: unknown }).text === "string"
+          ? (error as { text: string }).text.slice(0, 600)
+          : undefined,
     });
     throw topicProviderError(error);
   });
@@ -197,6 +215,67 @@ export function summarizeTopicTrace(
     summarySchema,
     config.maxInputTokens,
     config.maxOutputTokens,
+    env.LANGFUSE_TOPICS_SUMMARY_MODEL_OVERRIDE ?? config.summaryModel,
+  );
+}
+
+const BUNDLE_INSTRUCTIONS = {
+  v1: (count: number) =>
+    `This request covers ${count} facets of the same run. Describe each facet on its own, as if it were the only one: follow its format and apply the status rules to it separately. Return one entry per facet key.`,
+  v2: (count: number) =>
+    `This request covers ${count} facets of the same run. Treat each facet as a separate task:
+- For each facet, read the whole transcript again for what that facet asks about. Facets are independent: what you write for one facet must not narrow or shape another.
+- A facet about the run as a whole covers all of it, from the first request to the last turn, even when other facets concentrate on how the run ended.
+- Follow each facet's own format and apply the status rules to each facet separately.
+Return one entry per facet key.`,
+};
+
+/**
+ * Experiment: all pending facets of one trace in a single call. The system
+ * prompt (identical across traces, so cacheable) keeps the single-facet rules
+ * and lists each facet under a key; the output has one entry per key. Variant
+ * v3 is v2 plus short per-facet notes written before each summary.
+ */
+export function summarizeTopicTraceFacets(
+  facets: { key: string; facet: TopicFacetVersion }[],
+  text: string,
+  config: TopicProcessingConfig,
+  format: keyof typeof TRANSCRIPT_FORMATS = "json",
+) {
+  const variant = env.LANGFUSE_TOPICS_BUNDLE_VARIANT;
+  const entry =
+    variant === "v3"
+      ? z.object({
+          notes: z
+            .string()
+            .describe(
+              "At most 25 words: the transcript evidence this facet rests on. Not shown to anyone.",
+            ),
+          summary: summarySchema.shape.summary,
+          status: summarySchema.shape.status,
+        })
+      : summarySchema;
+  const schema = z.object(
+    Object.fromEntries(facets.map(({ key }) => [key, entry])),
+  );
+  const instructions = BUNDLE_INSTRUCTIONS[variant === "v1" ? "v1" : "v2"](
+    facets.length,
+  );
+  const notes =
+    variant === "v3"
+      ? "\n\nFor each facet, first write brief notes on the evidence it rests on, then its summary and status."
+      : "";
+  const system = `${summarySystemPrompt(format)}
+
+${instructions}${notes}
+
+${facets.map(({ key, facet }) => `<facet key="${key}">\n${facet.prompt}\n</facet>`).join("\n\n")}`;
+  return structuredCall(
+    system,
+    `<transcript>\n${text}\n</transcript>\n\nWrite the summaries now, one per facet key, each in its facet's format.`,
+    schema,
+    config.maxInputTokens,
+    config.maxOutputTokens * facets.length,
     env.LANGFUSE_TOPICS_SUMMARY_MODEL_OVERRIDE ?? config.summaryModel,
   );
 }
