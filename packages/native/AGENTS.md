@@ -3,8 +3,8 @@
 ## Purpose
 
 - Rust native addon (napi-rs) loaded in-process by the worker as
-  `@langfuse/native`. Currently a hello-world scaffold; see `README.md` for
-  layout, commands, and how the addon ships in the worker image.
+  `@langfuse/native`. Exports telemetry, the startup probe, and the prepared-event
+  Native codec; see `README.md` for build and deployment layout.
 
 ## Maintenance Contract
 
@@ -25,6 +25,9 @@
   imports functions from `@langfuse/native` directly; keep call sites few.
 - Keep finite Rust commands behind the package's `rust:*` scripts so pnpm's
   shared `langfuse-rust` concurrency group also covers builds launched by Turbo.
+- `PreparedEvent` snapshots finalized JS rows into owned Rust fields;
+  `encodeClickhouseEvents()` asynchronously encodes batches of those handles.
+  Keep column definitions in `src/native_schema.rs` and JS handles off worker threads.
 
 ## Verification
 

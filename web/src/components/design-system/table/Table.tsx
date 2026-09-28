@@ -76,24 +76,29 @@ export function Table<TData extends object>({
         enableResizing: false,
         headerClassName: "text-right",
         cellClassName: "text-right",
-        cell: ({ row }) => (
-          <div
-            className="ml-auto flex size-6 items-center justify-end"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <DropdownMenu items={actions(row.original)} placement="bottom-end">
-              {({ getTriggerProps }) => (
-                <IconButton
-                  icon={MoreVertical}
-                  label="Open actions menu"
-                  size="sm"
-                  variant="subtle"
-                  {...getTriggerProps()}
-                />
-              )}
-            </DropdownMenu>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const items = actions(row.original);
+
+          return (
+            <div
+              className="ml-auto flex size-6 items-center justify-end"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <DropdownMenu items={items} placement="bottom-end">
+                {({ getTriggerProps }) => (
+                  <IconButton
+                    icon={MoreVertical}
+                    label="Open actions menu"
+                    size="sm"
+                    variant="subtle"
+                    {...getTriggerProps()}
+                    disabled={items.length === 0}
+                  />
+                )}
+              </DropdownMenu>
+            </div>
+          );
+        },
         loadingCell: (
           <div className="ml-auto flex h-4 w-6 items-center justify-center">
             <MoreVertical
@@ -273,6 +278,7 @@ export function Table<TData extends object>({
                             ? "p-0"
                             : "p-2",
                           column.columnDef.cellClassName,
+                          column.columnDef.sensitive && "ph-no-capture",
                           column.columnDef.hideBelowMd &&
                             "hidden md:table-cell",
                         )}
@@ -337,6 +343,7 @@ export function Table<TData extends object>({
                           "h-full overflow-hidden border-b align-middle text-xs whitespace-nowrap",
                           column.cellPadding === "none" ? "p-0" : "p-2",
                           column.cellClassName,
+                          column.sensitive && "ph-no-capture",
                           column.hideBelowMd && "hidden md:table-cell",
                         )}
                       >

@@ -355,28 +355,116 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys[0].baseURL).toBe("https://openrouter.ai/api/v1");
   });
 
-  it.each(["https://example.com/v1", "https://api.typesafe.ai/v1"])(
-    "should reject decision-model connections with the non-preset base URL %s",
-    async (baseURL) => {
-      await expect(
-        caller.llmApiKey.create({
-          projectId,
-          secretKey: "sk-test",
-          provider: "jev-custom-url",
-          adapter: LLMAdapter.TypeSafe,
-          baseURL,
-        }),
-      ).rejects.toThrow(
-        "only support the TypeSafe, Vercel AI Gateway, and OpenRouter base URLs",
-      );
+  it("should store a custom base URL and encrypted extra headers on a decision-model connection", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: "sk-proxy",
+      provider: "jev-via-proxy",
+      adapter: LLMAdapter.TypeSafe,
+      baseURL: "https://example.com/typesafe/v1",
+      extraHeaders: { "x-team": "evals" },
+    });
 
-      const { data: llmApiKeys } = await caller.llmApiKey.all({
+    const storedKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "jev-via-proxy" },
+    });
+    expect(storedKey.baseURL).toBe("https://example.com/typesafe/v1");
+    expect(storedKey.extraHeaderKeys).toEqual(["x-team"]);
+    expect(JSON.parse(decrypt(storedKey.extraHeaders!))).toEqual({
+      "x-team": "evals",
+    });
+  });
+
+  it("should block decision-model connections with an internal custom base URL", async () => {
+    await expect(
+      caller.llmApiKey.create({
         projectId,
-        includeDecisionModels: true,
-      });
-      expect(llmApiKeys).toHaveLength(0);
-    },
-  );
+        secretKey: "sk-test",
+        provider: "jev-internal",
+        adapter: LLMAdapter.TypeSafe,
+        baseURL: "http://localhost:8080/v1",
+      }),
+    ).rejects.toThrow("Invalid base URL: Blocked hostname detected");
+
+    await expect(
+      caller.llmApiKey.test({
+        projectId,
+        secretKey: "sk-test",
+        provider: "jev-internal",
+        adapter: LLMAdapter.TypeSafe,
+        baseURL: "http://localhost:8080/v1",
+      }),
+    ).resolves.toMatchObject({ success: false });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({
+      projectId,
+      includeDecisionModels: true,
+    });
+    expect(llmApiKeys).toHaveLength(0);
+  });
+
+  it("should reject decision-model base URLs that end in /systemone or have a query string", async () => {
+    const connection = {
+      projectId,
+      secretKey: "sk-proxy",
+      provider: "jev-via-proxy",
+      adapter: LLMAdapter.TypeSafe,
+    };
+
+    await expect(
+      caller.llmApiKey.create({
+        ...connection,
+        baseURL: "https://example.com/typesafe/v1/systemone",
+      }),
+    ).rejects.toThrow("Remove /systemone");
+    await expect(
+      caller.llmApiKey.test({
+        ...connection,
+        baseURL: "https://example.com/typesafe/v1/systemone/",
+      }),
+    ).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining("Remove /systemone"),
+    });
+    await expect(
+      caller.llmApiKey.create({
+        ...connection,
+        baseURL: "https://example.com/typesafe/v1/systemone?api-version=1",
+      }),
+    ).rejects.toThrow("Remove /systemone");
+    await expect(
+      caller.llmApiKey.create({
+        ...connection,
+        baseURL: "https://example.com/typesafe/v1?api-version=1",
+      }),
+    ).rejects.toThrow("Remove the query string");
+
+    await caller.llmApiKey.create({
+      ...connection,
+      baseURL: "https://example.com/typesafe/v1",
+    });
+    const { id } = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: connection.provider },
+    });
+
+    await expect(
+      caller.llmApiKey.update({
+        ...connection,
+        id,
+        baseURL: "https://example.com/typesafe/v1/systemone",
+      }),
+    ).rejects.toThrow("Remove /systemone");
+    await expect(
+      caller.llmApiKey.testUpdate({
+        ...connection,
+        id,
+        baseURL: "https://example.com/typesafe/v1/systemone",
+      }),
+    ).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining("Remove /systemone"),
+    });
+  });
 
   it("should require a new secret key when moving a decision-model connection to another upstream", async () => {
     await caller.llmApiKey.create({
@@ -654,6 +742,67 @@ describe("llmApiKey.all RPC", () => {
     expect(JSON.parse(decrypt(encryptedExtraHeaders))).toEqual(
       existingExtraHeaders,
     );
+  });
+
+  it("should fill masked header values from the stored headers in testUpdate", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-original",
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: { "X-Api-Key": "stored-token", "X-Team": "stored-team" },
+    });
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "openai" },
+    });
+
+    const result = await caller.llmApiKey.testUpdate({
+      id: existingKey.id,
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: { "X-Api-Key": "", "X-Team": "new-team" },
+    });
+
+    expect(result).toEqual({ success: true });
+    const connection = mockGenerateLLMText.mock.calls[0][0].connection;
+    expect(JSON.parse(decrypt(connection.extraHeaders!))).toEqual({
+      "X-Api-Key": "stored-token",
+      "X-Team": "new-team",
+    });
+  });
+
+  it("should not fill masked header values from the stored headers when testUpdate changes the base URL", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-original",
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: { "X-Api-Key": "stored-token" },
+    });
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "openai" },
+    });
+
+    const result = await caller.llmApiKey.testUpdate({
+      id: existingKey.id,
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-rotated",
+      baseURL: "https://example.net/v1",
+      extraHeaders: { "X-Api-Key": "", "X-Team": "new-team" },
+    });
+
+    expect(result).toEqual({ success: true });
+    const connection = mockGenerateLLMText.mock.calls[0][0].connection;
+    expect(connection.baseURL).toBe("https://example.net/v1");
+    expect(JSON.parse(decrypt(connection.extraHeaders!))).toEqual({
+      "X-Team": "new-team",
+    });
   });
 
   it("should allow testUpdate when the base URL changes and a new secret key is provided", async () => {

@@ -376,13 +376,18 @@ function SdkUsageSeriesRows({
                 language: usage.canonicalSdkName ?? usage.sdkName,
                 version: usage.sdkVersion,
               });
-        const publicKey = usage.publicKey
-          ? usage.publicKey.length > 18
-            ? `${usage.publicKey.slice(0, 9)}…${usage.publicKey.slice(-6)}`
-            : usage.publicKey
-          : hideMissingApiKey
-            ? null
-            : "No API key";
+        const publicKey = (() => {
+          if (usage.publicKey) {
+            if (usage.publicKey.length > 18) {
+              return `${usage.publicKey.slice(0, 9)}…${usage.publicKey.slice(-6)}`;
+            }
+            return usage.publicKey;
+          }
+          if (hideMissingApiKey) {
+            return null;
+          }
+          return "No API key";
+        })();
         const evidenceHref =
           projectId && usage.eventCount > 0
             ? `/project/${projectId}/observations?filter=${encodeURIComponent(
@@ -517,13 +522,17 @@ export function V4MigrationSdkSection({
         projectId={projectId}
         analyticsSection="sdk"
         needsAction={isActionableSdkSeries}
-        suffix={(usage) =>
-          usage.v4MigrationStatus === "upgrade_required" ? (
-            <span>· {formatSdkUpgradeRequirement(usage.latestSdkMajor)}</span>
-          ) : usage.v4MigrationStatus === "unknown" ? (
-            <span>· version not recognized</span>
-          ) : null
-        }
+        suffix={(usage) => {
+          if (usage.v4MigrationStatus === "upgrade_required") {
+            return (
+              <span>· {formatSdkUpgradeRequirement(usage.latestSdkMajor)}</span>
+            );
+          }
+          if (usage.v4MigrationStatus === "unknown") {
+            return <span>· version not recognized</span>;
+          }
+          return null;
+        }}
       />
     </Section>
   );
@@ -978,13 +987,18 @@ export function V4MigrationApisSection({
                           caller.sdkName,
                           caller.sdkVersion,
                         );
-                        const callerName = caller.isOther
-                          ? "Unknown callers"
-                          : caller.sdkName
-                            ? `Langfuse ${caller.sdkName === "python" ? "Python" : "JavaScript"} SDK${caller.sdkVersion ? ` ${caller.sdkVersion}` : ""}`
-                            : codingAgent
-                              ? codingAgent
-                              : caller.userAgent || "Unknown caller";
+                        const callerName = (() => {
+                          if (caller.isOther) {
+                            return "Unknown callers";
+                          }
+                          if (caller.sdkName) {
+                            return `Langfuse ${caller.sdkName === "python" ? "Python" : "JavaScript"} SDK${caller.sdkVersion ? ` ${caller.sdkVersion}` : ""}`;
+                          }
+                          if (codingAgent) {
+                            return codingAgent;
+                          }
+                          return caller.userAgent || "Unknown caller";
+                        })();
                         const callerCount = Math.max(
                           1,
                           Math.round(caller.count),

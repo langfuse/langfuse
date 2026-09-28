@@ -4,10 +4,11 @@ import {
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
+  BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Fragment } from "react";
-import { ChevronDownIcon, Slash } from "lucide-react";
+import { ChevronDownIcon } from "lucide-react";
 import { env } from "@/src/env.mjs";
 import {
   useOrgProjectSwitchPaths,
@@ -64,15 +65,15 @@ const BreadcrumbComponent = ({
                       {planLabels[organization.plan]}
                     </Badge>
                   )}
-                <ChevronDownIcon className="h-4 w-4" />
+                <ChevronDownIcon className="text-foreground-tertiary size-3 translate-y-px" />
               </button>
             )}
           </OrganizationDropdownMenu>
         )}
         {organization && project && (
           <>
-            <BreadcrumbSeparator>
-              <Slash />
+            <BreadcrumbSeparator className="text-foreground-tertiary">
+              /
             </BreadcrumbSeparator>
             <ProjectDropdownMenu
               organizationId={organization.id}
@@ -94,28 +95,34 @@ const BreadcrumbComponent = ({
                   {...getTriggerProps()}
                 >
                   {project.name}
-                  <ChevronDownIcon className="h-4 w-4" />
+                  <ChevronDownIcon className="text-foreground-tertiary size-3 translate-y-px" />
                 </button>
               )}
             </ProjectDropdownMenu>
           </>
         )}
-        {items?.map((item, index) => (
-          <Fragment key={index}>
-            <BreadcrumbSeparator>
-              <Slash />
-            </BreadcrumbSeparator>
-            <BreadcrumbItem key={index}>
-              {item.href ? (
-                <BreadcrumbLink asChild>
-                  <Link href={item.href}>{item.name}</Link>
-                </BreadcrumbLink>
-              ) : (
-                <span>{item.name}</span>
-              )}
-            </BreadcrumbItem>
-          </Fragment>
-        ))}
+        {items?.map((item, index) => {
+          const isCurrentPage = index === items.length - 1;
+          const name = item.href ? (
+            <Link href={item.href}>{item.name}</Link>
+          ) : (
+            item.name
+          );
+          return (
+            <Fragment key={index}>
+              <BreadcrumbSeparator className="text-foreground-tertiary">
+                /
+              </BreadcrumbSeparator>
+              <BreadcrumbItem key={index}>
+                {isCurrentPage && <BreadcrumbPage>{name}</BreadcrumbPage>}
+                {!isCurrentPage && item.href && (
+                  <BreadcrumbLink asChild>{name}</BreadcrumbLink>
+                )}
+                {!isCurrentPage && !item.href && <span>{name}</span>}
+              </BreadcrumbItem>
+            </Fragment>
+          );
+        })}
       </BreadcrumbList>
     </Breadcrumb>
   );
