@@ -42,7 +42,9 @@ export function V4MigrationNavItem() {
       <span className="truncate font-bold" title={label}>
         {label}
       </span>
-      <ChevronRight className="text-foreground-tertiary ml-auto size-3 shrink-0" />
+      <span className="ml-auto flex shrink-0">
+        <ChevronRight className="text-foreground-tertiary size-3" />
+      </span>
     </SidebarMenuButton>
   );
 }
