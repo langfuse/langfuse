@@ -470,6 +470,7 @@ export const openaiAgentsSpanishHandoffFixture = {
       {
         conversationHistory: [],
         currentTurn: {
+          nestingLevel: 3,
           messages: [
             {
               role: "user",

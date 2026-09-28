@@ -383,6 +383,7 @@ export const supportCopilotRefundLoopFixture = {
       {
         conversationHistory: [],
         currentTurn: {
+          nestingLevel: 2,
           observations: [
             "cls",
             "llm1",

@@ -10,6 +10,8 @@ export type ThreadMessage = NormalizedMessage & {
 
 /** Messages of one turn with the observations that emitted them. */
 export type Turn = {
+  /** Tree depth of the first contributing generation; fetched roots are level 0. */
+  nestingLevel: number;
   messages: ThreadMessage[];
   /** Observations that contributed to this turn, in contribution order. */
   observations: { id: string; traceId: string }[];

@@ -2,15 +2,16 @@ import type {
   NormalizedMessage,
   ToolCallPart,
 } from "../../utils/normalized-io";
-import type { Turn, ThreadMessage } from "./types";
+import type { ThreadMessage } from "./types";
 import {
   addContributor,
+  type AssembledTurn,
   type KeyedMessage,
   type TranscriptObservation,
 } from "./threads";
 
 type Call = {
-  thread: Turn;
+  thread: AssembledTurn;
   message: ThreadMessage;
   response?: ThreadMessage;
   fromTool?: boolean;
@@ -19,14 +20,14 @@ const key = (traceId: string, id: string) => JSON.stringify([traceId, id]);
 
 export function createToolCallRegistry() {
   const calls = new Map<string, Call>();
-  const callsByThread = new WeakMap<Turn, Map<string, Call[]>>();
+  const callsByThread = new WeakMap<AssembledTurn, Map<string, Call[]>>();
   const pending = new Map<string, { calls: Call[]; next: number }>();
   const responseTails = new WeakMap<ThreadMessage, ThreadMessage>();
 
   function register(
     observation: TranscriptObservation,
     part: ToolCallPart,
-    thread: Turn,
+    thread: AssembledTurn,
     message: ThreadMessage,
   ) {
     const id = part.toolCallId
@@ -80,7 +81,7 @@ export function createToolCallRegistry() {
   function consumePart(
     observation: TranscriptObservation,
     part: NormalizedMessage["parts"][number],
-    thread: Turn,
+    thread: AssembledTurn,
     message: ThreadMessage,
     replayCalls: Map<string, number>,
     replayTotals: Map<string, number>,

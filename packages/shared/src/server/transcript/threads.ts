@@ -1,6 +1,7 @@
 import type { Observation } from "../../domain";
 import type { NormalizedMessage } from "../../utils/normalized-io";
 import type { Thread, ThreadMessage, Turn } from "./types";
+import type { OrderedObservation } from "./ordering";
 import type { createToolCallRegistry } from "./tool-calls";
 
 export type TranscriptObservation = Observation & { traceId: string };
@@ -9,9 +10,11 @@ export type KeyedMessage = {
   message: NormalizedMessage;
   key: string;
 };
+export type AssembledTurn = Pick<Turn, "messages" | "observations">;
+
 export type ThreadState = {
   /** Every message of the thread in one list; `splitTurn` derives the public shape. */
-  thread: Turn;
+  thread: AssembledTurn;
   messages: KeyedMessage[];
   shownCounts: Map<string, number>;
 };
@@ -113,7 +116,7 @@ export function append(
 }
 
 export function addContributor(
-  thread: Turn,
+  thread: AssembledTurn,
   observation: TranscriptObservation,
 ) {
   if (
@@ -130,7 +133,13 @@ export function addContributor(
 }
 
 /** Split a thread into replayed history and the turn the last trace added. */
-export function splitTurn(thread: Turn): Thread {
+export function splitTurn(
+  thread: AssembledTurn,
+  observationsByTrace: ReadonlyMap<
+    string,
+    ReadonlyMap<string, OrderedObservation>
+  >,
+): Thread {
   const { messages, observations } = thread;
   // Earlier traces of a session are history; the last contributing trace is
   // the current turn.
@@ -149,18 +158,22 @@ export function splitTurn(thread: Turn): Thread {
     ) +
     1;
   const current = messages.slice(turnStart);
+  const currentObservations = observations.filter(({ id, traceId }) =>
+    current.some(
+      (message) => message.observationId === id && message.traceId === traceId,
+    ),
+  );
+  const firstGeneration = currentObservations
+    .map(({ id, traceId }) => observationsByTrace.get(traceId)?.get(id))
+    .find((observation) => observation?.type === "GENERATION");
   return {
     conversationHistory: messages
       .slice(0, turnStart)
       .map(({ observationId, traceId, ...message }) => message),
     currentTurn: {
       messages: current,
-      observations: observations.filter(({ id, traceId }) =>
-        current.some(
-          (message) =>
-            message.observationId === id && message.traceId === traceId,
-        ),
-      ),
+      nestingLevel: firstGeneration?.nestingLevel ?? 0,
+      observations: currentObservations,
     },
   };
 }

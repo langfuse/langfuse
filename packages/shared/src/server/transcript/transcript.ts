@@ -1,5 +1,5 @@
 import { partition } from "lodash";
-import type { Observation } from "../../domain";
+import type { OrderedObservation } from "./ordering";
 import { normalizeIO } from "../normalized-io";
 import type { Transcript } from "./types";
 import {
@@ -8,19 +8,18 @@ import {
   messageKey,
   splitTurn,
   type ThreadState,
-  type TranscriptObservation,
 } from "./threads";
 import { createToolCallRegistry } from "./tool-calls";
 
 /** Check if an observation is relevant for the transcript. */
 const isRelevantObservation = (
-  observation: Observation,
-): observation is TranscriptObservation =>
+  observation: OrderedObservation,
+): observation is OrderedObservation & { traceId: string } =>
   (observation.type === "GENERATION" || observation.type === "TOOL") &&
   observation.traceId !== null;
 
 /** Normalize original I/O without interpreting provider-specific envelopes. */
-function normalize(observation: TranscriptObservation) {
+function normalize(observation: OrderedObservation) {
   const isTool = observation.type === "TOOL";
   const { messages } = normalizeIO({
     kind: "io",
@@ -45,7 +44,7 @@ function normalize(observation: TranscriptObservation) {
  * keys) from remaining assembly work, excluding caller-owned observation ordering.
  */
 export function assembleTranscript(
-  orderedObservations: Observation[],
+  orderedObservations: OrderedObservation[],
   onTimings?: (timings: {
     normalizationMs: number;
     matchingMs: number;
@@ -55,6 +54,18 @@ export function assembleTranscript(
   let normalizationMs = 0;
   const states: ThreadState[] = [];
   const toolCalls = createToolCallRegistry();
+  const observationsByTrace = new Map<
+    string,
+    Map<string, OrderedObservation>
+  >();
+  for (const observation of orderedObservations) {
+    if (observation.traceId === null) continue;
+    if (!observationsByTrace.has(observation.traceId))
+      observationsByTrace.set(observation.traceId, new Map());
+    observationsByTrace
+      .get(observation.traceId)!
+      .set(observation.id, observation);
+  }
 
   for (const observation of orderedObservations.filter(isRelevantObservation)) {
     const normalizationStart = onTimings ? performance.now() : 0;
@@ -82,7 +93,11 @@ export function assembleTranscript(
   }
 
   const transcript = states.length
-    ? { threads: states.map(({ thread }) => splitTurn(thread)) }
+    ? {
+        threads: states.map(({ thread }) =>
+          splitTurn(thread, observationsByTrace),
+        ),
+      }
     : null;
   onTimings?.({
     normalizationMs,

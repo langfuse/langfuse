@@ -706,6 +706,7 @@ export const vercelAiSdkDocsToolLoopFixture: TranscriptFixture = {
       {
         conversationHistory: [],
         currentTurn: {
+          nestingLevel: 3,
           messages: [
             {
               role: "user",

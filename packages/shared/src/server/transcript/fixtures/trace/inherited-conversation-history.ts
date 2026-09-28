@@ -45,6 +45,7 @@ export const inheritedConversationHistoryFixture = {
           },
         ],
         currentTurn: {
+          nestingLevel: 0,
           messages: [
             {
               role: "user",

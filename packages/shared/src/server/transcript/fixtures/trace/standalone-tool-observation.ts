@@ -42,6 +42,7 @@ export const standaloneToolObservationFixture = {
       {
         conversationHistory: [],
         currentTurn: {
+          nestingLevel: 0,
           messages: [
             {
               role: "user",

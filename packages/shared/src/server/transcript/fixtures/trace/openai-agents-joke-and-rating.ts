@@ -372,6 +372,7 @@ export const openaiAgentsJokeAndRatingFixture = {
       {
         conversationHistory: [],
         currentTurn: {
+          nestingLevel: 3,
           messages: [
             {
               role: "user",
@@ -413,6 +414,7 @@ export const openaiAgentsJokeAndRatingFixture = {
       {
         conversationHistory: [],
         currentTurn: {
+          nestingLevel: 3,
           messages: [
             {
               role: "user",

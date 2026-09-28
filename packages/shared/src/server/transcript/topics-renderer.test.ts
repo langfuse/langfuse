@@ -130,6 +130,7 @@ describe("Topics transcript renderer", () => {
         {
           conversationHistory: [],
           currentTurn: {
+            nestingLevel: 0,
             messages: [
               {
                 role: "user",
@@ -158,6 +159,7 @@ describe("Topics transcript renderer", () => {
             },
           ],
           currentTurn: {
+            nestingLevel: 0,
             messages: [
               {
                 role: "assistant",
@@ -214,6 +216,7 @@ describe("Topics transcript renderer", () => {
         {
           conversationHistory: [],
           currentTurn: {
+            nestingLevel: 0,
             messages: [
               {
                 role: "system",
@@ -273,6 +276,7 @@ describe("Topics transcript renderer", () => {
         {
           conversationHistory: [],
           currentTurn: {
+            nestingLevel: 0,
             messages: [
               message(first.id, "First"),
               message(second.id, "Second"),
@@ -286,6 +290,7 @@ describe("Topics transcript renderer", () => {
         {
           conversationHistory: [],
           currentTurn: {
+            nestingLevel: 0,
             messages: [message(other.id, "Other")],
             observations: [{ id: other.id, traceId: "trace" }],
           },
@@ -356,6 +361,7 @@ describe("Topics transcript renderer", () => {
         {
           conversationHistory: [],
           currentTurn: {
+            nestingLevel: 0,
             messages,
             observations: [
               { id: generation.id, traceId: "trace" },
@@ -381,6 +387,7 @@ describe("Topics transcript renderer", () => {
         {
           conversationHistory: [],
           currentTurn: {
+            nestingLevel: 0,
             messages: messages.slice(0, 2),
             observations: [{ id: generation.id, traceId: "trace" }],
           },
@@ -405,6 +412,7 @@ describe("Topics transcript renderer", () => {
         {
           conversationHistory: [],
           currentTurn: {
+            nestingLevel: 0,
             messages: [
               {
                 role: "system",
@@ -465,6 +473,7 @@ describe("Topics transcript renderer", () => {
         {
           conversationHistory: [],
           currentTurn: {
+            nestingLevel: 0,
             messages: [
               {
                 role: "user",
@@ -511,6 +520,7 @@ describe("Topics transcript renderer", () => {
         {
           conversationHistory: [],
           currentTurn: {
+            nestingLevel: 0,
             messages: [
               {
                 role: "assistant",
@@ -584,6 +594,7 @@ describe("Topics transcript renderer", () => {
             },
           ],
           currentTurn: {
+            nestingLevel: 0,
             messages: [
               {
                 role: "assistant",
