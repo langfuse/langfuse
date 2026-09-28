@@ -1,29 +1,18 @@
-import { useMemo, useState } from "react";
-import { RefreshCw, Route } from "lucide-react";
-import { SiAnthropic, SiOpenai } from "react-icons/si";
+import { useEffect, useMemo, useState } from "react";
+import { RefreshCw } from "lucide-react";
 
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
-import { Badge } from "@/src/components/ui/badge";
+import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { Button } from "@/src/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import { DataTable } from "@/src/components/table/data-table";
 import {
   DataTableControls,
   DataTableControlsProvider,
 } from "@/src/components/table/data-table-controls";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { useSidebarFilterState } from "@/src/features/filters";
-import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import { gatewayModelsFilterConfig } from "@/src/features/ai-gateway/constants/modelsFilterConfig";
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { GATEWAY_MODELS_FIELD_REGISTRY } from "@/src/features/ai-gateway/constants/modelsSearchRegistry";
 import {
   TableSearchBar,
@@ -33,100 +22,13 @@ import {
 import {
   filterGatewayModels,
   type GatewayModelRow,
-} from "./filterGatewayModels";
+} from "./fns/filterGatewayModels";
 import { getGatewayModelConnectionSearchOptions } from "./fns/getGatewayModelConnectionSearchOptions";
+import { GatewayModelsTable, gatewayModelsColumns } from "./GatewayModelsTable";
 
 const TABLE_NAME = gatewayModelsFilterConfig.tableName;
 
-const columns: LangfuseColumnDef<GatewayModelRow, unknown>[] = [
-  {
-    accessorKey: "id",
-    id: "id",
-    header: "Model",
-    size: 200,
-    cell: ({ row }) => (
-      <span className="block truncate font-mono" title={row.original.id}>
-        {row.original.id}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "availableVia",
-    id: "availableVia",
-    header: "Available via",
-    size: 360,
-    cell: ({ row }) => (
-      <SingleLineOverflowList
-        items={row.original.availableVia}
-        additionalOverflowCount={0}
-        getKey={(connection) => connection.connectionId}
-        renderItem={(connection) => (
-          <Badge
-            variant="secondary"
-            className="gap-1.5"
-            aria-label={`${connection.connectionName}, ${providerLabels[connection.provider]}`}
-          >
-            <GatewayProviderIcon provider={connection.provider} />
-            {connection.connectionName}
-          </Badge>
-        )}
-        renderOverflow={({ hiddenItems, overflowItemCount }) => (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex" tabIndex={0}>
-                <Badge variant="secondary">+{overflowItemCount}</Badge>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs">
-              <div className="flex flex-col gap-1">
-                {hiddenItems.map((connection) => (
-                  <span
-                    key={connection.connectionId}
-                    className="flex items-center gap-1.5"
-                    aria-label={`${connection.connectionName}, ${providerLabels[connection.provider]}`}
-                  >
-                    <GatewayProviderIcon provider={connection.provider} />
-                    {connection.connectionName}
-                  </span>
-                ))}
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        )}
-      />
-    ),
-  },
-  {
-    accessorKey: "apiFormats",
-    id: "apiFormats",
-    header: "API formats",
-    size: 280,
-    cell: ({ row }) => (
-      <SingleLineOverflowList
-        items={row.original.apiFormats}
-        additionalOverflowCount={0}
-        getKey={(format) => format}
-        renderItem={(format) => (
-          <Badge variant="secondary">{getApiFormatLabel(format)}</Badge>
-        )}
-        renderOverflow={({ hiddenItems, overflowItemCount }) => (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex" tabIndex={0}>
-                <Badge variant="secondary">+{overflowItemCount}</Badge>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs">
-              {hiddenItems.map(getApiFormatLabel).join(", ")}
-            </TooltipContent>
-          </Tooltip>
-        )}
-      />
-    ),
-  },
-];
-
-export function GatewayModelsView({
+export function ConnectedGatewayModelsTable({
   models,
   failedProviderCount,
   providerCount,
@@ -152,6 +54,12 @@ export function GatewayModelsView({
   onLoadMoreProviders: () => unknown;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pendingPage, setPendingPage] = useState<{
+    index: number;
+    filterKey: string;
+  } | null>(null);
+  const pageSize = 10;
   const filterOptions = useMemo(
     () => ({
       connection: [
@@ -225,6 +133,40 @@ export function GatewayModelsView({
     () => filterGatewayModels(models, searchQuery, queryFilter.filterState),
     [models, queryFilter.filterState, searchQuery],
   );
+  const filterKey = JSON.stringify([searchQuery, queryFilter.filterState]);
+  useEffect(() => {
+    if (pendingPage && pendingPage.filterKey !== filterKey) {
+      setPendingPage(null);
+    }
+  }, [filterKey, pendingPage]);
+  const lastAvailablePageIndex = Math.max(
+    0,
+    Math.ceil(filteredModels.length / pageSize) - 1,
+  );
+  const currentPageIndex =
+    pendingPage?.filterKey === filterKey &&
+    pendingPage.index * pageSize < filteredModels.length
+      ? pendingPage.index
+      : Math.min(pageIndex, lastAvailablePageIndex);
+  const pagination: PaginationBarProps = {
+    mode: "cursor",
+    state: { pageIndex: currentPageIndex, pageSize },
+    hasNextPage:
+      (currentPageIndex + 1) * pageSize < filteredModels.length ||
+      hasMoreProviders,
+    isLoadingNextPage: isLoadingMoreProviders,
+    onChange: ({ pageIndex: nextPageIndex }) => {
+      if (nextPageIndex * pageSize < filteredModels.length) {
+        setPendingPage(null);
+        setPageIndex(nextPageIndex);
+        return;
+      }
+      if (!hasMoreProviders || isLoadingMoreProviders) return;
+      setPageIndex(currentPageIndex);
+      setPendingPage({ index: nextPageIndex, filterKey });
+      onLoadMoreProviders();
+    },
+  };
   const emptyMessage = getEmptyMessage({
     hasProviders,
     hasSynced,
@@ -306,44 +248,27 @@ export function GatewayModelsView({
               toolbar={
                 <DataTableToolbar
                   tableName={TABLE_NAME}
-                  columns={columns}
+                  columns={gatewayModelsColumns}
                   filterState={queryFilter.filterState}
                 />
               }
             >
               <DataTableControls queryFilter={queryFilter} />
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <DataTable
-                  tableName={TABLE_NAME}
-                  columns={columns}
+                <GatewayModelsTable
                   data={
                     isLoading
-                      ? { isLoading: true, isError: false }
+                      ? { status: "loading" }
                       : {
-                          isLoading: false,
-                          isError: false,
-                          data: filteredModels,
+                          status: "success",
+                          data: filteredModels.slice(
+                            currentPageIndex * pageSize,
+                            (currentPageIndex + 1) * pageSize,
+                          ),
                         }
                   }
-                  hidePagination
-                  footer={
-                    hasMoreProviders ? (
-                      <Button
-                        variant="secondary"
-                        loading={isLoadingMoreProviders}
-                        disabled={isLoadingMoreProviders}
-                        aria-label="Load more"
-                        onClick={() => {
-                          onLoadMoreProviders();
-                        }}
-                      >
-                        Load more
-                      </Button>
-                    ) : undefined
-                  }
-                  className="min-h-0"
                   noResultsMessage={emptyMessage}
-                  cellPadding="comfortable"
+                  pagination={pagination}
                 />
               </div>
             </SearchableTableFilterLayout>
@@ -352,21 +277,6 @@ export function GatewayModelsView({
       </DataTableControlsProvider>
     </div>
   );
-}
-
-function GatewayProviderIcon({ provider }: { provider: GatewayProvider }) {
-  if (provider === "OPENAI")
-    return <SiOpenai className="size-3" aria-hidden="true" />;
-  if (provider === "ANTHROPIC")
-    return <SiAnthropic className="size-3" aria-hidden="true" />;
-  return <Route className="size-3" aria-hidden="true" />;
-}
-
-function getApiFormatLabel(format: string) {
-  if (format === "Anthropic Messages") return "Messages";
-  if (format === "OpenAI Chat Completions") return "Completions";
-  if (format === "OpenAI Responses") return "Responses";
-  return format;
 }
 
 function uniqueSorted(values: string[]) {
