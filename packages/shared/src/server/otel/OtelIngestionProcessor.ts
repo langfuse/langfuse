@@ -2296,14 +2296,23 @@ export class OtelIngestionProcessor {
       return { input, output, filteredAttributes };
     }
 
-    // TraceLoop uses attributes property
+    // TraceLoop uses attributes property. Newer OpenLLMetry versions send
+    // gen_ai.input.messages / gen_ai.output.messages and keep only provider
+    // extras (e.g. Azure prompt_filter_results) under gen_ai.prompt.*, so the
+    // OpenTelemetry messages below take precedence when present.
+    const hasGenAiMessages =
+      attributes["gen_ai.input.messages"] != null ||
+      attributes["gen_ai.output.messages"] != null;
     const inputAttributes = Object.keys(attributes).filter((key) =>
       key.startsWith("gen_ai.prompt"),
     );
     const outputAttributes = Object.keys(attributes).filter((key) =>
       key.startsWith("gen_ai.completion"),
     );
-    if (inputAttributes.length > 0 || outputAttributes.length > 0) {
+    if (
+      !hasGenAiMessages &&
+      (inputAttributes.length > 0 || outputAttributes.length > 0)
+    ) {
       input = inputAttributes.reduce((acc: any, key) => {
         acc[key] = attributes[key];
         return acc;
