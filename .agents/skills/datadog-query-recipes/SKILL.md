@@ -43,8 +43,6 @@ data domain you need: traces, logs, metrics, and visualizations.
      [`references/queue-consumers.md`](references/queue-consumers.md)
    - Scheduled-export staleness (blob / PostHog / Mixpanel):
      [`references/export-staleness.md`](references/export-staleness.md)
-   - Scheduled-export freshness lag (legacy per-run metric):
-     [`references/export-freshness-lag.md`](references/export-freshness-lag.md)
 3. Start with aggregate queries, grouped by environment, service, route,
    queue, project, org, status, or error facets as appropriate.
 4. Fetch raw spans, logs, or traces only after aggregation identifies the
