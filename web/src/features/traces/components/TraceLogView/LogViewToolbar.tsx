@@ -101,14 +101,14 @@ export const LogViewToolbar = memo(function LogViewToolbar({
     setTimeout(() => setIsCopied(false), 1000);
   };
 
-  function getConditionalText(__nestedTernaryValues: {
-    isVirtualized: typeof isVirtualized;
-    allRowsExpanded: typeof allRowsExpanded;
-  }) {
-    if (__nestedTernaryValues.isVirtualized) {
+  function getExpandTooltipText(
+    virtualized: boolean,
+    expanded: boolean | undefined,
+  ) {
+    if (virtualized) {
       return "Disabled for large traces";
     }
-    if (__nestedTernaryValues.allRowsExpanded) {
+    if (expanded) {
       return "Collapse all";
     }
     return "Expand all";
@@ -236,7 +236,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
               </span>
             </TooltipTrigger>
             <TooltipContent>
-              {getConditionalText({ isVirtualized, allRowsExpanded })}
+              {getExpandTooltipText(isVirtualized, allRowsExpanded)}
             </TooltipContent>
           </Tooltip>
         )}
