@@ -28,6 +28,7 @@ import { EvaluatorPickerOption } from "@/src/features/evals/v2/components/Rules/
 import type { RuleCostEstimate } from "@/src/features/evals/v2/hooks/useRuleCostEstimate";
 import { RuleEvaluatorCostEstimate } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleEvaluatorCostEstimate";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { cn } from "@/src/utils/tailwind";
 
 export function EvaluatorAssignmentsEditor({
   evaluatorOptions,
@@ -38,6 +39,7 @@ export function EvaluatorAssignmentsEditor({
   unvalidatedSourceColumnIds,
   emptyDescription = "Attach an evaluator to run on matching observations.",
   sourceUnavailableMessage,
+  pickerWidth = "fixed",
   disabled = false,
   costEstimates,
   estimatingEvaluatorIds,
@@ -51,6 +53,7 @@ export function EvaluatorAssignmentsEditor({
   unvalidatedSourceColumnIds?: string[];
   emptyDescription?: string;
   sourceUnavailableMessage?: string;
+  pickerWidth?: "fixed" | "content";
   disabled?: boolean;
   costEstimates: RuleCostEstimate[];
   estimatingEvaluatorIds: string[];
@@ -107,7 +110,10 @@ export function EvaluatorAssignmentsEditor({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="h-80 w-[32rem] max-w-[calc(100vw-2rem)] p-0"
+        className={cn(
+          "h-80 max-w-[calc(100vw-2rem)] p-0",
+          pickerWidth === "content" ? "w-fit sm:max-w-3xl" : "w-[32rem]",
+        )}
       >
         <Command shouldFilter={false}>
           <CommandInput
