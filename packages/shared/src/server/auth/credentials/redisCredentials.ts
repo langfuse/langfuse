@@ -112,17 +112,19 @@ function ensureTokenStarted(
 ): Promise<ManagedAccessToken> {
   const manager = getSharedManager(provider);
 
-  startPromise ??= manager
-    .start()
-    .then((token) => {
-      // start() arms the refresh timer but does not notify subscribers.
-      distributeToken(token);
-      return token;
-    })
-    .catch((error) => {
-      startPromise = null; // let a later connection retry the fetch
-      throw error;
-    });
+  if (startPromise === null) {
+    startPromise = manager
+      .start()
+      .then((token) => {
+        // start() arms the refresh timer but does not notify subscribers.
+        distributeToken(token);
+        return token;
+      })
+      .catch((error) => {
+        startPromise = null; // let a later connection retry the fetch
+        throw error;
+      });
+  }
 
   return startPromise;
 }
