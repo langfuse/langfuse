@@ -24,11 +24,8 @@ type SnapshotRow = {
   parent_span_id: string | null;
   is_app_root: boolean;
   start_time: string;
-  end_time: string | null;
   type: TranscriptObservation["type"];
   name: string;
-  level: string;
-  status_message: string | null;
   input: string;
   output: string;
   metadata: Record<string, string>;
@@ -54,11 +51,8 @@ export async function loadTopicTranscript(params: {
       "e.span_id",
       "e.parent_span_id",
       "e.start_time",
-      "e.end_time",
       "e.type",
       "e.name",
-      "e.level",
-      "e.status_message",
     )
     .selectIO(false)
     .selectMetadataExpanded()

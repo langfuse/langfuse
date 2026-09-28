@@ -17,6 +17,7 @@ it("keeps Topics hidden without explicit opt-in despite admin and experimental o
       user: { featureFlags: testFeatureFlags({ langfuseTopics: false }) },
     } as Session,
     enableExperimentalFeatures: true,
+    internalFeaturesEnabled: false,
     cloudAdmin: true,
     entitlements: [],
     uiCustomization: null,

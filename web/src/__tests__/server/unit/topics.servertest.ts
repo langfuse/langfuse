@@ -379,11 +379,6 @@ describe("Topics filtered trace preview", () => {
       resolved.traceIds,
     );
     expect(resolved).not.toHaveProperty("selection");
-    expect(resolved.traceSelection).toEqual({
-      ...criteria,
-      limit: null,
-      excludedTraceIds: ["trace-0"],
-    });
     expect(mocks.queryClickhouse.mock.calls[0][0].query).not.toContain("LIMIT");
     expect(mocks.queryClickhouse.mock.calls[0][0].params.samplingSeed).toBe(
       "sample-seed",
@@ -458,7 +453,6 @@ describe("Topics filtered trace preview", () => {
     expect(mocks.createTopicExecution.mock.calls[0][0]).toMatchObject({
       ruleId: rule.id,
       traceIds: ["trace-a"],
-      traceSelection: { ...request.selection, excludedTraceIds: [] },
     });
     expect(mocks.createTopicFacetVersion).not.toHaveBeenCalled();
   });
@@ -755,23 +749,14 @@ describe("Topics local execution access and publication", () => {
     transcript: { threads: [], truncated: true },
   } satisfies Awaited<ReturnType<typeof topicsServer.loadTopicTranscript>>;
 
-  it("returns the current structured transcript including truncation", async () => {
-    mocks.loadTopicTranscript.mockResolvedValue(source);
-    expect(await caller().inspect(inspectInput)).toEqual({
-      model: summary.summaryModel,
-      transcript: source.transcript,
-    });
-    expect(mocks.loadTopicTranscript).toHaveBeenCalledWith({
-      projectId,
-      traceId: "trace-a",
-    });
-  });
-
-  it("looks up a custom trace ID within its stored facet version", async () => {
+  it("returns the current transcript for a custom trace ID within its stored facet version", async () => {
     const traceId = "client/session:trace 1";
     mocks.listTopicSummaries.mockResolvedValue([{ ...summary, traceId }]);
     mocks.loadTopicTranscript.mockResolvedValue(source);
-    await caller().inspect({ ...inspectInput, traceId });
+    expect(await caller().inspect({ ...inspectInput, traceId })).toEqual({
+      model: summary.summaryModel,
+      transcript: source.transcript,
+    });
     expect(mocks.listTopicSummaries).toHaveBeenCalledWith(projectId, {
       facetId,
       facetVersion,

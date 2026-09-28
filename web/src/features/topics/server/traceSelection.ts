@@ -24,11 +24,9 @@ export const topicTraceSelectionSchema =
 
 export const topicTriggerInputSchema = z.union([
   topicExecutionInputSchema,
-  topicExecutionInputSchema.options[0]
-    .omit({ traceIds: true, traceSelection: true })
-    .extend({
-      selection: topicTraceSelectionSnapshotSchema,
-    }),
+  topicExecutionInputSchema.options[0].omit({ traceIds: true }).extend({
+    selection: topicTraceSelectionSnapshotSchema,
+  }),
 ]);
 
 type TraceSelectionRow = {
@@ -191,6 +189,5 @@ export async function resolveTopicTraceSelection(
   return topicExecutionInputSchema.parse({
     ...execution,
     traceIds,
-    traceSelection: selection,
   });
 }

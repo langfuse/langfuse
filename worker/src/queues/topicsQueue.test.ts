@@ -42,7 +42,7 @@ function waitingJob() {
       batchId: "0",
       traceIds: ["trace"],
     },
-    pendingEmbeddingBatchIds: ["batch-a", "batch-b"],
+    batchState: acceptedState(),
   };
   return {
     name: "topics",
@@ -160,9 +160,12 @@ describe("Topics coordinator waiting", () => {
     async (state) => {
       const job = waitingJob();
       mocks.state.mockResolvedValue(state);
-      await topicsQueueProcessor(
-        job as unknown as Parameters<typeof topicsQueueProcessor>[0],
-      );
+      mocks.process.mockRejectedValueOnce(new Error("Coordinator resumed"));
+      await expect(
+        topicsQueueProcessor(
+          job as unknown as Parameters<typeof topicsQueueProcessor>[0],
+        ),
+      ).rejects.toThrow("Coordinator resumed");
       expect(mocks.process).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({
           ...job.data.payload,
@@ -174,12 +177,11 @@ describe("Topics coordinator waiting", () => {
   );
   it("persists accepted summary references before delaying and restores them after embedding", async () => {
     const job = waitingJob();
-    job.data.pendingEmbeddingBatchIds = [];
+    delete job.data.batchState;
     const accepted = acceptedState();
     mocks.process.mockImplementationOnce(async ({ saveBatchState }) => {
       await saveBatchState(accepted);
       expect(mocks.progress).toHaveBeenCalledWith("0", accepted);
-      return { pendingEmbeddingBatchIds: ["batch-a", "batch-b"] };
     });
     const run = () =>
       topicsQueueProcessor(
@@ -187,7 +189,6 @@ describe("Topics coordinator waiting", () => {
       );
     await expect(run()).rejects.toBeInstanceOf(DelayedError);
     expect(job.data.batchState).toBe(accepted);
-    expect(job.data.pendingEmbeddingBatchIds).toEqual(["batch-a", "batch-b"]);
     expect(mocks.progress).toHaveBeenLastCalledWith("0", accepted);
     expect(job.moveToDelayed).toHaveBeenCalledWith(
       expect.any(Number),
@@ -196,16 +197,10 @@ describe("Topics coordinator waiting", () => {
     const progressCalls = mocks.progress.mock.calls.length;
     const updateCalls = job.updateData.mock.calls.length;
     await expect(run()).rejects.toBeInstanceOf(DelayedError);
+    expect(mocks.state).toHaveBeenCalledExactlyOnceWith(job.data.payload, "0");
     expect(mocks.process).toHaveBeenCalledOnce();
     expect(mocks.progress).toHaveBeenCalledTimes(progressCalls);
     expect(job.updateData).toHaveBeenCalledTimes(updateCalls);
-
-    mocks.state.mockImplementation(async (_scope, id) =>
-      id === "batch-a" ? "complete" : "pending",
-    );
-    await expect(run()).rejects.toBeInstanceOf(DelayedError);
-    expect(job.data.pendingEmbeddingBatchIds).toEqual(["batch-b"]);
-    expect(mocks.process).toHaveBeenCalledOnce();
 
     mocks.state.mockResolvedValue("complete");
     mocks.process.mockImplementationOnce(
@@ -213,12 +208,15 @@ describe("Topics coordinator waiting", () => {
         expect(batchState).toBe(accepted);
         await saveBatchState({
           ...batchState,
-          execution: { ...batchState.execution, status: "completed" },
+          execution: {
+            ...batchState.execution,
+            status: "completed",
+            phase: "completed",
+          },
         });
       },
     );
     await run();
-    expect(job.data.pendingEmbeddingBatchIds).toEqual([]);
     expect(job.data.batchState?.summaries).toEqual(accepted.summaries);
     expect(mocks.progress).toHaveBeenLastCalledWith(
       "0",
@@ -230,7 +228,7 @@ describe("Topics coordinator waiting", () => {
 
   it("retains accepted work and records progress when processing throws", async () => {
     const job = waitingJob();
-    job.data.pendingEmbeddingBatchIds = [];
+    delete job.data.batchState;
     const accepted = acceptedState();
     mocks.process.mockImplementationOnce(async ({ saveBatchState }) => {
       await saveBatchState(accepted);
@@ -249,7 +247,7 @@ describe("Topics coordinator waiting", () => {
 
   it("keeps a reported failed facet retryable in BullMQ", async () => {
     const job = waitingJob();
-    job.data.pendingEmbeddingBatchIds = [];
+    delete job.data.batchState;
     const failed = acceptedState();
     failed.execution.status = "completed_with_errors";
     failed.execution.facets[0].outcome = "failed";

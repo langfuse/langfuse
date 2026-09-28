@@ -22,38 +22,45 @@ import {
   type TopicOperation,
 } from "@langfuse/shared/topics";
 import {
-  TopicTraceSelector,
+  useTopicTraceSelector,
   type TopicTraceCriteria,
-  type TopicTraceSelection,
 } from "./TopicTraceSelector";
 
-export function TopicPipelineForm({
+export function useTopicPipelineForm({
   projectId,
   facets,
   canWrite,
   onTriggered,
   facetEditor,
-  render,
 }: {
   projectId: string;
   facets: TopicFacet[];
   canWrite: boolean;
   onTriggered: (id: string) => void;
   facetEditor: ReactNode;
-  render: (actions: ReactNode, configuration: ReactNode) => ReactNode;
 }) {
   const [configurationOpen, setConfigurationOpen] = useState(false);
   const [operation, setOperation] = useState<TopicOperation>("process");
   const [reuseExistingSummaries, setReuseExistingSummaries] = useState(false);
-  const rules = api.topics.rules.useQuery({ projectId });
+  const rules = api.topics.rules.useQuery(
+    { projectId },
+    { enabled: facets.length > 0 },
+  );
   const [ruleId, setRuleId] = useState<string | null>(null);
   const selectedRule = rules.data?.find((rule) => rule.id === ruleId);
   const saveRuleLabel = selectedRule ? "Update rule" : "Save rule";
   const [ruleName, setRuleName] = useState("");
-  const [selector, setSelector] = useState<{
-    key: number;
-    initialCriteria?: TopicTraceCriteria;
-  }>({ key: 0 });
+  const [initialCriteria, setInitialCriteria] = useState<TopicTraceCriteria>();
+  const {
+    selection,
+    criteria,
+    controls: traceControls,
+    reset: resetTraceSelection,
+  } = useTopicTraceSelector({
+    projectId,
+    enabled: facets.length > 0 && operation === "process",
+    onOpenTrace: () => setConfigurationOpen(false),
+  });
   const [selectedFacetIds, setSelectedFacetIds] = useState<string[]>(() =>
     facets
       .filter((facet) => facet.versions.length > 0)
@@ -148,10 +155,7 @@ export function TopicPipelineForm({
     setSelectedFacetIds((current) =>
       checked ? [...current, id] : current.filter((item) => item !== id),
     );
-  async function submit(
-    selection: TopicTraceSelection | null,
-    criteria: TopicTraceCriteria | null,
-  ) {
+  async function submit() {
     setError(null);
     try {
       if (!selectedFacets.length) throw new Error("Select at least one facet.");
@@ -206,266 +210,6 @@ export function TopicPipelineForm({
       );
     }
   }
-  const renderConfiguration = (
-    selection: TopicTraceSelection | null,
-    criteria: TopicTraceCriteria | null,
-    traceControls: ReactNode,
-  ) => {
-    let actionLabel = "Update topics";
-    if (operation === "process")
-      actionLabel = selection?.count
-        ? `Process ${selection.count.toLocaleString()} traces`
-        : "Process traces";
-    return render(
-      <>
-        <Button
-          text="Configure topics"
-          variant="secondary"
-          size="sm"
-          onClick={() => setConfigurationOpen(true)}
-        />
-
-        <Button
-          text={trigger.isPending ? "Starting…" : actionLabel}
-          size="sm"
-          disabled={
-            !canWrite ||
-            !embeddingConfig.success ||
-            (operation === "update" && !minimumTraceCountResult.success) ||
-            trigger.isPending ||
-            !selectedFacets.length ||
-            (operation === "update"
-              ? summaryCounts.isFetching ||
-                !!summaryCounts.error ||
-                !hasStoredSummaries
-              : !selection?.count)
-          }
-          onClick={() => submit(selection, criteria)}
-        />
-        {error && (
-          <Alert variant="destructive" size="sm">
-            <Alert.Description>
-              <p className="break-words">{error}</p>
-            </Alert.Description>
-          </Alert>
-        )}
-      </>,
-      <DialogPrimitive.Root
-        open={configurationOpen}
-        onOpenChange={setConfigurationOpen}
-      >
-        <Dialog title="Configure topics" size="xxl" closeOnInteractionOutside>
-          <Dialog.Body>
-            <div className="ph-no-capture flex flex-col gap-6">
-              <p className="text-muted-foreground">
-                {operation === "process"
-                  ? "Summarize and embed selected traces, then assign them to current topics."
-                  : "Rebuild topics from stored summaries and embeddings."}
-              </p>
-              {operationControls}
-              {traceControls}
-              <fieldset className="flex flex-col gap-3">
-                <legend className="mb-2 text-sm font-bold">Facets</legend>
-                {facetChoices.map(({ facet, version, selected }) => (
-                  <div
-                    key={facet.id}
-                    className="bg-muted/30 flex flex-col gap-2 rounded-md p-3"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <label className="flex min-w-0 items-center gap-2 text-sm font-bold">
-                        <Checkbox
-                          checked={selected}
-                          onCheckedChange={(value) =>
-                            toggleFacet(facet.id, value === true)
-                          }
-                        />
-                        {facet.name}
-                      </label>
-                      <div className="w-24">
-                        <SelectInput
-                          aria-label={`Version for ${facet.name}`}
-                          placeholder="Version"
-                          value={String(version.version)}
-                          options={facet.versions.map((candidate) => ({
-                            value: String(candidate.version),
-                            label: `v${candidate.version}`,
-                          }))}
-                          onValueChange={(value) =>
-                            setFacetVersions((current) => ({
-                              ...current,
-                              [facet.id]: Number(value),
-                            }))
-                          }
-                        />
-                      </div>
-                    </div>
-                    <p className="text-muted-foreground text-sm">
-                      {version.prompt}
-                    </p>
-                    {operation === "update" && selected && (
-                      <p className="text-muted-foreground text-sm">
-                        {compatibleSummaryLabel(facet.id, version.version)}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </fieldset>
-              {operation === "process" && criteria && (
-                <div className="flex flex-col gap-2">
-                  <div className="flex flex-wrap items-end gap-2">
-                    <label className="flex w-64 max-w-full flex-col gap-1 text-sm">
-                      Rule name
-                      <Input
-                        aria-label="Saved configuration name"
-                        placeholder="Save these filters and facets"
-                        value={ruleName}
-                        onChange={(event) => setRuleName(event.target.value)}
-                      />
-                    </label>
-                    <Button
-                      text={saveRule.isPending ? "Saving…" : saveRuleLabel}
-                      type="button"
-                      variant="secondary"
-                      disabled={
-                        !canWrite ||
-                        !ruleName.trim() ||
-                        !activeFacetIds.length ||
-                        saveRule.isPending
-                      }
-                      onClick={() =>
-                        saveRule.mutate({
-                          projectId,
-                          ...(selectedRule ? { id: selectedRule.id } : {}),
-                          name: ruleName,
-                          ...criteria,
-                          facetIds: activeFacetIds,
-                        })
-                      }
-                    />
-                  </div>
-                  <p className="text-muted-foreground text-xs">
-                    Rules save filters, sampling and selected facets. Choose the
-                    time range and summary reuse for each run.
-                    {selectedRule && !matchesRule(criteria)
-                      ? " Unsaved changes apply only to this run until you update the rule."
-                      : ""}
-                  </p>
-                  {saveRule.error && (
-                    <Alert variant="destructive" size="sm">
-                      <Alert.Description>
-                        <p className="break-words">{saveRule.error.message}</p>
-                      </Alert.Description>
-                    </Alert>
-                  )}
-                </div>
-              )}
-              <div className="flex flex-wrap items-end gap-5">
-                {operation === "update" && (
-                  <label className="flex flex-col gap-1 text-sm">
-                    Minimum traces for clustering
-                    <NumericInput
-                      aria-label="Minimum traces for clustering"
-                      aria-invalid={!minimumTraceCountResult.success}
-                      className="w-28"
-                      type="number"
-                      min={3}
-                      step={1}
-                      value={minimumTraceCountValue}
-                      onChange={(event) =>
-                        setMinimumTraceCount(event.target.value)
-                      }
-                    />
-                  </label>
-                )}
-                <label className="flex flex-col gap-1 text-sm">
-                  Embedding dimensions
-                  <SelectInput
-                    aria-label="Embedding dimensions"
-                    placeholder="Embedding dimensions"
-                    value={dimensions}
-                    onValueChange={setDimensions}
-                    options={[256, 512, 1024, 1536].map((value) => ({
-                      value: String(value),
-                      label: String(value),
-                    }))}
-                  />
-                </label>
-                {operation === "update" && (
-                  <label className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={exploratory}
-                      onCheckedChange={(value) =>
-                        setExploratory(value === true)
-                      }
-                    />
-                    Small sample mode (smaller, provisional topics)
-                  </label>
-                )}
-              </div>
-              {operation === "process" && (
-                <div className="flex flex-col gap-1">
-                  <label className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={reuseExistingSummaries}
-                      onCheckedChange={(value) =>
-                        setReuseExistingSummaries(value === true)
-                      }
-                    />
-                    Reuse stored summaries
-                  </label>
-                  <p className="text-muted-foreground text-xs">
-                    Reuse saved summaries and embeddings for each trace and
-                    facet version. Source changes are not checked. Leave
-                    unchecked to generate fresh results.
-                  </p>
-                </div>
-              )}
-              {operation === "process" && selection?.count ? (
-                <p className="text-muted-foreground text-sm">
-                  Process {selection.count.toLocaleString()} traces across{" "}
-                  {selectedFacets.length} facets.{" "}
-                  {reuseExistingSummaries
-                    ? "Matching stored summaries and embeddings are reused. Missing summaries use OpenAI; embeddings use Cohere on Amazon Bedrock."
-                    : "Generate fresh summaries with OpenAI and embeddings with Cohere on Amazon Bedrock."}
-                </p>
-              ) : null}
-              {operation === "process" && (
-                <p className="text-muted-foreground text-xs">
-                  New summaries are assigned to the latest compatible topics. If
-                  no topics exist yet, summaries wait until you run Update
-                  topics.
-                </p>
-              )}
-              {operation === "update" && summaryCounts.error && (
-                <Alert variant="destructive" size="sm">
-                  <Alert.Description>
-                    <p className="break-words">{summaryCounts.error.message}</p>
-                  </Alert.Description>
-                </Alert>
-              )}
-              {operation === "update" && (
-                <p className="text-muted-foreground text-xs">
-                  {minimumTraceCountResult.success
-                    ? `Clustering starts with at least ${minimumTraceCountResult.data.toLocaleString()} compatible stored summaries per facet. Below this minimum, process more traces first.`
-                    : "Enter a whole number of at least 3 traces."}{" "}
-                  Small sample mode lowers the minimum topic size from 15 to 3
-                  traces.
-                </p>
-              )}
-              {facetEditor}
-            </div>
-          </Dialog.Body>
-          <div className="flex shrink-0 justify-end p-4">
-            <Button
-              text="Done"
-              variant="secondary"
-              onClick={() => setConfigurationOpen(false)}
-            />
-          </div>
-        </Dialog>
-      </DialogPrimitive.Root>,
-    );
-  };
   const operationControls = (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -480,6 +224,7 @@ export function TopicPipelineForm({
             value={operation}
             onValueChange={(value) => {
               setOperation(value as TopicOperation);
+              resetTraceSelection(initialCriteria);
               setError(null);
               if (value === "update")
                 utils.topics.summaryCounts.invalidate({ projectId });
@@ -511,16 +256,15 @@ export function TopicPipelineForm({
                   ]),
                 ),
               );
-              setSelector((current) => ({
-                key: current.key + 1,
-                initialCriteria: rule
-                  ? {
-                      filter: rule.filter,
-                      sampling: rule.sampling,
-                      limit: rule.limit,
-                    }
-                  : undefined,
-              }));
+              const criteria = rule
+                ? {
+                    filter: rule.filter,
+                    sampling: rule.sampling,
+                    limit: rule.limit,
+                  }
+                : undefined;
+              setInitialCriteria(criteria);
+              resetTraceSelection(criteria);
               saveRule.reset();
             }}
           >
@@ -546,16 +290,261 @@ export function TopicPipelineForm({
       )}
     </>
   );
-  return operation === "update" ? (
-    renderConfiguration(null, null, null)
-  ) : (
-    <TopicTraceSelector
-      key={selector.key}
-      projectId={projectId}
-      initialCriteria={selector.initialCriteria}
-      onOpenTrace={() => setConfigurationOpen(false)}
-    >
-      {renderConfiguration}
-    </TopicTraceSelector>
+  let actionLabel = "Update topics";
+  if (operation === "process")
+    actionLabel = selection?.count
+      ? `Process ${selection.count.toLocaleString()} traces`
+      : "Process traces";
+  const actions = (
+    <>
+      <Button
+        text="Configure topics"
+        variant="secondary"
+        size="sm"
+        onClick={() => setConfigurationOpen(true)}
+      />
+
+      <Button
+        text={trigger.isPending ? "Starting…" : actionLabel}
+        size="sm"
+        disabled={
+          !canWrite ||
+          !embeddingConfig.success ||
+          (operation === "update" && !minimumTraceCountResult.success) ||
+          trigger.isPending ||
+          !selectedFacets.length ||
+          (operation === "update"
+            ? summaryCounts.isFetching ||
+              !!summaryCounts.error ||
+              !hasStoredSummaries
+            : !selection?.count)
+        }
+        onClick={submit}
+      />
+      {error && (
+        <Alert variant="destructive" size="sm">
+          <Alert.Description>
+            <p className="break-words">{error}</p>
+          </Alert.Description>
+        </Alert>
+      )}
+    </>
   );
+  const configuration = (
+    <DialogPrimitive.Root
+      open={configurationOpen}
+      onOpenChange={setConfigurationOpen}
+    >
+      <Dialog title="Configure topics" size="xxl" closeOnInteractionOutside>
+        <Dialog.Body>
+          <div className="ph-no-capture flex flex-col gap-6">
+            <p className="text-muted-foreground">
+              {operation === "process"
+                ? "Summarize and embed selected traces, then assign them to current topics."
+                : "Rebuild topics from stored summaries and embeddings."}
+            </p>
+            {operationControls}
+            {operation === "process" && traceControls}
+            <fieldset className="flex flex-col gap-3">
+              <legend className="mb-2 text-sm font-bold">Facets</legend>
+              {facetChoices.map(({ facet, version, selected }) => (
+                <div
+                  key={facet.id}
+                  className="bg-muted/30 flex flex-col gap-2 rounded-md p-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <label className="flex min-w-0 items-center gap-2 text-sm font-bold">
+                      <Checkbox
+                        checked={selected}
+                        onCheckedChange={(value) =>
+                          toggleFacet(facet.id, value === true)
+                        }
+                      />
+                      {facet.name}
+                    </label>
+                    <div className="w-24">
+                      <SelectInput
+                        aria-label={`Version for ${facet.name}`}
+                        placeholder="Version"
+                        value={String(version.version)}
+                        options={facet.versions.map((candidate) => ({
+                          value: String(candidate.version),
+                          label: `v${candidate.version}`,
+                        }))}
+                        onValueChange={(value) =>
+                          setFacetVersions((current) => ({
+                            ...current,
+                            [facet.id]: Number(value),
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <p className="text-muted-foreground text-sm">
+                    {version.prompt}
+                  </p>
+                  {operation === "update" && selected && (
+                    <p className="text-muted-foreground text-sm">
+                      {compatibleSummaryLabel(facet.id, version.version)}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </fieldset>
+            {operation === "process" && criteria && (
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-end gap-2">
+                  <label className="flex w-64 max-w-full flex-col gap-1 text-sm">
+                    Rule name
+                    <Input
+                      aria-label="Saved configuration name"
+                      placeholder="Save these filters and facets"
+                      value={ruleName}
+                      onChange={(event) => setRuleName(event.target.value)}
+                    />
+                  </label>
+                  <Button
+                    text={saveRule.isPending ? "Saving…" : saveRuleLabel}
+                    type="button"
+                    variant="secondary"
+                    disabled={
+                      !canWrite ||
+                      !ruleName.trim() ||
+                      !activeFacetIds.length ||
+                      saveRule.isPending
+                    }
+                    onClick={() =>
+                      saveRule.mutate({
+                        projectId,
+                        ...(selectedRule ? { id: selectedRule.id } : {}),
+                        name: ruleName,
+                        ...criteria,
+                        facetIds: activeFacetIds,
+                      })
+                    }
+                  />
+                </div>
+                <p className="text-muted-foreground text-xs">
+                  Rules save filters, sampling and selected facets. Choose the
+                  time range and summary reuse for each run.
+                  {selectedRule && !matchesRule(criteria)
+                    ? " Unsaved changes apply only to this run until you update the rule."
+                    : ""}
+                </p>
+                {saveRule.error && (
+                  <Alert variant="destructive" size="sm">
+                    <Alert.Description>
+                      <p className="break-words">{saveRule.error.message}</p>
+                    </Alert.Description>
+                  </Alert>
+                )}
+              </div>
+            )}
+            <div className="flex flex-wrap items-end gap-5">
+              {operation === "update" && (
+                <label className="flex flex-col gap-1 text-sm">
+                  Minimum traces for clustering
+                  <NumericInput
+                    aria-label="Minimum traces for clustering"
+                    aria-invalid={!minimumTraceCountResult.success}
+                    className="w-28"
+                    type="number"
+                    min={3}
+                    step={1}
+                    value={minimumTraceCountValue}
+                    onChange={(event) =>
+                      setMinimumTraceCount(event.target.value)
+                    }
+                  />
+                </label>
+              )}
+              <label className="flex flex-col gap-1 text-sm">
+                Embedding dimensions
+                <SelectInput
+                  aria-label="Embedding dimensions"
+                  placeholder="Embedding dimensions"
+                  value={dimensions}
+                  onValueChange={setDimensions}
+                  options={[256, 512, 1024, 1536].map((value) => ({
+                    value: String(value),
+                    label: String(value),
+                  }))}
+                />
+              </label>
+              {operation === "update" && (
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={exploratory}
+                    onCheckedChange={(value) => setExploratory(value === true)}
+                  />
+                  Small sample mode (smaller, provisional topics)
+                </label>
+              )}
+            </div>
+            {operation === "process" && (
+              <div className="flex flex-col gap-1">
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={reuseExistingSummaries}
+                    onCheckedChange={(value) =>
+                      setReuseExistingSummaries(value === true)
+                    }
+                  />
+                  Reuse stored summaries
+                </label>
+                <p className="text-muted-foreground text-xs">
+                  Reuse saved summaries and embeddings for each trace and facet
+                  version. Source changes are not checked. Leave unchecked to
+                  generate fresh results.
+                </p>
+              </div>
+            )}
+            {operation === "process" && selection?.count ? (
+              <p className="text-muted-foreground text-sm">
+                Process {selection.count.toLocaleString()} traces across{" "}
+                {selectedFacets.length} facets.{" "}
+                {reuseExistingSummaries
+                  ? "Matching stored summaries and embeddings are reused. Missing summaries use OpenAI; embeddings use Cohere on Amazon Bedrock."
+                  : "Generate fresh summaries with OpenAI and embeddings with Cohere on Amazon Bedrock."}
+              </p>
+            ) : null}
+            {operation === "process" && (
+              <p className="text-muted-foreground text-xs">
+                New summaries are assigned to the latest compatible topics. If
+                no topics exist yet, summaries wait until you run Update topics.
+              </p>
+            )}
+            {operation === "update" && summaryCounts.error && (
+              <Alert variant="destructive" size="sm">
+                <Alert.Description>
+                  <p className="break-words">{summaryCounts.error.message}</p>
+                </Alert.Description>
+              </Alert>
+            )}
+            {operation === "update" && (
+              <p className="text-muted-foreground text-xs">
+                {minimumTraceCountResult.success
+                  ? `Clustering starts with at least ${minimumTraceCountResult.data.toLocaleString()} compatible stored summaries per facet. Below this minimum, process more traces first.`
+                  : "Enter a whole number of at least 3 traces."}{" "}
+                Small sample mode lowers the minimum topic size from 15 to 3
+                traces.
+              </p>
+            )}
+            {facetEditor}
+          </div>
+        </Dialog.Body>
+        <div className="flex shrink-0 justify-end p-4">
+          <Button
+            text="Done"
+            variant="secondary"
+            onClick={() => setConfigurationOpen(false)}
+          />
+        </div>
+      </Dialog>
+    </DialogPrimitive.Root>
+  );
+  return {
+    actions: facets.length ? actions : null,
+    configuration: facets.length ? configuration : null,
+  };
 }

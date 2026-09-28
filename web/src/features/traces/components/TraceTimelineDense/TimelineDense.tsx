@@ -277,11 +277,6 @@ export type TimelineDenseProps = {
   /** Hover, for prefetching the observation the user is about to open. */
   onHover?: (nodeId: string) => void;
   /**
-   * Ids playing at the playhead, glowed while playback runs. A crossing changes
-   * the set, so this re-renders on boundaries only — never per frame.
-   */
-  activeIds?: ReadonlySet<string>;
-  /**
    * Extra facts for the hover tooltip, already formatted — cost and token usage
    * live on the app's node, not on the layout contract, and their formatters
    * live with the app. At this density hover is how a row is read at all, so it
@@ -322,22 +317,6 @@ export type TimelineDenseProps = {
      * over the whole trace, which is every bar this chart lights). */
     label: string;
   };
-  /**
-   * The trace playhead, handed in rather than read from context: this renderer
-   * takes data and nothing implicit, which is what lets Storybook mount it at
-   * every size. Absent means there is no playback surface here.
-   *
-   * `subscribe` is the ~60fps position feed and drives the line imperatively —
-   * a playhead that re-rendered 600 rows per frame would be a different kind of
-   * broken.
-   */
-  playhead?: {
-    visible: boolean;
-    getSec: () => number;
-    subscribe: (listener: (sec: number) => void) => () => void;
-    /** Click or drag the axis to place it. */
-    onSeek: (sec: number) => void;
-  };
 };
 
 export type GutterMode = "auto" | "expanded" | "collapsed";
@@ -345,22 +324,15 @@ export type GutterMode = "auto" | "expanded" | "collapsed";
 /**
  * What a row's background says about it. ONE decision, because two places draw a
  * row — the chart and the names floating over it — and a second copy is a second
- * chance to miss a state: the peek's copy only knew about selection and hover, so
- * during playback the row that was playing glowed in the chart and stayed plain
- * in the names right beside it.
- *
- * Playing rows glow UP rather than the others dimming down, which is the standing
- * rule for playback highlight here.
+ * chance to miss a state.
  */
 function rowWashClass(state: {
   selected: boolean;
   focused: boolean;
-  active: boolean;
 }): string | false {
   if (state.selected) return "bg-primary-accent/20";
-  if (state.focused) return "bg-primary-accent/15";
   // At 4px a tint is not enough to find yourself by, so these are full-width.
-  return state.active && "bg-primary/20";
+  return state.focused && "bg-primary-accent/15";
 }
 
 export function TimelineDense({
@@ -375,8 +347,6 @@ export function TimelineDense({
   selectedId,
   onSelect,
   onHover,
-  activeIds,
-  playhead,
   metricsOf,
   showDuration = true,
   search,
@@ -797,12 +767,12 @@ export function TimelineDense({
     );
   };
 
-  // Selection is not always ours to place. The tree, a search hit, a deep link
-  // and playback all select rows, and a highlight you cannot see is not a
-  // highlight — on a trace this dense the chosen row is usually outside the
-  // window, and `layout()` does not even emit a node for it. So an EXTERNAL
-  // change reveals its row: pan both axes just far enough, never zoom, because
-  // "look at this one" is not a request to change how far in you are looking.
+  // Selection is not always ours to place. The tree, a search hit and a deep
+  // link all select rows, and a highlight you cannot see is not a highlight —
+  // on a trace this dense the chosen row is usually outside the window, and
+  // `layout()` does not even emit a node for it. So an EXTERNAL change reveals
+  // its row: pan both axes just far enough, never zoom, because "look at this
+  // one" is not a request to change how far in you are looking.
   // Adjusting state during render is React's own answer to "a prop changed and
   // some state must follow" — the superseded render never reaches the screen.
   // `undefined`, not `selectedId`: mounting with a selection already set IS the
@@ -1390,54 +1360,6 @@ export function TimelineDense({
     focusIndex == null
       ? null
       : (result.nodes.find((node) => node.index === focusIndex) ?? null);
-  // Seconds from the trace origin ↔ px in the lane, through the same
-  // compression and window the bars went through — so the playhead cannot
-  // disagree with what it is sweeping over.
-  const secToX = (sec: number) =>
-    (compression.toCompressedMs(Math.max(sec, 0) * 1000) - current.time.start) *
-    result.pxPerMs;
-  const xToSec = (px: number) =>
-    result.pxPerMs > 0
-      ? compression.toRealMs(current.time.start + px / result.pxPerMs) / 1000
-      : 0;
-  // The imperative feed reads the live mapping, so a pan or a zoom mid-playback
-  // moves the line to the right place on its next tick rather than drifting.
-  const mappingRef = useRef(secToX);
-  mappingRef.current = secToX;
-
-  const subscribePlayhead = playhead?.subscribe;
-  const getPlayheadSec = playhead?.getSec;
-  const attachPlayhead = useCallback(
-    (element: HTMLDivElement | null) => {
-      if (!element || !subscribePlayhead || !getPlayheadSec) return;
-      const apply = (sec: number) => {
-        element.style.transform = `translateX(${mappingRef.current(sec)}px)`;
-      };
-      apply(getPlayheadSec());
-      return subscribePlayhead(apply);
-    },
-    [subscribePlayhead, getPlayheadSec],
-  );
-
-  const onSeek = playhead?.onSeek;
-  const seekFromEvent = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!onSeek) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    onSeek(xToSec(event.clientX - rect.left - railWidth));
-  };
-  const onAxisPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!onSeek) return;
-    // Press to place it, drag to scrub — one gesture, as on the wide timeline.
-    event.currentTarget.setPointerCapture(event.pointerId);
-    seekFromEvent(event);
-  };
-  const onAxisPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!onSeek || !event.currentTarget.hasPointerCapture(event.pointerId)) {
-      return;
-    }
-    seekFromEvent(event);
-  };
-
   const windowLabel = formatDurationMs(
     compression.toRealMs(current.time.start + current.time.duration) -
       compression.toRealMs(current.time.start),
@@ -1517,16 +1439,9 @@ export function TimelineDense({
         ) : null}
       </div>
 
-      {/* The axis doubles as the scrub track: press to place the playhead, drag
-          to move it — the same gesture the wide timeline's scale has. */}
       <div
-        className={cn(
-          "border-border relative shrink-0 border-b",
-          onSeek && "cursor-ew-resize",
-        )}
+        className="border-border relative shrink-0 border-b"
         style={{ height: `${AXIS_HEIGHT}px`, touchAction: "none" }}
-        onPointerDown={onAxisPointerDown}
-        onPointerMove={onAxisPointerMove}
         data-testid="timeline-dense-axis"
       >
         {/* Font probe for the measurer, at the size a label ACTUALLY renders in —
@@ -1638,7 +1553,6 @@ export function TimelineDense({
 
             const isFocused = node.index === focusIndex;
             const isSelected = node.id === selectedId;
-            const isActive = activeIds?.has(node.id) ?? false;
             // A miss under a live query. Not "hidden": the row keeps its place
             // on the clock, its click target and its hover, so the matches read
             // in the context of everything they sit between.
@@ -1662,7 +1576,6 @@ export function TimelineDense({
                   rowWashClass({
                     selected: isSelected,
                     focused: isFocused,
-                    active: isActive,
                   }),
                 )}
                 style={{ top: `${y}px`, height: `${rowHeight}px` }}
@@ -1780,25 +1693,6 @@ export function TimelineDense({
               data-testid="timeline-dense-marquee"
             />
           ) : null}
-
-          {/* The playhead sweeps in the lane, clipped by it, and is positioned
-              imperatively off the position feed — 600 rows must not re-render to
-              move a 2px line. */}
-          {playhead?.visible ? (
-            <div
-              className="pointer-events-none absolute inset-y-0 overflow-hidden"
-              style={{ left: `${railWidth}px`, width: `${laneWidth}px` }}
-            >
-              <div
-                ref={attachPlayhead}
-                className="bg-primary absolute inset-y-0 w-0.5"
-                style={{
-                  transform: `translateX(${secToX(playhead.getSec())}px)`,
-                }}
-                data-testid="timeline-dense-playhead"
-              />
-            </div>
-          ) : null}
         </div>
 
         {/* Peek: the same gutter content, floating OVER the chart. The bars keep
@@ -1821,7 +1715,6 @@ export function TimelineDense({
                     rowWashClass({
                       selected: node.id === selectedId,
                       focused: node.index === focusIndex,
-                      active: Boolean(activeIds?.has(node.id)),
                     }),
                   )}
                   style={{ top: `${y}px`, height: `${rowHeight}px` }}

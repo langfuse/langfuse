@@ -130,7 +130,7 @@ export async function createTopicExecution(
   const { ids, inputSettings } =
     input.operation === "process"
       ? (() => {
-          const { traceIds, traceSelection: _selection, ...compact } = input;
+          const { traceIds, ...compact } = input;
           return { ids: traceIds, inputSettings: compact };
         })()
       : { ids: [], inputSettings: input };

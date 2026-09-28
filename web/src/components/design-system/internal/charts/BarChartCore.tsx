@@ -1,10 +1,13 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { scaleLinear } from "d3-scale";
 
 import { ChartContainer } from "@/src/components/design-system/charts/ChartContainer";
-import { INACTIVE_CHART_COLOR_STRENGTH } from "@/src/components/design-system/charts/constants";
+import {
+  CHART_TRANSITION_DURATION,
+  INACTIVE_CHART_COLOR_STRENGTH,
+} from "@/src/components/design-system/charts/constants";
 import { CartesianChart } from "@/src/components/design-system/internal/charts/CartesianChart";
 import { CartesianLayout } from "@/src/components/design-system/internal/charts/CartesianLayout";
 import {
@@ -26,7 +29,6 @@ export type SingleBarChartCoreProps = {
   data: BarChartDatum[];
   valueFormatter?: (value: number) => string;
   color?: string;
-  variant?: "default" | "subtle";
   hideXAxisLabels?: boolean;
   zeroBaseline?: boolean;
   ariaLabel?: string;
@@ -67,7 +69,6 @@ function SingleBarChart({
   data,
   valueFormatter = (value) => value.toLocaleString(),
   color = "hsl(var(--chart-1))",
-  variant = "default",
   hideXAxisLabels = false,
   zeroBaseline = true,
   ariaLabel = "Bar chart",
@@ -106,7 +107,7 @@ function SingleBarChart({
                   max,
                 );
                 const domainPadding = Math.max(Math.abs(domainMin) * 0.1, 1);
-                const plotHeight = measuredPlot.height;
+                let plotHeight = measuredPlot.height;
                 const yScale = scaleLinear()
                   .domain(
                     domainMin === domainMax
@@ -116,7 +117,7 @@ function SingleBarChart({
                   .nice(maxYTicks)
                   .range([measuredPlot.top + plotHeight, measuredPlot.top]);
                 const yTicks = yScale.ticks(maxYTicks);
-                const plot = plotForTicks(yTicks.map(valueFormatter));
+                let plot = plotForTicks(yTicks.map(valueFormatter));
                 const leftMargin = plot.left;
                 const plotWidth = plot.width;
                 const xScale = createBarBandScale(
@@ -125,15 +126,30 @@ function SingleBarChart({
                   plotWidth,
                   barSpacing,
                 );
-                const baseline = yScale(
-                  zeroBaseline || min < 0 ? 0 : (yScale.domain()[0] ?? 0),
-                );
                 const xTicks = data.map((datum, index) => ({
                   key: String(index),
                   x: (xScale(index) ?? leftMargin) + xScale.bandwidth() / 2,
                   label: datum.label,
                   maxWidth: xScale.bandwidth() - 8,
                 }));
+                if (
+                  !hideXAxisLabels &&
+                  (xTicks.length === 0 ||
+                    xTicks.every(
+                      (tick) =>
+                        Math.floor(tick.maxWidth / 7) <= 1 &&
+                        tick.label.length > 1,
+                    ))
+                ) {
+                  plot = plotForTicks(yTicks.map(valueFormatter), {
+                    showXAxisLabels: false,
+                  });
+                  plotHeight = plot.height;
+                  yScale.range([plot.top + plotHeight, plot.top]);
+                }
+                const baseline = yScale(
+                  zeroBaseline || min < 0 ? 0 : (yScale.domain()[0] ?? 0),
+                );
 
                 if (
                   width <= 0 ||
@@ -170,15 +186,21 @@ function SingleBarChart({
                         y={yScale}
                         valueFormatter={valueFormatter}
                         zeroY={min < 0 ? yScale(0) : undefined}
+                        activeX={
+                          activeIndex === undefined ||
+                          barSpacing === "histogram"
+                            ? undefined
+                            : {
+                                key: String(activeIndex),
+                                x: xTicks[activeIndex]?.x ?? plot.left,
+                                label: data[activeIndex]?.label ?? "",
+                              }
+                        }
                         xAxis={
                           hideXAxisLabels
                             ? undefined
                             : {
                                 ticks: xTicks,
-                                activeKey:
-                                  activeIndex === undefined
-                                    ? undefined
-                                    : String(activeIndex),
                                 showCategoryTicks: true,
                                 alignment: "center",
                               }
@@ -195,16 +217,10 @@ function SingleBarChart({
                           const barTop = Math.min(y, baseline);
                           const barHeight = Math.abs(y - baseline);
                           const active = activeIndex === index;
-                          let colorStrength = 100;
-                          if (variant === "subtle") {
-                            colorStrength = active ? 60 : 30;
-                          }
-                          if (activeIndex !== undefined && !active) {
-                            colorStrength =
-                              variant === "subtle"
-                                ? 15
-                                : INACTIVE_CHART_COLOR_STRENGTH;
-                          }
+                          const colorStrength =
+                            activeIndex !== undefined && !active
+                              ? INACTIVE_CHART_COLOR_STRENGTH
+                              : 100;
                           const fill =
                             colorStrength === 100
                               ? barColor
@@ -223,6 +239,11 @@ function SingleBarChart({
                               : (centerX + nextX + xScale.bandwidth() / 2) / 2;
                           const tooltipData = {
                             type: "primary" as const,
+                            anchor: {
+                              type: "bar" as const,
+                              x: centerX,
+                              y: barTop,
+                            },
                             index,
                             label: tooltipValueLabel ?? datum.label,
                             value: valueFormatter(datum.value ?? 0),
@@ -266,7 +287,11 @@ function SingleBarChart({
                                     role="graphics-symbol"
                                     tabIndex={0}
                                     aria-label={`${datum.label}: ${valueFormatter(datum.value)}`}
-                                    className="outline-hidden transition-[fill] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2"
+                                    className="outline-hidden transition-[fill] focus-visible:outline-2 focus-visible:outline-offset-2"
+                                    style={{
+                                      transitionDuration:
+                                        CHART_TRANSITION_DURATION,
+                                    }}
                                     {...getReferenceProps(tooltipData)}
                                     onPointerLeave={undefined}
                                   />
@@ -303,19 +328,25 @@ function MultiSeriesBarChart({
 }: MultiSeriesBarChartCoreProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number>();
   const clipId = useId();
-  const summaries = new Map(
-    series.map((item) => {
-      const values = data.flatMap((datum) => {
-        const value = datum.values[item.id];
-        return typeof value === "number" && Number.isFinite(value)
-          ? [value]
-          : [];
-      });
-      return [
-        item.id,
-        values.length ? values.reduce((sum, value) => sum + value, 0) : null,
-      ] as const;
-    }),
+  const summaries = useMemo(
+    () =>
+      new Map(
+        series.map((item) => {
+          const values = data.flatMap((datum) => {
+            const value = datum.values[item.id];
+            return typeof value === "number" && Number.isFinite(value)
+              ? [value]
+              : [];
+          });
+          return [
+            item.id,
+            values.length
+              ? values.reduce((sum, value) => sum + value, 0)
+              : null,
+          ] as const;
+        }),
+      ),
+    [data, series],
   );
   const initialHidden = new Set<string>();
   if (
@@ -356,27 +387,43 @@ function MultiSeriesBarChart({
     if (hidden) hiddenIds.add(id);
     else hiddenIds.delete(id);
   }
-  const visibleSeries = series.filter((item) => !hiddenIds.has(item.id));
+  const hiddenKey = series
+    .map((item) => (hiddenIds.has(item.id) ? "1" : "0"))
+    .join("");
+  const visibleSeries = useMemo(
+    () => series.filter((_, index) => hiddenKey[index] === "0"),
+    [series, hiddenKey],
+  );
   const showLegend =
     legend?.visibility === "visible" ||
     (legend?.visibility === "auto" &&
       (series.length > 1 || hiddenIds.size > 0));
-  const totals = data.map((datum) => {
-    let positive = 0;
-    let negative = 0;
-    for (const item of visibleSeries) {
-      const value = datum.values[item.id];
-      if (typeof value !== "number" || !Number.isFinite(value)) continue;
-      if (value >= 0) positive += value;
-      else negative += value;
-    }
-    return { positive, negative };
-  });
-  const individualValues = data.flatMap((datum) =>
-    visibleSeries.flatMap((item) => {
-      const value = datum.values[item.id];
-      return typeof value === "number" && Number.isFinite(value) ? [value] : [];
-    }),
+  const totals = useMemo(
+    () =>
+      data.map((datum) => {
+        let positive = 0;
+        let negative = 0;
+        for (const item of visibleSeries) {
+          const value = datum.values[item.id];
+          if (typeof value !== "number" || !Number.isFinite(value)) continue;
+          if (value >= 0) positive += value;
+          else negative += value;
+        }
+        return { positive, negative };
+      }),
+    [data, visibleSeries],
+  );
+  const individualValues = useMemo(
+    () =>
+      data.flatMap((datum) =>
+        visibleSeries.flatMap((item) => {
+          const value = datum.values[item.id];
+          return typeof value === "number" && Number.isFinite(value)
+            ? [value]
+            : [];
+        }),
+      ),
+    [data, visibleSeries],
   );
   const min =
     layout === "grouped"
@@ -406,7 +453,7 @@ function MultiSeriesBarChart({
                     measuredPlot.top,
                   ]);
                 const yTicks = y.ticks(maxYTicks);
-                const plot = plotForTicks(yTicks.map(valueFormatter));
+                let plot = plotForTicks(yTicks.map(valueFormatter));
                 const x = createBarBandScale(
                   data.length,
                   plot.left,
@@ -492,6 +539,12 @@ function MultiSeriesBarChart({
                   previousTickRight = center + labelWidth / 2;
                   xTicks.push({ key: datum.key, x: center, label });
                 });
+                if (!hideXAxisLabels && xTicks.length === 0) {
+                  plot = plotForTicks(yTicks.map(valueFormatter), {
+                    showXAxisLabels: false,
+                  });
+                  y.range([plot.top + plot.height, plot.top]);
+                }
 
                 if (
                   width <= 0 ||
@@ -520,15 +573,22 @@ function MultiSeriesBarChart({
                         y={y}
                         valueFormatter={valueFormatter}
                         zeroY={min < 0 ? y(0) : undefined}
+                        activeX={
+                          activeIndex >= 0 && data[activeIndex]
+                            ? {
+                                key: data[activeIndex].key,
+                                x:
+                                  (x(activeIndex) ?? plot.left) +
+                                  x.bandwidth() / 2,
+                                label: tickFormatter(data[activeIndex].key),
+                              }
+                            : undefined
+                        }
                         xAxis={
                           hideXAxisLabels
                             ? undefined
                             : {
                                 ticks: xTicks,
-                                activeKey:
-                                  activeIndex >= 0
-                                    ? data[activeIndex]?.key
-                                    : undefined,
                                 showCategoryTicks: layout === "grouped",
                                 alignment: "center",
                               }
@@ -553,16 +613,47 @@ function MultiSeriesBarChart({
                                 ]
                               : [];
                           });
-                          const referenceProps = getReferenceProps({
-                            type: "items",
-                            index,
-                            heading: tooltipFormatter(datum.key),
-                            items: items.sort(
-                              (a, b) =>
-                                (datum.values[b.id] ?? 0) -
-                                (datum.values[a.id] ?? 0),
-                            ),
-                          });
+                          const referenceProps = getReferenceProps(
+                            items.length
+                              ? {
+                                  type: "items",
+                                  index,
+                                  heading: tooltipFormatter(datum.key),
+                                  anchor: {
+                                    type: "point",
+                                    x: left + x.bandwidth() / 2,
+                                    y:
+                                      layout === "grouped"
+                                        ? Math.min(
+                                            y(0),
+                                            ...visibleSeries.flatMap((item) => {
+                                              const value =
+                                                datum.values[item.id];
+                                              return typeof value ===
+                                                "number" &&
+                                                Number.isFinite(value)
+                                                ? [y(value)]
+                                                : [];
+                                            }),
+                                          )
+                                        : y(totals[index]?.positive ?? 0),
+                                  },
+                                  items: items.sort(
+                                    (a, b) =>
+                                      (datum.values[b.id] ?? 0) -
+                                      (datum.values[a.id] ?? 0),
+                                  ),
+                                }
+                              : {
+                                  type: "empty",
+                                  index,
+                                  heading: tooltipFormatter(datum.key),
+                                  anchor: {
+                                    type: "chart-column",
+                                    x: left + x.bandwidth() / 2,
+                                  },
+                                },
+                          );
                           return (
                             <g key={`${datum.key}-${index}`}>
                               <defs>
@@ -674,7 +765,11 @@ function MultiSeriesBarChart({
                                   tabIndex: 0,
                                   "aria-label": `${item.label}: ${valueFormatter(value)}`,
                                   className:
-                                    "outline-hidden transition-[fill] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2",
+                                    "outline-hidden transition-[fill] focus-visible:outline-2 focus-visible:outline-offset-2",
+                                  style: {
+                                    transitionDuration:
+                                      CHART_TRANSITION_DURATION,
+                                  },
                                   ...referenceProps,
                                   onPointerEnter: (
                                     event: React.PointerEvent<SVGElement>,

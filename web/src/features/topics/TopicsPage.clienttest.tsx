@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TopicsPage from "./TopicsPage";
 
 const state = vi.hoisted(() => ({
@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   inHistory: true,
   executionsUpdatedAt: 100,
   executionUpdatedAt: 110,
+  configured: false,
   push: vi.fn(),
   replace: vi.fn(),
   retry: vi.fn(),
@@ -55,7 +56,18 @@ vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
 vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
   default: () => true,
 }));
-vi.mock("./TopicPipelineForm", () => ({ TopicPipelineForm: () => null }));
+vi.mock("@/src/features/events/hooks/useEventsFilterOptions", () => ({
+  useEventsFilterOptions: () => ({ filterOptions: {} }),
+}));
+vi.mock("@/src/features/search-bar", () => ({
+  TableSearchBar: () => null,
+  toObservedOptions: () => ({}),
+  fieldRegistryFromColumns: () => ({ fields: [] }),
+}));
+vi.mock(
+  "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder",
+  () => ({ ObservationFilterBuilder: () => null }),
+);
 vi.mock("./CurrentTopics", () => ({
   CurrentTopics: ({
     running,
@@ -89,7 +101,38 @@ vi.mock("@/src/utils/api", () => {
   return {
     api: {
       topics: {
-        facets: { useQuery: () => ({ data: [] }) },
+        facets: {
+          useQuery: () => ({
+            data: state.configured
+              ? [
+                  {
+                    id: "intent",
+                    name: "Intent",
+                    versions: [{ version: 1, prompt: "Describe intent" }],
+                  },
+                ]
+              : [],
+          }),
+        },
+        rules: {
+          useQuery: () => ({
+            data: [
+              {
+                id: "rule",
+                name: "Saved rule",
+                filter: [],
+                sampling: "latest",
+                limit: 50,
+                facetIds: ["intent"],
+              },
+            ],
+          }),
+        },
+        saveRule: { useMutation: () => ({ reset: vi.fn() }) },
+        saveFacet: { useMutation: () => ({}) },
+        trigger: { useMutation: () => ({}) },
+        previewTraces: { useQuery: () => ({}) },
+        summaryCounts: { useQuery: () => ({}) },
         executions: {
           useQuery: () => ({
             data: state.inHistory ? [execution()] : [],
@@ -119,19 +162,33 @@ vi.mock("@/src/utils/api", () => {
         },
       },
       useUtils: () => ({
-        topics: { executions: { invalidate: vi.fn() } },
+        topics: {
+          executions: { invalidate: vi.fn() },
+          summaryCounts: { invalidate: vi.fn() },
+        },
       }),
     },
   };
 });
 
+const scrollIntoView = HTMLElement.prototype.scrollIntoView;
 beforeEach(() => {
   vi.clearAllMocks();
+  HTMLElement.prototype.scrollIntoView = vi.fn();
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
   state.query = { ...retainedQuery };
   state.status = "failed";
   state.inHistory = true;
   state.executionsUpdatedAt = 100;
   state.executionUpdatedAt = 110;
+  state.configured = false;
   for (const navigate of [state.push, state.replace]) {
     navigate.mockImplementation(({ query }: { query: typeof state.query }) => {
       state.query = query;
@@ -139,8 +196,32 @@ beforeEach(() => {
     });
   }
 });
+afterEach(() => {
+  HTMLElement.prototype.scrollIntoView = scrollIntoView;
+  vi.unstubAllGlobals();
+});
 
 describe("Topics execution history", () => {
+  it("preserves current results when changing operation and saved configuration", async () => {
+    state.configured = true;
+    render(<TopicsPage />);
+    const current = screen.getByTestId("current-topics");
+    fireEvent.change(current, { target: { value: "Billing" } });
+    fireEvent.click(screen.getByRole("button", { name: "Configure topics" }));
+    for (const [label, option] of [
+      ["Pipeline operation", "Update topics"],
+      ["Pipeline operation", "Process traces"],
+      ["Saved configuration", "Saved rule"],
+    ]) {
+      fireEvent.keyDown(screen.getByLabelText(label), { key: "ArrowDown" });
+      fireEvent.keyDown(await screen.findByRole("option", { name: option }), {
+        key: "Enter",
+      });
+      expect(screen.getByTestId("current-topics")).toBe(current);
+      expect(current).toHaveValue("Billing");
+    }
+  });
+
   it("keeps current results mounted through a run link, history navigation, and closing status", () => {
     const view = render(<TopicsPage />);
     const current = screen.getByTestId("current-topics");
