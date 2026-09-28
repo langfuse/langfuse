@@ -12,9 +12,9 @@ Status: generation-led builder with tool responses matched by ID or name and ord
 ## Interface
 
 ```ts
-orderObservations<T extends TranscriptObservation>(observations: T[]): T[];
+orderObservations<T extends TranscriptObservation>(observations: T[]): Array<T & { nestingLevel: number }>;
 assembleTranscript(
-  orderedObservations: TranscriptObservation[],
+  orderedObservations: OrderedObservation[],
   options?: TranscriptOptions,
 ): Transcript | null;
 
@@ -31,6 +31,7 @@ type Thread = {
 };
 
 type Turn = {
+  nestingLevel: number;
   messages: ThreadMessage[];
   observations: { id: string; traceId: string }[]; // observations that contributed, in order
 };
@@ -38,12 +39,15 @@ type Turn = {
 type ThreadMessage = NormalizedMessage & {
   observationId: string; // observation that first emitted the message
   traceId: string;
+  startTime: Date; // source observation start, not an individual message timestamp
+  endTime: Date | null; // source observation end, when available
 };
 ```
 
 Consumers load observations themselves. `TranscriptObservation` requires only
 `id`, `traceId`, `parentObservationId`, `type`, `name`, `startTime` (a `Date`),
-`input`, `output` and `metadata`; full domain `Observation`s also satisfy it.
+`endTime` (a `Date` or `null`), `input`, `output` and `metadata`; full domain
+`Observation`s also satisfy it.
 Order them with `orderObservations` and hand them to
 `assembleTranscript`, which consumes the given order and returns `null` when
 no eligible generations produce messages. For one trace, read it through
@@ -92,7 +96,8 @@ ellipsis; identifiers, tool arguments/results, media, signed reasoning and other
 stay intact. Messages that cannot fit even with shortened text are omitted.
 When too many messages remain, the beginning and end are retained, preserving
 their order and history/current-turn partition. Contributor references are
-pruned to the retained current-turn messages.
+pruned to the retained current-turn messages. The original current turn
+nesting level is preserved.
 
 Changed results include `truncated: true`. If no message fits, the result is
 `null`. Truncated transcripts are partial evidence, not a replayable conversation:
@@ -292,3 +297,10 @@ Run the fixture and ordering regressions:
 ```bash
 pnpm --filter @langfuse/shared run test src/server/transcript
 ```
+
+`currentTurn.nestingLevel` is the observation-tree depth of the first GENERATION
+that contributes retained messages to the current turn. All ancestor types count;
+fetched roots and observations with missing parents are level 0. Cyclic rows
+that cannot be reached by the tree walk also use level 0. Earlier conversation
+history, replay-only generations, later generations, and TOOL contributors do
+not determine the value. Ordering attaches depth without changing source observations.

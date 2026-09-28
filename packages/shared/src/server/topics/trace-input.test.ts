@@ -16,6 +16,7 @@ const row = {
   parent_span_id: null as string | null,
   is_app_root: false,
   start_time: "2026-09-15 10:00:00.000",
+  end_time: "2026-09-15 10:00:01.250" as string | null,
   type: "GENERATION",
   name: "chat",
   input: JSON.stringify([
@@ -38,53 +39,66 @@ function loadRows(...rows: Partial<typeof row>[]) {
 }
 
 describe("Topics transcript input", () => {
-  it("loads project-scoped I/O and latest source metadata", async () => {
-    const result = await loadRows(
-      {
-        span_id: "wrapper",
-        type: "SPAN",
-        session_id: "",
-        environment: "",
-        trace_name: "",
-      },
-      {
-        span_id: "current",
-        parent_span_id: "wrapper",
-        session_id: "current-session",
-        trace_name: "Current trace",
-      },
-      {
-        span_id: "older",
-        type: "SPAN",
-        session_id: "previous-session",
-        environment: "staging",
-        trace_name: "Old trace",
-        start_time: "2026-09-15 09:00:00.000",
-      },
-    );
-    const request = vi.mocked(queryClickhouseStream).mock.calls[0][0];
-    expect(request.query).toContain("events_full");
-    expect(request.query).toContain("LIMIT 1 BY e.span_id, e.project_id");
-    expect(request.query).toContain("e.event_ts DESC");
-    expect(request.query).not.toContain("leftUTF8");
-    expect(request.query).not.toContain("FINAL");
-    expect(request.params).toMatchObject({
-      projectId: "project",
-      traceId: "trace",
-    });
-    expect(result).toMatchObject({
-      unitStartTime: "2026-09-15T09:00:00.000Z",
-      sessionId: "current-session",
-      environment: "production",
-      traceName: "Current trace",
-    });
-    const json = JSON.stringify(result.transcript);
-    expect(json).toContain("Please cancel my subscription.");
-    expect(json).toContain("Your subscription was cancelled.");
-    expect(result.transcript?.threads[0].currentTurn.observations).toEqual([
-      { id: "current", traceId: "trace" },
-    ]);
-  });
+  it.each(["2026-09-15 10:00:01.250", null])(
+    "loads project-scoped I/O and latest source metadata with end time %s",
+    async (endTime) => {
+      const result = await loadRows(
+        {
+          span_id: "wrapper",
+          type: "SPAN",
+          session_id: "",
+          environment: "",
+          trace_name: "",
+        },
+        {
+          span_id: "current",
+          end_time: endTime,
+          parent_span_id: "wrapper",
+          session_id: "current-session",
+          trace_name: "Current trace",
+        },
+        {
+          span_id: "older",
+          type: "SPAN",
+          session_id: "previous-session",
+          environment: "staging",
+          trace_name: "Old trace",
+          start_time: "2026-09-15 09:00:00.000",
+        },
+      );
+      const request = vi.mocked(queryClickhouseStream).mock.calls[0][0];
+      expect(request.query).toContain("events_full");
+      expect(request.query.split("FROM")[0]).toContain("e.end_time");
+      expect(request.query).toContain("LIMIT 1 BY e.span_id, e.project_id");
+      expect(request.query).toContain("e.event_ts DESC");
+      expect(request.query).not.toContain("leftUTF8");
+      expect(request.query).not.toContain("FINAL");
+      expect(request.params).toMatchObject({
+        projectId: "project",
+        traceId: "trace",
+      });
+      expect(result).toMatchObject({
+        unitStartTime: "2026-09-15T09:00:00.000Z",
+        sessionId: "current-session",
+        environment: "production",
+        traceName: "Current trace",
+      });
+      const json = JSON.stringify(result.transcript);
+      expect(json).toContain("Please cancel my subscription.");
+      expect(json).toContain("Your subscription was cancelled.");
+      expect(result.transcript?.threads[0].currentTurn.observations).toEqual([
+        { id: "current", traceId: "trace" },
+      ]);
+      expect(result.transcript?.threads[0].currentTurn.nestingLevel).toBe(1);
+      for (const message of result.transcript!.threads[0].currentTurn
+        .messages) {
+        expect(message.startTime).toEqual(new Date("2026-09-15T10:00:00.000Z"));
+        expect(message.endTime).toEqual(
+          endTime === null ? null : new Date("2026-09-15T10:00:01.250Z"),
+        );
+      }
+    },
+  );
 
   it("rejects foreign, missing, duplicate and oversized source snapshots", async () => {
     for (const scope of [{ project_id: "other" }, { trace_id: "other" }])

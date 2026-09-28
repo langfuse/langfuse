@@ -249,7 +249,7 @@ and limitations.
 If transcript plus instructions/schema exceeds the execution's input allowance,
 the worker fails before calling the provider; it does not
 silently change the evidence for that facet. Stored summaries record
-`transcript_id` (`poc`) and `transcript_version` (`shared-transcript-v1`), plus the
+`transcript_id` (`poc`) and `transcript_version` (`shared-transcript-v2`), plus the
 models used. Historical summaries from other producer versions are regenerated.
 Accepted Redis payloads retain their recorded version when the same execution
 resumes. Transcripts are regenerated from current observations; original source

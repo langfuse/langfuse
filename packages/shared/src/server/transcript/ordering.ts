@@ -1,5 +1,9 @@
 import type { TranscriptObservation } from "./types";
 
+export type OrderedObservation = TranscriptObservation & {
+  nestingLevel: number;
+};
+
 /**
  * Order observations the way the trace tree walks them: depth first, with
  * roots and siblings by start time. Mirrors the web tree builder's rules: one
@@ -8,7 +12,7 @@ import type { TranscriptObservation } from "./types";
  */
 export function orderObservations<T extends TranscriptObservation>(
   observations: T[],
-): T[] {
+): Array<T & { nestingLevel: number }> {
   const byId = new Map<string, T>();
   for (const observation of observations) {
     const existing = byId.get(observation.id);
@@ -29,22 +33,23 @@ export function orderObservations<T extends TranscriptObservation>(
 
   const byStartTime = (a: T, b: T) =>
     a.startTime.getTime() - b.startTime.getTime();
-  const ordered: T[] = [];
+  const ordered: Array<T & { nestingLevel: number }> = [];
   const visited = new Set<string>();
-  const walk = (parentId: string | null) => {
+  const walk = (parentId: string | null, nestingLevel: number) => {
     for (const observation of (children.get(parentId) ?? []).sort(
       byStartTime,
     )) {
       if (visited.has(observation.id)) continue;
       visited.add(observation.id);
-      ordered.push(observation);
-      walk(observation.id);
+      ordered.push({ ...observation, nestingLevel });
+      walk(observation.id, nestingLevel + 1);
     }
   };
-  walk(null);
+  walk(null, 0);
   // Rows inside a parent cycle are unreachable from any root; keep them.
   for (const observation of [...byId.values()].sort(byStartTime)) {
-    if (!visited.has(observation.id)) ordered.push(observation);
+    if (!visited.has(observation.id))
+      ordered.push({ ...observation, nestingLevel: 0 });
   }
   return ordered;
 }

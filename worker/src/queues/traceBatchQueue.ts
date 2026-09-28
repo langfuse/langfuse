@@ -297,7 +297,9 @@ function createTraceBatchQueueProcessor(
             // one pending estimate per batch so queued payloads stay bounded.
             await pendingTokenization;
             pendingTokenization = processTrace(traceObservations, job).then(
-              (result) => void topicsOutcomes.push(result),
+              (result) => {
+                topicsOutcomes.push(result);
+              },
             );
             traceObservations = [];
           }
@@ -322,7 +324,9 @@ function createTraceBatchQueueProcessor(
         if (traceObservations.length) {
           await pendingTokenization;
           pendingTokenization = processTrace(traceObservations, job).then(
-            (result) => void topicsOutcomes.push(result),
+            (result) => {
+              topicsOutcomes.push(result);
+            },
           );
         }
       } catch (error) {

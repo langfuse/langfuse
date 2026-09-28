@@ -9,7 +9,7 @@ import {
 } from "../transcript";
 
 /** Historical summaries are reusable only with the same transcript producer. */
-export const TOPICS_TRANSCRIPT_VERSION = "shared-transcript-v1";
+export const TOPICS_TRANSCRIPT_VERSION = "shared-transcript-v2";
 
 const MAX_OBSERVATIONS = 2_000;
 const MAX_SNAPSHOT_BYTES = 10 * 1024 * 1024;
@@ -24,6 +24,7 @@ type SnapshotRow = {
   parent_span_id: string | null;
   is_app_root: boolean;
   start_time: string;
+  end_time: string | null;
   type: TranscriptObservation["type"];
   name: string;
   input: string;
@@ -51,6 +52,7 @@ export async function loadTopicTranscript(params: {
       "e.span_id",
       "e.parent_span_id",
       "e.start_time",
+      "e.end_time",
       "e.type",
       "e.name",
     )
@@ -116,6 +118,8 @@ export async function loadTopicTranscript(params: {
       traceId,
       parentObservationId: row.parent_span_id || null,
       startTime: new Date(utcTimestamp(row.start_time)),
+      endTime:
+        row.end_time === null ? null : new Date(utcTimestamp(row.end_time)),
       type: row.type,
       name: row.name,
       input: row.input,

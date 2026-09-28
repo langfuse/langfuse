@@ -70,7 +70,12 @@ export function limitTranscript(
       if (!thread) {
         thread = {
           conversationHistory: [],
-          currentTurn: { messages: [], observations: [] },
+          currentTurn: {
+            nestingLevel:
+              transcript.threads[entry.threadIndex].currentTurn.nestingLevel,
+            messages: [],
+            observations: [],
+          },
         };
         threads.set(entry.threadIndex, thread);
       }

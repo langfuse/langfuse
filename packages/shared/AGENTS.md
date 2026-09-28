@@ -22,6 +22,10 @@
   call `flushMetricsToCloudWatch` from the server barrel after recording to
   submit them before the next gauge replaces the cached value.
 - Server cache utilities: `src/server/cache/*`
+- Transcript assembly: pass the enriched result of `orderObservations` into
+  `assembleTranscript`. `currentTurn.nestingLevel` uses the first contributing
+  generation after history is split off; it is not the depth of the first
+  generation in the full thread.
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`
@@ -83,8 +87,9 @@
     including cleanup. Processing also requires `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`
     (empty by default); reads/configuration remain feature-flag/RBAC controlled.
 
-- `src/server/transcript`: `assembleTranscript` accepts minimal
-  `TranscriptObservation` inputs and `{ maxCharacters?, onTimings? }` options.
+- `src/server/transcript`: order minimal `TranscriptObservation` inputs with
+  `orderObservations`, then pass the enriched result and optional
+  `{ maxCharacters?, onTimings? }` to `assembleTranscript`.
   The optional cap bounds `JSON.stringify(result).length`; see its README.
 
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
