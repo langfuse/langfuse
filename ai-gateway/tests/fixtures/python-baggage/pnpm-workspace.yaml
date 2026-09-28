@@ -1,8 +1,8 @@
 pmOnFail: ignore
-# Preserve the repository's npm policy; PyPI release review is documented in README.md.
-minimumReleaseAge: 7200
+# npm-only policies; PyPI release review is documented in README.md.
+minimumReleaseAge: 10080
 trustPolicy: no-downgrade
-trustPolicyIgnoreAfter: 7200
+trustPolicyIgnoreAfter: 10080
 python:
   enabled: true
   versions: ["3.14.3"]

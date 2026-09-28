@@ -7,6 +7,3 @@ dependencies = [
   "opentelemetry-api==1.40.0",
   "opentelemetry-sdk==1.40.0",
 ]
-
-[tool.uv]
-package = false
