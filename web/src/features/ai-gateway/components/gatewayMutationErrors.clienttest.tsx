@@ -241,7 +241,9 @@ describe("gateway mutation local error handling", () => {
   it("tests a provider credential without saving", async () => {
     render(
       <ProviderDialogController organizationId="org-1">
-        {({ openDialog }) => <Button onClick={openDialog}>Add provider</Button>}
+        {({ openAddDialog }) => (
+          <Button onClick={openAddDialog}>Add provider</Button>
+        )}
       </ProviderDialogController>,
     );
 
@@ -266,7 +268,9 @@ describe("gateway mutation local error handling", () => {
   it("create provider dialog routes tRPC failures locally without a global toast", async () => {
     render(
       <ProviderDialogController organizationId="org-1">
-        {({ openDialog }) => <Button onClick={openDialog}>Add provider</Button>}
+        {({ openAddDialog }) => (
+          <Button onClick={openAddDialog}>Add provider</Button>
+        )}
       </ProviderDialogController>,
     );
 
@@ -295,14 +299,32 @@ describe("gateway mutation local error handling", () => {
     ).toBeInTheDocument();
   });
 
+  it("opens the selected credential through the dialog controller", () => {
+    render(
+      <ProviderDialogController organizationId="org-1">
+        {({ openEditDialog }) => (
+          <Button onClick={() => openEditDialog(testConnection)}>
+            Edit provider
+          </Button>
+        )}
+      </ProviderDialogController>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit provider" }));
+    expect(
+      screen.getByRole("heading", { name: "Edit provider credential" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toHaveValue(testConnection.name);
+  });
+
   it("edit provider dialog routes tRPC failures locally without a global toast", async () => {
     render(
       <ProviderDialogController
         organizationId="org-1"
         connection={testConnection}
       >
-        {({ openDialog }) => (
-          <Button onClick={openDialog}>Edit provider</Button>
+        {({ openAddDialog }) => (
+          <Button onClick={openAddDialog}>Edit provider</Button>
         )}
       </ProviderDialogController>,
     );

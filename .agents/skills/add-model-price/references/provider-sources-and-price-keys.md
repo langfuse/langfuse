@@ -764,6 +764,27 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   and September 17 2026 confirmations respectively. The Daybreak
   cyber/Rosalind restricted family and the AWS Bedrock Public Extended Access
   SKU were not re-checked this run — no new evidence, standing exclusions.
+- **September 28 2026 audit: full re-fetch found no price or catalog drift;
+  resolved a standing Flex-pricing verification gap** — Re-fetched the full
+  Anthropic pricing page (model table, cache-hit footnote, Fast mode and Batch
+  tables), the Anthropic models-overview comparison table, the OpenAI
+  aggregate Standard/Long-Context/Fast-mode/Flex pricing tables, the full
+  OpenAI model catalog, both Gemini pricing pages (3.x and 2.5 families), the
+  Gemini models catalog, and the TypeSafe Jev models page. Every price already
+  in the file — including every `gpt-6-astra`/`gpt-6-sol`/`gpt-6-luna`,
+  `claude-opus-5-5`, and `gemini-3.6/3.7/3.8-flash` tier — matched verbatim; no
+  updates were needed. This run's Flex-table fetch explicitly re-quoted
+  `gpt-5.4-mini`, `gpt-5.4-nano`, `gpt-5.2`, `gpt-5.1`, `gpt-5`, `gpt-5-mini`,
+  `gpt-5-nano`, `o3`, and `o4-mini`, which the August 20 2026 audit entry above
+  had flagged as "prices seen but not individually re-quoted during the audit"
+  — all nine matched the pricing file exactly (verified with `jq` against the
+  live JSON), so that caveat is now resolved for these models. `gpt-5.3-codex`
+  and `gpt-5-chat-latest` were not independently re-fetched this run (no drift
+  signal); their prices carry forward from the September 2 and September 17
+  2026 confirmations. The Daybreak cyber/Rosalind restricted family, the AWS
+  Bedrock Public Extended Access SKU, and the legacy Claude 3.x/Gemini 1.x
+  catalog tail were not re-checked this run — no new evidence, standing
+  exclusions.
 
 Capture:
 

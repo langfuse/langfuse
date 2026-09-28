@@ -26,12 +26,17 @@ function DialogController<State = void>({
 }: DialogControllerProps<State>) {
   const [controllerState, setControllerState] = React.useState<
     | { status: "uninitialized" }
-    | { status: "initialized"; isOpen: boolean; state: State }
+    | {
+        status: "initialized";
+        isOpen: boolean;
+        state: State;
+        openCount: number;
+      }
   >(() => {
     const state = initialState?.();
     return state === undefined
       ? { status: "uninitialized" }
-      : { status: "initialized", isOpen: true, state };
+      : { status: "initialized", isOpen: true, state, openCount: 0 };
   });
 
   const closeDialog = () => {
@@ -57,15 +62,23 @@ function DialogController<State = void>({
         isOpen:
           controllerState.status === "initialized" && controllerState.isOpen,
         openDialog: (...args) =>
-          setControllerState({
+          setControllerState((currentState) => ({
             status: "initialized",
             isOpen: true,
             state: args[0] as State,
-          }),
+            openCount:
+              currentState.status === "initialized"
+                ? currentState.openCount + 1
+                : 0,
+          })),
       })}
-      {controllerState.status === "initialized"
-        ? renderDialog({ state: controllerState.state, closeDialog })
-        : null}
+      {controllerState.status === "initialized" ? (
+        // Keep the closed content mounted for Radix's exit animation, but
+        // start a fresh content instance whenever the dialog opens again.
+        <React.Fragment key={controllerState.openCount}>
+          {renderDialog({ state: controllerState.state, closeDialog })}
+        </React.Fragment>
+      ) : null}
     </DialogPrimitive.Root>
   );
 }

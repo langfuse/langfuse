@@ -6,6 +6,7 @@ import {
   TABLE_AGGREGATION_OPTIONS,
   type TimeRange,
 } from "@/src/utils/date-range-utils";
+import { cn } from "@/src/utils/tailwind";
 
 type RefreshControls = {
   onRefresh: () => void;
@@ -28,28 +29,34 @@ export function TableHeaderControls({
   timeRange,
   setTimeRange,
   refresh,
+  desktopOnly = false,
 }: {
   timeRange: TimeRange;
   setTimeRange: (timeRange: TimeRange) => void;
   refresh?: RefreshControls;
+  /** Hide the header controls on mobile when the owning table places them in
+   * its Filters sheet instead. */
+  desktopOnly?: boolean;
 }) {
   return (
     <PageHeaderControlsPortal>
-      <TimeRangePicker
-        timeRange={timeRange}
-        onTimeRangeChange={setTimeRange}
-        timeRangePresets={TABLE_AGGREGATION_OPTIONS}
-        className="my-0 max-w-full overflow-x-auto"
-        triggerClassName="px-2"
-      />
-      {refresh && (
-        <DataTableRefreshButton
-          onRefresh={refresh.onRefresh}
-          isRefreshing={refresh.isRefreshing}
-          interval={refresh.interval}
-          setInterval={refresh.setInterval}
+      <div className={cn("contents", desktopOnly && "hidden md:contents")}>
+        <TimeRangePicker
+          timeRange={timeRange}
+          onTimeRangeChange={setTimeRange}
+          timeRangePresets={TABLE_AGGREGATION_OPTIONS}
+          className="my-0 max-w-full overflow-x-auto"
+          triggerClassName="px-2"
         />
-      )}
+        {refresh && (
+          <DataTableRefreshButton
+            onRefresh={refresh.onRefresh}
+            isRefreshing={refresh.isRefreshing}
+            interval={refresh.interval}
+            setInterval={refresh.setInterval}
+          />
+        )}
+      </div>
     </PageHeaderControlsPortal>
   );
 }

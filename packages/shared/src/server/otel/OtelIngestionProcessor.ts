@@ -1897,9 +1897,7 @@ export class OtelIngestionProcessor {
     // Keep unknown attributes available for diagnostics.
     if (instrumentationScopeName === AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME) {
       for (const key of Object.values(LangfuseOtelSpanAttributes)) {
-        if (key.startsWith("langfuse.observation.")) {
-          delete rawFilteredAttributes[key];
-        }
+        delete rawFilteredAttributes[key];
       }
     }
 
