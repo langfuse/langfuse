@@ -407,6 +407,17 @@ const applyPresetAndAssertActive = async () => {
 };
 
 describe("saved-view demotion on user filter edits", () => {
+  beforeAll(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     sessionStorage.clear();

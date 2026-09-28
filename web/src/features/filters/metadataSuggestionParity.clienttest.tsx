@@ -71,6 +71,14 @@ function MetadataFacetHarness() {
 
 describe("metadata suggestions in the filter sidebar", () => {
   beforeAll(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
     Element.prototype.scrollIntoView = vi.fn();
   });
 
