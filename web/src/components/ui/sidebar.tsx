@@ -408,7 +408,7 @@ const SidebarFooter = React.forwardRef<
       ref={ref}
       data-sidebar="footer"
       className={cn(
-        "flex flex-col gap-2 px-2",
+        "flex flex-col gap-2 px-2 pb-2",
         "group-data-[collapsible=icon]:p-2",
         className,
       )}
