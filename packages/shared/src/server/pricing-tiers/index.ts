@@ -10,3 +10,7 @@ export type {
 } from "./types";
 
 export { hasPricingTierUsageDetails, matchPricingTier } from "./matcher";
+export {
+  CANONICAL_USAGE_KEY_ALIASES,
+  resolveUsageKeyAlias,
+} from "./usageKeyAliases";
