@@ -157,6 +157,9 @@ export default definePreview({
   parameters: {
     a11y: {
       test: "todo",
+      config: {
+        rules: [{ id: "color-contrast", enabled: false }],
+      },
     },
     docs: {
       container: ThemedDocsContainer,

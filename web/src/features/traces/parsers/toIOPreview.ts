@@ -7,7 +7,6 @@ import type {
   NormalizedMessagePart,
   ToolDefinition as NormalizedToolDefinition,
 } from "@langfuse/shared/src/utils/normalized-io";
-import { extractAdditionalInput } from "@/src/utils/chatml";
 import {
   computeToolCallBookkeeping,
   type ChatMlMessage,
@@ -184,12 +183,15 @@ function toChatMessages(message: NormalizedMessage): ProjectedMessage {
       ? contentParts.join("")
       : undefined;
 
-  const json =
-    jsonParts.length === 0
-      ? undefined
-      : jsonParts.length === 1
-        ? jsonParts[0]
-        : jsonParts;
+  const json = (() => {
+    if (jsonParts.length === 0) {
+      return undefined;
+    }
+    if (jsonParts.length === 1) {
+      return jsonParts[0];
+    }
+    return jsonParts;
+  })();
 
   const hasMainMessage =
     content !== undefined ||
@@ -228,10 +230,7 @@ function toChatMessages(message: NormalizedMessage): ProjectedMessage {
  * This is intentionally a web-only compatibility layer; the normalized parser
  * remains independent of React and the current rendering components.
  */
-export function toIOPreview(
-  io: NormalizedIO,
-  parsedInput: unknown,
-): ChatMLParserResult {
+export function toIOPreview(io: NormalizedIO): ChatMLParserResult {
   const projected = io.messages.map((message) => ({
     source: message.source,
     ...toChatMessages(message),
@@ -290,10 +289,9 @@ export function toIOPreview(
   return {
     canDisplayAsChat: allMessages.length > 0,
     allMessages,
-    // computes additionalInput via the legacy extractAdditionalInput(parsedInput) helper, which strips
-    // only the top-level keys the OLD provider adapters used to populate. This projection must be
-    // updated to manage only the keys that are additional in the context of the new provider adapters.
-    additionalInput: extractAdditionalInput(parsedInput),
+    // Input fields the parser did not turn into messages or tool definitions.
+    // The parser removes each field as it consumes it, so this is the leftover.
+    additionalInput: io.additionalInput,
     inputMessageCount,
     ...bookkeeping,
   };

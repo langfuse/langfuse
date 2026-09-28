@@ -12,6 +12,7 @@ import { EvaluatorGalleryView } from "@/src/features/evals/v2/components/Evaluat
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
 import { prepareEvaluatorGallery } from "@/src/features/evals/v2/fns/templateGallery/prepareEvaluatorGallery";
 import { EVALUATOR_GALLERY_ALL_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { getEvaluatorCreationAnalyticsProperties } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 import { api } from "@/src/utils/api";
@@ -39,6 +40,10 @@ export function EvaluatorGalleryDialog({
   );
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useLocalStorage(
+    "evaluatorGallery:decisionModelBannerDismissed:v1",
+    false,
+  );
   const projectEvaluators = api.evalsV2.listGallery.useInfiniteQuery(
     {
       projectId,
@@ -118,15 +123,17 @@ export function EvaluatorGalleryDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex h-[80dvh] w-[calc(100vw-2rem)] max-w-none flex-col gap-0 p-0 sm:w-[70vw]"
+        className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none flex-col gap-0 rounded-lg p-0 sm:h-[80dvh] sm:max-h-[85vh] sm:w-[70vw]"
         closeOnInteractionOutside
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           searchInputRef.current?.focus();
         }}
       >
-        <DialogHeader className="[&>div]:items-start [&>div>button]:-mt-1 [&>div>button]:-mr-2 [&>div>button]:flex [&>div>button]:size-8 [&>div>button]:items-center [&>div>button]:justify-center">
-          <DialogTitle>Add an evaluator</DialogTitle>
+        <DialogHeader className="p-3 sm:p-4 [&>div]:items-start [&>div]:text-left [&>div>button]:-mt-1 [&>div>button]:-mr-2 [&>div>button]:flex [&>div>button]:size-8 [&>div>button]:items-center [&>div>button]:justify-center">
+          <DialogTitle className="text-lg sm:text-xl">
+            Add an evaluator
+          </DialogTitle>
           <DialogDescription>
             Pick a template to start from or create a new evaluator from
             scratch.
@@ -154,6 +161,8 @@ export function EvaluatorGalleryDialog({
               ? projectEvaluators.error.message
               : undefined
           }
+          decisionModelBannerDismissed={bannerDismissed}
+          onDismissDecisionModelBanner={() => setBannerDismissed(true)}
         />
       </DialogContent>
     </Dialog>

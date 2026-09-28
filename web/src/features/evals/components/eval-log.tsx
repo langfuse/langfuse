@@ -10,7 +10,7 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
@@ -20,8 +20,8 @@ import {
   useColumnOrder,
   useColumnVisibility,
 } from "@/src/features/column-visibility";
-import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+
 import { EVAL_LOGS_FIELD_REGISTRY } from "@/src/features/evals/constants/tableSearchRegistry";
 import { evalLogFilterConfig } from "@/src/features/filters/config/eval-logs-config";
 import { useSidebarFilterState } from "@/src/features/filters";
@@ -262,29 +262,33 @@ export default function EvalLogTable({
       defaultSidebarCollapsed={evalLogFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
-        <TableSearchBar
-          key={queryFilter.draftResetKey}
-          projectId={projectId}
-          tableName={evalLogFilterConfig.tableName}
-          registry={EVAL_LOGS_FIELD_REGISTRY}
-          filterState={queryFilter.searchBarFilterState}
-          setFilterState={queryFilter.setFilterState}
-          observed={toObservedOptions(filterOptions, false)}
-          isV4={false}
-        />
-        <DataTableToolbar
-          tableName="evalLogs"
-          columns={columns}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibility}
-          columnOrder={columnOrder}
-          setColumnOrder={setColumnOrder}
-          rowHeight={rowHeight}
-          setRowHeight={setRowHeight}
-          filterState={queryFilter.filterState}
-        />
-
-        <ResizableFilterLayout>
+        <SearchableTableFilterLayout
+          search={
+            <TableSearchBar
+              key={queryFilter.draftResetKey}
+              projectId={projectId}
+              tableName={evalLogFilterConfig.tableName}
+              registry={EVAL_LOGS_FIELD_REGISTRY}
+              filterState={queryFilter.searchBarFilterState}
+              setFilterState={queryFilter.setFilterState}
+              observed={toObservedOptions(filterOptions, false)}
+              isV4={false}
+            />
+          }
+          toolbar={
+            <DataTableToolbar
+              tableName="evalLogs"
+              columns={columns}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={setColumnVisibility}
+              columnOrder={columnOrder}
+              setColumnOrder={setColumnOrder}
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+              filterState={queryFilter.filterState}
+            />
+          }
+        >
           <DataTableControls
             key={queryFilter.draftResetKey}
             queryFilter={queryFilter}
@@ -324,7 +328,7 @@ export default function EvalLogTable({
               rowHeight={rowHeight}
             />
           </div>
-        </ResizableFilterLayout>
+        </SearchableTableFilterLayout>
       </div>
     </DataTableControlsProvider>
   );

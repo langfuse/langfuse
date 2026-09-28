@@ -115,11 +115,7 @@ export const MessageHeader = meta.story({
         >
           <ChevronDown className="h-3.5 w-3.5 shrink-0" />
         </Button>
-        <Badge
-          variant="tertiary"
-          size="sm"
-          className="h-5 shrink-0 leading-none"
-        >
+        <Badge variant="tertiary" className="h-5 shrink-0 leading-none">
           User
         </Badge>
       </>
@@ -156,11 +152,7 @@ export const CollapsedMessage = meta.story({
         >
           <ChevronDown className="h-3.5 w-3.5 shrink-0 -translate-x-0.5 -rotate-90" />
         </Button>
-        <Badge
-          variant="tertiary"
-          size="sm"
-          className="h-5 shrink-0 leading-none"
-        >
+        <Badge variant="tertiary" className="h-5 shrink-0 leading-none">
           User
         </Badge>
         <span className="text-muted-foreground min-w-0 flex-1 truncate px-1 text-xs leading-none">

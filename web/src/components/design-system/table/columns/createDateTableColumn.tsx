@@ -12,6 +12,7 @@ import {
 export function createDateTableColumn<TData extends RowData>({
   getValue,
   mode = "absolute",
+  emptyValue,
   ...options
 }: TableColumnOptions<TData, Date> & {
   getValue?: (
@@ -19,6 +20,7 @@ export function createDateTableColumn<TData extends RowData>({
     context: CellContext<TData, Date | null | undefined>,
   ) => Date | { type: "loading" } | undefined;
   mode?: "absolute" | "relative";
+  emptyValue?: string;
 }) {
   return createTableColumn<TData, Date>({
     ...options,
@@ -26,7 +28,11 @@ export function createDateTableColumn<TData extends RowData>({
     renderCell: (value, context) => {
       const resolvedValue = getValue ? getValue(value, context) : value;
 
-      if (resolvedValue === null || resolvedValue === undefined) return null;
+      if (resolvedValue === null || resolvedValue === undefined) {
+        return emptyValue ? (
+          <span className="text-muted-foreground">{emptyValue}</span>
+        ) : null;
+      }
 
       if (!(resolvedValue instanceof Date)) {
         return <Skeleton className="h-4 w-1/2" />;

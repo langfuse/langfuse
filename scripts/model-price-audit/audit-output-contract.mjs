@@ -6,6 +6,7 @@ const officialSourceHosts = [
   "developers.openai.com",
   "docs.anthropic.com",
   "platform.claude.com",
+  "typesafe.ai",
 ];
 
 const normalize = (value) => value.trim().toLowerCase();

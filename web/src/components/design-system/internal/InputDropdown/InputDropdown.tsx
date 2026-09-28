@@ -4,6 +4,7 @@ import { type ComponentPropsWithoutRef, type ReactNode } from "react";
 
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { cn } from "@/src/utils/tailwind";
+import { Checkbox } from "../../Checkbox/Checkbox";
 
 type SlottedProps = Omit<ComponentPropsWithoutRef<typeof Slot>, "className">;
 
@@ -81,14 +82,17 @@ function List({ ...props }: SlottedProps) {
 
 function Option({
   highlight,
+  checked,
   ...props
 }: SlottedProps & {
   highlight: "aria-selected" | "focus";
+  checked?: boolean;
 }) {
   return (
     <Slot
+      data-checked={checked}
       className={cn(
-        "relative flex w-full cursor-default items-center rounded-sm px-1.5 py-1.5 text-sm outline-hidden select-none",
+        "relative flex w-full cursor-pointer items-center gap-2 rounded-sm px-1.5 py-1.5 text-sm outline-hidden select-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50",
         highlight === "aria-selected"
           ? "aria-selected:bg-accent aria-selected:text-accent-foreground"
           : "focus:bg-accent focus:text-accent-foreground data-disabled:opacity-50",
@@ -102,13 +106,39 @@ function OptionContent({
   label,
   secondaryLabel,
   title,
-  indicator,
+  type,
+  checked,
 }: {
   label: ReactNode;
   secondaryLabel?: string;
   title: string;
-  indicator: ReactNode;
+  type: "checkbox" | "checkmark" | "radio";
+  checked: boolean;
 }) {
+  let indicator = (
+    <Check
+      aria-hidden="true"
+      className={cn("size-4", checked ? "opacity-100" : "opacity-0")}
+    />
+  );
+  if (type === "checkbox") {
+    indicator = (
+      <Checkbox checked={checked} size="sm" tabIndex={-1} aria-hidden="true" />
+    );
+  } else if (type === "radio") {
+    indicator = (
+      <span
+        aria-hidden="true"
+        className={cn(
+          "border-control-border flex size-3.5 items-center justify-center rounded-full border shadow-sm",
+          checked && "border-control-fill",
+        )}
+      >
+        {checked && <span className="bg-control-fill size-1.5 rounded-full" />}
+      </span>
+    );
+  }
+
   return (
     <>
       <span className="min-w-0 flex-1 truncate" title={title}>
@@ -117,21 +147,19 @@ function OptionContent({
           <span className="text-muted-foreground ml-1">{secondaryLabel}</span>
         )}
       </span>
-      <span className="flex size-3.5 shrink-0 items-center justify-center">
+      <span
+        className={cn(
+          "pointer-events-none flex size-3.5 shrink-0 items-center justify-center",
+          (type === "checkbox" || type === "radio") && "order-first",
+        )}
+      >
         {indicator}
       </span>
     </>
   );
 }
 
-function CheckIndicator({ checked }: { checked: boolean }) {
-  return (
-    <Check className={cn("size-4", checked ? "opacity-100" : "opacity-0")} />
-  );
-}
-
 export const InputDropdown = {
-  CheckIndicator,
   Content,
   Empty,
   List,

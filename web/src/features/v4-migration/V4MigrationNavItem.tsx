@@ -3,7 +3,7 @@ import { ChevronRight } from "lucide-react";
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useQueryProject } from "@/src/features/projects";
 import { useProjectV4MigrationActions } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 
@@ -36,7 +36,7 @@ export function V4MigrationNavItem() {
 
   return (
     <SidebarMenuButton onClick={handleClick} tooltip={label}>
-      <div className="relative mx-1 flex h-2 w-2 shrink-0 items-center justify-center">
+      <div className="relative flex size-3.5 shrink-0 items-center justify-center">
         <span className="inline-flex h-2 w-2 rounded-full bg-orange-400" />
       </div>
       <span className="truncate font-bold" title={label}>

@@ -37,6 +37,7 @@ model: claude-opus-5
 
 engine:
   id: claude
+  version: "2.1.277"
   max-turns: 180
   env:
     ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}

@@ -1,10 +1,10 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 
 // Session fixture sub-object types; casts keep the runtime fixtures unchanged
 // while satisfying newer required fields on the session user type.
 type SessionUser = NonNullable<Session["user"]>;
 type SessionOrgs = SessionUser["organizations"];
-type SessionFeatureFlags = SessionUser["featureFlags"];
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -51,10 +51,7 @@ const createSession = (opts: {
           },
         ] as SessionOrgs)
       : [],
-    featureFlags: {
-      excludeClickhouseRead: false,
-      templateFlag: true,
-    } as SessionFeatureFlags,
+    featureFlags: testFeatureFlags(),
     admin: opts.admin,
   },
   environment: {} as any,

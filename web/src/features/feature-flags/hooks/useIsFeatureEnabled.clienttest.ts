@@ -1,7 +1,10 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { renderHook } from "@testing-library/react";
 import { useSession } from "next-auth/react";
 
 import useIsFeatureEnabled from "./useIsFeatureEnabled";
+import { useInternalFeaturesEnabled } from "./useInternalFeaturesEnabled";
+import { INTERNAL_FEATURE_FLAG } from "../available-flags";
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
@@ -11,21 +14,26 @@ const mockSession = ({
   aiGateway,
   admin = false,
   enableExperimentalFeatures = false,
+  internalFeatures,
 }: {
   aiGateway: boolean;
   admin?: boolean;
   enableExperimentalFeatures?: boolean;
+  internalFeatures?: boolean;
 }) => {
   vi.mocked(useSession).mockReturnValue({
     data: {
       environment: { enableExperimentalFeatures },
       user: {
         admin,
-        featureFlags: { aiGateway: false },
+        featureFlags: testFeatureFlags({
+          aiGateway: false,
+          [INTERNAL_FEATURE_FLAG]: internalFeatures,
+        }),
         organizations: [
           {
             id: "org-1",
-            featureFlags: { aiGateway },
+            featureFlags: testFeatureFlags({ aiGateway }),
             projects: [],
           },
         ],
@@ -35,6 +43,34 @@ const mockSession = ({
 };
 
 describe("useIsFeatureEnabled", () => {
+  it.each([
+    {
+      admin: true,
+      internalFeatures: false,
+      enableExperimentalFeatures: true,
+      expected: false,
+    },
+    {
+      admin: true,
+      internalFeatures: true,
+      enableExperimentalFeatures: false,
+      expected: true,
+    },
+    {
+      admin: false,
+      internalFeatures: true,
+      enableExperimentalFeatures: false,
+      expected: false,
+    },
+  ])(
+    "resolves internal view as $expected for $admin admin / $internalFeatures preference",
+    ({ expected, ...options }) => {
+      mockSession({ aiGateway: false, ...options });
+      const { result } = renderHook(() => useInternalFeaturesEnabled());
+      expect(result.current).toBe(expected);
+    },
+  );
+
   it("does not let admin or experimental-feature overrides enable restricted flags", () => {
     mockSession({
       aiGateway: false,

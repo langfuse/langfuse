@@ -1,4 +1,4 @@
-import { deleteAnnotationQueueItemForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
+import { deleteAnnotationQueueItemForApi } from "@/src/features/annotation-queues/server";
 import {
   DeleteAnnotationQueueItemQuery,
   DeleteAnnotationQueueItemResponse,

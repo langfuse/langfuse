@@ -1,6 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { normalizeSpanIO } from "@langfuse/shared/src/utils/normalized-io";
 import { toIOPreview } from "../parsers/toIOPreview";
+import { hasThinkingContent } from "../fns/chatMessageUtils";
 import {
   parseChatML,
   type ChatMLParserResult,
@@ -18,10 +19,7 @@ const parserImplementations = [
   {
     name: "normalized",
     parse: (input: unknown, output: unknown) =>
-      toIOPreview(
-        normalizeSpanIO({ input, output, metadata: undefined }),
-        input,
-      ),
+      toIOPreview(normalizeSpanIO({ input, output, metadata: undefined })),
     // The normalized parser canonicalizes: JSON-string arguments are decoded
     // once, so consumers always receive the parsed value.
     expectedArguments: (raw: string): unknown => JSON.parse(raw),
@@ -173,6 +171,57 @@ describe("useChatMLParser", () => {
       ]);
     },
   );
+
+  it.each(parserImplementations)(
+    "$name parser renders a Thinking block for a plugin `thinking` sibling array",
+    ({ parse }) => {
+      const reasoning = "The user wants the repo described in one line.";
+
+      const result = parse([{ role: "user", content: "What is this repo?" }], {
+        role: "assistant",
+        content: "A scratch repository.",
+        thinking: [
+          { type: "thinking", content: reasoning, signature: "sig_sibling" },
+        ],
+      });
+
+      const assistant = result.allMessages.find(
+        (message) => message.role === "assistant",
+      );
+
+      expect(assistant && hasThinkingContent(assistant)).toBe(true);
+      expect(assistant?.thinking).toEqual([
+        { type: "thinking", content: reasoning, signature: "sig_sibling" },
+      ]);
+    },
+  );
+
+  it("normalized parser renders a Thinking block for a plugin thinking part in `content`", () => {
+    const reasoning = "The user wants the repo described in one line.";
+
+    const result = toIOPreview(
+      normalizeSpanIO({
+        input: [{ role: "user", content: "What is this repo?" }],
+        output: {
+          role: "assistant",
+          content: [
+            { type: "thinking", content: reasoning, signature: "sig_inline" },
+            { type: "text", text: "A scratch repository." },
+          ],
+        },
+        metadata: undefined,
+      }),
+    );
+
+    const assistant = result.allMessages.find(
+      (message) => message.role === "assistant",
+    );
+
+    expect(assistant && hasThinkingContent(assistant)).toBe(true);
+    expect(assistant?.thinking).toEqual([
+      { type: "thinking", content: reasoning, signature: "sig_inline" },
+    ]);
+  });
 
   it("reuses an already computed parser result", () => {
     const preparedResult: ChatMLParserResult = {
