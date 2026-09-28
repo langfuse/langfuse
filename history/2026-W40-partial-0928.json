@@ -1,0 +1,144 @@
+{
+  "window": { "from": "2026-09-22", "to": "2026-09-28", "kind": "trailing-7-days", "tz": "UTC" },
+  "windowRule": "Trailing 7 calendar days ending today (UTC). Zero-run days omitted from charts.",
+  "isoWeekNote": "2026-09-28 is Monday of ISO W40; the window spans W39 Tue-Sun plus W40 Mon. Labelled by the end date's ISO week per the existing -partial- convention.",
+  "generatedAt": "2026-09-28",
+  "overlapWithPrevious": "NONE. 2026-W39-partial-0921 covered 09-15..09-21; this window starts 09-22. Second consecutive clean, non-overlapping week-over-week comparison.",
+  "population": {
+    "timing": "successful merge_group runs only",
+    "vitest": "merge_group + pull_request, never push/main",
+    "excluded": "failed and cancelled runs excluded from all analysis, counted separately"
+  },
+  "runCounts": {
+    "2026-09-22": { "merge_group_success": 29, "merge_group_failed": 1, "sampled": 6 },
+    "2026-09-23": { "merge_group_success": 42, "merge_group_failed": 4, "sampled": 6 },
+    "2026-09-24": { "merge_group_success": 27, "merge_group_failed": 2, "sampled": 6 },
+    "2026-09-25": { "merge_group_success": 28, "merge_group_failed": 0, "sampled": 6 },
+    "2026-09-26": { "merge_group_success": 2, "merge_group_failed": 0, "sampled": 2, "note": "Friday collapse again (W39 had a zero-merge_group Friday on 09-19). Only 15 pull_request successes that day too, so this is low repo activity, not a filter artifact. Below the >=5/day bar; charted but excluded from the weekly aggregate." },
+    "2026-09-27": { "merge_group_success": 0, "note": "Sunday, zero merge_group runs. Omitted from charts." },
+    "2026-09-28": { "merge_group_success": 1, "merge_group_failed": 0, "sampled": 1, "note": "today, partial. Charted but excluded from the weekly aggregate." },
+    "total": { "success": 129, "failed": 7 }
+  },
+  "dailyMedians": {
+    "2026-09-22": { "n": 6, "perceived": 230.5, "execution": 226.5, "runnerWait": 11.5, "webBuildStep": 52, "webRunTestsStep": 81.5, "workerRunTestsStep": 81.5, "e2eTestsJob": 206, "e2eBuildStep": 76.5, "e2eRunStep": 50 },
+    "2026-09-23": { "n": 6, "perceived": 232, "execution": 217.5, "runnerWait": 16, "webBuildStep": 49, "webRunTestsStep": 74.5, "workerRunTestsStep": 77, "e2eTestsJob": 190.5, "e2eBuildStep": 64.5, "e2eRunStep": 52 },
+    "2026-09-24": { "n": 6, "perceived": 222.5, "execution": 212, "runnerWait": 13.5, "webBuildStep": 48, "webRunTestsStep": 78.5, "workerRunTestsStep": 81, "e2eTestsJob": 203.5, "e2eBuildStep": 67.5, "e2eRunStep": 52.5 },
+    "2026-09-25": { "n": 6, "perceived": 213.5, "execution": 199.5, "runnerWait": 13.5, "webBuildStep": 47, "webRunTestsStep": 75.5, "workerRunTestsStep": 86.5, "e2eTestsJob": 173, "e2eBuildStep": 52.5, "e2eRunStep": 51 },
+    "2026-09-26": { "n": 2, "perceived": 181.5, "execution": 171, "runnerWait": 10.5, "webBuildStep": 44.5, "webRunTestsStep": 72.5, "workerRunTestsStep": 79, "e2eTestsJob": 159, "e2eBuildStep": 46.5, "e2eRunStep": 48.5, "thin": true },
+    "2026-09-28": { "n": 1, "perceived": 250, "execution": 235, "runnerWait": 15, "webBuildStep": 46, "webRunTestsStep": 73, "workerRunTestsStep": 81, "e2eTestsJob": 174, "e2eBuildStep": 57, "e2eRunStep": 50, "thin": true }
+  },
+  "denseDays": ["2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25"],
+  "thinDaysExcludedFromAggregate": ["2026-09-26", "2026-09-28"],
+  "weeklyAggregate": {
+    "perceived": 226.5,
+    "execution": 214.8,
+    "runnerWait": 13.5,
+    "webBuildStep": 48.5,
+    "webRunTestsStep": 77,
+    "workerRunTestsStep": 81.3,
+    "e2eTestsJob": 197,
+    "e2eBuildStep": 66,
+    "e2eRunStep": 51.5,
+    "unit": "s",
+    "method": "median of dense (n>=5) daily medians"
+  },
+  "pooledPercentiles": {
+    "perceived": { "p50": 221, "p90": 296 },
+    "execution": { "p50": 214, "p90": 267.4 },
+    "runnerWait": { "p50": 15, "p90": 23 },
+    "webBuildStep": { "p50": 48, "p90": 56 },
+    "webRunTestsStep": { "p50": 76, "p90": 88 },
+    "workerRunTestsStep": { "p50": 80, "p90": 91 },
+    "e2eTestsJob": { "p50": 180, "p90": 242.8 },
+    "e2eBuildStep": { "p50": 60, "p90": 106.8 },
+    "e2eRunStep": { "p50": 51, "p90": 65.2 },
+    "n": 27
+  },
+  "vsW39partial0921": {
+    "perceived": "234 -> 226.5 (-3.2%)",
+    "execution": "217.8 -> 214.8 (-1.4%)",
+    "runnerWait": "14 -> 13.5 (-3.6%)",
+    "webBuildStep": "48 -> 48.5 (+1.0%)",
+    "webRunTestsStep": "72 -> 77 (+6.9%)",
+    "workerRunTestsStep": "72.3 -> 81.3 (+12.4%)",
+    "e2eTestsJob": "186 -> 197 (+5.9%)"
+  },
+  "regressionCheck": {
+    "verdict": "NO NEW REGRESSION. Headline perceived time improved 3.2% while the W39 regression remains fully unretired.",
+    "sustainedShiftScan": "No metric moved >=50% across 3+ consecutive days. e2eBuildStep trends DOWN across the window (76.5 / 64.5 / 67.5 / 52.5 / 46.5 / 57), which is drift toward the pre-#17062 baseline, not a regression.",
+    "aboveTenPercent": "workerRunTestsStep +12.4% is the only metric past the ~10% call-out bar. Attributed to new coverage, not a slowdown - see workerShardGrowth.",
+    "w39RegressionStatus": "STILL OPEN. e2e Build weekly median 69s (W39) -> 66s (W40), i.e. flat and still ~40% above the 42-48s pre-#17062 baseline. The suggested pipeline.yml filter change was NOT applied, so the falsifiable prediction from W39 remains untested."
+  },
+  "criticalPath": {
+    "executionMinusE2e": "214.8 - 197 = 17.8s. e2e-tests is still effectively the entire critical path.",
+    "shardSlack": "worker 'run tests' 81.3s and web 'run tests' 77s both sit ~115-120s below the e2e job. The standing do-not-mine-the-shards-for-headline-wins rule holds."
+  },
+  "workerShardGrowth": {
+    "claim": "The workerRunTestsStep +12.4% move is added coverage, not a per-test slowdown.",
+    "progression": [
+      { "date": "W39 baseline", "files": 185, "tests": 2418, "vitestDuration": 70.5 },
+      { "date": "2026-09-22", "files": 187, "tests": 2453, "vitestDuration": 77.71, "summedTestDurations": 113.06 },
+      { "date": "2026-09-24", "files": 189, "tests": 2463, "vitestDuration": 83.96, "summedTestDurations": 137.17 },
+      { "date": "2026-09-25", "files": 193, "tests": 2476, "vitestDuration": 82.42, "summedTestDurations": 128.21 },
+      { "date": "2026-09-28", "files": 194, "tests": 2497, "vitestDuration": 81.74, "summedTestDurations": 134.77 }
+    ],
+    "delta": "+9 test files and +44 tests vs 09-22; +9 files / +79 tests vs the W39 baseline.",
+    "principalNewCost": "worker/src/__tests__/otelReplay.properties.test.ts. Absent on 09-22 and 09-24T12:01, then 12.47s/2 tests (09-25, #2 slowest file) and 13.19s/2 tests (09-28, #3). Landed via #17741 (eb92bd185, 09-23) and #17742 (2ba080996, 09-24).",
+    "perRunVariance": "CAUTION on the +12.4%. On 09-24 the same worker files ran 40-60% slower than on 09-22/09-25 for reasons unrelated to content: evalService 15.69s vs 8.95/9.23s, IngestionService.integration 14.80s vs 9.95/10.12s, batchExport 14.57s vs 11.23/10.79s. Runner-to-runner variance in this shard is large enough that a 12% weekly median move is only weakly resolved."
+  },
+  "vitestAnalysis": {
+    "runsSampled": 5,
+    "shardLogsWithReporterBlock": 5,
+    "jobs": [
+      { "job": 106681178756, "day": "2026-09-22", "shard": "tests-worker" },
+      { "job": 107141290042, "day": "2026-09-23", "shard": "tests-web (node24, pg15, mode-azure, otel-worker-shadow=false)" },
+      { "job": 107621950583, "day": "2026-09-24", "shard": "tests-worker" },
+      { "job": 108074351970, "day": "2026-09-25", "shard": "tests-worker" },
+      { "job": 108799750481, "day": "2026-09-28", "shard": "tests-worker" }
+    ],
+    "retriedTests": {
+      "count": 0,
+      "detail": "No 'Retried tests (N):' block in any of the 5 reporter blocks. In each case 'Slowest test files' runs straight into 'Post job cleanup.', the reporter's zero-retry signature. FOURTH consecutive week at zero."
+    },
+    "flakyWatchlist": {
+      "admin-api-keys.servertest.ts > invalidates all cached API keys without deleting other redis entries": "Did NOT recur. Still 2 lifetime occurrences (2026-09-04 and earlier). Parked since 09-14; consider dropping entirely after one more clean week."
+    },
+    "webShardTotals": "317 files passed (317), 5413 tests passed | 17 skipped (5430), duration 69.31s (09-23)",
+    "workerShardTotals": "194 files passed (194), 2497 tests passed | 1 skipped (2498), duration 81.74s (09-28)",
+    "webSlowestFiles": [
+      "26.77s src/__tests__/server/repositories/event-repository.servertest.ts (104 tests)",
+      "18.06s src/__tests__/server/score-comparison-analytics.servertest.ts (46 tests)",
+      "14.11s src/__tests__/server/ingestion-api.servertest.ts (63 tests)",
+      "13.54s src/__tests__/server/traces-api.servertest.ts (84 tests)",
+      "10.04s src/__tests__/server/scores-api-v3.servertest.ts (80 tests)"
+    ],
+    "webSlowestSingleTest": "4.01s event-repository.servertest.ts > streams complete trace batches with full payloads and exact per-trace time bounds. No single web test dominates; the web shard's cost is spread across many small tests.",
+    "traceBatchingFollowUp": "src/__tests__/traceBatching.test.ts, the W39 worker outlier (12.08s single test), did NOT appear in the top-10 of any 2026-W40 worker sample. Either it got faster or it is now crowded out by otelReplay. Not re-raised."
+  },
+  "optimizationCandidatesExamined": [
+    {
+      "candidate": "worker/src/__tests__/otelReplay.properties.test.ts - reduce fast-check numRuns or split the two properties across files",
+      "verdict": "REJECTED ON MERIT, not filed",
+      "reasoning": "13.19s across 2 property tests at numRuns:128 each is ~52ms per generated case, which is efficient for a property that round-trips OTEL spans through the replay harness and asserts persisted rows. Lowering numRuns would reduce coverage, which the standing rules forbid. Splitting the file for worker-pool parallelism would recover ~6.6s on a shard that already has ~115s of slack against the e2e critical path, i.e. zero effect on perceived CI time, and would disturb a harness the author explicitly commented as concurrency-sensitive ('The replay writer retries internally; Vitest retries could overlap an unfinished replay and race the shared writer singleton', with retry:0 set deliberately)."
+    },
+    {
+      "candidate": "web event-repository.servertest.ts - 26.77s summed across 104 tests in one file",
+      "verdict": "REJECTED ON MERIT, not filed",
+      "reasoning": "Tests inside one file run serially, so this file is the longest pole within the web shard. But the web shard finishes ~120s before e2e-tests, so shortening it cannot move perceived time. Report-only."
+    }
+  ],
+  "structuralWasteReportOnly": {
+    "turboCacheRace": "Persists unchanged. Web job 107141290042 (09-23) logged 5 x 'Failed to save: Unable to reserve cache with key Linux-X64-node24-turbo-ci-<hash>, another job may be creating this cache.' with 'Average time taken: save 1302.95ms (41%), get 1866.26ms (59%)'. Report-only; any fix lives in .github/workflows/**.",
+    "runnerQueueOutlier": "Job 107141290042 reported BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 201551, a 201-second runner queue wait, against 159-680 ms on every other sampled job this week. Single observation; runner-fleet capacity, not repo code. Worth watching but not actionable from this repo."
+  },
+  "suggestedDiff": {
+    "included": false,
+    "reason": "Nothing new was verified as both safe and impactful. The one open suggestion (W39, exclude worker and @langfuse/native from the e2e-tests Build step) is still unapplied on main and still the single highest-value change available; it is left open rather than re-proposed, per the standing do-not-chase rule. Every new candidate examined this week was rejected on merit and documented above rather than filed."
+  },
+  "followUps": [
+    "The W39 e2e Build prediction is still untested. If pipeline.yml lines ~1183 and ~1293 gain --filter=!worker --filter=!@langfuse/native, check whether e2e Build returns to ~42-48s and perceived to ~190s.",
+    "If 2026-W41 is also retry-free, drop the admin-api-keys flaky watchlist entry entirely.",
+    "Re-check whether the worker shard keeps absorbing new files without its median moving further; two consecutive +10% weeks would change the off-critical-path assessment.",
+    "Watch whether the Friday merge_group collapse (09-19 zero, 09-26 n=2) is a recurring pattern. Two Fridays running, it materially thins the sample."
+  ]
+}
