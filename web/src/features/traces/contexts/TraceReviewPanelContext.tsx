@@ -5,6 +5,8 @@ import {
   type TraceReviewPanelStore,
 } from "../state/traceReviewPanelStore";
 
+import { type AnnotationPanelData } from "@/src/features/scores/types";
+
 const TraceReviewPanelContext = createContext<TraceReviewPanelStore | null>(
   null,
 );
@@ -12,14 +14,20 @@ const TraceReviewPanelContext = createContext<TraceReviewPanelStore | null>(
 export function TraceReviewPanelProvider({
   projectId,
   initialComments,
+  initialAnnotation,
   children,
 }: {
   projectId: string;
   initialComments?: CommentTarget;
+  initialAnnotation?: AnnotationPanelData;
   children: ReactNode;
 }) {
   const [store] = useState(() =>
-    createTraceReviewPanelStore({ projectId, initialComments }),
+    createTraceReviewPanelStore({
+      projectId,
+      initialComments,
+      initialAnnotation,
+    }),
   );
 
   return (

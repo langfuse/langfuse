@@ -187,7 +187,11 @@ type TraceLayoutDesktopProps = {
 export function TraceLayoutDesktop(props: TraceLayoutDesktopProps) {
   const { reviewPanel, ...layoutProps } = props;
   return (
-    <TraceReviewLayout open={props.reviewOpen} review={reviewPanel}>
+    <TraceReviewLayout
+      open={props.reviewOpen}
+      review={reviewPanel}
+      initialNavigationCollapsed={props.defaultNavigationCollapsed || undefined}
+    >
       {({ collapsed, toggle }) => (
         <TraceNavigationDetailLayout
           {...layoutProps}

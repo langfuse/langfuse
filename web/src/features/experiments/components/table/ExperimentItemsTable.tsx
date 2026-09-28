@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
+import { useRouter } from "next/router";
 import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -133,6 +134,7 @@ import { resolveExperimentPeekTarget } from "@/src/features/experiments/fns/reso
  */
 type ClickedExperimentRow = ExperimentItemsTableRow & {
   clickedExperimentId?: string;
+  annotate?: boolean;
 };
 
 /** `usePeekNavigation`'s `openPeek`, as the cell handlers need it. */
@@ -526,6 +528,7 @@ export default function ExperimentItemsTable({
   hideControls = false,
   toolbarSettings,
 }: ExperimentItemsTableProps) {
+  const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
@@ -1665,6 +1668,7 @@ export default function ExperimentItemsTable({
       "timestamp",
       "traceId",
       "peekExperimentId",
+      "annotation",
     ],
     tableName: experimentItemsFilterConfig.tableName,
     isV4: true,
@@ -1675,6 +1679,7 @@ export default function ExperimentItemsTable({
         clickedExperimentId: row.clickedExperimentId,
       });
       return {
+        ...(row.annotate ? { annotation: "open" } : {}),
         traceId: targetExp?.traceId || "",
         timestamp: targetExp?.startTime.toISOString() || "",
         observation: targetExp?.observationId || "",
@@ -1754,8 +1759,18 @@ export default function ExperimentItemsTable({
       itemType: "TRACE",
       detailNavigationKey: "experiment-items",
       ...peekNavigationProps,
+      resolveDetailNavigationPath: (entry) =>
+        peekNavigationProps.resolveDetailNavigationPath({
+          ...entry,
+          params: {
+            ...entry.params,
+            ...(router.query.annotation === "open"
+              ? { annotation: "open" }
+              : {}),
+          },
+        }),
     };
-  }, [peekNavigationProps, canUsePeek]);
+  }, [peekNavigationProps, canUsePeek, router.query.annotation]);
 
   // The page as fetched. The score column header aggregates — and the score
   // matrix, which reads the same ones — deliberately describe this whole page,

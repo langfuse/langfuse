@@ -49,11 +49,18 @@ vi.mock("react-resizable-panels", () => ({
   Separator: () => <div />,
 }));
 
-function Harness({ open = true }: { open?: boolean }) {
+function Harness({
+  open = true,
+  initialNavigationCollapsed,
+}: {
+  open?: boolean;
+  initialNavigationCollapsed?: boolean;
+}) {
   return (
     <div data-peek-content>
       <TraceReviewLayout
         open={open}
+        initialNavigationCollapsed={initialNavigationCollapsed}
         review={<input aria-label="Review draft" />}
       >
         {({ collapsed, toggle }) => (
@@ -173,6 +180,15 @@ describe("trace review responsive workspace", () => {
     expect(screen.getByLabelText("Review draft")).toBe(review);
     expect((review as HTMLInputElement).value).toBe("unsent comment");
     expect((trace as HTMLInputElement).value).toBe("trace edit");
+  });
+
+  it("starts annotation navigation collapsed despite a saved preference and lets it reopen", () => {
+    localStorage.setItem("trace-review-navigation-collapsed", "false");
+    render(<Harness initialNavigationCollapsed />);
+    fireEvent.click(screen.getByRole("button", { name: "Show navigation" }));
+    expect(
+      screen.getByRole("button", { name: "Hide navigation" }),
+    ).toBeTruthy();
   });
 
   it("keeps an explicit navigation choice across screen changes and later trace workspaces", () => {

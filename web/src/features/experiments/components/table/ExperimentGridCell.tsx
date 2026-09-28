@@ -30,8 +30,9 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { Copy, Check, ExternalLink } from "lucide-react";
+import { Copy, Check, ExternalLink, SquarePen } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import { Button as ActionButton } from "@/src/components/design-system/Button/Button";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -74,6 +75,7 @@ type ExperimentGridCellProps = {
   showScoreLevelLabels: boolean;
   /** Clicking this experiment's cell selects it in peek navigation instead of the row's default (baseline) target. */
   onExperimentClick?: (event: React.MouseEvent) => void;
+  onAnnotate?: () => void;
 };
 
 /**
@@ -486,6 +488,7 @@ export const ExperimentGridCell = ({
   markerClassName,
   showScoreLevelLabels,
   onExperimentClick,
+  onAnnotate,
 }: ExperimentGridCellProps) => {
   const scoreDiffs = useMemo(
     () =>
@@ -655,74 +658,90 @@ export const ExperimentGridCell = ({
   return (
     <div
       className={cn(
-        "scrollbar-visible flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-auto",
+        "group/grid-cell relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col",
         onExperimentClick && "cursor-pointer",
       )}
       onClick={onExperimentClick}
     >
-      {sectionsToRender.map((section, index) => {
-        const { row, content } = section;
-        const isFirst = index === 0;
-        const isLast = index === sectionsToRender.length - 1;
+      {onAnnotate && (
+        <div className="bg-background absolute right-1 bottom-1 z-1 rounded-md opacity-0 shadow-sm group-focus-within/grid-cell:opacity-100 group-hover/grid-cell:opacity-100">
+          <ActionButton
+            text="Annotate"
+            icon={SquarePen}
+            variant="secondary"
+            size="sm"
+            onClick={(event) => {
+              event.stopPropagation();
+              onAnnotate();
+            }}
+          />
+        </div>
+      )}
+      <div className="scrollbar-visible flex min-h-0 flex-1 flex-col overflow-auto">
+        {sectionsToRender.map((section, index) => {
+          const { row, content } = section;
+          const isFirst = index === 0;
+          const isLast = index === sectionsToRender.length - 1;
 
-        // Output section - special handling for ConnectedIOTableCell. It is the
-        // one section that grows, so a taller row shows more output rather than
-        // more chrome.
-        if (row.accessorKey === "output" && row.cell) {
-          return (
-            <Fragment key={row.accessorKey}>
-              <GroupSection
-                header={row.header}
-                markerClassName={isFirst ? markerClassName : undefined}
-                grow
-              >
-                <div className="min-h-16 flex-1 overflow-hidden">
+          // Output section - special handling for ConnectedIOTableCell. It is the
+          // one section that grows, so a taller row shows more output rather than
+          // more chrome.
+          if (row.accessorKey === "output" && row.cell) {
+            return (
+              <Fragment key={row.accessorKey}>
+                <GroupSection
+                  header={row.header}
+                  markerClassName={isFirst ? markerClassName : undefined}
+                  grow
+                >
+                  <div className="min-h-16 flex-1 overflow-hidden">
+                    {row.cell({ data: cellData })}
+                  </div>
+                </GroupSection>
+                {!isLast && <Separator />}
+              </Fragment>
+            );
+          }
+
+          // Groups with children (metadata, scores)
+          if (row.children && content) {
+            return (
+              <Fragment key={row.accessorKey}>
+                <GroupSection
+                  header={row.header}
+                  markerClassName={isFirst ? markerClassName : undefined}
+                >
+                  <div className="flex flex-col gap-0.5">
+                    {(content as CellRowDef<GridCellData>[]).map((child) => (
+                      <div key={child.accessorKey}>
+                        {child.cell?.({ data: cellData })}
+                      </div>
+                    ))}
+                  </div>
+                </GroupSection>
+                {!isLast && <Separator />}
+              </Fragment>
+            );
+          }
+
+          // Sections that render one cell of their own (the metadata footer).
+          if (row.cell) {
+            return (
+              <Fragment key={row.accessorKey}>
+                <GroupSection
+                  header={row.header}
+                  markerClassName={isFirst ? markerClassName : undefined}
+                >
                   {row.cell({ data: cellData })}
-                </div>
-              </GroupSection>
-              {!isLast && <Separator />}
-            </Fragment>
-          );
-        }
+                </GroupSection>
+                {!isLast && <Separator />}
+              </Fragment>
+            );
+          }
 
-        // Groups with children (metadata, scores)
-        if (row.children && content) {
-          return (
-            <Fragment key={row.accessorKey}>
-              <GroupSection
-                header={row.header}
-                markerClassName={isFirst ? markerClassName : undefined}
-              >
-                <div className="flex flex-col gap-0.5">
-                  {(content as CellRowDef<GridCellData>[]).map((child) => (
-                    <div key={child.accessorKey}>
-                      {child.cell?.({ data: cellData })}
-                    </div>
-                  ))}
-                </div>
-              </GroupSection>
-              {!isLast && <Separator />}
-            </Fragment>
-          );
-        }
-
-        // Sections that render one cell of their own (the metadata footer).
-        if (row.cell) {
-          return (
-            <Fragment key={row.accessorKey}>
-              <GroupSection
-                header={row.header}
-                markerClassName={isFirst ? markerClassName : undefined}
-              >
-                {row.cell({ data: cellData })}
-              </GroupSection>
-              {!isLast && <Separator />}
-            </Fragment>
-          );
-        }
-
-        return null;
-      })}
+          return null;
+        })}
+      </div>
     </div>
   );
 };

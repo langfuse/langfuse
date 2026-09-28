@@ -38,6 +38,9 @@ import {
   useTraceReviewPanel,
 } from "@/src/features/traces/contexts/TraceReviewPanelContext";
 import { TraceReviewPanel } from "./TraceReviewPanel";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { useReadPath } from "@/src/features/events";
+import { type AnnotationPanelData } from "@/src/features/scores/types";
 
 export type TraceProps = {
   observations: Array<ObservationReturnTypeWithMetadata>;
@@ -230,16 +233,48 @@ function DesktopTraceContent({
 }: {
   desktopLayout: DesktopLayout;
 }) {
-  const { trace } = useTraceData();
+  const { trace, observations, serverScores } = useTraceData();
+  const { selectedNodeId } = useSelection();
+  const { isV4 } = useReadPath();
+  const canAnnotate = useHasProjectAccess({
+    projectId: trace.projectId,
+    scope: "scores:CUD",
+  });
   const router = useRouter();
+  const observation = observations.find((item) => item.id === selectedNodeId);
+  const initialAnnotation: AnnotationPanelData | undefined =
+    router.query.annotation === "open" && canAnnotate && observation
+      ? {
+          scoreTarget: {
+            type: "trace",
+            traceId: trace.id,
+            observationId: observation.id,
+          },
+          scores: serverScores.filter(
+            (score) => score.observationId === observation.id,
+          ),
+          companionTrace: isV4
+            ? {
+                environment: trace.environment,
+                scores: serverScores.filter((score) => !score.observationId),
+              }
+            : undefined,
+          scoreMetadata: {
+            projectId: trace.projectId,
+            environment: observation.environment,
+          },
+          analyticsData: { type: "trace", source: "DatasetCompare", isV4 },
+        }
+      : undefined;
   if (desktopLayout.groupId === DESKTOP_LAYOUTS.annotation.groupId) {
     return <DesktopTraceWorkspace desktopLayout={desktopLayout} />;
   }
   return (
     <TraceReviewPanelProvider
-      key={`${trace.projectId}:${trace.id}`}
+      key={`${trace.projectId}:${trace.id}:${initialAnnotation ? observation?.id : ""}`}
       projectId={trace.projectId}
       initialComments={getCommentDrawerInitialStateFromUrl(router.query)}
+      initialAnnotation={initialAnnotation}
     >
       <DesktopTraceReviewWorkspace
         desktopLayout={desktopLayout}

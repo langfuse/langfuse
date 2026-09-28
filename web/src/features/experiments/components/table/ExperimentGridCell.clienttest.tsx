@@ -34,6 +34,7 @@ const renderGridCell = (
   output: unknown = null,
   onExperimentClick?: (event: React.MouseEvent) => void,
   isBaseline = true,
+  onAnnotate?: () => void,
 ) =>
   render(
     <TooltipProvider>
@@ -41,6 +42,7 @@ const renderGridCell = (
         projectId="project-id"
         itemId="item-id"
         onExperimentClick={onExperimentClick}
+        onAnnotate={onAnnotate}
         output={output}
         level="GENERATION"
         startTime={new Date("2026-07-30T10:00:00.000Z")}
@@ -92,6 +94,15 @@ const renderGridCell = (
   );
 
 describe("ExperimentGridCell", () => {
+  it("opens annotation without also triggering the normal cell click", () => {
+    const onAnnotate = vi.fn();
+    const onExperimentClick = vi.fn();
+    renderGridCell(false, undefined, null, onExperimentClick, true, onAnnotate);
+    fireEvent.click(screen.getByRole("button", { name: "Annotate" }));
+    expect(onAnnotate).toHaveBeenCalledOnce();
+    expect(onExperimentClick).not.toHaveBeenCalled();
+  });
+
   it("keeps inline score diffs without explanatory native tooltips", () => {
     const { unmount } = renderGridCell(
       false,

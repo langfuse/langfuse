@@ -11,8 +11,9 @@ import { type TraceReviewPanelStore } from "../state/traceReviewPanelStore";
 
 function closeReviewPanel(store: TraceReviewPanelStore, router: NextRouter) {
   store.getState().actions.close();
-  if (router.query.comments !== "open") return;
-  const { comments, commentObjectType, commentObjectId, ...query } =
+  if (router.query.comments !== "open" && router.query.annotation !== "open")
+    return;
+  const { comments, commentObjectType, commentObjectId, annotation, ...query } =
     router.query;
   router.replace({ pathname: router.pathname, query }, undefined, {
     shallow: true,
