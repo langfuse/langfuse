@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Pencil, Plus } from "lucide-react";
 
 import Header from "@/src/components/layouts/header";
@@ -30,6 +30,8 @@ export function GatewayProvidersPage({
     Record<string, number>
   >({});
   const [pageIndex, setPageIndex] = useState(0);
+  const [isReordering, setIsReordering] = useState(false);
+  const reorderLock = useRef(false);
   const utils = api.useUtils();
   const reorder = api.aiGateway.reorderConnections.useMutation();
 
@@ -62,6 +64,9 @@ export function GatewayProvidersPage({
   const visiblePageIndex = Math.min(pageIndex, Math.max(0, pages.length - 1));
   const allConnections = pages.flatMap((page) => page.data);
   const connections = pages[visiblePageIndex]?.data ?? [];
+  const pageOffset = pages
+    .slice(0, visiblePageIndex)
+    .reduce((count, page) => count + page.data.length, 0);
   const modelCounts: Record<string, number | "loading"> = modelsQuery.isPending
     ? Object.fromEntries(
         allConnections
@@ -98,15 +103,16 @@ export function GatewayProvidersPage({
       <div className="flex max-h-[60dvh] flex-col overflow-hidden">
         <ConnectedGatewayProvidersTable
           connections={connections}
-          pageOffset={pages
-            .slice(0, visiblePageIndex)
-            .reduce((count, page) => count + page.data.length, 0)}
+          pageOffset={pageOffset}
+          previousConnectionId={allConnections[pageOffset - 1]?.id}
+          nextConnectionId={allConnections[pageOffset + connections.length]?.id}
           modelCounts={modelCounts}
           getModelsUrl={(connection) =>
             buildGatewayModelsUrl(organizationId, connection.id)
           }
-          canReorder={!connectionsQuery.hasNextPage && !reorder.isPending}
+          canReorder={!connectionsQuery.hasNextPage && !isReordering}
           onReorder={async (sourceId, targetId) => {
+            if (reorderLock.current) return false;
             const sourceIndex = allConnections.findIndex(
               (connection) => connection.id === sourceId,
             );
@@ -114,6 +120,8 @@ export function GatewayProvidersPage({
               (connection) => connection.id === targetId,
             );
             if (sourceIndex < 0 || targetIndex < 0) return false;
+            reorderLock.current = true;
+            setIsReordering(true);
             const connectionIds = allConnections.map(
               (connection) => connection.id,
             );
@@ -128,10 +136,18 @@ export function GatewayProvidersPage({
               await utils.aiGateway.listConnections.invalidate({
                 orgId: organizationId,
               });
+              if (
+                Math.floor(sourceIndex / 50) !== Math.floor(targetIndex / 50)
+              ) {
+                setPageIndex(Math.floor(targetIndex / 50));
+              }
               return true;
             } catch (error) {
               reportNonTrpcError(error, "ai-gateway-providers");
               return false;
+            } finally {
+              reorderLock.current = false;
+              setIsReordering(false);
             }
           }}
           renderCredentialActions={(connection) => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import { reorderProviderIds } from "@/src/features/ai-gateway/fns/providerReorder/reorderProviderIds";
 import {
@@ -11,32 +11,26 @@ type Props = Omit<GatewayProvidersTableProps, "onMove"> & {
 };
 
 export function ConnectedGatewayProvidersTable(props: Props) {
-  const membershipKey = JSON.stringify(
-    props.connections.map((connection) => connection.id).sort(),
-  );
-  return <OrderedGatewayProvidersTable key={membershipKey} {...props} />;
-}
-
-function OrderedGatewayProvidersTable({ onReorder, ...props }: Props) {
+  const { onReorder, ...tableProps } = props;
   const serverOrderKey = JSON.stringify(
     props.connections.map((connection) => connection.id),
   );
-  const previousServerOrder = useRef(serverOrderKey);
-  const expectedOrder = useRef<string[] | null>(null);
-  const [orderedIds, setOrderedIds] = useState(() =>
-    props.connections.map((connection) => connection.id),
-  );
-  useEffect(() => {
-    if (previousServerOrder.current === serverOrderKey) return;
-    previousServerOrder.current = serverOrderKey;
-    const serverIds = props.connections.map((connection) => connection.id);
-    if (JSON.stringify(expectedOrder.current) === serverOrderKey) {
-      expectedOrder.current = null;
-      return;
-    }
-    if (expectedOrder.current) return;
-    setOrderedIds(serverIds);
-  }, [serverOrderKey, props.connections]);
+  const [optimisticOrder, setOptimisticOrder] = useState<{
+    base: string;
+    ids: string[];
+  } | null>(null);
+  const serverIds = props.connections.map((connection) => connection.id);
+  const sameMembers =
+    optimisticOrder &&
+    JSON.stringify([...optimisticOrder.ids].sort()) ===
+      JSON.stringify([...serverIds].sort());
+  const orderedIds =
+    optimisticOrder &&
+    sameMembers &&
+    (serverOrderKey === optimisticOrder.base ||
+      serverOrderKey === JSON.stringify(optimisticOrder.ids))
+      ? optimisticOrder.ids
+      : serverIds;
   const connections = props.connections.toSorted(
     (left, right) => orderedIds.indexOf(left.id) - orderedIds.indexOf(right.id),
   );
@@ -44,19 +38,20 @@ function OrderedGatewayProvidersTable({ onReorder, ...props }: Props) {
   const onMove = async (sourceId: string, targetId: string) => {
     const previousIds = orderedIds;
     const nextIds = reorderProviderIds(previousIds, sourceId, targetId);
-    if (nextIds === previousIds) return;
+    if (nextIds === previousIds) {
+      if (sourceId !== targetId) await onReorder(sourceId, targetId);
+      return;
+    }
 
-    setOrderedIds(nextIds);
-    expectedOrder.current = nextIds;
+    setOptimisticOrder({ base: serverOrderKey, ids: nextIds });
     if (!(await onReorder(sourceId, targetId))) {
-      expectedOrder.current = null;
-      setOrderedIds(previousIds);
+      setOptimisticOrder(null);
     }
   };
 
   return (
     <GatewayProvidersTable
-      {...props}
+      {...tableProps}
       connections={connections}
       onMove={onMove}
     />

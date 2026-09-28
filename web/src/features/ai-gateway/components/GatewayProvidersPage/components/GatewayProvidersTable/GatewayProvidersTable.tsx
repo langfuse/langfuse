@@ -18,6 +18,8 @@ import type {
 export type GatewayProvidersTableProps = {
   connections: GatewayConnection[];
   pageOffset: number;
+  previousConnectionId?: string;
+  nextConnectionId?: string;
   modelCounts: Record<string, number | "loading">;
   getModelsUrl: (connection: GatewayConnection) => string;
   renderCredentialActions: (
@@ -37,6 +39,8 @@ const connectionStatus = {
 export function GatewayProvidersTable({
   connections,
   pageOffset,
+  previousConnectionId,
+  nextConnectionId,
   modelCounts,
   getModelsUrl,
   renderCredentialActions,
@@ -59,11 +63,14 @@ export function GatewayProvidersTable({
               <Button
                 size="icon-xs"
                 variant="ghost"
-                disabled={!canReorder || row.index === 0}
+                disabled={
+                  !canReorder || (row.index === 0 && !previousConnectionId)
+                }
                 aria-label="Move credential up"
                 onClick={() => {
-                  const target = connections[row.index - 1];
-                  if (target) onMove(row.original.id, target.id);
+                  const targetId =
+                    connections[row.index - 1]?.id ?? previousConnectionId;
+                  if (targetId) onMove(row.original.id, targetId);
                 }}
               >
                 <ArrowUp className="size-3" />
@@ -71,11 +78,15 @@ export function GatewayProvidersTable({
               <Button
                 size="icon-xs"
                 variant="ghost"
-                disabled={!canReorder || row.index === connections.length - 1}
+                disabled={
+                  !canReorder ||
+                  (row.index === connections.length - 1 && !nextConnectionId)
+                }
                 aria-label="Move credential down"
                 onClick={() => {
-                  const target = connections[row.index + 1];
-                  if (target) onMove(row.original.id, target.id);
+                  const targetId =
+                    connections[row.index + 1]?.id ?? nextConnectionId;
+                  if (targetId) onMove(row.original.id, targetId);
                 }}
               >
                 <ArrowDown className="size-3" />
@@ -138,6 +149,8 @@ export function GatewayProvidersTable({
       canReorder,
       connections,
       pageOffset,
+      previousConnectionId,
+      nextConnectionId,
       getModelsUrl,
       modelCounts,
       onMove,

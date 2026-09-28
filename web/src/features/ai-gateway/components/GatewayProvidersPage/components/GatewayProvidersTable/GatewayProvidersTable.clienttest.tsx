@@ -54,4 +54,65 @@ describe("gateway providers table", () => {
     );
     expect(screen.getAllByRole("row")[1]).toHaveTextContent("Beta");
   });
+
+  it("allows a boundary credential to move to the adjacent page", async () => {
+    const onReorder = vi.fn(async () => true);
+    render(
+      <ConnectedGatewayProvidersTable
+        connections={connections}
+        pageOffset={50}
+        previousConnectionId="previous-page"
+        nextConnectionId="next-page"
+        modelCounts={{}}
+        getModelsUrl={(connection) => `/models/${connection.id}`}
+        renderCredentialActions={() => null}
+        canReorder
+        onReorder={onReorder}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Move credential up" })[0]!,
+    );
+    await waitFor(() =>
+      expect(onReorder).toHaveBeenCalledWith("alpha", "previous-page"),
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Move credential down" })[1]!,
+    );
+    await waitFor(() =>
+      expect(onReorder).toHaveBeenCalledWith("beta", "next-page"),
+    );
+  });
+
+  it("adopts a new server order that differs from an optimistic move", async () => {
+    const gamma = { ...connections[0]!, id: "gamma", name: "Gamma" };
+    const onReorder = vi.fn(async () => true);
+    const props = {
+      pageOffset: 0,
+      modelCounts: {},
+      getModelsUrl: (connection: GatewayConnection) =>
+        `/models/${connection.id}`,
+      renderCredentialActions: () => null,
+      canReorder: true,
+      onReorder,
+    };
+    const { rerender } = render(
+      <ConnectedGatewayProvidersTable
+        {...props}
+        connections={[...connections, gamma]}
+      />,
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Move credential down" })[0]!,
+    );
+    await waitFor(() => expect(onReorder).toHaveBeenCalledOnce());
+    rerender(
+      <ConnectedGatewayProvidersTable
+        {...props}
+        connections={[gamma, ...connections]}
+      />,
+    );
+    expect(screen.getAllByRole("row")[1]).toHaveTextContent("Gamma");
+  });
 });
