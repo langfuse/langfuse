@@ -12,6 +12,22 @@ const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 // migration deadline approaches.
 const DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+function getMigrationMessage(
+  projectsNeedingMigration: number,
+  totalProjects: number,
+) {
+  if (projectsNeedingMigration === totalProjects) {
+    if (projectsNeedingMigration === 1) {
+      return "Your project needs an upgrade.";
+    }
+    return "All projects need an upgrade.";
+  }
+  if (projectsNeedingMigration === 1) {
+    return `1 of your ${totalProjects} projects needs an upgrade.`;
+  }
+  return `${projectsNeedingMigration} of your ${totalProjects} projects need an upgrade.`;
+}
+
 export function useV4MigrationBannerState(enabled: boolean) {
   const session = useSession();
 
@@ -52,23 +68,6 @@ export function V4MigrationBanner({
 }) {
   const capture = usePostHogClientCapture();
 
-  function getConditionalText(__nestedTernaryValues: {
-    projectsNeedingMigration: typeof projectsNeedingMigration;
-    totalProjects: typeof totalProjects;
-  }) {
-    if (
-      __nestedTernaryValues.projectsNeedingMigration ===
-      __nestedTernaryValues.totalProjects
-    ) {
-      if (__nestedTernaryValues.projectsNeedingMigration === 1) {
-        return "Your project needs an upgrade.";
-      }
-      return "All projects need an upgrade.";
-    }
-    if (__nestedTernaryValues.projectsNeedingMigration === 1)
-      return `${__nestedTernaryValues.projectsNeedingMigration} of your ${__nestedTernaryValues.totalProjects} projects needs an upgrade.`;
-    return `${__nestedTernaryValues.projectsNeedingMigration} of your ${__nestedTernaryValues.totalProjects} projects need an upgrade.`;
-  }
   return (
     <DismissController
       id="v4-migration-banner:v1"
@@ -104,10 +103,7 @@ export function V4MigrationBanner({
                 <span className="font-bold">
                   Langfuse v4 is here: real-time and up to 165× faster.
                 </span>{" "}
-                {getConditionalText({
-                  projectsNeedingMigration,
-                  totalProjects,
-                })}
+                {getMigrationMessage(projectsNeedingMigration, totalProjects)}
               </span>
             </div>
           </Callout>
