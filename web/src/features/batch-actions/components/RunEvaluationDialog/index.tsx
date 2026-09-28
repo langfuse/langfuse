@@ -53,6 +53,7 @@ type RunEvaluationDialogProps = {
   selectAll: boolean;
   totalCount: number;
   onClose: () => void;
+  onSuccess: () => void;
   experimentCount?: number;
   exampleObservation?: {
     id: string;
@@ -229,12 +230,15 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     displayCount,
     sourceTable,
   });
-  const mappingRunDisabledReason =
-    selectedCount === 0
-      ? "Attach at least one evaluator."
-      : mappingsComplete
-        ? null
-        : "Map every evaluator variable to a source column before running.";
+  const mappingRunDisabledReason = (() => {
+    if (selectedCount === 0) {
+      return "Select at least one evaluator.";
+    }
+    if (mappingsComplete) {
+      return null;
+    }
+    return "Map every evaluator variable to a source column before running.";
+  })();
 
   const toggleEvaluatorSelection = (evaluatorId: string) => {
     setSelectedEvaluators((previous) => {
@@ -308,6 +312,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
       },
     });
 
+    props.onSuccess();
     props.onClose();
   };
 
@@ -318,7 +323,12 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
 
   return (
     <>
-      <Dialog open onOpenChange={(open) => !open && props.onClose()}>
+      <Dialog
+        open
+        onOpenChange={(open) =>
+          !open && !runEvaluationMutation.isPending && props.onClose()
+        }
+      >
         <DialogContent
           {...(showMappingEditor ? { size: "lg" as const } : {})}
           className={

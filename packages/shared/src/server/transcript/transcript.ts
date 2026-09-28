@@ -41,16 +41,25 @@ function normalize(observation: TranscriptObservation) {
  * Assemble threads from observations: normalize their I/O, reconcile replayed
  * history, and retain first-seen provenance. The caller supplies the
  * observations in transcript order, see `orderObservations`; they are consumed
- * as given.
+ * as given. Optional timings separate normalization (including initial message
+ * keys) from remaining assembly work, excluding caller-owned observation ordering.
  */
 export function assembleTranscript(
   orderedObservations: Observation[],
+  onTimings?: (timings: {
+    normalizationMs: number;
+    matchingMs: number;
+  }) => void,
 ): Transcript | null {
+  const startedAt = onTimings ? performance.now() : 0;
+  let normalizationMs = 0;
   const states: ThreadState[] = [];
   const toolCalls = createToolCallRegistry();
 
   for (const observation of orderedObservations.filter(isRelevantObservation)) {
+    const normalizationStart = onTimings ? performance.now() : 0;
     const [input, output] = normalize(observation);
+    if (onTimings) normalizationMs += performance.now() - normalizationStart;
     if (observation.type === "TOOL") {
       toolCalls.attachToolOutput(observation, output);
       continue;
@@ -72,7 +81,12 @@ export function assembleTranscript(
     append(state, observation, input, output, isNewThread, toolCalls);
   }
 
-  return states.length
+  const transcript = states.length
     ? { threads: states.map(({ thread }) => splitTurn(thread)) }
     : null;
+  onTimings?.({
+    normalizationMs,
+    matchingMs: performance.now() - startedAt - normalizationMs,
+  });
+  return transcript;
 }

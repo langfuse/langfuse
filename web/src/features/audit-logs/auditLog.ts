@@ -2,6 +2,7 @@ import {
   prisma as _prisma,
   type Role,
   AuditLogRecordType,
+  type Prisma,
 } from "@langfuse/shared/src/db";
 
 type AuditableResource =
@@ -26,6 +27,7 @@ type AuditableResource =
   | "notificationPreference"
   | "prompt"
   | "promptProtectedLabel"
+  | "skill"
   | "session"
   | "apiKey"
   | "evalTemplate"
@@ -85,7 +87,10 @@ type AuditLog = {
     }
 );
 
-export async function auditLog(log: AuditLog, prisma?: typeof _prisma) {
+export async function auditLog(
+  log: AuditLog,
+  prisma?: typeof _prisma | Prisma.TransactionClient,
+) {
   const db = prisma ?? _prisma;
   const shared = {
     resourceType: log.resourceType,

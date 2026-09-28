@@ -17,6 +17,25 @@ export const Primary = meta.story({
   },
 });
 
+export const VariantMatrix = meta.story({
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <div className="grid grid-cols-2 items-center gap-3">
+      {(["primary", "secondary", "destructive", "ghost"] as const).map(
+        (variant) =>
+          (["default", "sm"] as const).map((size) => (
+            <Button
+              key={`${variant}-${size}`}
+              text={`${variant} / ${size}`}
+              variant={variant}
+              size={size}
+            />
+          )),
+      )}
+    </div>
+  ),
+});
+
 export const ExternalLangfuseLink = meta.story({
   name: "(Test) External Langfuse Link",
   args: {

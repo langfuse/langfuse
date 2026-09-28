@@ -57,7 +57,7 @@ import {
   backfillChbProjectEvents,
   emitChbProjectEvent,
   sendChbProjectEvent,
-} from "@/src/ee/features/billing/server/chb/chbProjectEvents";
+} from "@/src/ee/features/billing/server";
 import { logger } from "@langfuse/shared/src/server";
 
 const loggerError = vi

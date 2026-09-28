@@ -1,19 +1,12 @@
 //! `OpenAI` Responses request, JSON response and completed SSE item capture.
 use super::{
-    MAX_CAPTURE_BYTES, MAX_FACT_STRING, MAX_ITEMS, bounded_string, facts::ProviderFacts,
-    identity_encoding, sse::SseDecoder,
+    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, bounded_string, facts::ProviderFacts,
+    parse_request, response::ResponseBody,
 };
 use crate::{resolution::IngestionMode, telemetry};
-use axum::http::{HeaderMap, header};
+use axum::http::HeaderMap;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
-
-enum ResponseBody {
-    Unknown,
-    Json(Vec<u8>),
-    Sse(SseDecoder),
-    Unavailable,
-}
 
 pub(super) struct OpenAiResponsesCapture {
     facts: ProviderFacts,
@@ -42,12 +35,15 @@ impl OpenAiResponsesCapture {
             response_valid: true,
             client_metadata: None,
         };
-        if identity_encoding(headers)
-            && body.len() <= MAX_CAPTURE_BYTES
-            && let Ok(Value::Object(request)) = serde_json::from_slice(body)
-        {
-            capture.capture_request(request);
-            capture.request_complete = true;
+        match parse_request(headers, body) {
+            Ok(request) => {
+                capture.capture_request(request);
+                capture.request_complete = true;
+            }
+            Err(omission) if mode == IngestionMode::Full => {
+                capture.facts.input_omission = Some(omission);
+            }
+            Err(_) => {}
         }
         capture
     }
@@ -57,23 +53,7 @@ impl OpenAiResponsesCapture {
             .get("x-request-id")
             .and_then(|v| v.to_str().ok())
             .and_then(bounded_string);
-        let content_type = headers
-            .get(header::CONTENT_TYPE)
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("")
-            .split(';')
-            .next()
-            .unwrap_or("")
-            .trim();
-        self.body = if !identity_encoding(headers) {
-            ResponseBody::Unavailable
-        } else if content_type.eq_ignore_ascii_case("text/event-stream") {
-            ResponseBody::Sse(SseDecoder::default())
-        } else if content_type.eq_ignore_ascii_case("application/json") {
-            ResponseBody::Json(Vec::new())
-        } else {
-            ResponseBody::Unavailable
-        };
+        self.body = ResponseBody::from_headers(headers);
         if matches!(self.body, ResponseBody::Unavailable) {
             self.response_valid = false;
         }
@@ -82,22 +62,10 @@ impl OpenAiResponsesCapture {
     pub fn push_bytes(&mut self, bytes: &[u8]) -> bool {
         let mut body = std::mem::replace(&mut self.body, ResponseBody::Unavailable);
         let mut completion_started = false;
-        match &mut body {
-            ResponseBody::Sse(sse) => {
-                sse.push(bytes, MAX_CAPTURE_BYTES, |event| {
-                    completion_started |= self.handle_event(event);
-                });
-            }
-            ResponseBody::Json(buffer)
-                if buffer.len().saturating_add(bytes.len()) <= MAX_CAPTURE_BYTES =>
-            {
-                buffer.extend_from_slice(bytes);
-            }
-            ResponseBody::Json(_) => {
-                body = ResponseBody::Unavailable;
-                self.response_valid = false;
-            }
-            _ => {}
+        if !body.push(bytes, |event| {
+            completion_started |= self.handle_event(event);
+        }) {
+            self.response_valid = false;
         }
         self.body = body;
         completion_started
@@ -287,7 +255,7 @@ impl OpenAiResponsesCapture {
             .items
             .get(&index)
             .map_or(0, |item| item.to_string().len());
-        if self.output_bytes - previous + size > MAX_CAPTURE_BYTES
+        if self.output_bytes - previous + size > MAX_OUTPUT_CAPTURE_BYTES
             || (!self.items.contains_key(&index) && self.items.len() >= MAX_ITEMS)
         {
             self.response_valid = false;
