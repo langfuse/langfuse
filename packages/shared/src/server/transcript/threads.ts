@@ -1,19 +1,20 @@
 import type { NormalizedMessage } from "../../utils/normalized-io";
-import type {
-  Thread,
-  ThreadMessage,
-  Turn,
-  TranscriptObservation as InputObservation,
-} from "./types";
+import type { Thread, ThreadMessage, Turn } from "./types";
+import type { OrderedObservation } from "./ordering";
 import type { createToolCallRegistry } from "./tool-calls";
 
-export type TranscriptObservation = InputObservation & { traceId: string };
+export type TranscriptObservation = OrderedObservation & { traceId: string };
 
 export type KeyedMessage = {
   message: NormalizedMessage;
   key: string;
 };
-export type AssembledTurn = Pick<Turn, "messages" | "observations">;
+export type AssembledTurn = Pick<Turn, "messages"> & {
+  observations: Pick<
+    TranscriptObservation,
+    "id" | "traceId" | "type" | "nestingLevel"
+  >[];
+};
 
 export type ThreadState = {
   /** Every message of the thread in one list; `splitTurn` derives the public shape. */
@@ -82,6 +83,8 @@ export function append(
       parts: [],
       observationId: observation.id,
       traceId: observation.traceId,
+      startTime: observation.startTime,
+      endTime: observation.endTime,
     };
     // Anchor output calls before attaching any results carried by the same message.
     if (isOutput) thread.messages.push(emitted);
@@ -131,15 +134,14 @@ export function addContributor(
     thread.observations.push({
       id: observation.id,
       traceId: observation.traceId,
+      type: observation.type,
+      nestingLevel: observation.nestingLevel,
     });
   }
 }
 
 /** Split a thread into replayed history and the turn the last trace added. */
-export function splitTurn(
-  thread: AssembledTurn,
-  generationDepths: ReadonlyMap<string, number>,
-): Thread {
+export function splitTurn(thread: AssembledTurn): Thread {
   const { messages, observations } = thread;
   // Earlier traces of a session are history; the last contributing trace is
   // the current turn.
@@ -163,20 +165,22 @@ export function splitTurn(
       (message) => message.observationId === id && message.traceId === traceId,
     ),
   );
-  const nestingLevel =
-    currentObservations
-      .map(({ id, traceId }) =>
-        generationDepths.get(JSON.stringify([traceId, id])),
-      )
-      .find((depth) => depth !== undefined) ?? 0;
+  const firstGeneration = currentObservations.find(
+    ({ type }) => type === "GENERATION",
+  );
   return {
     conversationHistory: messages
       .slice(0, turnStart)
-      .map(({ observationId, traceId, ...message }) => message),
+      .map(
+        ({ observationId, traceId, startTime, endTime, ...message }) => message,
+      ),
     currentTurn: {
       messages: current,
-      nestingLevel,
-      observations: currentObservations,
+      nestingLevel: firstGeneration?.nestingLevel ?? 0,
+      observations: currentObservations.map(({ id, traceId }) => ({
+        id,
+        traceId,
+      })),
     },
   };
 }
