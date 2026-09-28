@@ -321,14 +321,14 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     forceV3Experience,
   });
 
-  function getConditionalText(__nestedTernaryValues: {
-    step: typeof step;
-    showMappingEditor: typeof showMappingEditor;
-  }) {
-    if (__nestedTernaryValues.step === "confirm") {
+  function getEvaluationStepDescription(
+    dialogStep: typeof step,
+    mappingEditorVisible: boolean,
+  ) {
+    if (dialogStep === "confirm") {
       return "Review your evaluation configuration before running.";
     }
-    if (__nestedTernaryValues.showMappingEditor) {
+    if (mappingEditorVisible) {
       return "Select evaluators and review their variable mappings.";
     }
     return "Select one or more evaluators.";
@@ -358,7 +358,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                   : `Evaluate ${displayCount} ${scopeLabel}${displayCount === 1 ? "" : "s"}`}
             </DialogTitle>
             <DialogDescription>
-              {getConditionalText({ step, showMappingEditor })}
+              {getEvaluationStepDescription(step, showMappingEditor)}
             </DialogDescription>
           </DialogHeader>
 
