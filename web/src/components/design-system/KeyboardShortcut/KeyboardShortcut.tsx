@@ -90,8 +90,8 @@ const keyboardShortcutVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-transparent text-muted-foreground",
-        subtle: "bg-transparent text-muted-foreground",
+        default: "bg-transparent text-foreground-tertiary",
+        subtle: "bg-transparent text-foreground-tertiary",
         inverse: "bg-transparent text-primary-foreground",
       },
       size: {
