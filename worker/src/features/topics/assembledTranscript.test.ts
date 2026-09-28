@@ -15,6 +15,7 @@ it("keeps canonical conversation evidence and hashes it without provenance or op
           },
         ],
         currentTurn: {
+          nestingLevel: 0,
           observations: [
             { id: "private-observation", traceId: "private-trace" },
           ],
@@ -23,6 +24,8 @@ it("keeps canonical conversation evidence and hashes it without provenance or op
               id: "private-message",
               observationId: "private-observation",
               traceId: "private-trace",
+              startTime: new Date("2026-01-01T00:00:00.000Z"),
+              endTime: new Date("2026-01-01T00:00:01.000Z"),
               role: "assistant",
               source: "output",
               parts: [
@@ -63,11 +66,14 @@ it("keeps canonical conversation evidence and hashes it without provenance or op
       {
         conversationHistory: [],
         currentTurn: {
+          nestingLevel: 0,
           observations: [],
           messages: [
             {
               observationId: "other-observation",
               traceId: "private-trace",
+              startTime: new Date("2026-01-01T00:00:02.000Z"),
+              endTime: null,
               role: "user",
               source: "input",
               parts: [{ type: "text", text: "Independent question" }],

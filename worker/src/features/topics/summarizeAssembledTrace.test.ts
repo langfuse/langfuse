@@ -16,7 +16,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   listTopicSummaries: (...args: unknown[]) => state.stored(...args),
   writeTopicSummaries: (...args: unknown[]) => state.write(...args),
   topicSummaryId: () => "summary-1",
-  TOPICS_TRANSCRIPT_VERSION: "shared-transcript-v1",
+  TOPICS_TRANSCRIPT_VERSION: "shared-transcript-v2",
 }));
 vi.mock("./models", () => ({
   summarizeTopicTrace: (...args: unknown[]) => state.summarize(...args),
@@ -30,11 +30,14 @@ const transcript: Transcript = {
     {
       conversationHistory: [],
       currentTurn: {
+        nestingLevel: 0,
         observations: [],
         messages: [
           {
             observationId: "observation",
             traceId: "trace-1",
+            startTime: new Date("2026-09-22T12:00:00.000Z"),
+            endTime: new Date("2026-09-22T12:00:01.000Z"),
             role: "user",
             source: "input",
             parts: [{ type: "text", text: "Export monthly sales" }],

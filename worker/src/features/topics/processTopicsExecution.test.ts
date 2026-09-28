@@ -310,6 +310,8 @@ function traceInput(traceId: string, input: string | null = traceId) {
         type: "GENERATION",
         name: "chat",
         startTime: new Date("2026-01-01T00:00:00.000Z"),
+        endTime: new Date("2026-01-01T00:00:01.000Z"),
+        nestingLevel: 0,
         input,
         output: null,
         metadata: {},
