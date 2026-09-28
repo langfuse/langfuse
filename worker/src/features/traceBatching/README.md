@@ -180,7 +180,8 @@ numerator and denominator on the same basis when calculating shares. Ingestion
 applies `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` by trace ID before the dispatcher
 and worker; every admitted trace receives Topics measurements. Projects in the
 Topics allowlist (`LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`) bypass sampling so every
-trace is summarized; a rate of `0` limits the flow to those projects.
+trace is summarized; a rate of `0` limits the flow to those projects and skips
+all tracking work (no per-trace state, metrics or Redis calls) for the rest.
 
 Transcript token counts use the existing local worker-thread pool and bundled
 tiktoken WASM, without a network or model API call. The `gpt-4o` configuration

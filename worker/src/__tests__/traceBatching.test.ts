@@ -893,13 +893,15 @@ describe("trace micro-batch scheduling with Redis", () => {
     }
   }, 30_000);
 
-  it("admits every trace of a Topics-enabled project regardless of sampling", async () => {
+  it("at rate 0 tracks only Topics-enabled projects and skips all work for others", async () => {
     const samplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 0;
     topicsProjects.add("topics-project");
     try {
-      await trackTraceBatchActivity("topics-project", [event("topics-trace")]);
+      vi.mocked(recordIncrement).mockClear();
       await trackTraceBatchActivity("other-project", [event("other-trace")]);
+      expect(recordIncrement).not.toHaveBeenCalled();
+      await trackTraceBatchActivity("topics-project", [event("topics-trace")]);
       expect(await client().hkeys(stateKey)).toEqual([
         member("topics-project", "topics-trace"),
       ]);
@@ -916,7 +918,6 @@ describe("trace micro-batch scheduling with Redis", () => {
     let previous: string[] = [];
     // Fixed fixtures pin the evaluator's sampling cohort, including both endpoints.
     for (const [rate, expectedCount] of [
-      [0, 0],
       [0.1, 78],
       [0.1, 78],
       [0.5, 478],
