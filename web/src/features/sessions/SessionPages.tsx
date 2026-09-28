@@ -291,7 +291,7 @@ const SessionControlsBar = ({
         {isExpanded ? (
           <ChevronUp className="text-foreground-tertiary size-3.5 shrink-0" />
         ) : (
-          <ChevronDown className="text-foreground-tertiary size-3 shrink-0" />
+          <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0" />
         )}
       </Button>
       {/* Keep children MOUNTED when collapsed (hidden, not unmounted): the

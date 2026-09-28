@@ -475,7 +475,7 @@ export const PromptDetail = ({
                   >
                     {prompt.commitMessage ?? prompt.name}
                   </span>
-                  <ChevronDown className="text-foreground-tertiary size-3 shrink-0" />
+                  <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0" />
                 </Button>
               </DrawerTrigger>
               <DrawerContent className="max-h-[85dvh]">
