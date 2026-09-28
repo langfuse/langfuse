@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   BLOB_STORAGE_REGION_INVALID_MESSAGE,
+  extractVariables,
+  INVALID_PROMPT_VARIABLE_NAME_MESSAGE,
+  isValidVariableName,
   normalizeBlobStorageRegion,
   truncate,
 } from "./stringChecks";
@@ -19,6 +22,42 @@ function hasLoneSurrogate(s: string): boolean {
   }
   return false;
 }
+
+describe("prompt variable validation", () => {
+  it.each([
+    "name",
+    "team_1",
+    "1st_question",
+    "réponse",
+    "名前",
+  ])("accepts %s", (variable) => {
+    expect(isValidVariableName(variable)).toBe(true);
+  });
+
+  it.each([
+    "_name",
+    "team-name",
+    "١st_question",
+    "1réponse",
+    "",
+  ])("rejects %s", (variable) => {
+    expect(isValidVariableName(variable)).toBe(false);
+  });
+
+  it("extracts numeric-leading variables and ignores unsupported ones", () => {
+    expect(
+      extractVariables(
+        "Use {{1st_question}}, {{team_2}}, {{réponse}}, {{١st_question}} and {{_hidden}}",
+      ),
+    ).toEqual(["1st_question", "team_2", "réponse"]);
+  });
+
+  it("keeps the validation guidance in one shared constant", () => {
+    expect(INVALID_PROMPT_VARIABLE_NAME_MESSAGE).toBe(
+      "Variable must start with a letter or number and can only contain letters, numbers and underscores",
+    );
+  });
+});
 
 describe("normalizeBlobStorageRegion", () => {
   it.each([

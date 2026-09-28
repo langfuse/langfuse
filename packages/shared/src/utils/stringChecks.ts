@@ -4,8 +4,14 @@ export function getIsCharOrUnderscore(value: string): boolean {
   return charOrUnderscore.test(value);
 }
 
-// Regex for valid variable names (unicode letters, underscores, starting with letter)
-export const VARIABLE_REGEX = /^\p{L}[\p{L}\p{N}_]*$/u;
+// Variable names may start with a Unicode letter or an ASCII digit. Keeping
+// numeric-leading names ASCII-only avoids accepting names that the current
+// template compiler cannot interpolate, while preserving existing Unicode
+// letter-leading names.
+export const VARIABLE_REGEX = /^(?:\p{L}[\p{L}\p{N}_]*|[0-9][A-Za-z0-9_]*)$/u;
+
+export const INVALID_PROMPT_VARIABLE_NAME_MESSAGE =
+  "Variable must start with a letter or number and can only contain letters, numbers and underscores";
 
 // Regex to find variables in mustache syntax. Extra surrounding braces are
 // treated as literals by SDK/compiler behavior, e.g. {{{name}}} -> {value}.
