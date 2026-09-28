@@ -86,7 +86,7 @@ function getKeyboardKeyLabel(key: KeyboardKey, isMac: boolean) {
 }
 
 const keyboardShortcutVariants = cva(
-  "pointer-events-none inline-flex items-center justify-center gap-1 rounded-sm font-mono leading-none font-normal select-none",
+  "pointer-events-none inline-flex items-center justify-center gap-1 rounded-sm font-sans leading-none font-normal select-none",
   {
     variants: {
       variant: {
