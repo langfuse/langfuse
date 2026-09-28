@@ -25,6 +25,10 @@ const mocks = vi.hoisted(() => ({
     CLICKHOUSE_UPDATE_PARALLEL_MODE: "auto",
     CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "auto",
     CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: "auto",
+    CLICKHOUSE_USE_SKIP_INDEXES_FOR_DISJUNCTIONS: undefined as
+      | "true"
+      | "false"
+      | undefined,
     LANGFUSE_LOG_LEVEL: "error",
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
   },
@@ -58,6 +62,7 @@ describe("ClickHouseClientManager compatibility settings", () => {
     mocks.createClient.mockReturnValue({ close: mocks.close });
     mocks.env.CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION = "auto";
     mocks.env.CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN = "auto";
+    mocks.env.CLICKHOUSE_USE_SKIP_INDEXES_FOR_DISJUNCTIONS = undefined;
     setClickHouseCompatibilityVersionForTests(null);
   });
 
@@ -89,6 +94,30 @@ describe("ClickHouseClientManager compatibility settings", () => {
         .query_plan_top_k_through_join,
     ).toBe(1);
   });
+
+  it.each([
+    [undefined, undefined],
+    ["true", 1],
+    ["false", 0],
+  ] as const)(
+    "sends use_skip_indexes_for_disjunctions=%s as %s",
+    (envValue, expectedSetting) => {
+      mocks.env.CLICKHOUSE_USE_SKIP_INDEXES_FOR_DISJUNCTIONS = envValue;
+
+      clickhouseClient();
+
+      const settings = mocks.createClient.mock.calls[0][0].clickhouse_settings;
+      if (expectedSetting === undefined) {
+        expect(settings).not.toHaveProperty(
+          "use_skip_indexes_for_disjunctions",
+        );
+      } else {
+        expect(settings.use_skip_indexes_for_disjunctions).toBe(
+          expectedSetting,
+        );
+      }
+    },
+  );
 
   it("uses a new cached client key after compatibility settings change", () => {
     clickhouseClient();

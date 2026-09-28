@@ -40,6 +40,7 @@ export function resolveClickhouseService(
 
 type ServiceClickhouseSettings = ClickHouseSettings & {
   enable_full_text_index?: 1;
+  use_skip_indexes_for_disjunctions?: 0 | 1;
 };
 
 type RequestTimeoutClickHouseSettings = ClickHouseSettings & {
@@ -145,9 +146,18 @@ export class ClickHouseClientManager {
           }
         : {};
 
+    const skipIndexesForDisjunctions =
+      env.CLICKHOUSE_USE_SKIP_INDEXES_FOR_DISJUNCTIONS;
+
     return {
       ...getClickHouseCompatibilitySettings(),
       ...eventROSettings,
+      ...(skipIndexesForDisjunctions
+        ? {
+            use_skip_indexes_for_disjunctions:
+              skipIndexesForDisjunctions === "true" ? 1 : 0,
+          }
+        : {}),
     };
   }
 

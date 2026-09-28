@@ -165,6 +165,10 @@ const EnvSchema = z.object({
   CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
     .enum(["true", "false"])
     .default("false"),
+  // Unset leaves the server default (on since ClickHouse 25.12).
+  CLICKHOUSE_USE_SKIP_INDEXES_FOR_DISJUNCTIONS: z
+    .enum(["true", "false"])
+    .optional(),
   LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION: z
     .enum(["true", "false"])
     .default("false"),
