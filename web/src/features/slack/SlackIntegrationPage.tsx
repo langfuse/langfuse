@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import ContainerPage from "@/src/components/layouts/container-page";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { AutomationButton } from "@/src/features/automations";
@@ -71,11 +70,15 @@ export default function SlackIntegrationPage() {
       { enabled: !!projectId },
     );
 
-  const status = isLoading
-    ? undefined
-    : integrationStatus?.isConnected
-      ? "active"
-      : "inactive";
+  const status = (() => {
+    if (isLoading) {
+      return undefined;
+    }
+    if (integrationStatus?.isConnected) {
+      return "active";
+    }
+    return "inactive";
+  })();
 
   const [selectedChannel, setSelectedChannel] = useState<SlackChannel | null>(
     null,
