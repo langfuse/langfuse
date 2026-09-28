@@ -1,4 +1,3 @@
-import { Route } from "lucide-react";
 import { SiAnthropic, SiOpenai } from "react-icons/si";
 
 import {
@@ -11,9 +10,6 @@ import {
 } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { createBadgeListTableColumn } from "@/src/components/design-system/table/columns/createBadgeListTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
-import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
-import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
-import { Badge } from "@/src/components/ui/badge";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import { gatewayModelsFilterConfig } from "@/src/features/ai-gateway/constants/modelsFilterConfig";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
@@ -26,52 +22,21 @@ const columns: LangfuseColumnDef<GatewayModelRow>[] = [
     header: "Model",
     size: 200,
   }),
-  {
+  createBadgeListTableColumn<
+    GatewayModelRow,
+    GatewayModelRow["availableVia"][number]
+  >({
     accessorKey: "availableVia",
     header: "Available via",
     size: 360,
-    cell: ({ row }) => (
-      <SingleLineOverflowList
-        items={row.original.availableVia}
-        additionalOverflowCount={0}
-        getKey={(connection) => connection.connectionId}
-        renderItem={(connection) => (
-          <Badge
-            variant="secondary"
-            className="gap-1.5"
-            aria-label={`${connection.connectionName}, ${providerLabels[connection.provider]}`}
-          >
-            <GatewayProviderIcon provider={connection.provider} />
-            {connection.connectionName}
-          </Badge>
-        )}
-        renderOverflow={({ hiddenItems, overflowItemCount }) => (
-          <CustomTooltip
-            content={
-              <div className="flex flex-col gap-1">
-                {hiddenItems.map((connection) => (
-                  <span
-                    key={connection.connectionId}
-                    className="flex items-center gap-1.5"
-                    aria-label={`${connection.connectionName}, ${providerLabels[connection.provider]}`}
-                  >
-                    <GatewayProviderIcon provider={connection.provider} />
-                    {connection.connectionName}
-                  </span>
-                ))}
-              </div>
-            }
-          >
-            {({ getTriggerProps }) => (
-              <span {...getTriggerProps()} className="inline-flex" tabIndex={0}>
-                <Badge variant="secondary">+{overflowItemCount}</Badge>
-              </span>
-            )}
-          </CustomTooltip>
-        )}
-      />
-    ),
-  },
+    getBadge: (connection) => ({
+      key: connection.connectionId,
+      value: connection.connectionName,
+      variant: "secondary",
+      icon: providerIcons[connection.provider],
+      ariaLabel: `${connection.connectionName}, ${providerLabels[connection.provider]}`,
+    }),
+  }),
   createBadgeListTableColumn<GatewayModelRow>({
     accessorKey: "apiFormats",
     header: "API formats",
@@ -105,13 +70,10 @@ export function GatewayModelsTable({
   );
 }
 
-function GatewayProviderIcon({ provider }: { provider: GatewayProvider }) {
-  if (provider === "OPENAI")
-    return <SiOpenai className="size-3" aria-hidden="true" />;
-  if (provider === "ANTHROPIC")
-    return <SiAnthropic className="size-3" aria-hidden="true" />;
-  return <Route className="size-3" aria-hidden="true" />;
-}
+const providerIcons = {
+  OPENAI: SiOpenai,
+  ANTHROPIC: SiAnthropic,
+} satisfies Record<GatewayProvider, typeof SiOpenai>;
 
 function getApiFormatLabel(format: string) {
   if (format === "Anthropic Messages") return "Messages";
