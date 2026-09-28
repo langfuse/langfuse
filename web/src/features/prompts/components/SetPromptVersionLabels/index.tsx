@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import React, { useEffect, useState, useRef, type ReactNode } from "react";
 import { CircleFadingArrowUp } from "lucide-react";
@@ -169,6 +168,18 @@ export function SetPromptVersionLabels({
     );
   };
 
+  function getConditionalText(__nestedTernaryValues: {
+    isPromotingToProduction: typeof isPromotingToProduction;
+    isDemotingFromProduction: typeof isDemotingFromProduction;
+  }) {
+    if (__nestedTernaryValues.isPromotingToProduction) {
+      return "Save and promote to production";
+    }
+    if (__nestedTernaryValues.isDemotingFromProduction) {
+      return "Save and remove from production";
+    }
+    return "Save";
+  }
   return (
     <Popover open={isOpen} onOpenChange={handleOnOpenChange} modal={false}>
       <PopoverTrigger asChild data-version-trigger="true">
@@ -338,11 +349,10 @@ export function SetPromptVersionLabels({
             className="w-full"
             onClick={handleSubmitLabels}
           >
-            {isPromotingToProduction
-              ? "Save and promote to production"
-              : isDemotingFromProduction
-                ? "Save and remove from production"
-                : "Save"}
+            {getConditionalText({
+              isPromotingToProduction,
+              isDemotingFromProduction,
+            })}
           </Button>
         </div>
       </PopoverContent>

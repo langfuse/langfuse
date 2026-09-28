@@ -989,7 +989,7 @@ function TableBodyComponent<TData>({
                     rowheighttw,
                   )}
                 >
-                  {isStringCell && isSmallRowHeight ? (
+                  {!!(isStringCell && isSmallRowHeight) && (
                     <div
                       className="min-w-0 truncate leading-normal"
                       title={getPlainTextFromReactNode(
@@ -1004,16 +1004,19 @@ function TableBodyComponent<TData>({
                         cell.getContext(),
                       )}
                     </div>
-                  ) : isStringCell && !isSmallRowHeight ? (
-                    <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden text-ellipsis">
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </div>
-                  ) : (
-                    flexRender(cell.column.columnDef.cell, cell.getContext())
                   )}
+                  {!(isStringCell && isSmallRowHeight) &&
+                    !!(isStringCell && !isSmallRowHeight) && (
+                      <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden text-ellipsis">
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </div>
+                    )}
+                  {!(isStringCell && isSmallRowHeight) &&
+                    !(isStringCell && !isSmallRowHeight) &&
+                    flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </div>
               </TableCell>
             );

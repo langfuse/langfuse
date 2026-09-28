@@ -425,7 +425,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
               </Button>
             </div>
 
-            {mode === "categorical" ? (
+            {!!(mode === "categorical") && (
               <>
                 {/* Operator select */}
                 <SelectInput
@@ -461,7 +461,8 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   disabled={!filter.key}
                 />
               </>
-            ) : mode === "numeric" ? (
+            )}
+            {!(mode === "categorical") && !!(mode === "numeric") && (
               <>
                 {/* Numeric operator select */}
                 <SelectInput
@@ -489,7 +490,8 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   disabled={!filter.key}
                 />
               </>
-            ) : mode === "boolean" ? (
+            )}
+            {mode === "boolean" && (
               <>
                 <SelectInput
                   value={filter.operator}
@@ -518,40 +520,43 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   disabled={!filter.key}
                 />
               </>
-            ) : (
-              <>
-                {/* String operator select */}
-                <SelectInput
-                  value={filter.operator}
-                  options={STRING_OPERATOR_OPTIONS}
-                  placeholder="Operator"
-                  onValueChange={(value) => {
-                    const operator = value as StringOperator;
-                    handleFilterChange(index, {
-                      operator,
-                      // Presence operators carry no value; clear it so no
-                      // stale string is persisted alongside `is set`.
-                      ...(isStringPresenceOperator(operator)
-                        ? { value: "" }
-                        : {}),
-                    });
-                  }}
-                />
-
-                {/* String value input, hidden for value-less presence operators */}
-                {isStringPresenceOperator(filter.operator) ? null : (
-                  <SuggestingInput
-                    value={filter.value as string}
-                    onChange={(value) => handleFilterChange(index, { value })}
-                    suggestions={
-                      filter.key ? (valueOptions?.[filter.key] ?? []) : []
-                    }
-                    placeholder="Value"
-                    disabled={!filter.key}
-                  />
-                )}
-              </>
             )}
+            {mode !== "categorical" &&
+              mode !== "numeric" &&
+              mode !== "boolean" && (
+                <>
+                  {/* String operator select */}
+                  <SelectInput
+                    value={filter.operator}
+                    options={STRING_OPERATOR_OPTIONS}
+                    placeholder="Operator"
+                    onValueChange={(value) => {
+                      const operator = value as StringOperator;
+                      handleFilterChange(index, {
+                        operator,
+                        // Presence operators carry no value; clear it so no
+                        // stale string is persisted alongside `is set`.
+                        ...(isStringPresenceOperator(operator)
+                          ? { value: "" }
+                          : {}),
+                      });
+                    }}
+                  />
+
+                  {/* String value input, hidden for value-less presence operators */}
+                  {isStringPresenceOperator(filter.operator) ? null : (
+                    <SuggestingInput
+                      value={filter.value as string}
+                      onChange={(value) => handleFilterChange(index, { value })}
+                      suggestions={
+                        filter.key ? (valueOptions?.[filter.key] ?? []) : []
+                      }
+                      placeholder="Value"
+                      disabled={!filter.key}
+                    />
+                  )}
+                </>
+              )}
           </div>
         );
       })}

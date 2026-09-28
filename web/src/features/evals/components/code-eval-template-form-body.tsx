@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { showErrorToast } from "@/src/features/notifications";
 import CodeMirror, {
   Decoration,
@@ -424,20 +423,17 @@ export function CodeEvalTemplateFormBody({
           <span className="text-muted-foreground text-sm">{languageLabel}</span>
           {headerAction}
         </div>
-        {shouldShowFormatButton ? (
-          formatDisabledReason ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex cursor-not-allowed">
-                  {formatButton}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>{formatDisabledReason}</TooltipContent>
-            </Tooltip>
-          ) : (
-            formatButton
-          )
-        ) : null}
+        {!!shouldShowFormatButton && !!formatDisabledReason && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex cursor-not-allowed">
+                {formatButton}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{formatDisabledReason}</TooltipContent>
+          </Tooltip>
+        )}
+        {!!shouldShowFormatButton && !formatDisabledReason && formatButton}
       </div>
       <CodeMirror
         value={sourceCode}

@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import {
   HoverCard,
   HoverCardContent,
@@ -41,11 +40,13 @@ export const RoleSelectItem = ({
       </HoverCardTrigger>
       <HoverCardPortal>
         <HoverCardContent hideWhenDetached={true} align="center" side="right">
-          {isProjectNoneRole ? (
+          {!!isProjectNoneRole && (
             <div className="text-xs">{projectNoneRoleComment}</div>
-          ) : isOrgNoneRole ? (
+          )}
+          {!isProjectNoneRole && !!isOrgNoneRole && (
             <div className="text-xs">{orgNoneRoleComment}</div>
-          ) : (
+          )}
+          {!isProjectNoneRole && !isOrgNoneRole && (
             <>
               <div className="font-bold">Role: {formatRole(role)}</div>
               <p className="mt-2 text-xs font-bold">Organization Scopes</p>

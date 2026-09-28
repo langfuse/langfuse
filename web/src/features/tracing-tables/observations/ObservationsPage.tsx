@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import { ObservationsTable } from "@/src/features/tracing-tables";
 import Page from "@/src/components/layouts/page";
@@ -61,22 +60,23 @@ export default function ObservationsPage() {
       scrollable={showOnboarding}
     >
       {/* Show onboarding screen if user has no traces */}
-      {showOnboarding ? (
-        <TracesOnboarding projectId={projectId} />
-      ) : !isResolved ? (
+      {!!showOnboarding && <TracesOnboarding projectId={projectId} />}
+      {!showOnboarding && !!!isResolved && (
         <>
           {/* Wait for the beta flag before mounting either table. Otherwise the
               legacy table can briefly mount, restore a v3 saved view, and
               promote its viewId into the URL before the correct mode
               resolves. */}
         </>
-      ) : isV4 ? (
+      )}
+      {!showOnboarding && !!isResolved && !!isV4 && (
         <ObservationsEventsTable
           projectId={projectId}
           showControlsInPageHeader
           enableAppRootDefault
         />
-      ) : (
+      )}
+      {!showOnboarding && !!isResolved && !isV4 && (
         <ObservationsTable projectId={projectId} showControlsInPageHeader />
       )}
     </Page>

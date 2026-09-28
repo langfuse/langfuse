@@ -976,20 +976,27 @@ const InnerEvalTemplateForm = (props: {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      {isCategoricalOutput
-                        ? "Category selection prompt"
-                        : isBooleanOutput
-                          ? "Boolean verdict prompt"
-                          : "Score output prompt"}
+                      {!!isCategoricalOutput && "Category selection prompt"}
+                      {!isCategoricalOutput &&
+                        !!isBooleanOutput &&
+                        "Boolean verdict prompt"}
+                      {!isCategoricalOutput &&
+                        !isBooleanOutput &&
+                        "Score output prompt"}
                     </FormLabel>
                     <FormDescription>
-                      {isCategoricalOutput
-                        ? shouldAllowMultipleMatches
-                          ? "Define how the LLM should choose one or more categories from the list below."
-                          : "Define how the LLM should choose exactly one category from the list below."
-                        : isBooleanOutput
-                          ? "Define how the LLM should return either true or false based on the evaluation criteria."
-                          : "Define how the LLM should return the evaluation score in natural language. Needs to yield a numeric value."}
+                      {!!isCategoricalOutput &&
+                        !!shouldAllowMultipleMatches &&
+                        "Define how the LLM should choose one or more categories from the list below."}
+                      {!!isCategoricalOutput &&
+                        !shouldAllowMultipleMatches &&
+                        "Define how the LLM should choose exactly one category from the list below."}
+                      {!isCategoricalOutput &&
+                        !!isBooleanOutput &&
+                        "Define how the LLM should return either true or false based on the evaluation criteria."}
+                      {!isCategoricalOutput &&
+                        !isBooleanOutput &&
+                        "Define how the LLM should return the evaluation score in natural language. Needs to yield a numeric value."}
                     </FormDescription>
                     <FormControl>
                       <Input {...field} />

@@ -43,6 +43,18 @@ export const ExportFieldGroupsField = ({
     watchedExportSource ===
       AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS;
 
+  function getConditionalText(__nestedTernaryValues: {
+    includesLegacyExport: typeof includesLegacyExport;
+    isLegacyOnlyExport: typeof isLegacyOnlyExport;
+  }) {
+    if (__nestedTernaryValues.includesLegacyExport) {
+      if (__nestedTernaryValues.isLegacyOnlyExport) {
+        return " Traces and scores are always exported in full. Field groups that only exist on the enriched observations (e.g. Trace Context) are not available for this export source.";
+      }
+      return " Traces and scores are always exported in full. Fields that only exist on the enriched observations (e.g. Trace Context) are omitted from the legacy observations export.";
+    }
+    return " Scores are always exported in full.";
+  }
   return (
     <FormField
       control={control}
@@ -55,11 +67,7 @@ export const ExportFieldGroupsField = ({
             Deselect large groups (e.g. Input / Output) to reduce export size,
             or privacy-sensitive groups (e.g. Metadata) to avoid storing user
             data.
-            {includesLegacyExport
-              ? isLegacyOnlyExport
-                ? " Traces and scores are always exported in full. Field groups that only exist on the enriched observations (e.g. Trace Context) are not available for this export source."
-                : " Traces and scores are always exported in full. Fields that only exist on the enriched observations (e.g. Trace Context) are omitted from the legacy observations export."
-              : " Scores are always exported in full."}
+            {getConditionalText({ includesLegacyExport, isLegacyOnlyExport })}
           </FormDescription>
           <div className="mt-2 space-y-2">
             {EXPORT_FIELD_GROUP_OPTIONS.filter(
@@ -110,13 +118,18 @@ export const ExportFieldGroupsField = ({
                       )}
                     </div>
                     <div className="text-muted-foreground text-xs">
-                      {isParquetExport
-                        ? isLegacyOnlyExport
-                          ? option.legacyParquetDescription
-                          : option.parquetDescription
-                        : isLegacyOnlyExport
-                          ? option.legacyDescription
-                          : option.description}
+                      {!!isParquetExport &&
+                        !!isLegacyOnlyExport &&
+                        option.legacyParquetDescription}
+                      {!!isParquetExport &&
+                        !isLegacyOnlyExport &&
+                        option.parquetDescription}
+                      {!isParquetExport &&
+                        !!isLegacyOnlyExport &&
+                        option.legacyDescription}
+                      {!isParquetExport &&
+                        !isLegacyOnlyExport &&
+                        option.description}
                     </div>
                   </label>
                 </div>

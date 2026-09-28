@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
@@ -38,8 +37,7 @@ export const TopbarBrand = ({
       aria-label="Langfuse home"
       className={cn("flex shrink-0 items-center gap-1", className)}
     >
-      {logoLight && logoDark ? (
-        // Custom logo (max aspect ratio 1:3 per docs) + the Langfuse mark,
+      {!!(logoLight && logoDark) && ( // Custom logo (max aspect ratio 1:3 per docs) + the Langfuse mark,
         // matching LangfuseLogo's customized layout.
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -57,7 +55,8 @@ export const TopbarBrand = ({
           <PlusIcon size={8} className="text-muted-foreground" />
           <LangfuseIcon size={16} />
         </>
-      ) : variant === "wordmark" ? (
+      )}
+      {!(logoLight && logoDark) && !!(variant === "wordmark") && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -72,7 +71,8 @@ export const TopbarBrand = ({
             alt="Langfuse Logo"
           />
         </>
-      ) : (
+      )}
+      {!(logoLight && logoDark) && !(variant === "wordmark") && (
         <LangfuseIcon size={28} />
       )}
     </Link>

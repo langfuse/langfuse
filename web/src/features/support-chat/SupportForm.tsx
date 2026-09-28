@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -560,16 +559,16 @@ export function SupportForm({
                 disabled={isSubmittingLocal}
                 className="w-full"
               >
-                {isSubmittingLocal ? (
+                {!!isSubmittingLocal && (
                   <span className="inline-flex items-center gap-2">
                     <Spinner size="sm" />
                     Submitting…
                   </span>
-                ) : messageIsShortAfterWarning ? (
-                  "Submit Anyways"
-                ) : (
-                  "Submit"
                 )}
+                {!isSubmittingLocal &&
+                  !!messageIsShortAfterWarning &&
+                  "Submit Anyways"}
+                {!isSubmittingLocal && !messageIsShortAfterWarning && "Submit"}
               </Button>
             </div>
 

@@ -321,6 +321,18 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     forceV3Experience,
   });
 
+  function getConditionalText(__nestedTernaryValues: {
+    step: typeof step;
+    showMappingEditor: typeof showMappingEditor;
+  }) {
+    if (__nestedTernaryValues.step === "confirm") {
+      return "Review your evaluation configuration before running.";
+    }
+    if (__nestedTernaryValues.showMappingEditor) {
+      return "Select evaluators and review their variable mappings.";
+    }
+    return "Select one or more evaluators.";
+  }
   return (
     <>
       <Dialog
@@ -346,11 +358,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                   : `Evaluate ${displayCount} ${scopeLabel}${displayCount === 1 ? "" : "s"}`}
             </DialogTitle>
             <DialogDescription>
-              {step === "confirm"
-                ? "Review your evaluation configuration before running."
-                : showMappingEditor
-                  ? "Select evaluators and review their variable mappings."
-                  : "Select one or more evaluators."}
+              {getConditionalText({ step, showMappingEditor })}
             </DialogDescription>
           </DialogHeader>
 
@@ -361,10 +369,10 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                 : "flex-1 overflow-hidden"
             }
           >
-            {isExperiencePending ? (
-              <Skeleton className="h-20 w-full" />
-            ) : step === "select-evaluator" ? (
-              showMappingEditor ? (
+            {!!isExperiencePending && <Skeleton className="h-20 w-full" />}
+            {!isExperiencePending &&
+              !!(step === "select-evaluator") &&
+              !!showMappingEditor && (
                 <EvaluatorMappingStep
                   projectId={projectId}
                   store={ruleSetupStore}
@@ -380,7 +388,10 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                   sampleObject={sampleObject}
                   costObservationCount={costObservationCount}
                 />
-              ) : (
+              )}
+            {!isExperiencePending &&
+              !!(step === "select-evaluator") &&
+              !showMappingEditor && (
                 <EvaluatorSelectionStep
                   eligibleEvaluators={eligibleEvaluators}
                   selectedEvaluators={selectedEvaluators}
@@ -394,8 +405,8 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                   onSearchQueryChange={setEvaluatorSearchQuery}
                   onToggleEvaluator={toggleEvaluatorSelection}
                 />
-              )
-            ) : (
+              )}
+            {!isExperiencePending && !(step === "select-evaluator") && (
               <ConfirmationStep
                 projectId={projectId}
                 displayCount={displayCount}
@@ -427,14 +438,15 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
               {step !== "confirm" ? (
                 <CreateEvaluatorButton href={createEvaluatorHref} />
               ) : null}
-              {showMappingEditor ? (
+              {!!showMappingEditor && (
                 <MappingRunButton
                   disabledReason={mappingRunDisabledReason}
                   selectedCount={selectedCount}
                   loading={runEvaluationMutation.isPending}
                   onClick={onSubmit}
                 />
-              ) : step === "select-evaluator" ? (
+              )}
+              {!showMappingEditor && !!(step === "select-evaluator") && (
                 <Button
                   onClick={() => setStep("confirm")}
                   disabled={isExperiencePending || selectedCount === 0}
@@ -444,7 +456,8 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                     ? `with ${selectedCount} evaluator(s)`
                     : null}
                 </Button>
-              ) : (
+              )}
+              {!showMappingEditor && !(step === "select-evaluator") && (
                 <Button
                   onClick={onSubmit}
                   loading={runEvaluationMutation.isPending}

@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/no-null-render */
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -69,7 +68,7 @@ export const StripeSwitchPlanButton = ({
           </DialogTitle>
         </DialogHeader>
         <DialogBody className="text-sm">
-          {isLegacySubscription ? (
+          {!!isLegacySubscription && (
             <>
               <p>
                 We will end your current subscription now and start a new one
@@ -86,7 +85,8 @@ export const StripeSwitchPlanButton = ({
                 activation starting now.
               </p>
             </>
-          ) : isUpgrade ? (
+          )}
+          {!isLegacySubscription && !!isUpgrade && (
             <>
               <p>
                 You will be charged a prorated base fee today for the remainder
@@ -104,7 +104,8 @@ export const StripeSwitchPlanButton = ({
                 change.
               </p>
             </>
-          ) : (
+          )}
+          {!isLegacySubscription && !isUpgrade && (
             <>
               <p>
                 No charge is made today. You stay on your current plan until the

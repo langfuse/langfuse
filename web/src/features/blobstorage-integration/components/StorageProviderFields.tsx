@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useWatch } from "react-hook-form";
 import {
   FormControl,
@@ -30,6 +29,17 @@ export const StorageProviderFields = ({
   const integrationType =
     useWatch({ control, name: "type" }) ?? BlobStorageIntegrationType.S3;
 
+  function getConditionalText(__nestedTernaryValues: {
+    integrationType: typeof integrationType;
+  }) {
+    if (__nestedTernaryValues.integrationType === "AZURE_BLOB_STORAGE") {
+      return "Storage Account Name";
+    }
+    if (__nestedTernaryValues.integrationType === "S3") {
+      return "AWS Access Key ID";
+    }
+    return "Access Key ID";
+  }
   return (
     <>
       <FormField
@@ -162,11 +172,7 @@ export const StorageProviderFields = ({
         render={({ field }) => (
           <FormItem>
             <FormLabel>
-              {integrationType === "AZURE_BLOB_STORAGE"
-                ? "Storage Account Name"
-                : integrationType === "S3"
-                  ? "AWS Access Key ID"
-                  : "Access Key ID"}
+              {getConditionalText({ integrationType })}
               {/* Show optional indicator for S3 types on self-hosted instances with entitlement */}
               {isSelfHosted && integrationType === "S3" && (
                 <span className="text-muted-foreground"> (optional)</span>
@@ -176,13 +182,19 @@ export const StorageProviderFields = ({
               <Input {...field} />
             </FormControl>
             <FormDescription>
-              {integrationType === "AZURE_BLOB_STORAGE"
-                ? "Your Azure storage account name"
-                : integrationType === "S3"
-                  ? isSelfHosted
-                    ? "Your AWS IAM user access key ID. Leave empty to use host credentials (IAM roles, instance profiles, etc.)"
-                    : "Your AWS IAM user access key ID"
-                  : "Access key for your S3-compatible storage"}
+              {!!(integrationType === "AZURE_BLOB_STORAGE") &&
+                "Your Azure storage account name"}
+              {!(integrationType === "AZURE_BLOB_STORAGE") &&
+                !!(integrationType === "S3") &&
+                !!isSelfHosted &&
+                "Your AWS IAM user access key ID. Leave empty to use host credentials (IAM roles, instance profiles, etc.)"}
+              {!(integrationType === "AZURE_BLOB_STORAGE") &&
+                !!(integrationType === "S3") &&
+                !isSelfHosted &&
+                "Your AWS IAM user access key ID"}
+              {!(integrationType === "AZURE_BLOB_STORAGE") &&
+                !(integrationType === "S3") &&
+                "Access key for your S3-compatible storage"}
             </FormDescription>
             <FormMessage />
           </FormItem>
@@ -195,11 +207,14 @@ export const StorageProviderFields = ({
         render={({ field }) => (
           <FormItem>
             <FormLabel>
-              {integrationType === "AZURE_BLOB_STORAGE"
-                ? "Storage Account Key"
-                : integrationType === "S3"
-                  ? "AWS Secret Access Key"
-                  : "Secret Access Key"}
+              {!!(integrationType === "AZURE_BLOB_STORAGE") &&
+                "Storage Account Key"}
+              {!(integrationType === "AZURE_BLOB_STORAGE") &&
+                !!(integrationType === "S3") &&
+                "AWS Secret Access Key"}
+              {!(integrationType === "AZURE_BLOB_STORAGE") &&
+                !(integrationType === "S3") &&
+                "Secret Access Key"}
               {/* Show optional indicator for S3 types on self-hosted instances with entitlement */}
               {isSelfHosted && integrationType === "S3" && (
                 <span className="text-muted-foreground"> (optional)</span>
@@ -213,13 +228,19 @@ export const StorageProviderFields = ({
               />
             </FormControl>
             <FormDescription>
-              {integrationType === "AZURE_BLOB_STORAGE"
-                ? "Your Azure storage account access key"
-                : integrationType === "S3"
-                  ? isSelfHosted
-                    ? "Your AWS IAM user secret access key. Leave empty to use host credentials (IAM roles, instance profiles, etc.)"
-                    : "Your AWS IAM user secret access key"
-                  : "Secret key for your S3-compatible storage"}
+              {!!(integrationType === "AZURE_BLOB_STORAGE") &&
+                "Your Azure storage account access key"}
+              {!(integrationType === "AZURE_BLOB_STORAGE") &&
+                !!(integrationType === "S3") &&
+                !!isSelfHosted &&
+                "Your AWS IAM user secret access key. Leave empty to use host credentials (IAM roles, instance profiles, etc.)"}
+              {!(integrationType === "AZURE_BLOB_STORAGE") &&
+                !!(integrationType === "S3") &&
+                !isSelfHosted &&
+                "Your AWS IAM user secret access key"}
+              {!(integrationType === "AZURE_BLOB_STORAGE") &&
+                !(integrationType === "S3") &&
+                "Secret key for your S3-compatible storage"}
             </FormDescription>
             <FormMessage />
           </FormItem>
@@ -236,11 +257,14 @@ export const StorageProviderFields = ({
               <Input {...field} />
             </FormControl>
             <FormDescription>
-              {integrationType === "AZURE_BLOB_STORAGE"
-                ? 'Optional prefix path for exported files in your Azure container (e.g., "langfuse-exports/")'
-                : integrationType === "S3"
-                  ? 'Optional prefix path for exported files in your S3 bucket (e.g., "langfuse-exports/")'
-                  : 'Optional prefix path for exported files (e.g., "langfuse-exports/")'}
+              {!!(integrationType === "AZURE_BLOB_STORAGE") &&
+                'Optional prefix path for exported files in your Azure container (e.g., "langfuse-exports/")'}
+              {!(integrationType === "AZURE_BLOB_STORAGE") &&
+                !!(integrationType === "S3") &&
+                'Optional prefix path for exported files in your S3 bucket (e.g., "langfuse-exports/")'}
+              {!(integrationType === "AZURE_BLOB_STORAGE") &&
+                !(integrationType === "S3") &&
+                'Optional prefix path for exported files (e.g., "langfuse-exports/")'}
             </FormDescription>
             <FormMessage />
           </FormItem>

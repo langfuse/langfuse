@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
@@ -287,7 +286,7 @@ export function IOPreviewPretty({
         />
       ) : null}
 
-      {shouldRenderMessages ? (
+      {!!shouldRenderMessages && (
         <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
           <ChatMessageList
             messages={allMessages}
@@ -311,7 +310,8 @@ export function IOPreviewPretty({
             />
           )}
         </div>
-      ) : showData ? (
+      )}
+      {!shouldRenderMessages && !!showData && (
         <div>
           <JsonInputOutputView {...jsonViewProps} />
           <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
@@ -327,7 +327,7 @@ export function IOPreviewPretty({
             )}
           </div>
         </div>
-      ) : null}
+      )}
 
       {/* Metadata Section */}
       {showData && shouldShowMetadata && (

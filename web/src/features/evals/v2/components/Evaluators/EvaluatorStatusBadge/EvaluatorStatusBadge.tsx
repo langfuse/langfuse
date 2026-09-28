@@ -39,7 +39,9 @@ export function EvaluatorStatusBadge({
       )}
     >
       <Circle className="h-2 w-2 fill-current" />
-      {blocked ? "Blocked" : active ? "Active" : "Inactive"} · {ruleCount}
+      {!!blocked && "Blocked"}
+      {!blocked && !!active && "Active"}
+      {!blocked && !active && "Inactive"} · {ruleCount}
     </Badge>
   );
 

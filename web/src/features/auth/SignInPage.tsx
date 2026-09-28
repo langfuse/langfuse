@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -185,15 +184,14 @@ export function SSOButtons({
         ([name, enabled]) => enabled && name !== "credentials",
       ) ? (
         <div>
-          {showSeparator ? (
-            action === "sign in" ? (
-              <div className="border-border my-6 border-t"></div>
-            ) : (
-              <div className="text-muted-foreground my-6 text-center text-xs">
-                or {action} with
-              </div>
-            )
-          ) : null}
+          {!!showSeparator && !!(action === "sign in") && (
+            <div className="border-border my-6 border-t"></div>
+          )}
+          {!!showSeparator && !(action === "sign in") && (
+            <div className="text-muted-foreground my-6 text-center text-xs">
+              or {action} with
+            </div>
+          )}
           <div className="flex flex-row flex-wrap items-center justify-center gap-2">
             {authProviders.google && (
               <AuthProviderButton

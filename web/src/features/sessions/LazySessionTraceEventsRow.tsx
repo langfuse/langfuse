@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import React from "react";
 import {
   TraceEventsRow,
@@ -57,15 +56,15 @@ const LazySessionTraceEventsRowInner = (
       className={isModern ? undefined : "pb-3"}
       data-session-row-index={index}
     >
-      {shouldLoad ? (
+      {!!shouldLoad && (
         <TraceEventsRow {...rowProps} showCorrections={showCorrections} />
-      ) : isModern ? (
+      )}
+      {!shouldLoad && !!isModern && (
         <div className="flex h-80 items-center justify-center px-6 py-8">
           <TraceEventsSkeleton />
         </div>
-      ) : (
-        <TraceEventsSkeleton />
       )}
+      {!shouldLoad && !isModern && <TraceEventsSkeleton />}
     </div>
   );
 };

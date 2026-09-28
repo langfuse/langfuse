@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { FileIcon } from "lucide-react";
 import { assertUnreachable } from "@langfuse/shared";
 import {
@@ -82,9 +81,10 @@ function SessionTimelineFile({ part }: { part: FilePart }) {
         <FileIcon className="h-3.5 w-3.5" />
         {part.filename ?? part.mediaType ?? "File"}
       </div>
-      {reference ? (
+      {!!reference && (
         <LangfuseMediaView mediaReferenceString={reference} variant="preview" />
-      ) : safeImageUrl ? (
+      )}
+      {!reference && !!safeImageUrl && (
         <a href={safeImageUrl} target="_blank" rel="noreferrer">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -93,7 +93,8 @@ function SessionTimelineFile({ part }: { part: FilePart }) {
             className="max-h-64 max-w-full rounded-md object-contain"
           />
         </a>
-      ) : safeUrl ? (
+      )}
+      {!reference && !safeImageUrl && !!safeUrl && (
         <a
           href={safeUrl}
           target="_blank"
@@ -103,7 +104,8 @@ function SessionTimelineFile({ part }: { part: FilePart }) {
         >
           {safeUrl}
         </a>
-      ) : (
+      )}
+      {!reference && !safeImageUrl && !safeUrl && (
         <PrettyJsonView json={part} currentView="pretty" />
       )}
     </div>

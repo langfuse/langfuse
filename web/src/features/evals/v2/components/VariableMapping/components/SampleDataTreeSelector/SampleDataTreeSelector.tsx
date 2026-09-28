@@ -247,99 +247,100 @@ function TreeRow({
         </button>
       </div>
 
-      {isOpen && expandable
-        ? isArray
-          ? (() => {
-              const representative = wildcardRepresentative(value);
-              return (
-                <>
-                  <TreeRow
-                    variableLabel={variableLabel}
-                    columnId={columnId}
-                    segments={[...segments, WILDCARD]}
-                    label="[*]"
-                    value={representative.value}
-                    badge="every entry"
-                    partialChildKeys={representative.partialKeys}
-                    depth={depth + 1}
-                    expanded={expanded}
-                    onToggleExpand={onToggleExpand}
-                    onSelect={onSelect}
-                    currentKey={currentKey}
-                  />
-                  <TreeRow
-                    variableLabel={variableLabel}
-                    columnId={columnId}
-                    segments={[...segments, LAST]}
-                    label="last"
-                    value={value[value.length - 1]}
-                    badge="last entry"
-                    depth={depth + 1}
-                    expanded={expanded}
-                    onToggleExpand={onToggleExpand}
-                    onSelect={onSelect}
-                    currentKey={currentKey}
-                  />
-                  {value.slice(0, MAX_CONCRETE_ENTRIES).map((entry, index) => (
-                    <TreeRow
-                      key={index}
-                      variableLabel={variableLabel}
-                      columnId={columnId}
-                      segments={[...segments, index]}
-                      label={`[${index}]`}
-                      value={entry}
-                      depth={depth + 1}
-                      expanded={expanded}
-                      onToggleExpand={onToggleExpand}
-                      onSelect={onSelect}
-                      currentKey={currentKey}
-                    />
-                  ))}
-                  {value.length > MAX_CONCRETE_ENTRIES ? (
-                    <p
-                      className="text-muted-foreground px-2 py-1 text-xs"
-                      style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
-                    >
-                      {`+${value.length - MAX_CONCRETE_ENTRIES} more entries — [*] covers all of them; use the path editor for a specific one.`}
-                    </p>
-                  ) : null}
-                </>
-              );
-            })()
-          : (() => {
-              const { entries, remaining } = objectEntriesForPreview(
-                value as Record<string, unknown>,
-              );
-              return (
-                <>
-                  {entries.map(([childKey, childValue]) => (
-                    <TreeRow
-                      key={childKey}
-                      variableLabel={variableLabel}
-                      columnId={columnId}
-                      segments={[...segments, childKey]}
-                      label={childKey}
-                      value={childValue}
-                      partial={partialChildKeys?.has(childKey) ?? false}
-                      depth={depth + 1}
-                      expanded={expanded}
-                      onToggleExpand={onToggleExpand}
-                      onSelect={onSelect}
-                      currentKey={currentKey}
-                    />
-                  ))}
-                  {remaining > 0 ? (
-                    <p
-                      className="text-muted-foreground px-2 py-1 text-xs"
-                      style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
-                    >
-                      +{remaining} more properties
-                    </p>
-                  ) : null}
-                </>
-              );
-            })()
-        : null}
+      {!!(isOpen && expandable) &&
+        !!isArray &&
+        (() => {
+          const representative = wildcardRepresentative(value);
+          return (
+            <>
+              <TreeRow
+                variableLabel={variableLabel}
+                columnId={columnId}
+                segments={[...segments, WILDCARD]}
+                label="[*]"
+                value={representative.value}
+                badge="every entry"
+                partialChildKeys={representative.partialKeys}
+                depth={depth + 1}
+                expanded={expanded}
+                onToggleExpand={onToggleExpand}
+                onSelect={onSelect}
+                currentKey={currentKey}
+              />
+              <TreeRow
+                variableLabel={variableLabel}
+                columnId={columnId}
+                segments={[...segments, LAST]}
+                label="last"
+                value={value[value.length - 1]}
+                badge="last entry"
+                depth={depth + 1}
+                expanded={expanded}
+                onToggleExpand={onToggleExpand}
+                onSelect={onSelect}
+                currentKey={currentKey}
+              />
+              {value.slice(0, MAX_CONCRETE_ENTRIES).map((entry, index) => (
+                <TreeRow
+                  key={index}
+                  variableLabel={variableLabel}
+                  columnId={columnId}
+                  segments={[...segments, index]}
+                  label={`[${index}]`}
+                  value={entry}
+                  depth={depth + 1}
+                  expanded={expanded}
+                  onToggleExpand={onToggleExpand}
+                  onSelect={onSelect}
+                  currentKey={currentKey}
+                />
+              ))}
+              {value.length > MAX_CONCRETE_ENTRIES ? (
+                <p
+                  className="text-muted-foreground px-2 py-1 text-xs"
+                  style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
+                >
+                  {`+${value.length - MAX_CONCRETE_ENTRIES} more entries — [*] covers all of them; use the path editor for a specific one.`}
+                </p>
+              ) : null}
+            </>
+          );
+        })()}
+      {!!(isOpen && expandable) &&
+        !isArray &&
+        (() => {
+          const { entries, remaining } = objectEntriesForPreview(
+            value as Record<string, unknown>,
+          );
+          return (
+            <>
+              {entries.map(([childKey, childValue]) => (
+                <TreeRow
+                  key={childKey}
+                  variableLabel={variableLabel}
+                  columnId={columnId}
+                  segments={[...segments, childKey]}
+                  label={childKey}
+                  value={childValue}
+                  partial={partialChildKeys?.has(childKey) ?? false}
+                  depth={depth + 1}
+                  expanded={expanded}
+                  onToggleExpand={onToggleExpand}
+                  onSelect={onSelect}
+                  currentKey={currentKey}
+                />
+              ))}
+              {remaining > 0 ? (
+                <p
+                  className="text-muted-foreground px-2 py-1 text-xs"
+                  style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
+                >
+                  +{remaining} more properties
+                </p>
+              ) : null}
+            </>
+          );
+        })()}
     </>
   );
 }

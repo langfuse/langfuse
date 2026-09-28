@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { format, subMonths } from "date-fns";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { DateRangeInput } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/components/DateRangeInput/DateRangeInput";
@@ -184,11 +183,13 @@ export function EvaluatorBackfillSettings({
           ) : null}
 
           <p className="text-muted-foreground text-xs break-words">
-            {isEstimating
-              ? "Counting matching observations..."
-              : matchingObservations > maxItems
-                ? `${numberFormatter(matchingObservations, 0)} observations in ${rangeDescription} — capping at ${numberFormatter(cappedCount, 0)}, newest first.`
-                : `${numberFormatter(matchingObservations, 0)} observations in ${rangeDescription}, all within your limit.`}
+            {!!isEstimating && "Counting matching observations..."}
+            {!isEstimating &&
+              !!(matchingObservations > maxItems) &&
+              `${numberFormatter(matchingObservations, 0)} observations in ${rangeDescription} — capping at ${numberFormatter(cappedCount, 0)}, newest first.`}
+            {!isEstimating &&
+              !(matchingObservations > maxItems) &&
+              `${numberFormatter(matchingObservations, 0)} observations in ${rangeDescription}, all within your limit.`}
           </p>
         </div>
       ) : null}

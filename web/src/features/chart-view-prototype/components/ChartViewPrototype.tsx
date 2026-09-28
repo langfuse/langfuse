@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import React, { useCallback, useMemo, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
@@ -86,16 +85,16 @@ export function ChartViewPrototype({
         <ViewModeToggle mode={mode} onModeChange={setMode} />
       </div>
 
-      {mode === "table" ? (
-        <MockEventsTable events={events} />
-      ) : affordance === "inline" ? (
+      {!!(mode === "table") && <MockEventsTable events={events} />}
+      {!(mode === "table") && !!(affordance === "inline") && (
         <InlineTake
           data={data}
           config={config}
           isTimeSeries={isTimeSeries}
           patchConfig={patchConfig}
         />
-      ) : (
+      )}
+      {!(mode === "table") && !(affordance === "inline") && (
         <ChartViewPanel
           config={config}
           onConfigChange={patchConfig}

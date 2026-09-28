@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useCallback, type RefObject } from "react";
 import { Code2, Scale, Search, Sparkles } from "lucide-react";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
@@ -204,39 +203,38 @@ export function EvaluatorGalleryView({
                   Error: {errorMessage}
                 </div>
               ) : null}
-              {!isLoading && !errorMessage ? (
-                hasTemplates ? (
-                  displayedSections.map((section) => (
-                    <EvaluatorGallerySection
-                      key={section.key}
-                      section={section}
-                      expanded={
-                        isSingleSection || expandedSections.has(section.key)
-                      }
-                      onExpandedChange={
-                        isSingleSection
-                          ? undefined
-                          : (expanded) => {
-                              if (
-                                expanded &&
-                                section.key ===
-                                  EVALUATOR_GALLERY_PROJECT_SECTION_KEY
-                              ) {
-                                selectSection(section.key);
-                                return;
-                              }
-                              onExpandedChange(section.key, expanded);
+              {!!(!isLoading && !errorMessage) &&
+                !!hasTemplates &&
+                displayedSections.map((section) => (
+                  <EvaluatorGallerySection
+                    key={section.key}
+                    section={section}
+                    expanded={
+                      isSingleSection || expandedSections.has(section.key)
+                    }
+                    onExpandedChange={
+                      isSingleSection
+                        ? undefined
+                        : (expanded) => {
+                            if (
+                              expanded &&
+                              section.key ===
+                                EVALUATOR_GALLERY_PROJECT_SECTION_KEY
+                            ) {
+                              selectSection(section.key);
+                              return;
                             }
-                      }
-                      onSelectTemplate={onSelectTemplate}
-                    />
-                  ))
-                ) : (
-                  <div className="text-muted-foreground py-8 text-center text-sm">
-                    No templates match your search.
-                  </div>
-                )
-              ) : null}
+                            onExpandedChange(section.key, expanded);
+                          }
+                    }
+                    onSelectTemplate={onSelectTemplate}
+                  />
+                ))}
+              {!!(!isLoading && !errorMessage) && !hasTemplates && (
+                <div className="text-muted-foreground py-8 text-center text-sm">
+                  No templates match your search.
+                </div>
+              )}
               {shouldLoadMoreProjectTemplates ? (
                 <div
                   ref={

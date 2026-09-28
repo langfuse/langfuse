@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { PlusIcon } from "lucide-react";
 
 import { ActionButton } from "@/src/components/ActionButton";
@@ -39,11 +38,11 @@ export default function ListMonitorsPage() {
 
   return (
     <MonitorPagePermissions scope="alerts:read">
-      {!projectId || isLoading ? (
-        <EmptyPage />
-      ) : isSuccess && hasMonitors ? (
+      {!!(!projectId || isLoading) && <EmptyPage />}
+      {!(!projectId || isLoading) && !!(isSuccess && hasMonitors) && (
         <MainPage projectId={projectId} />
-      ) : (
+      )}
+      {!(!projectId || isLoading) && !(isSuccess && hasMonitors) && (
         <OnboardingPage projectId={projectId} />
       )}
     </MonitorPagePermissions>

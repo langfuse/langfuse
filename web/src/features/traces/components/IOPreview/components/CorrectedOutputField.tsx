@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { Pencil, Trash, FileDiff, Check, Info } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
@@ -302,7 +301,7 @@ export function CorrectedOutputField({
             </div>
           </div>
 
-          {!hasContent && !isEditing ? (
+          {!!(!hasContent && !isEditing) && (
             <button
               onClick={handleEdit}
               disabled={!hasAccess}
@@ -310,7 +309,8 @@ export function CorrectedOutputField({
             >
               Click to add corrected output
             </button>
-          ) : isEditing ? (
+          )}
+          {!(!hasContent && !isEditing) && !!isEditing && (
             <CodeMirrorEditor
               value={displayValue}
               onChange={handleEditorChange}
@@ -319,7 +319,8 @@ export function CorrectedOutputField({
               placeholder="Enter corrected output..."
               className="bg-accent-light-green"
             />
-          ) : (
+          )}
+          {!(!hasContent && !isEditing) && !isEditing && (
             <CodeMirrorEditor
               value={displayValue}
               mode={strictJsonMode ? "json" : "text"}

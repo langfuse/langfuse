@@ -315,18 +315,20 @@ function CreateLlmEvaluatorWizard({
             return (
               <Fragment key={step.id}>
                 <BreadcrumbItem>
-                  {isActive ? (
+                  {!!isActive && (
                     <BreadcrumbPage className="flex items-center font-bold">
                       {isComplete ? (
                         <Check className="text-dark-green mr-1.5 h-3.5 w-3.5" />
                       ) : null}
                       {index + 1}. {step.label}
                     </BreadcrumbPage>
-                  ) : !canNavigateToStep ? (
+                  )}
+                  {!isActive && !!!canNavigateToStep && (
                     <BreadcrumbPage className="text-muted-foreground flex items-center">
                       {index + 1}. {step.label}
                     </BreadcrumbPage>
-                  ) : (
+                  )}
+                  {!isActive && !!canNavigateToStep && (
                     <BreadcrumbLink
                       onClick={() => onStepChange(step.id)}
                       className="flex cursor-pointer items-center"

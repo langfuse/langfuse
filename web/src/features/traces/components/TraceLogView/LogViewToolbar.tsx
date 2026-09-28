@@ -101,6 +101,18 @@ export const LogViewToolbar = memo(function LogViewToolbar({
     setTimeout(() => setIsCopied(false), 1000);
   };
 
+  function getConditionalText(__nestedTernaryValues: {
+    isVirtualized: typeof isVirtualized;
+    allRowsExpanded: typeof allRowsExpanded;
+  }) {
+    if (__nestedTernaryValues.isVirtualized) {
+      return "Disabled for large traces";
+    }
+    if (__nestedTernaryValues.allRowsExpanded) {
+      return "Collapse all";
+    }
+    return "Expand all";
+  }
   return (
     <div className="bg-background flex h-9 shrink-0 items-center gap-1.5 border-b px-2">
       {/* Large Trace indicator - only shown for virtualized mode */}
@@ -224,11 +236,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
               </span>
             </TooltipTrigger>
             <TooltipContent>
-              {isVirtualized
-                ? "Disabled for large traces"
-                : allRowsExpanded
-                  ? "Collapse all"
-                  : "Expand all"}
+              {getConditionalText({ isVirtualized, allRowsExpanded })}
             </TooltipContent>
           </Tooltip>
         )}
@@ -248,21 +256,23 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                     }
                     disabled={isCopyOrDownloadLoading}
                   >
-                    {isCopyOrDownloadLoading ? (
-                      <Spinner size="xs" />
-                    ) : isCopied ? (
+                    {!!isCopyOrDownloadLoading && <Spinner size="xs" />}
+                    {!isCopyOrDownloadLoading && !!isCopied && (
                       <Check className="h-3.5 w-3.5" />
-                    ) : (
+                    )}
+                    {!isCopyOrDownloadLoading && !isCopied && (
                       <Copy className="h-3.5 w-3.5" />
                     )}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {isCopyOrDownloadLoading
-                    ? "Loading data..."
-                    : isCopyOrDownloadCacheOnly
-                      ? "Copy as JSON (cache only)"
-                      : "Copy as JSON"}
+                  {!!isCopyOrDownloadLoading && "Loading data..."}
+                  {!isCopyOrDownloadLoading &&
+                    !!isCopyOrDownloadCacheOnly &&
+                    "Copy as JSON (cache only)"}
+                  {!isCopyOrDownloadLoading &&
+                    !isCopyOrDownloadCacheOnly &&
+                    "Copy as JSON"}
                 </TooltipContent>
               </Tooltip>
             </HoverCardTrigger>

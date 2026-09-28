@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import React, { useCallback, useState } from "react";
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
@@ -90,16 +89,18 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
           {chartActions}
         </div>
         <div className="min-h-0 flex-1">
-          {error ? (
+          {!!error && (
             <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
               <AlertCircle className="h-10 w-10 opacity-40" />
               <p className="max-w-md text-sm">{error}</p>
             </div>
-          ) : isLoading ? (
+          )}
+          {!error && !!isLoading && (
             <div className="text-muted-foreground flex h-full items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
-          ) : (
+          )}
+          {!error && !isLoading && (
             <ChartCanvas
               data={data}
               chartType={config.chartType}

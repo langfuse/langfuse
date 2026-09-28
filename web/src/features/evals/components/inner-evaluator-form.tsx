@@ -1364,7 +1364,7 @@ export const InnerEvaluatorForm = (props: {
           </div>
         </Card>
       )}
-      {shouldShowCodeEvalTestPanel ? (
+      {!!shouldShowCodeEvalTestPanel && (
         <CodeEvalTestRunCard
           projectId={props.projectId}
           evalTemplate={props.evalTemplate}
@@ -1376,7 +1376,8 @@ export const InnerEvaluatorForm = (props: {
           scoreName={watchedScoreName}
           enableExecutionTracePeek={!props.existingEvaluator}
         />
-      ) : isCodeEvalConfig ? null : (
+      )}
+      {!shouldShowCodeEvalTestPanel && !isCodeEvalConfig && (
         <VariableMappingCard
           projectId={props.projectId}
           availableVariables={availableVariables}

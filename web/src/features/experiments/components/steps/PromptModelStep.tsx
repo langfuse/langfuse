@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -438,11 +437,14 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                 hasToolStructuredOutputConflict && "text-destructive",
               )}
             >
-              {hasToolStructuredOutputConflict
-                ? PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE
-                : structuredOutputEnabled
-                  ? "Configure the schema for structured LLM outputs"
-                  : "Enable to enforce a specific output format"}
+              {!!hasToolStructuredOutputConflict &&
+                PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE}
+              {!hasToolStructuredOutputConflict &&
+                !!structuredOutputEnabled &&
+                "Configure the schema for structured LLM outputs"}
+              {!hasToolStructuredOutputConflict &&
+                !structuredOutputEnabled &&
+                "Enable to enforce a specific output format"}
             </CardDescription>
             <FormMessage />
           </FormItem>

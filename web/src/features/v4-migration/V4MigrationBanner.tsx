@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useSession } from "next-auth/react";
 import { Zap } from "lucide-react";
 import { Callout } from "@/src/components/design-system/Callout/Callout";
@@ -53,6 +52,23 @@ export function V4MigrationBanner({
 }) {
   const capture = usePostHogClientCapture();
 
+  function getConditionalText(__nestedTernaryValues: {
+    projectsNeedingMigration: typeof projectsNeedingMigration;
+    totalProjects: typeof totalProjects;
+  }) {
+    if (
+      __nestedTernaryValues.projectsNeedingMigration ===
+      __nestedTernaryValues.totalProjects
+    ) {
+      if (__nestedTernaryValues.projectsNeedingMigration === 1) {
+        return "Your project needs an upgrade.";
+      }
+      return "All projects need an upgrade.";
+    }
+    if (__nestedTernaryValues.projectsNeedingMigration === 1)
+      return `${__nestedTernaryValues.projectsNeedingMigration} of your ${__nestedTernaryValues.totalProjects} projects needs an upgrade.`;
+    return `${__nestedTernaryValues.projectsNeedingMigration} of your ${__nestedTernaryValues.totalProjects} projects need an upgrade.`;
+  }
   return (
     <DismissController
       id="v4-migration-banner:v1"
@@ -88,11 +104,10 @@ export function V4MigrationBanner({
                 <span className="font-bold">
                   Langfuse v4 is here: real-time and up to 165× faster.
                 </span>{" "}
-                {projectsNeedingMigration === totalProjects
-                  ? projectsNeedingMigration === 1
-                    ? "Your project needs an upgrade."
-                    : "All projects need an upgrade."
-                  : `${projectsNeedingMigration} of your ${totalProjects} projects ${projectsNeedingMigration === 1 ? "needs" : "need"} an upgrade.`}
+                {getConditionalText({
+                  projectsNeedingMigration,
+                  totalProjects,
+                })}
               </span>
             </div>
           </Callout>

@@ -696,6 +696,22 @@ export function CreateLLMApiKeyForm({
       .catch((error) => reportNonTrpcError(error, "llm-api-keys"));
   }
 
+  function getConditionalText(__nestedTernaryValues: {
+    mode: typeof mode;
+    isKeepingCurrentBedrockAuthMethod: typeof isKeepingCurrentBedrockAuthMethod;
+    isLangfuseCloud: typeof isLangfuseCloud;
+  }) {
+    if (__nestedTernaryValues.mode === "update") {
+      if (__nestedTernaryValues.isKeepingCurrentBedrockAuthMethod) {
+        return "Leave empty to keep existing credentials. To update, provide both Access Key ID and Secret Access Key.";
+      }
+      return "Provide both Access Key ID and Secret Access Key.";
+    }
+    if (__nestedTernaryValues.isLangfuseCloud) {
+      return "These should be long-lived credentials for an AWS user with `bedrock:InvokeModel` permission.";
+    }
+    return "For self-hosted deployments, AWS credentials are optional. When omitted, authentication will use the AWS SDK default credential provider chain.";
+  }
   return (
     <Form {...form}>
       <form
@@ -1031,13 +1047,11 @@ export function CreateLLMApiKeyForm({
                               )}
                             </FormLabel>
                             <FormDescription>
-                              {mode === "update"
-                                ? isKeepingCurrentBedrockAuthMethod
-                                  ? "Leave empty to keep existing credentials. To update, provide both Access Key ID and Secret Access Key."
-                                  : "Provide both Access Key ID and Secret Access Key."
-                                : isLangfuseCloud
-                                  ? "These should be long-lived credentials for an AWS user with `bedrock:InvokeModel` permission."
-                                  : "For self-hosted deployments, AWS credentials are optional. When omitted, authentication will use the AWS SDK default credential provider chain."}
+                              {getConditionalText({
+                                mode,
+                                isKeepingCurrentBedrockAuthMethod,
+                                isLangfuseCloud,
+                              })}
                             </FormDescription>
                             <FormControl>
                               <Input

@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /**
  * LazyJsonRow — a single visible line of the lazy JSON viewer. View-only: it
  * receives one `JsonRow` plus stable callbacks and renders; it owns no state,
@@ -81,25 +80,24 @@ function LazyJsonRowImpl({
     >
       {/* Chevron gutter — reserved even for leaves so keys align by depth. */}
       <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-        {isContainer ? (
-          pending ? (
-            <Loader2 className="text-muted-foreground h-3 w-3 animate-spin" />
-          ) : (
-            <button
-              type="button"
-              aria-label={row.expanded ? "Collapse" : "Expand"}
-              className="text-muted-foreground hover:text-foreground flex h-4 w-4 items-center justify-center"
-              onClick={() => onToggle(row.nodeId, row.expanded)}
-            >
-              <ChevronRight
-                className={cn(
-                  "h-3 w-3 transition-transform",
-                  row.expanded && "rotate-90",
-                )}
-              />
-            </button>
-          )
-        ) : null}
+        {!!isContainer && !!pending && (
+          <Loader2 className="text-muted-foreground h-3 w-3 animate-spin" />
+        )}
+        {!!isContainer && !pending && (
+          <button
+            type="button"
+            aria-label={row.expanded ? "Collapse" : "Expand"}
+            className="text-muted-foreground hover:text-foreground flex h-4 w-4 items-center justify-center"
+            onClick={() => onToggle(row.nodeId, row.expanded)}
+          >
+            <ChevronRight
+              className={cn(
+                "h-3 w-3 transition-transform",
+                row.expanded && "rotate-90",
+              )}
+            />
+          </button>
+        )}
       </span>
 
       {label !== null ? (

@@ -2100,25 +2100,26 @@ export default function ExperimentItemsTable({
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
-            {layout === "matrix" ? (
-              hasSelectedRuns ? (
-                <ExperimentScoreMatrix
-                  rows={unfilteredRows}
-                  scoreRows={matrixScoreRows}
-                  experiments={matrixExperiments}
-                  colorExperimentIds={colorExperimentIds}
-                  isLoading={items.status === "loading" || isViewLoading}
-                  pagination={pagination}
-                />
-              ) : (
-                <div className="flex flex-1 items-center justify-center">
-                  <span className="text-muted-foreground text-sm">
-                    Please select a baseline experiment.
-                  </span>
-                </div>
-              )
-            ) : layout === "grid" ? (
-              hasSelectedRuns ? (
+            {!!(layout === "matrix") && !!hasSelectedRuns && (
+              <ExperimentScoreMatrix
+                rows={unfilteredRows}
+                scoreRows={matrixScoreRows}
+                experiments={matrixExperiments}
+                colorExperimentIds={colorExperimentIds}
+                isLoading={items.status === "loading" || isViewLoading}
+                pagination={pagination}
+              />
+            )}
+            {!!(layout === "matrix") && !hasSelectedRuns && (
+              <div className="flex flex-1 items-center justify-center">
+                <span className="text-muted-foreground text-sm">
+                  Please select a baseline experiment.
+                </span>
+              </div>
+            )}
+            {!(layout === "matrix") &&
+              !!(layout === "grid") &&
+              !!hasSelectedRuns && (
                 <ExperimentGridView
                   projectId={projectId}
                   baselineExperimentId={baselineId}
@@ -2153,14 +2154,17 @@ export default function ExperimentItemsTable({
                     ) : undefined
                   }
                 />
-              ) : (
+              )}
+            {!(layout === "matrix") &&
+              !!(layout === "grid") &&
+              !hasSelectedRuns && (
                 <div className="flex flex-1 items-center justify-center">
                   <span className="text-muted-foreground text-sm">
                     Please select a baseline experiment.
                   </span>
                 </div>
-              )
-            ) : (
+              )}
+            {!(layout === "matrix") && !(layout === "grid") && (
               <ExperimentCompareTable
                 dataUpdatedAt={dataUpdatedAt}
                 columns={columns}

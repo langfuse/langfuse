@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { BotMessageSquare, Wrench } from "lucide-react";
 import { useState } from "react";
 import {
@@ -110,6 +109,18 @@ export function EvaluatorMigrationDialog({
     }
   };
 
+  function getConditionalText(__nestedTernaryValues: {
+    effectiveAction: typeof effectiveAction;
+    isSingleEvaluator: typeof isSingleEvaluator;
+  }) {
+    if (__nestedTernaryValues.effectiveAction === "assistant") {
+      return "Ready to start your evaluator upgrade?";
+    }
+    if (__nestedTernaryValues.isSingleEvaluator) {
+      return "How would you like to upgrade this evaluator?";
+    }
+    return "How would you like to upgrade your evaluators?";
+  }
   return (
     <>
       <Dialog
@@ -122,11 +133,7 @@ export function EvaluatorMigrationDialog({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {effectiveAction === "assistant"
-                ? "Ready to start your evaluator upgrade?"
-                : isSingleEvaluator
-                  ? "How would you like to upgrade this evaluator?"
-                  : "How would you like to upgrade your evaluators?"}
+              {getConditionalText({ effectiveAction, isSingleEvaluator })}
             </DialogTitle>
           </DialogHeader>
           <DialogBody className="gap-3">

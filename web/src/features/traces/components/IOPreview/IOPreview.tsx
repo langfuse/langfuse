@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useEffect } from "react";
 import { type ScoreDomain, type Prisma } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -246,7 +245,7 @@ export function IOPreview({
        * Trade-off: scroll/expansion state is lost when toggling views,
        * but this eliminates UI freeze with large observations.
        */}
-      {selectedView === "json-beta" ? (
+      {!!(selectedView === "json-beta") && (
         <IOPreviewJSON
           hideMetadata={!showMetadata}
           input={input}
@@ -274,7 +273,8 @@ export function IOPreview({
           environment={environment}
           showCorrections={showCorrections}
         />
-      ) : selectedView === "json" ? (
+      )}
+      {!(selectedView === "json-beta") && !!(selectedView === "json") && (
         <IOPreviewJSONSimple
           hideMetadata={!showMetadata}
           input={input}
@@ -303,7 +303,8 @@ export function IOPreview({
           environment={environment}
           showCorrections={showCorrections}
         />
-      ) : (
+      )}
+      {!(selectedView === "json-beta") && !(selectedView === "json") && (
         <IOPreviewPretty
           {...sharedProps}
           showMetadata={showMetadata}

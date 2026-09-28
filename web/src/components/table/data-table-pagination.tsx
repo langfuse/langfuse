@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import {
   ChevronLeft,
   ChevronRight,
@@ -124,12 +123,12 @@ export function DataTablePagination<TData>({
   return (
     <div className="@container/pagination flex w-full min-w-0 items-center justify-end">
       <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-4 gap-y-2 @min-[520px]/pagination:gap-x-6 @min-[720px]/pagination:gap-x-8">
-        {showExactTotal ? (
-          // Result fits on the loaded page(s) — the total is exact, no estimate.
+        {!!showExactTotal && ( // Result fits on the loaded page(s) — the total is exact, no estimate.
           <span className={totalCountClassName}>
             Total&nbsp;{compactNumberFormatter(exactTotal)}
           </span>
-        ) : showApproxTotal ? (
+        )}
+        {!showExactTotal && !!showApproxTotal && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -169,7 +168,7 @@ export function DataTablePagination<TData>({
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-        ) : null}
+        )}
         <div className="flex shrink-0 items-center gap-2">
           <p className="text-sm font-bold whitespace-nowrap @min-[440px]/pagination:hidden">
             Rows

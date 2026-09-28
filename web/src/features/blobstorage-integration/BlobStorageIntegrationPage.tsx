@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
@@ -98,16 +97,18 @@ export default function BlobStorageIntegrationPage() {
         small test file, and the &quot;Run Now&quot; button to trigger an
         immediate export.
       </p>
-      {!hasEntitlement ? (
+      {!!!hasEntitlement && (
         <p className="text-sm">
           This feature is not available in your current plan.
         </p>
-      ) : !hasAccess ? (
+      )}
+      {!!hasEntitlement && !!!hasAccess && (
         <p className="text-sm">
           Your current role does not grant you access to these settings, please
           reach out to your project admin or owner.
         </p>
-      ) : (
+      )}
+      {!!hasEntitlement && !!hasAccess && (
         <>
           {state.data?.config && (
             <BlobStorageStatusSection config={state.data.config} />

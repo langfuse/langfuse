@@ -192,15 +192,17 @@ function EvaluatorMappingEditor({
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {isQueryLoading ? (
+        {!!isQueryLoading && (
           <p className="text-muted-foreground text-sm">Loading evaluators...</p>
-        ) : isQueryError ? (
+        )}
+        {!isQueryLoading && !!isQueryError && (
           <Card>
             <CardContent className="text-destructive p-4 text-sm">
               Failed to load evaluators: {queryErrorMessage}
             </CardContent>
           </Card>
-        ) : (
+        )}
+        {!isQueryLoading && !isQueryError && (
           <>
             <EvaluatorAssignmentsEditor
               evaluatorOptions={evaluatorOptions}

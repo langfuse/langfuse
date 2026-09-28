@@ -123,12 +123,13 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
                   {!isCodeEvaluator ? (
                     <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1 text-xs">
                       {mappedVariableCount}/{mapping.length} variables mapped
-                      {allVariablesMapped ? (
+                      {!!allVariablesMapped && (
                         <Check
                           aria-label="All variables mapped"
                           className="text-dark-green h-3.5 w-3.5"
                         />
-                      ) : hasInvalidMappings ? (
+                      )}
+                      {!allVariablesMapped && !!hasInvalidMappings && (
                         <span
                           aria-label="Some variables are not mapped correctly"
                           title="Some variables are not mapped correctly"
@@ -136,7 +137,7 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
                         >
                           <TriangleAlert className="h-3.5 w-3.5" aria-hidden />
                         </span>
-                      ) : null}
+                      )}
                     </span>
                   ) : null}
                 </span>

@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import React from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -97,7 +96,7 @@ export const CorrectedOutputDiffDialog: React.FC<
         </DialogHeader>
 
         <DialogBody>
-          {actualOutputTooLarge ? (
+          {!!actualOutputTooLarge && (
             <div className="space-y-4">
               <div className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
                 <p className="text-foreground font-bold">
@@ -116,7 +115,8 @@ export const CorrectedOutputDiffDialog: React.FC<
                 </pre>
               </div>
             </div>
-          ) : hasNoOriginalOutput ? (
+          )}
+          {!actualOutputTooLarge && !!hasNoOriginalOutput && (
             <div className="flex flex-col items-center justify-center p-8 text-center">
               <div className="text-muted-foreground">
                 <p className="text-lg font-bold">No original output</p>
@@ -125,7 +125,8 @@ export const CorrectedOutputDiffDialog: React.FC<
                 </p>
               </div>
             </div>
-          ) : (
+          )}
+          {!actualOutputTooLarge && !hasNoOriginalOutput && (
             <div className="ph-no-capture space-y-4">
               <DiffViewer
                 oldString={formattedActualOutput}

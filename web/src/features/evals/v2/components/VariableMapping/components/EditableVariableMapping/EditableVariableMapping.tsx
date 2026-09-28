@@ -59,7 +59,7 @@ function MappedValuePreview({ value }: { value: string }) {
 
   return (
     <div>
-      {isJson ? (
+      {!!isJson && (
         <PrettyJsonView
           json={parsed}
           currentView="pretty"
@@ -70,7 +70,8 @@ function MappedValuePreview({ value }: { value: string }) {
           scrollable={true}
           className="max-h-96 [&_.border]:border-0 [&_.rounded-sm]:rounded-none"
         />
-      ) : hasMedia ? (
+      )}
+      {!isJson && !!hasMedia && (
         <div
           data-testid="mapped-media-preview"
           className="flex max-h-96 flex-wrap items-center gap-1 overflow-y-auto p-3 text-sm"
@@ -85,7 +86,8 @@ function MappedValuePreview({ value }: { value: string }) {
             ),
           )}
         </div>
-      ) : (
+      )}
+      {!isJson && !hasMedia && (
         <pre className="max-h-96 overflow-y-auto p-3 font-sans text-sm break-words whitespace-pre-wrap">
           {value}
         </pre>

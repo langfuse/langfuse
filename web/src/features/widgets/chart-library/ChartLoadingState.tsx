@@ -154,13 +154,14 @@ export function ChartLoadingState({
               {statusTitle}
             </p>
           ) : null}
-          {shouldShowProgress ? (
+          {!!shouldShowProgress && (
             <QueryProgressBar progress={progress} layout={layout} />
-          ) : showSpinner ? (
+          )}
+          {!shouldShowProgress && !!showSpinner && (
             <div className="flex h-4 w-4 items-center justify-center self-center">
               <Spinner size="sm" />
             </div>
-          ) : null}
+          )}
 
           {isTightProgressState ? null : (
             <p

@@ -108,6 +108,18 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
     navigate(href, closePopover);
   };
 
+  function getConditionalText(__nestedTernaryValues: {
+    isAggregateCost: typeof isAggregateCost;
+    supportsCostAlert: typeof supportsCostAlert;
+  }) {
+    if (__nestedTernaryValues.isAggregateCost) {
+      return "Get notified when evaluator cost crosses a threshold.";
+    }
+    if (__nestedTernaryValues.supportsCostAlert) {
+      return "Get notified when this evaluator's scores or cost cross a threshold.";
+    }
+    return "Get notified when this evaluator's score crosses a threshold.";
+  }
   return (
     <PopoverController
       align="end"
@@ -185,11 +197,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                     : "No alerts on this evaluator"}
                 </p>
                 <p className="text-muted-foreground mt-0.5 text-xs">
-                  {isAggregateCost
-                    ? "Get notified when evaluator cost crosses a threshold."
-                    : supportsCostAlert
-                      ? "Get notified when this evaluator's scores or cost cross a threshold."
-                      : "Get notified when this evaluator's score crosses a threshold."}
+                  {getConditionalText({ isAggregateCost, supportsCostAlert })}
                 </p>
               </div>
             )}
@@ -314,14 +322,16 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
             }
             className="w-auto max-w-full justify-start"
           >
-            {isLoading ? (
+            {!!isLoading && (
               <LoaderCircle
                 className="mr-1 h-4 w-4 shrink-0 animate-spin"
                 aria-hidden="true"
               />
-            ) : alertCount > 0 ? (
+            )}
+            {!isLoading && !!(alertCount > 0) && (
               <Bell className="mr-1 h-4 w-4 shrink-0" aria-hidden="true" />
-            ) : (
+            )}
+            {!isLoading && !(alertCount > 0) && (
               <Plus className="mr-1 h-4 w-4 shrink-0" aria-hidden="true" />
             )}
             <span className="flex-1 text-left">
