@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
-import { WidgetForm } from "@/src/features/widgets";
+import { ConnectedWidgetForm } from "@/src/features/widgets";
 import { type WidgetSavePayload } from "@/src/features/widgets/components/widgetFormSchema";
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { type metricAggregations, type views } from "@langfuse/shared/query";
@@ -137,7 +137,7 @@ function NewWidgetView({ projectId }: { projectId: string }) {
         },
       }}
     >
-      <WidgetForm
+      <ConnectedWidgetForm
         // No `key` on the beta flag: WidgetForm derives viewVersion (and its
         // available views/measures/filter columns) reactively from isV4
         // + the selected view, so a live beta toggle re-derives them without a

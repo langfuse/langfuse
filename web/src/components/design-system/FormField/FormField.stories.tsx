@@ -55,6 +55,26 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+export const Standalone = meta.story({
+  name: "(Test) Standalone",
+  render: () => (
+    <FormField
+      label="Preview date range"
+      description="Only affects this preview."
+    >
+      {(field) => (
+        <Input id={field.id} aria-describedby={field.inputDescribedById} />
+      )}
+    </FormField>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByLabelText("Preview date range");
+    const description = canvas.getByText("Only affects this preview.");
+    await expect(input).toHaveAttribute("aria-describedby", description.id);
+  },
+});
+
 export const WithDescription = meta.story({
   name: "(Test) Description",
   args: {
