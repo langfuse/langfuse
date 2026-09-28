@@ -11,34 +11,39 @@ import {
 } from "./evaluatorScoresUrl";
 
 describe("evaluatorScoresUrl", () => {
-  it("filters code evaluator scores by evaluator ID", () => {
-    const url = new URL(
-      evaluatorScoresUrl(
-        "project-1",
-        "evaluator-id",
-        "Code evaluator",
-        EvalTemplateTypeEnum.CODE,
-      ),
-      "https://langfuse.local",
-    );
+  it.each([EvalTemplateTypeEnum.CODE, EvalTemplateTypeEnum.DECISION_MODEL])(
+    "filters %s evaluator scores by evaluator ID",
+    (evaluatorType) => {
+      const url = new URL(
+        evaluatorScoresUrl(
+          "project-1",
+          "evaluator-id",
+          "Evaluator",
+          evaluatorType,
+        ),
+        "https://langfuse.local",
+      );
 
-    expect(url.pathname).toBe("/project/project-1/scores");
-    expect(url.searchParams.get("showAllEnvironments")).toBe("true");
-    expect(decodeFiltersGeneric(url.searchParams.get("filter") ?? "")).toEqual([
-      {
-        column: "evaluatorId",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["evaluator-id"],
-      },
-      {
-        column: "source",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["EVAL"],
-      },
-    ]);
-  });
+      expect(url.pathname).toBe("/project/project-1/scores");
+      expect(url.searchParams.get("showAllEnvironments")).toBe("true");
+      expect(
+        decodeFiltersGeneric(url.searchParams.get("filter") ?? ""),
+      ).toEqual([
+        {
+          column: "evaluatorId",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["evaluator-id"],
+        },
+        {
+          column: "source",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["EVAL"],
+        },
+      ]);
+    },
+  );
 
   it("filters judge scores by evaluator name", () => {
     const url = new URL(

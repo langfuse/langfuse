@@ -13,7 +13,7 @@ import {
   type TopicFacetVersion,
   type TopicSummary,
 } from "@langfuse/shared/topics";
-import type { Transcript } from "@langfuse/shared/src/server";
+import { recordIncrement, type Transcript } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { prepareAssembledTopicTranscript } from "./assembledTranscript";
 import {
@@ -37,8 +37,8 @@ export async function summarizeAssembledTrace(input: {
   transcript: Transcript | null;
   /** Topics text the batch job rendered from the same transcript. */
   topicsText?: string;
-}): Promise<void> {
-  if (!isTopicsProjectEnabled(input.projectId)) return;
+}): Promise<"disabled" | "unchanged" | "summarized"> {
+  if (!isTopicsProjectEnabled(input.projectId)) return "disabled";
   // Experiment switch: the rendered Topics text instead of the JSON projection.
   const format: "json" | "text" =
     env.LANGFUSE_TOPICS_TRANSCRIPT_FORMAT === "text" &&
@@ -134,10 +134,20 @@ export async function summarizeAssembledTrace(input: {
       );
     }
     await writeTopicSummaries(rows);
-    return;
+    recordFacetSummaries(rows);
+    return "summarized";
   }
-  for (const facet of pending)
-    await writeTopicSummaries([await summarizeFacet({ ...shared, facet })]);
+  for (const facet of pending) {
+    const summary = await summarizeFacet({ ...shared, facet });
+    await writeTopicSummaries([summary]);
+    recordFacetSummaries([summary]);
+  }
+  return pending.length ? "summarized" : "unchanged";
+}
+
+function recordFacetSummaries(rows: TopicSummary[]) {
+  for (const row of rows)
+    recordIncrement("langfuse.topics.facet_summaries", 1, { state: row.state });
 }
 
 type SummaryOutput = {

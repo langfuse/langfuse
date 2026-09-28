@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { type ReactNode, useState } from "react";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
@@ -150,12 +149,15 @@ const ImportPromptsDialogContent: React.FC<{
   const selectedFile =
     state.step === "parsed" || state.step === "error" ? state.file : undefined;
   const parsedItems = state.step === "parsed" ? state.items : null;
-  const error =
-    state.step === "error"
-      ? state.error
-      : state.step === "parsed"
-        ? state.importError
-        : undefined;
+  const error = (() => {
+    if (state.step === "error") {
+      return state.error;
+    }
+    if (state.step === "parsed") {
+      return state.importError;
+    }
+    return undefined;
+  })();
 
   return (
     <>

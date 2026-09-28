@@ -90,7 +90,12 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" title="Export">
+        <Button
+          variant="outline"
+          size="icon"
+          title="Export"
+          className="hidden md:inline-flex"
+        >
           {isExporting ? (
             <Spinner size="sm" />
           ) : (

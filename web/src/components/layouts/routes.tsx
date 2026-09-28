@@ -323,7 +323,7 @@ function CommandMenuTrigger() {
     >
       <Search className="h-4 w-4" />
       Go to...
-      <span className="ml-auto hidden md:inline-flex">
+      <span className="-mr-px ml-auto hidden md:inline-flex">
         <KeyboardShortcut keys={["Mod", "K"]} />
       </span>
     </SidebarMenuButton>

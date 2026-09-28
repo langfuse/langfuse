@@ -10,6 +10,7 @@ import {
   DropdownMenuLabel,
 } from "@/src/components/ui/dropdown-menu";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import { useMediaQuery } from "react-responsive";
 import { Archive, Edit, ListTree, Trash2 } from "lucide-react";
 import {
   datasetItemFilterColumns,
@@ -357,25 +358,31 @@ export function DatasetItemsTable({
   ) : null;
 
   const setFilterStateWithDebounce = useDebounce(setFilterState);
+  // Below `md` the Filters sheet is the only mounted search bar. The query
+  // starts unmatched, and `hidden md:block` hides this slot until then.
+  const isMobile = useMediaQuery({ query: "(max-width: 767.98px)" });
+  const searchBar = (
+    <TableSearchBar
+      key={`${projectId}:${datasetId}:${selectedVersion?.toISOString() ?? "latest"}`}
+      projectId={projectId}
+      tableName="dataset-items"
+      registry={DATASET_ITEMS_FIELD_REGISTRY}
+      filterState={filterState}
+      setFilterState={setFilterState}
+      observed={undefined}
+      isV4={false}
+      search={{
+        query: searchQuery,
+        type: searchType,
+        setQuery: setSearchQuery,
+        setType: setSearchType,
+      }}
+    />
+  );
 
   return (
     <>
-      <TableSearchBar
-        key={`${projectId}:${datasetId}:${selectedVersion?.toISOString() ?? "latest"}`}
-        projectId={projectId}
-        tableName="dataset-items"
-        registry={DATASET_ITEMS_FIELD_REGISTRY}
-        filterState={filterState}
-        setFilterState={setFilterState}
-        observed={undefined}
-        isV4={false}
-        search={{
-          query: searchQuery,
-          type: searchType,
-          setQuery: setSearchQuery,
-          setType: setSearchType,
-        }}
-      />
+      {isMobile ? null : <div className="hidden md:block">{searchBar}</div>}
       <DataTableToolbar
         columns={columns}
         tableName="dataset-items"
@@ -389,6 +396,7 @@ export function DatasetItemsTable({
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        mobileSearch={searchBar}
         actionButtons={[menuItems, batchExportButton].filter(Boolean)}
       />
       <DataTable

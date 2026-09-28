@@ -4,6 +4,9 @@ import { InputControl } from "../internal/InputControl/InputControl";
 type InputProps = Pick<
   InputHTMLAttributes<HTMLInputElement>,
   | "aria-describedby"
+  | "aria-controls"
+  | "aria-expanded"
+  | "aria-activedescendant"
   | "aria-invalid"
   | "aria-label"
   | "aria-labelledby"
@@ -19,9 +22,11 @@ type InputProps = Pick<
   | "onBlur"
   | "onChange"
   | "onFocus"
+  | "onKeyDown"
   | "placeholder"
   | "readOnly"
   | "required"
+  | "role"
   | "tabIndex"
   | "type"
   | "value"

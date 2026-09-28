@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 /**
  * SpanContent - Pure span/observation content renderer.
@@ -60,12 +59,15 @@ export function SpanContent({
     node.calculatedTotalCost ??
     (node.calculatedInputCost ?? 0) + (node.calculatedOutputCost ?? 0);
 
-  const duration =
-    node.endTime && node.startTime
-      ? node.endTime.getTime() - node.startTime.getTime()
-      : node.latency
-        ? node.latency * 1000
-        : undefined;
+  const duration = (() => {
+    if (node.endTime && node.startTime) {
+      return node.endTime.getTime() - node.startTime.getTime();
+    }
+    if (node.latency) {
+      return node.latency * 1000;
+    }
+    return undefined;
+  })();
 
   const durationMs = duration || (node.latency ? node.latency * 1000 : 0);
 

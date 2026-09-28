@@ -17,7 +17,7 @@ use super::Grant;
 use crate::resolution::{ControlPlaneConfig, ResolutionError, signing};
 
 const INGESTION_PATH: &str = "/api/public/otel/v1/traces";
-const MAX_PAYLOAD_BYTES: usize = 8 * 1024 * 1024;
+pub(super) const MAX_PAYLOAD_BYTES: usize = 20 * 1024 * 1024;
 const MAX_RESPONSE_BYTES: usize = 64 * 1024;
 const UPLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 

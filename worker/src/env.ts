@@ -324,6 +324,13 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(60_000),
+  // Failed Topics traces are re-enqueued this many times, with doubling delay.
+  LANGFUSE_TOPICS_TRACE_MAX_RETRIES: z.coerce.number().int().min(0).default(2),
+  LANGFUSE_TOPICS_TRACE_RETRY_DELAY_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(60_000),
   LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
     .enum(["dangerous-docker", "lambda-microvm"])
     .optional(),

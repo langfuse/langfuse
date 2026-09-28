@@ -10,7 +10,7 @@ import {
 
 import { type GetModelResult } from "@/src/features/models/validation";
 import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
-import { UpsertModelFormDialog } from "./UpsertModelFormDialog";
+import { UpsertModelFormDialogController } from "./UpsertModelFormDialogController";
 
 const upsertMutateAsync = vi.fn().mockResolvedValue({
   id: "model-1",
@@ -122,26 +122,26 @@ const priceInputs = () =>
 
 const openEditDialog = (pricingTiers: GetModelResult["pricingTiers"]) => {
   render(
-    <UpsertModelFormDialog
+    <UpsertModelFormDialogController
       action="edit"
       projectId="p1"
       modelData={modelData(pricingTiers)}
     >
-      <button>Open editor</button>
-    </UpsertModelFormDialog>,
+      {({ openDialog }) => <button onClick={openDialog}>Open editor</button>}
+    </UpsertModelFormDialogController>,
   );
   fireEvent.click(screen.getByRole("button", { name: "Open editor" }));
 };
 
 const openCloneDialog = (matchPattern: string) => {
   render(
-    <UpsertModelFormDialog
+    <UpsertModelFormDialogController
       action="clone"
       projectId="p1"
       modelData={{ ...modelData([defaultTier]), matchPattern }}
     >
-      <button>Open editor</button>
-    </UpsertModelFormDialog>,
+      {({ openDialog }) => <button onClick={openDialog}>Open editor</button>}
+    </UpsertModelFormDialogController>,
   );
   fireEvent.click(screen.getByRole("button", { name: "Open editor" }));
 };
@@ -149,7 +149,7 @@ const openCloneDialog = (matchPattern: string) => {
 const submit = () =>
   fireEvent.click(screen.getByRole("button", { name: /^(Save|Submit)$/ }));
 
-describe("UpsertModelFormDialog price editor", () => {
+describe("UpsertModelFormDialogController price editor", () => {
   beforeAll(() => {
     vi.stubGlobal(
       "ResizeObserver",
@@ -308,6 +308,17 @@ describe("UpsertModelFormDialog price editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(confirm).toHaveBeenCalledTimes(1);
     expect(document.querySelector('div[role="dialog"]')).not.toBeNull();
+    confirm.mockRestore();
+  });
+
+  it("reopens with the original values after discarding an edit", () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    openEditDialog([defaultTier]);
+    retype(priceInputs()[0], "0.000009");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Open editor" }));
+    expect(priceInputs()[0].value).toBe("0.000004");
     confirm.mockRestore();
   });
 
