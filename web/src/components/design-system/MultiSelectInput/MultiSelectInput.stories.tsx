@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
+import {
+  expect,
+  fireEvent,
+  fn,
+  userEvent,
+  waitFor,
+  within,
+} from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { MultiSelectInput } from "./MultiSelectInput";
@@ -165,9 +172,9 @@ export const TestHidesSelectAllWhileSearching = meta.story({
     const body = within(canvasElement.ownerDocument.body);
 
     await userEvent.click(canvas.getByRole("combobox"));
-    await expect(
-      body.getByRole("button", { name: "Select All" }),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(body.getByRole("button", { name: "Select All" })).toBeVisible(),
+    );
 
     const search = body.getByPlaceholderText("Search datasets...");
     await userEvent.type(search, "production");
@@ -176,9 +183,9 @@ export const TestHidesSelectAllWhileSearching = meta.story({
     ).not.toBeInTheDocument();
 
     await userEvent.clear(search);
-    await expect(
-      body.getByRole("button", { name: "Select All" }),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(body.getByRole("button", { name: "Select All" })).toBeVisible(),
+    );
   },
 });
 

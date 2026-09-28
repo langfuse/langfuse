@@ -165,7 +165,7 @@ export const TestObservedKeySuggestionPreservesValue = meta.story({
     keyOptions: ["environment", "region"],
     keyDetails: { environment: "string", region: "string" },
     valueOptions: { environment: ["production"], region: ["eu", "us"] },
-    activeFilters: [{ key: "environment", operator: "=", value: "production" }],
+    activeFilters: [{ key: "re", operator: "=", value: "production" }],
     onChange: fn(),
   },
   render: (args) => {
@@ -190,12 +190,10 @@ export const TestObservedKeySuggestionPreservesValue = meta.story({
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
     const key = canvas.getByPlaceholderText("Key");
 
     await userEvent.click(key);
-    await expect(body.getByRole("option", { name: /region/ })).toBeVisible();
-    await userEvent.click(body.getByRole("option", { name: /region/ }));
+    await userEvent.keyboard("{ArrowDown}{Enter}");
 
     await expect(key).toHaveValue("region");
     await expect(canvas.getByPlaceholderText("Value")).toHaveValue(
