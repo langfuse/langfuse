@@ -19,7 +19,7 @@ import {
   useSidebarFilterState,
 } from "@/src/features/filters";
 import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
-import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
+import { KeyValueFilterBuilder } from "@/src/components/table/KeyValueFilterBuilder";
 import { useOrderByState } from "@/src/features/orderBy";
 import {
   demoteViewOnUserFilterEdit,

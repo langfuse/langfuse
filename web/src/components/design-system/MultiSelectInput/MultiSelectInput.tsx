@@ -26,7 +26,9 @@ type MultiSelectInputProps<V> = {
   selectedLabel: string;
   searchPlaceholder: string;
   emptyMessage: string;
+  selectAllLabel?: string;
   error?: boolean;
+  disabled?: boolean;
 } & Pick<
   React.ComponentPropsWithoutRef<"button">,
   "id" | "aria-describedby" | "aria-invalid" | "aria-label"
@@ -41,7 +43,9 @@ function MultiSelectInputInner<V extends string>(
     selectedLabel,
     searchPlaceholder,
     emptyMessage,
+    selectAllLabel,
     error,
+    disabled,
     ...triggerProps
   }: MultiSelectInputProps<V>,
   ref: React.ForwardedRef<HTMLButtonElement>,
@@ -49,16 +53,20 @@ function MultiSelectInputInner<V extends string>(
   const container = useLayerContainer("popover");
   const [open, setOpen] = React.useState(false);
   const listId = React.useId();
+  const allSelected =
+    options.length > 0 &&
+    options.every((option) => option.disabled || value.includes(option.value));
 
   return (
-    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
-      <InputControl contentLayout="spread" error={error}>
+    <PopoverPrimitive.Root open={!disabled && open} onOpenChange={setOpen}>
+      <InputControl contentLayout="spread" error={error} disabled={disabled}>
         <PopoverPrimitive.Trigger
           ref={ref}
           type="button"
           role="combobox"
           aria-controls={listId}
           aria-expanded={open}
+          disabled={disabled}
           {...triggerProps}
         >
           <span
@@ -86,6 +94,47 @@ function MultiSelectInputInner<V extends string>(
                 <InputDropdown.Search>
                   <CommandPrimitive.Input placeholder={searchPlaceholder} />
                 </InputDropdown.Search>
+                {selectAllLabel &&
+                  options.some((option) => !option.disabled) && (
+                    <InputDropdown.Option
+                      highlight="focus"
+                      checked={allSelected}
+                    >
+                      <button
+                        type="button"
+                        aria-pressed={allSelected}
+                        onClick={() =>
+                          onValueChange(
+                            allSelected
+                              ? value.filter((selectedValue) =>
+                                  options.every(
+                                    (option) =>
+                                      option.value !== selectedValue ||
+                                      option.disabled,
+                                  ),
+                                )
+                              : [
+                                  ...value,
+                                  ...options
+                                    .filter(
+                                      (option) =>
+                                        !option.disabled &&
+                                        !value.includes(option.value),
+                                    )
+                                    .map((option) => option.value),
+                                ],
+                          )
+                        }
+                      >
+                        <InputDropdown.OptionContent
+                          label={selectAllLabel}
+                          title={selectAllLabel}
+                          type="checkbox"
+                          checked={allSelected}
+                        />
+                      </button>
+                    </InputDropdown.Option>
+                  )}
                 <InputDropdown.Empty>
                   <CommandPrimitive.Empty>
                     {emptyMessage}

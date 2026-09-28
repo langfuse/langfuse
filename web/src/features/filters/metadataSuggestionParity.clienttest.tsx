@@ -9,7 +9,7 @@
  */
 
 import { fireEvent, render, screen } from "@testing-library/react";
-import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
+import { KeyValueFilterBuilder } from "@/src/components/table/KeyValueFilterBuilder";
 import { observedMetadataOptions } from "@/src/fns/observedMetadata/metadataPaths";
 import {
   useSidebarFilterState,
