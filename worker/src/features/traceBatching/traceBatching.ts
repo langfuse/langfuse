@@ -13,6 +13,7 @@ import {
   type QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
+import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 import {
@@ -603,11 +604,13 @@ export async function trackTraceBatchActivity(
   try {
     recordTrackingVolume("eligible", bounds);
     const samplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
+    // Topics summarizes every trace of an enabled project, so those bypass sampling.
+    const admitAll = samplingRate === 1 || isTopicsProjectEnabled(projectId);
     // Sample by trace ID so later observations and retries keep the same decision.
     // Dispatcher and consumer process admitted work without resampling.
     const entries = [...bounds].filter(
       ([traceId]) =>
-        samplingRate === 1 ||
+        admitAll ||
         (samplingRate > 0 &&
           shouldSampleEvaluation({
             samplingValue: getDeterministicSamplingValue(traceId),

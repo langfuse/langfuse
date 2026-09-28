@@ -15,7 +15,7 @@ dev template sets the idle time below.
 | `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`   | Schedule idle traces into BullMQ jobs.                                                                            |
 | `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`   | Register the batch worker.                                                                                        |
 | `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | `false`   | Allow the worker to query ClickHouse; otherwise discard jobs.                                                     |
-| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`          | `1`       | Fraction admitted by ingestion, from 0 to 1.                                                                      |
+| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`          | `1`       | Fraction admitted by ingestion, from 0 to 1. Topics-enabled projects are always admitted.                         |
 | `LANGFUSE_TRACE_BATCH_STRATEGY`               | `project` | Choose project-order packing or opt-in locality grouping.                                                         |
 | `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`      | Maximum traces per job, up to 10,000.                                                                             |
 | `LANGFUSE_TRACE_BATCH_MAX_THREADS`            | `2`       | ClickHouse threads per query (positive integer).                                                                  |
@@ -178,7 +178,9 @@ root I/O, observation markers and inline errors, excluding section headings and
 tool definitions. Keep
 numerator and denominator on the same basis when calculating shares. Ingestion
 applies `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` by trace ID before the dispatcher
-and worker; every admitted trace receives Topics measurements.
+and worker; every admitted trace receives Topics measurements. Projects in the
+Topics allowlist (`LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`) bypass sampling so every
+trace is summarized; a rate of `0` limits the flow to those projects.
 
 Transcript token counts use the existing local worker-thread pool and bundled
 tiktoken WASM, without a network or model API call. The `gpt-4o` configuration

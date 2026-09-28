@@ -103,17 +103,17 @@ processing.
 
 Required for a local run, in addition to Postgres, ClickHouse, and Redis:
 
-| Variable                                      | Role                                                                                     |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION`           | Must be set or the batch job is discarded. Local dev uses `DEV`.                         |
-| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | Track accepted writes. Default off.                                                      |
-| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | Enqueue idle traces. Default off.                                                        |
-| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | Register the batch worker. Default off.                                                  |
-| `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | Allow the ClickHouse read. Default off.                                                  |
-| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | Idle time before a trace is ready. Unset is 2 minutes on `DEV` and 10 minutes otherwise. |
-| `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`         | Same allowlist on web and worker. Unset defaults to the demo project.                    |
-| `LANGFUSE_AI_AWS_BEDROCK_REGION`              | Bedrock region for summaries and embeddings.                                             |
-| `LANGFUSE_TOPICS_AWS_PROFILE`                 | Optional local AWS profile. `AWS_PROFILE` takes precedence.                              |
+| Variable                                      | Role                                                                                                                                                                                                                                                 |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION`           | Must be set or the batch job is discarded. Local dev uses `DEV`.                                                                                                                                                                                     |
+| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | Track accepted writes. Default off.                                                                                                                                                                                                                  |
+| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | Enqueue idle traces. Default off.                                                                                                                                                                                                                    |
+| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | Register the batch worker. Default off.                                                                                                                                                                                                              |
+| `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | Allow the ClickHouse read. Default off.                                                                                                                                                                                                              |
+| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | Idle time before a trace is ready. Unset is 2 minutes on `DEV` and 10 minutes otherwise.                                                                                                                                                             |
+| `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`         | Same allowlist on web and worker. Unset defaults to the demo project. These projects bypass trace-batch sampling at ingestion, so every trace is summarized automatically; set `LANGFUSE_TRACE_BATCH_SAMPLING_RATE=0` to run the flow for them only. |
+| `LANGFUSE_AI_AWS_BEDROCK_REGION`              | Bedrock region for summaries and embeddings.                                                                                                                                                                                                         |
+| `LANGFUSE_TOPICS_AWS_PROFILE`                 | Optional local AWS profile. `AWS_PROFILE` takes precedence.                                                                                                                                                                                          |
 
 ## Run the experiment
 
