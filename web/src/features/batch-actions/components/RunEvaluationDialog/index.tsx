@@ -371,7 +371,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
           >
             {!!isExperiencePending && <Skeleton className="h-20 w-full" />}
             {!isExperiencePending &&
-              !!(step === "select-evaluator") &&
+              step === "select-evaluator" &&
               !!showMappingEditor && (
                 <EvaluatorMappingStep
                   projectId={projectId}
@@ -390,7 +390,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                 />
               )}
             {!isExperiencePending &&
-              !!(step === "select-evaluator") &&
+              step === "select-evaluator" &&
               !showMappingEditor && (
                 <EvaluatorSelectionStep
                   eligibleEvaluators={eligibleEvaluators}
@@ -406,7 +406,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                   onToggleEvaluator={toggleEvaluatorSelection}
                 />
               )}
-            {!isExperiencePending && !(step === "select-evaluator") && (
+            {!isExperiencePending && step !== "select-evaluator" && (
               <ConfirmationStep
                 projectId={projectId}
                 displayCount={displayCount}
@@ -446,7 +446,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                   onClick={onSubmit}
                 />
               )}
-              {!showMappingEditor && !!(step === "select-evaluator") && (
+              {!showMappingEditor && step === "select-evaluator" && (
                 <Button
                   onClick={() => setStep("confirm")}
                   disabled={isExperiencePending || selectedCount === 0}
@@ -457,7 +457,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                     : null}
                 </Button>
               )}
-              {!showMappingEditor && !(step === "select-evaluator") && (
+              {!showMappingEditor && step !== "select-evaluator" && (
                 <Button
                   onClick={onSubmit}
                   loading={runEvaluationMutation.isPending}

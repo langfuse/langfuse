@@ -56,7 +56,7 @@ export const TopbarBrand = ({
           <LangfuseIcon size={16} />
         </>
       )}
-      {!(logoLight && logoDark) && !!(variant === "wordmark") && (
+      {!(logoLight && logoDark) && variant === "wordmark" && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -72,7 +72,7 @@ export const TopbarBrand = ({
           />
         </>
       )}
-      {!(logoLight && logoDark) && !(variant === "wordmark") && (
+      {!(logoLight && logoDark) && variant !== "wordmark" && (
         <LangfuseIcon size={28} />
       )}
     </Link>

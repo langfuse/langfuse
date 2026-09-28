@@ -975,7 +975,7 @@ export function DataTableControls({
                   No tooltip (the sheet auto-focuses it on open and a Radix
                   tooltip would pop up unprompted); an X is self-evident.
                 - desktop: collapse-to-rail via the Hide-filters button. */}
-            {!(layout === "inline") && !!isMobile && (
+            {layout !== "inline" && !!isMobile && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -989,7 +989,7 @@ export function DataTableControls({
                 <X className="h-4 w-4" />
               </Button>
             )}
-            {!(layout === "inline") && !isMobile && (
+            {layout !== "inline" && !isMobile && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -1927,7 +1927,7 @@ function CategoricalSelectContent({
         // px-2 on top of the outer px-2 = the same 16px inset as the mode
         // tabs and inputs, so empty states don't stick to the panel edge.
         <div className="text-muted-foreground px-2 py-1 text-xs">
-          {!!(filterKey === "sessionId") && (
+          {filterKey === "sessionId" && (
             <span>
               Sessions group {tableName} together, which is useful for tracing
               multi-step workflows.{" "}
@@ -1942,29 +1942,27 @@ function CategoricalSelectContent({
               to learn how to add sessions to your {tableName}.
             </span>
           )}
-          {!(filterKey === "sessionId") && !!(filterKey === "name") && (
+          {filterKey === "name" && (
             <span>No {tableName} names found in the given time range.</span>
           )}
-          {!(filterKey === "sessionId") &&
-            !(filterKey === "name") &&
-            !!(filterKey === "tags") && (
-              <span>
-                Tags let you filter {tableName} according to custom categories
-                (e.g. feature flags).{" "}
-                <a
-                  href="https://langfuse.com/docs/observability/features/tags"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-foreground underline"
-                >
-                  See docs
-                </a>{" "}
-                to learn how to add tags to your {tableName}.
-              </span>
-            )}
-          {!(filterKey === "sessionId") &&
-            !(filterKey === "name") &&
-            !(filterKey === "tags") &&
+          {filterKey === "tags" && (
+            <span>
+              Tags let you filter {tableName} according to custom categories
+              (e.g. feature flags).{" "}
+              <a
+                href="https://langfuse.com/docs/observability/features/tags"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground underline"
+              >
+                See docs
+              </a>{" "}
+              to learn how to add tags to your {tableName}.
+            </span>
+          )}
+          {filterKey !== "sessionId" &&
+            filterKey !== "name" &&
+            filterKey !== "tags" &&
             "No options found"}
         </div>
       ) : (

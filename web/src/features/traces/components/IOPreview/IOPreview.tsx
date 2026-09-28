@@ -245,7 +245,7 @@ export function IOPreview({
        * Trade-off: scroll/expansion state is lost when toggling views,
        * but this eliminates UI freeze with large observations.
        */}
-      {!!(selectedView === "json-beta") && (
+      {selectedView === "json-beta" && (
         <IOPreviewJSON
           hideMetadata={!showMetadata}
           input={input}
@@ -274,7 +274,7 @@ export function IOPreview({
           showCorrections={showCorrections}
         />
       )}
-      {!(selectedView === "json-beta") && !!(selectedView === "json") && (
+      {selectedView === "json" && (
         <IOPreviewJSONSimple
           hideMetadata={!showMetadata}
           input={input}
@@ -304,7 +304,7 @@ export function IOPreview({
           showCorrections={showCorrections}
         />
       )}
-      {!(selectedView === "json-beta") && !(selectedView === "json") && (
+      {selectedView !== "json-beta" && selectedView !== "json" && (
         <IOPreviewPretty
           {...sharedProps}
           showMetadata={showMetadata}

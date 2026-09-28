@@ -85,8 +85,8 @@ export function ChartViewPrototype({
         <ViewModeToggle mode={mode} onModeChange={setMode} />
       </div>
 
-      {!!(mode === "table") && <MockEventsTable events={events} />}
-      {!(mode === "table") && !!(affordance === "inline") && (
+      {mode === "table" && <MockEventsTable events={events} />}
+      {mode !== "table" && affordance === "inline" && (
         <InlineTake
           data={data}
           config={config}
@@ -94,7 +94,7 @@ export function ChartViewPrototype({
           patchConfig={patchConfig}
         />
       )}
-      {!(mode === "table") && !(affordance === "inline") && (
+      {mode !== "table" && affordance !== "inline" && (
         <ChartViewPanel
           config={config}
           onConfigChange={patchConfig}

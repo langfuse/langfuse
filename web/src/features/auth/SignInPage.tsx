@@ -184,10 +184,10 @@ export function SSOButtons({
         ([name, enabled]) => enabled && name !== "credentials",
       ) ? (
         <div>
-          {!!showSeparator && !!(action === "sign in") && (
+          {!!showSeparator && action === "sign in" && (
             <div className="border-border my-6 border-t"></div>
           )}
-          {!!showSeparator && !(action === "sign in") && (
+          {!!showSeparator && action !== "sign in" && (
             <div className="text-muted-foreground my-6 text-center text-xs">
               or {action} with
             </div>

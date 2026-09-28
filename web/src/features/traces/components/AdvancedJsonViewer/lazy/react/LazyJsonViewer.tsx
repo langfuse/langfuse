@@ -148,17 +148,17 @@ export function LazyJsonViewer({
 
   return (
     <div className={cn("h-full w-full", className)}>
-      {!!(status === "loading") && (
+      {status === "loading" && (
         <div className="flex h-full items-center justify-center">
           <Spinner size="md" />
         </div>
       )}
-      {!(status === "loading") && !!(status === "error") && (
+      {status === "error" && (
         <div className="text-destructive flex h-full items-center justify-center p-4 text-sm">
           Failed to read JSON: {error}
         </div>
       )}
-      {!(status === "loading") && !(status === "error") && (
+      {status !== "loading" && status !== "error" && (
         <LazyJsonList store={store} />
       )}
     </div>

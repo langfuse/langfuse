@@ -788,17 +788,13 @@ export const AutomationForm = ({
                         ActionHandlerRegistry.getAllActionTypes()
                       ).map((actionType) => (
                         <SelectItem key={actionType} value={actionType}>
-                          {!!(actionType === "WEBHOOK") && "Webhook"}
-                          {!(actionType === "WEBHOOK") &&
-                            !!(actionType === "SLACK") &&
-                            "Slack"}
-                          {!(actionType === "WEBHOOK") &&
-                            !(actionType === "SLACK") &&
-                            !!(actionType === "GITHUB_DISPATCH") &&
+                          {actionType === "WEBHOOK" && "Webhook"}
+                          {actionType === "SLACK" && "Slack"}
+                          {actionType === "GITHUB_DISPATCH" &&
                             "GitHub Dispatch"}
-                          {!(actionType === "WEBHOOK") &&
-                            !(actionType === "SLACK") &&
-                            !(actionType === "GITHUB_DISPATCH") &&
+                          {actionType !== "WEBHOOK" &&
+                            actionType !== "SLACK" &&
+                            actionType !== "GITHUB_DISPATCH" &&
                             "Annotation Queue"}
                         </SelectItem>
                       ))}

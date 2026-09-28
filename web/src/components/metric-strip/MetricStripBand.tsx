@@ -84,7 +84,7 @@ export const MetricStripBand = forwardRef<
         // pt-2.5 keeps the metric switcher off the top rule; the label then
         // sits closer to its chart than to the band's edge.
         <div className="relative px-2 pt-2.5 pb-1">
-          {!!(status === "loading") && (
+          {status === "loading" && (
             <div
               className={cn(
                 "bg-muted animate-pulse rounded",
@@ -92,12 +92,12 @@ export const MetricStripBand = forwardRef<
               )}
             />
           )}
-          {!(status === "loading") && !!(status === "empty") && (
+          {status === "empty" && (
             <div className={contentHeightClass}>
               <MetricStripMessage message={emptyMessage} />
             </div>
           )}
-          {!(status === "loading") && !(status === "empty") && (
+          {status !== "loading" && status !== "empty" && (
             <div
               className={cn(
                 "min-w-0 transition-opacity",

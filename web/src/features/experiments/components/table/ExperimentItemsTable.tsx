@@ -2100,7 +2100,7 @@ export default function ExperimentItemsTable({
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
-            {!!(layout === "matrix") && !!hasSelectedRuns && (
+            {layout === "matrix" && !!hasSelectedRuns && (
               <ExperimentScoreMatrix
                 rows={unfilteredRows}
                 scoreRows={matrixScoreRows}
@@ -2110,61 +2110,57 @@ export default function ExperimentItemsTable({
                 pagination={pagination}
               />
             )}
-            {!!(layout === "matrix") && !hasSelectedRuns && (
+            {layout === "matrix" && !hasSelectedRuns && (
               <div className="flex flex-1 items-center justify-center">
                 <span className="text-muted-foreground text-sm">
                   Please select a baseline experiment.
                 </span>
               </div>
             )}
-            {!(layout === "matrix") &&
-              !!(layout === "grid") &&
-              !!hasSelectedRuns && (
-                <ExperimentGridView
-                  projectId={projectId}
-                  baselineExperimentId={baselineId}
-                  comparisonExperimentIds={
-                    baselineId ? comparisonIds : allExperimentIds
-                  }
-                  useExperimentColors={hasBaseline}
-                  showDiff={showComparisonDiff}
-                  singleLine={ioSingleLine}
-                  rows={rows}
-                  isLoading={items.status === "loading" || isViewLoading}
-                  ioLoading={ioLoading}
-                  rowHeight={rowHeight}
-                  showExpectedOutput={showExpectedOutput}
-                  pagination={pagination}
-                  observationScoreOrder={observationScoreOrder}
-                  traceScoreOrder={traceScoreOrder}
-                  showScoreLevelLabels={showScoreLevelLabels}
-                  peekView={peekConfig}
-                  columnVisibility={columnVisibility}
-                  selectActionColumn={
-                    hideControls ? undefined : selectActionColumn
-                  }
-                  rowSelection={selectedRows}
-                  setRowSelection={setSelectedRows}
-                  highlightAllRows={selectAll}
-                  noResultsMessage={
-                    scoreComparisonEmptyMessage ? (
-                      <span className="text-muted-foreground text-sm">
-                        {scoreComparisonEmptyMessage}
-                      </span>
-                    ) : undefined
-                  }
-                />
-              )}
-            {!(layout === "matrix") &&
-              !!(layout === "grid") &&
-              !hasSelectedRuns && (
-                <div className="flex flex-1 items-center justify-center">
-                  <span className="text-muted-foreground text-sm">
-                    Please select a baseline experiment.
-                  </span>
-                </div>
-              )}
-            {!(layout === "matrix") && !(layout === "grid") && (
+            {layout === "grid" && !!hasSelectedRuns && (
+              <ExperimentGridView
+                projectId={projectId}
+                baselineExperimentId={baselineId}
+                comparisonExperimentIds={
+                  baselineId ? comparisonIds : allExperimentIds
+                }
+                useExperimentColors={hasBaseline}
+                showDiff={showComparisonDiff}
+                singleLine={ioSingleLine}
+                rows={rows}
+                isLoading={items.status === "loading" || isViewLoading}
+                ioLoading={ioLoading}
+                rowHeight={rowHeight}
+                showExpectedOutput={showExpectedOutput}
+                pagination={pagination}
+                observationScoreOrder={observationScoreOrder}
+                traceScoreOrder={traceScoreOrder}
+                showScoreLevelLabels={showScoreLevelLabels}
+                peekView={peekConfig}
+                columnVisibility={columnVisibility}
+                selectActionColumn={
+                  hideControls ? undefined : selectActionColumn
+                }
+                rowSelection={selectedRows}
+                setRowSelection={setSelectedRows}
+                highlightAllRows={selectAll}
+                noResultsMessage={
+                  scoreComparisonEmptyMessage ? (
+                    <span className="text-muted-foreground text-sm">
+                      {scoreComparisonEmptyMessage}
+                    </span>
+                  ) : undefined
+                }
+              />
+            )}
+            {layout === "grid" && !hasSelectedRuns && (
+              <div className="flex flex-1 items-center justify-center">
+                <span className="text-muted-foreground text-sm">
+                  Please select a baseline experiment.
+                </span>
+              </div>
+            )}
+            {layout !== "matrix" && layout !== "grid" && (
               <ExperimentCompareTable
                 dataUpdatedAt={dataUpdatedAt}
                 columns={columns}

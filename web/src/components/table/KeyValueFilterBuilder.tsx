@@ -425,7 +425,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
               </Button>
             </div>
 
-            {!!(mode === "categorical") && (
+            {mode === "categorical" && (
               <>
                 {/* Operator select */}
                 <SelectInput
@@ -462,7 +462,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                 />
               </>
             )}
-            {!(mode === "categorical") && !!(mode === "numeric") && (
+            {mode === "numeric" && (
               <>
                 {/* Numeric operator select */}
                 <SelectInput
