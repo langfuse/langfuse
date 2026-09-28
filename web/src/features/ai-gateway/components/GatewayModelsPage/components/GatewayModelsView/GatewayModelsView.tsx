@@ -18,7 +18,7 @@ import {
   DataTableControlsProvider,
 } from "@/src/components/table/data-table-controls";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { useSidebarFilterState } from "@/src/features/filters";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
@@ -269,43 +269,48 @@ export function GatewayModelsView({
 
       <DataTableControlsProvider tableName={TABLE_NAME}>
         <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-md border">
-          <TableSearchBar
-            key={queryFilter.draftResetKey}
-            tableName={TABLE_NAME}
-            registry={searchRegistry}
-            filterState={queryFilter.searchBarFilterState}
-            setFilterState={(filters) =>
-              queryFilter.setFilterState(
-                filters.map((filter) =>
-                  filter.column === "connection" &&
-                  filter.type === "arrayOptions"
-                    ? {
-                        ...filter,
-                        value: filter.value.map(
-                          (value) =>
-                            connectionSearchOptions.connectionIdByDisplayValue.get(
-                              value,
-                            ) ?? value,
-                        ),
-                      }
-                    : filter,
-                ),
-              )
-            }
-            observed={observedOptions}
-            isV4={false}
-            search={{
-              query: searchQuery,
-              setQuery: (query) => setSearchQuery(query ?? ""),
-            }}
-          />
-          <DataTableToolbar
-            tableName={TABLE_NAME}
-            columns={columns}
-            filterState={queryFilter.filterState}
-          />
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <ResizableFilterLayout>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <SearchableTableFilterLayout
+              search={
+                <TableSearchBar
+                  key={queryFilter.draftResetKey}
+                  tableName={TABLE_NAME}
+                  registry={searchRegistry}
+                  filterState={queryFilter.searchBarFilterState}
+                  setFilterState={(filters) =>
+                    queryFilter.setFilterState(
+                      filters.map((filter) =>
+                        filter.column === "connection" &&
+                        filter.type === "arrayOptions"
+                          ? {
+                              ...filter,
+                              value: filter.value.map(
+                                (value) =>
+                                  connectionSearchOptions.connectionIdByDisplayValue.get(
+                                    value,
+                                  ) ?? value,
+                              ),
+                            }
+                          : filter,
+                      ),
+                    )
+                  }
+                  observed={observedOptions}
+                  isV4={false}
+                  search={{
+                    query: searchQuery,
+                    setQuery: (query) => setSearchQuery(query ?? ""),
+                  }}
+                />
+              }
+              toolbar={
+                <DataTableToolbar
+                  tableName={TABLE_NAME}
+                  columns={columns}
+                  filterState={queryFilter.filterState}
+                />
+              }
+            >
               <DataTableControls queryFilter={queryFilter} />
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <DataTable
@@ -341,7 +346,7 @@ export function GatewayModelsView({
                   cellPadding="comfortable"
                 />
               </div>
-            </ResizableFilterLayout>
+            </SearchableTableFilterLayout>
           </div>
         </div>
       </DataTableControlsProvider>

@@ -384,18 +384,19 @@ historical traces are not rewritten.
 headers arrive. After headers arrive it retains the relayed status, even if a
 stream subsequently fails; cancellation before headers leaves the status unknown.
 Relay outcome, provider status, completeness flags and first-byte timing remain
-internal facts rather than generation metadata. Ingestion removes mapped observation-attribute
-duplicates for the gateway scope while preserving custom attributes, scope and
-resources.
+internal facts rather than generation metadata. For the gateway scope, ingestion removes
+Langfuse attributes already mapped to trace and observation fields, such as user, session,
+trace name, tags and environment, while preserving custom attributes, scope and resources.
 
 Provider HTTP failures and failed SSE responses set the generation level to `ERROR`
 with the available HTTP status in its status message. Full mode also includes a
 bounded provider error code/message; usage mode omits these details because provider
 errors may echo request content.
 
-Provisional upload limits are 32 concurrent uploads, 1024 queued records, 4 MiB
-serialized span and credentials per record, 64 MiB total retained span/credential
-bytes by default (`LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES`), 8 MiB of OTLP JSON per
+Provisional upload limits are 32 concurrent uploads, 1024 queued records, 16 MiB
+serialized span and credentials per record (a 5 MiB input plus 1 MiB output, each
+possibly doubled by JSON string escaping), 64 MiB total retained span/credential
+bytes by default (`LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES`), 20 MiB of OTLP JSON per
 payload before gzip compression, and
 64 KiB ingestion responses. Serialization and mapping have additional bounded memory
 overhead; these byte budgets are not an RSS limit. Uploads have a two-second connect
@@ -434,6 +435,7 @@ The following optional headers enrich the generation, including in usage mode:
 | `langfuse-trace-name` | String | `langfuse_trace_name` |
 | `langfuse-session-id` | String | `langfuse_session_id` |
 | `langfuse-user-id` | String | `langfuse_user_id` |
+| `langfuse-environment` | Environment name | `langfuse_environment` |
 | `langfuse-tags` | Comma-separated strings | `langfuse_tags` |
 | `langfuse-metadata` | Comma-separated `key:value` entries | `langfuse_metadata_<key>` |
 
@@ -443,6 +445,7 @@ For example:
 langfuse-trace-name: support-workflow
 langfuse-session-id: conversation-123
 langfuse-user-id: user-456
+langfuse-environment: production
 langfuse-tags: support,production
 langfuse-metadata: team:search,variant:B,note:hello%2C%20world
 ```
@@ -455,8 +458,13 @@ metadata merges by key with explicit entries winning. Invalid entries are ignore
 independently, and invalid overrides leave valid baggage intact. Caller metadata
 cannot replace protected gateway facts or trusted API-key attribution.
 
-Extraction is bounded to 8 KiB across the eight context header values above
-(`traceparent`, `tracestate`, `baggage` and the five custom headers). Above that
+The environment follows the SDK rule: at most 40 lowercase letters, digits, `-`
+or `_`, not starting with the reserved `langfuse` prefix. An invalid value is
+ignored like any other invalid field, so the generation lands in the `default`
+environment unless valid baggage supplies one.
+
+Extraction is bounded to 8 KiB across the nine context header values above
+(`traceparent`, `tracestate`, `baggage` and the six custom headers). Above that
 limit, context is ignored and a fresh generation trace is created. Decoded fields
 are limited to 1 KiB; each baggage/tag/metadata list is limited to 64 entries.
 Repeated list header lines are combined in order within that same entry limit.
@@ -613,10 +621,18 @@ hands an owned `InferenceFacts` record to telemetry for a safe debug summary and
 batched upload. Capture and upload run independently of log level; debug emission
 alone is gated.
 
-Capture is limited to 1 MiB request inspection, 1 MiB JSON/SSE event inspection,
+Capture is limited to 5 MiB request inspection, 1 MiB JSON/SSE event inspection,
 1 MiB retained output and 256 output items per execution. The active-request limit
 bounds the number of captures. Trusted key metadata is bounded by the resolver's
-256 KiB response limit. Oversized input is omitted; oversized output items
+256 KiB response limit. In full mode, an input that is not recorded (over 5 MiB,
+content-encoded or not a JSON object) is explained in generation metadata:
+`langfuse.gateway.request.input_omitted` (`size_limit`, `content_encoding` or
+`invalid_json`), `langfuse.gateway.request.body_bytes`, and, for `size_limit`,
+`langfuse.gateway.request.input_limit_bytes`. If a generation with its input would
+exceed the telemetry record limit (capped at the retained buffer size) or the buffer
+is full, the input is dropped from that record and the generation is still uploaded,
+with `input_omitted` set to `record_limit` or `telemetry_buffer` and
+`langfuse.gateway.request.input_bytes`. Oversized output items
 are skipped and completeness is false. Malformed, truncated or compressed bodies
 do not interrupt the relay. Capture buffers are independent of forwarding, so
 these limits never cap the actual provider response. Media is not fetched/uploaded.

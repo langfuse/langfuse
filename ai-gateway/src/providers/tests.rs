@@ -20,6 +20,22 @@ fn provider(server: &FakeServer, active: usize) -> ProviderTransport {
     )
 }
 
+/// Consumed as generation context; never forwarded upstream.
+const CALLER_CONTEXT_HEADERS: [(&str, &str); 9] = [
+    (
+        "traceparent",
+        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    ),
+    ("tracestate", "caller=private"),
+    ("baggage", "langfuse_user_id=private"),
+    ("langfuse-trace-name", "private-trace"),
+    ("langfuse-session-id", "private-session"),
+    ("langfuse-user-id", "private-user"),
+    ("langfuse-environment", "private-environment"),
+    ("langfuse-tags", "private-tag"),
+    ("langfuse-metadata", "private:value"),
+];
+
 #[tokio::test]
 async fn preserves_opaque_bytes_and_isolates_request_and_response_headers() {
     const REQUEST: &[u8] = b"{ \"model\": \"opaque\", \"future_field\": [true, 3] }\n";
@@ -40,15 +56,10 @@ async fn preserves_opaque_bytes_and_isolates_request_and_response_headers() {
             "openai-project",
             "x-api-key",
             "x-forwarded-host",
-            "traceparent",
-            "tracestate",
-            "baggage",
-            "langfuse-trace-name",
-            "langfuse-session-id",
-            "langfuse-user-id",
-            "langfuse-tags",
-            "langfuse-metadata",
-        ] {
+        ]
+        .into_iter()
+        .chain(CALLER_CONTEXT_HEADERS.map(|(name, _)| name))
+        {
             assert!(!request.headers().contains_key(name), "forwarded {name}");
         }
         assert_eq!(to_bytes(request.into_body(), 1024).await.unwrap(), REQUEST);
@@ -74,21 +85,13 @@ async fn preserves_opaque_bytes_and_isolates_request_and_response_headers() {
         ("openai-project", "wrong-project"),
         ("x-api-key", "wrong-key"),
         ("x-forwarded-host", "attacker.example"),
-        (
-            "traceparent",
-            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-        ),
-        ("tracestate", "caller=private"),
-        ("baggage", "langfuse_user_id=private"),
-        ("langfuse-trace-name", "private-trace"),
-        ("langfuse-session-id", "private-session"),
-        ("langfuse-user-id", "private-user"),
-        ("langfuse-tags", "private-tag"),
-        ("langfuse-metadata", "private:value"),
         ("content-type", "application/json"),
         ("accept-encoding", "gzip"),
         ("connection", "accept-encoding"),
-    ] {
+    ]
+    .into_iter()
+    .chain(CALLER_CONTEXT_HEADERS)
+    {
         headers.insert(
             axum::http::HeaderName::from_static(name),
             HeaderValue::from_static(value),

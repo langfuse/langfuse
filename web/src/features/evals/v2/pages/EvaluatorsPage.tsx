@@ -19,7 +19,7 @@ import {
   DataTableControls,
   DataTableControlsProvider,
 } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -619,6 +619,12 @@ export default function EvaluatorsPage() {
           description:
             "Create reusable evaluator definitions and test them before activation.",
         },
+        mobileActionButtons: showOnboarding ? (
+          <Button size="sm" onClick={() => setGalleryOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New evaluator
+          </Button>
+        ) : undefined,
         actionButtonsRight: (
           <div className="flex gap-2">
             {showOnboarding ? null : (
@@ -694,46 +700,51 @@ export default function EvaluatorsPage() {
       ) : (
         <DataTableControlsProvider tableName={filterConfig.tableName}>
           <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
-            <TableSearchBar
-              key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
-              projectId={projectId}
-              tableName={filterConfig.tableName}
-              registry={EVALUATORS_LIST_FIELD_REGISTRY}
-              filterState={queryFilter.searchBarFilterState}
-              setFilterState={queryFilter.setFilterState}
-              observed={toObservedOptions(
-                filterOptions,
-                filterOptionsQuery.isPending,
-              )}
-              search={{
-                query: searchQuery ?? null,
-                setQuery: handleSearchChange,
-              }}
-              isV4={false}
-            />
-            <EvaluatorsTableToolbar
-              selectionStore={selectionStore}
-              pageRowIds={evaluatorIds}
-              pageSize={pagination.limit}
-              pageIndex={pagination.page - 1}
-              totalCount={evaluators.data?.totalItems ?? null}
-              columns={columns}
-              columnVisibility={columnVisibility}
-              setColumnVisibility={handleColumnVisibilityChange}
-              columnOrder={columnOrder}
-              setColumnOrder={handleColumnOrderChange}
-              rowHeight={rowHeight}
-              setRowHeight={setRowHeight}
-              filterState={filterState}
-              orderByState={orderBy}
-              currentSearchQuery={searchQuery ?? ""}
-              viewConfig={{
-                tableName: TableViewPresetTableName.Evaluators,
-                projectId,
-                controllers: viewControllers,
-              }}
-            />
-            <ResizableFilterLayout>
+            <SearchableTableFilterLayout
+              search={
+                <TableSearchBar
+                  key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+                  projectId={projectId}
+                  tableName={filterConfig.tableName}
+                  registry={EVALUATORS_LIST_FIELD_REGISTRY}
+                  filterState={queryFilter.searchBarFilterState}
+                  setFilterState={queryFilter.setFilterState}
+                  observed={toObservedOptions(
+                    filterOptions,
+                    filterOptionsQuery.isPending,
+                  )}
+                  search={{
+                    query: searchQuery ?? null,
+                    setQuery: handleSearchChange,
+                  }}
+                  isV4={false}
+                />
+              }
+              toolbar={
+                <EvaluatorsTableToolbar
+                  selectionStore={selectionStore}
+                  pageRowIds={evaluatorIds}
+                  pageSize={pagination.limit}
+                  pageIndex={pagination.page - 1}
+                  totalCount={evaluators.data?.totalItems ?? null}
+                  columns={columns}
+                  columnVisibility={columnVisibility}
+                  setColumnVisibility={handleColumnVisibilityChange}
+                  columnOrder={columnOrder}
+                  setColumnOrder={handleColumnOrderChange}
+                  rowHeight={rowHeight}
+                  setRowHeight={setRowHeight}
+                  filterState={filterState}
+                  orderByState={orderBy}
+                  currentSearchQuery={searchQuery ?? ""}
+                  viewConfig={{
+                    tableName: TableViewPresetTableName.Evaluators,
+                    projectId,
+                    controllers: viewControllers,
+                  }}
+                />
+              }
+            >
               <DataTableControls
                 key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
                 queryFilter={queryFilter}
@@ -791,7 +802,7 @@ export default function EvaluatorsPage() {
                   noResultsMessage="No evaluators found."
                 />
               </div>
-            </ResizableFilterLayout>
+            </SearchableTableFilterLayout>
           </div>
         </DataTableControlsProvider>
       )}

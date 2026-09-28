@@ -36,6 +36,8 @@ export function EvaluatorAssignmentsEditor({
   onSearchChange,
   sampleObject,
   unvalidatedSourceColumnIds,
+  emptyActionLabel = "Attach evaluator",
+  additionalActionLabel = "Attach another evaluator",
   emptyDescription = "Attach an evaluator to run on matching observations.",
   sourceUnavailableMessage,
   disabled = false,
@@ -49,6 +51,8 @@ export function EvaluatorAssignmentsEditor({
   onSearchChange: (search: string) => void;
   sampleObject: Record<string, unknown> | null;
   unvalidatedSourceColumnIds?: string[];
+  emptyActionLabel?: string;
+  additionalActionLabel?: string;
   emptyDescription?: string;
   sourceUnavailableMessage?: string;
   disabled?: boolean;
@@ -86,7 +90,7 @@ export function EvaluatorAssignmentsEditor({
           >
             <span className="flex items-center gap-2 text-sm font-bold">
               <Link2 className="h-4 w-4" />
-              Attach evaluator
+              {emptyActionLabel}
             </span>
             <span className="text-muted-foreground text-sm font-normal">
               {emptyDescription}
@@ -101,7 +105,7 @@ export function EvaluatorAssignmentsEditor({
             className="text-foreground hover:text-foreground inline-flex h-auto items-center gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
           >
             <Plus className="size-3.5 shrink-0" aria-hidden="true" />
-            Attach another evaluator
+            {additionalActionLabel}
           </Button>
         )}
       </PopoverTrigger>
