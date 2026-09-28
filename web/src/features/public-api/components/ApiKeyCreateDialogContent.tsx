@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { ArrowUpRight, SquareArrowOutUpRight } from "lucide-react";
 
 import { type SystemRole } from "@langfuse/shared/src/db";
 import {
@@ -26,7 +25,11 @@ import {
 } from "@/src/components/ui/select";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
-import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
+import {
+  RolePermissionTooltip,
+  RolePermissionTooltipGroup,
+} from "@/src/features/rbac/components/RolePermissionTooltip";
+import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 import {
   expiryPresetOptions,
@@ -99,17 +102,8 @@ function ApiKeyCreateForm({
   const [role, setRole] = useState<SystemRole>(DEFAULT_ROLE);
   const [expiryPreset, setExpiryPreset] = useState<ExpiryPreset>("never");
   const [customExpiry, setCustomExpiry] = useState("");
-  const [roleSelectOpen, setRoleSelectOpen] = useState(false);
-  const [permissionsRole, setPermissionsRole] = useState<SystemRole | null>(
-    null,
-  );
 
   const submitDisabled = name.trim() === "";
-
-  const openPermissions = (target: SystemRole) => {
-    setRoleSelectOpen(false);
-    setPermissionsRole(target);
-  };
 
   const submit = () => {
     if (submitDisabled) return;
@@ -177,79 +171,45 @@ function ApiKeyCreateForm({
 
           <div className="flex flex-col gap-1.5">
             <Label>Permissions</Label>
-            <Select
-              open={roleSelectOpen}
-              onOpenChange={setRoleSelectOpen}
-              value={role}
-              onValueChange={(value) => setRole(value as SystemRole)}
-            >
-              <SelectTrigger className="h-auto" disableValueLineClamp>
-                <div className="flex items-start gap-2 text-left">
-                  <SelectedRoleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-                  <div className="flex flex-col">
-                    <span className="font-bold">{selectedRoleDef.name}</span>
-                    <span className="text-muted-foreground text-xs">
-                      {selectedRoleDef.description}
-                    </span>
+            <RolePermissionTooltipGroup>
+              <Select
+                value={role}
+                onValueChange={(value) => setRole(value as SystemRole)}
+              >
+                <SelectTrigger className="h-auto" disableValueLineClamp>
+                  <div className="flex items-start gap-2 text-left">
+                    <SelectedRoleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div className="flex flex-col">
+                      <span className="font-bold">{selectedRoleDef.name}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {selectedRoleDef.description}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                {roles.map((r) => {
-                  const def = systemRoleAccessRights[r];
-                  const Icon = roleIcons[r];
-                  return (
-                    <SelectItem
-                      key={r}
-                      value={r}
-                      className="group pl-2 [&>span:not([data-checkmark])]:flex-1 [&>span[data-checkmark]]:hidden"
-                    >
-                      <div className="flex w-full items-start gap-2 text-left">
-                        <Icon className="mt-0.5 h-4 w-4 shrink-0" />
-                        <div className="flex flex-col">
-                          <span className="font-bold">{def.name}</span>
-                          <span className="text-muted-foreground text-xs">
-                            {def.description}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onPointerUp={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            openPermissions(r);
-                          }}
-                          aria-label={`View ${def.name} permissions`}
-                          className="text-muted-foreground hover:bg-background hover:text-foreground ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-center rounded-full opacity-0 group-hover:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100"
-                        >
-                          <SquareArrowOutUpRight className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-            <button
-              type="button"
-              onClick={() => setPermissionsRole(role)}
-              className="text-muted-foreground hover:text-foreground ml-1 w-fit text-xs"
-            >
-              View{" "}
-              <span className="inline-flex items-center gap-0.5 underline">
-                {rolePermissionCountLabel(role)}
-                <ArrowUpRight className="h-3 w-3" />
-              </span>
-            </button>
+                </SelectTrigger>
+                <SelectContent>
+                  {roles.map((r) => (
+                    <RoleSelectItem key={r} role={r} />
+                  ))}
+                </SelectContent>
+              </Select>
+            </RolePermissionTooltipGroup>
+            <RolePermissionTooltip
+              role={role}
+              trigger={
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground ml-1 w-fit text-xs"
+                >
+                  View{" "}
+                  <span className="underline">
+                    {rolePermissionCountLabel(role)}
+                  </span>
+                </button>
+              }
+            />
           </div>
         </div>
-
-        <RolePermissionPopup
-          role={permissionsRole}
-          onClose={() => setPermissionsRole(null)}
-        />
       </DialogBody>
       <DialogFooter>
         <Button onClick={submit} loading={isPending} disabled={submitDisabled}>

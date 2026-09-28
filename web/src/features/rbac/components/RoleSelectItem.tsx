@@ -1,25 +1,23 @@
-import { SquareArrowOutUpRight } from "lucide-react";
-import { type Role } from "@langfuse/shared";
+import { type SystemRole } from "@langfuse/shared/src/db";
 import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 
 import { SelectItem } from "@/src/components/ui/select";
+import { RolePermissionTooltip } from "@/src/features/rbac/components/RolePermissionTooltip";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 
 /**
  * RoleSelectItem is one option in a role dropdown: an icon, the role's name and
- * description, and a square-arrow-out button that opens the role's definition
- * popup. The button stops event propagation so it never selects the role.
- * The popup itself is owned by RoleSelect, which renders it as a sibling of the
- * Select so it survives the Select unmounting on close.
+ * description, and an info button that reveals the role's permissions in a
+ * hover tooltip.
  */
 export const RoleSelectItem = ({
   role,
   isProjectRole,
-  onViewPermissions,
+  emptyStateComment,
 }: {
-  role: Role;
+  role: SystemRole;
   isProjectRole?: boolean;
-  onViewPermissions: (role: Role) => void;
+  emptyStateComment?: string;
 }) => {
   const def = systemRoleAccessRights[role];
   const Icon = roleIcons[role];
@@ -41,20 +39,10 @@ export const RoleSelectItem = ({
             {def.description}
           </span>
         </div>
-        <button
-          type="button"
-          onPointerDown={(e) => e.stopPropagation()}
-          onPointerUp={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onViewPermissions(role);
-          }}
-          aria-label={`View ${def.name} permissions`}
-          className="text-muted-foreground hover:bg-background hover:text-foreground ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-center rounded-full opacity-0 group-hover:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100"
-        >
-          <SquareArrowOutUpRight className="h-3.5 w-3.5" />
-        </button>
+        <RolePermissionTooltip
+          role={role}
+          emptyStateComment={emptyStateComment}
+        />
       </div>
     </SelectItem>
   );

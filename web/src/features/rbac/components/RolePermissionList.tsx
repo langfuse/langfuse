@@ -191,7 +191,7 @@ const SectionHeader = ({ label }: { label: string }) => {
     <span
       ref={ref}
       className={cn(
-        "bg-modal text-muted-foreground sticky -top-px z-10 block px-4 pt-4 pb-2 text-xs font-bold tracking-wider uppercase",
+        "bg-modal text-muted-foreground sticky -top-px z-10 block px-4 pt-4 pb-2 text-[0.65rem] font-bold tracking-wider uppercase",
         stuck && "shadow-[0_8px_8px_-4px_hsl(var(--modal))]",
       )}
     >
@@ -206,7 +206,7 @@ export const RolePermissionList = ({ role }: { role: SystemRole }) => {
 
   if (policies.length === 0)
     return (
-      <p className="text-muted-foreground text-sm italic">
+      <p className="text-muted-foreground text-xs italic">
         No permissions granted.
       </p>
     );
@@ -224,18 +224,11 @@ export const RolePermissionList = ({ role }: { role: SystemRole }) => {
             <SectionHeader label={resourceKindLabels[kind]} />
             <div className="flex flex-col gap-2 px-4">
               {groupByEntity(scopes).map((group) => (
-                <div key={group.entity} className="flex items-start gap-3">
-                  <div className="w-40 shrink-0">
-                    <span className="block text-sm leading-tight font-bold">
-                      {group.title}
-                    </span>
-                    {group.description && (
-                      <span className="text-muted-foreground block text-xs leading-tight">
-                        {group.description}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex min-w-0 flex-1 flex-wrap justify-end gap-1">
+                <div key={group.entity} className="flex items-start gap-2">
+                  <span className="w-36 shrink-0 text-xs leading-tight font-bold">
+                    {group.title}
+                  </span>
+                  <div className="flex flex-1 flex-wrap gap-1">
                     {group.actions.map((action) => (
                       <Badge
                         key={action}

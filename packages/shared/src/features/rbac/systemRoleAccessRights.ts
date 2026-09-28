@@ -143,13 +143,6 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       ],
       tags: ["principal:apiKey", "legacy"],
     },
-    SCORES_INGEST: {
-      id: "SCORES_INGEST",
-      name: "Scores ingestion",
-      description: "Submit scores from a web application.",
-      policies: [allow("project", ["scores:create"])],
-      tags: ["principal:apiKey"],
-    },
     INGEST: {
       id: "INGEST",
       name: "Ingestion",
@@ -157,6 +150,13 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       policies: [
         allow("project", ["traces:create", "scores:create", "media:create"]),
       ],
+      tags: ["principal:apiKey"],
+    },
+    SCORES_INGEST: {
+      id: "SCORES_INGEST",
+      name: "Scores ingestion",
+      description: "Submit scores from a web application.",
+      policies: [allow("project", ["scores:create"])],
       tags: ["principal:apiKey"],
     },
     AI_GATEWAY: {
