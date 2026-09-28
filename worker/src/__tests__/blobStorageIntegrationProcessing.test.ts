@@ -1986,6 +1986,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         updatedIntegration.nextSyncAt.getTime() - now.getTime(),
       );
       expect(timeDiff).toBeLessThan(5000); // Within 5 seconds
+      expect(updatedIntegration.backfill).toBe(true);
     });
 
     it("keeps the advanced watermark when catch-up enqueue fails", async () => {
@@ -2192,6 +2193,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       expect(updatedIntegration.nextSyncAt.getTime()).toBeGreaterThan(
         now.getTime(),
       );
+      expect(updatedIntegration.backfill).toBe(false);
     });
   });
 
