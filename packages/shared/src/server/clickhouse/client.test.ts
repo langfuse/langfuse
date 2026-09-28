@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
       | undefined,
     CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL: 9000,
     CLICKHOUSE_MAX_OPEN_CONNECTIONS: 25,
-    CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE: undefined,
+    CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE: undefined as string | undefined,
     CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS: undefined,
     CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MIN_MS: undefined,
     CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: "alter_update",
@@ -144,21 +144,42 @@ describe("ClickHouseClientManager compatibility settings", () => {
     },
   );
 
+  it("keeps read-only extra settings off the write client on a shared URL", () => {
+    mocks.env.CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY = {
+      log_comment: "read_only",
+    };
+
+    clickhouseClient({}, "ReadOnly");
+    clickhouseClient({}, "ReadWrite");
+
+    expect(mocks.createClient).toHaveBeenCalledTimes(2);
+    expect(
+      mocks.createClient.mock.calls[1][0].clickhouse_settings,
+    ).not.toHaveProperty("log_comment");
+  });
+
   it("lets derived and per-query settings override extra settings", () => {
     setClickHouseCompatibilityVersionForTests("26.5.5.8");
+    mocks.env.CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE = "10485760";
     mocks.env.CLICKHOUSE_EXTRA_SETTINGS = {
+      async_insert_max_data_size: "1",
       query_plan_top_k_through_join: 1,
       max_execution_time: 1,
       date_time_output_format: "simple",
     };
 
-    clickhouseClient({
-      clickhouse_settings: { date_time_output_format: "iso" },
-    });
+    try {
+      clickhouseClient({
+        clickhouse_settings: { date_time_output_format: "iso" },
+      });
+    } finally {
+      mocks.env.CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE = undefined;
+    }
 
     expect(
       mocks.createClient.mock.calls[0][0].clickhouse_settings,
     ).toMatchObject({
+      async_insert_max_data_size: "10485760",
       query_plan_top_k_through_join: 0,
       max_execution_time: 35,
       date_time_output_format: "iso",
