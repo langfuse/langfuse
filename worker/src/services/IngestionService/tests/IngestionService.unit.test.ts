@@ -182,6 +182,37 @@ describe("IngestionService unit tests", () => {
     expect(eventRecord.cost_details).toEqual({ total: 0.03 });
   });
 
+  it("drops provided usage values that cannot be written as UInt64", async () => {
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    // 1e21 serializes as "1e+21", which ClickHouse rejects for a UInt64 map
+    // value, failing the whole insert batch the record is part of.
+    const eventRecord = await ingestionService.createEventRecord(
+      {
+        projectId: "project-id",
+        traceId: "trace-id",
+        spanId: "observation-id",
+        name: "out-of-range-usage",
+        type: "GENERATION",
+        environment: "default",
+        startTimeISO: "2026-08-03T00:00:00.000Z",
+        endTimeISO: "2026-08-03T00:00:01.000Z",
+        providedUsageDetails: { input: 1e21, output: 5 },
+        metadata: {},
+        source: "otel",
+      },
+      "otel/project-id/raw-event.json",
+    );
+
+    expect(eventRecord.provided_usage_details).toEqual({ output: 5 });
+    expect(eventRecord.usage_details).toEqual({ output: 5, total: 5 });
+  });
+
   it("keeps legacy evaluator metadata for ClickHouse defaults", async () => {
     const ingestionService = new IngestionService(
       {} as any,

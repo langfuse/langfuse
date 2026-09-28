@@ -308,18 +308,21 @@ export class IngestionService {
       eventData.modelParameters,
     );
     const metadata = eventData.metadata ?? {};
+    const providedUsageDetails = IngestionService.normalizeProvidedUsageDetails(
+      eventData.providedUsageDetails ?? {},
+    );
 
     // Runs outside the modelName gate below so model-less events with provided
     // usage are still checked.
     this.warnOnUsageTotalMismatch(
-      eventData.providedUsageDetails ?? {},
+      providedUsageDetails,
       { id: eventData.spanId, project_id: eventData.projectId },
       "events",
     );
 
     const shouldEnrichUsageAndCost =
       Boolean(eventData.modelName) ||
-      Object.keys(eventData.providedUsageDetails ?? {}).length > 0 ||
+      Object.keys(providedUsageDetails).length > 0 ||
       Object.keys(eventData.providedCostDetails ?? {}).length > 0;
 
     // Perform lookups for prompt and model/usage enrichment
@@ -349,7 +352,7 @@ export class IngestionService {
               project_id: eventData.projectId,
               trace_id: eventData.traceId,
               provided_model_name: eventData.modelName,
-              provided_usage_details: eventData.providedUsageDetails ?? {},
+              provided_usage_details: providedUsageDetails,
               provided_cost_details: eventData.providedCostDetails ?? {},
               input,
               output,
@@ -419,9 +422,12 @@ export class IngestionService {
         modelParameters as EventRecordInsertType["model_parameters"],
 
       // Usage & Cost
-      provided_usage_details: eventData.providedUsageDetails ?? {},
+      provided_usage_details: providedUsageDetails,
       usage_details:
-        generationUsage?.usage_details ?? eventData.usageDetails ?? {},
+        generationUsage?.usage_details ??
+        IngestionService.normalizeProvidedUsageDetails(
+          eventData.usageDetails ?? {},
+        ),
       provided_cost_details: eventData.providedCostDetails ?? {},
       cost_details:
         generationUsage?.cost_details ?? eventData.costDetails ?? {},
@@ -1584,6 +1590,9 @@ export class IngestionService {
 
   // Convert all values to numbers to handle cases where ClickHouse returns UInt64 as strings.
   // This prevents string concatenation bugs like "100" + "200" = "100200" instead of 300.
+  // Values above Number.MAX_SAFE_INTEGER are dropped: they are not exact in JS, and
+  // from 1e21 JSON.stringify emits exponent notation that ClickHouse rejects for a
+  // UInt64 map value, which fails the whole insert batch the row is part of.
   private static normalizeProvidedUsageDetails(
     providedUsageDetails: Record<string, unknown>,
   ): Record<string, number> {
@@ -1592,6 +1601,13 @@ export class IngestionService {
       if (value != null) {
         const numValue = Number(value);
         if (!isNaN(numValue) && numValue >= 0) {
+          if (numValue > Number.MAX_SAFE_INTEGER) {
+            recordIncrement(
+              "langfuse.ingestion.usage_details.out_of_range_dropped",
+              1,
+            );
+            continue;
+          }
           normalized[key] = numValue;
         }
       }
