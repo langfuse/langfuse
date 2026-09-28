@@ -31,12 +31,12 @@ export default function usePlaygroundCache(windowId?: string) {
     setCache(readCache(cacheKey));
   }, [cacheKey]);
 
-  const setPlaygroundCache = (newCache: PlaygroundCache) => {
+  const setPlaygroundCache = (newCache: PlaygroundCache): boolean => {
     if (newCache === null) {
       sessionStorage.removeItem(cacheKey);
-      return;
+      return true;
     }
-    safeSessionStorageSetItem(cacheKey, JSON.stringify(newCache));
+    return safeSessionStorageSetItem(cacheKey, JSON.stringify(newCache));
   };
 
   return { playgroundCache: cache, setPlaygroundCache };

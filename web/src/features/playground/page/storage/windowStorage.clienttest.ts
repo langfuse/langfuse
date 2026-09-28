@@ -89,6 +89,15 @@ describe("playground sessionStorage writes", () => {
     expect(errorSpy).not.toHaveBeenCalled();
   });
 
+  it("returns true when persisting playground cache succeeds", () => {
+    const { result } = renderHook(() => usePlaygroundCache("win-ok"));
+
+    expect(result.current.setPlaygroundCache(sampleCache)).toBe(true);
+    expect(sessionStorage.getItem(getCacheKey("win-ok"))).toBe(
+      JSON.stringify(sampleCache),
+    );
+  });
+
   it("does not throw or console.error when persisting playground cache hits quota", () => {
     const { result } = renderHook(() => usePlaygroundCache("win-1"));
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -97,9 +106,7 @@ describe("playground sessionStorage writes", () => {
       throw quotaExceeded();
     });
 
-    expect(() => {
-      result.current.setPlaygroundCache(sampleCache);
-    }).not.toThrow();
+    expect(result.current.setPlaygroundCache(sampleCache)).toBe(false);
     expect(warnSpy).toHaveBeenCalled();
     expect(errorSpy).not.toHaveBeenCalled();
   });

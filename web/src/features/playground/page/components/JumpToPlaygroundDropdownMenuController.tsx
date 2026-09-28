@@ -187,9 +187,7 @@ export function useJumpToPlayground(
       // Use requestAnimationFrame to ensure the state update has been processed
       requestAnimationFrame(() => {
         if (!setWindowState(targetWindowId, capturedState)) {
-          toast.error(
-            "Could not save playground state. Browser storage is full.",
-          );
+          toast.error("Could not save playground state to this browser.");
         }
         router.push(`/project/${projectId}/playground`);
       });
