@@ -897,11 +897,12 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     };
   }, [hasCUDAccess, handleDroppedFile]);
 
-  const { nameOptions, tagsOptions } = useDashboardFilterOptions({
-    projectId,
-    isV4,
-    timeRange,
-  });
+  const { nameOptions, tagsOptions, ingestionApiKeyOptions } =
+    useDashboardFilterOptions({
+      projectId,
+      isV4,
+      timeRange,
+    });
 
   const environmentOptionsState = useEnvironmentFilterOptionsCache({
     projectId,
@@ -996,6 +997,22 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       type: "string",
       internal: "internalValue",
     },
+    // v4-only bar column: the dimension exists solely on the events traces
+    // and observations views, and the facet's options source
+    // (events.filterOptions) is itself v4-gated. Widgets on views without the
+    // column (scores) drop the filter at query-build time; the v3 read path
+    // has no such dimension at all, so the bar does not offer it there.
+    ...(isV4
+      ? [
+          {
+            name: "API Key",
+            id: "ingestionApiKey",
+            type: "stringOptions",
+            options: ingestionApiKeyOptions,
+            internal: "internalValue",
+          } satisfies ColumnDefinition,
+        ]
+      : []),
   ];
 
   // Fetch widget data if addWidgetId is present
