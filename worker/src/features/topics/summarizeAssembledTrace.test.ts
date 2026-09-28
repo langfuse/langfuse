@@ -15,11 +15,10 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   ensureDefaultTopicFacets: (...args: unknown[]) => state.facets(...args),
   listTopicSummaries: (...args: unknown[]) => state.stored(...args),
   writeTopicSummaries: (...args: unknown[]) => state.write(...args),
-  topicSummaryId: () => "summary-1",
   TOPICS_TRANSCRIPT_VERSION: "shared-transcript-v1",
 }));
 vi.mock("./models", () => ({
-  summarizeTopicTrace: (...args: unknown[]) => state.summarize(...args),
+  summarizeTopicTraceFacets: (...args: unknown[]) => state.summarize(...args),
   embedTopicSummary: (...args: unknown[]) => state.embed(...args),
 }));
 
@@ -62,6 +61,20 @@ const facet = {
   ],
 };
 
+const issues = {
+  ...facet,
+  id: "facet-2",
+  name: "Issues",
+  versions: [
+    {
+      ...facet.versions[0],
+      facetId: "facet-2",
+      version: 1,
+      prompt: "Describe the most consequential problem.",
+    },
+  ],
+};
+
 const usage = {
   providedUsageDetails: { summary_input: 20 },
   usageDetails: { summary_input: 20, summary_output: 8, total: 28 },
@@ -80,11 +93,22 @@ beforeEach(() => {
   state.write.mockReset();
   state.summarize.mockReset();
   state.embed.mockReset();
-  state.facets.mockResolvedValue([facet]);
+  state.facets.mockResolvedValue([facet, issues]);
   state.stored.mockResolvedValue([]);
   state.write.mockResolvedValue(undefined);
   state.summarize.mockResolvedValue({
-    output: { summary: "Export monthly sales.", status: "applicable" },
+    output: {
+      intent_1: {
+        notes: "User asks for a sales export.",
+        summary: "Export monthly sales.",
+        status: "applicable",
+      },
+      issues_2: {
+        notes: "No error shown.",
+        summary: "",
+        status: "not_applicable",
+      },
+    },
     ...usage,
   });
   state.embed.mockResolvedValue({
@@ -112,7 +136,7 @@ describe("summarizeAssembledTrace", () => {
     expect(state.write).not.toHaveBeenCalled();
   });
 
-  it("summarizes the assembled transcript once per current facet and skips a finished retry", async () => {
+  it("summarizes all current facets in one call, records usage once and skips a finished retry", async () => {
     await summarizeAssembledTrace({
       projectId: "project-a",
       traceId: "trace-1",
@@ -123,25 +147,29 @@ describe("summarizeAssembledTrace", () => {
     });
     expect(state.facets).toHaveBeenCalledWith("project-a");
     expect(state.summarize).toHaveBeenCalledTimes(1);
-    const submitted = state.summarize.mock.calls[0];
-    expect(submitted[0].prompt).toBe(facet.versions[0].prompt);
-    expect(submitted[1]).toContain("Export monthly sales");
-    expect(submitted[1]).not.toContain("observation");
-    const written = state.write.mock.calls[0][0][0];
-    expect(written).toMatchObject({
-      projectId: "project-a",
+    const [keyed, text] = state.summarize.mock.calls[0];
+    expect(keyed.map(({ key }: { key: string }) => key)).toEqual([
+      "intent_1",
+      "issues_2",
+    ]);
+    expect(text).toContain("Export monthly sales");
+    expect(text).not.toContain("observation");
+    const [intent, issue] = state.write.mock.calls[0][0];
+    expect(intent).toMatchObject({
       traceId: "trace-1",
-      sessionId: null,
       facetId: "facet-1",
       facetVersion: 2,
       state: "complete",
       summary: "Export monthly sales.",
-      summaryModel: "global.openai.gpt-5.6-luna",
-      embeddingModel: "cohere.embed-v4:0",
-      environment: "default",
-      traceName: "agent-turn",
+      usageDetails: { summary_input: 20, embedding_input: 4 },
     });
-    state.stored.mockResolvedValue([written]);
+    expect(issue).toMatchObject({
+      facetId: "facet-2",
+      state: "not_applicable",
+      summary: "",
+      usageDetails: {},
+    });
+    state.stored.mockResolvedValue([intent]);
     state.summarize.mockClear();
     state.write.mockClear();
     await summarizeAssembledTrace({
