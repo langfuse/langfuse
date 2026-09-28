@@ -2,7 +2,7 @@ import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { GatewayModelsView } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayModelsView/GatewayModelsView";
+import { ConnectedGatewayModelsTable } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayModelsTable/ConnectedGatewayModelsTable";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
 
@@ -65,7 +65,7 @@ export function GatewayModelsPage({
       .catch((error) => reportNonTrpcError(error, "ai-gateway-models"));
 
   return (
-    <GatewayModelsView
+    <ConnectedGatewayModelsTable
       models={rows}
       failedProviderCount={failedResults.length}
       providerCount={results?.length ?? connections.length}
