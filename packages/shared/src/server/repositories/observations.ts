@@ -2198,7 +2198,7 @@ export const getObservationsCountForPublicApi = async ({
   const traceFilter = filter.find((f) => f.clickhouseTable === "traces");
 
   const query = `
-    SELECT count() as count
+    SELECT uniqExact(o.id, o.trace_id, o.project_id, o.type, toDate(o.start_time)) as count
     FROM observations o
     ${traceFilter ? `LEFT JOIN __TRACE_TABLE__ t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
     WHERE o.project_id = {projectId: String}

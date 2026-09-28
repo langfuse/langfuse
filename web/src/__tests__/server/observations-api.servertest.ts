@@ -411,6 +411,46 @@ describe("/api/public/observations API Endpoint", () => {
         expect(embeddingObs?.costDetails).toBeDefined();
       }, 20_000);
 
+      if (!useEventsTable) {
+        it("counts one observation when multiple revisions share its key", async () => {
+          const traceId = randomUUID();
+          const observationId = randomUUID();
+          const startTime = Date.now();
+          await createTracesCh([
+            createTrace({ id: traceId, project_id: projectId, timestamp: startTime }),
+          ]);
+          const revision = (eventTs: number) =>
+            createObservation({
+              id: observationId,
+              trace_id: traceId,
+              project_id: projectId,
+              name: "revisioned-generation",
+              type: "GENERATION",
+              start_time: startTime,
+              event_ts: eventTs,
+            });
+          await createObservationsCh([
+            revision(startTime),
+            revision(startTime + 1_000),
+          ]);
+
+          const response = await makeZodVerifiedAPICall(
+            GetObservationsV1Response,
+            "GET",
+            `/api/public/observations?traceId=${traceId}`,
+            undefined,
+            auth,
+          );
+
+          expect(response.status).toBe(200);
+          expect(response.body.data.map((observation) => observation.id)).toEqual([
+            observationId,
+          ]);
+          expect(response.body.meta.totalItems).toBe(1);
+          expect(response.body.meta.totalPages).toBe(1);
+        });
+      }
+
       it("should filter observations by level parameter", async () => {
         const traceId = randomUUID();
         const timestamp = new Date();
