@@ -75,7 +75,7 @@ export function MonitorsOnboarding({
                         {channel.label}
                       </span>
                       <ChevronRight
-                        className="text-foreground-tertiary size-3"
+                        className="text-foreground-tertiary size-3.5"
                         aria-hidden="true"
                       />
                     </Link>

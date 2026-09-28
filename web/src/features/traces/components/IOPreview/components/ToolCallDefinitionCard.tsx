@@ -233,9 +233,9 @@ function ToolGroupSummary({
           {expanded ? "hide" : "show"}
         </Badge>
         {expanded ? (
-          <ChevronDown className="text-foreground-tertiary size-3" />
+          <ChevronDown className="text-foreground-tertiary size-3.5" />
         ) : (
-          <ChevronRight className="text-foreground-tertiary size-3" />
+          <ChevronRight className="text-foreground-tertiary size-3.5" />
         )}
       </div>
     </button>
@@ -359,9 +359,9 @@ function ToolDefinitionRow({
           />
 
           {isExpanded ? (
-            <ChevronDown className="text-foreground-tertiary size-3" />
+            <ChevronDown className="text-foreground-tertiary size-3.5" />
           ) : (
-            <ChevronRight className="text-foreground-tertiary size-3" />
+            <ChevronRight className="text-foreground-tertiary size-3.5" />
           )}
         </div>
       </button>

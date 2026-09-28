@@ -289,9 +289,9 @@ const SessionControlsBar = ({
       >
         <span className="flex min-w-0 items-center gap-2">{summary}</span>
         {isExpanded ? (
-          <ChevronUp className="text-foreground-tertiary size-3 shrink-0" />
+          <ChevronUp className="text-foreground-tertiary size-3.5 shrink-0" />
         ) : (
-          <ChevronDown className="text-foreground-tertiary size-3 shrink-0" />
+          <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0" />
         )}
       </Button>
       {/* Keep children MOUNTED when collapsed (hidden, not unmounted): the
@@ -749,7 +749,7 @@ export const SessionPage: React.FC<{
                         {totalCount > 0 && (
                           <ActionButtonCountBadge count={totalCount} />
                         )}
-                        <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
+                        <ChevronDown className="text-foreground-tertiary size-3.5 translate-y-px" />
                       </Button>
                     )}
                   </ConnectedSessionAddToDropdownMenuController>
@@ -1732,7 +1732,7 @@ const LoadedSessionEventsPage: React.FC<{
                         <ActionButtonCountBadge count={totalCount} />
                       )}
                       <ChevronDown
-                        className="text-foreground-tertiary size-3 translate-y-px"
+                        className="text-foreground-tertiary size-3.5 translate-y-px"
                         aria-hidden="true"
                       />
                     </Button>

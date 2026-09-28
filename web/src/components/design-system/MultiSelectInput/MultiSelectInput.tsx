@@ -85,7 +85,7 @@ function MultiSelectInputInner<V extends string>(
           >
             {value.length > 0 ? selectedLabel : placeholder}
           </span>
-          <ChevronDown className="text-foreground-tertiary size-3 shrink-0" />
+          <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0" />
         </PopoverPrimitive.Trigger>
       </InputControl>
       <PopoverPrimitive.Portal container={container}>

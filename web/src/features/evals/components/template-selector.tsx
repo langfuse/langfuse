@@ -171,7 +171,7 @@ export const TemplateSelector = ({
                 {triggerLabel}
               </span>
             </div>
-            <ChevronDown className="text-foreground-tertiary ml-2 size-3 shrink-0" />
+            <ChevronDown className="text-foreground-tertiary ml-2 size-3.5 shrink-0" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[300px] p-0" align="start">

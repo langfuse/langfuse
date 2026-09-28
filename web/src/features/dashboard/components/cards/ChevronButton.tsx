@@ -18,12 +18,12 @@ export const ExpandListButton = ({
     >
       {isExpanded ? (
         <>
-          <ChevronUp className="text-foreground-tertiary mr-2 size-3 translate-y-px" />{" "}
+          <ChevronUp className="text-foreground-tertiary mr-2 size-3.5 translate-y-px" />{" "}
           See less
         </>
       ) : (
         <>
-          <ChevronDown className="text-foreground-tertiary mr-2 size-3 translate-y-px" />{" "}
+          <ChevronDown className="text-foreground-tertiary mr-2 size-3.5 translate-y-px" />{" "}
           {expandText}
         </>
       )}

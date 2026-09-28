@@ -1384,7 +1384,7 @@ const FilterAccordionTrigger = ({
       )}
       {...props}
     >
-      <ChevronRight className="text-foreground-tertiary size-3 shrink-0 translate-y-px transition-transform" />
+      <ChevronRight className="text-foreground-tertiary size-3.5 shrink-0 translate-y-px transition-transform" />
       {children}
     </AccordionPrimitive.Trigger>
   </AccordionPrimitive.Header>
@@ -2008,7 +2008,7 @@ function CategoricalSelectContent({
                       onClick={() => setVisibleCount(MAX_VISIBLE_OPTIONS)}
                       className="mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
                     >
-                      <ChevronUp className="text-foreground-tertiary mr-1 size-3 translate-y-px" />
+                      <ChevronUp className="text-foreground-tertiary mr-1 size-3.5 translate-y-px" />
                       Show fewer values
                     </Button>
                   )}
@@ -2023,7 +2023,7 @@ function CategoricalSelectContent({
                       }
                       className="mt-0.5 h-auto w-full justify-start py-1 pl-7 text-xs"
                     >
-                      <ChevronDown className="text-foreground-tertiary mr-1 size-3 translate-y-px" />
+                      <ChevronDown className="text-foreground-tertiary mr-1 size-3.5 translate-y-px" />
                       Show more values
                     </Button>
                   )}

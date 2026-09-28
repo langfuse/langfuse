@@ -47,7 +47,7 @@ const SelectTrigger = React.forwardRef<
       {children}
       {hideDownIcon ? null : (
         <SelectPrimitive.Icon asChild>
-          <ChevronDown className="text-foreground-tertiary size-3" />
+          <ChevronDown className="text-foreground-tertiary size-3.5" />
         </SelectPrimitive.Icon>
       )}
     </SelectPrimitive.Trigger>

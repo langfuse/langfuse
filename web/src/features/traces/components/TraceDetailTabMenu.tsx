@@ -57,7 +57,7 @@ export function TraceDetailTabMenu({
           >
             {labels[selectedTab]}
             {selectedTab === "messages" && <InternalFeatureBadge />}
-            <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
+            <ChevronDown className="text-foreground-tertiary size-3.5 translate-y-px" />
           </Button>
         </Trigger>
       )}

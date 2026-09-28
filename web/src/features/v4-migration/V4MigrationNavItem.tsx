@@ -43,7 +43,7 @@ export function V4MigrationNavItem() {
         {label}
       </span>
       <span className="ml-auto flex shrink-0">
-        <ChevronRight className="text-foreground-tertiary size-3" />
+        <ChevronRight className="text-foreground-tertiary size-3.5" />
       </span>
     </SidebarMenuButton>
   );

@@ -104,7 +104,7 @@ function SelectInputInner<V extends string>(
             >
               {selectedOption?.label ?? placeholder}
             </span>
-            <ChevronDown className="text-foreground-tertiary size-3 shrink-0" />
+            <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0" />
           </PopoverPrimitive.Trigger>
         </InputControl>
         <PopoverPrimitive.Portal container={container}>
@@ -255,7 +255,7 @@ function SelectInputInner<V extends string>(
             <SelectPrimitive.SelectValue placeholder={placeholder} />
           </span>
           <SelectPrimitive.Icon asChild>
-            <ChevronDown className="text-foreground-tertiary size-3 shrink-0" />
+            <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0" />
           </SelectPrimitive.Icon>
         </SelectPrimitive.Trigger>
       </InputControl>

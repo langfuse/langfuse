@@ -184,7 +184,7 @@ export function MultiSelectKeyValues<
           {iconLeft}
           {title}
           {iconRight}
-          <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
+          <ChevronDown className="text-foreground-tertiary size-3.5 translate-y-px" />
           {selectedValueKeys.size > 0 && (
             <>
               <Separator orientation="vertical" className="mx-2 h-4" />

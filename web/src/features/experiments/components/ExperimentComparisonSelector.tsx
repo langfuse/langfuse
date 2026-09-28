@@ -377,9 +377,9 @@ export function ExperimentComparisonSelector({
                 className="bg-muted/40 hover:bg-muted flex w-full items-center gap-2 px-2 py-1.5 text-left"
               >
                 {row.isExpanded ? (
-                  <ChevronDown className="text-foreground-tertiary size-3 shrink-0 translate-y-px" />
+                  <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0 translate-y-px" />
                 ) : (
-                  <ChevronRight className="text-foreground-tertiary size-3 shrink-0 translate-y-px" />
+                  <ChevronRight className="text-foreground-tertiary size-3.5 shrink-0 translate-y-px" />
                 )}
                 <span className="truncate text-xs font-bold" title={row.label}>
                   {row.label}

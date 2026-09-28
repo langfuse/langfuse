@@ -375,7 +375,7 @@ export const ObservationDetailViewHeader = memo(
                     >
                       <PlusIcon className="h-3.5 w-3.5" />
                       <span>Add to</span>
-                      <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
+                      <ChevronDown className="text-foreground-tertiary size-3.5 translate-y-px" />
                     </Button>
                   )}
                 </ConnectedTraceObservationAddToDropdownMenuController>

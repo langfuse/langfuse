@@ -42,7 +42,7 @@ export function TableViewPresetsButton({
       </span>
       {selectedView ? (
         <ChevronDown
-          className="text-foreground-tertiary size-3 shrink-0 translate-y-px"
+          className="text-foreground-tertiary size-3.5 shrink-0 translate-y-px"
           aria-hidden
         />
       ) : (

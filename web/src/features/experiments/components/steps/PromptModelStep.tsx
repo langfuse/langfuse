@@ -148,7 +148,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                     className="w-2/3 justify-between px-2 font-normal"
                   >
                     {selectedPromptName || "Select a prompt"}
-                    <ChevronDown className="text-foreground-tertiary ml-2 size-3 shrink-0" />
+                    <ChevronDown className="text-foreground-tertiary ml-2 size-3.5 shrink-0" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
@@ -208,7 +208,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                     {selectedPromptVersion
                       ? `Version ${selectedPromptVersion}`
                       : "Version"}
-                    <ChevronDown className="text-foreground-tertiary ml-2 size-3 shrink-0" />
+                    <ChevronDown className="text-foreground-tertiary ml-2 size-3.5 shrink-0" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
@@ -341,7 +341,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                           className="flex-1 justify-between px-2 font-normal"
                         >
                           {selectedSchema?.name || "Select schema"}
-                          <ChevronDown className="text-foreground-tertiary ml-2 size-3 shrink-0" />
+                          <ChevronDown className="text-foreground-tertiary ml-2 size-3.5 shrink-0" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent

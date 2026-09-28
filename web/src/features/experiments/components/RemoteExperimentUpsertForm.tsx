@@ -381,7 +381,7 @@ export const RemoteExperimentUpsertForm = ({
               <AccordionPrimitive.Item value="advanced">
                 <AccordionPrimitive.Header className="flex">
                   <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-start gap-2 py-2 text-sm font-bold transition-all hover:underline [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
-                    <ChevronDown className="text-foreground-tertiary size-3 shrink-0 translate-y-px transition-transform duration-200" />
+                    <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0 translate-y-px transition-transform duration-200" />
                     Advanced Options
                   </AccordionPrimitive.Trigger>
                 </AccordionPrimitive.Header>

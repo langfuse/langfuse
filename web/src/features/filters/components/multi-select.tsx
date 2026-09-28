@@ -191,12 +191,12 @@ export function MultiSelect({
               <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
                 {selectedBadges}
               </div>
-              <ChevronDown className="text-foreground-tertiary size-3 shrink-0" />
+              <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0" />
             </>
           ) : (
             <>
               {label ?? "Select"}
-              <ChevronDown className="text-foreground-tertiary size-3 shrink-0" />
+              <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0" />
               {selectedValues.size > 0 && (
                 <>
                   <Separator orientation="vertical" className="mr-auto h-4" />

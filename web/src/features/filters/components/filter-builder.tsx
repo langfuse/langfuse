@@ -294,7 +294,7 @@ export function PopoverFilterBuilder({
                   {filterState.length}
                 </span>
               ) : (
-                <ChevronDown className="text-foreground-tertiary ml-1 size-3 translate-y-px" />
+                <ChevronDown className="text-foreground-tertiary ml-1 size-3.5 translate-y-px" />
               )}
             </Button>
           ) : (
@@ -716,7 +716,7 @@ function FilterBuilderForm({
             <span className="min-w-0 truncate" title={columnLabel}>
               {columnLabel}
             </span>
-            <ChevronDown className="text-foreground-tertiary size-3 shrink-0" />
+            <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0" />
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="max-w-fit p-0">

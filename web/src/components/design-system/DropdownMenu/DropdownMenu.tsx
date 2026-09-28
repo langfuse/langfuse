@@ -458,7 +458,7 @@ function DropdownMenuNode({
                                 {item.title}
                               </span>
                               <ChevronRight
-                                className="text-foreground-tertiary ml-2 size-3"
+                                className="text-foreground-tertiary ml-2 size-3.5"
                                 aria-hidden="true"
                               />
                             </span>

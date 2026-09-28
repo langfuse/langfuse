@@ -278,7 +278,7 @@ export function MultiSelectTagInput<V extends string>({
               {value.length === 0 && (
                 <ChevronDown
                   aria-hidden="true"
-                  className="text-foreground-tertiary size-3 shrink-0"
+                  className="text-foreground-tertiary size-3.5 shrink-0"
                 />
               )}
               {value.length > 0 && (

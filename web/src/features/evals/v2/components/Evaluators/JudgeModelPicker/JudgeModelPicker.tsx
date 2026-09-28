@@ -156,7 +156,7 @@ export const JudgeModelPickerTrigger = forwardRef<
         {loading ? (
           <Spinner size="sm" variant="muted" />
         ) : (
-          <ChevronDown className="text-foreground-tertiary size-3 shrink-0" />
+          <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0" />
         )}
       </Button>
     );

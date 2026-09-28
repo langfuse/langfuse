@@ -73,7 +73,7 @@ export function TierAccordionItem({
               </Button>
             )}
           </div>
-          <ChevronDown className="text-foreground-tertiary size-3 shrink-0 transition-transform duration-200" />
+          <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0 transition-transform duration-200" />
         </AccordionPrimitive.Trigger>
       </AccordionPrimitive.Header>
 
