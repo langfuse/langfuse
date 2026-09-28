@@ -17,7 +17,7 @@ import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayPro
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import type { GatewayModelRow } from "./fns/filterGatewayModels";
 
-const columns: LangfuseColumnDef<GatewayModelRow>[] = [
+export const gatewayModelsColumns: LangfuseColumnDef<GatewayModelRow>[] = [
   createTextTableColumn<GatewayModelRow>({
     accessorKey: "id",
     header: "Model",
@@ -62,7 +62,7 @@ export function GatewayModelsTable({
     <>
       <Table
         tableName={gatewayModelsFilterConfig.tableName}
-        columns={columns}
+        columns={gatewayModelsColumns}
         data={data}
         noResultsMessage={noResultsMessage}
       />

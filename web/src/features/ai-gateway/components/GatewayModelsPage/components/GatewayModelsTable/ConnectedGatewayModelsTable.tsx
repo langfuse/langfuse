@@ -9,6 +9,7 @@ import {
   DataTableControls,
   DataTableControlsProvider,
 } from "@/src/components/table/data-table-controls";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useSidebarFilterState } from "@/src/features/filters";
 import { gatewayModelsFilterConfig } from "@/src/features/ai-gateway/constants/modelsFilterConfig";
@@ -23,7 +24,7 @@ import {
   type GatewayModelRow,
 } from "./fns/filterGatewayModels";
 import { getGatewayModelConnectionSearchOptions } from "./fns/getGatewayModelConnectionSearchOptions";
-import { GatewayModelsTable } from "./GatewayModelsTable";
+import { GatewayModelsTable, gatewayModelsColumns } from "./GatewayModelsTable";
 
 const TABLE_NAME = gatewayModelsFilterConfig.tableName;
 
@@ -244,7 +245,13 @@ export function ConnectedGatewayModelsTable({
                   }}
                 />
               }
-              toolbar={null}
+              toolbar={
+                <DataTableToolbar
+                  tableName={TABLE_NAME}
+                  columns={gatewayModelsColumns}
+                  filterState={queryFilter.filterState}
+                />
+              }
             >
               <DataTableControls queryFilter={queryFilter} />
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
