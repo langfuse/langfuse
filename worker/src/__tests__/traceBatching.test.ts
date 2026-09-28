@@ -473,6 +473,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 1;
     env.LANGFUSE_TRACE_BATCH_STRATEGY = "project";
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 60;
+    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 600_000;
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 7_200_000;
     // The unset default is 2 minutes on DEV; pin the production idle time.
     env.LANGFUSE_TRACE_BATCH_IDLE_MS = 600_000;
