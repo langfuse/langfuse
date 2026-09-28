@@ -107,6 +107,12 @@ const keyboardShortcutVariants = cva(
   },
 );
 
+const symbolSizeClass = {
+  default: "text-base",
+  sm: "text-sm",
+  xs: "text-xs",
+} as const;
+
 export type KeyboardShortcutProps = {
   ref?: React.Ref<HTMLElement>;
   title?: string;
@@ -130,10 +136,15 @@ export function KeyboardShortcut({
     >
       {keys.map((key, index) => {
         const label = getKeyboardKeyLabel(key, isMac);
-        // Modifier and arrow glyphs draw small in the mono face; scale them up.
+        // Modifier and arrow glyphs draw small in the mono face; one step up.
         const isSymbol = /^[^\p{L}\p{N}]$/u.test(label);
         return (
-          <span key={index} className={isSymbol ? "text-[15px]" : undefined}>
+          <span
+            key={index}
+            className={
+              isSymbol ? symbolSizeClass[size ?? "default"] : undefined
+            }
+          >
             {label}
           </span>
         );
