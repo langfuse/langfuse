@@ -170,6 +170,25 @@ describe("scheduleRecurringJob", () => {
     expect(upsertJobScheduler).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps removing the other legacy schedules when one removal fails", async () => {
+    const { queue, removeRepeatableByKey, upsertJobScheduler } =
+      createQueueMock([
+        legacyEntry("my-job", "*/15 * * * *", "eee555"),
+        legacyEntry("my-job", "25 * * * *", "fff666"),
+      ]);
+    removeRepeatableByKey.mockRejectedValueOnce(new Error("redis timeout"));
+
+    await scheduleRecurringJob(queue, {
+      jobName: "my-job",
+      pattern: "*/15 * * * *",
+      previousPatterns: ["25 * * * *"],
+    });
+
+    expect(removeRepeatableByKey).toHaveBeenCalledWith("eee555");
+    expect(removeRepeatableByKey).toHaveBeenCalledWith("fff666");
+    expect(upsertJobScheduler).toHaveBeenCalledTimes(1);
+  });
+
   it("resolves instead of rejecting when the upsert fails", async () => {
     const { queue, upsertJobScheduler } = createQueueMock();
     upsertJobScheduler.mockRejectedValue(new Error("redis down"));

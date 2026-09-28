@@ -66,20 +66,17 @@ RUN if rpm --root /mnt/rootfs -q npm >/dev/null 2>&1; then \
     rpm --root /mnt/rootfs -e --nodeps npm; \
     fi
 
-# Set the FIPS crypto policy in the rootfs. The policy only restricts TLS and
-# algorithm settings (e.g. P-256 instead of X25519) and applies on every host.
-# The FIPS provider itself is loaded only when the host kernel runs in FIPS
-# mode, which a container cannot switch on. update-crypto-policies is
-# python-based and python is deliberately absent from the runtime image, so
-# flip the same policy symlinks it would have flipped. Deployments that need
-# FIPS 140-3 set LANGFUSE_REQUIRE_FIPS=true: startup then fails unless the
-# provider is active (entrypoint.sh and app startup) and an enterprise
-# license is configured (app startup).
-RUN echo FIPS > /mnt/rootfs/etc/crypto-policies/config && \
-    for c in /mnt/rootfs/etc/crypto-policies/back-ends/*.config; do \
-    n=$(basename "$c" .config); \
-    ln -sfn "/usr/share/crypto-policies/FIPS/$n.txt" "$c"; \
-    done
+# The FIPS crypto policy for OpenSSL ships as an opt-in config instead of
+# being activated system-wide, so installs without FIPS mode keep the default
+# TLS policy. entrypoint.sh points OPENSSL_CONF at it when
+# LANGFUSE_REQUIRE_FIPS=true; deployments that override the entrypoint set
+# OPENSSL_CONF=/etc/pki/tls/openssl-fips.cnf themselves. The FIPS provider
+# itself loads only when the host kernel runs in FIPS mode; with
+# LANGFUSE_REQUIRE_FIPS=true, startup fails unless it is active and an
+# enterprise license is configured.
+RUN sed 's#/etc/crypto-policies/back-ends/opensslcnf.config#/usr/share/crypto-policies/FIPS/opensslcnf.txt#' \
+    /mnt/rootfs/etc/pki/tls/openssl.cnf > /mnt/rootfs/etc/pki/tls/openssl-fips.cnf && \
+    grep -q '/usr/share/crypto-policies/FIPS/opensslcnf.txt' /mnt/rootfs/etc/pki/tls/openssl-fips.cnf
 
 # dumb-init is not packaged in UBI; install the pinned, checksum-verified
 # static release binary (preserves the semver-covered ENTRYPOINT contract).

@@ -80,13 +80,21 @@ export const scheduleRecurringJob = async (
       )
       .map((job) => job.key);
 
+    // One failing key must not leave the remaining legacy chains firing.
     for (const key of staleKeys) {
-      // eslint-disable-next-line @typescript-eslint/no-deprecated -- pairs with getRepeatableJobs above; removeJobScheduler cannot address legacy entries.
-      await queue.removeRepeatableByKey(key);
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- pairs with getRepeatableJobs above; removeJobScheduler cannot address legacy entries.
+        await queue.removeRepeatableByKey(key);
+      } catch (err) {
+        logger.error(
+          `Error removing legacy ${jobName} schedule ${key} on ${queue.name}`,
+          err,
+        );
+      }
     }
   } catch (err) {
     logger.error(
-      `Error removing legacy ${jobName} schedules on ${queue.name}`,
+      `Error listing legacy ${jobName} schedules on ${queue.name}`,
       err,
     );
   }

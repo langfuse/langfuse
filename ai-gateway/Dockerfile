@@ -3,9 +3,9 @@
 # no openssl or rustls crates), so FIPS readiness here means the whole image
 # lifecycle stays on the RHEL platform: the binary is compiled and linked
 # against UBI9 glibc, and the runtime carries the CMVP-validated OpenSSL FIPS
-# provider with the FIPS crypto policy active, so outbound TLS added later
-# links the system libcrypto.so.3 and inherits the validated module, the same
-# pattern the RPM Node uses in web/worker.
+# provider, so outbound TLS added later links the system libcrypto.so.3 and
+# inherits the validated module, the same pattern the RPM Node uses in
+# web/worker. The crypto policy stays at the default until the gateway does TLS.
 # The defaults are Red Hat's public UBI9 images, so the build needs no
 # credentials. Iron Bank serves the same content from an authenticated registry
 # with DoD provenance and scan attestations. Release builds opt in by overriding
@@ -72,8 +72,8 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS rpm-installer
 # openssl-libs ships the FIPS provider module (/usr/lib64/ossl-modules/fips.so),
 # unlinked by today's binary but required the moment an OpenSSL-dependent
 # binary lands, so the validated module is already present. crypto-policies
-# activates the FIPS policy; ca-certificates is the trust store for future
-# outbound TLS. wget serves the ECS container health command
+# provides the system policy OpenSSL reads; ca-certificates is the trust store
+# for future outbound TLS. wget serves the ECS container health command
 # (`sh -c 'wget -qO /dev/null http://localhost:8080/health'`, exercised by
 # scripts/smoke-image.sh); ubi9-micro already provides the shell.
 RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0 \
@@ -81,17 +81,6 @@ RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0
     install glibc libgcc ca-certificates crypto-policies openssl-libs wget && \
     dnf --installroot /mnt/rootfs clean all && \
     rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/dnf*
-
-# Set the FIPS crypto policy in the rootfs. The policy only restricts TLS and
-# algorithm settings and applies on every host; the FIPS provider itself is
-# loaded only when the host kernel runs in FIPS mode. update-crypto-policies
-# is python-based and python is absent from the runtime image, so this flips
-# the same policy symlinks update-crypto-policies would have flipped.
-RUN echo FIPS > /mnt/rootfs/etc/crypto-policies/config && \
-    for c in /mnt/rootfs/etc/crypto-policies/back-ends/*.config; do \
-    n=$(basename "$c" .config); \
-    ln -sfn "/usr/share/crypto-policies/FIPS/$n.txt" "$c"; \
-    done
 
 # Bake the non-root user into the rootfs (micro has no shadow-utils). uid/gid
 # 10001 preserves the upstream gateway image's identity.
