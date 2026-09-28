@@ -24,7 +24,6 @@ import {
   ArrowUp,
   ArrowUp10,
   BadgeCheck,
-  ChevronsUpDown,
   ChevronDownIcon,
   ExternalLink,
   Grid2X2,
@@ -491,7 +490,6 @@ function NavUser({
                   {user.email}
                 </span>
               </div>
-              <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
