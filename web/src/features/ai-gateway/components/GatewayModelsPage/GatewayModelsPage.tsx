@@ -3,26 +3,8 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ConnectedGatewayModelsTable } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayModelsTable/ConnectedGatewayModelsTable";
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
-import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
-
-type Connection = RouterOutputs["aiGateway"]["listConnections"]["data"][number];
-type RefreshResult = RouterOutputs["aiGateway"]["refreshModels"][number];
-
-const providerFormats: Record<GatewayProvider, string[]> = {
-  OPENAI: ["OpenAI Responses", "OpenAI Chat Completions"],
-  ANTHROPIC: ["Anthropic Messages"],
-};
-
-type ModelRow = {
-  id: string;
-  availableVia: Array<{
-    connectionId: string;
-    connectionName: string;
-    provider: GatewayProvider;
-  }>;
-  apiFormats: string[];
-};
+import { api, reportNonTrpcError } from "@/src/utils/api";
+import { aggregateModels } from "./aggregateModels";
 
 export function GatewayModelsPage({
   organizationId,
@@ -82,49 +64,6 @@ export function GatewayModelsPage({
       isLoadingMoreProviders={connectionsQuery.isFetchingNextPage}
       onLoadMoreProviders={() => connectionsQuery.fetchNextPage()}
     />
-  );
-}
-
-function aggregateModels(
-  results: RefreshResult[],
-  connections: Connection[],
-): ModelRow[] {
-  const connectionsById = new Map(
-    connections.map((connection) => [connection.id, connection]),
-  );
-  const models = new Map<string, ModelRow>();
-
-  for (const result of results) {
-    if (!result.success) continue;
-    const connection = connectionsById.get(result.connectionId);
-    if (!connection) continue;
-    for (const modelId of result.models) {
-      const existing = models.get(modelId);
-      const availableVia = {
-        connectionId: connection.id,
-        connectionName: connection.name,
-        provider: connection.provider,
-      };
-      if (existing) {
-        existing.availableVia.push(availableVia);
-        existing.apiFormats = [
-          ...new Set([
-            ...existing.apiFormats,
-            ...providerFormats[connection.provider],
-          ]),
-        ];
-      } else {
-        models.set(modelId, {
-          id: modelId,
-          availableVia: [availableVia],
-          apiFormats: [...providerFormats[connection.provider]],
-        });
-      }
-    }
-  }
-
-  return [...models.values()].toSorted((left, right) =>
-    left.id.localeCompare(right.id),
   );
 }
 

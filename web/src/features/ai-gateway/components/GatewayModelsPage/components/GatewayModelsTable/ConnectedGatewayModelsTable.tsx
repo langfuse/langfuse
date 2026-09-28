@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 
 import Header from "@/src/components/layouts/header";
@@ -54,7 +54,10 @@ export function ConnectedGatewayModelsTable({
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [pageIndex, setPageIndex] = useState(0);
-  const [pendingPageIndex, setPendingPageIndex] = useState<number | null>(null);
+  const [pendingPage, setPendingPage] = useState<{
+    index: number;
+    filterKey: string;
+  } | null>(null);
   const pageSize = 10;
   const filterOptions = useMemo(
     () => ({
@@ -129,14 +132,20 @@ export function ConnectedGatewayModelsTable({
     () => filterGatewayModels(models, searchQuery, queryFilter.filterState),
     [models, queryFilter.filterState, searchQuery],
   );
+  const filterKey = JSON.stringify([searchQuery, queryFilter.filterState]);
+  useEffect(() => {
+    if (pendingPage && pendingPage.filterKey !== filterKey) {
+      setPendingPage(null);
+    }
+  }, [filterKey, pendingPage]);
   const lastAvailablePageIndex = Math.max(
     0,
     Math.ceil(filteredModels.length / pageSize) - 1,
   );
   const currentPageIndex =
-    pendingPageIndex !== null &&
-    pendingPageIndex * pageSize < filteredModels.length
-      ? pendingPageIndex
+    pendingPage?.filterKey === filterKey &&
+    pendingPage.index * pageSize < filteredModels.length
+      ? pendingPage.index
       : Math.min(pageIndex, lastAvailablePageIndex);
   const pagination: PaginationBarProps = {
     mode: "cursor",
@@ -147,12 +156,12 @@ export function ConnectedGatewayModelsTable({
     isLoadingNextPage: isLoadingMoreProviders,
     onChange: ({ pageIndex: nextPageIndex }) => {
       if (nextPageIndex * pageSize < filteredModels.length) {
-        setPendingPageIndex(null);
+        setPendingPage(null);
         setPageIndex(nextPageIndex);
         return;
       }
       if (!hasMoreProviders || isLoadingMoreProviders) return;
-      setPendingPageIndex(nextPageIndex);
+      setPendingPage({ index: nextPageIndex, filterKey });
       onLoadMoreProviders();
     },
   };
