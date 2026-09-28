@@ -46,7 +46,7 @@ export function TraceHeader() {
     <div
       className={cn(
         "shrink-0 border-b",
-        traceContext === "fullscreen" ? "px-3 pt-0 pb-1.5" : "px-2 py-2",
+        traceContext === "fullscreen" ? "px-3 pt-1 pb-1.5" : "px-2 py-2",
       )}
     >
       <div className="flex flex-wrap items-center gap-4">
