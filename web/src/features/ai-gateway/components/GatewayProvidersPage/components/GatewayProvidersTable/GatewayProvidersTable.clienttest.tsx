@@ -25,14 +25,9 @@ describe("gateway providers table", () => {
         pageOffset={0}
         modelCounts={{}}
         getModelsUrl={(connection) => `/models/${connection.id}`}
-        actions={() => [
-          {
-            id: "edit",
-            type: "item",
-            title: "Edit credential",
-            onClick: () => {},
-          },
-        ]}
+        onRetry={() => {}}
+        onEdit={() => {}}
+        onDelete={() => {}}
         canReorder
         onReorder={async () => true}
       />,
@@ -54,7 +49,9 @@ describe("gateway providers table", () => {
       modelCounts: {},
       getModelsUrl: (connection: GatewayConnection) =>
         `/models/${connection.id}`,
-      actions: () => [],
+      onRetry: () => {},
+      onEdit: () => {},
+      onDelete: () => {},
       canReorder: true,
       onReorder,
     };
@@ -93,7 +90,9 @@ describe("gateway providers table", () => {
         nextConnectionId="next-page"
         modelCounts={{}}
         getModelsUrl={(connection) => `/models/${connection.id}`}
-        actions={() => []}
+        onRetry={() => {}}
+        onEdit={() => {}}
+        onDelete={() => {}}
         canReorder
         onReorder={onReorder}
       />,
@@ -121,7 +120,9 @@ describe("gateway providers table", () => {
       modelCounts: {},
       getModelsUrl: (connection: GatewayConnection) =>
         `/models/${connection.id}`,
-      actions: () => [],
+      onRetry: () => {},
+      onEdit: () => {},
+      onDelete: () => {},
       canReorder: true,
       onReorder,
     };

@@ -1,11 +1,17 @@
 /* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
-import { ArrowDown, ArrowUp, Route } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Pencil,
+  RefreshCw,
+  Route,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { SiAnthropic, SiOpenai } from "react-icons/si";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
-import type { TableProps } from "@/src/components/design-system/table/Table";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
@@ -23,7 +29,12 @@ export type GatewayProvidersTableProps = {
   nextConnectionId?: string;
   modelCounts: Record<string, number | "loading">;
   getModelsUrl: (connection: GatewayConnection) => string;
-  actions: NonNullable<TableProps<GatewayConnection>["actions"]>;
+  onRetry: (connection: GatewayConnection) => void;
+  onEdit: (connection: GatewayConnection) => void;
+  onDelete: (connection: GatewayConnection) => void;
+  retryDisabled?: { reason: string };
+  editDisabled?: { reason: string };
+  deleteDisabled?: { reason: string };
   canReorder: boolean;
   onMove: (sourceId: string, targetId: string) => void;
 };
@@ -41,7 +52,12 @@ export function GatewayProvidersTable({
   nextConnectionId,
   modelCounts,
   getModelsUrl,
-  actions,
+  onRetry,
+  onEdit,
+  onDelete,
+  retryDisabled,
+  editDisabled,
+  deleteDisabled,
   canReorder,
   onMove,
 }: GatewayProvidersTableProps) {
@@ -145,7 +161,33 @@ export function GatewayProvidersTable({
     <SettingsTable
       tableName="gateway-provider-credentials"
       columns={columns}
-      actions={actions}
+      actions={(connection) => [
+        {
+          id: "retry",
+          type: "item",
+          title: "Retry provider validation",
+          icon: RefreshCw,
+          disabled: retryDisabled,
+          onClick: () => onRetry(connection),
+        },
+        {
+          id: "edit",
+          type: "item",
+          title: "Edit credential",
+          icon: Pencil,
+          disabled: editDisabled,
+          onClick: () => onEdit(connection),
+        },
+        {
+          id: "delete",
+          type: "item",
+          title: "Delete credential",
+          icon: Trash2,
+          variant: "destructive",
+          disabled: deleteDisabled,
+          onClick: () => onDelete(connection),
+        },
+      ]}
       data={{ status: "success", data: connections }}
       noResultsMessage="No provider credentials configured."
     />
