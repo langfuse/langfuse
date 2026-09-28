@@ -61,7 +61,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
             <span className="min-w-0 break-all">Error ID: {traceId}</span>
             <button
               className={`flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center border-none bg-transparent p-0 ${textColor}`}
-              onClick={() => copy(traceId)}
+              onClick={() => copy(traceId).catch(() => undefined)}
               onPointerDown={(e) => {
                 e.stopPropagation();
               }}
