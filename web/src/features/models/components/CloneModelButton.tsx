@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";
+import { UpsertModelFormDialogController } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
 import { type GetModelResult } from "@/src/features/models/validation";
 
 export const CloneModelButton = ({
@@ -16,15 +16,20 @@ export const CloneModelButton = ({
   });
 
   return (
-    <UpsertModelFormDialog {...{ modelData, projectId, action: "clone" }}>
-      <Button
-        variant="outline"
-        disabled={!hasAccess}
-        title="Clone model"
-        className="flex items-center"
-      >
-        <span>Clone</span>
-      </Button>
-    </UpsertModelFormDialog>
+    <UpsertModelFormDialogController
+      {...{ modelData, projectId, action: "clone" }}
+    >
+      {({ openDialog }) => (
+        <Button
+          variant="outline"
+          disabled={!hasAccess}
+          title="Clone model"
+          className="flex items-center"
+          onClick={openDialog}
+        >
+          <span>Clone</span>
+        </Button>
+      )}
+    </UpsertModelFormDialogController>
   );
 };
