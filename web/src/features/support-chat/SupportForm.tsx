@@ -57,6 +57,7 @@ export type SupportFormSubmitStatus = "success" | "kept";
 export type SupportFormProps = {
   canSelectHighSeverity: boolean;
   initialTopic: Topic | "";
+  initialMessage?: string;
   showV4MigrationTopic: boolean;
   onCancel: () => void;
   onSuccess: () => void;
@@ -183,6 +184,7 @@ function isSeveritySelectable(
 export function SupportForm({
   canSelectHighSeverity,
   initialTopic,
+  initialMessage = "",
   showV4MigrationTopic,
   onCancel,
   onSuccess,
@@ -212,7 +214,7 @@ export function SupportForm({
       messageType: "Question" as MessageType,
       severity: SEVERITY_3,
       topic: initialTopic,
-      message: "",
+      message: initialMessage,
       integrationType: "",
     },
     mode: "onSubmit",

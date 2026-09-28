@@ -33,15 +33,6 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
     ? "text-destructive-foreground"
     : "text-dark-yellow";
 
-  // const handleReportIssueClick = () => {
-  //   if (chatAvailable) {
-  //     const currentUrl = window.location.href;
-  //     const message = `I received the following error:\n\nError: ${error}\nDescription: ${description}\n ${path ? `Path: ${path}\n` : ""}URL: ${currentUrl}`;
-  //     sendUserChatMessage(message);
-  //     dismissToast(toast);
-  //   }
-  // };
-
   return (
     <div className="flex justify-between">
       <div className="flex min-w-[300px] flex-1 flex-col gap-2">
@@ -67,15 +58,15 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
           <div
             className={`flex items-start gap-1 text-sm leading-tight ${textColor}`}
           >
-            <span className="min-w-0 break-all">Trace ID: {traceId}</span>
+            <span className="min-w-0 break-all">Error ID: {traceId}</span>
             <button
               className={`flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center border-none bg-transparent p-0 ${textColor}`}
               onClick={() => copy(traceId)}
               onPointerDown={(e) => {
                 e.stopPropagation();
               }}
-              aria-label="Copy trace ID"
-              title="Copy trace ID"
+              aria-label="Copy error ID"
+              title="Copy error ID"
             >
               {isCopied ? <Check size={14} /> : <Copy size={14} />}
             </button>
@@ -92,7 +83,14 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
                 path,
               });
               setMigrationPanelOpen(false);
-              setOpen(true);
+              setOpen(true, {
+                message: formatReportIssueMessage({
+                  error,
+                  description,
+                  path,
+                  traceId,
+                }),
+              });
             }}
           >
             Report issue to Langfuse team
@@ -122,4 +120,21 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
       </button>
     </div>
   );
+};
+
+const formatReportIssueMessage = (details: {
+  error: string;
+  description: string;
+  path?: string;
+  traceId?: string;
+}) => {
+  const lines = [
+    "I received the following error:",
+    "",
+    `Error: ${details.error}`,
+  ];
+  if (details.description) lines.push(`Description: ${details.description}`);
+  if (details.path) lines.push(`Path: ${details.path}`);
+  if (details.traceId) lines.push(`Error ID: ${details.traceId}`);
+  return `${lines.join("\n")}\n\n`;
 };
