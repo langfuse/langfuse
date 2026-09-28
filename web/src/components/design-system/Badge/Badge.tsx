@@ -6,7 +6,7 @@ import { type ComponentPropsWithoutRef } from "react";
 import { cn } from "@/src/utils/tailwind";
 
 const badgeVariants = cva(
-  "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center rounded-sm border pb-px text-xs leading-4 font-normal",
+  "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center rounded-sm border pb-px text-xs leading-none font-normal",
   {
     variants: {
       size: {
@@ -85,10 +85,10 @@ export function Badge({
 }: BadgeProps) {
   return (
     <BadgeShell color={color} {...props}>
-      {label && <span className="shrink-0">{label}</span>}
+      {label && <span className="shrink-0 py-0.5">{label}</span>}
       <span
         className={cn(
-          "overflow-x-clip overflow-y-visible text-ellipsis whitespace-nowrap",
+          "overflow-x-clip overflow-y-visible py-0.5 text-ellipsis whitespace-nowrap",
           interactive &&
             "decoration-border-contrast underline decoration-dashed decoration-1 underline-offset-[3px]",
         )}
