@@ -5,7 +5,7 @@ const meta = preview.meta({ component: EvaluatorPickerOption });
 
 export const WithLongName = meta.story({
   render: (args) => (
-    <div className="w-fit max-w-3xl">
+    <div className="w-full max-w-3xl">
       <EvaluatorPickerOption {...args} />
     </div>
   ),

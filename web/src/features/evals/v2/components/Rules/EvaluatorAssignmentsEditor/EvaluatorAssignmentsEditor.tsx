@@ -53,7 +53,7 @@ export function EvaluatorAssignmentsEditor({
   unvalidatedSourceColumnIds?: string[];
   emptyDescription?: string;
   sourceUnavailableMessage?: string;
-  pickerWidth?: "fixed" | "content";
+  pickerWidth?: "fixed" | "trigger";
   disabled?: boolean;
   costEstimates: RuleCostEstimate[];
   estimatingEvaluatorIds: string[];
@@ -101,7 +101,10 @@ export function EvaluatorAssignmentsEditor({
             variant="ghost"
             size="sm"
             disabled={disabled}
-            className="text-foreground hover:text-foreground inline-flex h-auto items-center gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
+            className={cn(
+              "text-foreground hover:text-foreground inline-flex h-auto items-center gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline",
+              pickerWidth === "trigger" && "w-full justify-start",
+            )}
           >
             <Plus className="size-3.5 shrink-0" aria-hidden="true" />
             Attach another evaluator
@@ -112,7 +115,9 @@ export function EvaluatorAssignmentsEditor({
         align="start"
         className={cn(
           "h-80 max-w-[calc(100vw-2rem)] p-0",
-          pickerWidth === "content" ? "w-fit sm:max-w-3xl" : "w-[32rem]",
+          pickerWidth === "trigger"
+            ? "w-(--radix-popover-trigger-width)"
+            : "w-[32rem]",
         )}
       >
         <Command shouldFilter={false}>
