@@ -82,11 +82,15 @@ const PeekViewEvaluatorConfigDetail = ({
     isLegacyEvalTarget(evalConfig.targetObject) &&
     (readOnly || legacyEditingDisabled);
   const editModeDisabled = readOnly || !hasAccess || legacyEditingDisabled;
-  const editModeDisabledReason = readOnly
-    ? "This legacy evaluator is inactive and can only be viewed or deleted"
-    : legacyEditingDisabled
-      ? "Deprecated evaluators are only available in read-only mode"
-      : undefined;
+  const editModeDisabledReason = (() => {
+    if (readOnly) {
+      return "This legacy evaluator is inactive and can only be viewed or deleted";
+    }
+    if (legacyEditingDisabled) {
+      return "Deprecated evaluators are only available in read-only mode";
+    }
+    return undefined;
+  })();
 
   return (
     <div className="grid h-full flex-1 grid-rows-[auto_auto_1fr] gap-2 overflow-hidden p-3 contain-layout">
