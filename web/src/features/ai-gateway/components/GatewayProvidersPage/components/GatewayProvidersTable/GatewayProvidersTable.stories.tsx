@@ -1,15 +1,14 @@
-import type { ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
 import { Button } from "@/src/components/ui/button";
 import { expect, fn, userEvent } from "storybook/test";
 
 import preview from "@/.storybook/preview";
-import { GatewayProvidersView } from "./GatewayProvidersView";
+import { GatewayProvidersTable } from "./GatewayProvidersTable";
+import { ConnectedGatewayProvidersTable } from "./ConnectedGatewayProvidersTable";
 
-const meta = preview.meta({ component: GatewayProvidersView });
+const meta = preview.meta({ component: GatewayProvidersTable });
 
-const onCreate = fn();
 const onCredentialAction = fn();
-const onLoadMore = fn();
 const onReorder = fn(async () => true);
 
 const connections = [
@@ -37,7 +36,7 @@ const connections = [
     createdAt: new Date("2026-09-07T12:00:00.000Z"),
     updatedAt: new Date("2026-09-07T12:00:00.000Z"),
   },
-] satisfies ComponentProps<typeof GatewayProvidersView>["connections"];
+] satisfies ComponentProps<typeof GatewayProvidersTable>["connections"];
 
 const providers = ["OPENAI", "ANTHROPIC"] as const;
 const statuses = ["ENABLED", "ERROR", "DISABLED"] as const;
@@ -52,7 +51,7 @@ const manyConnections = Array.from({ length: 30 }, (_, index) => ({
   routingPriority: index,
   createdAt: new Date(Date.UTC(2026, 8, 30 - index)),
   updatedAt: new Date("2026-09-30T12:00:00.000Z"),
-})) satisfies ComponentProps<typeof GatewayProvidersView>["connections"];
+})) satisfies ComponentProps<typeof GatewayProvidersTable>["connections"];
 
 const manyModelCounts = Object.fromEntries(
   manyConnections.map((connection, index) => [connection.id, index * 7 + 1]),
@@ -61,7 +60,6 @@ const manyModelCounts = Object.fromEntries(
 const actions = {
   getModelsUrl: (connection) =>
     `/organization/org-1/settings/ai-gateway-models?connection=${connection.id}`,
-  createAction: <Button onClick={onCreate}>Add credential</Button>,
   renderCredentialActions: (connection) => (
     <Button
       size="sm"
@@ -71,21 +69,16 @@ const actions = {
       Manage
     </Button>
   ),
-  hasMore: false,
-  isLoadingMore: false,
-  onLoadMore,
   canReorder: true,
-  onReorder,
+  pageOffset: 0,
+  onMove: fn(),
 } satisfies Pick<
-  ComponentProps<typeof GatewayProvidersView>,
+  ComponentProps<typeof GatewayProvidersTable>,
   | "getModelsUrl"
-  | "createAction"
   | "renderCredentialActions"
-  | "hasMore"
-  | "isLoadingMore"
-  | "onLoadMore"
   | "canReorder"
-  | "onReorder"
+  | "onMove"
+  | "pageOffset"
 >;
 
 export const OrderedCredentials = meta.story({
@@ -99,12 +92,11 @@ export const OrderedCredentials = meta.story({
   },
 });
 
-export const ManyRowsWithMoreAvailable = meta.story({
+export const ManyRows = meta.story({
   args: {
     connections: manyConnections,
     modelCounts: manyModelCounts,
     ...actions,
-    hasMore: true,
   },
 });
 
@@ -116,25 +108,6 @@ export const Empty = meta.story({
   },
 });
 
-export const MoreAvailable = meta.story({
-  args: {
-    connections,
-    modelCounts: {},
-    ...actions,
-    hasMore: true,
-  },
-});
-
-export const LoadingMore = meta.story({
-  args: {
-    connections,
-    modelCounts: {},
-    ...actions,
-    hasMore: true,
-    isLoadingMore: true,
-  },
-});
-
 export const MovesImmediately = meta.story({
   name: "(Test) Moves Immediately",
   args: {
@@ -142,6 +115,9 @@ export const MovesImmediately = meta.story({
     modelCounts: {},
     ...actions,
   },
+  render: (args) => (
+    <ConnectedGatewayProvidersTable {...args} onReorder={onReorder} />
+  ),
   play: async ({ canvas }) => {
     onReorder.mockClear();
     await userEvent.click(
@@ -158,17 +134,52 @@ export const MovesImmediately = meta.story({
   },
 });
 
-export const LoadsMore = meta.story({
-  name: "(Test) Loads More",
+export const ResetsWhenServerOrderChanges = meta.story({
+  name: "(Test) Resets When Server Order Changes",
   args: {
-    connections,
+    connections: [
+      ...connections,
+      {
+        ...connections[0]!,
+        id: "connection-third",
+        name: "Third",
+        routingPriority: 2,
+      },
+    ],
     modelCounts: {},
     ...actions,
-    hasMore: true,
   },
+  render: (args) => <ServerOrderExample {...args} />,
   play: async ({ canvas }) => {
-    onLoadMore.mockClear();
-    await userEvent.click(canvas.getByRole("button", { name: "Load more" }));
-    await expect(onLoadMore).toHaveBeenCalledOnce();
+    await userEvent.click(
+      canvas.getAllByRole("button", { name: "Move credential down" })[0]!,
+    );
+    await expect(canvas.getAllByRole("row")[1]).toHaveTextContent("Fallback");
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Update server order" }),
+    );
+    await expect(canvas.getAllByRole("row")[1]).toHaveTextContent("Third");
+    await expect(canvas.getAllByRole("row")[2]).toHaveTextContent("Fallback");
+    await expect(canvas.getAllByRole("row")[3]).toHaveTextContent("Primary");
   },
 });
+
+function ServerOrderExample(
+  args: ComponentProps<typeof GatewayProvidersTable>,
+) {
+  const [serverConnections, setServerConnections] = useState(args.connections);
+  return (
+    <div>
+      <Button
+        onClick={() => setServerConnections([...args.connections].reverse())}
+      >
+        Update server order
+      </Button>
+      <ConnectedGatewayProvidersTable
+        {...args}
+        connections={serverConnections}
+        onReorder={async () => true}
+      />
+    </div>
+  );
+}
