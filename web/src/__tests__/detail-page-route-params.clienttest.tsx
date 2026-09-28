@@ -27,7 +27,7 @@ vi.mock("@/src/features/events/hooks/useReadPath", () => ({
 }));
 
 vi.mock("@/src/features/widgets", () => ({
-  WidgetForm: ({ projectId }: { projectId: string }) => (
+  ConnectedWidgetForm: ({ projectId }: { projectId: string }) => (
     <div data-testid="widget-form">{projectId}</div>
   ),
 }));
