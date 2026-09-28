@@ -182,7 +182,9 @@ export const TestObservedKeySuggestionPreservesValue = meta.story({
           activeFilters={filters}
           onChange={(nextFilters) => {
             setFilters(nextFilters);
-            args.onChange(nextFilters);
+            if (args.mode === "string") {
+              args.onChange(nextFilters);
+            }
           }}
         />
       </div>
