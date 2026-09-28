@@ -108,7 +108,7 @@ const keyboardShortcutVariants = cva(
 );
 
 const symbolSizeClass = {
-  default: "text-base",
+  default: "text-lg",
   sm: "text-sm",
   xs: "text-xs",
 } as const;
