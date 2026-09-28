@@ -1,5 +1,4 @@
 import * as React from "react";
-import { cn } from "@/src/utils/tailwind";
 import { cva, type VariantProps } from "class-variance-authority";
 import { useIsMac } from "@/src/hooks/useIsMac";
 
@@ -137,15 +136,13 @@ export function KeyboardShortcut({
     >
       {keys.map((key, index) => {
         const label = getKeyboardKeyLabel(key, isMac);
-        // Modifier and arrow glyphs draw small and high in the mono face; one step up, nudged down.
+        // Modifier and arrow glyphs draw small and high in the mono face; one step up, letters nudged up to meet them.
         const isSymbol = /^[^\p{L}\p{N}]$/u.test(label);
         return (
           <span
             key={index}
             className={
-              isSymbol
-                ? cn("translate-y-0.5", symbolSizeClass[size ?? "default"])
-                : undefined
+              isSymbol ? symbolSizeClass[size ?? "default"] : "-translate-y-0.5"
             }
           >
             {label}
