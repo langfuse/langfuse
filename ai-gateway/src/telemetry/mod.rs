@@ -37,15 +37,11 @@ use retry::RetryPolicy;
 use worker::{Message, Uploads};
 
 const MAX_UPLOADS: usize = 32;
-/// Records are charged against the retained budget at their actual size; this only
-/// caps one record. Input and output are embedded as JSON strings, and escaping can
-/// double their size.
 const MAX_RECORD_BYTES: usize = 16 * 1024 * 1024;
 const _: () = assert!(
     2 * (crate::capture::MAX_INPUT_CAPTURE_BYTES + crate::capture::MAX_OUTPUT_CAPTURE_BYTES)
         < MAX_RECORD_BYTES
 );
-// A record larger than the batch byte target is uploaded alone and must fit one payload.
 const _: () = assert!(MAX_RECORD_BYTES < otlp::MAX_PAYLOAD_BYTES);
 pub(crate) const DEFAULT_RETAINED_BYTES: usize = 64 * 1024 * 1024;
 const MAX_QUEUED_RECORDS: usize = 1024;
@@ -123,7 +119,6 @@ fn crosses_report_threshold(before: u64, after: u64) -> bool {
 struct Delivery {
     queue: mpsc::Sender<Message>,
     retained: Arc<Semaphore>,
-    /// A record larger than the retained budget could never be admitted.
     record_limit: usize,
     worker: Mutex<Option<JoinHandle<()>>>,
     stats: Arc<Stats>,
@@ -200,8 +195,6 @@ impl Telemetry {
                 u32::try_from(bytes + credentials).expect("bounded record bytes"),
             )
         };
-        // A full-mode input that does not fit is omitted so the generation, its
-        // usage and its output are still delivered.
         let mut size = serialized_size(&span, limit);
         if size.is_none() && mapping::omit_input(&mut span, InputOmissionReason::RecordLimit) {
             size = serialized_size(&span, limit);

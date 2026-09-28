@@ -91,8 +91,6 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
     span
 }
 
-/// Removes the recorded input from a mapped span and explains the omission in its
-/// metadata. Returns false when the span carries no input.
 pub(super) fn omit_input(span: &mut Value, reason: InputOmissionReason) -> bool {
     let Some(attributes) = span["attributes"].as_array_mut() else {
         return false;

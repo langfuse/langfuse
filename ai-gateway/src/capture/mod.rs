@@ -19,8 +19,6 @@ pub(crate) use facts::ProviderFacts;
 pub(crate) use facts::{InferenceFacts, InputOmission, InputOmissionReason, RelayOutcome};
 use openai_responses::OpenAiResponsesCapture;
 
-/// Full-mode request bodies up to this size are recorded as the observation input.
-/// Telemetry record and payload limits are sized so an input at this limit is delivered.
 pub(crate) const MAX_INPUT_CAPTURE_BYTES: usize = 5 * 1024 * 1024;
 pub(crate) const MAX_OUTPUT_CAPTURE_BYTES: usize = 1024 * 1024;
 const MAX_ITEMS: usize = 256;
@@ -240,7 +238,6 @@ impl Drop for ExecutionCapture {
     }
 }
 
-/// Parses a request body for capture, or explains why it was left unparsed.
 fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<Map<String, Value>, InputOmission> {
     let reason = if !identity_encoding(headers) {
         InputOmissionReason::ContentEncoding

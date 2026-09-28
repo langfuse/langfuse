@@ -666,7 +666,6 @@ async fn full_input_at_capture_limit_is_uploaded() {
     );
     let mut large = facts("project-1");
     large.metadata["ingestion_mode"] = json!("full");
-    // Escaped quotes are the worst case: the span string attribute doubles them again.
     let quotes = (crate::capture::MAX_INPUT_CAPTURE_BYTES - 16) / 2;
     let input = json!({"input": "\"".repeat(quotes)});
     assert!(input.to_string().len() <= crate::capture::MAX_INPUT_CAPTURE_BYTES);
