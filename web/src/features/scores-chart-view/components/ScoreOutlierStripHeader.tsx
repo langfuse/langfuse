@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { ChevronDown } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import {
   DropdownMenu,
@@ -76,7 +76,7 @@ export function ScoreOutlierStripHeader({
         className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 text-xs leading-none font-bold"
       >
         {modeLabel(mode)}
-        <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
+        <DropdownIndicator size="sm" nudge />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
@@ -107,7 +107,7 @@ export function ScoreOutlierStripHeader({
             className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 text-xs leading-none underline-offset-2 hover:underline"
           >
             {aggregation}
-            <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
+            <DropdownIndicator size="sm" nudge />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="start"

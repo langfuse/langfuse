@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
@@ -45,12 +46,12 @@ export const DatasetSchemaValidationError: React.FC<
               variant="ghost"
               size="sm"
               onClick={() => setIsExpanded(!isExpanded)}
-              className="h-auto p-0 text-sm font-bold hover:bg-transparent"
+              className="h-auto gap-1 p-0 text-sm font-bold hover:bg-transparent"
             >
               {isExpanded ? (
-                <ChevronDown className="text-foreground-tertiary mr-1 size-3.5 translate-y-px" />
+                <DropdownIndicator nudge />
               ) : (
-                <ChevronRight className="text-foreground-tertiary mr-1 size-3.5 translate-y-px" />
+                <DropdownIndicator direction="right" nudge />
               )}
               {isExpanded ? "Hide" : "Show"} error details
             </Button>

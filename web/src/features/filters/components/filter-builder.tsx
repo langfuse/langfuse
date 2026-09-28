@@ -22,7 +22,6 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
   Check,
-  ChevronDown,
   ExternalLink,
   FilterIcon,
   Info,
@@ -30,6 +29,7 @@ import {
   WandSparkles,
   X,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   Popover,
   PopoverContent,
@@ -294,7 +294,9 @@ export function PopoverFilterBuilder({
                   {filterState.length}
                 </span>
               ) : (
-                <ChevronDown className="text-foreground-tertiary ml-1 size-3.5 translate-y-px" />
+                <span className="ml-1 flex">
+                  <DropdownIndicator nudge />
+                </span>
               )}
             </Button>
           ) : (
@@ -716,7 +718,7 @@ function FilterBuilderForm({
             <span className="min-w-0 truncate" title={columnLabel}>
               {columnLabel}
             </span>
-            <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0" />
+            <DropdownIndicator />
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="max-w-fit p-0">

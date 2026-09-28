@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { decomposeAggregateScoreKey } from "@/src/features/scores";
 import { summariseScoreColumn } from "../../fns/summariseScoreColumn";
 import {
@@ -105,9 +105,9 @@ export function ExperimentGridSummaryValues({
             className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex h-6 items-center gap-1 rounded text-left text-[10px] font-normal focus-visible:ring-2 focus-visible:outline-none"
           >
             {expanded ? (
-              <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
+              <DropdownIndicator size="sm" nudge />
             ) : (
-              <ChevronRight className="text-foreground-tertiary size-3 translate-y-px" />
+              <DropdownIndicator direction="right" size="sm" nudge />
             )}
             SUMMARY · this page ({rows.length} items)
           </button>

@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
-import { ChevronDown, Wrench, Braces, Variable } from "lucide-react";
+import { Wrench, Braces, Variable } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   Popover,
   PopoverContent,
@@ -113,7 +114,7 @@ export const ConfigurationDropdowns: React.FC = () => {
                   {toolsCount}
                 </Badge>
               )}
-              <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
+              <DropdownIndicator size="sm" nudge />
             </Button>
           </PopoverTrigger>
           <PopoverContent
@@ -171,7 +172,7 @@ export const ConfigurationDropdowns: React.FC = () => {
                   {hasSchema}
                 </Badge>
               )}
-              <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
+              <DropdownIndicator size="sm" nudge />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-80 p-4" align="start">
@@ -224,7 +225,7 @@ export const ConfigurationDropdowns: React.FC = () => {
                   {variablesCount}
                 </Badge>
               )}
-              <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
+              <DropdownIndicator size="sm" nudge />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-80 p-4" align="start">

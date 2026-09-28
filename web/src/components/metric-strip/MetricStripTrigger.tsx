@@ -1,6 +1,6 @@
 import { forwardRef, useRef } from "react";
 import type * as React from "react";
-import { ChevronDown } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { cn } from "@/src/utils/tailwind";
 
 /**
@@ -43,7 +43,7 @@ export const MetricStripTrigger = forwardRef<
     )}
   >
     {label}
-    <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
+    <DropdownIndicator size="sm" nudge />
   </button>
 ));
 MetricStripTrigger.displayName = "MetricStripTrigger";

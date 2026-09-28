@@ -3,7 +3,7 @@
 import * as React from "react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { cva, type VariantProps } from "class-variance-authority";
-import { ChevronDown } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 const accordionVariants = cva("", {
   variants: {
@@ -88,7 +88,7 @@ function AccordionTrigger({ children, size }: AccordionTriggerProps) {
         className={accordionTriggerVariants({ size })}
       >
         {children}
-        <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0 transition-transform duration-200" />
+        <DropdownIndicator />
       </AccordionPrimitive.Trigger>
     </AccordionPrimitive.Header>
   );

@@ -47,7 +47,9 @@ describe("EvaluatorAlertButton", () => {
       screen.getByRole("button", { name: "Add evaluator alert" }),
     ).toHaveTextContent("Add alert");
     expect(container.querySelector(".lucide-plus")).toBeInTheDocument();
-    expect(container.querySelector(".lucide-chevron-down")).toHaveClass("ml-1");
+    expect(
+      container.querySelector(".lucide-chevron-down")?.parentElement,
+    ).toHaveClass("ml-1");
     expect(container.querySelector(".lucide-bell")).not.toBeInTheDocument();
   });
 

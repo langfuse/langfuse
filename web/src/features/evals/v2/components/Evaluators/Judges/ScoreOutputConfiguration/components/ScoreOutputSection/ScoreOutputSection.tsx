@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from "react";
-import { ChevronDown, Plus, TriangleAlert } from "lucide-react";
+import { Plus, TriangleAlert } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -228,7 +229,7 @@ export function ScoreOutputSection({
                   disabled={readOnly}
                 >
                   {numericBoundsLabel}
-                  <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0" />
+                  <DropdownIndicator />
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-72">
@@ -326,9 +327,7 @@ export function ScoreOutputSection({
                         </TooltipContent>
                       </Tooltip>
                     ) : null}
-                    {!readOnly ? (
-                      <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0" />
-                    ) : null}
+                    {!readOnly ? <DropdownIndicator /> : null}
                   </Button>
                 </PopoverTrigger>
               </CategoryEditorPopover>

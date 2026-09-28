@@ -2,7 +2,8 @@
 /* eslint-disable @repo/no-null-render */
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { CheckIcon, ChevronDown, Code2, Cog, Wand2 } from "lucide-react";
+import { CheckIcon, Code2, Cog, Wand2 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { api } from "@/src/utils/api";
 import {
   Card,
@@ -254,14 +255,14 @@ export const CreateExperimentsForm = ({
                             remoteExperimentDatasets.isPending ||
                             remoteExperimentDatasets.data?.length === 0
                           }
-                          className="w-full justify-between px-2 font-normal"
+                          className="w-full justify-between gap-2 px-2 font-normal"
                         >
                           {remoteExperimentDatasets.isPending
                             ? "Loading datasets"
                             : (selectedRemoteExperimentDataset?.name ??
                               remoteExperimentDataset?.name ??
                               "Select a dataset")}
-                          <ChevronDown className="text-foreground-tertiary ml-2 size-3.5 shrink-0" />
+                          <DropdownIndicator />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent

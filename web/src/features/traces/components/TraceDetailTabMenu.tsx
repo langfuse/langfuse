@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenuController,
@@ -57,7 +57,7 @@ export function TraceDetailTabMenu({
           >
             {labels[selectedTab]}
             {selectedTab === "messages" && <InternalFeatureBadge />}
-            <ChevronDown className="text-foreground-tertiary size-3.5 translate-y-px" />
+            <DropdownIndicator nudge />
           </Button>
         </Trigger>
       )}

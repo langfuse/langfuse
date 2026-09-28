@@ -4,13 +4,8 @@
 import * as React from "react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { cva } from "class-variance-authority";
-import {
-  Check,
-  ChevronRight,
-  Circle,
-  Minus,
-  type LucideIcon,
-} from "lucide-react";
+import { Check, Circle, Minus, type LucideIcon } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
 
 import { cn } from "@/src/utils/tailwind";
@@ -56,7 +51,9 @@ const DropdownMenuSubTrigger = React.forwardRef<
   >
     {children}
     {!hasCustomIcon && (
-      <ChevronRight className="text-foreground-tertiary ml-auto size-3.5" />
+      <span className="ml-auto flex">
+        <DropdownIndicator direction="right" />
+      </span>
     )}
   </DropdownMenuPrimitive.SubTrigger>
 ));

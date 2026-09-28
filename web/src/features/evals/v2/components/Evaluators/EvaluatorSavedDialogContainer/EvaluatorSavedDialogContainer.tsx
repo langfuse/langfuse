@@ -6,7 +6,7 @@ import {
   type FilterState,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
-import { ChevronDown } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { PopoverTrigger } from "@/src/components/ui/popover";
@@ -466,7 +466,7 @@ export function EvaluatorSavedDialogContainer({
               {selectedRule?.name ??
                 (selectedRuleId === null ? "New rule" : "Select a rule")}
             </span>
-            <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0" />
+            <DropdownIndicator />
           </Button>
         </PopoverTrigger>
       )}

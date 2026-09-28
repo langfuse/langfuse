@@ -4,6 +4,7 @@
 import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { cn } from "@/src/utils/tailwind";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
@@ -47,7 +48,7 @@ const SelectTrigger = React.forwardRef<
       {children}
       {hideDownIcon ? null : (
         <SelectPrimitive.Icon asChild>
-          <ChevronDown className="text-foreground-tertiary size-3.5" />
+          <DropdownIndicator />
         </SelectPrimitive.Icon>
       )}
     </SelectPrimitive.Trigger>

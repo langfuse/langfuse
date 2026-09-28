@@ -1,6 +1,7 @@
 /* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import * as React from "react";
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/src/components/ui/button";
@@ -164,7 +165,7 @@ export function SingleSelect({
               </span>
             ) : null}
           </span>
-          <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0" />
+          <DropdownIndicator />
         </Button>
       </PopoverTrigger>
       <PopoverContent

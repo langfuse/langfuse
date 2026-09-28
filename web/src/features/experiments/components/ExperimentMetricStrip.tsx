@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
-import { ChevronDown } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   Select,
   SelectContent,
@@ -311,7 +311,7 @@ export function ExperimentMetricStrip({
               {isSelectedNameAmbiguous && selectedLevel && (
                 <ScoreTag level={SCORE_LEVEL_TAGS[selectedLevel]} />
               )}
-              <ChevronDown className="text-foreground-tertiary size-3 translate-y-px" />
+              <DropdownIndicator size="sm" nudge />
             </SelectTrigger>
             <SelectContent>
               {Array.from(groupedOptions.entries()).map(([group, options]) => (
