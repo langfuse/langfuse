@@ -39,7 +39,7 @@ type TraceSelectionRow = {
  * Same observation filters as the Topics page. A trace is selected when one
  * observation matches every filter; the queued job then reads that whole trace.
  */
-export async function selectTopicTracesForBackfill(
+async function selectTopicTracesForBackfill(
   input: Selection & { projectId: string },
   prisma: PrismaClient,
 ): Promise<SelectionResult> {

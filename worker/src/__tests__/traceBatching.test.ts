@@ -474,6 +474,8 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_STRATEGY = "project";
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 60;
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 7_200_000;
+    // The unset default is 2 minutes on DEV; pin the production idle time.
+    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 600_000;
     await client().del(dueKey, stateKey, "{trace-batch}:dispatcher");
     const redisConnection = createNewRedisInstance();
     if (!redisConnection) throw new Error("Redis is required for this test");
