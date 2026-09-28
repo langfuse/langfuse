@@ -7,9 +7,6 @@
   "main": "dist/index.js",
   "scripts": {
     "test": "vitest run",
-    "test:codemod": "node --test codemod-jsx-ternaries.test.mjs",
-    "report:jsx-ternaries": "node report-jsx-ternaries.mjs",
-    "codemod:jsx-ternaries": "node codemod-jsx-ternaries.mjs",
     "build": "tsc"
   },
   "devDependencies": {
