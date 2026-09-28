@@ -40,7 +40,6 @@ export function resolveClickhouseService(
 
 type ServiceClickhouseSettings = ClickHouseSettings & {
   enable_full_text_index?: 1;
-  use_skip_indexes_for_disjunctions?: 0 | 1;
 };
 
 type RequestTimeoutClickHouseSettings = ClickHouseSettings & {
@@ -146,18 +145,18 @@ export class ClickHouseClientManager {
           }
         : {};
 
-    const skipIndexesForDisjunctions =
-      env.CLICKHOUSE_USE_SKIP_INDEXES_FOR_DISJUNCTIONS;
+    const serviceExtraSettings = {
+      ReadWrite: undefined,
+      ReadOnly: env.CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY,
+      EventsReadOnly: env.CLICKHOUSE_EXTRA_SETTINGS_EVENTS_READ_ONLY,
+    }[preferredClickhouseService];
 
+    // Extra settings come first so every setting Langfuse derives wins.
     return {
+      ...(env.CLICKHOUSE_EXTRA_SETTINGS as ClickHouseSettings),
+      ...(serviceExtraSettings as ClickHouseSettings),
       ...getClickHouseCompatibilitySettings(),
       ...eventROSettings,
-      ...(skipIndexesForDisjunctions
-        ? {
-            use_skip_indexes_for_disjunctions:
-              skipIndexesForDisjunctions === "true" ? 1 : 0,
-          }
-        : {}),
     };
   }
 
