@@ -71,8 +71,10 @@ export function usePersistedWindowIds() {
       const newWindowId = uuidv4();
       const sourceId = sourceWindowId ?? windowIds[windowIds.length - 1];
 
-      if (sourceId) {
-        cloneWindowState(sourceId, newWindowId);
+      if (sourceId && !cloneWindowState(sourceId, newWindowId)) {
+        toast.error(
+          "Could not copy playground state. Browser storage is full.",
+        );
       }
 
       setWindowIds((prev) => [...prev, newWindowId]);

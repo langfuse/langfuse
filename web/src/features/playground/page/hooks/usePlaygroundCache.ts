@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { type PlaygroundCache } from "../types";
 import { getCacheKey } from "../storage/keys";
+import { safeSessionStorageSetItem } from "../storage/windowStorage";
 
 const readCache = (key: string): PlaygroundCache => {
   if (typeof window === "undefined") return null;
@@ -33,9 +34,9 @@ export default function usePlaygroundCache(windowId?: string) {
   const setPlaygroundCache = (newCache: PlaygroundCache) => {
     if (newCache === null) {
       sessionStorage.removeItem(cacheKey);
-    } else {
-      sessionStorage.setItem(cacheKey, JSON.stringify(newCache));
+      return;
     }
+    safeSessionStorageSetItem(cacheKey, JSON.stringify(newCache));
   };
 
   return { playgroundCache: cache, setPlaygroundCache };
