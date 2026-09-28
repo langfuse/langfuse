@@ -115,7 +115,6 @@ export async function runOtelReplay(
       if (writer) {
         // Each corpus replay needs a fresh singleton and interval timer.
         ClickhouseWriter["instance"] = null;
-        ClickhouseWriter["client"] = null;
       }
       if (tableCreated) {
         await client.command({ query: `DROP TABLE IF EXISTS ${tableName}` });

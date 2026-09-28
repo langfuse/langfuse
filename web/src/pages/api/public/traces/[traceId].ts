@@ -163,16 +163,24 @@ export default withMiddlewares(
           .filter((t) => t)
           .sort((a, b) => (a as Date).getTime() - (b as Date).getTime());
 
-        const latencyMs =
-          obsStartTimes.length > 0
-            ? obsEndTimes.length > 0
-              ? (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
+        const latencyMs = (() => {
+          if (obsStartTimes.length > 0) {
+            if (obsEndTimes.length > 0) {
+              return (
+                (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
                 obsStartTimes[0]!.getTime()
-              : obsStartTimes.length > 1
-                ? obsStartTimes[obsStartTimes.length - 1]!.getTime() -
-                  obsStartTimes[0]!.getTime()
-                : undefined
-            : undefined;
+              );
+            }
+            if (obsStartTimes.length > 1) {
+              return (
+                obsStartTimes[obsStartTimes.length - 1]!.getTime() -
+                obsStartTimes[0]!.getTime()
+              );
+            }
+            return undefined;
+          }
+          return undefined;
+        })();
         return {
           ...trace,
           externalId: null,

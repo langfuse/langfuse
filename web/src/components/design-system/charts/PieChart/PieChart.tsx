@@ -4,11 +4,12 @@ import { useMemo } from "react";
 import { scaleOrdinal } from "d3-scale";
 import { arc, pie, type PieArcDatum } from "d3-shape";
 
-import { ChartContainer } from "@/src/components/design-system/charts/ChartContainer";
+import { ChartContainer } from "@/src/components/design-system/internal/charts/ChartContainer";
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
 import {
   chartColors,
   INACTIVE_CHART_COLOR_STRENGTH,
+  CHART_TRANSITION_DURATION,
 } from "@/src/components/design-system/charts/constants";
 import { cn } from "@/src/utils/tailwind";
 
@@ -183,13 +184,17 @@ function PieChartContent({
                     fill={fill}
                     stroke="hsl(var(--background))"
                     strokeWidth={isActive ? 4 : 3}
-                    className="outline-hidden transition-[fill] duration-100 focus-visible:outline-2 focus-visible:outline-offset-2"
+                    className="outline-hidden transition-[fill] focus-visible:outline-2 focus-visible:outline-offset-2"
+                    style={{
+                      transitionDuration: CHART_TRANSITION_DURATION,
+                    }}
                     role="graphics-symbol"
                     tabIndex={0}
                     aria-label={`${slice.data.label}: ${valueFormatter(slice.data.value)}`}
                     {...getReferenceProps({
                       type: "primary",
                       index,
+                      anchor: { type: "pointer" },
                       label: slice.data.label,
                       value: `${valueFormatter(slice.data.value)} (${percentageFormatter.format(slice.data.value / totalValue)})`,
                       color,
