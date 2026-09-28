@@ -1,6 +1,5 @@
 """Regression tests for runner-local typed errors and packaging."""
 import importlib.util
-import io
 import sys
 import tempfile
 import unittest
