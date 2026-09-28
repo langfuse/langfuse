@@ -206,6 +206,24 @@ describe("Token Cost Calculation", () => {
     expect(costs.total_cost).toBe(0.00009375);
   });
 
+  it("prices TTL-split cache writes with the aggregate cache-write price when no TTL price exists", () => {
+    const costs = (IngestionService as any).calculateUsageCosts(
+      [
+        {
+          price: new Decimal(0.00000375),
+          usageType: "cache_creation_input_tokens",
+        },
+        { price: new Decimal(0.000006), usageType: "input_cache_creation_1h" },
+      ],
+      { provided_cost_details: {} },
+      { input_cache_creation_5m: 2000, input_cache_creation_1h: 10256 },
+    );
+
+    expect(costs.cost_details.input_cache_creation_5m).toBe(0.0075);
+    expect(costs.cost_details.input_cache_creation_1h).toBeCloseTo(0.061536, 9);
+    expect(costs.total_cost).toBeCloseTo(0.069036, 9);
+  });
+
   it("should correctly calculate token costs with user provided costs", async () => {
     const prices = await prisma.price.findMany({
       where: {
