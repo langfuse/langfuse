@@ -1,20 +1,10 @@
 import { useMemo } from "react";
 import { LineChart } from "@/src/components/design-system/charts/LineChart/LineChart";
-import {
-  type IntervalConfig,
-  type TimeRange,
-} from "@/src/utils/date-range-utils";
-import {
-  formatChartTimestamp,
-  formatChartTooltipTimestamp,
-} from "../../lib/chart-formatters";
 
 export interface CategoricalTimeSeriesChartProps {
   data: Array<{ timestamp: Date; category: string; count: number }>;
   score1Name: string;
   score2Name?: string;
-  interval: IntervalConfig;
-  timeRange: TimeRange;
   colors: Record<string, string>;
 }
 
@@ -22,8 +12,6 @@ export function ScoreTimeSeriesCategoricalChart({
   data,
   score1Name: _score1Name,
   score2Name: _score2Name,
-  interval,
-  timeRange,
   colors,
 }: CategoricalTimeSeriesChartProps) {
   const { chartData, series } = useMemo(() => {
@@ -80,10 +68,6 @@ export function ScoreTimeSeriesCategoricalChart({
       series={series}
       xAxis={{
         type: "time",
-        tickFormatter: (value) =>
-          formatChartTimestamp(value, interval, timeRange),
-        tooltipFormatter: (value) =>
-          formatChartTooltipTimestamp(value, interval, timeRange),
       }}
       valueFormatter={(value) => value.toLocaleString()}
       showDataPointDots

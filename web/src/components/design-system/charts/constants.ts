@@ -1,12 +1,13 @@
 export const chartColors = [
-  "#3a3dee",
-  "#07b9d5",
-  "#71717a",
-  "#a855f7",
-  "#ebbd05",
-  "#ef4343",
-  "#82cb15",
-  "#ec4699",
+  "#5f62f1",
+  "#058194",
+  "#76767f",
+  "#9f41f6",
+  "#917503",
+  "#eb1414",
+  "#53810e",
+  "#e2187d",
 ] as const;
 
 export const INACTIVE_CHART_COLOR_STRENGTH = 20;
+export const CHART_TRANSITION_DURATION = "150ms";

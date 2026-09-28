@@ -9,6 +9,10 @@ const badgeVariants = cva(
   "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center rounded-sm border pb-px text-xs leading-4 font-normal",
   {
     variants: {
+      size: {
+        default: "h-5.5 gap-1.5 pr-1.5 pl-2",
+        sm: "h-4.5 gap-1 px-1.5",
+      },
       color: {
         primary: "border-border bg-transparent text-foreground-secondary",
         red: "border-transparent bg-light-red/60 text-dark-red/90 dark:bg-light-red/40 dark:text-dark-red/90",
@@ -17,15 +21,17 @@ const badgeVariants = cva(
         violet: "border-transparent bg-light-violet text-dark-violet",
         teal: "border-transparent bg-light-teal text-dark-teal",
         green: "border-transparent bg-light-green text-dark-green",
+        ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
       },
-      size: {
-        default: "h-5.5 gap-1.5 pr-1.5 pl-2",
-        sm: "h-4.5 gap-1 px-1.5",
+      interactive: {
+        true: "decoration-border-contrast underline decoration-dashed decoration-1 underline-offset-[3px]",
+        false: "",
       },
     },
     defaultVariants: {
       color: "primary",
       size: "default",
+      interactive: false,
     },
   },
 );
@@ -45,11 +51,17 @@ export function BadgeShell({
   asChild = false,
   color,
   size,
+  interactive,
   ...props
 }: BadgeShellProps) {
   const Component = asChild ? Slot : "span";
 
-  return <Component className={badgeVariants({ color, size })} {...props} />;
+  return (
+    <Component
+      className={cn(badgeVariants({ color, size, interactive }))}
+      {...props}
+    />
+  );
 }
 
 type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
@@ -66,6 +78,7 @@ export function Badge({
   text,
   label,
   title,
+  interactive,
   trailingIcon: TrailingIcon,
   trailingIconTone = "default",
   ...props
@@ -73,7 +86,14 @@ export function Badge({
   return (
     <BadgeShell color={color} {...props}>
       {label && <span className="shrink-0">{label}</span>}
-      <span className="truncate" title={title ?? text}>
+      <span
+        className={cn(
+          "overflow-x-clip overflow-y-visible text-ellipsis whitespace-nowrap",
+          interactive &&
+            "decoration-border-contrast underline decoration-dashed decoration-1 underline-offset-[3px]",
+        )}
+        title={title ?? (interactive ? undefined : text)}
+      >
         {text}
       </span>
       {TrailingIcon && (

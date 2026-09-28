@@ -1632,14 +1632,18 @@ const inAppAgentObservations = [
           ),
         },
       ]);
-    const runtimeContextOffsetMs =
-      actionIndex < 6
-        ? inAppAgentActions[0]!.offsetMs
-        : actionIndex < 13
-          ? inAppAgentActions[6]!.offsetMs
-          : actionIndex < 18
-            ? inAppAgentActions[13]!.offsetMs
-            : inAppAgentActions[18]!.offsetMs;
+    const runtimeContextOffsetMs = (() => {
+      if (actionIndex < 6) {
+        return inAppAgentActions[0]!.offsetMs;
+      }
+      if (actionIndex < 13) {
+        return inAppAgentActions[6]!.offsetMs;
+      }
+      if (actionIndex < 18) {
+        return inAppAgentActions[13]!.offsetMs;
+      }
+      return inAppAgentActions[18]!.offsetMs;
+    })();
     const generationInput = JSON.stringify({
       messages: [
         ...inAppAgentSystemMessages,

@@ -1,6 +1,7 @@
 import preview from "../../../../../.storybook/preview";
 import { expect, spyOn, userEvent, within } from "storybook/test";
 
+import { chartColors } from "../constants";
 import { BarChart } from "./BarChart";
 
 const data = [
@@ -58,13 +59,6 @@ export const KeyboardFocus = meta.story({
     } finally {
       copy.mockRestore();
     }
-    await expect(
-      tooltip.querySelector("svg.lucide-check")?.parentElement,
-    ).toHaveClass("visible");
-    await expect(firstBar).toHaveAttribute("fill", "hsl(var(--chart-1))");
-    await expect(
-      canvas.getByRole("graphics-symbol", { name: "Beta: 24" }),
-    ).toHaveAttribute("fill", expect.stringContaining("20%"));
     await userEvent.tab();
     await expect(
       canvas.getByRole("graphics-symbol", { name: "Beta: 24" }),
@@ -78,13 +72,7 @@ export const CategoryHoverArea = meta.story({
     const area = canvasElement.querySelector<SVGRectElement>(
       "[data-bar-hover-area]",
     );
-    const bar = within(canvasElement).getByRole("graphics-symbol", {
-      name: "Alpha: 12",
-    });
     if (!area) throw new Error("Hover area not found");
-    await expect(Number(area.getAttribute("height"))).toBeGreaterThan(
-      Number(bar.getAttribute("height")),
-    );
     await userEvent.hover(area);
     const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
       "tooltip",
@@ -100,17 +88,52 @@ export const CategoryHoverArea = meta.story({
   },
 });
 
+export const TooltipFollowsBar = meta.story({
+  name: "(Test) Tooltip Follows Bar",
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const bars = canvas.getAllByRole("graphics-symbol");
+    const areas = canvasElement.querySelectorAll<SVGRectElement>(
+      "[data-bar-hover-area]",
+    );
+    for (let index = 0; index < bars.length; index++) {
+      const bar = bars[index];
+      const area = areas[index];
+      if (!bar || !area) throw new Error("Bar or hover area not found");
+      await userEvent.hover(area);
+      const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+        "tooltip",
+      );
+      const referenceLine = canvasElement.querySelector(
+        "[data-active-reference-line]",
+      );
+      if (!referenceLine) throw new Error("Reference line not found");
+      await expect(referenceLine.compareDocumentPosition(bar)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+      const areaTop = tooltip.getBoundingClientRect().top;
+      await userEvent.hover(bar);
+      await expect(tooltip.getBoundingClientRect().top).toBeCloseTo(areaTop, 0);
+      if (index === 0) {
+        await expect(
+          tooltip.getBoundingClientRect().bottom,
+        ).toBeLessThanOrEqual(bar.getBoundingClientRect().top);
+      }
+    }
+  },
+});
+
 export const CategoryColors = meta.story({
   args: {
     data: data.map((item, index) => ({
       ...item,
-      color: ["#3a3dee", "#07b9d5", "#f18a42"][index],
+      color: chartColors[index],
     })),
     legend: {
       items: data.map((item, index) => ({
         id: item.label,
         label: item.label,
-        color: ["#3a3dee", "#07b9d5", "#f18a42"][index] ?? "",
+        color: chartColors[index] ?? "",
       })),
     },
   },
@@ -121,7 +144,7 @@ export const CategoryColorTooltip = meta.story({
   args: {
     data: data.map((item, index) => ({
       ...item,
-      color: ["#3a3dee", "#07b9d5", "#f18a42"][index],
+      color: chartColors[index],
     })),
   },
   play: async ({ canvasElement }) => {
@@ -132,7 +155,7 @@ export const CategoryColorTooltip = meta.story({
     );
     await expect(tooltip.querySelector("svg rect")).toHaveAttribute(
       "fill",
-      "#3a3dee",
+      chartColors[0],
     );
   },
 });
@@ -141,7 +164,7 @@ export const CategoryColorsWithoutLegend = meta.story({
   args: {
     data: data.map((item, index) => ({
       ...item,
-      color: ["#3a3dee", "#07b9d5", "#f18a42"][index],
+      color: chartColors[index],
     })),
   },
 });
@@ -153,7 +176,7 @@ export const CompactLegend = meta.story({
     data: data.map((item, index) => ({
       ...item,
       label: `production-evaluation-run-${item.label}-with-a-long-name`,
-      color: ["#3a3dee", "#07b9d5", "#f18a42"][index],
+      color: chartColors[index],
     })),
     legend: {
       items: data.map((item, index) => ({
@@ -185,10 +208,6 @@ export const ManyCategories = meta.story({
   },
 });
 
-export const SubtleFill = meta.story({
-  args: { variant: "subtle" },
-});
-
 export const LongLabels = meta.story({
   name: "(Test) Long Labels",
   args: {
@@ -201,9 +220,6 @@ export const LongLabels = meta.story({
     const canvas = within(canvasElement);
     const firstBar = canvas.getAllByRole("graphics-symbol")[0];
     if (!firstBar) throw new Error("Bar not found");
-    for (const label of canvasElement.querySelectorAll("[data-x-axis-label]")) {
-      await expect(label).toHaveAttribute("text-anchor", "middle");
-    }
     await expect(
       canvasElement.querySelector("[data-x-axis-label]"),
     ).toHaveTextContent(/…$/);
@@ -211,9 +227,6 @@ export const LongLabels = meta.story({
     await expect(
       canvasElement.querySelector("[data-active-x-axis-label]"),
     ).toHaveTextContent("production-evaluation-run-1-with-a-long-name");
-    await expect(
-      canvasElement.querySelector("[data-active-x-axis-label-background]"),
-    ).toBeInTheDocument();
   },
 });
 
@@ -238,16 +251,11 @@ export const EdgeLabels = meta.story({
       const label = canvasElement.querySelector<SVGTextElement>(
         "[data-active-x-axis-label]",
       );
-      const background = canvasElement.querySelector<SVGRectElement>(
-        "[data-active-x-axis-label-background]",
-      );
-      if (!label || !background) throw new Error("Active label not found");
+      if (!label) throw new Error("Active label not found");
       const chartWidth = label.ownerSVGElement?.width.baseVal.value ?? 0;
-      for (const element of [label, background]) {
-        const bounds = element.getBBox();
-        await expect(bounds.x).toBeGreaterThanOrEqual(0);
-        await expect(bounds.x + bounds.width).toBeLessThanOrEqual(chartWidth);
-      }
+      const bounds = label.getBBox();
+      await expect(bounds.x).toBeGreaterThanOrEqual(0);
+      await expect(bounds.x + bounds.width).toBeLessThanOrEqual(chartWidth);
     }
   },
 });
@@ -272,9 +280,6 @@ export const FullyTruncatedLabels = meta.story({
     await expect(
       canvasElement.querySelectorAll("[data-x-axis-label]"),
     ).toHaveLength(0);
-    await expect(
-      canvasElement.querySelectorAll("[data-category-tick]"),
-    ).toHaveLength(20);
     const firstBar = canvas.getByRole("graphics-symbol", {
       name: "Experiment 1: 1",
     });

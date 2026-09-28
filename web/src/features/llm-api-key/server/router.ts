@@ -224,7 +224,30 @@ async function testLLMConnection(
   }
 }
 
+async function validateBaseURLForAdapter(params: {
+  adapter: LLMAdapter;
+  baseURL: string;
+}): Promise<void> {
+  // The TypeSafe provider appends /systemone to the raw base URL string.
+  if (params.adapter === LLMAdapter.TypeSafe) {
+    const url = new URL(params.baseURL);
+    if (/\/systemone\/?$/.test(url.pathname)) {
+      throw new Error(
+        "Remove /systemone from the end of the base URL. Langfuse appends it.",
+      );
+    }
+    if (url.search || url.hash) {
+      throw new Error(
+        "Remove the query string from the base URL. Langfuse appends /systemone to it.",
+      );
+    }
+  }
+
+  await validateLlmConnectionBaseURL(params.baseURL);
+}
+
 async function validateBaseURLForWrite(params: {
+  adapter: LLMAdapter;
   baseURL?: string | null;
   errorPrefix?: string;
 }): Promise<void> {
@@ -233,7 +256,10 @@ async function validateBaseURLForWrite(params: {
   }
 
   try {
-    await validateLlmConnectionBaseURL(params.baseURL);
+    await validateBaseURLForAdapter({
+      adapter: params.adapter,
+      baseURL: params.baseURL,
+    });
   } catch (error) {
     throw new TRPCError({
       code: "BAD_REQUEST",
@@ -286,6 +312,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         });
 
         await validateBaseURLForWrite({
+          adapter: input.adapter,
           baseURL: input.baseURL,
         });
 
@@ -521,7 +548,10 @@ export const llmApiKeyRouter = createTRPCRouter({
 
       if (input.baseURL) {
         try {
-          await validateLlmConnectionBaseURL(input.baseURL);
+          await validateBaseURLForAdapter({
+            adapter: input.adapter,
+            baseURL: input.baseURL,
+          });
         } catch (error) {
           return {
             success: false,
@@ -580,7 +610,10 @@ export const llmApiKeyRouter = createTRPCRouter({
         }
 
         if (input.baseURL && isBaseURLChanged) {
-          await validateLlmConnectionBaseURL(input.baseURL);
+          await validateBaseURLForAdapter({
+            adapter: input.adapter,
+            baseURL: input.baseURL,
+          });
         }
 
         const secretKey = hasNewSecretKey
@@ -670,6 +703,7 @@ export const llmApiKeyRouter = createTRPCRouter({
 
         if (input.baseURL && isBaseURLChanged) {
           await validateBaseURLForWrite({
+            adapter: input.adapter,
             baseURL: input.baseURL,
           });
         }

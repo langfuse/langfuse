@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
@@ -62,18 +61,25 @@ export function EvaluatorSetupFooter({
     }),
   );
   const hasUnsavedChanges = currentSnapshot !== initialSnapshot;
-  const disabledReason =
-    nameMissing && !nameAIAssistanceAvailable
-      ? "Add an evaluator name before saving."
-      : promptMessagesReason
-        ? promptMessagesReason
-        : scoreOutputReason
-          ? scoreOutputReason
-          : codeValidation &&
-              !codeValidation.isPending &&
-              !codeValidation.isValid
-            ? "Fix the code validation errors before saving."
-            : null;
+  const disabledReason = (() => {
+    if (nameMissing && !nameAIAssistanceAvailable) {
+      return "Add an evaluator name before saving.";
+    }
+    if (promptMessagesReason) {
+      return promptMessagesReason;
+    }
+    if (scoreOutputReason) {
+      return scoreOutputReason;
+    }
+    if (
+      codeValidation &&
+      !codeValidation.isPending &&
+      !codeValidation.isValid
+    ) {
+      return "Fix the code validation errors before saving.";
+    }
+    return null;
+  })();
   const saveDisabled =
     !canSubmit ||
     Boolean(

@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
+import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/data-table-pagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
@@ -681,11 +682,15 @@ function TracesTableInternal({
     setSelectedRows({});
   };
 
-  const displayCount = totalCountQuery.isPending
-    ? "..."
-    : selectAll
-      ? compactNumberFormatter(totalCountQuery.data?.totalCount)
-      : compactNumberFormatter(Object.keys(selectedRows).length);
+  const displayCount = (() => {
+    if (totalCountQuery.isPending) {
+      return "...";
+    }
+    if (selectAll) {
+      return compactNumberFormatter(totalCountQuery.data?.totalCount);
+    }
+    return compactNumberFormatter(Object.keys(selectedRows).length);
+  })();
 
   // Select-all deletes persist the raw filterState into the batch action, but
   // comment filters resolve via Postgres at read time and the server rejects
@@ -1054,12 +1059,15 @@ function TracesTableInternal({
       enableHiding: true,
       enableSorting,
       isLive: false,
-      getStatus: (level, { row }) =>
-        isMetricPending(row.original.id)
-          ? { type: "loading" }
-          : level
-            ? getObservationLevelStatus(level)
-            : undefined,
+      getStatus: (level, { row }) => {
+        if (isMetricPending(row.original.id)) {
+          return { type: "loading" };
+        }
+        if (level) {
+          return getObservationLevelStatus(level);
+        }
+        return undefined;
+      },
     }),
     createTextTableColumn<TracesTableRow>({
       accessorKey: "version",
@@ -1583,6 +1591,7 @@ function TracesTableInternal({
                         setPaginationState(next);
                       },
                       state: paginationState,
+                      options: TRACING_PAGE_SIZE_OPTIONS,
                     }
               }
               setOrderBy={handleOrderByChange}
@@ -1630,12 +1639,15 @@ const TracesDynamicCell = ({
     },
   );
 
-  const data =
-    col === "output"
-      ? trace.data?.output
-      : col === "input"
-        ? trace.data?.input
-        : trace.data?.metadata;
+  const data = (() => {
+    if (col === "output") {
+      return trace.data?.output;
+    }
+    if (col === "input") {
+      return trace.data?.input;
+    }
+    return trace.data?.metadata;
+  })();
 
   if (trace.isPending) {
     return <ConnectedIOTableCell isLoading singleLine={singleLine} />;

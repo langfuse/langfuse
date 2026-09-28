@@ -23,6 +23,7 @@ const allColors = Object.keys({
   violet: true,
   teal: true,
   green: true,
+  ghost: true,
 } satisfies Record<Color, true>) as Color[];
 
 export const Default = meta.story({});
@@ -61,6 +62,15 @@ export const WithTrailingIcon = meta.story({
 
 export const Small = meta.story({
   args: { text: "DEBUG", size: "sm" },
+});
+
+export const GhostInteractive = meta.story({
+  args: {
+    color: "ghost",
+    interactive: true,
+    label: "cost",
+    text: "$0.0042",
+  },
 });
 
 export const VariantMatrix = meta.story({

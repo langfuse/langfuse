@@ -42,6 +42,7 @@ export function ConnectedBatchActionsTable({
     <BatchActionsTable
       data={tableData}
       pagination={{
+        mode: "offset",
         totalCount: batchActions.data?.totalCount ?? 0,
         onChange: setPaginationState,
         state: paginationState,
