@@ -38,7 +38,9 @@ export class TimedGzip extends Transform {
     this.gzip.on("data", (chunk: Buffer) => {
       if (!this.push(chunk)) {
         this.gzip.pause();
-        if (this.bpStart === null) this.bpStart = performance.now();
+        if (this.bpStart === null) {
+          this.bpStart = performance.now();
+        }
       }
     });
     this.gzip.on("error", (err: Error) => this.destroy(err));

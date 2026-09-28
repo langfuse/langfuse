@@ -130,7 +130,9 @@ export function compareViewChartDataToDataPoints(
   chartLabels: string[],
   metricKey: string,
 ): DataPoint[] {
-  if (chartLabels.length === 0) return [];
+  if (chartLabels.length === 0) {
+    return [];
+  }
   if (chartLabels.length === 1) {
     const label = chartLabels[0]!;
     return chartData.map((bin) => ({

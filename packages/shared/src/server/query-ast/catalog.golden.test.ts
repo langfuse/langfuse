@@ -70,7 +70,9 @@ describeWithClickhouseLocal("catalog JOIN execution", () => {
   it("join_observations_traces is valid ClickHouse with table-qualified project_id on both sides", () => {
     const entry = CATALOG.find((e) => e.id === "join_observations_traces");
     expect(entry).toBeDefined();
-    if (!entry) return;
+    if (!entry) {
+      return;
+    }
 
     const compiled = compileClickhouseQuery(entry.build(), {
       projectId: CATALOG_PROJECT_ID,
@@ -151,7 +153,9 @@ describeWithClickhouseLocal("catalog tier 5-7 execution", () => {
     it(`${id} compiles to valid analyzable ClickHouse`, () => {
       const entry = CATALOG.find((e) => e.id === id);
       expect(entry).toBeDefined();
-      if (!entry) return;
+      if (!entry) {
+        return;
+      }
 
       const compiled = compileClickhouseQuery(entry.build(), {
         projectId: CATALOG_PROJECT_ID,

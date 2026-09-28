@@ -222,11 +222,15 @@ const isVersionBefore = (version: string, minimum: string): boolean => {
     .replace(/^v/i, "")
     .split(".")
     .map(Number);
-  if (!parts) return false;
+  if (!parts) {
+    return false;
+  }
   const minimumParts = minimum.split(".").map(Number);
   for (const [index, minimumPart] of minimumParts.entries()) {
     const part = parts[index] ?? 0;
-    if (part !== minimumPart) return part < minimumPart;
+    if (part !== minimumPart) {
+      return part < minimumPart;
+    }
   }
   return false;
 };
@@ -242,7 +246,9 @@ export const getApiMigrationGuidance = (
     genericReplacements[endpoint] ??
     "the replacement API in the migration guide";
   const methods = sdkName ? endpointGuidance?.methods?.[sdkName] : undefined;
-  if (!methods) return { replacement };
+  if (!methods) {
+    return { replacement };
+  }
 
   return {
     currentMethod: methods.current,
@@ -256,9 +262,17 @@ export const getApiMigrationGuidance = (
 };
 
 export const getCodingAgentName = (userAgent?: string): string | undefined => {
-  if (!userAgent) return undefined;
-  if (/codex/i.test(userAgent)) return "Codex";
-  if (/claude[- /]?code/i.test(userAgent)) return "Claude Code";
-  if (/cursor/i.test(userAgent)) return "Cursor";
+  if (!userAgent) {
+    return undefined;
+  }
+  if (/codex/i.test(userAgent)) {
+    return "Codex";
+  }
+  if (/claude[- /]?code/i.test(userAgent)) {
+    return "Claude Code";
+  }
+  if (/cursor/i.test(userAgent)) {
+    return "Cursor";
+  }
   return undefined;
 };

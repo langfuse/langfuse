@@ -27,7 +27,9 @@ export function useWebCalloutAction(props: WebCalloutTarget, enabled: boolean) {
   const invokeMutation = api.webCallouts.invoke.useMutation({
     onSuccess: () => {
       const callout = endpoint.data;
-      if (!callout?.enabled) return;
+      if (!callout?.enabled) {
+        return;
+      }
 
       showSuccessToast({
         title: callout.toastMessage,

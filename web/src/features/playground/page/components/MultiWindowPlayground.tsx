@@ -101,7 +101,9 @@ export default function MultiWindowPlayground({
   );
 
   const firstWindowId = windowState.windowIds[0];
-  if (!firstWindowId) return null;
+  if (!firstWindowId) {
+    return null;
+  }
 
   return (
     <div

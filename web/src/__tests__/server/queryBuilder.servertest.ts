@@ -4031,13 +4031,17 @@ describe("queryBuilder", () => {
       testFn: () => Promise<void>,
     ): void => {
       isEventsTableV2Enabled(name, async () => {
-        if (!hasLegacyEventsTable) return;
+        if (!hasLegacyEventsTable) {
+          return;
+        }
         await testFn();
       });
     };
 
     beforeAll(async () => {
-      if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") return;
+      if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
+        return;
+      }
 
       try {
         const result = await clickhouseClient().query({
@@ -5018,7 +5022,9 @@ describe("query builder measure-aggregation validation", () => {
     let hasLegacyEventsTable = false;
 
     beforeAll(async () => {
-      if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") return;
+      if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
+        return;
+      }
 
       try {
         const result = await clickhouseClient().query({
@@ -5034,7 +5040,9 @@ describe("query builder measure-aggregation validation", () => {
     isEventsTableV2Enabled(
       "should filter events_traces by traceName using aggregation logic",
       async () => {
-        if (!hasLegacyEventsTable) return;
+        if (!hasLegacyEventsTable) {
+          return;
+        }
 
         const projectId = randomUUID();
         const traceId1 = randomUUID();
@@ -5103,7 +5111,9 @@ describe("query builder measure-aggregation validation", () => {
     isEventsTableV2Enabled(
       "should filter events_traces by traceName column via resolveDimension fallback to name filterSql",
       async () => {
-        if (!hasLegacyEventsTable) return;
+        if (!hasLegacyEventsTable) {
+          return;
+        }
 
         const projectId = randomUUID();
         const traceId1 = randomUUID();
@@ -5161,7 +5171,9 @@ describe("query builder measure-aggregation validation", () => {
     isEventsTableV2Enabled(
       "should filter events_traces by name filterSql combined with a regular dimension filter",
       async () => {
-        if (!hasLegacyEventsTable) return;
+        if (!hasLegacyEventsTable) {
+          return;
+        }
 
         const projectId = randomUUID();
         const traceId1 = randomUUID();

@@ -114,7 +114,9 @@ export function useExperimentV2EvaluatorSelection({
 
     for (const rule of datasetRules.filter((candidate) => candidate.enabled)) {
       for (const assignment of rule.assignments) {
-        if (assignments.has(assignment.evaluatorId)) continue;
+        if (assignments.has(assignment.evaluatorId)) {
+          continue;
+        }
 
         const prepared = prepareModernRuleVariableMapping(
           assignment.evaluator.latestVersion?.variableMapping,
@@ -148,7 +150,9 @@ export function useExperimentV2EvaluatorSelection({
   const isUpdating = createRule.isPending || updateRule.isPending;
 
   const onSaveAssignments = async (assignments: RuleDraft["assignments"]) => {
-    if (!datasetId || !canWrite || isUpdating || rules.isPending) return;
+    if (!datasetId || !canWrite || isUpdating || rules.isPending) {
+      return;
+    }
 
     const evaluatorMappings = assignments.map((assignment) => ({
       evaluatorId: assignment.evaluatorId,

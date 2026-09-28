@@ -3,9 +3,13 @@ import { type PlaygroundCache } from "../types";
 import { getCacheKey } from "../storage/keys";
 
 const readCache = (key: string): PlaygroundCache => {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined") {
+    return null;
+  }
   const saved = sessionStorage.getItem(key);
-  if (!saved) return null;
+  if (!saved) {
+    return null;
+  }
   try {
     return JSON.parse(saved);
   } catch {

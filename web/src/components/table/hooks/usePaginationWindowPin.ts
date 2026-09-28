@@ -15,7 +15,9 @@ export function isLiveTailTimeSort(
   orderBy: TimeOrderBy,
   timeColumn: string,
 ): boolean {
-  if (!orderBy) return true;
+  if (!orderBy) {
+    return true;
+  }
   return orderBy.column === timeColumn && orderBy.order === "DESC";
 }
 
@@ -74,8 +76,12 @@ export function usePaginationWindowPin(
   /** Call from the pagination handler, where the leaving page's rows are known. */
   const pinOnLeavingFirstPage = useCallback(
     (nextPageIndex: number, newestVisible: Date | undefined) => {
-      if (!enabled) return;
-      if (nextPageIndex > 0) setPinnedAt(newestVisible ?? new Date());
+      if (!enabled) {
+        return;
+      }
+      if (nextPageIndex > 0) {
+        setPinnedAt(newestVisible ?? new Date());
+      }
     },
     [enabled],
   );

@@ -150,8 +150,9 @@ export function ConnectedSessionConversationTimeline({
     });
 
     return traces.map(({ trace, observations }) => {
-      if (observations === undefined || observations === null)
+      if (observations === undefined || observations === null) {
         return observations;
+      }
 
       const queryIndices = new Set(
         observations.flatMap((observation) => {
@@ -278,7 +279,9 @@ export function ConnectedSessionConversationTimeline({
                               maxStartTime: observation.startTime,
                               truncated: false,
                             });
-                          if (!fullObservation) throw new Error();
+                          if (!fullObservation) {
+                            throw new Error();
+                          }
 
                           openDatasetDialog({
                             traceId: observation.traceId,

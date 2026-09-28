@@ -155,7 +155,9 @@ function validateEvaluatorInput(
   const parsed = CreateEvaluatorWithoutProjectSchema.safeParse(
     toEvaluatorInput(input),
   );
-  if (parsed.success) return;
+  if (parsed.success) {
+    return;
+  }
 
   for (const issue of parsed.error.issues) {
     ctx.addIssue({

@@ -469,7 +469,9 @@ const getObservationStreamFromEvents = async (
     const columnDef = eventsTableUiColumnDefinitions.find((col) =>
       matchesUiColumnMapping(col, f.column),
     );
-    if (columnDef?.clickhouseTableName === "comments") return false;
+    if (columnDef?.clickhouseTableName === "comments") {
+      return false;
+    }
     if (columnDef?.clickhouseTableName === "scores") {
       // Observation-scoped score columns select from the "s." alias,
       // trace-only ones from "ts.".

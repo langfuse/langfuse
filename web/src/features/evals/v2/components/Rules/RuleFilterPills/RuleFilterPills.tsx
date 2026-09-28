@@ -33,7 +33,9 @@ export function RuleFilterPills({
     key: string,
   ) => {
     const reason = disabledReasons?.get(index);
-    if (!reason) return <span key={key}>{content}</span>;
+    if (!reason) {
+      return <span key={key}>{content}</span>;
+    }
 
     return (
       <Tooltip key={key}>

@@ -30,9 +30,13 @@ import type { CsvPreviewResult } from "@/src/features/datasets/lib/csv/types";
 
 // Helper to extract schema keys from object schema
 function extractSchemaKeys(schema: unknown): string[] | null {
-  if (!schema || typeof schema !== "object") return null;
+  if (!schema || typeof schema !== "object") {
+    return null;
+  }
   const schemaObj = schema as Record<string, unknown>;
-  if (schemaObj.type !== "object" || !schemaObj.properties) return null;
+  if (schemaObj.type !== "object" || !schemaObj.properties) {
+    return null;
+  }
   return Object.keys(schemaObj.properties as Record<string, unknown>);
 }
 
@@ -101,15 +105,21 @@ export function PreviewCsvImport({
     handlers: {
       onAddToInputColumn: (columnName) => {
         const column = preview.columns.find((c) => c.name === columnName);
-        if (column) mapping.addColumnToInput(column);
+        if (column) {
+          mapping.addColumnToInput(column);
+        }
       },
       onAddToExpectedColumn: (columnName) => {
         const column = preview.columns.find((c) => c.name === columnName);
-        if (column) mapping.addColumnToExpectedOutput(column);
+        if (column) {
+          mapping.addColumnToExpectedOutput(column);
+        }
       },
       onAddToMetadataColumn: (columnName) => {
         const column = preview.columns.find((c) => c.name === columnName);
-        if (column) mapping.addColumnToMetadata(column);
+        if (column) {
+          mapping.addColumnToMetadata(column);
+        }
       },
       onAddToInputSchemaKey: (schemaKey, column) => {
         mapping.addColumnToInput(column, schemaKey);

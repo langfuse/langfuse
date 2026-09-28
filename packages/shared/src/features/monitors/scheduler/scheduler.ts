@@ -51,7 +51,9 @@ export class MonitorScheduler {
       ),
     ]);
 
-    if (results.length === 0) return 0;
+    if (results.length === 0) {
+      return 0;
+    }
 
     await Promise.all(
       results.map((result) =>

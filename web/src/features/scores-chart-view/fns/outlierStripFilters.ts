@@ -12,7 +12,9 @@ import { partitionStoredUiTableFiltersToView } from "@/src/features/dashboard";
 export const canApplyScoreOutlierStripFilters = (
   filterState: FilterState,
 ): boolean => {
-  if (filterState.some((filter) => filter.type === "null")) return false;
+  if (filterState.some((filter) => filter.type === "null")) {
+    return false;
+  }
   return (["scores-numeric", "scores-categorical"] as const).every(
     (view) =>
       partitionStoredUiTableFiltersToView(view, filterState).unsupportedFilters

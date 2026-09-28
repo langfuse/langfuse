@@ -85,7 +85,9 @@ const ctxMatcher = new MatchDecorator({
   regexp: /\bctx\b/g,
   decorate: (add, from, to, _match, view) => {
     const node = syntaxTree(view.state).resolveInner(from, 1);
-    if (isInsideStringOrComment(node)) return;
+    if (isInsideStringOrComment(node)) {
+      return;
+    }
 
     add(
       from,
@@ -133,13 +135,17 @@ function createCodeEvalHoverExtension({
     const after = text.slice(offset).match(/^[A-Za-z0-9_]*/)?.[0] ?? "";
     const word = `${before ?? ""}${after}`;
     const hoverDoc = hoverDocs[word];
-    if (!word || !hoverDoc) return null;
+    if (!word || !hoverDoc) {
+      return null;
+    }
 
     const from = pos - (before?.length ?? 0);
     const to = from + word.length;
 
     const node = syntaxTree(view.state).resolveInner(from, 1);
-    if (isInsideStringOrComment(node)) return null;
+    if (isInsideStringOrComment(node)) {
+      return null;
+    }
     // `type`, `index`, ... are ToolCall properties but also everyday
     // identifiers; only document them on actual property accesses.
     if (
@@ -161,7 +167,9 @@ function createCodeEvalHoverExtension({
         documentation.textContent = hoverDoc;
         dom.append(documentation);
 
-        if (word !== "ctx" || !ctxSample) return { dom };
+        if (word !== "ctx" || !ctxSample) {
+          return { dom };
+        }
 
         const label = document.createElement("div");
         label.className = "mt-2 mb-1 font-sans font-bold";
@@ -295,7 +303,9 @@ export function CodeEvalTemplateFormBody({
   );
   useEffect(() => {
     const view = editorViewRef.current;
-    if (view) view.dispatch(setDiagnostics(view.state, diagnostics));
+    if (view) {
+      view.dispatch(setDiagnostics(view.state, diagnostics));
+    }
   }, [diagnostics]);
 
   // Reentrancy lives in a ref so `formatSource` (and with it the keydown
@@ -303,7 +313,9 @@ export function CodeEvalTemplateFormBody({
   // spinner state toggles; `isFormatting` state only drives the button UI.
   const isFormattingRef = useRef(false);
   const formatSource = useCallback(async () => {
-    if (!canFormat || isFormattingRef.current) return;
+    if (!canFormat || isFormattingRef.current) {
+      return;
+    }
 
     isFormattingRef.current = true;
     setIsFormatting(true);

@@ -26,7 +26,9 @@ function serializeValue(
       ? "None"
       : String(value);
   }
-  if (typeof value === "string") return JSON.stringify(truncate(value));
+  if (typeof value === "string") {
+    return JSON.stringify(truncate(value));
+  }
   if (typeof value === "boolean") {
     if (language === EvalTemplateSourceCodeLanguageEnum.PYTHON) {
       if (value) {
@@ -36,9 +38,13 @@ function serializeValue(
     }
     return String(value);
   }
-  if (typeof value === "number") return String(value);
+  if (typeof value === "number") {
+    return String(value);
+  }
   if (Array.isArray(value)) {
-    if (value.length === 0) return "[]";
+    if (value.length === 0) {
+      return "[]";
+    }
     const childIndent = `${indent}  `;
     const lines = value
       .slice(0, MAX_ARRAY_ITEMS)
@@ -57,7 +63,9 @@ function serializeValue(
   }
   if (typeof value === "object") {
     const entries = Object.entries(value as Record<string, unknown>);
-    if (entries.length === 0) return "{}";
+    if (entries.length === 0) {
+      return "{}";
+    }
     const childIndent = `${indent}  `;
     const lines = entries.map(([key, entry]) => {
       const keyLiteral =

@@ -87,13 +87,17 @@ export default function AIFeatureSwitch() {
   ]);
 
   function handleSwitchChange(newValue: boolean) {
-    if (!hasAccess) return;
+    if (!hasAccess) {
+      return;
+    }
     setIsAIFeatureSwitchEnabled(newValue);
     setConfirmOpen(true);
   }
 
   function handleTelemetrySwitchChange(newValue: boolean) {
-    if (!organization || !hasAccess) return;
+    if (!organization || !hasAccess) {
+      return;
+    }
     setIsAITelemetrySwitchEnabled(newValue);
     capture("organization_settings:ai_telemetry_toggle");
     updateAITelemetry.mutate({
@@ -108,7 +112,9 @@ export default function AIFeatureSwitch() {
   }
 
   function handleConfirm() {
-    if (!organization || !hasAccess) return;
+    if (!organization || !hasAccess) {
+      return;
+    }
     capture("organization_settings:ai_features_toggle");
     updateAIFeatures.mutate({
       orgId: organization.id,

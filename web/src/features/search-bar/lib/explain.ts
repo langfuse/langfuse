@@ -43,7 +43,9 @@ function quote(value: string): string {
 /** `"a"` · `"a" or "b"` · `"a", "b" or "c"` */
 function joinValues(values: string[], conjunction: "or" | "and"): string {
   const quoted = values.map(quote);
-  if (quoted.length <= 1) return quoted[0] ?? '""';
+  if (quoted.length <= 1) {
+    return quoted[0] ?? '""';
+  }
   return `${quoted.slice(0, -1).join(", ")} ${conjunction} ${quoted.at(-1)}`;
 }
 
@@ -58,9 +60,12 @@ function commaList(values: string[]): string {
  */
 function amount(raw: string, field: FieldDef | undefined): string {
   const value = raw.trim();
-  if (field?.unit === "s")
+  if (field?.unit === "s") {
     return `${value} ${value === "1" ? "second" : "seconds"}`;
-  if (field?.unit === "$") return `$${value}`;
+  }
+  if (field?.unit === "$") {
+    return `$${value}`;
+  }
   return value;
 }
 
@@ -121,18 +126,22 @@ function defaultOpPredicate(ref: FieldRef, seg: FilterSegment): string {
       : `is exactly ${joinValues(values, "or")}`;
   }
   if (ref.type === "scores") {
-    if (negated)
+    if (negated) {
       return many
         ? `is none of ${commaList(values)}`
         : `is not ${quote(values[0] ?? "")}`;
+    }
     return `is ${joinValues(values, "or")}`;
   }
   if (ref.type === "field" && ref.field.syncMode === "arrayOption") {
-    if (valueOp === "and") return `include all of ${joinValues(values, "and")}`;
-    if (negated)
+    if (valueOp === "and") {
+      return `include all of ${joinValues(values, "and")}`;
+    }
+    if (negated) {
       return many
         ? `include none of ${commaList(values)}`
         : `do not include ${quote(values[0] ?? "")}`;
+    }
     return `include ${joinValues(values, "or")}`;
   }
   // Bare `=` on a text column is a substring search; grouped values are an
@@ -146,17 +155,20 @@ function defaultOpPredicate(ref: FieldRef, seg: FilterSegment): string {
     ref.type === "field" && ref.field.syncMode === "textSearch"
       ? "exactly "
       : "";
-  if (negated)
+  if (negated) {
     return many
       ? `is none of ${commaList(values)}`
       : `is not ${exactly}${quote(values[0] ?? "")}`;
+  }
   return `is ${exactly}${joinValues(values, "or")}`;
 }
 
 function predicateOf(ref: FieldRef, seg: FilterSegment): string {
   const { op, values, negated } = seg;
 
-  if (isComparison(op)) return comparisonPredicate(op, ref, values, negated);
+  if (isComparison(op)) {
+    return comparisonPredicate(op, ref, values, negated);
+  }
 
   // Number equality, before the string-operator switch: `latency:2` and
   // `latency:=2` lower to the SAME numeric filter, so both must read "is 2
@@ -215,8 +227,9 @@ const KEYWORDS: Record<string, TokenExplanation> = {
 };
 
 function hasCompatibilityScope(ast: ASTNode, registry: FieldRegistry): boolean {
-  if (ast.kind === "and")
+  if (ast.kind === "and") {
     return ast.children.some((node) => hasCompatibilityScope(node, registry));
+  }
   const ref = ast.kind === "filter" ? registry.resolveField(ast.key) : null;
   return ref?.type === "pseudo" && ref.id === "in";
 }
@@ -234,7 +247,9 @@ export function explainSegment(
   switch (seg.kind) {
     case "filter": {
       const ref = registry.resolveField(seg.displayField);
-      if (ref === null) return null;
+      if (ref === null) {
+        return null;
+      }
       if (ref.type === "pseudo") {
         return ref.id === "has"
           ? explainHas(seg, registry)
@@ -268,8 +283,9 @@ export function explainSegment(
           !parsed.valid ||
           lowered.errors.length > 0 ||
           filter?.type !== "string"
-        )
+        ) {
           return null;
+        }
         return {
           subject: ref.field.label,
           predicate: `${filter.operator} ${quote(filter.value)}.`,

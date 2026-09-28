@@ -59,7 +59,9 @@ function extractFromParts(parts: unknown[]): {
   const textParts: string[] = [];
 
   for (const part of parts) {
-    if (!part || typeof part !== "object") continue;
+    if (!part || typeof part !== "object") {
+      continue;
+    }
     const p = part as Record<string, unknown>;
 
     if (p.type === "text" && typeof p.content === "string") {
@@ -120,7 +122,9 @@ function extractFromParts(parts: unknown[]): {
  * Normalize pydantic-ai tool definition to standard format
  */
 function normalizeToolDefinition(tool: unknown): Record<string, unknown> {
-  if (!tool || typeof tool !== "object") return {};
+  if (!tool || typeof tool !== "object") {
+    return {};
+  }
 
   const t = tool as Record<string, unknown>;
   const normalized: Record<string, unknown> = {
@@ -144,7 +148,9 @@ function extractToolDefinitions(
   metadata: unknown,
 ): Array<Record<string, unknown>> {
   const meta = parseMetadata(metadata);
-  if (!meta) return [];
+  if (!meta) {
+    return [];
+  }
 
   const tools = getNestedProperty(
     meta,
@@ -167,7 +173,9 @@ function extractToolDefinitions(
 function normalizeMessage(
   msg: unknown,
 ): Record<string, unknown> | Record<string, unknown>[] {
-  if (!msg || typeof msg !== "object") return {};
+  if (!msg || typeof msg !== "object") {
+    return {};
+  }
 
   const message = msg as Record<string, unknown>;
 
@@ -241,7 +249,9 @@ function normalizeMessages(data: unknown[]): unknown[] {
 }
 
 function preprocessData(data: unknown, ctx: NormalizerContext): unknown {
-  if (!data) return data;
+  if (!data) {
+    return data;
+  }
 
   // Handle array of messages
   if (Array.isArray(data)) {
@@ -287,16 +297,24 @@ export const pydanticAIAdapter: ProviderAdapter = {
   detect(ctx: NormalizerContext): boolean {
     const meta = parseMetadata(ctx.metadata);
 
-    if (ctx.framework === "pydantic-ai") return true;
+    if (ctx.framework === "pydantic-ai") {
+      return true;
+    }
 
     const scopeName = getNestedProperty(meta, "scope", "name");
-    if (scopeName === "pydantic-ai") return true;
+    if (scopeName === "pydantic-ai") {
+      return true;
+    }
 
     // STRUCTURAL: Schema-based detection on metadata (check metadata first for performance)
-    if (PydanticAIMessagesSchema.safeParse(ctx.metadata).success) return true;
+    if (PydanticAIMessagesSchema.safeParse(ctx.metadata).success) {
+      return true;
+    }
 
     // Schema-based detection on data (slower, do last)
-    if (PydanticAIMessagesSchema.safeParse(ctx.data).success) return true;
+    if (PydanticAIMessagesSchema.safeParse(ctx.data).success) {
+      return true;
+    }
 
     return false;
   },

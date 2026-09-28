@@ -59,7 +59,9 @@ export default withMiddlewares(
         try {
           clickhouseObservation = await lookupObservation(true);
         } catch (e) {
-          if (!(e instanceof LangfuseNotFoundError) || !startTime) throw e;
+          if (!(e instanceof LangfuseNotFoundError) || !startTime) {
+            throw e;
+          }
           clickhouseObservation = await lookupObservation(false);
         }
 

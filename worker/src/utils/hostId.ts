@@ -14,14 +14,19 @@ function resolveWorkerHostId(): string {
     process.env.ECS_CONTAINER_METADATA_URI_V4 ??
     process.env.ECS_CONTAINER_METADATA_URI;
   const ecsContainerId = ecsUri?.split("/").filter(Boolean).pop();
-  if (ecsContainerId) return ecsContainerId;
+  if (ecsContainerId) {
+    return ecsContainerId;
+  }
 
   const osHost = hostname();
-  if (osHost && osHost !== "0.0.0.0" && osHost !== "localhost") return osHost;
+  if (osHost && osHost !== "0.0.0.0" && osHost !== "localhost") {
+    return osHost;
+  }
 
   const envHost = process.env.HOSTNAME;
-  if (envHost && envHost !== "0.0.0.0" && envHost !== "localhost")
+  if (envHost && envHost !== "0.0.0.0" && envHost !== "localhost") {
     return envHost;
+  }
 
   return "unknown";
 }

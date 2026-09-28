@@ -51,7 +51,9 @@ export function useCorrectionMutations({
       return { previousValue, id: variables.id };
     },
     onError: (error, _, context) => {
-      if (!context?.id) return;
+      if (!context?.id) {
+        return;
+      }
 
       if (context.previousValue) {
         // Restore previous value
@@ -69,7 +71,9 @@ export function useCorrectionMutations({
 
   const deleteMutation = api.scores.deleteAnnotationScore.useMutation({
     onMutate: async () => {
-      if (!effectiveCorrection) return;
+      if (!effectiveCorrection) {
+        return;
+      }
 
       // Get previous cache value for rollback
       const previousValue = correctionCache.get(effectiveCorrection.id);
@@ -122,7 +126,9 @@ export function useCorrectionMutations({
   );
 
   const handleDelete = useCallback(() => {
-    if (!effectiveCorrection) return;
+    if (!effectiveCorrection) {
+      return;
+    }
     deleteMutation.mutate({
       projectId,
       id: effectiveCorrection.id,

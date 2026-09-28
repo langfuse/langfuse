@@ -46,8 +46,12 @@ function listYamlFiles(directory: string): string[] {
     .flatMap((entry) => {
       const entryPath = path.join(directory, entry.name);
 
-      if (entry.isDirectory()) return listYamlFiles(entryPath);
-      if (entry.isFile() && /\.ya?ml$/.test(entry.name)) return [entryPath];
+      if (entry.isDirectory()) {
+        return listYamlFiles(entryPath);
+      }
+      if (entry.isFile() && /\.ya?ml$/.test(entry.name)) {
+        return [entryPath];
+      }
       return [];
     })
     .sort();
@@ -106,11 +110,15 @@ export function getFernPythonDeprecations(
       ) as FernDefinition;
       const endpoints = definition.service?.endpoints;
 
-      if (!endpoints) return [];
+      if (!endpoints) {
+        return [];
+      }
 
       return Object.entries(endpoints).flatMap(
         ([endpointName, endpoint]): FernPythonDeprecation[] => {
-          if (!isDeprecated(endpoint.availability)) return [];
+          if (!isDeprecated(endpoint.availability)) {
+            return [];
+          }
 
           const message = readDeprecationMessage(endpoint.availability);
           if (!message) {
@@ -185,7 +193,9 @@ function patchMethodPair(
       contents.lastIndexOf("\n", previousLineEnd - 1) + 1;
     const previousLine = contents.slice(previousLineStart, previousLineEnd);
 
-    if (previousLine === decorator) continue;
+    if (previousLine === decorator) {
+      continue;
+    }
 
     if (previousLine.startsWith("    @typing_extensions.deprecated(")) {
       contents = `${contents.slice(0, previousLineStart)}${decorator}${contents.slice(previousLineEnd)}`;
@@ -212,7 +222,9 @@ function ensureTypingExtensionsImport(
 ): string {
   const existingImports =
     contents.match(/^import typing_extensions\s*$/gm) ?? [];
-  if (existingImports.length === 1) return contents;
+  if (existingImports.length === 1) {
+    return contents;
+  }
   if (existingImports.length > 1) {
     throw new Error(
       `${clientPath}: expected at most one typing_extensions import, found ${existingImports.length}`,
@@ -267,7 +279,9 @@ export function patchGeneratedPythonDeprecations({
 
   let changedFiles = 0;
   for (const [clientPath, pendingFile] of pendingFiles) {
-    if (pendingFile.contents === pendingFile.originalContents) continue;
+    if (pendingFile.contents === pendingFile.originalContents) {
+      continue;
+    }
     fs.writeFileSync(clientPath, pendingFile.contents);
     changedFiles += 1;
   }

@@ -556,7 +556,9 @@ export const queueRouter = createTRPCRouter({
       });
 
       // Expected behavior, non-error case: all items have been seen AND/OR completed, no more unseen pending items
-      if (!item) return null;
+      if (!item) {
+        return null;
+      }
 
       const updatedItem = await ctx.prisma.annotationQueueItem.update({
         where: {

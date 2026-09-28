@@ -288,7 +288,9 @@ function aggregateIntoMultiUnitBuckets<
 
       const sampleItem = bucket.dataPoints[0];
       for (const key in sampleItem) {
-        if (key === "timestamp") continue;
+        if (key === "timestamp") {
+          continue;
+        }
 
         if (typeof sampleItem[key] === "number") {
           // Average numeric values (excluding nulls)

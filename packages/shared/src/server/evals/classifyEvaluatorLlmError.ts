@@ -111,12 +111,16 @@ function inferEvaluatorBlockReason(
 
 function getProviderErrorDiscriminators(info: LLMErrorInfo): string[] {
   const data = toRecord(info.providerError?.data);
-  if (!data) return [];
+  if (!data) {
+    return [];
+  }
 
   const nestedError = toRecord(data.error);
 
   return [data, nestedError].flatMap((candidate) => {
-    if (!candidate) return [];
+    if (!candidate) {
+      return [];
+    }
 
     return ["code", "type"]
       .map((key) => {
@@ -143,7 +147,9 @@ function findBlockReasonInCauseChain(
     visited.add(current);
     if (current instanceof Error) {
       const blockReason = getBlockReasonByMessage(current.message);
-      if (blockReason) return { message: current.message, blockReason };
+      if (blockReason) {
+        return { message: current.message, blockReason };
+      }
     }
 
     current =

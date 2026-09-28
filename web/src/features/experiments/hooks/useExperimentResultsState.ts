@@ -88,7 +88,9 @@ export function useExperimentResultsState() {
   // Clear the explicit baseline while preserving the selected experiments; the
   // former baseline moves to the end of the comparison list.
   const clearBaseline = () => {
-    if (!explicitBaselineId) return;
+    if (!explicitBaselineId) {
+      return;
+    }
     commitSelection([...comparisonIds, explicitBaselineId], undefined);
   };
 
@@ -101,9 +103,15 @@ export function useExperimentResultsState() {
   ) => commitSelection(ids, explicitBaselineId, options?.updateType);
 
   const addComparisonId = (id: string) => {
-    if (id === explicitBaselineId) return; // Can't compare baseline with itself
-    if (selectedExperimentIds.length >= MAX_SELECTED_EXPERIMENTS) return;
-    if (comparisonIds.includes(id)) return;
+    if (id === explicitBaselineId) {
+      return;
+    } // Can't compare baseline with itself
+    if (selectedExperimentIds.length >= MAX_SELECTED_EXPERIMENTS) {
+      return;
+    }
+    if (comparisonIds.includes(id)) {
+      return;
+    }
     setComparisonIds([...comparisonIds, id]);
   };
 
@@ -148,7 +156,9 @@ export function useExperimentResultsState() {
       diff: newDiffMode,
       ...(newDiffMode === "expected" ? { layout: "list" } : {}),
     });
-    if (newDiffMode === "expected") setStoredLayout("list");
+    if (newDiffMode === "expected") {
+      setStoredLayout("list");
+    }
   };
 
   // Item visibility management

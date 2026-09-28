@@ -18,8 +18,12 @@ const llmEvaluatorInput = {
 };
 
 const hasJsonSchemaComposition = (value: unknown): boolean => {
-  if (typeof value !== "object" || value === null) return false;
-  if (Array.isArray(value)) return value.some(hasJsonSchemaComposition);
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  if (Array.isArray(value)) {
+    return value.some(hasJsonSchemaComposition);
+  }
 
   const schema = value as Record<string, unknown>;
   if (

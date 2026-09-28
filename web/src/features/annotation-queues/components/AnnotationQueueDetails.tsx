@@ -19,8 +19,12 @@ function describeScoreField(config: ScoreField): string {
       if (config.minValue != null && config.maxValue != null) {
         return `Numeric · ${config.minValue} to ${config.maxValue}`;
       }
-      if (config.minValue != null) return `Numeric · ≥ ${config.minValue}`;
-      if (config.maxValue != null) return `Numeric · ≤ ${config.maxValue}`;
+      if (config.minValue != null) {
+        return `Numeric · ≥ ${config.minValue}`;
+      }
+      if (config.maxValue != null) {
+        return `Numeric · ≤ ${config.maxValue}`;
+      }
       return "Numeric";
     case "CATEGORICAL": {
       const count = config.categories?.length ?? 0;

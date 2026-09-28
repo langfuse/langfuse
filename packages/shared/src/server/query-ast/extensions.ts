@@ -66,7 +66,9 @@ class ArrayJoinPlugin implements KyselyPlugin {
   ) {}
 
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
-    if (args.node.kind !== "SelectQueryNode") return args.node;
+    if (args.node.kind !== "SelectQueryNode") {
+      return args.node;
+    }
     const transformer = new ClickHouseOperationNodeTransformer();
     const node = transformer.transformNode(
       args.node,
@@ -99,7 +101,9 @@ class LimitByPlugin implements KyselyPlugin {
   constructor(private readonly spec: LimitBySpec) {}
 
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
-    if (args.node.kind !== "SelectQueryNode") return args.node;
+    if (args.node.kind !== "SelectQueryNode") {
+      return args.node;
+    }
     const transformer = new ClickHouseOperationNodeTransformer();
     const node = transformer.transformNode(
       args.node,

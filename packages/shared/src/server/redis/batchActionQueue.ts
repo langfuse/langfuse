@@ -11,7 +11,9 @@ export class BatchActionQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.BatchActionQueue]
   > | null {
-    if (BatchActionQueue.instance) return BatchActionQueue.instance;
+    if (BatchActionQueue.instance) {
+      return BatchActionQueue.instance;
+    }
 
     const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
       QueueName.BatchActionQueue,

@@ -242,12 +242,13 @@ export const membersRouter = createTRPCRouter({
           sessionUser: ctx.session.user,
           orgId: input.orgId,
         });
-        if (!entitled)
+        if (!entitled) {
           throw new TRPCError({
             code: "FORBIDDEN",
             message:
               "Organization does not have the required entitlement to set project roles",
           });
+        }
       }
 
       const user = await ctx.prisma.user.findUnique({
@@ -266,12 +267,13 @@ export const membersRouter = createTRPCRouter({
             },
           })
         : null;
-      if (project && input.projectRole)
+      if (project && input.projectRole) {
         await throwIfHigherProjectRole({
           orgCtx: ctx,
           projectId: project.id,
           projectRole: input.projectRole,
         });
+      }
 
       const org = await ctx.prisma.organization.findFirst({
         where: {
@@ -522,11 +524,12 @@ export const membersRouter = createTRPCRouter({
           user: { select: { email: true } },
         },
       });
-      if (!orgMembership)
+      if (!orgMembership) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Organization membership not found",
         });
+      }
 
       // Check if user has access, either by having the correct role, or being the user themselves that is being deleted
       const hasAccess = hasOrganizationAccess({
@@ -534,11 +537,12 @@ export const membersRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "organizationMembers:CUD",
       });
-      if (!hasAccess && orgMembership.userId !== ctx.session.user.id)
+      if (!hasAccess && orgMembership.userId !== ctx.session.user.id) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "You do not have access to delete organization members",
         });
+      }
 
       throwIfHigherRole({
         ownRole: ctx.session.orgRole,
@@ -603,7 +607,9 @@ export const membersRouter = createTRPCRouter({
           id: input.inviteId,
         },
       });
-      if (!invitation) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!invitation) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
 
       if (
         !(
@@ -620,12 +626,13 @@ export const membersRouter = createTRPCRouter({
               scope: "projectMembers:CUD",
             }))
         )
-      )
+      ) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message:
             "You do not have sufficient rights to delete this invitation.",
         });
+      }
 
       await auditLog({
         session: ctx.session,
@@ -669,7 +676,9 @@ export const membersRouter = createTRPCRouter({
         // user.email is read by the SFDC sync after update.
         include: { user: { select: { email: true } } },
       });
-      if (!membership) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!membership) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
 
       throwIfHigherRole({
         ownRole: ctx.session.orgRole,

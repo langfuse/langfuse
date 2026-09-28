@@ -336,8 +336,9 @@ export const selectTimeseriesColumn = (
 };
 
 export const extractFromAndToTimestampsFromFilter = (filter?: FilterState) => {
-  if (!filter)
+  if (!filter) {
     throw new Error("Time Filter is required for time series queries");
+  }
 
   const fromTimestamp = filter.filter(
     (f) => f.type === "datetime" && (f.operator === ">" || f.operator === ">="),

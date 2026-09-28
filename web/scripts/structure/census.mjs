@@ -23,7 +23,9 @@ export function buildCensus(webRoot) {
       if (e.isDirectory()) {
         dirs.push(p);
         walk(p);
-      } else if (/\.[jt]sx?$/.test(e.name)) files.push(p);
+      } else if (/\.[jt]sx?$/.test(e.name)) {
+        files.push(p);
+      }
     }
   })("src");
 
@@ -32,7 +34,9 @@ export function buildCensus(webRoot) {
   /** @type {(p: string) => string} */
   const contentOf = (p) => {
     const cached = contents.get(p);
-    if (cached !== undefined) return cached;
+    if (cached !== undefined) {
+      return cached;
+    }
     const content = readFileSync(`${webRoot}/${p}`, "utf8");
     contents.set(p, content);
     return content;
@@ -43,7 +47,9 @@ export function buildCensus(webRoot) {
   /** @type {(p: string) => ExportEntry[]} */
   const exportsOf = (p) => {
     const cached = exportCache.get(p);
-    if (cached !== undefined) return cached;
+    if (cached !== undefined) {
+      return cached;
+    }
     const sf = ts.createSourceFile(
       p,
       contentOf(p),
@@ -55,13 +61,16 @@ export function buildCensus(webRoot) {
     const out = [];
     for (const st of sf.statements) {
       if (ts.isExportDeclaration(st)) {
-        if (!st.exportClause) out.push({ name: "*", kind: "star" });
-        else if (ts.isNamedExports(st.exportClause))
-          for (const el of st.exportClause.elements)
+        if (!st.exportClause) {
+          out.push({ name: "*", kind: "star" });
+        } else if (ts.isNamedExports(st.exportClause)) {
+          for (const el of st.exportClause.elements) {
             out.push({
               name: el.name.text,
               kind: st.isTypeOnly || el.isTypeOnly ? "type" : "reexport",
             });
+          }
+        }
         continue;
       }
       if (ts.isExportAssignment(st)) {
@@ -69,19 +78,24 @@ export function buildCensus(webRoot) {
         continue;
       }
       const mods = ts.canHaveModifiers(st) ? (ts.getModifiers(st) ?? []) : [];
-      if (!mods.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) continue;
-      if (ts.isTypeAliasDeclaration(st) || ts.isInterfaceDeclaration(st))
+      if (!mods.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) {
+        continue;
+      }
+      if (ts.isTypeAliasDeclaration(st) || ts.isInterfaceDeclaration(st)) {
         out.push({ name: st.name.text, kind: "type" });
-      else if (
+      } else if (
         ts.isFunctionDeclaration(st) ||
         ts.isClassDeclaration(st) ||
         ts.isEnumDeclaration(st)
-      )
+      ) {
         out.push({ name: st.name?.text ?? "(default)", kind: "value" });
-      else if (ts.isVariableStatement(st))
-        for (const decl of st.declarationList.declarations)
-          if (ts.isIdentifier(decl.name))
+      } else if (ts.isVariableStatement(st)) {
+        for (const decl of st.declarationList.declarations) {
+          if (ts.isIdentifier(decl.name)) {
             out.push({ name: decl.name.text, kind: "value" });
+          }
+        }
+      }
     }
     exportCache.set(p, out);
     return out;

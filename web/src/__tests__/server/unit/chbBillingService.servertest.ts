@@ -38,8 +38,9 @@ const ATTACHED_PLAN_ID = "plan_1";
 // test-mode product ids, and this suite is about the mapping, not the literals.
 const productIdFor = (planCode: string) => {
   const productId = mapChbPlanCodeToStripeProductId(planCode);
-  if (!productId)
+  if (!productId) {
     throw new Error(`no stripe product for plan code ${planCode}`);
+  }
   return productId;
 };
 

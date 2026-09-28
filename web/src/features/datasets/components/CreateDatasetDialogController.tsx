@@ -28,7 +28,9 @@ export function CreateDatasetDialogController({
     : { reason: "You don't have permission to create a dataset." };
 
   const openDialog = () => {
-    if (!hasAccess) return;
+    if (!hasAccess) {
+      return;
+    }
 
     setOpen(true);
     capture("datasets:new_form_open");

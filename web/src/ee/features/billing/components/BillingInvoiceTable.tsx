@@ -103,7 +103,9 @@ export function BillingInvoiceTable() {
   }, [rows, invoicesQuery.isPending, invoicesQuery.isError]);
 
   useEffect(() => {
-    if (isFirstPage) setVirtualTotal(9999);
+    if (isFirstPage) {
+      setVirtualTotal(9999);
+    }
   }, [organization?.id, paginationState.pageSize, isFirstPage]);
 
   // When we fetch a page that reports hasMore === false, lock in the exact size
@@ -128,7 +130,9 @@ export function BillingInvoiceTable() {
       header: "Date",
       cell: ({ row }) => {
         const value = row.getValue("created") as InvoiceRow["created"];
-        if (!value) return undefined;
+        if (!value) {
+          return undefined;
+        }
         const date = new Date(value);
         const year = date.getFullYear();
         const month = date.toLocaleDateString("en-US", { month: "short" });
@@ -144,7 +148,9 @@ export function BillingInvoiceTable() {
       size: 100,
       cell: ({ row }) => {
         const status = (row.getValue("status") as string | null)?.toLowerCase();
-        if (!status) return null;
+        if (!status) {
+          return null;
+        }
         const variant: NonNullable<BadgeProps["variant"]> =
           status === "paid"
             ? "secondary"
@@ -247,7 +253,9 @@ export function BillingInvoiceTable() {
       });
       return;
     }
-    if (next.pageIndex === paginationState.pageIndex) return;
+    if (next.pageIndex === paginationState.pageIndex) {
+      return;
+    }
 
     const freshNext =
       (invoicesQuery.data as any)?.cursors?.next ?? lastNonPreviewId;

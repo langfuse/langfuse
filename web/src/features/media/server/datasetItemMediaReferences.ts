@@ -35,7 +35,9 @@ export async function resolveDatasetItemMediaReferences(props: {
   for (const item of props.items) {
     referencesByItem.set(datasetItemMediaReferenceKey(item), []);
   }
-  if (props.items.length === 0) return referencesByItem;
+  if (props.items.length === 0) {
+    return referencesByItem;
+  }
 
   const referenceRows = await prisma.datasetItemMedia.findMany({
     where: {
@@ -61,7 +63,9 @@ export async function resolveDatasetItemMediaReferences(props: {
       row.jsonPath !== null &&
       row.referenceString !== null,
   );
-  if (claimedRows.length === 0) return referencesByItem;
+  if (claimedRows.length === 0) {
+    return referencesByItem;
+  }
 
   const mediaRecords = await prisma.media.findMany({
     where: {

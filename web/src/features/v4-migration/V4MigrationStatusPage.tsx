@@ -107,7 +107,9 @@ function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
     );
   }
 
-  if (readiness !== "action-needed") return null;
+  if (readiness !== "action-needed") {
+    return null;
+  }
 
   return (
     <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
@@ -214,9 +216,13 @@ function OrgStatusSection({
   // table. The summary card still counts them.
   const rows = org.projects.flatMap((project) => {
     const status = statusByProjectId.get(project.id);
-    if (!status) return [];
+    if (!status) {
+      return [];
+    }
     const readiness = getProjectMigrationReadiness(status);
-    if (readiness === "ready") return [];
+    if (readiness === "ready") {
+      return [];
+    }
     const lastTraceAt = lastTraceTimes?.find(
       (trace) => trace.projectId === project.id,
     )?.lastTraceAt;
@@ -430,7 +436,9 @@ function OrgStatusSection({
     },
   ];
 
-  if (rows.length === 0) return null;
+  if (rows.length === 0) {
+    return null;
+  }
 
   return (
     <div className="flex flex-col gap-2">

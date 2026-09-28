@@ -20,7 +20,9 @@ export const usePlan = (): Plan | undefined => {
   // if on a self-hosted instance with an active license, get the plan of the self-hosted instance
   const selfHostedInstancePlan =
     session.data?.environment.selfHostedInstancePlan;
-  if (selfHostedInstancePlan) return selfHostedInstancePlan;
+  if (selfHostedInstancePlan) {
+    return selfHostedInstancePlan;
+  }
 
   // if on an organization page, get the plan of the organization
   if (organizationId) {
@@ -57,8 +59,12 @@ export const useEntitlements = (): Entitlement[] => {
 export const useOptionalEntitlement = (entitlement?: Entitlement): boolean => {
   const entitlements = useEntitlements();
   const session = useSession();
-  if (session.data?.user?.admin) return true;
-  if (!entitlement) return true;
+  if (session.data?.user?.admin) {
+    return true;
+  }
+  if (!entitlement) {
+    return true;
+  }
   return entitlements.includes(entitlement);
 };
 
@@ -68,7 +74,9 @@ export const useOptionalEntitlement = (entitlement?: Entitlement): boolean => {
 export const useHasEntitlement = (entitlement: Entitlement): boolean => {
   const entitlements = useEntitlements();
   const session = useSession();
-  if (session.data?.user?.admin) return true;
+  if (session.data?.user?.admin) {
+    return true;
+  }
   return entitlements.includes(entitlement);
 };
 
@@ -91,7 +99,9 @@ export const useEntitlementLimit = (
   const limits = useEntitlementLimits();
 
   const session = useSession();
-  if (session.data?.user?.admin) return false;
+  if (session.data?.user?.admin) {
+    return false;
+  }
 
   return limits[limit];
 };

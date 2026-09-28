@@ -49,7 +49,9 @@ export const ExperimentEvaluatorAssignmentsEditor = forwardRef<
   const isDirty = useStore(store, isRuleDraftDirty);
 
   const save = async () => {
-    if (disabled || !isDirty) return;
+    if (disabled || !isDirty) {
+      return;
+    }
 
     const state = store.getState();
     await onSaveAssignments(state.assignments);

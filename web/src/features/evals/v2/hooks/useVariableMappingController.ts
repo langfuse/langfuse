@@ -31,7 +31,9 @@ export function useVariableMappingController() {
         }
       },
       onKeyDownCapture: (event: KeyboardEvent<HTMLElement>) => {
-        if (event.key === "Escape") showPreview();
+        if (event.key === "Escape") {
+          showPreview();
+        }
       },
     },
     mappingProps: {

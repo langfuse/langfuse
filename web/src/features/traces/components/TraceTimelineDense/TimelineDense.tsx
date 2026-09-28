@@ -329,7 +329,9 @@ function rowWashClass(state: {
   selected: boolean;
   focused: boolean;
 }): string | false {
-  if (state.selected) return "bg-primary-accent/20";
+  if (state.selected) {
+    return "bg-primary-accent/20";
+  }
   // At 4px a tint is not enough to find yourself by, so these are full-width.
   return state.focused && "bg-primary-accent/15";
 }
@@ -400,7 +402,9 @@ export function TimelineDense({
   // decision is only as good as the font it measured.
   const [labelFont, setLabelFont] = useState<string | null>(null);
   const labelProbeRef = useCallback((element: HTMLSpanElement | null) => {
-    if (!element) return;
+    if (!element) {
+      return;
+    }
     const style = getComputedStyle(element);
     const font = `${style.fontSize} ${style.fontFamily}`;
     setLabelFont((previous) => (previous === font ? previous : font));
@@ -590,7 +594,9 @@ export function TimelineDense({
     // tooltip needs are not this function's business.
     at: { x: number; y: number } | null = pointerPosRef.current,
   ): void => {
-    if (!at || !onHover) return;
+    if (!at || !onHover) {
+      return;
+    }
     const live = layoutRef.current;
     const index = rowIndexAtOffset(
       viewport,
@@ -599,7 +605,9 @@ export function TimelineDense({
       live.rows.length,
     );
     const id = index == null ? null : live.rows[index]?.node.id;
-    if (!id || id === hoveredRef.current) return;
+    if (!id || id === hoveredRef.current) {
+      return;
+    }
     hoveredRef.current = id;
     onHover(id);
   };
@@ -640,7 +648,9 @@ export function TimelineDense({
   const extentOf = useCallback(
     (rowIndex: number): RowExtent | null => {
       const row = prepared.rows[rowIndex];
-      if (!row) return null;
+      if (!row) {
+        return null;
+      }
       const offsets = spanOffsetsOf(row.node, prepared.originMs);
       return {
         startMs: compression.toCompressedMs(offsets.startMs),
@@ -678,7 +688,9 @@ export function TimelineDense({
   const tween = useRef(0);
 
   const cancelTween = useCallback(() => {
-    if (tween.current) cancelAnimationFrame(tween.current);
+    if (tween.current) {
+      cancelAnimationFrame(tween.current);
+    }
     tween.current = 0;
   }, []);
 
@@ -795,7 +807,9 @@ export function TimelineDense({
     // load cap — and advancing the ref regardless meant the one chance to reveal
     // it was spent on an absent row: the highlight then stayed off-screen until
     // the user panned. Left un-advanced, the next render with rows retries.
-    if (!selectedId || row) revealedRef.current = selectedId;
+    if (!selectedId || row) {
+      revealedRef.current = selectedId;
+    }
     if (row) {
       const offsets = spanOffsetsOf(row.node, prepared.originMs);
       const revealed = revealViewport(current, limits, {
@@ -833,8 +847,9 @@ export function TimelineDense({
     // Same lesson as the selection reveal: with no rows yet there is nothing to
     // reveal and nothing to conclude, so leave the query un-handled and let the
     // next render with rows retry. With rows, "no hit" is an answer.
-    if (!searchKey || prepared.rows.length > 0)
+    if (!searchKey || prepared.rows.length > 0) {
       revealedQueryRef.current = searchKey;
+    }
     if (row) {
       const base = viewportRef.current;
       const offsets = spanOffsetsOf(row.node, prepared.originMs);
@@ -889,7 +904,9 @@ export function TimelineDense({
     queued.levels = 0;
     queued.dxPx = 0;
     queued.dyPx = 0;
-    if (viewportsEqual(next, viewportRef.current)) return;
+    if (viewportsEqual(next, viewportRef.current)) {
+      return;
+    }
     viewportRef.current = next;
     setViewport(next);
     notifyHoverRef.current(next);
@@ -936,7 +953,9 @@ export function TimelineDense({
     // also takes over from an animation in flight rather than fighting it.
     cancelTween();
     releaseOverride();
-    if (pending.current.frame) return;
+    if (pending.current.frame) {
+      return;
+    }
     pending.current.frame = requestAnimationFrame(flushGesture);
   }, [flushGesture, releaseOverride, cancelTween]);
 
@@ -949,7 +968,9 @@ export function TimelineDense({
   const attachSurface = useCallback(
     (element: HTMLDivElement | null) => {
       surfaceRef.current = element;
-      if (!element) return;
+      if (!element) {
+        return;
+      }
 
       const onWheel = (event: WheelEvent) => {
         const rect = element.getBoundingClientRect();
@@ -1004,7 +1025,9 @@ export function TimelineDense({
         );
         // Only swallow the gesture if it actually moves us; at a clamp the page
         // keeps its scroll instead of being trapped.
-        if (viewportsEqual(wouldMove, viewportRef.current)) return;
+        if (viewportsEqual(wouldMove, viewportRef.current)) {
+          return;
+        }
         event.preventDefault();
         queued.dxPx += dxPx;
         queued.dyPx += dyPx;
@@ -1136,7 +1159,9 @@ export function TimelineDense({
         y: event.clientY,
       });
       const [a, b] = [...active.points.values()];
-      if (!a || !b) return;
+      if (!a || !b) {
+        return;
+      }
       const distance = Math.hypot(b.x - a.x, b.y - a.y);
       const midpoint = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       const rect = event.currentTarget.getBoundingClientRect();
@@ -1234,12 +1259,16 @@ export function TimelineDense({
   /** Release of a zoom drag: fly to the box, if it is big enough to mean one. */
   const commitMarquee = () => {
     const box = marqueeRef.current;
-    if (!box) return;
+    if (!box) {
+      return;
+    }
     setMarqueeBox(null);
     const width = Math.abs(box.to.x - box.from.x);
     const height = Math.abs(box.to.y - box.from.y);
     // A stray shift-click is not a zoom to a pinhole.
-    if (width < MARQUEE_MIN_PX && height < MARQUEE_MIN_PX) return;
+    if (width < MARQUEE_MIN_PX && height < MARQUEE_MIN_PX) {
+      return;
+    }
     const lane = Math.max(laneWidth, 1);
     const tall = Math.max(surfaceHeight, 1);
     flyTo(
@@ -1299,8 +1328,12 @@ export function TimelineDense({
    */
   const focusedByTap = useRef(false);
   const maybeDoubleTap = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.pointerType === "mouse") return; // the mouse has a real dblclick
-    if (touches.current.points.size > 1 || gesture.current.dragging) return;
+    if (event.pointerType === "mouse") {
+      return;
+    } // the mouse has a real dblclick
+    if (touches.current.points.size > 1 || gesture.current.dragging) {
+      return;
+    }
     const now = event.timeStamp;
     const previous = lastTap.current;
     const near =
@@ -1343,7 +1376,9 @@ export function TimelineDense({
    * must not fire it again.
    */
   const selectRowOnClick = (event: { detail: number }, nodeId: string) => {
-    if (event.detail > 1 || focusedByTap.current) return;
+    if (event.detail > 1 || focusedByTap.current) {
+      return;
+    }
     onSelect(nodeId);
   };
 
@@ -1351,7 +1386,9 @@ export function TimelineDense({
   const focusRow = (index: number) => {
     const positioned = result.nodes.find((node) => node.index === index);
     const row = prepared.rows[index];
-    if (!positioned || !row) return;
+    if (!positioned || !row) {
+      return;
+    }
     // The click that opened this double-click already selected the row, and this
     // flight is about to put it exactly where it should be — so the reveal below
     // must not also chase it and cancel the animation.
@@ -1559,7 +1596,9 @@ export function TimelineDense({
 
           {result.nodes.map((node) => {
             const y = (node.index - current.rows.start) * rowHeight;
-            if (y + rowHeight < 0 || y > surfaceHeight) return null;
+            if (y + rowHeight < 0 || y > surfaceHeight) {
+              return null;
+            }
 
             const isFocused = node.index === focusIndex;
             const isSelected = node.id === selectedId;
@@ -1716,7 +1755,9 @@ export function TimelineDense({
           >
             {result.nodes.map((node) => {
               const y = (node.index - current.rows.start) * rowHeight;
-              if (y + rowHeight < 0 || y > surfaceHeight) return null;
+              if (y + rowHeight < 0 || y > surfaceHeight) {
+                return null;
+              }
               return (
                 <div
                   key={node.id}
@@ -1875,7 +1916,9 @@ function GutterContent({
 }) {
   // Nothing to show, so nothing to build: at bird's-eye density the rail has no
   // width, and a box of invisible squares is one DOM node per row of the trace.
-  if (width <= 0) return null;
+  if (width <= 0) {
+    return null;
+  }
 
   // RAIL_MAX_DEPTH exists to keep a tiny square inside a 15px rail, and applying
   // it to the OPEN gutter flattened the tree: every node past depth 4 drew at the

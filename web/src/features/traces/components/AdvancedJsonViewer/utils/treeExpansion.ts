@@ -197,7 +197,9 @@ export function collapseAllDescendants(
  */
 export function expandToNode(tree: TreeState, nodeId: string): TreeState {
   const node = tree.nodeMap.get(nodeId);
-  if (!node) return tree;
+  if (!node) {
+    return tree;
+  }
 
   // Walk up the tree and expand all ancestors
   let current = node.parentNode;

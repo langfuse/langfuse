@@ -33,7 +33,9 @@ function normalizeMessageContent(
     }
     return undefined;
   })();
-  if (rawParts) return normalizePartList(rawParts, parserContext);
+  if (rawParts) {
+    return normalizePartList(rawParts, parserContext);
+  }
 
   if (typeof value.content === "string" && value.content.length > 0) {
     // Koog can serialize an assistant tool-call batch into a string under a
@@ -91,7 +93,9 @@ function applySiblingFields(
       parts,
       partContext,
     );
-    if (siblingParts?.length) contributions.push(...siblingParts);
+    if (siblingParts?.length) {
+      contributions.push(...siblingParts);
+    }
   }
 
   // One message can expose the same call through native content and one or
@@ -99,8 +103,12 @@ function applySiblingFields(
   // is deliberately message-local: identical calls in other turns survive.
   const claimedCarrierByToolCall = new Map<string, string>();
   const claimKey = (part: NormalizedMessagePart): string | undefined => {
-    if (part.type !== "tool-call") return undefined;
-    if (part.toolCallId) return `id:${part.toolCallId}`;
+    if (part.type !== "tool-call") {
+      return undefined;
+    }
+    if (part.toolCallId) {
+      return `id:${part.toolCallId}`;
+    }
     try {
       return `value:${part.toolName}:${JSON.stringify(part.input)}`;
     } catch {
@@ -113,10 +121,16 @@ function applySiblingFields(
   ) =>
     carrierParts.filter((part) => {
       const key = claimKey(part);
-      if (!key) return true;
+      if (!key) {
+        return true;
+      }
       const claimedCarrier = claimedCarrierByToolCall.get(key);
-      if (claimedCarrier && claimedCarrier !== carrier) return false;
-      if (!claimedCarrier) claimedCarrierByToolCall.set(key, carrier);
+      if (claimedCarrier && claimedCarrier !== carrier) {
+        return false;
+      }
+      if (!claimedCarrier) {
+        claimedCarrierByToolCall.set(key, carrier);
+      }
       return true;
     });
 
@@ -162,7 +176,9 @@ export function normalizeMessage(
 ): NormalizedMessage | null {
   const { source } = parserContext;
   if (typeof value === "string") {
-    if (value.length === 0) return null;
+    if (value.length === 0) {
+      return null;
+    }
     for (const provider of providersInOrder(parserContext.preferredProvider)) {
       const preProcessed = provider.tryPreprocessMessage?.(value);
       if (preProcessed?.matched) {
@@ -174,7 +190,9 @@ export function normalizeMessage(
     const parts = normalizeMediaPartsFromString(value);
     return parts.length > 0 ? { role: fallbackRole, parts, source } : null;
   }
-  if (!isRecord(value) || isToolDefinitionMessage(value)) return null;
+  if (!isRecord(value) || isToolDefinitionMessage(value)) {
+    return null;
+  }
 
   const envelopeContext: MessageEnvelopeContext = {
     source,
@@ -189,7 +207,9 @@ export function normalizeMessage(
       fallbackRole,
       envelopeContext,
     );
-    if (unwrapped?.matched) return unwrapped.value;
+    if (unwrapped?.matched) {
+      return unwrapped.value;
+    }
   }
 
   // Standalone tool-call/result values (no message keys): normalize once,

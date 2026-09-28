@@ -53,11 +53,15 @@ class AutoScrollOnSelectionDrag {
     const view = this.view;
 
     // Only react to the primary (left) button selection drag.
-    if (event.button !== 0) return;
+    if (event.button !== 0) {
+      return;
+    }
 
     // Tear down any prior drag before starting a new one so there is only ever
     // one set of window listeners / rAF loop tracked at a time.
-    if (this.activeStop !== null) this.activeStop();
+    if (this.activeStop !== null) {
+      this.activeStop();
+    }
 
     // Only drive selection ourselves for a plain single-range character drag.
     // For advanced gestures — alt+drag rectangular selection (multi-range),
@@ -109,7 +113,9 @@ class AutoScrollOnSelectionDrag {
         delta = Math.ceil(intensity * MAX_SCROLL_STEP_PX);
       }
 
-      if (delta === 0) return; // Pointer back inside the safe zone; idle.
+      if (delta === 0) {
+        return;
+      } // Pointer back inside the safe zone; idle.
 
       const before = scroller.scrollTop;
       scroller.scrollTop = before + delta;
@@ -163,7 +169,9 @@ class AutoScrollOnSelectionDrag {
       }
       lastClientX = e.clientX;
       lastClientY = e.clientY;
-      if (frame === null) frame = requestAnimationFrame(step);
+      if (frame === null) {
+        frame = requestAnimationFrame(step);
+      }
     };
 
     const stop = () => {
@@ -175,7 +183,9 @@ class AutoScrollOnSelectionDrag {
       window.removeEventListener("mouseup", onUp, true);
       // Clear the plugin-tracked handle if this drag still owns it, so a later
       // `destroy()` doesn't call a stale stop and a new drag starts clean.
-      if (this.activeStop === stop) this.activeStop = null;
+      if (this.activeStop === stop) {
+        this.activeStop = null;
+      }
     };
 
     // Only the primary button's release ends the gesture; releasing a stray
@@ -183,7 +193,9 @@ class AutoScrollOnSelectionDrag {
     // primary is still held. `stop` itself stays callable without an event for
     // the `onMove` (off-window release) and `destroy()` paths.
     const onUp = (e: MouseEvent) => {
-      if (e.button === 0) stop();
+      if (e.button === 0) {
+        stop();
+      }
     };
 
     window.addEventListener("mousemove", onMove, true);
@@ -201,7 +213,9 @@ class AutoScrollOnSelectionDrag {
     // close while the primary button is still held): tear down the active
     // drag's window listeners and rAF loop. CodeMirror removes the `mousedown`
     // handler it registered for us.
-    if (this.activeStop !== null) this.activeStop();
+    if (this.activeStop !== null) {
+      this.activeStop();
+    }
   }
 }
 

@@ -72,7 +72,9 @@ export function useActivationConfirmation({
               knownTestRunCostUsd: options?.knownTestRunCostUsd,
             }),
         });
-        if (!result) return null;
+        if (!result) {
+          return null;
+        }
         setEstimate({
           status: "idle",
           sampling: result.estimates[0]?.sampling ?? null,
@@ -109,7 +111,9 @@ export function useActivationConfirmation({
   const pendingAction = confirmation.pendingAction;
   const sampling = estimate.sampling;
   const confirmActivation = useCallback(async () => {
-    if (!pendingAction) return;
+    if (!pendingAction) {
+      return;
+    }
     setConfirmation((current) => ({ ...current, isConfirming: true }));
     try {
       await pendingAction(sampling ?? undefined);

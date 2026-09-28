@@ -50,7 +50,9 @@ describe("buildAiContext", () => {
 
   it("caps the number of metadata keys", () => {
     const big: Record<string, number> = {};
-    for (let i = 0; i < 100; i++) big[`k${i}`] = i;
+    for (let i = 0; i < 100; i++) {
+      big[`k${i}`] = i;
+    }
     const ctx =
       buildAiContext({
         observed: undefined,

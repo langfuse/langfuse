@@ -242,8 +242,9 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
   // Usage analytics: which dashboard Home actually shows (default vs peek)
   const viewedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!displayedDashboard || viewedRef.current === displayedDashboard.id)
+    if (!displayedDashboard || viewedRef.current === displayedDashboard.id) {
       return;
+    }
     viewedRef.current = displayedDashboard.id;
     capture("dashboard:home_dashboard_viewed", {
       dashboard_id: displayedDashboard.id,

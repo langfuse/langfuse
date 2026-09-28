@@ -33,7 +33,9 @@ export class ContextResolver {
       return { success: true, context: adminContext() };
     }
     const org = await this.getPrincipalOrganization(params.apiKey);
-    if (!org.success) return org;
+    if (!org.success) {
+      return org;
+    }
     return {
       success: true,
       context: materialize(
@@ -52,7 +54,9 @@ export class ContextResolver {
     | ErrorResult<InternalServerError>
   > {
     const found = await this.loadOrganization(apiKey);
-    if (!found.success) return found;
+    if (!found.success) {
+      return found;
+    }
     if (!found.organization) {
       return internalServerError(
         `verified key ${apiKey.id} resolved to no organization`,
@@ -121,7 +125,9 @@ function boundResourceFor(
   apiKey: ApiKey,
   org: PrincipalOrganization,
 ): BoundResource {
-  if (apiKey.scope === "ORGANIZATION") return { orgId: org.orgId };
+  if (apiKey.scope === "ORGANIZATION") {
+    return { orgId: org.orgId };
+  }
   return { orgId: org.orgId, projectId: apiKey.projectId! };
 }
 
@@ -134,16 +140,22 @@ function bind(policy: SystemPolicy, principal: Principal): Policy {
 
 /** orgResources are the org ids an org-kind policy binds to: the bound org, or the wildcard for admin. */
 function orgResources(principal: Principal): Policy["resources"] {
-  if (principal.kind === "admin") return wildcard;
+  if (principal.kind === "admin") {
+    return wildcard;
+  }
   return boundOrgs(principal).map((o) => o.orgId);
 }
 
 /** projectResources are the project ids a project-kind policy binds to: the bound project, the bound org's projects, or the wildcard for admin. */
 function projectResources(principal: Principal): Policy["resources"] {
-  if (principal.kind === "admin") return wildcard;
+  if (principal.kind === "admin") {
+    return wildcard;
+  }
   const bound =
     principal.kind === "apiKey" ? principal.boundResource : undefined;
-  if (bound?.projectId) return [bound.projectId];
+  if (bound?.projectId) {
+    return [bound.projectId];
+  }
   return boundOrgs(principal).flatMap((o) => o.projectIds);
 }
 

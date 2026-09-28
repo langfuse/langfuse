@@ -11,19 +11,27 @@ export function normalizeRole(
     const lowered = rawRole.toLowerCase();
     for (const provider of registeredProviders) {
       const role = ownLookup(provider.roleByRawRole, lowered);
-      if (role) return role;
+      if (role) {
+        return role;
+      }
     }
-    if (CANONICAL_ROLES.has(lowered)) return lowered as NormalizedMessageRole;
+    if (CANONICAL_ROLES.has(lowered)) {
+      return lowered as NormalizedMessageRole;
+    }
     // Unrecognized strings are identities, not roles (e.g. LangGraph agent
     // names): the caller falls back to the contextual role and preserves the
     // raw string as `senderName`.
     return undefined;
   }
 
-  if (typeof message.type !== "string") return undefined;
+  if (typeof message.type !== "string") {
+    return undefined;
+  }
   for (const provider of registeredProviders) {
     const role = ownLookup(provider.roleByMessageType, message.type);
-    if (role) return role;
+    if (role) {
+      return role;
+    }
   }
   return undefined;
 }

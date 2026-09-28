@@ -48,7 +48,9 @@ export const meteringDataPostgresExportProcessor: Processor =
       for (const org of billingOrganizations) {
         // type check
         const stripeCustomerId = org.cloudConfig?.stripe?.customerId;
-        if (!stripeCustomerId) continue;
+        if (!stripeCustomerId) {
+          continue;
+        }
 
         try {
           const eventSummaries = await stripe.billing.meters.listEventSummaries(

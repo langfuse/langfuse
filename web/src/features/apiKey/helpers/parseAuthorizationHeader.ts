@@ -16,7 +16,9 @@ export function parseAuthorizationHeader(
 ): Credential {
   if (header?.startsWith(basicPrefix)) {
     const decoded = decodeBasic(header.slice(basicPrefix.length));
-    if (!decoded) return { kind: "malformed" };
+    if (!decoded) {
+      return { kind: "malformed" };
+    }
     return { kind: "basic", ...decoded };
   }
   if (header?.startsWith(bearerPrefix)) {
@@ -36,6 +38,8 @@ function decodeBasic(
     return undefined;
   }
   const [publicKey, secretKey] = decoded.split(":");
-  if (!publicKey || !secretKey) return undefined;
+  if (!publicKey || !secretKey) {
+    return undefined;
+  }
   return { publicKey, secretKey };
 }

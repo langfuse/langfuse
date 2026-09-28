@@ -37,7 +37,9 @@ function findMatchesInString(
     let startIndex = 0;
     while (true) {
       const index = searchText.indexOf(searchQuery, startIndex);
-      if (index === -1) break;
+      if (index === -1) {
+        break;
+      }
 
       matches.push({
         start: index,
@@ -65,7 +67,9 @@ export function getCurrentMatchIndexInRow(
   matches: SearchMatch[],
 ): number | undefined {
   const currentMatch = matches[currentMatchIndex];
-  if (!currentMatch) return undefined;
+  if (!currentMatch) {
+    return undefined;
+  }
 
   // Get all matches for this row
   const rowMatches = matches.filter((m) => m.rowId === currentMatch.rowId);
@@ -159,7 +163,9 @@ export function searchInTree(
   query: string,
   options: SearchOptions = {},
 ): SearchMatch[] {
-  if (!query || query.trim() === "") return [];
+  if (!query || query.trim() === "") {
+    return [];
+  }
 
   const { caseSensitive = false, useRegex = false } = options;
 
@@ -247,7 +253,9 @@ export function getMatchCountsPerNode(
   // For each match, increment count for the matched node and all ancestors
   matches.forEach((match) => {
     const node = tree.nodeMap.get(match.rowId);
-    if (!node) return;
+    if (!node) {
+      return;
+    }
 
     // Increment count for this node
     counts.set(node.id, (counts.get(node.id) || 0) + 1);

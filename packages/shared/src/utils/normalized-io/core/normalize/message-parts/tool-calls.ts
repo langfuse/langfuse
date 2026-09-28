@@ -54,7 +54,9 @@ export function providerExecutedToolCall(
   part: ToolCallPart | null,
   extras?: Record<string, unknown>,
 ): ToolCallPart | null {
-  if (!part) return null;
+  if (!part) {
+    return null;
+  }
 
   return compact<ToolCallPart>({
     ...part,

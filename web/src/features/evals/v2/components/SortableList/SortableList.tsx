@@ -102,10 +102,14 @@ export function SortableList<T>({
   const ids = items.map(getId);
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id) {
+      return;
+    }
     const fromIndex = ids.indexOf(String(active.id));
     const toIndex = ids.indexOf(String(over.id));
-    if (fromIndex < 0 || toIndex < 0) return;
+    if (fromIndex < 0 || toIndex < 0) {
+      return;
+    }
     onReorder(fromIndex, toIndex);
   };
 

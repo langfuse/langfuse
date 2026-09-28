@@ -593,7 +593,9 @@ const FAILURE_NODES: DemoObs[] = [
  *   agent proceeds without prior-ticket context)
  */
 function buildPlan(fail: boolean, failTarget: "refund" | "tickets"): DemoObs[] {
-  if (!fail) return PLAN;
+  if (!fail) {
+    return PLAN;
+  }
   if (failTarget === "tickets") {
     return PLAN.map((p) =>
       p.key === "tickets"

@@ -49,8 +49,9 @@ export function SkillVersionHistory(
     if (
       props.kind !== "versions" ||
       (!props.isDraft && version === props.selectedVersion)
-    )
+    ) {
       return;
+    }
     if (
       props.dirty &&
       !window.confirm("Discard this unsaved draft and open another version?")

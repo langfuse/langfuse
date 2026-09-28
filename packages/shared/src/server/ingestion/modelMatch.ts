@@ -238,7 +238,9 @@ const getModelWithPricesFromRedis = async (
 export async function findPricingTiersForModel(
   modelId: string,
 ): Promise<PricingTierWithPrices[]> {
-  if (!modelId) return [];
+  if (!modelId) {
+    return [];
+  }
 
   const tiers = await prisma.pricingTier.findMany({
     where: { modelId },
@@ -272,7 +274,9 @@ export async function findModelInPostgres(
   const modelCondition = model
     ? Prisma.sql`AND ${model} ~ match_pattern`
     : undefined;
-  if (!modelCondition) return null;
+  if (!modelCondition) {
+    return null;
+  }
 
   const sql = Prisma.sql`
     SELECT

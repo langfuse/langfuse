@@ -154,7 +154,9 @@ export const projectApiKeysRouter = createTRPCRouter({
         },
       });
 
-      if (apiKey.isInAppAgentKey) return false;
+      if (apiKey.isInAppAgentKey) {
+        return false;
+      }
 
       await auditLog({
         session: ctx.session,

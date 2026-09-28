@@ -237,7 +237,9 @@ export class ChbApiClient {
     );
 
     // Rethrown outside the span so the caller contract is unchanged.
-    if (outcome.thrown) throw outcome.thrown;
+    if (outcome.thrown) {
+      throw outcome.thrown;
+    }
     return outcome.body;
   }
 

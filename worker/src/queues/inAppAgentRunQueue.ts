@@ -9,7 +9,9 @@ import { SpanKind } from "@opentelemetry/api";
 import { executeInAppAgentRun } from "../features/in-app-agent/executeInAppAgentRun";
 
 export const inAppAgentRunQueueProcessor: Processor = async (job) => {
-  if (job.name !== QueueJobs.InAppAgentRunJob) return;
+  if (job.name !== QueueJobs.InAppAgentRunJob) {
+    return;
+  }
   return await instrumentAsync(
     {
       name: "process in-app-agent run",

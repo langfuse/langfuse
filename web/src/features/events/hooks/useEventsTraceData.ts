@@ -68,7 +68,9 @@ export function useEventsTraceData(
     {
       enabled: enabled && !!traceId,
       retry(failureCount, error) {
-        if (error.data?.code === "UNAUTHORIZED") return false;
+        if (error.data?.code === "UNAUTHORIZED") {
+          return false;
+        }
         return failureCount < 3;
       },
       staleTime: 60 * 1000, // 1 minute
@@ -81,14 +83,20 @@ export function useEventsTraceData(
     | undefined;
 
   const rootObservation = useMemo(() => {
-    if (!observations?.length) return null;
+    if (!observations?.length) {
+      return null;
+    }
     return observations.find((o) => !o.parentObservationId);
   }, [observations]);
 
   // Prefer the root observation when present, otherwise fall back to the earliest one.
   const primaryObservation = useMemo(() => {
-    if (!observations?.length) return null;
-    if (rootObservation) return rootObservation;
+    if (!observations?.length) {
+      return null;
+    }
+    if (rootObservation) {
+      return rootObservation;
+    }
     // Fallback to earliest observation
     return (
       [...observations].sort(
@@ -98,7 +106,9 @@ export function useEventsTraceData(
   }, [observations, rootObservation]);
 
   const timeRange = useMemo(() => {
-    if (!observations?.length) return null;
+    if (!observations?.length) {
+      return null;
+    }
     const times = observations.map((o) => o.startTime.getTime());
     return {
       min: new Date(Math.min(...times)),
@@ -137,7 +147,9 @@ export function useEventsTraceData(
 
   // Step 5: Transform and merge data
   const transformed = useMemo(() => {
-    if (!observations?.length) return null;
+    if (!observations?.length) {
+      return null;
+    }
 
     // Validate and partition scores
     const validatedScores = filterAndValidateDbScoreList({

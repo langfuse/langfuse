@@ -146,7 +146,9 @@ async function openBreakdownTooltip(
   const tooltip = tooltipId
     ? canvasElement.ownerDocument.getElementById(tooltipId)
     : null;
-  if (!tooltip) throw new Error("Tooltip content was not rendered");
+  if (!tooltip) {
+    throw new Error("Tooltip content was not rendered");
+  }
 
   return { trigger, content: within(tooltip) };
 }

@@ -343,7 +343,9 @@ export const getTraceScoresForDatasetRuns = async (
   projectId: string,
   datasetRunIds: string[],
 ): Promise<Array<{ dataset_run_id: string } & any>> => {
-  if (datasetRunIds.length === 0) return [];
+  if (datasetRunIds.length === 0) {
+    return [];
+  }
 
   const query = `
     SELECT
@@ -419,7 +421,9 @@ export const getScoresForExperimentItems = async (
     }
   >
 > => {
-  if (experimentIds.length === 0) return [];
+  if (experimentIds.length === 0) {
+    return [];
+  }
 
   // Build events subquery using the query builder
   const eventsSubquery = eventsExperiments({
@@ -1480,7 +1484,9 @@ const buildScoresDatePrune = (
   const timestampColumn = scoresTableUiColumnDefinitionsFromEvents.find(
     (c) => c.uiTableId === "timestamp",
   );
-  if (!timestampColumn) return { query: "", params: {} };
+  if (!timestampColumn) {
+    return { query: "", params: {} };
+  }
 
   const timestampFilters = createFilterFromFilterState(
     filter.filter((f) => matchesUiColumnMapping(timestampColumn, f.column)),
@@ -3178,15 +3184,25 @@ const ANNOTATION_COLUMNS_V3 = [
 
 export const buildSelectColumns = (fields: ScoreFieldGroupV3[]): string => {
   const selected = [...CORE_COLUMNS_V3];
-  if (fields.includes("details")) selected.push(...DETAILS_COLUMNS_V3);
-  if (fields.includes("subject")) selected.push(...SUBJECT_COLUMNS_V3);
-  if (fields.includes("annotation")) selected.push(...ANNOTATION_COLUMNS_V3);
+  if (fields.includes("details")) {
+    selected.push(...DETAILS_COLUMNS_V3);
+  }
+  if (fields.includes("subject")) {
+    selected.push(...SUBJECT_COLUMNS_V3);
+  }
+  if (fields.includes("annotation")) {
+    selected.push(...ANNOTATION_COLUMNS_V3);
+  }
   return selected.join(",\n    ");
 };
 
 export function transformBooleanValueForFilter(v: "true" | "false"): number {
-  if (v === "true") return 1;
-  if (v === "false") return 0;
+  if (v === "true") {
+    return 1;
+  }
+  if (v === "false") {
+    return 0;
+  }
   throw new InternalServerError(
     `transformBooleanValueForFilter received unexpected value: ${v}`,
   );
@@ -3246,7 +3262,7 @@ function buildDynamicFilters(params: ListFilterParams): {
       );
     }
   }
-  if (params.fromTimestamp !== undefined)
+  if (params.fromTimestamp !== undefined) {
     filterList.push(
       new DateTimeFilter({
         clickhouseTable: "scores",
@@ -3256,7 +3272,8 @@ function buildDynamicFilters(params: ListFilterParams): {
         tablePrefix: "s",
       }),
     );
-  if (params.toTimestamp !== undefined)
+  }
+  if (params.toTimestamp !== undefined) {
     filterList.push(
       new DateTimeFilter({
         clickhouseTable: "scores",
@@ -3266,7 +3283,8 @@ function buildDynamicFilters(params: ListFilterParams): {
         tablePrefix: "s",
       }),
     );
-  if (params.valueMin !== undefined)
+  }
+  if (params.valueMin !== undefined) {
     filterList.push(
       new NumberFilter({
         clickhouseTable: "scores",
@@ -3277,7 +3295,8 @@ function buildDynamicFilters(params: ListFilterParams): {
         clickhouseTypeOverwrite: "Float64",
       }),
     );
-  if (params.valueMax !== undefined)
+  }
+  if (params.valueMax !== undefined) {
     filterList.push(
       new NumberFilter({
         clickhouseTable: "scores",
@@ -3288,6 +3307,7 @@ function buildDynamicFilters(params: ListFilterParams): {
         clickhouseTypeOverwrite: "Float64",
       }),
     );
+  }
 
   const compiled = filterList.apply();
 

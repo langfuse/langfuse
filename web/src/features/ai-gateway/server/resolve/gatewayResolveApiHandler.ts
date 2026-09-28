@@ -32,7 +32,9 @@ export async function gatewayResolveApiHandler({
     if (error instanceof GatewayResolveError) {
       // The data plane retries a 503, so tell it when to come back rather than
       // letting it hammer a database that is already struggling.
-      if (error.status === 503) res.setHeader("Retry-After", "1");
+      if (error.status === 503) {
+        res.setHeader("Retry-After", "1");
+      }
       return res.status(error.status).json({ error: error.message });
     }
     logger.error("Unexpected error resolving gateway request", error);

@@ -123,7 +123,9 @@ describe("computeGraphLayout layout budget", () => {
     const edges: GraphCanvasData["edges"] = [];
     for (let a = 0; a < nodeCount && edges.length < edgeCount; a++) {
       for (let b = 0; b < nodeCount && edges.length < edgeCount; b++) {
-        if (a !== b) edges.push({ from: `n${a}`, to: `n${b}` });
+        if (a !== b) {
+          edges.push({ from: `n${a}`, to: `n${b}` });
+        }
       }
     }
     return edges;

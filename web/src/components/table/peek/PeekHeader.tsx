@@ -158,7 +158,9 @@ export function PeekHeader({
   useLayoutEffect(() => {
     const width =
       headerRef.current?.getBoundingClientRect().width ?? headerSize?.width;
-    if (!width) return;
+    if (!width) {
+      return;
+    }
 
     if (plan.badgeShowLabel && badgeRef.current) {
       widthsRef.current.badgeLabel = badgeRef.current.offsetWidth;
@@ -172,8 +174,11 @@ export function PeekHeader({
     if (pinnedRef.current) {
       const navW = hasNav && navRef.current ? navRef.current.offsetWidth : 0;
       if (hasNav) {
-        if (plan.navCompact) widthsRef.current.navCompact = navW;
-        else widthsRef.current.navFull = navW;
+        if (plan.navCompact) {
+          widthsRef.current.navCompact = navW;
+        } else {
+          widthsRef.current.navFull = navW;
+        }
       }
       widthsRef.current.otherPinned = pinnedRef.current.offsetWidth - navW;
     }

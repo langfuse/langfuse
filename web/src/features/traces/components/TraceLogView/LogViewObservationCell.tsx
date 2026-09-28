@@ -44,7 +44,9 @@ export const LogViewObservationCell = memo(function LogViewObservationCell({
 
   useEffect(() => {
     const element = ref.current;
-    if (!element || item.node.type === "TRACE") return;
+    if (!element || item.node.type === "TRACE") {
+      return;
+    }
 
     // Reset prefetch flag when item changes to ensure we prefetch new data
     hasPrefetched.current = false;

@@ -25,7 +25,9 @@ export const NewDatasetItemButton = (props: {
     <Dialog
       open={hasAccess && open}
       onOpenChange={(next) => {
-        if (!submissionPending.current) setOpen(next);
+        if (!submissionPending.current) {
+          setOpen(next);
+        }
       }}
     >
       <DialogTrigger asChild>

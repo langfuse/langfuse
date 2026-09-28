@@ -42,7 +42,9 @@ import { DatasetActionMenu } from "@/src/features/datasets/components/DatasetAct
 
 export default function DatasetExperimentsPage() {
   const route = useReadyRouteParams(["projectId", "datasetId"]);
-  if (!route.ready) return <RouteParamsPendingFallback />;
+  if (!route.ready) {
+    return <RouteParamsPendingFallback />;
+  }
   return (
     <DatasetExperimentsView
       projectId={route.params.projectId}
@@ -100,7 +102,9 @@ function DatasetExperimentsView({
     runName: string;
   }) => {
     setIsCreateExperimentDialogOpen(false);
-    if (!data) return;
+    if (!data) {
+      return;
+    }
 
     if (isExperimentsBetaActive) {
       utils.experiments.all.invalidate();

@@ -57,12 +57,24 @@ export function BatchActionsTable({
       createStatusTableColumn<BatchActionRow, string>({
         accessorKey: "status",
         getStatus: (status) => {
-          if (status === BatchActionStatus.Queued) return "queued";
-          if (status === BatchActionStatus.Processing) return "processing";
-          if (status === BatchActionStatus.Completed) return "completed";
-          if (status === BatchActionStatus.Failed) return "failed";
-          if (status === BatchActionStatus.Partial) return "partial";
-          if (!status) return undefined;
+          if (status === BatchActionStatus.Queued) {
+            return "queued";
+          }
+          if (status === BatchActionStatus.Processing) {
+            return "processing";
+          }
+          if (status === BatchActionStatus.Completed) {
+            return "completed";
+          }
+          if (status === BatchActionStatus.Failed) {
+            return "failed";
+          }
+          if (status === BatchActionStatus.Partial) {
+            return "partial";
+          }
+          if (!status) {
+            return undefined;
+          }
 
           return status.toLowerCase();
         },
@@ -79,8 +91,9 @@ export function BatchActionsTable({
           const processedCount = row.original.processedCount ?? 0;
           const failedCount = row.original.failedCount ?? 0;
 
-          if (!totalCount)
+          if (!totalCount) {
             return <span className="text-muted-foreground">-</span>;
+          }
 
           return (
             <div className="flex min-w-0 items-center gap-2 whitespace-nowrap">

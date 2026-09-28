@@ -85,7 +85,9 @@ const buildExperimentScopeFilters = ({
   const scope = entityDimensionField
     ? EXPERIMENT_SCOPE_COLUMNS[entityDimensionField]
     : undefined;
-  if (!scope) return [];
+  if (!scope) {
+    return [];
+  }
 
   return [
     ...(scope.nameColumn && experimentNames.length > 0
@@ -165,7 +167,9 @@ export function ExperimentMetricStrip({
   // never sent. Reuses `chart_metric_changed` from the chart grid this strip
   // replaced, so the metric-choice history is continuous.
   const handleMetricChange = (newMetricId: string) => {
-    if (newMetricId === metricId) return;
+    if (newMetricId === metricId) {
+      return;
+    }
     capture(
       "experiment:chart_metric_changed",
       chartMetricChangedProps({
@@ -200,7 +204,9 @@ export function ExperimentMetricStrip({
   );
 
   const query: QueryType | null = useMemo(() => {
-    if (!widgetConfig) return null;
+    if (!widgetConfig) {
+      return null;
+    }
 
     const experimentNames = Array.from(
       new Set(

@@ -22,7 +22,9 @@ const processCategoricalScoreOptions = (
 const booleanOnlyScoreNames = (
   columns: Array<{ name: string; dataType: string }> | undefined,
 ): string[] => {
-  if (!columns) return [];
+  if (!columns) {
+    return [];
+  }
   const numericNames = new Set(
     columns.filter((c) => c.dataType === "NUMERIC").map((c) => c.name),
   );

@@ -39,10 +39,16 @@ function collectMetadataKeys(
   out: Map<string, string>,
   depth: number,
 ): void {
-  if (depth > 3 || out.size >= MAX_METADATA_KEYS) return;
-  if (md === null || typeof md !== "object" || Array.isArray(md)) return;
+  if (depth > 3 || out.size >= MAX_METADATA_KEYS) {
+    return;
+  }
+  if (md === null || typeof md !== "object" || Array.isArray(md)) {
+    return;
+  }
   for (const [k, v] of Object.entries(md as Record<string, unknown>)) {
-    if (out.size >= MAX_METADATA_KEYS) break;
+    if (out.size >= MAX_METADATA_KEYS) {
+      break;
+    }
     const path = prefix ? `${prefix}.${k}` : k;
     if (v !== null && typeof v === "object" && !Array.isArray(v)) {
       collectMetadataKeys(v, path, out, depth + 1);
@@ -83,8 +89,9 @@ export function buildAiContext(args: {
         .filter((v) => v.length > 0)
         .slice(0, MAX_VALUES_PER_COL)
         .map((v) => v.slice(0, MAX_VALUE_LEN));
-      if (vals.length > 0)
+      if (vals.length > 0) {
         valueLines.push(`- ${promptLabel}: ${vals.join(", ")}`);
+      }
     }
     if (valueLines.length > 0) {
       sections.push(
@@ -101,7 +108,9 @@ export function buildAiContext(args: {
     // Langfuse returns row metadata as a JSON-encoded string; parse it first.
     const parsed = typeof md === "string" ? safeJsonParse(md) : md;
     collectMetadataKeys(parsed, "", mdKeys, 0);
-    if (mdKeys.size >= MAX_METADATA_KEYS) break;
+    if (mdKeys.size >= MAX_METADATA_KEYS) {
+      break;
+    }
   }
   if (mdKeys.size > 0) {
     const keyLines = [...mdKeys.entries()].map(
@@ -123,7 +132,9 @@ export function buildAiContext(args: {
     );
   }
 
-  if (sections.length === 0) return undefined;
+  if (sections.length === 0) {
+    return undefined;
+  }
   // Hard cap so the context can never exceed the endpoint's input limit
   // (router `dataContext: z.string().max(16000)`) and trigger a Zod 400, even
   // with many columns/keys. Per-value/per-key caps above keep us well under this.

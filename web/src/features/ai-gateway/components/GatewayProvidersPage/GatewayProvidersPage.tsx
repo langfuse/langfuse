@@ -89,10 +89,14 @@ export function GatewayProvidersPage({
         const targetIndex = connections.findIndex(
           (connection) => connection.id === targetId,
         );
-        if (sourceIndex < 0 || targetIndex < 0) return false;
+        if (sourceIndex < 0 || targetIndex < 0) {
+          return false;
+        }
         const connectionIds = connections.map((connection) => connection.id);
         const [movedId] = connectionIds.splice(sourceIndex, 1);
-        if (!movedId) return false;
+        if (!movedId) {
+          return false;
+        }
         connectionIds.splice(targetIndex, 0, movedId);
         try {
           await reorder.mutateAsync({ orgId: organizationId, connectionIds });

@@ -47,7 +47,9 @@ export const V4MigrationPanel = ({
       ? project?.readiness
       : liveReadiness;
 
-  if (!open) return null;
+  if (!open) {
+    return null;
+  }
 
   return (
     <div

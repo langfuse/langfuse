@@ -106,7 +106,9 @@ describe("EXPORT_FIELD_GROUP_OPTIONS — parquet description", () => {
 
   it("non-model groups have identical standard and parquet descriptions", () => {
     for (const option of EXPORT_FIELD_GROUP_OPTIONS) {
-      if (option.value === "model") continue;
+      if (option.value === "model") {
+        continue;
+      }
       expect(option.parquetDescription).toBe(option.description);
     }
   });

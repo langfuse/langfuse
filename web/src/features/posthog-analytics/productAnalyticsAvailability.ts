@@ -15,7 +15,9 @@ export const getPostHogClientConfig = (): {
 } | null => {
   const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
   const host = process.env.NEXT_PUBLIC_POSTHOG_HOST;
-  if (!isProductAnalyticsAvailable() || !key || !host) return null;
+  if (!isProductAnalyticsAvailable() || !key || !host) {
+    return null;
+  }
   return { key, host };
 };
 

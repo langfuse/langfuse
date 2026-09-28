@@ -56,7 +56,9 @@ export function DeleteDatasetDialog({
         <ConfirmDialog
           open={value !== null}
           onOpenChange={(open) => {
-            if (open) return;
+            if (open) {
+              return;
+            }
             setDeleteConfirmationInput("");
             close();
           }}

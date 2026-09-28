@@ -33,7 +33,9 @@ export function useMergedAggregates(
   const deletedIds = useMemo(() => {
     const ids = new Set<string>();
     Object.values(serverAggregates).forEach((agg) => {
-      if (agg.id && isDeleted(agg.id)) ids.add(agg.id);
+      if (agg.id && isDeleted(agg.id)) {
+        ids.add(agg.id);
+      }
     });
     return ids;
   }, [serverAggregates, isDeleted]);

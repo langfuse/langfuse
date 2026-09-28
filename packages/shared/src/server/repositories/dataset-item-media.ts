@@ -56,7 +56,9 @@ export async function findUnresolvableMediaReferences(props: {
       mediaId: reference.mediaId,
     })),
   );
-  if (references.length === 0) return [];
+  if (references.length === 0) {
+    return [];
+  }
 
   const mediaIds = [
     ...new Set(references.map((reference) => reference.mediaId)),
@@ -211,7 +213,9 @@ export async function linkDatasetItemMedia(
   addTagsToCurrentSpan({
     "langfuse.dataset_item_media.link.item_count": items.length,
   });
-  if (items.length === 0) return;
+  if (items.length === 0) {
+    return;
+  }
 
   const rowsToInsert: Prisma.DatasetItemMediaCreateManyInput[] = items.flatMap(
     (item) =>
@@ -231,7 +235,9 @@ export async function linkDatasetItemMedia(
   });
 
   // Hot path: items without media still need the replaceExisting delete.
-  if (rowsToInsert.length === 0 && !replaceExisting) return;
+  if (rowsToInsert.length === 0 && !replaceExisting) {
+    return;
+  }
 
   if (replaceExisting) {
     await deleteDatasetItemMediaLinks(tx, { projectId, itemVersions: items });
@@ -278,7 +284,9 @@ export async function deleteDatasetItemMediaLinks(
     "langfuse.dataset_item_media.delete.item_version_count":
       itemVersions.length,
   });
-  if (itemVersions.length === 0) return;
+  if (itemVersions.length === 0) {
+    return;
+  }
 
   const versionFilters = itemVersions.map((itemVersion) => ({
     datasetItemId: itemVersion.datasetItemId,

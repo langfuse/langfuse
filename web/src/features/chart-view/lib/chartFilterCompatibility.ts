@@ -100,15 +100,21 @@ export const CHART_SEARCH_QUERY_REASON =
  * on the table. No "dimension"/"measure" jargon.
  */
 export function chartFilterExclusionReason(column: string): string | null {
-  if (FORWARDABLE_CHART_FILTER_COLUMNS.has(column)) return null;
-  if (MEASURE_COLUMNS.has(column))
+  if (FORWARDABLE_CHART_FILTER_COLUMNS.has(column)) {
+    return null;
+  }
+  if (MEASURE_COLUMNS.has(column)) {
     return "Charts can't filter by latency, cost, or tokens at the moment — still applies to the table.";
-  if (SCORE_COLUMNS.has(column))
+  }
+  if (SCORE_COLUMNS.has(column)) {
     return "Charts can't filter by scores at the moment — still applies to the table.";
-  if (COMMENT_COLUMNS.has(column))
+  }
+  if (COMMENT_COLUMNS.has(column)) {
     return "Charts can't filter by comments at the moment — still applies to the table.";
-  if (column === "metadata")
+  }
+  if (column === "metadata") {
     return "Charts can't filter by metadata at the moment — still applies to the table.";
+  }
   return "Charts can't filter by this field at the moment — still applies to the table.";
 }
 
@@ -140,18 +146,28 @@ export function toChartFilters(filterState: FilterState): FilterState {
  */
 export function chartSearchFieldReason(fieldName: string): string | null {
   const ref = resolveField(fieldName);
-  if (!ref) return null;
-  if (ref.type === "metadata") return chartFilterExclusionReason("metadata");
-  if (ref.type === "scores")
+  if (!ref) {
+    return null;
+  }
+  if (ref.type === "metadata") {
+    return chartFilterExclusionReason("metadata");
+  }
+  if (ref.type === "scores") {
     return chartFilterExclusionReason(
       ref.level === "trace" ? "trace_scores_avg" : "scores_avg",
     );
+  }
   // `has:`/`-has:` presence checks lower to a null-check filter, which the chart
   // doesn't apply (dropped by toChartFilters) — so the pill is deactivated too.
-  if (ref.type === "searchScope" || (ref.type === "pseudo" && ref.id === "in"))
+  if (
+    ref.type === "searchScope" ||
+    (ref.type === "pseudo" && ref.id === "in")
+  ) {
     return CHART_SEARCH_QUERY_REASON;
-  if (ref.type === "pseudo")
+  }
+  if (ref.type === "pseudo") {
     return "Charts can't filter by whether a field is set at the moment — still applies to the table.";
+  }
   return chartFilterExclusionReason(ref.field.id);
 }
 
@@ -167,7 +183,9 @@ export function classifyChartFilters(filterState: FilterState): {
   const excluded = new Map<string, string>();
   for (const f of filterState) {
     const reason = chartFilterExclusionReason(f.column);
-    if (reason) excluded.set(f.column, reason);
+    if (reason) {
+      excluded.set(f.column, reason);
+    }
   }
   return { forwarded: toChartFilters(filterState), excluded };
 }

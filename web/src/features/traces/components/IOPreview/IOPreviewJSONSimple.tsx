@@ -105,20 +105,32 @@ export function IOPreviewJSONSimple({
   // Skip parsing entirely for over-limit fields: parsing a ~20 MB string in
   // deepParseJson (parsePreservingPrecision) blocks the main thread for seconds.
   const effectiveInput = useMemo(() => {
-    if (isParsing) return undefined; // Wait for Web Worker to finish
-    if (inputTooLarge) return undefined;
+    if (isParsing) {
+      return undefined;
+    } // Wait for Web Worker to finish
+    if (inputTooLarge) {
+      return undefined;
+    }
     return parsedInput ?? deepParseJson(input);
   }, [parsedInput, input, isParsing, inputTooLarge]);
 
   const effectiveOutput = useMemo(() => {
-    if (isParsing) return undefined;
-    if (outputTooLarge) return undefined;
+    if (isParsing) {
+      return undefined;
+    }
+    if (outputTooLarge) {
+      return undefined;
+    }
     return parsedOutput ?? deepParseJson(output);
   }, [parsedOutput, output, isParsing, outputTooLarge]);
 
   const effectiveMetadata = useMemo(() => {
-    if (isParsing) return undefined;
-    if (metadataTooLarge) return undefined;
+    if (isParsing) {
+      return undefined;
+    }
+    if (metadataTooLarge) {
+      return undefined;
+    }
     return parsedMetadata ?? deepParseJson(metadata);
   }, [parsedMetadata, metadata, isParsing, metadataTooLarge]);
 

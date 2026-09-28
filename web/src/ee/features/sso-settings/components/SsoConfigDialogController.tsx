@@ -160,7 +160,9 @@ function SsoConfigDialogContent({
   );
 
   const callbackUrl = useMemo(() => {
-    if (typeof window === "undefined") return "";
+    if (typeof window === "undefined") {
+      return "";
+    }
     return `${window.location.origin}/api/auth/callback/${domain}.${selectedProvider}`;
   }, [domain, selectedProvider]);
 
@@ -184,7 +186,9 @@ function SsoConfigDialogContent({
   });
 
   async function handleConfirm() {
-    if (!pendingValues) return;
+    if (!pendingValues) {
+      return;
+    }
     const payload = buildSsoPayload(domain, pendingValues);
     const parsed = SsoProviderSchema.safeParse(payload);
     if (!parsed.success) {

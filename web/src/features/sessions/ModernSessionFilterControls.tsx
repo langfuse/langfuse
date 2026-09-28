@@ -170,7 +170,9 @@ export function ModernSessionFilterControls({
   };
 
   const updateCurrentView = (filters: FilterState) => {
-    if (!updateView) return;
+    if (!updateView) {
+      return;
+    }
 
     capture("saved_views:update_config", {
       tableName: TableViewPresetTableName.SessionDetail,

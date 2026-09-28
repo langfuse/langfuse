@@ -1,7 +1,9 @@
 import type { NormalizerContext, ProviderAdapter } from "../types";
 
 function normalizeGoogleMessage(msg: unknown): Record<string, unknown> {
-  if (!msg || typeof msg !== "object") return {};
+  if (!msg || typeof msg !== "object") {
+    return {};
+  }
 
   const message = msg as Record<string, unknown>;
   let normalized = { ...message };
@@ -65,7 +67,9 @@ function normalizeGoogleMessage(msg: unknown): Record<string, unknown> {
 }
 
 function preprocessData(data: unknown): unknown {
-  if (!data) return data;
+  if (!data) {
+    return data;
+  }
 
   // Handle Google output format: {candidates: [{content: {parts, role}}]}
   if (

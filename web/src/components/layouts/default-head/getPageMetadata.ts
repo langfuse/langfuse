@@ -79,10 +79,14 @@ export function getPageMetadata(
   }
 
   const metadata = cloudAuthPages[pathname] ?? passwordPages[pathname];
-  if (!metadata) return defaultMetadata;
+  if (!metadata) {
+    return defaultMetadata;
+  }
 
   // Staging and dev share the page but must not point Google at production.
-  if (!isRegionProduction(region)) return metadata;
+  if (!isRegionProduction(region)) {
+    return metadata;
+  }
 
   return { ...metadata, canonicalUrl: `${CANONICAL_CLOUD_ORIGIN}${pathname}` };
 }

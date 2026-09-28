@@ -32,7 +32,9 @@ export const InlineEditText = ({
 
   // Keep the callback ref stable so typing does not reattach it and reselect the input.
   const focusInput = React.useCallback((input: HTMLInputElement | null) => {
-    if (!input) return;
+    if (!input) {
+      return;
+    }
 
     input.focus();
     input.select();
@@ -41,8 +43,12 @@ export const InlineEditText = ({
   const commit = () => {
     setEditing(false);
     const next = draft.trim();
-    if (next === value.trim()) return;
-    if (!next && required) return;
+    if (next === value.trim()) {
+      return;
+    }
+    if (!next && required) {
+      return;
+    }
     onSave(next);
   };
 

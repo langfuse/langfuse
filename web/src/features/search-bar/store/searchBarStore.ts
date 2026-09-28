@@ -152,7 +152,9 @@ export function createSearchBarStore(
         setDraft: writeDraft,
         resetTo: (committedText) => {
           const draft = get().draft;
-          if (committedText === draft) return;
+          if (committedText === draft) {
+            return;
+          }
           // Keep the user's typed form when it is SEMANTICALLY identical to the
           // re-derived committed text. The commit echo bounces through canonical
           // URL filter state (no slot for a typed alias), so a string compare
@@ -171,8 +173,9 @@ export function createSearchBarStore(
           const registry = resolveRegistry();
           if (
             draftsSemanticallyEqual(committedText, draft, scoreTypes, registry)
-          )
+          ) {
             return;
+          }
           writeDraft(committedText);
         },
         removeChipSpan: (from, to) => {
@@ -183,11 +186,15 @@ export function createSearchBarStore(
         },
         revealInvalid: () => set({ invalidRevealDraft: get().draft }),
         setPreview: (text) => {
-          if (get().previewText === text) return;
+          if (get().previewText === text) {
+            return;
+          }
           set({ previewText: text });
         },
         clearPreview: () => {
-          if (get().previewText === null) return;
+          if (get().previewText === null) {
+            return;
+          }
           set({ previewText: null });
         },
         revalidate: () => {
@@ -201,8 +208,9 @@ export function createSearchBarStore(
             hasValidated &&
             registry === lastRegistry &&
             scoreTypeContextEqual(scoreTypes, lastScoreTypes)
-          )
+          ) {
             return;
+          }
           lastScoreTypes = scoreTypes;
           lastRegistry = registry;
           hasValidated = true;

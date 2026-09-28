@@ -63,7 +63,9 @@ export function classifyPath(
   // Check if path is publishable (can be accessed without authentication)
   const isPublishable = PATH_CONSTANTS.publishable.some((path) => {
     // Case 1: Exact match (e.g., pathname === "/auth/reset-password")
-    if (pathname === path) return true;
+    if (pathname === path) {
+      return true;
+    }
 
     // Case 2: Prefix match for dynamic routes
     // Example: path = "/project/[projectId]/traces/[traceId]"
@@ -99,12 +101,16 @@ export function classifyPath(
  */
 export function isPathActive(routePath: string, currentPath: string): boolean {
   // Exact match
-  if (currentPath === routePath) return true;
+  if (currentPath === routePath) {
+    return true;
+  }
 
   // Only allow prefix matching if the route ends with a specific page (not just project root)
   // This prevents /project/123 from matching /project/123/datasets
   const isRoot = routePath.split("/").length <= 3;
-  if (isRoot) return false;
+  if (isRoot) {
+    return false;
+  }
 
   return currentPath.startsWith(routePath + "/");
 }

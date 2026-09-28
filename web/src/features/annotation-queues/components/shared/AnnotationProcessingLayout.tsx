@@ -37,7 +37,9 @@ export const AnnotationProcessingLayout: React.FC<
         className="h-full overflow-hidden"
         onLayoutChanged={(layout) => {
           const left = layout["annotation-left"];
-          if (left != null) setPanelSize(left);
+          if (left != null) {
+            setPanelSize(left);
+          }
         }}
       >
         <ResizablePanel

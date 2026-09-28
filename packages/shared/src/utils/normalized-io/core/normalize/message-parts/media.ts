@@ -30,7 +30,9 @@ export function parseMediaReference(
   }
 
   const matches = value.match(MEDIA_REFERENCE_PATTERN) ?? [];
-  if (matches.length !== 1 || matches[0] !== value) return undefined;
+  if (matches.length !== 1 || matches[0] !== value) {
+    return undefined;
+  }
 
   const parsed = MediaReferenceStringSchema.safeParse(value);
   return parsed.success ? parsed.data : undefined;
@@ -58,25 +60,35 @@ export function filePartFromMediaReference(
 export function normalizeMediaPartsFromString(
   value: string,
 ): NormalizedMessagePart[] {
-  if (!value.includes(MEDIA_TOKEN_HINT)) return [{ type: "text", text: value }];
+  if (!value.includes(MEDIA_TOKEN_HINT)) {
+    return [{ type: "text", text: value }];
+  }
 
   const parts: NormalizedMessagePart[] = [];
   let lastIndex = 0;
 
   for (const match of value.matchAll(MEDIA_REFERENCE_PATTERN)) {
     const parsed = parseMediaReference(match[0]);
-    if (!parsed) continue; // stays part of the surrounding text
+    if (!parsed) {
+      continue;
+    } // stays part of the surrounding text
 
     const before = value.slice(lastIndex, match.index);
-    if (before.trim().length > 0) parts.push({ type: "text", text: before });
+    if (before.trim().length > 0) {
+      parts.push({ type: "text", text: before });
+    }
     parts.push(filePartFromMediaReference(parsed));
     lastIndex = match.index + match[0].length;
   }
 
-  if (parts.length === 0) return [{ type: "text", text: value }];
+  if (parts.length === 0) {
+    return [{ type: "text", text: value }];
+  }
 
   const rest = value.slice(lastIndex);
-  if (rest.trim().length > 0) parts.push({ type: "text", text: rest });
+  if (rest.trim().length > 0) {
+    parts.push({ type: "text", text: rest });
+  }
   return parts;
 }
 
@@ -86,7 +98,9 @@ export function normalizeMediaPartsFromString(
  * processing skipped or failed; decoding them stays the media pipeline's job.
  */
 export function mediaTypeFromDataUri(url: string): string | undefined {
-  if (!url.startsWith("data:")) return undefined;
+  if (!url.startsWith("data:")) {
+    return undefined;
+  }
   const end = url.slice(5).search(/[;,]/);
   return end > 0 ? url.slice(5, 5 + end) : undefined;
 }
@@ -109,7 +123,9 @@ export function filePartFromUrl(
   options: UrlFilePartOptions = {},
 ): FilePart {
   const reference = parseMediaReference(url);
-  if (reference) return filePartFromMediaReference(reference, options.extras);
+  if (reference) {
+    return filePartFromMediaReference(reference, options.extras);
+  }
 
   return compact<FilePart>({
     type: "file",

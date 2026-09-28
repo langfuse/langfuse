@@ -51,8 +51,12 @@ export function createTokenUsageTableColumn<
     loadingCell: tokenUsageLoadingCell,
     renderCell: (value, context) => {
       const cell = getCell(value, context);
-      if (!cell) return null;
-      if (cell.type === "loading") return tokenUsageLoadingCell;
+      if (!cell) {
+        return null;
+      }
+      if (cell.type === "loading") {
+        return tokenUsageLoadingCell;
+      }
 
       const content = formatTokenCounts(
         cell.inputUsage,
@@ -60,7 +64,9 @@ export function createTokenUsageTableColumn<
         cell.totalUsage,
       );
 
-      if (!cell.details) return content ? <span>{content}</span> : null;
+      if (!cell.details) {
+        return content ? <span>{content}</span> : null;
+      }
 
       return (
         <BreakdownTooltip

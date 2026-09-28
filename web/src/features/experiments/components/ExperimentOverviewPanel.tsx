@@ -9,7 +9,9 @@ import {
 } from "./ExperimentOverviewField";
 
 const isSafeHttpUrl = (value: string | undefined) => {
-  if (!value) return false;
+  if (!value) {
+    return false;
+  }
 
   try {
     const url = new URL(value);
@@ -58,8 +60,12 @@ export function ExperimentOverviewPanel({
     delete additionalMetadata.provider;
     delete additionalMetadata.model;
   }
-  if (safePullRequestUrl) delete additionalMetadata["langfuse.pr_url"];
-  if (safeGithubJobUrl) delete additionalMetadata["langfuse.github_job_url"];
+  if (safePullRequestUrl) {
+    delete additionalMetadata["langfuse.pr_url"];
+  }
+  if (safeGithubJobUrl) {
+    delete additionalMetadata["langfuse.github_job_url"];
+  }
   const hasAdditionalMetadata = Object.keys(additionalMetadata).length > 0;
 
   // Get the first prompt name and version from the prompts array

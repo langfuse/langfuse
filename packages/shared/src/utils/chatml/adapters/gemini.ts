@@ -70,7 +70,9 @@ const GeminiRequestSchema = z.looseObject({
  * Handles both snake_case and camelCase (e.g., function_call OR functionCall)
  */
 function getField(obj: unknown, snakeName: string, camelName: string): unknown {
-  if (!obj || typeof obj !== "object") return undefined;
+  if (!obj || typeof obj !== "object") {
+    return undefined;
+  }
   const o = obj as Record<string, unknown>;
   return o[snakeName] ?? o[camelName];
 }
@@ -105,7 +107,9 @@ function extractFromParts(parts: unknown[]): {
       textParts.push(part);
       continue;
     }
-    if (!part || typeof part !== "object") continue;
+    if (!part || typeof part !== "object") {
+      continue;
+    }
 
     const p = part as Record<string, unknown>;
 
@@ -172,7 +176,9 @@ function extractToolDeclarations(tools: unknown[]): Array<{
   }> = [];
 
   for (const tool of tools) {
-    if (!tool || typeof tool !== "object") continue;
+    if (!tool || typeof tool !== "object") {
+      continue;
+    }
     const t = tool as Record<string, unknown>;
 
     // Check for function_declarations OR functionDeclarations
@@ -204,7 +210,9 @@ function extractToolDeclarations(tools: unknown[]): Array<{
 
 // normalize a single Gemini message to ChatML format
 function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
-  if (!msg || typeof msg !== "object") return {};
+  if (!msg || typeof msg !== "object") {
+    return {};
+  }
 
   const message = msg as Record<string, unknown>;
   let normalized = { ...message };
@@ -242,7 +250,9 @@ function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
   // normalize existing tool_calls array
   if (normalized.tool_calls && Array.isArray(normalized.tool_calls)) {
     normalized.tool_calls = normalized.tool_calls.map((tc) => {
-      if (!tc || typeof tc !== "object") return {};
+      if (!tc || typeof tc !== "object") {
+        return {};
+      }
       const toolCall = tc as Record<string, unknown>;
 
       // Convert Gemini format {type: "tool_call", name, args} → flat format
@@ -356,7 +366,9 @@ function normalizeMessages(data: unknown[]): unknown[] {
 
 // unwrap outer wrappers first then normalize inner structure
 function preprocessData(data: unknown): unknown {
-  if (!data) return data;
+  if (!data) {
+    return data;
+  }
 
   // ========================================
   // STEP 1: Unwrap Raw Gemini API format
@@ -485,22 +497,35 @@ export const geminiAdapter: ProviderAdapter = {
   detect(ctx: NormalizerContext): boolean {
     const meta = parseMetadata(ctx.metadata);
 
-    if (ctx.framework === "gemini") return true;
+    if (ctx.framework === "gemini") {
+      return true;
+    }
 
     // EXCLUSIONS: Fast checks for explicit non-Gemini indicators
     const scopeName = getNestedProperty(meta, "scope", "name");
-    if (scopeName === "pydantic-ai") return false;
-    if (scopeName === "agent_framework") return false;
+    if (scopeName === "pydantic-ai") {
+      return false;
+    }
+    if (scopeName === "agent_framework") {
+      return false;
+    }
     if (
       typeof scopeName === "string" &&
       scopeName.includes("Microsoft.Extensions.AI")
-    )
+    ) {
       return false;
+    }
 
     // HINTS: Fast checks for explicit Gemini indicators
-    if (ctx.observationName?.toLowerCase().includes("gemini")) return true;
-    if (ctx.observationName?.toLowerCase().includes("vertex")) return true;
-    if (meta?.ls_provider === "google_vertexai") return true;
+    if (ctx.observationName?.toLowerCase().includes("gemini")) {
+      return true;
+    }
+    if (ctx.observationName?.toLowerCase().includes("vertex")) {
+      return true;
+    }
+    if (meta?.ls_provider === "google_vertexai") {
+      return true;
+    }
 
     // Metadata attributes check
     if (meta && typeof meta === "object" && "attributes" in meta) {
@@ -516,19 +541,38 @@ export const geminiAdapter: ProviderAdapter = {
     }
 
     // STRUCTURAL: Schema-based detection on metadata (check metadata first for performance)
-    if (GeminiRequestSchema.safeParse(ctx.metadata).success) return true;
-    if (GeminiADKInputSchema.safeParse(ctx.metadata).success) return true;
-    if (GeminiADKInvocationInputSchema.safeParse(ctx.metadata).success)
+    if (GeminiRequestSchema.safeParse(ctx.metadata).success) {
       return true;
-    if (GeminiRawAPISchema.safeParse(ctx.metadata).success) return true;
-    if (GeminiADKOutputSchema.safeParse(ctx.metadata).success) return true;
+    }
+    if (GeminiADKInputSchema.safeParse(ctx.metadata).success) {
+      return true;
+    }
+    if (GeminiADKInvocationInputSchema.safeParse(ctx.metadata).success) {
+      return true;
+    }
+    if (GeminiRawAPISchema.safeParse(ctx.metadata).success) {
+      return true;
+    }
+    if (GeminiADKOutputSchema.safeParse(ctx.metadata).success) {
+      return true;
+    }
 
     // Schema-based detection on data (slower, do last)
-    if (GeminiRequestSchema.safeParse(ctx.data).success) return true;
-    if (GeminiADKInputSchema.safeParse(ctx.data).success) return true;
-    if (GeminiADKInvocationInputSchema.safeParse(ctx.data).success) return true;
-    if (GeminiRawAPISchema.safeParse(ctx.data).success) return true;
-    if (GeminiADKOutputSchema.safeParse(ctx.data).success) return true;
+    if (GeminiRequestSchema.safeParse(ctx.data).success) {
+      return true;
+    }
+    if (GeminiADKInputSchema.safeParse(ctx.data).success) {
+      return true;
+    }
+    if (GeminiADKInvocationInputSchema.safeParse(ctx.data).success) {
+      return true;
+    }
+    if (GeminiRawAPISchema.safeParse(ctx.data).success) {
+      return true;
+    }
+    if (GeminiADKOutputSchema.safeParse(ctx.data).success) {
+      return true;
+    }
 
     return false;
   },

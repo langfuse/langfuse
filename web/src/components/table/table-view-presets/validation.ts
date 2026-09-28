@@ -16,7 +16,9 @@ export function validateOrderBy(
   columns?: LangfuseColumnDef<any, any>[],
   filterColumnDefinitions?: ColumnDefinition[],
 ): OrderByState | null {
-  if (!orderBy || !columns || columns.length === 0) return null;
+  if (!orderBy || !columns || columns.length === 0) {
+    return null;
+  }
 
   // Flatten group columns: a sortable column can live inside a group def
   // (e.g. the events table's totalTokens under "Usage"), and a flat lookup
@@ -77,8 +79,9 @@ export function validateFilters(
   filterColumnDefinition?: ColumnDefinition[],
   migrateFilterState?: FilterStateMigration,
 ): FilterState {
-  if (!filterColumnDefinition || filterColumnDefinition.length === 0)
+  if (!filterColumnDefinition || filterColumnDefinition.length === 0) {
     return filters;
+  }
 
   // Normalize display names to column IDs for backward compatibility
   const normalized = normalizeFilterColumnNames(

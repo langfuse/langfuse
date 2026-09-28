@@ -760,8 +760,12 @@ export default function ScoresTable({
       defaultHidden: true,
       size: 150,
       getCell: (value) => {
-        if (isV4 && !scoreMetrics.data) return { type: "loading" };
-        if (!value) return undefined;
+        if (isV4 && !scoreMetrics.data) {
+          return { type: "loading" };
+        }
+        if (!value) {
+          return undefined;
+        }
 
         const filter = encodeURIComponent(
           `name;stringOptions;;any of;${value}`,
@@ -782,7 +786,9 @@ export default function ScoresTable({
       enableSorting: true,
       size: 100,
       getCell: (value) => {
-        if (typeof value !== "string") return undefined;
+        if (typeof value !== "string") {
+          return undefined;
+        }
 
         if (peekEnabled) {
           return {
@@ -814,7 +820,9 @@ export default function ScoresTable({
       size: 100,
       getCell: (observationId, { row }) => {
         const traceId = row.getValue("traceId") as ScoresTableRow["traceId"];
-        if (!traceId || !observationId) return undefined;
+        if (!traceId || !observationId) {
+          return undefined;
+        }
 
         if (peekEnabled) {
           return {
@@ -847,7 +855,9 @@ export default function ScoresTable({
       defaultHidden: true,
       size: 100,
       getCell: (value) => {
-        if (typeof value !== "string") return undefined;
+        if (typeof value !== "string") {
+          return undefined;
+        }
 
         return {
           type: "link",
@@ -865,7 +875,9 @@ export default function ScoresTable({
       enableSorting: true,
       size: 100,
       getCell: (value) => {
-        if (typeof value !== "string") return undefined;
+        if (typeof value !== "string") {
+          return undefined;
+        }
 
         return {
           type: "link",
@@ -888,8 +900,12 @@ export default function ScoresTable({
       defaultHidden: true,
       size: 100,
       getCell: (value) => {
-        if (isV4 && !scoreMetrics.data) return { type: "loading" };
-        if (typeof value !== "string") return undefined;
+        if (isV4 && !scoreMetrics.data) {
+          return { type: "loading" };
+        }
+        if (typeof value !== "string") {
+          return undefined;
+        }
 
         return {
           type: "link",
@@ -909,7 +925,9 @@ export default function ScoresTable({
       variant: "avatar",
       emptyValue: "",
       getUser: (author) => {
-        if (!author) return undefined;
+        if (!author) {
+          return undefined;
+        }
 
         const { userId, name, image } = author;
         return {
@@ -934,7 +952,9 @@ export default function ScoresTable({
       getCell: (_, { row }) => {
         if (isV4) {
           const value = row.original.evaluatorId;
-          if (typeof value !== "string") return undefined;
+          if (typeof value !== "string") {
+            return undefined;
+          }
 
           return {
             type: "link",
@@ -946,7 +966,9 @@ export default function ScoresTable({
         }
 
         const value = row.getValue("jobConfigurationId");
-        if (typeof value !== "string") return undefined;
+        if (typeof value !== "string") {
+          return undefined;
+        }
 
         return {
           type: "link",
@@ -1034,7 +1056,9 @@ export default function ScoresTable({
     }
 
     const v4Data = scoresV4.data?.scores;
-    if (!v4Data) return undefined;
+    if (!v4Data) {
+      return undefined;
+    }
 
     const metaByTraceId = new Map(
       scoreMetrics.data?.map((m) => [m.traceId, m]) ?? [],

@@ -147,7 +147,9 @@ export function useRuleCostEstimate({
         shouldRunMissingTest: unprobedEvaluatorIds.length > 0,
       })
         .then((results) => {
-          if (requestId.current !== currentRequestId) return;
+          if (requestId.current !== currentRequestId) {
+            return;
+          }
           const namesById = new Map(
             assignments.map(({ evaluatorId, evaluatorName }) => [
               evaluatorId,
@@ -182,7 +184,9 @@ export function useRuleCostEstimate({
           });
         })
         .catch(() => {
-          if (requestId.current !== currentRequestId) return;
+          if (requestId.current !== currentRequestId) {
+            return;
+          }
           updateState({
             status: "error",
             estimates: [...retainedLlmEstimates, ...codeEstimates],

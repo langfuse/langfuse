@@ -11,7 +11,9 @@ import { moveItem } from "@/src/features/evals/v2/fns/moveItem";
 export type ScoreLevelDraft = { description: string };
 
 function levelPlaceholder(index: number, count: number) {
-  if (index === 0) return "Lowest level, e.g. Calm, just stating facts";
+  if (index === 0) {
+    return "Lowest level, e.g. Calm, just stating facts";
+  }
   if (index === count - 1) {
     return "Highest level, e.g. Very angry or threatening to leave";
   }

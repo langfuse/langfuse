@@ -185,7 +185,9 @@ export function PromptTable() {
 
   // Backend returns folder representatives with row_type metadata
   const processedRowData = useMemo(() => {
-    if (!promptsRowData.rows) return { ...promptsRowData, rows: [] };
+    if (!promptsRowData.rows) {
+      return { ...promptsRowData, rows: [] };
+    }
 
     const combinedRows: PromptTableRow[] = [];
 
@@ -307,7 +309,9 @@ export function PromptTable() {
       enableSorting: true,
       size: 250,
       getCell: (name, { row }) => {
-        if (!name) return undefined;
+        if (!name) {
+          return undefined;
+        }
         const rowData = row.original;
 
         if (rowData.type === "folder") {
@@ -335,7 +339,9 @@ export function PromptTable() {
       size: 70,
       formatter: (value) => String(value),
       getValue: (value, { row }) => {
-        if (row.original.type === "folder") return undefined;
+        if (row.original.type === "folder") {
+          return undefined;
+        }
         return value ?? undefined;
       },
     }),
@@ -364,7 +370,9 @@ export function PromptTable() {
       id: "numberOfObservations",
       size: 170,
       cell: ({ getValue, row }) => {
-        if (row.original.type === "folder") return null;
+        if (row.original.type === "folder") {
+          return null;
+        }
 
         const numberOfObservations = getValue<number | undefined>();
         const promptPath = row.original.fullPath;
@@ -392,7 +400,9 @@ export function PromptTable() {
       size: 120,
       cell: ({ getValue, row }) => {
         // height h-6 to ensure consistent row height for normal & folder rows
-        if (row.original.type === "folder") return <div className="h-6" />;
+        if (row.original.type === "folder") {
+          return <div className="h-6" />;
+        }
 
         const tags = getValue<string[] | undefined>();
         const promptPath = row.original.fullPath;

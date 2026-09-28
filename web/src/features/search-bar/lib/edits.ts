@@ -20,8 +20,11 @@ function spliceSpan(
   let end = to;
   if (replacement === "") {
     // Swallow one adjacent separator space so we don't leave double gaps.
-    if (start > 0 && text[start - 1] === " ") start--;
-    else if (end < text.length && text[end] === " ") end++;
+    if (start > 0 && text[start - 1] === " ") {
+      start--;
+    } else if (end < text.length && text[end] === " ") {
+      end++;
+    }
   }
   return (text.slice(0, start) + replacement + text.slice(end)).trim();
 }
@@ -72,10 +75,13 @@ function scanParenPairs(text: string): Array<{ open: number; close: number }> {
       i = close === -1 ? text.length : close + 1;
       continue;
     }
-    if (c === "(") stack.push(i);
-    else if (c === ")") {
+    if (c === "(") {
+      stack.push(i);
+    } else if (c === ")") {
       const open = stack.pop();
-      if (open !== undefined) pairs.push({ open, close: i });
+      if (open !== undefined) {
+        pairs.push({ open, close: i });
+      }
     }
     i++;
   }
@@ -94,7 +100,9 @@ function collapseSpacesOutsideQuotes(text: string): string {
       i++;
       continue;
     }
-    if (pendingSpace && out.length > 0) out += " ";
+    if (pendingSpace && out.length > 0) {
+      out += " ";
+    }
     pendingSpace = false;
     if (c === '"') {
       const close = findClosingQuote(text, i);
@@ -122,7 +130,9 @@ export function tidyQueryText(
 ): string {
   let current = collapseSpacesOutsideQuotes(text).trim();
   let parsed = parse(current, registry);
-  if (!parsed.valid) return current;
+  if (!parsed.valid) {
+    return current;
+  }
 
   let changed = true;
   while (changed) {
@@ -165,7 +175,9 @@ function findParenExtent(node: ASTNode, target: Span): Span | null {
     case "or":
       for (const c of node.children) {
         const found = findParenExtent(c, target);
-        if (found !== null) return found;
+        if (found !== null) {
+          return found;
+        }
       }
       return null;
   }
@@ -182,7 +194,9 @@ export function removeToken(
   registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): string {
   const parsed = parse(text, registry);
-  if (parsed.ast === null) return text;
+  if (parsed.ast === null) {
+    return text;
+  }
   // Prefer the paren extent when the span identifies a parenthesized node.
   const target = findParenExtent(parsed.ast, span) ?? span;
   return tidyQueryText(

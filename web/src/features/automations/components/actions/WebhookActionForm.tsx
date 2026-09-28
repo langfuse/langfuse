@@ -44,7 +44,9 @@ export const webhookSchema = z.object({
     z.object({
       name: z.string().refine(
         (name) => {
-          if (!name.trim()) return true; // Allow empty names (will be filtered out)
+          if (!name.trim()) {
+            return true;
+          } // Allow empty names (will be filtered out)
           return !WebhookProtectedHeaders.includes(name.trim().toLowerCase());
         },
         {
@@ -335,7 +337,9 @@ const RegenerateWebhookSecretButton = ({
 
   // Function to regenerate webhook secret
   const handleRegenerateSecret = async () => {
-    if (!action?.id) return;
+    if (!action?.id) {
+      return;
+    }
     try {
       await regenerateSecretMutation.mutateAsync({
         projectId,

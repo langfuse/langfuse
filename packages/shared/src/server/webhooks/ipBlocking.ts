@@ -74,13 +74,21 @@ export function isIPBlocked(
     });
 
     for (const { network, mask, kind } of whitelistedSegments) {
-      if (ip.kind() !== kind) continue;
-      if (ip.match(network, mask)) return false;
+      if (ip.kind() !== kind) {
+        continue;
+      }
+      if (ip.match(network, mask)) {
+        return false;
+      }
     }
 
     for (const { network, mask, kind } of blockedNetworks) {
-      if (ip.kind() !== kind) continue;
-      if (ip.match(network, mask)) return true;
+      if (ip.kind() !== kind) {
+        continue;
+      }
+      if (ip.match(network, mask)) {
+        return true;
+      }
     }
     return false;
   } catch {

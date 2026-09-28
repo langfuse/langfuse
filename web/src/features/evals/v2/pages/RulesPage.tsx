@@ -23,7 +23,9 @@ export function RulesPage() {
     scope: "evaluationRule:CUD",
   });
 
-  if (!hasReadAccess) return <SupportOrUpgradePage />;
+  if (!hasReadAccess) {
+    return <SupportOrUpgradePage />;
+  }
 
   return (
     <Page

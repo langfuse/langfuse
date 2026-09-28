@@ -10,7 +10,9 @@ const WORD_JOINER_RE = new RegExp(WORD_JOINER, "g");
 
 function renderComposer(draft = "") {
   const store = createSearchBarStore();
-  if (draft.length > 0) store.getState().actions.setDraft(draft);
+  if (draft.length > 0) {
+    store.getState().actions.setDraft(draft);
+  }
   const view = render(
     <SearchBarStoreProvider store={store} commit={vi.fn()}>
       <SearchComposer observed={undefined} />

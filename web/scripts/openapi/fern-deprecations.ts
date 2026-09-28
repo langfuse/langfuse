@@ -40,8 +40,12 @@ function listYamlFiles(directory: string): string[] {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const entryPath = path.join(directory, entry.name);
 
-    if (entry.isDirectory()) return listYamlFiles(entryPath);
-    if (entry.isFile() && /\.ya?ml$/.test(entry.name)) return [entryPath];
+    if (entry.isDirectory()) {
+      return listYamlFiles(entryPath);
+    }
+    if (entry.isFile() && /\.ya?ml$/.test(entry.name)) {
+      return [entryPath];
+    }
     return [];
   });
 }
@@ -81,10 +85,14 @@ export function getFernDeprecatedOperations(
     ) as FernDefinition;
     const service = definition.service;
 
-    if (!service?.endpoints) return [];
+    if (!service?.endpoints) {
+      return [];
+    }
 
     return Object.entries(service.endpoints).flatMap(([name, endpoint]) => {
-      if (!isDeprecated(endpoint.availability)) return [];
+      if (!isDeprecated(endpoint.availability)) {
+        return [];
+      }
       if (!endpoint.method || endpoint.path === undefined) {
         throw new Error(
           `Deprecated endpoint in ${definitionPath} must define method and path`,

@@ -55,7 +55,9 @@ export const TestFocusRevealsLongestDescription = meta.story({
       /Update your OTel instrumentation for real-time data/,
     );
     const clipBox = text.parentElement;
-    if (!clipBox) throw new Error("description wrapper not found");
+    if (!clipBox) {
+      throw new Error("description wrapper not found");
+    }
     await waitFor(() => {
       expect(clipBox.clientWidth).toBeGreaterThan(0);
       expect(clipBox.scrollWidth).toBeLessThanOrEqual(clipBox.clientWidth + 1);

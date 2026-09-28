@@ -238,7 +238,9 @@ function UpdateTemplate({
 
   const handlePromptEdit = (checked: boolean) => {
     setIsEditing(checked);
-    if (checked) capture("eval_templates:update_form_open");
+    if (checked) {
+      capture("eval_templates:update_form_open");
+    }
   };
 
   if (!isCustom) {

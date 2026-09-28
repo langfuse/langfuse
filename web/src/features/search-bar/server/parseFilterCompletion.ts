@@ -44,12 +44,16 @@ function isRegistryContractCompatible(
   f: FilterState[number],
   registry: FieldRegistry,
 ): boolean {
-  if (f.type === "null" || f.type === "positionInTrace") return true;
+  if (f.type === "null" || f.type === "positionInTrace") {
+    return true;
+  }
   const col = f.column.toLowerCase();
   const def = registry.columns.find(
     (c) => c.id.toLowerCase() === col || c.name.toLowerCase() === col,
   );
-  if (!def) return true;
+  if (!def) {
+    return true;
+  }
   const allowed = COMPATIBLE_FILTER_TYPES[def.type];
   return allowed === undefined || allowed.includes(f.type);
 }
@@ -72,15 +76,21 @@ function extractTopLevelArrays(text: string): string[] {
     if (inString) {
       // Inside a string literal only `\` (escape) and an unescaped `"` (close)
       // are meaningful; brackets here must not move the depth.
-      if (escaped) escaped = false;
-      else if (ch === "\\") escaped = true;
-      else if (ch === '"') inString = false;
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
       continue;
     }
     if (ch === '"') {
       inString = true;
     } else if (ch === "[") {
-      if (depth === 0) start = i;
+      if (depth === 0) {
+        start = i;
+      }
       depth++;
     } else if (ch === "]" && depth > 0) {
       depth--;
@@ -133,7 +143,9 @@ function parseFilterArray(completion: string): {
     const raw = Array.isArray(parsed)
       ? parsed
       : (parsed as { filters?: unknown } | null)?.filters;
-    if (!Array.isArray(raw)) continue;
+    if (!Array.isArray(raw)) {
+      continue;
+    }
     // An explicitly EMPTY array is the model's "no filter applies" answer (the
     // prompt asks for `[]` in exactly that case). Honor it as a real answer that
     // WINS: return immediately rather than falling through to an earlier draft
@@ -142,7 +154,9 @@ function parseFilterArray(completion: string): {
     // (below): that stays a fallback so a stray prose list can't shadow a real
     // earlier filter array. Last-first order means a trailing `[]` is the
     // model's FINAL word, so this is safe to treat as the intended retraction.
-    if (raw.length === 0) return { filters: [], rawCount: 0 };
+    if (raw.length === 0) {
+      return { filters: [], rawCount: 0 };
+    }
     // Parse PER ELEMENT, not the whole array: `z.array(singleFilter).parse`
     // is all-or-nothing, so one off-spec element (wrong operator, missing
     // key, value-as-string, unknown type — common on weaker models) would
@@ -153,9 +167,13 @@ function parseFilterArray(completion: string): {
     const kept: FilterState = [];
     for (const item of raw) {
       const result = singleFilter.safeParse(item);
-      if (result.success) kept.push(result.data);
+      if (result.success) {
+        kept.push(result.data);
+      }
     }
-    if (kept.length > 0) return { filters: kept, rawCount: raw.length };
+    if (kept.length > 0) {
+      return { filters: kept, rawCount: raw.length };
+    }
     // Had elements, none valid. Remember the LARGEST such array as the fallback:
     // when nothing validates, `droppedCount` should reflect the biggest array
     // the model emitted (the one it most plausibly intended as the answer), not
@@ -198,8 +216,12 @@ function uniqueNormalizedMatch(
   const target = normalizeScoreName(key);
   let match: string | null = null;
   for (const name of names) {
-    if (normalizeScoreName(name) !== target) continue;
-    if (match !== null && match !== name) return null;
+    if (normalizeScoreName(name) !== target) {
+      continue;
+    }
+    if (match !== null && match !== name) {
+      return null;
+    }
     match = name;
   }
   return match;
@@ -221,7 +243,9 @@ function validateScoreNames(
   filters: FilterState,
   scoreNames: ObservedScoreNames | undefined,
 ): { filters: FilterState; unknownScoreNames: string[] } {
-  if (scoreNames === undefined) return { filters, unknownScoreNames: [] };
+  if (scoreNames === undefined) {
+    return { filters, unknownScoreNames: [] };
+  }
   const kept: FilterState = [];
   const unknown: string[] = [];
   for (const filter of filters) {

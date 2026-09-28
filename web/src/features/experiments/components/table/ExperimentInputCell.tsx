@@ -29,7 +29,9 @@ export function ExperimentInputCell({
       className={`group relative h-full w-full ${href ? "cursor-pointer pr-6" : ""}`}
       onClick={(event) => {
         event.stopPropagation();
-        if (!href || shouldIgnoreRowClickTarget(event.target)) return;
+        if (!href || shouldIgnoreRowClickTarget(event.target)) {
+          return;
+        }
         if (event.metaKey || event.ctrlKey || event.shiftKey) {
           window.open(href, "_blank", "noopener,noreferrer");
         } else {

@@ -75,7 +75,9 @@ export function mapChatMessagesToModelMessages(
           input: toolCall.args,
         })),
       ];
-      if (content.length === 0) return; // mirror empty-content filter
+      if (content.length === 0) {
+        return;
+      } // mirror empty-content filter
       modelMessages.push({ role: "assistant", content });
 
       return;
@@ -91,7 +93,9 @@ export function mapChatMessagesToModelMessages(
         });
       }
 
-      if (safeContent.length === 0) return; // mirror empty-content filter
+      if (safeContent.length === 0) {
+        return;
+      } // mirror empty-content filter
 
       modelMessages.push({
         role: "tool",
@@ -108,7 +112,9 @@ export function mapChatMessagesToModelMessages(
       return;
     }
 
-    if (safeContent.length === 0) return; // mirror empty-content filter
+    if (safeContent.length === 0) {
+      return;
+    } // mirror empty-content filter
 
     if (message.role === ChatMessageRole.User) {
       modelMessages.push({ role: "user", content: safeContent });

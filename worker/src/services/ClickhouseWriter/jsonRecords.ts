@@ -17,7 +17,9 @@ export function truncateOversizedRecord<
 
   // Helper function to safely truncate string fields
   const truncateField = (value: string | null | undefined): string | null => {
-    if (!value) return value || null;
+    if (!value) {
+      return value || null;
+    }
     if (value.length > maxFieldSize) {
       return (
         // Keep the first 500KB and append a truncation message
@@ -77,7 +79,9 @@ export function truncateOversizedRecord<
 }
 
 export function clampDecimal64Value(value: number): [number, boolean] {
-  if (!Number.isFinite(value)) return [0, true];
+  if (!Number.isFinite(value)) {
+    return [0, true];
+  }
   if (new Decimal(value).abs().gte(DECIMAL_64_12_LIMIT)) {
     return [value >= 0 ? DECIMAL_64_12_MAX_NUM : DECIMAL_64_12_MIN_NUM, true];
   }
@@ -102,17 +106,23 @@ export function clampDecimal64Map(
   map: Record<string, number> | undefined,
   context: CostMapContext,
 ): Record<string, number> | undefined {
-  if (!map) return map;
+  if (!map) {
+    return map;
+  }
 
   let result: Record<string, number> | undefined;
   for (const [key, value] of Object.entries(map)) {
     const [cv, wasClamped] = clampDecimal64Value(value);
     if (wasClamped) {
-      if (!result) result = { ...map };
+      if (!result) {
+        result = { ...map };
+      }
       result[key] = cv;
     }
   }
-  if (!result) return map;
+  if (!result) {
+    return map;
+  }
 
   logger.warn("Clamped Decimal64(12) overflow in cost map", {
     projectId: context.projectId,

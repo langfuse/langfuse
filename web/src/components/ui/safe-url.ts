@@ -32,10 +32,14 @@ const getSafeUrl = (
     allowRelativePath?: boolean;
   },
 ): string | null => {
-  if (!value || typeof value !== "string") return null;
+  if (!value || typeof value !== "string") {
+    return null;
+  }
 
   const trimmed = value.trim();
-  if (!trimmed) return null;
+  if (!trimmed) {
+    return null;
+  }
 
   try {
     const parsed = new URL(trimmed);
@@ -67,7 +71,9 @@ const isRelativePathReference = (value: string): boolean =>
 const isSafeSameOriginReference = (value: string): boolean => {
   // Block protocol-relative and backslash-normalized URLs. Browsers can resolve
   // values like "/\\attacker.example/x" to another host for http(s) documents.
-  if (value.startsWith("//") || value.includes("\\")) return false;
+  if (value.startsWith("//") || value.includes("\\")) {
+    return false;
+  }
 
   try {
     const parsed = new URL(value, SAME_ORIGIN_URL_BASE);

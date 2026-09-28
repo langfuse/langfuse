@@ -69,10 +69,15 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
     },
   }));
   const mappedVariableCount = mapping.filter((entry) => {
-    if (!entry.selectedColumnId) return false;
-    if (unvalidatedSourceColumnIds.includes(entry.selectedColumnId))
+    if (!entry.selectedColumnId) {
+      return false;
+    }
+    if (unvalidatedSourceColumnIds.includes(entry.selectedColumnId)) {
       return true;
-    if (!sampleObject) return true;
+    }
+    if (!sampleObject) {
+      return true;
+    }
 
     const extracted = extractVariableMappingValue(
       sampleObject,

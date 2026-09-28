@@ -29,7 +29,9 @@ export const UploadDatasetCsv = ({
 }) => {
   const handleFiles = async (files: File[]) => {
     const file = files[0];
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
     const result = FileSchema.safeParse(file);
     if (!result.success) {

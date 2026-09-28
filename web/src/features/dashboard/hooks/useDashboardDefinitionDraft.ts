@@ -22,7 +22,9 @@ export function useDashboardDefinitionDraft(
   }, []);
 
   const clearDraftIfSaved = useCallback((saved: DashboardDefinition) => {
-    if (draftRef.current !== saved) return false;
+    if (draftRef.current !== saved) {
+      return false;
+    }
 
     draftRef.current = null;
     setDraft(null);

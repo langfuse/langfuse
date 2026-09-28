@@ -7,7 +7,9 @@ import { createHash } from "crypto";
  * @returns A shard index between 0 and shardCount-1
  */
 export function getShardIndex(key: string, shardCount: number): number {
-  if (shardCount <= 1) return 0;
+  if (shardCount <= 1) {
+    return 0;
+  }
 
   // Create a consistent hash using SHA-256
   const hash = createHash("sha256").update(key).digest("hex");

@@ -35,7 +35,9 @@ export function useSelectTraceNode(source: TraceNodeSelectionSource) {
       }
       setSelectedNodeId(nodeId);
       layout?.expandDetailPanel();
-      if (nodeId) mobileLayout?.switchToInfoTab();
+      if (nodeId) {
+        mobileLayout?.switchToInfoTab();
+      }
     },
     [
       source,

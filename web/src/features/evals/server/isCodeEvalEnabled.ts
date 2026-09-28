@@ -54,7 +54,9 @@ export function getSupportedCodeEvalTemplateLanguages(): EvalTemplateSourceCodeL
 export function isCodeEvalSourceCodeLanguageSupported(
   sourceCodeLanguage: EvalTemplateSourceCodeLanguage | null | undefined,
 ): boolean {
-  if (!sourceCodeLanguage) return false;
+  if (!sourceCodeLanguage) {
+    return false;
+  }
 
   return getCodeEvalCapabilities().supportedSourceCodeLanguages.includes(
     sourceCodeLanguage,

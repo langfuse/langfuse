@@ -31,7 +31,11 @@ export async function requestJson(params: {
 export function standardHttpError(
   response: Response,
 ): ModelDiscoveryError | null {
-  if (response.status === 401 || response.status === 403) return "unauthorized";
-  if (response.status === 429) return "rate_limited";
+  if (response.status === 401 || response.status === 403) {
+    return "unauthorized";
+  }
+  if (response.status === 429) {
+    return "rate_limited";
+  }
   return response.ok ? null : "provider_error";
 }

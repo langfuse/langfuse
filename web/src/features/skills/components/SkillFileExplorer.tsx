@@ -86,8 +86,9 @@ export function SkillFileExplorer({
       moveDisabled ||
       typeof path !== "string" ||
       typeof targetFolder !== "string"
-    )
+    ) {
       return;
+    }
     const isFolder = active.data.current?.kind === "folder";
     const moved = isFolder
       ? actions.moveFolder(path, targetFolder)
@@ -119,14 +120,19 @@ export function SkillFileExplorer({
     setSelectedFolder(path);
     setExpandedFolders((current) => {
       const next = new Set(current);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
       return next;
     });
   };
 
   const startEntry = (kind: PendingEntry["kind"]) => {
-    if (moveDisabled) return;
+    if (moveDisabled) {
+      return;
+    }
     const parentPath = selectedFolder;
     if (parentPath) {
       setExpandedFolders((current) => new Set([...current, parentPath]));
@@ -135,7 +141,9 @@ export function SkillFileExplorer({
   };
 
   const submitEntry = () => {
-    if (!pendingEntry || moveDisabled) return;
+    if (!pendingEntry || moveDisabled) {
+      return;
+    }
 
     const name = pendingEntry.name.trim();
     const path = joinPath(pendingEntry.parentPath, name);
@@ -201,7 +209,9 @@ export function SkillFileExplorer({
   };
 
   const renderPendingEntry = (parentPath: string): ReactNode => {
-    if (!pendingEntry || pendingEntry.parentPath !== parentPath) return null;
+    if (!pendingEntry || pendingEntry.parentPath !== parentPath) {
+      return null;
+    }
     const label = pendingEntry.kind === "folder" ? "folder" : "file";
 
     return (
@@ -224,7 +234,9 @@ export function SkillFileExplorer({
             setPendingEntry({ ...pendingEntry, name: event.target.value })
           }
           onKeyDown={(event) => {
-            if (event.key === "Escape") setPendingEntry(null);
+            if (event.key === "Escape") {
+              setPendingEntry(null);
+            }
           }}
           aria-label={`New ${label} name${parentPath ? ` in ${parentPath}` : ""}`}
           disabled={moveDisabled}
@@ -665,7 +677,11 @@ function parentFolder(path: string): string {
 }
 
 function getContentType(path: string): string {
-  if (path.endsWith(".md")) return "text/markdown";
-  if (path.endsWith(".json")) return "application/json";
+  if (path.endsWith(".md")) {
+    return "text/markdown";
+  }
+  if (path.endsWith(".json")) {
+    return "application/json";
+  }
   return "text/plain";
 }

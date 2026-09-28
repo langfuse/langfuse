@@ -44,7 +44,9 @@ const isCausedBy = (error: unknown, target: unknown): boolean => {
   const seen = new Set<unknown>();
   let current: unknown = error;
   while (current && typeof current === "object" && !seen.has(current)) {
-    if (current === target) return true;
+    if (current === target) {
+      return true;
+    }
     seen.add(current);
     current = (current as { cause?: unknown }).cause;
   }

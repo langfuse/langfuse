@@ -30,7 +30,9 @@ const stripJsonPathStringLiterals = (selector: string): string => {
 export function getJsonPathCompatibilityWarning(
   selector: string | null | undefined,
 ): string | null {
-  if (!selector) return null;
+  if (!selector) {
+    return null;
+  }
 
   const selectorWithoutStrings = stripJsonPathStringLiterals(selector);
 

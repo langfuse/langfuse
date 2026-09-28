@@ -405,7 +405,9 @@ export const getLastTraceTimestampsByProjectsFromTracesTable = async ({
 }: {
   projectIds: string[];
 }) => {
-  if (projectIds.length === 0) return [];
+  if (projectIds.length === 0) {
+    return [];
+  }
 
   const query = `
     SELECT

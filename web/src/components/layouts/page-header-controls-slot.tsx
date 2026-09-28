@@ -44,7 +44,9 @@ export function PageHeaderControlsSlotProvider({
  */
 export function PageHeaderControlsSlotTarget() {
   const ctx = useContext(PageHeaderControlsSlotContext);
-  if (!ctx) return null;
+  if (!ctx) {
+    return null;
+  }
   return <div className="contents" ref={ctx.setSlot} />;
 }
 
@@ -59,6 +61,8 @@ export function PageHeaderControlsPortal({
   children: ReactNode;
 }) {
   const ctx = useContext(PageHeaderControlsSlotContext);
-  if (!ctx?.slot) return null;
+  if (!ctx?.slot) {
+    return null;
+  }
   return createPortal(children, ctx.slot);
 }

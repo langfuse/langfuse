@@ -25,7 +25,9 @@ describe("countJsonRows", () => {
   it("does not stack-overflow on a deeply nested chain", () => {
     const depth = 200_000;
     let deep: unknown = 1;
-    for (let i = 0; i < depth; i++) deep = { next: deep };
+    for (let i = 0; i < depth; i++) {
+      deep = { next: deep };
+    }
     // depth objects + the leaf primitive.
     expect(countJsonRows(deep)).toBe(depth + 1);
   });

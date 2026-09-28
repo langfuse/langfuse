@@ -490,8 +490,12 @@ export const InnerEvaluatorForm = (props: {
   });
 
   useEffect(() => {
-    if (!props.evalTemplate) return;
-    if (isCodeEvalConfig) return;
+    if (!props.evalTemplate) {
+      return;
+    }
+    if (isCodeEvalConfig) {
+      return;
+    }
 
     const mapping = form.getValues("mapping");
 

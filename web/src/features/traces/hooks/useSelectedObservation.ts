@@ -90,14 +90,17 @@ export function useSelectedObservation({
   const isNotFound = byId.error?.data?.code === "NOT_FOUND";
 
   return useMemo(() => {
-    if (!observationId) return { kind: "trace" };
-    if (loadedRow)
+    if (!observationId) {
+      return { kind: "trace" };
+    }
+    if (loadedRow) {
       return {
         kind: "observation",
         observation: loadedRow,
         isOutsideLoadedList: false,
       };
-    if (byId.data)
+    }
+    if (byId.data) {
       return {
         kind: "observation",
         // traceId is nullable on the by-id row; the fetch was scoped to this
@@ -105,6 +108,7 @@ export function useSelectedObservation({
         observation: { ...byId.data, traceId: byId.data.traceId ?? traceId },
         isOutsideLoadedList: true,
       };
+    }
     // A transient failure is not a missing observation — mislabeling it would
     // repeat the class of bug this hook exists to fix.
     if (hasError) {

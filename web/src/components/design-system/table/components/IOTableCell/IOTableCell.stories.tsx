@@ -69,7 +69,9 @@ export const TestMediaTitleSuppression = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const cell = canvasElement.querySelector("[title]");
-    if (!(cell instanceof HTMLElement)) throw new Error("Cell not found");
+    if (!(cell instanceof HTMLElement)) {
+      throw new Error("Cell not found");
+    }
 
     await expect(cell).toHaveAttribute(
       "title",

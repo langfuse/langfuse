@@ -443,7 +443,9 @@ describe("getNodeByIndex after expansion changes", () => {
 
     for (let i = 0; i < rowCount; i++) {
       const node = getNodeByIndex(tree.rootNode, i);
-      if (node === null) failedIndexes.push(i);
+      if (node === null) {
+        failedIndexes.push(i);
+      }
     }
 
     expect(failedIndexes).toEqual([]);
@@ -456,7 +458,9 @@ describe("getNodeByIndex after expansion changes", () => {
 
     for (let i = 0; i < rowCount; i++) {
       const node = getNodeByIndex(tree.rootNode, i);
-      if (node === null) failedIndexes.push(i);
+      if (node === null) {
+        failedIndexes.push(i);
+      }
     }
 
     expect(failedIndexes).toEqual([]);
@@ -469,7 +473,9 @@ describe("getNodeByIndex after expansion changes", () => {
 
     for (let i = 0; i < rowCount; i++) {
       const node = getNodeByIndex(tree.rootNode, i);
-      if (node === null) failedIndexes.push(i);
+      if (node === null) {
+        failedIndexes.push(i);
+      }
     }
 
     expect(failedIndexes).toEqual([]);
@@ -493,7 +499,9 @@ describe("getNodeByIndex after expansion changes", () => {
 
     for (let i = 0; i < rowCount; i++) {
       const node = getNodeByIndex(tree.rootNode, i);
-      if (node === null) failedIndexes.push(i);
+      if (node === null) {
+        failedIndexes.push(i);
+      }
     }
 
     expect(failedIndexes).toEqual([]);
@@ -506,7 +514,9 @@ describe("getNodeByIndex after expansion changes", () => {
 
     for (let i = 0; i < rowCount; i++) {
       const node = getNodeByIndex(tree.rootNode, i);
-      if (node === null) failedIndexes.push(i);
+      if (node === null) {
+        failedIndexes.push(i);
+      }
     }
 
     expect(failedIndexes).toEqual([]);
@@ -559,7 +569,9 @@ describe("getNodeByIndex after expansion changes", () => {
     const failedIndexes: number[] = [];
     for (let i = 0; i < rowCount; i++) {
       const node = getNodeByIndex(tree.rootNode, i);
-      if (node === null) failedIndexes.push(i);
+      if (node === null) {
+        failedIndexes.push(i);
+      }
     }
 
     expect(failedIndexes).toEqual([]);

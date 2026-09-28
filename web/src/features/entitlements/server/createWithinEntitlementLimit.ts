@@ -63,7 +63,9 @@ export async function createWithinEntitlementLimit<T>({
 }): Promise<T> {
   const isUnlimited =
     hasEntitlementLimit({ entitlementLimit, sessionUser, orgId }) === false;
-  if (isUnlimited) return create(prisma);
+  if (isUnlimited) {
+    return create(prisma);
+  }
 
   return prisma.$transaction(async (tx) => {
     await lockOrganization({ tx, orgId });

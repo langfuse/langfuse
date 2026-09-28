@@ -98,7 +98,9 @@ export const DatasetItemDetailPage = ({
   });
 
   const toggleArchiveStatus = () => {
-    if (!item.data?.status || !hasAccess || mutUpdate.isPending) return;
+    if (!item.data?.status || !hasAccess || mutUpdate.isPending) {
+      return;
+    }
 
     const newStatus =
       item.data.status === DatasetStatus.ARCHIVED
@@ -118,7 +120,9 @@ export const DatasetItemDetailPage = ({
   };
 
   const handleDelete = () => {
-    if (!hasAccess || mutDelete.isPending) return;
+    if (!hasAccess || mutDelete.isPending) {
+      return;
+    }
     if (
       window.confirm(
         "Are you sure you want to delete this item? This will also delete all run items that belong to this item.",

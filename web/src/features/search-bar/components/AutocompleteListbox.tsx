@@ -16,10 +16,15 @@ import { optionDomId } from "@/src/features/search-bar/components/presentation";
 
 function OptionIcon({ kind }: { kind: CompletionOption["kind"] }) {
   const cls = "h-3.5 w-3.5 flex-none opacity-55";
-  if (kind === "recent") return <Clock className={cls} aria-hidden />;
-  if (kind === "preset") return <Bookmark className={cls} aria-hidden />;
-  if (kind === "operator" || kind === "pattern")
+  if (kind === "recent") {
+    return <Clock className={cls} aria-hidden />;
+  }
+  if (kind === "preset") {
+    return <Bookmark className={cls} aria-hidden />;
+  }
+  if (kind === "operator" || kind === "pattern") {
     return <Parentheses className={cls} aria-hidden />;
+  }
   return <Search className={cls} aria-hidden />;
 }
 
@@ -50,7 +55,9 @@ export function AutocompleteListbox({
   // aria-activedescendant). `nearest` avoids jumping when already visible.
   const optionRefs = React.useRef(new Map<string, HTMLDivElement>());
   React.useEffect(() => {
-    if (highlightedId === null) return;
+    if (highlightedId === null) {
+      return;
+    }
     optionRefs.current.get(highlightedId)?.scrollIntoView?.({
       block: "nearest",
     });
@@ -59,8 +66,9 @@ export function AutocompleteListbox({
   const highlightOnMove = onHighlight
     ? (id: string) => (e: React.MouseEvent) => {
         const last = lastPointer.current;
-        if (last !== null && last.x === e.clientX && last.y === e.clientY)
+        if (last !== null && last.x === e.clientX && last.y === e.clientY) {
           return;
+        }
         lastPointer.current = { x: e.clientX, y: e.clientY };
         onHighlight(id);
       }
@@ -109,8 +117,11 @@ export function AutocompleteListbox({
               key={o.id}
               ref={(el) => {
                 const refs = optionRefs.current;
-                if (el) refs.set(o.id, el);
-                else refs.delete(o.id);
+                if (el) {
+                  refs.set(o.id, el);
+                } else {
+                  refs.delete(o.id);
+                }
               }}
               id={optionDomId(listboxId, o.id)}
               role="option"

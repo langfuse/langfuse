@@ -16,14 +16,18 @@ function getComputedOverflowY(node: Element): string {
 
 function isScrollable(node: Element): boolean {
   const overflowY = getComputedOverflowY(node);
-  if (overflowY !== "auto" && overflowY !== "scroll") return false;
+  if (overflowY !== "auto" && overflowY !== "scroll") {
+    return false;
+  }
   return node.scrollHeight > node.clientHeight;
 }
 
 function findNearestScrollContainer(start: Element): ScrollTarget {
   let node: Element | null = start;
   while (node && node !== document.body) {
-    if (isScrollable(node)) return node;
+    if (isScrollable(node)) {
+      return node;
+    }
     node = node.parentElement;
   }
   return window;
@@ -68,7 +72,9 @@ export function usePreserveRelativeScroll<T extends Element = Element>(
         "End",
         " ",
       ];
-      if (keys.includes(e.key)) cancel();
+      if (keys.includes(e.key)) {
+        cancel();
+      }
     };
     window.addEventListener("wheel", cancel, { passive: true, once: true });
     window.addEventListener("touchmove", cancel, { passive: true, once: true });
@@ -115,10 +121,14 @@ export function usePreserveRelativeScroll<T extends Element = Element>(
 
   const performCompensation = useCallback(
     (element: T) => {
-      if (compensatedRef.current) return;
+      if (compensatedRef.current) {
+        return;
+      }
       const beforeTop = beforeTopRef.current;
       const target = targetRef.current;
-      if (beforeTop == null || !target) return;
+      if (beforeTop == null || !target) {
+        return;
+      }
       if (didUserScrollRef.current) {
         removeRefs();
         return;
@@ -141,9 +151,13 @@ export function usePreserveRelativeScroll<T extends Element = Element>(
   );
 
   const startPreserveScroll = useCallback(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      return;
+    }
     const element = elementRef.current;
-    if (!element || !element.getBoundingClientRect) return;
+    if (!element || !element.getBoundingClientRect) {
+      return;
+    }
     const rect = element.getBoundingClientRect();
     beforeTopRef.current = rect.top;
     targetRef.current =
@@ -154,9 +168,13 @@ export function usePreserveRelativeScroll<T extends Element = Element>(
   }, [attachScrollListener, enabled, options]);
 
   const compensateInLayout = useCallback(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      return;
+    }
     const element = elementRef.current;
-    if (!element) return;
+    if (!element) {
+      return;
+    }
     performCompensation(element);
   }, [enabled, performCompensation]);
 

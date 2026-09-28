@@ -50,7 +50,9 @@ export function ConnectedVerifiedDomainsSettingsTable({
     status: "success",
     data: query.data ?? [],
   };
-  if (query.isLoading) data = { status: "loading" };
+  if (query.isLoading) {
+    data = { status: "loading" };
+  }
   if (query.isError) {
     data = {
       status: "error",

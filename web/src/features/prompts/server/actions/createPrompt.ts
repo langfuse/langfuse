@@ -430,7 +430,9 @@ const rewriteDuplicatedPromptContent = ({
   for (const dep of parsePromptDependencyTags(prompt)) {
     const duplicatedDependencyName = duplicatedPromptNames.get(dep.name);
 
-    if (!duplicatedDependencyName) continue;
+    if (!duplicatedDependencyName) {
+      continue;
+    }
 
     const currentTag =
       dep.type === "version"
@@ -575,13 +577,17 @@ export const duplicateFolder = async ({
 
   if (rewritePromptReferences && isSingleVersion) {
     for (const prompt of sourcePrompts) {
-      if (oldToNewIdMap[prompt.id] === undefined) continue;
+      if (oldToNewIdMap[prompt.id] === undefined) {
+        continue;
+      }
 
       for (const dep of prompt.PromptDependency) {
         const duplicatedDependencyName = duplicatedPromptNames.get(
           dep.childName,
         );
-        if (!duplicatedDependencyName) continue;
+        if (!duplicatedDependencyName) {
+          continue;
+        }
 
         const dependencyVersions = promptsByName.get(dep.childName);
         const copiedSourceVersion =

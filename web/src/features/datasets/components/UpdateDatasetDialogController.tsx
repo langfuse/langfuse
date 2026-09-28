@@ -32,7 +32,9 @@ export function UpdateDatasetDialogController({
     : { reason: "You don't have permission to edit this dataset." };
 
   const openDialog = () => {
-    if (!hasAccess) return;
+    if (!hasAccess) {
+      return;
+    }
 
     setOpen(true);
     capture("datasets:update_form_open", {

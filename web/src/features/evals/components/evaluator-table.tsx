@@ -146,7 +146,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
   const openEvaluatorUpgrade = useCallback(
     (evaluatorId: string) => {
-      if (!v4UpgradeUiEnabled) return;
+      if (!v4UpgradeUiEnabled) {
+        return;
+      }
 
       capture("v4_migration:update_required_badge_clicked", {
         scope: "single",
@@ -166,7 +168,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
   const handleRowClick = useCallback(
     (row: EvaluatorDataRow, event?: React.MouseEvent) => {
-      if (!v4UpgradeUiEnabled || !row.isLegacy) return;
+      if (!v4UpgradeUiEnabled || !row.isLegacy) {
+        return;
+      }
 
       // DataTable opens the peek only when the row click has not been
       // prevented. Deprecated evaluators should go directly to upgrade.
@@ -195,7 +199,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       size: 320,
       cell: (row) => {
         const scoreName = row.getValue();
-        if (!scoreName) return undefined;
+        if (!scoreName) {
+          return undefined;
+        }
 
         return (
           <div className="flex w-[calc(var(--col-scoreName-size)*1px-0.75rem)] items-center gap-2">
@@ -234,8 +240,12 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       size: 120,
       formatter: (value) => usdFormatter(value, 2, 4),
       getValue: (value, { row }) => {
-        if (row.original.isCostLoading) return { type: "loading" };
-        if (value === null || value === undefined) return undefined;
+        if (row.original.isCostLoading) {
+          return { type: "loading" };
+        }
+        if (value === null || value === undefined) {
+          return undefined;
+        }
 
         return value;
       },
@@ -294,7 +304,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       ),
       cell: ({ row }) => {
         const template = row.original.template;
-        if (!template) return "template not found";
+        if (!template) {
+          return "template not found";
+        }
         return (
           <div className="flex items-center gap-2">
             <IdTableCell value={template.name} />
@@ -389,7 +401,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               }
               onClick={(e) => {
                 e.stopPropagation();
-                if (id) setEditConfigId(id);
+                if (id) {
+                  setEditConfigId(id);
+                }
               }}
             />
             <DeleteEvalConfigButton
@@ -509,7 +523,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       <Dialog
         open={!!editConfigId && existingEvaluator.isSuccess}
         onOpenChange={(open) => {
-          if (!open) setEditConfigId(null);
+          if (!open) {
+            setEditConfigId(null);
+          }
         }}
       >
         <DialogContent className="max-h-[90vh] max-w-(--breakpoint-xl) overflow-y-auto">

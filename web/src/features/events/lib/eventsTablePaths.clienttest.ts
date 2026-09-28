@@ -29,8 +29,12 @@ const currentPathWith = (
   opts: { dateRange?: string } = {},
 ): string => {
   const params = new URLSearchParams();
-  if (filters.length > 0) params.set("filter", encodeFiltersGeneric(filters));
-  if (opts.dateRange) params.set("dateRange", opts.dateRange);
+  if (filters.length > 0) {
+    params.set("filter", encodeFiltersGeneric(filters));
+  }
+  if (opts.dateRange) {
+    params.set("dateRange", opts.dateRange);
+  }
   const q = params.toString();
   return `/project/${PROJECT}/observations${q ? `?${q}` : ""}`;
 };

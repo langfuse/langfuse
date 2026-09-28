@@ -9,7 +9,9 @@ export const appRootSavedViewSessionStorageKey = (projectId: string) =>
   `observations-events-${projectId}-viewId`;
 
 const readStorage = (storage: BrowserStorage, key: string) => {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined") {
+    return null;
+  }
   try {
     return window[storage].getItem(key);
   } catch {
@@ -22,7 +24,9 @@ export const writeStorage = (
   key: string,
   value: string | null,
 ) => {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined") {
+    return;
+  }
   try {
     value === null
       ? window[storage].removeItem(key)

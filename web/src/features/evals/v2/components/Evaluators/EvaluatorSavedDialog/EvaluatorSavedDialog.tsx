@@ -72,7 +72,9 @@ export function EvaluatorSavedDialog({
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen) onDismiss();
+        if (!nextOpen) {
+          onDismiss();
+        }
       }}
     >
       <DialogContent
@@ -114,7 +116,9 @@ export function EvaluatorSavedDialog({
                             : "bg-muted/30 hover:bg-muted/50 cursor-pointer",
                         )}
                         onClick={(event) => {
-                          if (selected) return;
+                          if (selected) {
+                            return;
+                          }
                           const target = event.target as HTMLElement;
                           if (
                             target.closest(

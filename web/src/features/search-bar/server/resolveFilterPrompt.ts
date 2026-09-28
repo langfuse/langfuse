@@ -89,7 +89,9 @@ const VALID_CHAT_ROLES: ReadonlySet<string> = new Set(
   Object.values(ChatMessageRole),
 );
 function isUsableChatMessage(message: unknown): boolean {
-  if (typeof message !== "object" || message === null) return false;
+  if (typeof message !== "object" || message === null) {
+    return false;
+  }
   const { role, content } = message as { role?: unknown; content?: unknown };
   return (
     typeof role === "string" &&
@@ -116,7 +118,9 @@ export async function resolveFilterSystemPrompt(params: {
 
   // The managed prompt is authored for the events registry. Other views use
   // their registry-derived local prompt until they have their own managed one.
-  if (registry.id !== "events") return fallback;
+  if (registry.id !== "events") {
+    return fallback;
+  }
 
   // Self-hosted (no keys) is an expected, ordinary state — the AI-features
   // project is never contacted, so there is nothing to fetch and nothing to

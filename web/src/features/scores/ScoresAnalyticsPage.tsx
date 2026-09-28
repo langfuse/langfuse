@@ -55,7 +55,9 @@ export default function ScoresAnalyticsPage() {
 
   // Transform API data to ScoreOption format and sort by dataType
   const scoreOptions: ScoreOption[] = useMemo(() => {
-    if (!scoresData?.scores) return [];
+    if (!scoresData?.scores) {
+      return [];
+    }
 
     // Define sort order for data types
     const typeOrder: Record<string, number> = {
@@ -75,7 +77,9 @@ export default function ScoresAnalyticsPage() {
         // Sort by dataType first
         const typeA = typeOrder[a.dataType] ?? 999;
         const typeB = typeOrder[b.dataType] ?? 999;
-        if (typeA !== typeB) return typeA - typeB;
+        if (typeA !== typeB) {
+          return typeA - typeB;
+        }
 
         // Then by name alphabetically
         return a.name.localeCompare(b.name);
@@ -84,7 +88,9 @@ export default function ScoresAnalyticsPage() {
 
   // Parse selected scores to get their data types
   const score1DataType = useMemo(() => {
-    if (!urlState.score1) return undefined;
+    if (!urlState.score1) {
+      return undefined;
+    }
     const selected = scoreOptions.find((opt) => opt.value === urlState.score1);
     return selected?.dataType;
   }, [urlState.score1, scoreOptions]);
@@ -92,7 +98,9 @@ export default function ScoresAnalyticsPage() {
   // Determine which score types are compatible with score1
   // Same-type pairing only: NUMERIC with NUMERIC, BOOLEAN with BOOLEAN, CATEGORICAL with CATEGORICAL
   const compatibleScore2DataTypes = useMemo(() => {
-    if (!score1DataType) return undefined;
+    if (!score1DataType) {
+      return undefined;
+    }
 
     // Only allow same-type pairing
     return [score1DataType];
@@ -117,9 +125,13 @@ export default function ScoresAnalyticsPage() {
 
   // Parse score identifiers (format: "name-dataType-source")
   const parsedScore1 = useMemo(() => {
-    if (!urlState.score1) return undefined;
+    if (!urlState.score1) {
+      return undefined;
+    }
     const selected = scoreOptions.find((opt) => opt.value === urlState.score1);
-    if (!selected) return undefined;
+    if (!selected) {
+      return undefined;
+    }
     return {
       name: selected.name,
       dataType: selected.dataType as DataType,
@@ -128,9 +140,13 @@ export default function ScoresAnalyticsPage() {
   }, [urlState.score1, scoreOptions]);
 
   const parsedScore2 = useMemo(() => {
-    if (!urlState.score2) return undefined;
+    if (!urlState.score2) {
+      return undefined;
+    }
     const selected = scoreOptions.find((opt) => opt.value === urlState.score2);
-    if (!selected) return undefined;
+    if (!selected) {
+      return undefined;
+    }
     return {
       name: selected.name,
       dataType: selected.dataType as DataType,
@@ -146,7 +162,9 @@ export default function ScoresAnalyticsPage() {
 
   // Calculate optimal interval based on time range
   const interval = useMemo(() => {
-    if (!absoluteTimeRange) return { count: 1, unit: "day" as const };
+    if (!absoluteTimeRange) {
+      return { count: 1, unit: "day" as const };
+    }
     return getOptimalInterval(absoluteTimeRange.from, absoluteTimeRange.to);
   }, [absoluteTimeRange]);
 

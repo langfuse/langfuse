@@ -44,12 +44,16 @@ function getVisibleMessages({
         if (part.type === "tool-call" || part.type === "tool-result") {
           return false;
         }
-        if (message.source === "output") return true;
+        if (message.source === "output") {
+          return true;
+        }
 
         return !historicalParts.has(`${messageIndex}:${partIndex}`);
       },
     );
-    if (parts.length === 0) return;
+    if (parts.length === 0) {
+      return;
+    }
 
     if (message.role !== "system") {
       visibleMessages.push({ ...message, parts });

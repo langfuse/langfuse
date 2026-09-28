@@ -50,10 +50,14 @@ export function useProjectSdkVersionInfo(params: {
   );
 
   useEffect(() => {
-    if (!query.isSuccess || query.isFetching || !query.data) return;
+    if (!query.isSuccess || query.isFetching || !query.data) {
+      return;
+    }
 
     const sdkVersion = toSdkVersionInfo(query.data);
-    if (!sdkVersion) return;
+    if (!sdkVersion) {
+      return;
+    }
 
     persistProjectSdkVersionInfo(
       projectId,

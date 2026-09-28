@@ -25,7 +25,9 @@ const UNITS_LONGEST_FIRST = [...UNITS].sort((a, b) => b.length - a.length);
 
 const unitAt = (text: string, index: number): string | null => {
   for (const unit of UNITS_LONGEST_FIRST) {
-    if (text.startsWith(unit, index)) return unit;
+    if (text.startsWith(unit, index)) {
+      return unit;
+    }
   }
   return null;
 };
@@ -81,7 +83,9 @@ function measurerFor(
   // admits content that does not fit. So the size is read back and any
   // difference is corrected rather than trusted.
   const scale = (() => {
-    if (!context) return 1;
+    if (!context) {
+      return 1;
+    }
     context.font = font;
     const asked = pxSizeOf(font);
     const got = pxSizeOf(context.font);
@@ -97,7 +101,9 @@ function measurerFor(
     for (let i = 0; i < 10; i++) {
       digit = Math.max(digit, context.measureText(String(i)).width * scale);
     }
-    for (let i = 0; i < 10; i++) glyphs.set(String(i), digit);
+    for (let i = 0; i < 10; i++) {
+      glyphs.set(String(i), digit);
+    }
     for (const char of [".", ",", " "]) {
       glyphs.set(char, context.measureText(char).width * scale);
     }
@@ -105,7 +111,9 @@ function measurerFor(
       units.set(unit, context.measureText(unit).width * scale);
     }
   } else {
-    for (const unit of UNITS) units.set(unit, unit.length * PX_PER_LETTER);
+    for (const unit of UNITS) {
+      units.set(unit, unit.length * PX_PER_LETTER);
+    }
   }
 
   const computeWidth = (text: string) => {
@@ -117,7 +125,9 @@ function measurerFor(
     // somewhere else in the same sum.
     let run = "";
     const flush = () => {
-      if (!run) return;
+      if (!run) {
+        return;
+      }
       if (context) {
         // Set every time: the context is not ours alone, and whatever drew on
         // it last would otherwise decide the font for these widths.
@@ -150,7 +160,9 @@ function measurerFor(
 
   return (text: string) => {
     const cached = cache.get(text);
-    if (cached !== undefined) return cached;
+    if (cached !== undefined) {
+      return cached;
+    }
     const width = computeWidth(text);
     cache.set(text, width);
     return width;

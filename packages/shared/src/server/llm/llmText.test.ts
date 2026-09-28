@@ -335,7 +335,9 @@ describe("streamLLMText", () => {
 
     const result = await streamLLMText(openAIOptions());
     let streamedText = "";
-    for await (const chunk of result.textStream) streamedText += chunk;
+    for await (const chunk of result.textStream) {
+      streamedText += chunk;
+    }
 
     expect(streamedText).toBe("Hello there");
     expect(await result.text).toBe("Hello there");
@@ -366,7 +368,9 @@ describe("streamLLMText", () => {
     });
 
     const parts = [];
-    for await (const part of result.stream) parts.push(part);
+    for await (const part of result.stream) {
+      parts.push(part);
+    }
     const errorPart = parts.find((part) => part.type === "error");
 
     expect(errorPart).toMatchObject({

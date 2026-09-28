@@ -110,8 +110,12 @@ function ToolCallArgumentsList({
 }
 
 function getStatusText(callCount: number) {
-  if (callCount === 0) return "not called";
-  if (callCount === 1) return "called";
+  if (callCount === 0) {
+    return "not called";
+  }
+  if (callCount === 1) {
+    return "called";
+  }
   return `called ${callCount}x`;
 }
 

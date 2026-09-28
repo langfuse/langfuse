@@ -176,23 +176,33 @@ export default definePreview({
         const sectionDifference =
           (aSectionIndex === -1 ? sectionOrder.length : aSectionIndex) -
           (bSectionIndex === -1 ? sectionOrder.length : bSectionIndex);
-        if (sectionDifference !== 0) return sectionDifference;
+        if (sectionDifference !== 0) {
+          return sectionDifference;
+        }
 
         const aDesignDocIndex = designDocOrder.indexOf(a.title);
         const bDesignDocIndex = designDocOrder.indexOf(b.title);
         if (aDesignDocIndex !== bDesignDocIndex) {
-          if (aDesignDocIndex === -1) return 1;
-          if (bDesignDocIndex === -1) return -1;
+          if (aDesignDocIndex === -1) {
+            return 1;
+          }
+          if (bDesignDocIndex === -1) {
+            return -1;
+          }
           return aDesignDocIndex - bDesignDocIndex;
         }
 
         // Returning 0 preserves Storybook's existing stable order. Only
         // partition test stories when both entries belong to the same component.
-        if (a.title !== b.title) return 0;
+        if (a.title !== b.title) {
+          return 0;
+        }
 
         const aIsTest = a.name.startsWith("(Test)");
         const bIsTest = b.name.startsWith("(Test)");
-        if (aIsTest !== bIsTest) return aIsTest ? 1 : -1;
+        if (aIsTest !== bIsTest) {
+          return aIsTest ? 1 : -1;
+        }
 
         return 0;
       },

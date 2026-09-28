@@ -26,7 +26,9 @@ export function calculateNumericDiff(
   current: number | Decimal | null | undefined,
   baseline: number | Decimal | null | undefined,
 ): BaselineDiff | null {
-  if (current == null || baseline == null) return null;
+  if (current == null || baseline == null) {
+    return null;
+  }
 
   // Convert to numbers
   const currentNum = typeof current === "number" ? current : current.toNumber();
@@ -35,7 +37,9 @@ export function calculateNumericDiff(
 
   //  Same value → no diff
   const diff = currentNum - baselineNum;
-  if (diff === 0) return null;
+  if (diff === 0) {
+    return null;
+  }
 
   return {
     absoluteDifference: Math.abs(diff),
@@ -53,13 +57,19 @@ export function calculateScoreDiff(
   baseline: AggregatedScoreData | null,
 ): BaselineDiff {
   // Missing data → no diff
-  if (!current || !baseline) return null;
+  if (!current || !baseline) {
+    return null;
+  }
 
   // Aggregate scores (no id) → skip
-  if (!current.id || !baseline.id) return null;
+  if (!current.id || !baseline.id) {
+    return null;
+  }
 
   // Type mismatch → no diff
-  if (current.type !== baseline.type) return null;
+  if (current.type !== baseline.type) {
+    return null;
+  }
 
   if (current.type === "NUMERIC" && baseline.type === "NUMERIC") {
     return calculateNumericDiff(current.average, baseline.average);
@@ -70,7 +80,9 @@ export function calculateScoreDiff(
     const baselineValue = baseline.values[0];
 
     // Same value → no diff
-    if (currentValue === baselineValue) return null;
+    if (currentValue === baselineValue) {
+      return null;
+    }
 
     // A categorical score has no distance, so the diff is the move itself.
     return {

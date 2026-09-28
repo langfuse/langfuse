@@ -184,7 +184,9 @@ export const TraceLogView = ({
 
   // Disable indent when tree is too deep (max childrenDepth across all roots)
   const maxChildrenDepth = useMemo(() => {
-    if (roots.length === 0) return 0;
+    if (roots.length === 0) {
+      return 0;
+    }
     return Math.max(...roots.map((r) => r.childrenDepth));
   }, [roots]);
   const indentDisabled = maxChildrenDepth > INDENT_DEPTH_THRESHOLD;
@@ -216,7 +218,9 @@ export const TraceLogView = ({
   // Render tree indentation for indented mode
   const renderRowPrefix = useCallback(
     (item: FlatLogItem) => {
-      if (treeStyle !== "indented" || item.node.depth <= 0) return null;
+      if (treeStyle !== "indented" || item.node.depth <= 0) {
+        return null;
+      }
 
       return (
         <LogViewTreeIndent
@@ -261,7 +265,9 @@ export const TraceLogView = ({
 
   // Track if all rows are expanded (for non-virtualized mode)
   const allRowsExpanded = useMemo(() => {
-    if (flatItems.length === 0) return false;
+    if (flatItems.length === 0) {
+      return false;
+    }
     return flatItems.every((item) => expandedKeys.has(item.node.id));
   }, [flatItems, expandedKeys]);
 

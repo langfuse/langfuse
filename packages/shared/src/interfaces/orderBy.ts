@@ -27,7 +27,9 @@ export const normalizeOrderByForTable = ({
   orderBy: OrderByState;
   expectedTimeColumn: keyof typeof TIME_COLUMN_ALIASES;
 }): OrderByState => {
-  if (!orderBy) return orderBy;
+  if (!orderBy) {
+    return orderBy;
+  }
 
   if (!TIME_COLUMN_ALIASES[expectedTimeColumn].includes(orderBy.column)) {
     return orderBy;

@@ -209,7 +209,9 @@ export function verifyGatewayRequestSignature(
   const match = gatewayAuthorizationSchema.exec(
     input.gatewayAuthorization ?? "",
   );
-  if (!match) return false;
+  if (!match) {
+    return false;
+  }
 
   const [, timestampValue, signature] = match;
   const timestamp = Number(timestampValue);
@@ -241,16 +243,24 @@ function parseJson(value: string): unknown {
 }
 
 async function readRequestBody(req: NextApiRequest): Promise<string> {
-  if (typeof req.body === "string") return req.body;
-  if (Buffer.isBuffer(req.body)) return req.body.toString("utf8");
-  if (req.body !== undefined) throw new Error("Expected an unparsed body");
+  if (typeof req.body === "string") {
+    return req.body;
+  }
+  if (Buffer.isBuffer(req.body)) {
+    return req.body.toString("utf8");
+  }
+  if (req.body !== undefined) {
+    throw new Error("Expected an unparsed body");
+  }
 
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buffer.length;
-    if (size > 1024) throw new Error("Gateway request body is too large");
+    if (size > 1024) {
+      throw new Error("Gateway request body is too large");
+    }
     chunks.push(buffer);
   }
   return Buffer.concat(chunks).toString("utf8");

@@ -263,7 +263,9 @@ export class SkillService {
   }): Promise<string> {
     const skill = await this.findSkillVersion(params);
     const file = skill.files.find(({ path }) => path === params.path);
-    if (!file) throw new LangfuseNotFoundError("Skill resource not found");
+    if (!file) {
+      throw new LangfuseNotFoundError("Skill resource not found");
+    }
     return (
       await this.getFileContent({
         projectId: params.projectId,
@@ -277,7 +279,9 @@ export class SkillService {
       where: { projectId: params.projectId, id: params.fileId },
       select: { blob: { select: { content: true } } },
     });
-    if (!file) throw new LangfuseNotFoundError("Skill file not found");
+    if (!file) {
+      throw new LangfuseNotFoundError("Skill file not found");
+    }
     return { content: file.blob.content };
   }
 
@@ -382,7 +386,9 @@ export class SkillService {
           `Unsupported skill filter: ${filter.column} (${filter.type})`,
         );
       }
-      if (!filter.value.length) return {};
+      if (!filter.value.length) {
+        return {};
+      }
       switch (filter.operator) {
         case "any of":
           return { tags: { hasSome: filter.value } };
@@ -432,7 +438,9 @@ export class SkillService {
           version: params.version,
         },
       });
-      if (!target) throw new LangfuseNotFoundError("Skill version not found");
+      if (!target) {
+        throw new LangfuseNotFoundError("Skill version not found");
+      }
 
       const changedLabels = [
         ...target.labels.filter((label) => !input.labels.includes(label)),
@@ -460,7 +468,9 @@ export class SkillService {
                 ),
               ]
             : version.labels.filter((label) => !nextLabels.includes(label));
-        if (version.labels.join("\0") === labels.join("\0")) continue;
+        if (version.labels.join("\0") === labels.join("\0")) {
+          continue;
+        }
         await tx.skill.update({
           where: {
             projectId: params.projectId,
@@ -504,7 +514,9 @@ export class SkillService {
         },
         orderBy: { version: "desc" },
       });
-      if (!target) throw new LangfuseNotFoundError("Skill not found");
+      if (!target) {
+        throw new LangfuseNotFoundError("Skill not found");
+      }
 
       const tags = [...new Set(input.tags)];
       await tx.skill.updateMany({
@@ -540,7 +552,9 @@ export class SkillService {
         select: { version: true, labels: true, tags: true },
         orderBy: { version: "asc" },
       });
-      if (!versions.length) throw new LangfuseNotFoundError("Skill not found");
+      if (!versions.length) {
+        throw new LangfuseNotFoundError("Skill not found");
+      }
       await this.requireProtectedLabelAccess({
         prisma: tx,
         projectId: params.projectId,
@@ -583,7 +597,9 @@ export class SkillService {
         },
         include: skillFilesInclude,
       });
-      if (!target) throw new LangfuseNotFoundError("Skill version not found");
+      if (!target) {
+        throw new LangfuseNotFoundError("Skill version not found");
+      }
       await this.requireProtectedLabelAccess({
         prisma: tx,
         projectId: params.projectId,
@@ -705,8 +721,9 @@ export class SkillService {
         },
         select: { content: true },
       });
-      if (!blob)
+      if (!blob) {
         throw new LangfuseNotFoundError("Skill instructions were not found");
+      }
       skillMdContent = blob.content;
     }
     return parseSkillFrontmatter(skillMdContent);
@@ -844,7 +861,9 @@ export class SkillService {
       },
       include: skillFilesInclude,
     });
-    if (!skill) throw new LangfuseNotFoundError("Skill version not found");
+    if (!skill) {
+      throw new LangfuseNotFoundError("Skill version not found");
+    }
     return serializeVersion(skill);
   }
 
@@ -866,7 +885,9 @@ export class SkillService {
       orderBy: { version: "desc" },
       include: skillFilesInclude,
     });
-    if (!skill) throw new LangfuseNotFoundError("Skill version not found");
+    if (!skill) {
+      throw new LangfuseNotFoundError("Skill version not found");
+    }
     return skill;
   }
 }

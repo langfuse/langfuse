@@ -99,7 +99,9 @@ function weightedPick<T extends { weight: number }>(
   let roll = rng() * total;
   for (const item of items) {
     roll -= item.weight;
-    if (roll <= 0) return item;
+    if (roll <= 0) {
+      return item;
+    }
   }
   return items[items.length - 1];
 }

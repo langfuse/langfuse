@@ -151,7 +151,9 @@ export function OrganizationFeaturePreviewsSettings({
       <AlertDialog
         open={proposedChange !== null}
         onOpenChange={(open) => {
-          if (!open && !updateDefault.isPending) setProposedChange(null);
+          if (!open && !updateDefault.isPending) {
+            setProposedChange(null);
+          }
         }}
       >
         <AlertDialogContent>
@@ -186,7 +188,9 @@ export function OrganizationFeaturePreviewsSettings({
             <AlertDialogAction
               disabled={updateDefault.isPending || proposedChange === null}
               onClick={() => {
-                if (!proposedChange) return;
+                if (!proposedChange) {
+                  return;
+                }
                 updateDefault.mutate({ orgId, ...proposedChange });
               }}
             >

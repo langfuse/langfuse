@@ -22,7 +22,9 @@ export async function findDatasetsForDeletion({
   folderPaths: string[];
   projectId: string;
 }) {
-  if (datasetIds.length === 0 && folderPaths.length === 0) return [];
+  if (datasetIds.length === 0 && folderPaths.length === 0) {
+    return [];
+  }
 
   const explicitDeleteWhere: Prisma.DatasetWhereInput[] = [
     { id: { in: datasetIds } },
@@ -78,7 +80,9 @@ export async function findDatasetIdsByIds({
   datasetIds: string[];
   projectId: string;
 }): Promise<Array<{ id: string }>> {
-  if (datasetIds.length === 0) return [];
+  if (datasetIds.length === 0) {
+    return [];
+  }
 
   return prisma.dataset.findMany({
     where: {
@@ -98,7 +102,9 @@ export async function deleteDatasetsByIds({
   datasetIds: string[];
   projectId: string;
 }) {
-  if (datasetIds.length === 0) return;
+  if (datasetIds.length === 0) {
+    return;
+  }
 
   await client.dataset.deleteMany({
     where: {

@@ -14,6 +14,8 @@ export function awaitsDatasetNames(
   filters: FilterState,
   datasetNames: { isSuccess: boolean; isError: boolean },
 ): boolean {
-  if (datasetNames.isSuccess || datasetNames.isError) return false;
+  if (datasetNames.isSuccess || datasetNames.isError) {
+    return false;
+  }
   return filters.some((filter) => filter.column === DATASET_NAME_COLUMN);
 }

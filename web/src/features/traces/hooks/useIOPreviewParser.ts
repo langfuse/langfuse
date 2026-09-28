@@ -60,7 +60,9 @@ export function useIOPreviewParser(
   })();
 
   return useMemo<ChatMLParserResult>(() => {
-    if (preParsedResult) return preParsedResult;
+    if (preParsedResult) {
+      return preParsedResult;
+    }
 
     const span = {
       input: parsedInput,

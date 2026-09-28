@@ -98,7 +98,9 @@ export function TestSectionContainer({
 }
 
 function readNumber(value: unknown, key: string) {
-  if (!value || typeof value !== "object" || !(key in value)) return null;
+  if (!value || typeof value !== "object" || !(key in value)) {
+    return null;
+  }
   const metric = (value as Record<string, unknown>)[key];
   return typeof metric === "number" ? metric : null;
 }

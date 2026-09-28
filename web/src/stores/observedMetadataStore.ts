@@ -104,7 +104,9 @@ export function mergeIntoProject(
   collected: ReadonlyMap<string, StoredKeyInfo>,
   now: number,
 ): Record<string, ProjectMetadataPaths> | null {
-  if (collected.size === 0) return null;
+  if (collected.size === 0) {
+    return null;
+  }
   const prev = byProject[projectId];
   const nextPaths: Record<string, StoredKeyInfo> = { ...(prev?.paths ?? {}) };
   let count = Object.keys(nextPaths).length;
@@ -123,15 +125,23 @@ export function mergeIntoProject(
       ? nextPaths[path]
       : undefined;
     if (existing === undefined) {
-      if (count >= MAX_PATHS_PER_PROJECT) continue;
+      if (count >= MAX_PATHS_PER_PROJECT) {
+        continue;
+      }
       count++;
     }
     const mergedType = mergePathType(existing?.type, incoming.type);
     let mergedValues = existing?.values;
     for (const v of incoming.values ?? []) {
-      if ((mergedValues?.length ?? 0) >= MAX_VALUES_PER_KEY) break;
-      if (totalValues >= MAX_VALUES_PER_PROJECT) break;
-      if (mergedValues?.includes(v)) continue;
+      if ((mergedValues?.length ?? 0) >= MAX_VALUES_PER_KEY) {
+        break;
+      }
+      if (totalValues >= MAX_VALUES_PER_PROJECT) {
+        break;
+      }
+      if (mergedValues?.includes(v)) {
+        continue;
+      }
       mergedValues = [...(mergedValues ?? []), v];
       totalValues++;
     }
@@ -149,7 +159,9 @@ export function mergeIntoProject(
   }
   // `prev` exists whenever nothing changed: an absent project entry always
   // changes on a non-empty `collected` (guarded above).
-  if (!changed && now - prev!.updatedAt < LRU_TOUCH_INTERVAL_MS) return null;
+  if (!changed && now - prev!.updatedAt < LRU_TOUCH_INTERVAL_MS) {
+    return null;
+  }
 
   const next: Record<string, ProjectMetadataPaths> = {
     ...byProject,
@@ -180,7 +192,9 @@ export const useObservedMetadataStore = create<ObservedMetadataState>()(
             collected,
             Date.now(),
           );
-          if (next !== null) set({ byProject: next });
+          if (next !== null) {
+            set({ byProject: next });
+          }
         },
       },
     }),

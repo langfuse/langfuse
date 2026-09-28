@@ -110,11 +110,15 @@ const getTraceForProject = async ({
 }) => {
   if (useEventsTable) {
     const trace = await tryGetTraceFromEvents({ traceId, projectId });
-    if (trace) return trace;
+    if (trace) {
+      return trace;
+    }
   }
 
   const trace = await tryGetTrace({ traceId, projectId });
-  if (trace) return trace;
+  if (trace) {
+    return trace;
+  }
 
   if (shouldTryEventsTableFallback(useEventsTable)) {
     return tryGetTraceFromEvents({ traceId, projectId });
@@ -165,7 +169,9 @@ const getObservationForProject = async ({
     useEventsTable,
     startTimeLowerBound,
   });
-  if (bounded.observation) return bounded.observation;
+  if (bounded.observation) {
+    return bounded.observation;
+  }
 
   // Retry unbounded only when at least one bounded source produced a genuine
   // clean miss: the observation could legitimately be older than the bound
@@ -181,7 +187,9 @@ const getObservationForProject = async ({
       useEventsTable,
       startTimeLowerBound: undefined,
     });
-    if (unbounded.observation) return unbounded.observation;
+    if (unbounded.observation) {
+      return unbounded.observation;
+    }
   }
 
   return undefined;
@@ -221,7 +229,9 @@ const runObservationLookup = async ({
         startTimeLowerBound,
       }),
     );
-    if (observation) return { observation, cleanMiss };
+    if (observation) {
+      return { observation, cleanMiss };
+    }
   }
 
   const observation = consider(
@@ -232,7 +242,9 @@ const runObservationLookup = async ({
       startTimeLowerBound,
     }),
   );
-  if (observation) return { observation, cleanMiss };
+  if (observation) {
+    return { observation, cleanMiss };
+  }
 
   if (shouldTryEventsTableFallback(useEventsTable)) {
     const fallback = consider(
@@ -243,7 +255,9 @@ const runObservationLookup = async ({
         startTimeLowerBound,
       }),
     );
-    if (fallback) return { observation: fallback, cleanMiss };
+    if (fallback) {
+      return { observation: fallback, cleanMiss };
+    }
   }
 
   return { cleanMiss };

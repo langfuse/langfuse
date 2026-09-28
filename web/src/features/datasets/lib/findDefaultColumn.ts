@@ -32,7 +32,9 @@ export function findDefaultColumn(
   const exactMatch = columns.find((col) =>
     possibleNames.some((name) => col.name.toLowerCase() === name.toLowerCase()),
   );
-  if (exactMatch) return exactMatch.name;
+  if (exactMatch) {
+    return exactMatch.name;
+  }
 
   // Then try fuzzy matching
   let bestMatch = {

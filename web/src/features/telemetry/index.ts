@@ -20,17 +20,24 @@ const JOB_TIMEOUT_MINUTES = Prisma.raw("10"); // 10 minutes
 export async function telemetry() {
   try {
     // Only run in prod
-    if (process.env.NODE_ENV !== "production") return;
+    if (process.env.NODE_ENV !== "production") {
+      return;
+    }
     // Do not run in Langfuse cloud, separate telemetry is used
-    if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) return;
+    if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) {
+      return;
+    }
     // Check if telemetry is not disabled, except for EE
     if (
       env.TELEMETRY_ENABLED === "false" &&
       env.LANGFUSE_EE_LICENSE_KEY === undefined
-    )
+    ) {
       return;
+    }
     // Do not run in CI
-    if (process.env.CI) return;
+    if (process.env.CI) {
+      return;
+    }
 
     // Check via db cron_jobs table if it is time to run job
     const job = await jobScheduler();
@@ -96,7 +103,9 @@ async function jobScheduler(): Promise<
     logger.error("Telemetry failed to check if job should run");
     return { shouldRunJob: false };
   }
-  if (!checkNoLock[0]!.status) return { shouldRunJob: false };
+  if (!checkNoLock[0]!.status) {
+    return { shouldRunJob: false };
+  }
 
   // Lock table and update job_started_at if no other job was created in the meantime
   const res = await prisma.$transaction([

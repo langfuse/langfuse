@@ -64,7 +64,9 @@ function ExclusionHarness() {
   const facet = queryFilter.filters.find(
     (f): f is CategoricalUIFilter => f.column === "tags",
   );
-  if (!facet) throw new Error("tags facet missing");
+  if (!facet) {
+    throw new Error("tags facet missing");
+  }
 
   // Mirrors the checkbox handler in data-table-controls.tsx: checking adds the
   // option to the current value list, unchecking removes it.
@@ -171,7 +173,9 @@ function StringOptionsHarness() {
   const facet = queryFilter.filters.find(
     (f): f is CategoricalUIFilter => f.column === "name",
   );
-  if (!facet) throw new Error("name facet missing");
+  if (!facet) {
+    throw new Error("name facet missing");
+  }
 
   return (
     <div>

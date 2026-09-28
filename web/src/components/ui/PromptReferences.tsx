@@ -41,7 +41,9 @@ export const parsePromptDependencyInnerContent = (
 
   innerContent.split("|").forEach((part) => {
     const separatorIndex = part.indexOf("=");
-    if (separatorIndex === -1) return;
+    if (separatorIndex === -1) {
+      return;
+    }
 
     const key = part.slice(0, separatorIndex);
     const value = part.slice(separatorIndex + 1);
@@ -51,11 +53,15 @@ export const parsePromptDependencyInnerContent = (
     }
   });
 
-  if (!params.name) return null;
+  if (!params.name) {
+    return null;
+  }
 
   if (params.version) {
     const version = Number(params.version);
-    if (!Number.isFinite(version)) return null;
+    if (!Number.isFinite(version)) {
+      return null;
+    }
 
     return {
       name: params.name,
@@ -112,7 +118,9 @@ export const getPromptReferenceMarkdownHref = (
 export const parsePromptReferenceMarkdownHref = (
   href: string | undefined,
 ): ParsedPromptDependencyTag | null => {
-  if (!href?.startsWith(PROMPT_REFERENCE_MARKDOWN_PREFIX)) return null;
+  if (!href?.startsWith(PROMPT_REFERENCE_MARKDOWN_PREFIX)) {
+    return null;
+  }
 
   const params = new URLSearchParams(
     href.slice(PROMPT_REFERENCE_MARKDOWN_PREFIX.length),
@@ -120,11 +128,15 @@ export const parsePromptReferenceMarkdownHref = (
   const name = params.get("name");
   const type = params.get("type");
 
-  if (!name || !type) return null;
+  if (!name || !type) {
+    return null;
+  }
 
   if (type === "version") {
     const version = Number(params.get("version"));
-    if (!Number.isFinite(version)) return null;
+    if (!Number.isFinite(version)) {
+      return null;
+    }
 
     return {
       name,
@@ -133,7 +145,9 @@ export const parsePromptReferenceMarkdownHref = (
     };
   }
 
-  if (type !== "label") return null;
+  if (type !== "label") {
+    return null;
+  }
 
   return {
     name,
@@ -219,7 +233,9 @@ const PromptVar = ({ text, isValid }: { text: string; isValid: boolean }) => (
 );
 
 export const renderRichPromptContent = (content: string): React.ReactNode[] => {
-  if (!content) return [];
+  if (!content) {
+    return [];
+  }
 
   const createTextNode = (text: string, key: string) => (
     <span

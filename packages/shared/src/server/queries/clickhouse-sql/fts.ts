@@ -47,7 +47,9 @@ const FTS_NGRAM_SUBSTRING_FIELDS: ReadonlySet<string> = new Set([
 // field name before set lookup.
 export const bareFtsField = (field: string): string => {
   const dot = field.lastIndexOf(".");
-  if (dot === -1) return field;
+  if (dot === -1) {
+    return field;
+  }
   const tail = field.slice(dot + 1);
   return tail.replace(/^"(.*)"$/, "$1");
 };

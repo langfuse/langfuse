@@ -443,7 +443,9 @@ export const env = createEnv({
       .string()
       .optional()
       .refine((value) => {
-        if (!value) return true;
+        if (!value) {
+          return true;
+        }
         const creators = value.split(",");
         const emailSchema = z.email();
         return creators.every(
@@ -681,7 +683,9 @@ export const env = createEnv({
       .string()
       .optional()
       .transform((val) => {
-        if (!val) return new Map();
+        if (!val) {
+          return new Map();
+        }
         const map = new Map();
         for (const part of val.split(",")) {
           const [userId, ...noteParts] = part.split(":");

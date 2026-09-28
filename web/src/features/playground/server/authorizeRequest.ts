@@ -12,13 +12,17 @@ export const authorizeRequestOrThrow = async (
   request: Request,
 ): Promise<AuthorizeRequestResult> => {
   const session = await getServerAuthSessionForRequest(request);
-  if (!session?.user) throw new UnauthorizedError("Unauthenticated");
+  if (!session?.user) {
+    throw new UnauthorizedError("Unauthenticated");
+  }
 
-  if (!isProjectMemberOrAdmin(session.user, projectId))
+  if (!isProjectMemberOrAdmin(session.user, projectId)) {
     throw new ForbiddenError("User is not a member of this project");
+  }
 
-  if (!hasProjectAccess({ session, projectId, scope: "playground:execute" }))
+  if (!hasProjectAccess({ session, projectId, scope: "playground:execute" })) {
     throw new ForbiddenError("Insufficient permissions to execute playground.");
+  }
 
   return { userId: session.user.id };
 };

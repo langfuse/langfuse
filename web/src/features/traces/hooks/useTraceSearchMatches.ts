@@ -34,7 +34,9 @@ export function useTraceSearchMatches(): TraceSearchMatches | undefined {
   const { searchItems } = useTraceData();
 
   return useMemo(() => {
-    if (!searchQuery.trim()) return undefined;
+    if (!searchQuery.trim()) {
+      return undefined;
+    }
     const matchedIds = new Set(
       searchItems
         .filter((item) => matchesSearchQuery(item.node, searchQuery))

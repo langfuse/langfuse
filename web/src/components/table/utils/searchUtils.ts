@@ -5,10 +5,18 @@ export function getSearchMode(
   searchType: TracingSearchType[] | undefined,
   tableAllowsFullTextSearch = false,
 ): string {
-  if (!searchType || !tableAllowsFullTextSearch) return "metadata";
-  if (searchType.includes("content")) return "metadata_fulltext";
-  if (searchType.includes("input")) return "metadata_fulltext_input";
-  if (searchType.includes("output")) return "metadata_fulltext_output";
+  if (!searchType || !tableAllowsFullTextSearch) {
+    return "metadata";
+  }
+  if (searchType.includes("content")) {
+    return "metadata_fulltext";
+  }
+  if (searchType.includes("input")) {
+    return "metadata_fulltext_input";
+  }
+  if (searchType.includes("output")) {
+    return "metadata_fulltext_output";
+  }
   return "metadata";
 }
 
@@ -17,10 +25,18 @@ export function getSearchButtonLabel(
   searchType: TracingSearchType[] | undefined,
   metadataLabel?: string,
 ): string {
-  if (!searchType) return metadataLabel ?? "IDs / Names";
-  if (searchType.includes("content")) return "Full Text: Content";
-  if (searchType.includes("input")) return "Full Text: Input";
-  if (searchType.includes("output")) return "Full Text: Output";
+  if (!searchType) {
+    return metadataLabel ?? "IDs / Names";
+  }
+  if (searchType.includes("content")) {
+    return "Full Text: Content";
+  }
+  if (searchType.includes("input")) {
+    return "Full Text: Input";
+  }
+  if (searchType.includes("output")) {
+    return "Full Text: Output";
+  }
   return metadataLabel ?? "IDs / Names";
 }
 

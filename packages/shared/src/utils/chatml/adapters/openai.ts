@@ -83,10 +83,16 @@ function isResponsesApiInputArray(value: unknown): value is unknown[] {
     Array.isArray(value) &&
     value.length > 0 &&
     value.every((item) => {
-      if (!item || typeof item !== "object") return false;
+      if (!item || typeof item !== "object") {
+        return false;
+      }
       const msg = item as Record<string, unknown>;
-      if (Array.isArray(msg.parts)) return false;
-      if (typeof msg.role === "string") return true;
+      if (Array.isArray(msg.parts)) {
+        return false;
+      }
+      if (typeof msg.role === "string") {
+        return true;
+      }
       return typeof msg.type === "string" && RESPONSES_ITEM_TYPES.has(msg.type);
     })
   );
@@ -110,10 +116,16 @@ const RESPONSES_REQUEST_SIBLINGS = [
 function isOpenAIResponsesRequest(
   data: unknown,
 ): data is Record<string, unknown> {
-  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
-  if ("messages" in data || "output" in data) return false;
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return false;
+  }
+  if ("messages" in data || "output" in data) {
+    return false;
+  }
   const obj = data as Record<string, unknown>;
-  if (isResponsesApiInputArray(obj.input)) return true;
+  if (isResponsesApiInputArray(obj.input)) {
+    return true;
+  }
   return (
     typeof obj.input === "string" &&
     obj.input.length > 0 &&
@@ -156,7 +168,9 @@ function extractReasoningContent(item: Record<string, unknown>): {
   thinking?: Array<{ type: "thinking"; content: string; summary?: string }>;
   redacted_thinking?: Array<{ type: "redacted_thinking"; data: string }>;
 } | null {
-  if (item.type !== "reasoning") return null;
+  if (item.type !== "reasoning") {
+    return null;
+  }
 
   const contentArr = Array.isArray(item.content) ? item.content : [];
   const summaryArr = Array.isArray(item.summary) ? item.summary : [];
@@ -164,7 +178,9 @@ function extractReasoningContent(item: Record<string, unknown>): {
   // Extract text from content array (may contain {type: "text", text: "..."})
   const contentText = contentArr
     .map((c: unknown) => {
-      if (typeof c === "string") return c;
+      if (typeof c === "string") {
+        return c;
+      }
       if (c && typeof c === "object" && "text" in c) {
         return (c as { text: string }).text;
       }
@@ -176,7 +192,9 @@ function extractReasoningContent(item: Record<string, unknown>): {
   // Extract summary text
   const summaryText = summaryArr
     .map((s: unknown) => {
-      if (typeof s === "string") return s;
+      if (typeof s === "string") {
+        return s;
+      }
       if (s && typeof s === "object" && "text" in s) {
         return (s as { text: string }).text;
       }
@@ -211,7 +229,9 @@ function extractReasoningContent(item: Record<string, unknown>): {
 }
 
 function normalizeMessage(msg: unknown): Record<string, unknown> {
-  if (!msg || typeof msg !== "object") return {};
+  if (!msg || typeof msg !== "object") {
+    return {};
+  }
 
   // we want to do type-based conversions BEFORE removeNullFields
   // because removeNullFields moves unrecognized fields to json passthrough
@@ -370,7 +390,9 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
  * Handles both Chat Completions {type, function: {name, ...}} and flat {name, ...}
  */
 function flattenToolDefinition(tool: unknown): Record<string, unknown> {
-  if (typeof tool !== "object" || !tool) return {};
+  if (typeof tool !== "object" || !tool) {
+    return {};
+  }
 
   const t = tool as Record<string, unknown>;
   // Handle nested {type, function: {name, ...}} or flat {name, ...}
@@ -380,7 +402,9 @@ function flattenToolDefinition(tool: unknown): Record<string, unknown> {
     name: toolFunc.name,
     description: toolFunc.description ?? "",
   };
-  if (toolFunc.parameters != null) toolDef.parameters = toolFunc.parameters;
+  if (toolFunc.parameters != null) {
+    toolDef.parameters = toolFunc.parameters;
+  }
   return toolDef;
 }
 
@@ -396,7 +420,9 @@ function normalizeMessagesWithTools(
 }
 
 function preprocessData(data: unknown): unknown {
-  if (!data) return data;
+  if (!data) {
+    return data;
+  }
 
   // OpenAI Chat Completions API: {tools, messages} OR Responses API: {tools, output}
   // References:
@@ -547,7 +573,9 @@ export const openAIAdapter: ProviderAdapter = {
         "attributes",
         "gen_ai.provider.name",
       );
-      if (providerName === "microsoft.agent_framework") return false;
+      if (providerName === "microsoft.agent_framework") {
+        return false;
+      }
 
       // Pydantic ai
       if (
@@ -582,15 +610,23 @@ export const openAIAdapter: ProviderAdapter = {
               !("role" in message)
             );
           });
-          if (hasLangChainType) return false;
+          if (hasLangChainType) {
+            return false;
+          }
         }
       }
     }
 
     // HINTS: Fast checks for explicit OpenAI indicators
-    if (ctx.framework === "openai") return true;
-    if (ctx.observationName?.toLowerCase().includes("openai")) return true;
-    if (meta?.ls_provider === "openai") return true;
+    if (ctx.framework === "openai") {
+      return true;
+    }
+    if (ctx.observationName?.toLowerCase().includes("openai")) {
+      return true;
+    }
+    if (meta?.ls_provider === "openai") {
+      return true;
+    }
 
     // Metadata attributes check
     if (meta && typeof meta === "object" && "attributes" in meta) {
@@ -605,26 +641,45 @@ export const openAIAdapter: ProviderAdapter = {
     }
 
     // STRUCTURAL: Schema-based detection on metadata
-    if (OpenAIInputChatCompletionsSchema.safeParse(ctx.metadata).success)
+    if (OpenAIInputChatCompletionsSchema.safeParse(ctx.metadata).success) {
       return true;
-    if (OpenAIInputMessagesSchema.safeParse(ctx.metadata).success) return true;
-    if (OpenAIInputResponsesSchema.safeParse(ctx.metadata).success) return true;
-    if (OpenAIOutputResponsesSchema.safeParse(ctx.metadata).success)
+    }
+    if (OpenAIInputMessagesSchema.safeParse(ctx.metadata).success) {
       return true;
-    if (OpenAIOutputChoicesSchema.safeParse(ctx.metadata).success) return true;
-    if (OpenAIOutputSingleMessageSchema.safeParse(ctx.metadata).success)
+    }
+    if (OpenAIInputResponsesSchema.safeParse(ctx.metadata).success) {
       return true;
+    }
+    if (OpenAIOutputResponsesSchema.safeParse(ctx.metadata).success) {
+      return true;
+    }
+    if (OpenAIOutputChoicesSchema.safeParse(ctx.metadata).success) {
+      return true;
+    }
+    if (OpenAIOutputSingleMessageSchema.safeParse(ctx.metadata).success) {
+      return true;
+    }
 
     // finally, test on data if available. we might've done this already if we passed
     // data into metadata. we only do this last due to performance concerns.
-    if (OpenAIInputChatCompletionsSchema.safeParse(ctx.data).success)
+    if (OpenAIInputChatCompletionsSchema.safeParse(ctx.data).success) {
       return true;
-    if (OpenAIInputMessagesSchema.safeParse(ctx.data).success) return true;
-    if (OpenAIInputResponsesSchema.safeParse(ctx.data).success) return true;
-    if (OpenAIOutputResponsesSchema.safeParse(ctx.data).success) return true;
-    if (OpenAIOutputChoicesSchema.safeParse(ctx.data).success) return true;
-    if (OpenAIOutputSingleMessageSchema.safeParse(ctx.data).success)
+    }
+    if (OpenAIInputMessagesSchema.safeParse(ctx.data).success) {
       return true;
+    }
+    if (OpenAIInputResponsesSchema.safeParse(ctx.data).success) {
+      return true;
+    }
+    if (OpenAIOutputResponsesSchema.safeParse(ctx.data).success) {
+      return true;
+    }
+    if (OpenAIOutputChoicesSchema.safeParse(ctx.data).success) {
+      return true;
+    }
+    if (OpenAIOutputSingleMessageSchema.safeParse(ctx.data).success) {
+      return true;
+    }
 
     return false;
   },
@@ -638,7 +693,9 @@ export const openAIAdapter: ProviderAdapter = {
   },
 
   getConsumedInputKeys(data: unknown): string[] {
-    if (!isOpenAIResponsesRequest(data)) return [];
+    if (!isOpenAIResponsesRequest(data)) {
+      return [];
+    }
 
     return typeof data.instructions === "string" && data.instructions !== ""
       ? ["input", "instructions"]

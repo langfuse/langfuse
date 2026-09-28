@@ -33,7 +33,9 @@ export function getNodeByIndex(
   rootNode: TreeNode,
   index: number,
 ): TreeNode | null {
-  if (index < 0) return null;
+  if (index < 0) {
+    return null;
+  }
 
   let currentNode = rootNode;
   let remainingIndex = index;
@@ -285,14 +287,20 @@ export function isNodeVisible(node: TreeNode): boolean {
 export function getVisibleDepthRange(rootNode: TreeNode): [number, number] {
   const visibleNodes = getAllVisibleNodes(rootNode);
 
-  if (visibleNodes.length === 0) return [0, 0];
+  if (visibleNodes.length === 0) {
+    return [0, 0];
+  }
 
   let minDepth = Infinity;
   let maxDepth = -Infinity;
 
   visibleNodes.forEach((node) => {
-    if (node.depth < minDepth) minDepth = node.depth;
-    if (node.depth > maxDepth) maxDepth = node.depth;
+    if (node.depth < minDepth) {
+      minDepth = node.depth;
+    }
+    if (node.depth > maxDepth) {
+      maxDepth = node.depth;
+    }
   });
 
   return [minDepth, maxDepth];

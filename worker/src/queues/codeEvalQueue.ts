@@ -91,7 +91,9 @@ export const codeEvalExecutionQueueProcessorBuilder = (
         );
       }
 
-      if (isTerminalError) return;
+      if (isTerminalError) {
+        return;
+      }
 
       traceException(e);
       logger.error(
@@ -105,8 +107,12 @@ export const codeEvalExecutionQueueProcessorBuilder = (
 };
 
 function getJobExecutionErrorMessage(e: unknown): string {
-  if (isUnrecoverableError(e)) return e.message;
-  if (e instanceof CodeEvalExecutionError) return e.message;
+  if (isUnrecoverableError(e)) {
+    return e.message;
+  }
+  if (e instanceof CodeEvalExecutionError) {
+    return e.message;
+  }
 
   return getCodeEvalUserVisibleError(e).message;
 }

@@ -114,12 +114,16 @@ export function SearchBarAiPrompt({
   // mount too (pending starts false). On success the component unmounts, so the
   // focus is a harmless no-op.
   React.useEffect(() => {
-    if (!pending) inputRef.current?.focus();
+    if (!pending) {
+      inputRef.current?.focus();
+    }
   }, [pending]);
 
   const submit = async () => {
     const prompt = value.trim();
-    if (prompt.length === 0 || pending) return;
+    if (prompt.length === 0 || pending) {
+      return;
+    }
     setError(null);
     // Snapshot the committed draft at submit (mirrors how commit() always reads
     // store.getState().draft). It serves two no-silent-drop guards: it's the
@@ -145,7 +149,9 @@ export function SearchBarAiPrompt({
         scoreNames,
       });
       // Cancelled mid-flight (Back clicked while generating): don't apply.
-      if (cancelledRef.current) return;
+      if (cancelledRef.current) {
+        return;
+      }
       // Filters changed externally (e.g. a sidebar facet click) while the
       // request was in flight: the model's COMPLETE set is now stale, so
       // applying it would silently drop that change (it's grammar-representable,
@@ -195,7 +201,9 @@ export function SearchBarAiPrompt({
       }
       onExit();
     } catch {
-      if (cancelledRef.current) return;
+      if (cancelledRef.current) {
+        return;
+      }
       // Never surface raw server messages: a TRPCClientError is an Error, so its
       // message could leak internal state, and the tRPC formatter masks 500s to
       // an unhelpful "we have been notified" string anyway. The auth/precondition
@@ -268,14 +276,18 @@ export function SearchBarAiPrompt({
             className="placeholder:text-foreground-tertiary min-w-0 flex-1 border-0 bg-transparent text-xs leading-6 outline-none focus:ring-0 focus:outline-none disabled:opacity-60"
             onChange={(event) => {
               setValue(event.target.value);
-              if (error) setError(null);
+              if (error) {
+                setError(null);
+              }
             }}
             onKeyDown={(event) => {
               // Don't treat Enter/Escape as submit/exit while an IME is
               // composing (CJK/Pinyin/Kana/Hangul): there Enter commits the
               // composed glyph and Escape cancels composition. Same guard the
               // grammar bar uses (SearchComposer onKeyDown).
-              if (event.nativeEvent.isComposing) return;
+              if (event.nativeEvent.isComposing) {
+                return;
+              }
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 submit();

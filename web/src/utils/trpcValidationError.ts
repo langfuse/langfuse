@@ -15,12 +15,16 @@ const getErrorCode = (error: TRPCClientError<any>): string | undefined => {
 
 const getZodError = (error: TRPCClientError<any>): ZodFlattenedError | null => {
   const zodError = (error.data as { zodError?: unknown } | undefined)?.zodError;
-  if (!isRecord(zodError)) return null;
+  if (!isRecord(zodError)) {
+    return null;
+  }
   return zodError as ZodFlattenedError;
 };
 
 const formatPath = (path: unknown): string => {
-  if (!Array.isArray(path)) return "";
+  if (!Array.isArray(path)) {
+    return "";
+  }
   return path
     .filter((part) => part !== undefined && part !== null && part !== "")
     .join(".");
@@ -37,15 +41,21 @@ const parseZodIssueList = (
   // tRPC sometimes prefixes the Zod 4 JSON issue list, e.g.
   // `Invalid input, [{ "code": "too_small", ... }]`.
   const start = trimmed.indexOf("[");
-  if (start === -1) return null;
+  if (start === -1) {
+    return null;
+  }
 
   try {
     const parsed: unknown = JSON.parse(trimmed.slice(start));
-    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return null;
+    }
 
     const issues: Array<{ path: unknown; message: string }> = [];
     for (const item of parsed) {
-      if (!isRecord(item) || typeof item.message !== "string") return null;
+      if (!isRecord(item) || typeof item.message !== "string") {
+        return null;
+      }
       issues.push({ path: item.path, message: item.message });
     }
     return issues;
@@ -61,7 +71,9 @@ const formatFlattenedZodError = (
 
   if (isRecord(zodError.fieldErrors)) {
     for (const [field, messages] of Object.entries(zodError.fieldErrors)) {
-      if (!Array.isArray(messages)) continue;
+      if (!Array.isArray(messages)) {
+        continue;
+      }
       for (const message of messages) {
         if (typeof message === "string" && message.length > 0) {
           lines.push(`${field}: ${message}`);
@@ -89,9 +101,15 @@ const formatFlattenedZodError = (
  * `data.zodError` attached by the tRPC `errorFormatter`.
  */
 export const isTrpcZodValidationError = (error: unknown): boolean => {
-  if (!(error instanceof TRPCClientError)) return false;
-  if (getErrorCode(error) !== "BAD_REQUEST") return false;
-  if (parseZodIssueList(error.message) !== null) return true;
+  if (!(error instanceof TRPCClientError)) {
+    return false;
+  }
+  if (getErrorCode(error) !== "BAD_REQUEST") {
+    return false;
+  }
+  if (parseZodIssueList(error.message) !== null) {
+    return true;
+  }
 
   const zodError = getZodError(error);
   return zodError !== null && formatFlattenedZodError(zodError) !== null;
@@ -101,7 +119,9 @@ export const isTrpcZodValidationError = (error: unknown): boolean => {
 export const formatTrpcZodValidationDescription = (
   error: unknown,
 ): string | null => {
-  if (!(error instanceof TRPCClientError)) return null;
+  if (!(error instanceof TRPCClientError)) {
+    return null;
+  }
 
   const issues = parseZodIssueList(error.message);
   if (issues) {

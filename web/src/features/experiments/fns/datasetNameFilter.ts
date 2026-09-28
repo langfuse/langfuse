@@ -24,8 +24,12 @@ export function withDatasetNamesResolved(
     return filters;
   }
   return filters.map((filter) => {
-    if (filter.column !== DATASET_NAME_COLUMN) return filter;
-    if (filter.type !== "stringOptions") return filter;
+    if (filter.column !== DATASET_NAME_COLUMN) {
+      return filter;
+    }
+    if (filter.type !== "stringOptions") {
+      return filter;
+    }
     return {
       ...filter,
       column: DATASET_ID_COLUMN,

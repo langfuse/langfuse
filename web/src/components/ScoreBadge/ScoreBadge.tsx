@@ -20,7 +20,9 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 const hasMetadata = (
   score: WithStringifiedMetadata<ScoreDomain> | LastUserScore,
 ) => {
-  if (!score.metadata) return false;
+  if (!score.metadata) {
+    return false;
+  }
   try {
     const metadata =
       typeof score.metadata === "string"

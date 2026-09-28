@@ -1117,7 +1117,9 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       input: { key: "value" },
       validateOpts: { normalizeUndefinedToNull: true },
     });
-    if (!itemResult.success) throw new Error(itemResult.message);
+    if (!itemResult.success) {
+      throw new Error(itemResult.message);
+    }
     const datasetItemId = itemResult.datasetItem.id;
 
     const runName = "events-only-run";

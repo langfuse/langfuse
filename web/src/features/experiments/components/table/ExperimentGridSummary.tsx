@@ -62,8 +62,9 @@ export function ExperimentGridSummaryValues({
             dataType !== "NUMERIC" &&
             dataType !== "BOOLEAN" &&
             dataType !== "CATEGORICAL"
-          )
+          ) {
             return [];
+          }
           const summary = summariseScoreColumn({
             pairs: rows.map((row) => ({
               baseline:

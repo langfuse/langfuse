@@ -129,7 +129,9 @@ export function isRangeWithinMaxDuration(
   range: RDPDateRange | undefined,
   maxDurationMs: number | undefined,
 ): boolean {
-  if (!range?.from || !range.to || maxDurationMs === undefined) return true;
+  if (!range?.from || !range.to || maxDurationMs === undefined) {
+    return true;
+  }
   return range.to.getTime() - range.from.getTime() <= maxDurationMs;
 }
 
@@ -181,7 +183,9 @@ export function DatePickerWithRange({
   };
 
   const onCalendarSelection = (triggerDay?: Date) => {
-    if (!triggerDay) return;
+    if (!triggerDay) {
+      return;
+    }
     const next = nextRangeForDayClick(internalDateRange, triggerDay);
     const newRange: RDPDateRange = {
       from: setBeginningOfDay(next.from),
@@ -380,7 +384,9 @@ export function TimeRangePicker({
   const calendarDisabled = React.useMemo(() => {
     const futureDisabled = { after: new Date() };
 
-    if (typeof disabled === "boolean") return disabled;
+    if (typeof disabled === "boolean") {
+      return disabled;
+    }
 
     const disabledArray = (() => {
       if (disabled) {
@@ -433,7 +439,9 @@ export function TimeRangePicker({
 
   const updateDateRange = (newRange: RDPDateRange | undefined) => {
     if (newRange && newRange.from && newRange.to) {
-      if (!isRangeWithinMaxDuration(newRange, maxRangeMs)) return;
+      if (!isRangeWithinMaxDuration(newRange, maxRangeMs)) {
+        return;
+      }
 
       onTimeRangeChange({
         from: newRange.from,
@@ -443,13 +451,17 @@ export function TimeRangePicker({
   };
 
   const onCalendarSelection = (triggerDay?: Date) => {
-    if (!triggerDay) return;
+    if (!triggerDay) {
+      return;
+    }
     const next = nextRangeForDayClick(internalDateRange, triggerDay);
     const newRange: RDPDateRange = {
       from: setBeginningOfDay(next.from),
       to: next.to ? setEndOfDay(next.to) : undefined,
     };
-    if (!isRangeWithinMaxDuration(newRange, maxRangeMs)) return;
+    if (!isRangeWithinMaxDuration(newRange, maxRangeMs)) {
+      return;
+    }
 
     setInternalDateRange(newRange);
     updateDateRange(newRange);
@@ -462,7 +474,9 @@ export function TimeRangePicker({
       newDateTime,
       internalDateRange?.to,
     );
-    if (!isRangeWithinMaxDuration(newRange, maxRangeMs)) return;
+    if (!isRangeWithinMaxDuration(newRange, maxRangeMs)) {
+      return;
+    }
 
     setInternalDateRange(newRange);
     updateDateRange(newRange);
@@ -475,7 +489,9 @@ export function TimeRangePicker({
       internalDateRange?.from,
       newDateTime,
     );
-    if (!isRangeWithinMaxDuration(newRange, maxRangeMs)) return;
+    if (!isRangeWithinMaxDuration(newRange, maxRangeMs)) {
+      return;
+    }
 
     setInternalDateRange(newRange);
     updateDateRange(newRange);

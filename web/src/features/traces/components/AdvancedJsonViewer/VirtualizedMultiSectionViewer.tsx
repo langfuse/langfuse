@@ -148,7 +148,9 @@ const VirtualizedMultiSectionViewerInner = forwardRef<
 
   // Calculate total content width (stable, memoized)
   const totalContentWidth = useMemo(() => {
-    if (!tree) return undefined;
+    if (!tree) {
+      return undefined;
+    }
 
     if (stringWrapMode === "nowrap") {
       return fixedColumnWidth + tree.maxContentWidth;
@@ -163,15 +165,23 @@ const VirtualizedMultiSectionViewerInner = forwardRef<
 
   // Calculate effective row width (takes max of content width and container width)
   const effectiveRowWidth = useMemo(() => {
-    if (!totalContentWidth && !containerWidth) return undefined;
-    if (!totalContentWidth) return containerWidth;
-    if (!containerWidth) return totalContentWidth;
+    if (!totalContentWidth && !containerWidth) {
+      return undefined;
+    }
+    if (!totalContentWidth) {
+      return containerWidth;
+    }
+    if (!containerWidth) {
+      return totalContentWidth;
+    }
     return Math.max(totalContentWidth, containerWidth);
   }, [totalContentWidth, containerWidth]);
 
   // Search matches
   const searchMatches = useMemo(() => {
-    if (!searchQuery || !tree) return [];
+    if (!searchQuery || !tree) {
+      return [];
+    }
     return searchInTree(tree, searchQuery);
   }, [tree, searchQuery]);
 
@@ -185,18 +195,30 @@ const VirtualizedMultiSectionViewerInner = forwardRef<
     count: rowCount,
     getScrollElement: () => scrollContainerRef?.current || parentRef.current,
     estimateSize: (index) => {
-      if (!tree) return 16;
+      if (!tree) {
+        return 16;
+      }
       const node = getNodeByIndex(tree.rootNode, index);
 
-      if (!node) return 16;
+      if (!node) {
+        return 16;
+      }
 
       // Meta-root should have 0 height (it's never rendered)
-      if (node.nodeType === "meta") return 0;
+      if (node.nodeType === "meta") {
+        return 0;
+      }
 
       // Custom heights for different node types
-      if (node.nodeType === "section-header") return 32;
-      if (node.nodeType === "section-footer") return 40;
-      if (node.nodeType === "section-spacer") return node.spacerHeight || 0;
+      if (node.nodeType === "section-header") {
+        return 32;
+      }
+      if (node.nodeType === "section-footer") {
+        return 40;
+      }
+      if (node.nodeType === "section-spacer") {
+        return node.spacerHeight || 0;
+      }
 
       // Regular JSON rows
       return estimateSize(index);
@@ -207,7 +229,9 @@ const VirtualizedMultiSectionViewerInner = forwardRef<
         ? (element) => element.getBoundingClientRect().height
         : undefined,
     getItemKey: (index) => {
-      if (!tree) return index;
+      if (!tree) {
+        return index;
+      }
       const node = getNodeByIndex(tree.rootNode, index);
       return node ? node.id : index;
     },
@@ -215,7 +239,9 @@ const VirtualizedMultiSectionViewerInner = forwardRef<
 
   // Scroll to current search match
   useEffect(() => {
-    if (!currentMatch || !tree) return;
+    if (!currentMatch || !tree) {
+      return;
+    }
 
     const index = findNodeIndex(tree.rootNode, currentMatch.rowId);
 
@@ -229,7 +255,9 @@ const VirtualizedMultiSectionViewerInner = forwardRef<
     ref,
     () => ({
       scrollToSection: (sectionKey: string) => {
-        if (!tree) return;
+        if (!tree) {
+          return;
+        }
 
         const index = findSectionHeaderIndex(tree.rootNode, sectionKey);
 
@@ -269,10 +297,14 @@ const VirtualizedMultiSectionViewerInner = forwardRef<
         {virtualItems.map((virtualRow) => {
           const node = getNodeByIndex(tree.rootNode, virtualRow.index);
 
-          if (!node) return null;
+          if (!node) {
+            return null;
+          }
 
           // Skip meta-root (depth: -1)
-          if (node.depth < 0) return null;
+          if (node.depth < 0) {
+            return null;
+          }
 
           const searchMatch = matchMap.get(node.id);
           const isCurrentMatch = currentMatch?.rowId === node.id;
@@ -369,7 +401,9 @@ const VirtualizedMultiSectionViewerInner = forwardRef<
 
           if (node.nodeType === "section-footer") {
             // Skip footer if section is collapsed
-            if (!node.isExpanded) return null;
+            if (!node.isExpanded) {
+              return null;
+            }
 
             const jsonSection = node.sectionKey
               ? sectionsMap.get(node.sectionKey)

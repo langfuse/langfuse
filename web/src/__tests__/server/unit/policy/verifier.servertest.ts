@@ -195,7 +195,9 @@ describe("infra failures surface as typed errors, not throws", () => {
       parseAuthorizationHeader(basicHeader("pk-lf-1", "sk")),
     );
     expect(result.success).toBe(false);
-    if (result.success) return;
+    if (result.success) {
+      return;
+    }
     expect(result.error).toBeInstanceOf(InternalServerError);
   });
 });

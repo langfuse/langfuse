@@ -164,12 +164,16 @@ const SidePanel = ({
 const SidePanelHeader = ({ children }: { children: ReactNode }) => {
   const context = React.useContext(SidePanelContext);
 
-  if (!context) return null;
+  if (!context) {
+    return null;
+  }
 
   const { showPanel, setShowPanel, isControlled } = context;
 
   if (isControlled) {
-    if (!showPanel) return null;
+    if (!showPanel) {
+      return null;
+    }
 
     return (
       <div className="flex flex-col gap-2">
@@ -226,10 +230,14 @@ const SidePanelContent = ({
   className?: string;
 }) => {
   const context = React.useContext(SidePanelContext);
-  if (!context) return children;
+  if (!context) {
+    return children;
+  }
 
   const { showPanel } = context;
-  if (!showPanel) return null;
+  if (!showPanel) {
+    return null;
+  }
 
   return (
     <div className={cn("flex flex-col items-start gap-4", className)}>

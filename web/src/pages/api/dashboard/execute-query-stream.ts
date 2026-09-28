@@ -162,7 +162,9 @@ export default async function handler(
         cancel_http_readonly_queries_on_client_close: 1,
       },
     })) {
-      if (aborted) break;
+      if (aborted) {
+        break;
+      }
 
       if (isProgressRow(event)) {
         res.write(

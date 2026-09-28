@@ -93,7 +93,9 @@ export function useProjectNotificationChannels(projectId: string) {
       onFormSuccess: (_automationId?: string, secret?: string) => {
         setEditingChannel(null);
         setMode("list");
-        if (secret) setWebhookSecret(secret);
+        if (secret) {
+          setWebhookSecret(secret);
+        }
       },
       deleteChannel: (automationId: string) =>
         deleteChannel.mutate({ projectId, automationId }),

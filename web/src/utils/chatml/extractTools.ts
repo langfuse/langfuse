@@ -55,18 +55,24 @@ export function extractTools(
     if (attributes) {
       // AI SDK OTel: tools in ai.prompt.tools
       const aiSdkTools = mapToolsToPlayground(attributes["ai.prompt.tools"]);
-      if (aiSdkTools.length > 0) return aiSdkTools;
+      if (aiSdkTools.length > 0) {
+        return aiSdkTools;
+      }
 
       // Microsoft Agent Framework / OTel: tools in gen_ai.tool.definitions
       const genAiTools = mapToolsToPlayground(
         attributes["gen_ai.tool.definitions"],
       );
-      if (genAiTools.length > 0) return genAiTools;
+      if (genAiTools.length > 0) {
+        return genAiTools;
+      }
 
       // Some traces store OpenAI-style tool definitions in a plain metadata
       // attributes.tools field instead of the canonical GenAI key.
       const metadataTools = mapToolsToPlayground(attributes.tools);
-      if (metadataTools.length > 0) return metadataTools;
+      if (metadataTools.length > 0) {
+        return metadataTools;
+      }
 
       // pydantic-ai: tools in model_request_parameters.function_tools
       const modelRequestParameters = asRecord(
@@ -75,7 +81,9 @@ export function extractTools(
       const pydanticTools = mapToolsToPlayground(
         modelRequestParameters?.function_tools,
       );
-      if (pydanticTools.length > 0) return pydanticTools;
+      if (pydanticTools.length > 0) {
+        return pydanticTools;
+      }
 
       // OpenTelemetry semantic convention: tools indexed as "llm.tools.{N}.tool.json_schema"
       // Example: "llm.tools.0.tool.json_schema", "llm.tools.1.tool.json_schema", ...
@@ -91,12 +99,16 @@ export function extractTools(
       if (toolKeys.length > 0) {
         const toolDefs = toolKeys.map((key) => attributes[key]);
         const tools = mapToolsToPlayground(toolDefs);
-        if (tools.length > 0) return tools;
+        if (tools.length > 0) {
+          return tools;
+        }
       }
     }
   }
 
-  if (!input) return [];
+  if (!input) {
+    return [];
+  }
 
   // ChatML normalized format: tools attached to messages (from OpenAI Agents/Responses API)
   // After preprocessing, tools are attached to each message
@@ -125,7 +137,9 @@ export function extractTools(
     const tools = mapToolsToPlayground(
       (input as Record<string, unknown>)["tools"],
     );
-    if (tools.length > 0) return tools;
+    if (tools.length > 0) {
+      return tools;
+    }
   }
 
   // LangChain format: tool definitions embedded in messages array
@@ -143,7 +157,9 @@ export function extractTools(
     if (toolMessages.length > 0) {
       const toolDefs = toolMessages.map((msg: any) => msg.content);
       const tools = mapToolsToPlayground(toolDefs);
-      if (tools.length > 0) return tools;
+      if (tools.length > 0) {
+        return tools;
+      }
     }
   }
 
@@ -168,7 +184,9 @@ export function extractTools(
     if (toolMessages.length > 0) {
       const toolDefs = toolMessages.map((msg: any) => msg.content);
       const tools = mapToolsToPlayground(toolDefs);
-      if (tools.length > 0) return tools;
+      if (tools.length > 0) {
+        return tools;
+      }
     }
   }
 

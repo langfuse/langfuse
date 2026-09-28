@@ -24,8 +24,11 @@ const groupScoresByName = <T extends ChipScore>(
 ): Record<string, T[]> =>
   scores.reduce<Record<string, T[]>>((groups, score) => {
     const bucket = groups[score.name];
-    if (!bucket || !Array.isArray(bucket)) groups[score.name] = [score];
-    else bucket.push(score);
+    if (!bucket || !Array.isArray(bucket)) {
+      groups[score.name] = [score];
+    } else {
+      bucket.push(score);
+    }
     return groups;
   }, {});
 

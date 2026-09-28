@@ -32,11 +32,17 @@ export const experimentCreateQueueProcessor = async (
         jobName: QueueJobs.ExperimentCreateJob,
       });
 
-      if (retryResult.outcome === "scheduled") return;
-      if (retryResult.outcome === "queue_unavailable") throw e;
+      if (retryResult.outcome === "scheduled") {
+        return;
+      }
+      if (retryResult.outcome === "queue_unavailable") {
+        throw e;
+      }
     }
 
-    if (llmError || isUnrecoverableError(e)) return;
+    if (llmError || isUnrecoverableError(e)) {
+      return;
+    }
 
     logger.error(
       `Failed to process experiment create job for project: ${job.data.payload.projectId}`,

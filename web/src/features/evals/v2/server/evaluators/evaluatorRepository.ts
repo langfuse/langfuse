@@ -558,7 +558,9 @@ export async function findFirstAssignedRuleFilter(params: {
       },
     });
 
-  if (!assignment) return undefined;
+  if (!assignment) {
+    return undefined;
+  }
 
   const validation = validateEvaluatorFiltersForTarget({
     targetObject: EvalTargetObject.EVENT,

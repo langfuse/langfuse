@@ -35,7 +35,9 @@ function DialogController<State = void>({
   });
 
   const closeDialog = () => {
-    if (onBeforeClose?.() === false) return false;
+    if (onBeforeClose?.() === false) {
+      return false;
+    }
 
     setControllerState((currentState) =>
       currentState.status === "initialized"
@@ -49,8 +51,12 @@ function DialogController<State = void>({
     <DialogPrimitive.Root
       open={controllerState.status === "initialized" && controllerState.isOpen}
       onOpenChange={(open) => {
-        if (open) return;
-        if (closeDialog()) onDismiss?.();
+        if (open) {
+          return;
+        }
+        if (closeDialog()) {
+          onDismiss?.();
+        }
       }}
     >
       {children({

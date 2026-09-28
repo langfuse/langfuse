@@ -43,12 +43,15 @@ function extractBlocks(css: string, selector: RegExp): string {
   let match: RegExpExecArray | null;
   while ((match = selector.exec(css)) !== null) {
     const open = css.indexOf("{", match.index);
-    if (open === -1) break;
+    if (open === -1) {
+      break;
+    }
     let depth = 0;
     let closed = false;
     for (let i = open; i < css.length; i++) {
-      if (css[i] === "{") depth++;
-      else if (css[i] === "}") {
+      if (css[i] === "{") {
+        depth++;
+      } else if (css[i] === "}") {
         depth--;
         if (depth === 0) {
           bodies.push(css.slice(open + 1, i));
@@ -79,10 +82,13 @@ function stripKeyframes(content: string): string {
     result += content.slice(i, at);
     let depth = 0;
     let j = content.indexOf("{", at);
-    if (j === -1) break;
+    if (j === -1) {
+      break;
+    }
     for (; j < content.length; j++) {
-      if (content[j] === "{") depth++;
-      else if (content[j] === "}") {
+      if (content[j] === "{") {
+        depth++;
+      } else if (content[j] === "}") {
         depth--;
         if (depth === 0) {
           j++;
@@ -138,7 +144,9 @@ export function resolveDeclaredValue(
   map: ReadonlyMap<string, string>,
   depth = 0,
 ): string {
-  if (depth > 6) return value;
+  if (depth > 6) {
+    return value;
+  }
   return value.replace(
     /var\((--[\w-]+)(?:,\s*((?:[^()]|\([^()]*\))*))?\)/g,
     (whole, name: string, fallback: string | undefined) => {
@@ -158,7 +166,11 @@ export function resolveDeclaredValue(
  */
 export function toCssColor(resolved: string): string | undefined {
   const value = resolved.trim();
-  if (HSL_TRIPLET.test(value)) return `hsl(${value})`;
-  if (/^(oklch|okhsl|rgba?|hsla?|color)\(/.test(value)) return value;
+  if (HSL_TRIPLET.test(value)) {
+    return `hsl(${value})`;
+  }
+  if (/^(oklch|okhsl|rgba?|hsla?|color)\(/.test(value)) {
+    return value;
+  }
   return undefined;
 }

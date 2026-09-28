@@ -33,7 +33,9 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
   useEffect(() => {
     let cancelled = false;
     generateSchemaExample(schema).then((result) => {
-      if (!cancelled) setExampleObject(result);
+      if (!cancelled) {
+        setExampleObject(result);
+      }
     });
     return () => {
       cancelled = true;
@@ -44,7 +46,9 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
   const [copied, setCopied] = useState(false);
 
   const handleCopyExample = async () => {
-    if (!exampleObject) return;
+    if (!exampleObject) {
+      return;
+    }
 
     await copyTextToClipboard(exampleObject);
 

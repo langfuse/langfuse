@@ -84,7 +84,9 @@ export function getObservationLevels(
     ObservationLevel.ERROR,
   ];
 
-  if (!minLevel) return ascendingLevels;
+  if (!minLevel) {
+    return ascendingLevels;
+  }
 
   const minLevelIndex = ascendingLevels.indexOf(minLevel);
   return ascendingLevels.slice(minLevelIndex);
@@ -134,7 +136,9 @@ export function dedupeObservationsById<
 function prepareObservations(list: ObservationReturnType[]): {
   sortedObservations: ObservationReturnType[];
 } {
-  if (list.length === 0) return { sortedObservations: [] };
+  if (list.length === 0) {
+    return { sortedObservations: [] };
+  }
 
   // One row per id (earliest by startTime) so the parent→child graph stays a
   // proper forest — see dedupeObservationsById for why duplicates crash the
@@ -219,7 +223,9 @@ function buildDependencyGraph(sortedObservations: ObservationReturnType[]): {
     const currentNode = nodeRegistry.get(currentId)!;
 
     for (const childId of currentNode.childrenIds) {
-      if (visited.has(childId)) continue;
+      if (visited.has(childId)) {
+        continue;
+      }
       visited.add(childId);
       const childNode = nodeRegistry.get(childId)!;
       childNode.depth = currentNode.depth + 1;
@@ -298,7 +304,9 @@ function buildTreeNodesBottomUp(
     // Sum children's total costs (already computed bottom-up)
     const childrenTotalCost = childTreeNodes.reduce<Decimal | undefined>(
       (acc, child) => {
-        if (!child.totalCost) return acc;
+        if (!child.totalCost) {
+          return acc;
+        }
         return acc ? acc.plus(child.totalCost) : child.totalCost;
       },
       undefined,
@@ -498,7 +506,9 @@ function buildTraceTree(
   // Calculate trace root total cost
   const traceTotalCost = rootTreeNodes.reduce<Decimal | undefined>(
     (acc, child) => {
-      if (!child.totalCost) return acc;
+      if (!child.totalCost) {
+        return acc;
+      }
       return acc ? acc.plus(child.totalCost) : child.totalCost;
     },
     undefined,
@@ -600,7 +610,9 @@ export function removeHiddenNodes(
   nodes: TreeNode[],
   isHidden: (node: TreeNode) => boolean,
 ): TreeNode[] {
-  if (nodes.length === 0) return [];
+  if (nodes.length === 0) {
+    return [];
+  }
 
   const result: TreeNode[] = [];
 

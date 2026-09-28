@@ -31,8 +31,12 @@ type IdNavigationItem = {
 
 const getIdType = (search: string): IdNavigationItem["type"] | null => {
   const id = search.trim();
-  if (/^[0-9a-f]{32}$/i.test(id)) return "trace_id";
-  if (/^[0-9a-f]{16}$/i.test(id)) return "observation_id";
+  if (/^[0-9a-f]{32}$/i.test(id)) {
+    return "trace_id";
+  }
+  if (/^[0-9a-f]{16}$/i.test(id)) {
+    return "observation_id";
+  }
   return null;
 };
 
@@ -41,7 +45,9 @@ export const getIdNavigationItem = (
   projectId?: string,
   isV4 = false,
 ): IdNavigationItem | null => {
-  if (!projectId) return null;
+  if (!projectId) {
+    return null;
+  }
 
   const id = search.trim();
   const encodedProjectId = encodeURIComponent(projectId);
@@ -114,7 +120,9 @@ function ProjectsGroup({ onNavigate }: { onNavigate: () => void }) {
   const capture = usePostHogClientCapture();
   const { allProjectItems } = useNavigationItems();
 
-  if (allProjectItems.length === 0) return null;
+  if (allProjectItems.length === 0) {
+    return null;
+  }
 
   return (
     <>
@@ -167,7 +175,9 @@ function DashboardsGroup({ onNavigate }: { onNavigate: () => void }) {
 
   const dashboards = dashboardsQuery.data?.dashboards ?? [];
 
-  if (dashboards.length === 0) return null;
+  if (dashboards.length === 0) {
+    return null;
+  }
 
   return (
     <>
@@ -216,7 +226,9 @@ function ProjectSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
       keywords: page.cmdKKeywords || [],
     }));
 
-  if (projectSettingsItems.length === 0) return null;
+  if (projectSettingsItems.length === 0) {
+    return null;
+  }
 
   return (
     <>
@@ -259,7 +271,9 @@ function OrganizationSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
       keywords: page.cmdKKeywords || [],
     }));
 
-  if (orgSettingsItems.length === 0) return null;
+  if (orgSettingsItems.length === 0) {
+    return null;
+  }
 
   return (
     <>
@@ -301,7 +315,9 @@ function AccountSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
       keywords: page.cmdKKeywords || [],
     }));
 
-  if (accountSettingsItems.length === 0) return null;
+  if (accountSettingsItems.length === 0) {
+    return null;
+  }
 
   return (
     <>
@@ -381,7 +397,9 @@ function CommandMenuComponent({
         }
         const nextOpen = !open;
         setOpen(nextOpen);
-        if (!nextOpen) setSearch("");
+        if (!nextOpen) {
+          setSearch("");
+        }
       }
     };
     document.addEventListener("keydown", down);
@@ -398,7 +416,9 @@ function CommandMenuComponent({
       open={open}
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
-        if (!nextOpen) setSearch("");
+        if (!nextOpen) {
+          setSearch("");
+        }
       }}
       filter={(value, search, keywords) => {
         const extendValue = value + " " + keywords?.join(" ");
@@ -503,7 +523,9 @@ export const useNavigationItems = () => {
       (segment) => segment.startsWith("[") && segment.endsWith("]"),
     );
     const stopSegment = idSegments.filter((id) => !allowlistedIds.includes(id));
-    if (stopSegment.length === 0) return path;
+    if (stopSegment.length === 0) {
+      return path;
+    }
     const stopIndex = segments.indexOf(stopSegment[0]);
     const truncatedPath = path.split("/").slice(0, stopIndex).join("/");
     return truncatedPath;
@@ -523,8 +545,12 @@ export const useNavigationItems = () => {
           // sort demo org to the bottom
           const isDemoA = env.NEXT_PUBLIC_DEMO_ORG_ID === a.id;
           const isDemoB = env.NEXT_PUBLIC_DEMO_ORG_ID === b.id;
-          if (isDemoA) return 1;
-          if (isDemoB) return -1;
+          if (isDemoA) {
+            return 1;
+          }
+          if (isDemoB) {
+            return -1;
+          }
           return a.name.localeCompare(b.name);
         })
         .flatMap((org) =>

@@ -34,7 +34,9 @@ export function schemaMatches(
 }
 
 export function removeNullFields(obj: unknown): Record<string, unknown> {
-  if (!obj || typeof obj !== "object") return {};
+  if (!obj || typeof obj !== "object") {
+    return {};
+  }
 
   const cleaned: Record<string, unknown> = { ...obj };
 
@@ -50,7 +52,9 @@ export function removeNullFields(obj: unknown): Record<string, unknown> {
 export function stringifyToolCallArgs(
   toolCall: Record<string, unknown>,
 ): Record<string, unknown> {
-  if (!toolCall?.function) return toolCall;
+  if (!toolCall?.function) {
+    return toolCall;
+  }
 
   const func = toolCall.function as Record<string, unknown>;
   return {
@@ -66,8 +70,12 @@ export function stringifyToolCallArgs(
 }
 
 export function stringifyToolResultContent(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (content === null || content === undefined) return "";
+  if (typeof content === "string") {
+    return content;
+  }
+  if (content === null || content === undefined) {
+    return "";
+  }
   return JSON.stringify(content);
 }
 
@@ -87,7 +95,9 @@ export function isRichToolResult(content: unknown): boolean {
   const keys = Object.keys(content);
 
   // More than 2 keys → probably rich/structured data
-  if (keys.length > 2) return true;
+  if (keys.length > 2) {
+    return true;
+  }
 
   // Check if any value is an object or array (nested structure)
   for (const key of keys) {
@@ -104,7 +114,9 @@ export function isRichToolResult(content: unknown): boolean {
 export function parseMetadata(
   metadata: unknown,
 ): Record<string, unknown> | null {
-  if (!metadata) return null;
+  if (!metadata) {
+    return null;
+  }
 
   if (typeof metadata === "string") {
     try {
@@ -127,14 +139,18 @@ export function getNestedProperty(
 ): unknown {
   let current: unknown = obj;
   for (const key of path) {
-    if (!current || typeof current !== "object") return undefined;
+    if (!current || typeof current !== "object") {
+      return undefined;
+    }
     current = (current as Record<string, unknown>)[key];
   }
   return current;
 }
 
 function parseArrayIfString(value: unknown): unknown[] | undefined {
-  if (Array.isArray(value)) return value;
+  if (Array.isArray(value)) {
+    return value;
+  }
   const parsed = parseIfString(value);
   return Array.isArray(parsed) ? parsed : undefined;
 }
@@ -152,7 +168,9 @@ export function normalizeToolDefinitionForChatMl(
   tool: unknown,
 ): Record<string, unknown> | null {
   const parsedTool = parseIfString(tool);
-  if (!isPlainRecord(parsedTool)) return null;
+  if (!isPlainRecord(parsedTool)) {
+    return null;
+  }
 
   const nestedFunction = isPlainRecord(parsedTool.function)
     ? parsedTool.function
@@ -165,7 +183,9 @@ export function normalizeToolDefinitionForChatMl(
     parsedTool.id ??
     (parsedTool.type !== "function" ? parsedTool.type : undefined);
 
-  if (typeof rawName !== "string" || rawName.length === 0) return null;
+  if (typeof rawName !== "string" || rawName.length === 0) {
+    return null;
+  }
 
   const rawDescription = source.description ?? parsedTool.description;
   const rawParameters =
@@ -192,7 +212,9 @@ export function normalizeToolDefinitionsForChatMl(
   tools: unknown,
 ): Array<Record<string, unknown>> {
   const parsedTools = parseArrayIfString(tools);
-  if (!parsedTools) return [];
+  if (!parsedTools) {
+    return [];
+  }
 
   return parsedTools
     .map(normalizeToolDefinitionForChatMl)
@@ -205,8 +227,12 @@ function dedupeToolDefinitionsForChatMl(
   const seenNames = new Set<string>();
   return tools.filter((tool) => {
     const name = tool.name;
-    if (typeof name !== "string" || name.length === 0) return false;
-    if (seenNames.has(name)) return false;
+    if (typeof name !== "string" || name.length === 0) {
+      return false;
+    }
+    if (seenNames.has(name)) {
+      return false;
+    }
     seenNames.add(name);
     return true;
   });
@@ -217,7 +243,9 @@ export function attachToolDefinitionsToMessages(
   tools: Array<Record<string, unknown>>,
 ): unknown[] {
   const dedupedTools = dedupeToolDefinitionsForChatMl(tools);
-  if (dedupedTools.length === 0) return messages;
+  if (dedupedTools.length === 0) {
+    return messages;
+  }
 
   return messages.map((msg) => ({
     ...(isPlainRecord(msg) ? msg : {}),

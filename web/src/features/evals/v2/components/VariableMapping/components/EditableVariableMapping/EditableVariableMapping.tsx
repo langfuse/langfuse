@@ -307,9 +307,15 @@ function VariableMappingRow({
     : false;
 
   const extracted = useMemo(() => {
-    if (unmapped || !fieldState.selectedColumnId) return null;
-    if (validationUnavailable) return null;
-    if (!sourceObject) return null;
+    if (unmapped || !fieldState.selectedColumnId) {
+      return null;
+    }
+    if (validationUnavailable) {
+      return null;
+    }
+    if (!sourceObject) {
+      return null;
+    }
     const { value, error } = extractVariableMappingValue(
       sourceObject,
       fieldState.selectedColumnId,

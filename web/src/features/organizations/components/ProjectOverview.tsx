@@ -409,8 +409,12 @@ export const OrganizationProjectOverview = () => {
           return [org, isDemo] as const;
         })
         .sort(([, isDemoA], [, isDemoB]) => {
-          if (isDemoA) return 1;
-          if (isDemoB) return -1;
+          if (isDemoA) {
+            return 1;
+          }
+          if (isDemoB) {
+            return -1;
+          }
           return 0;
         })
         .map(([org, isDemo], index) => {

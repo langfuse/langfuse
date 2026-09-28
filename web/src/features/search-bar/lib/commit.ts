@@ -102,7 +102,9 @@ export type SearchErrorReason =
  * OR lives in `valueOp`, so we never descend into it.
  */
 function queryUsesTopLevelOr(ast: ASTNode | null): boolean {
-  if (ast === null) return false;
+  if (ast === null) {
+    return false;
+  }
   switch (ast.kind) {
     case "or":
       return true;

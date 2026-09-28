@@ -22,7 +22,9 @@ import { DatasetActionMenu } from "@/src/features/datasets/components/DatasetAct
 
 export default function DatasetItemsPage() {
   const route = useReadyRouteParams(["projectId", "datasetId"]);
-  if (!route.ready) return <RouteParamsPendingFallback />;
+  if (!route.ready) {
+    return <RouteParamsPendingFallback />;
+  }
   return (
     <DatasetItemsView
       projectId={route.params.projectId}

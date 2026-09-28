@@ -38,7 +38,9 @@ export function DeleteProjectDialogController({
   const deleteProject = api.projects.delete.useMutation();
 
   const handleDelete = () => {
-    if (!project) return;
+    if (!project) {
+      return;
+    }
 
     capture("project_settings:project_delete");
     deleteProject

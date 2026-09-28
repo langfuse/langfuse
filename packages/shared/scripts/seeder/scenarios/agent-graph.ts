@@ -77,9 +77,13 @@ function stepNodes(
 ): number[] {
   const picked: number[] = [];
   for (let slot = 0; picked.length < Math.min(parallel, nodes); slot++) {
-    if (slot > parallel * 4) break; // give up rather than loop on a tiny vocabulary
+    if (slot > parallel * 4) {
+      break;
+    } // give up rather than loop on a tiny vocabulary
     const index = jitter(seed, step * 1_009 + slot, nodes - 1);
-    if (!picked.includes(index)) picked.push(index);
+    if (!picked.includes(index)) {
+      picked.push(index);
+    }
   }
   return picked;
 }
@@ -96,7 +100,9 @@ function countDistinctEdges(
   for (let step = 0; step < steps - 1; step++) {
     for (const from of stepNodes(seed, step, nodes, parallel)) {
       for (const to of stepNodes(seed, step + 1, nodes, parallel)) {
-        if (from !== to) pairs.add(`${from}>${to}`);
+        if (from !== to) {
+          pairs.add(`${from}>${to}`);
+        }
       }
     }
   }

@@ -11,7 +11,9 @@ export interface ObservationStatusMessage {
 }
 
 export function parseStructuredStatusMessage(message: string) {
-  if (message.length > STATUS_MESSAGE_JSON_PARSE_LIMIT) return undefined;
+  if (message.length > STATUS_MESSAGE_JSON_PARSE_LIMIT) {
+    return undefined;
+  }
 
   const parsed = deepParseJson(message, {
     maxSize: STATUS_MESSAGE_JSON_PARSE_LIMIT,

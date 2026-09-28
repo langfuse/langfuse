@@ -57,13 +57,16 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
   }, [spendAlerts]);
 
   const data = useMemo(() => {
-    if (isLoading) return { isLoading: true, isError: false } as const;
-    if (isError)
+    if (isLoading) {
+      return { isLoading: true, isError: false } as const;
+    }
+    if (isError) {
       return {
         isLoading: false,
         isError: false,
         data: [] as AlertRow[],
       } as const;
+    }
     return { isLoading: false, isError: false, data: rows } as const;
   }, [isLoading, isError, rows]);
 

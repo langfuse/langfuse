@@ -305,6 +305,8 @@ export function hasProjectAccessByRole(p: {
   scope: ProjectScope;
   admin?: boolean;
 }): boolean {
-  if (p.admin) return true;
+  if (p.admin) {
+    return true;
+  }
   return projectRoleAccessRights[p.role].includes(p.scope);
 }

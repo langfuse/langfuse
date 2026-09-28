@@ -33,7 +33,9 @@ const ARRAY_JOIN_SQL: Record<ArrayJoinNode["variant"], string> = {
 };
 
 function canonicalParamValue(value: unknown): string {
-  if (value instanceof Date) return `d:${value.toISOString()}`;
+  if (value instanceof Date) {
+    return `d:${value.toISOString()}`;
+  }
   if (Array.isArray(value)) {
     return `a:${JSON.stringify(value)}`;
   }
@@ -41,17 +43,25 @@ function canonicalParamValue(value: unknown): string {
 }
 
 function inferClickHouseType(value: unknown): string {
-  if (value instanceof Date) return "DateTime64(3)";
+  if (value instanceof Date) {
+    return "DateTime64(3)";
+  }
   if (Array.isArray(value)) {
     const inner = value.length === 0 ? "String" : inferClickHouseType(value[0]);
     return `Array(${inner})`;
   }
-  if (typeof value === "string") return "String";
-  if (typeof value === "boolean") return "UInt8";
+  if (typeof value === "string") {
+    return "String";
+  }
+  if (typeof value === "boolean") {
+    return "UInt8";
+  }
   if (typeof value === "number") {
     return Number.isInteger(value) ? "Int64" : "Float64";
   }
-  if (typeof value === "bigint") return "Int64";
+  if (typeof value === "bigint") {
+    return "Int64";
+  }
   return "String";
 }
 
@@ -140,7 +150,9 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       bindTypeOfColumnOperand(node.leftOperand) ??
       bindTypeOfColumnOperand(node.rightOperand);
     const previous = this.pendingBindType;
-    if (columnType) this.pendingBindType = columnType;
+    if (columnType) {
+      this.pendingBindType = columnType;
+    }
     super.visitBinaryOperation(node);
     this.pendingBindType = previous;
   }
@@ -333,7 +345,9 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.append(ARRAY_JOIN_SQL[node.variant]);
     this.append(" ");
     node.items.forEach((item, index) => {
-      if (index > 0) this.append(", ");
+      if (index > 0) {
+        this.append(", ");
+      }
       this.visitNode(item.expression);
       this.append(" as ");
       this.visitNode(item.alias);
@@ -369,7 +383,9 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
 }
 
 function bindTypeOfColumnOperand(node: OperationNode): string | undefined {
-  if (ColumnNode.is(node)) return COLUMN_BIND_TYPES[node.column.name];
+  if (ColumnNode.is(node)) {
+    return COLUMN_BIND_TYPES[node.column.name];
+  }
   if (ReferenceNode.is(node) && ColumnNode.is(node.column)) {
     return COLUMN_BIND_TYPES[node.column.column.name];
   }

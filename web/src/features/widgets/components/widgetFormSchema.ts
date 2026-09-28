@@ -113,8 +113,12 @@ export function resolveAggregationAndChartType(params: {
     aggregation?: z.infer<typeof metricAggregations>;
     chartType?: string;
   } = {};
-  if (targetChart !== chartType) result.chartType = targetChart;
-  if (targetAgg !== currentAgg) result.aggregation = targetAgg;
+  if (targetChart !== chartType) {
+    result.chartType = targetChart;
+  }
+  if (targetAgg !== currentAgg) {
+    result.aggregation = targetAgg;
+  }
 
   return Object.keys(result).length > 0 ? result : null;
 }
@@ -136,7 +140,9 @@ export function resolveMeasureChangeAggregation(params: {
   viewVersion: ViewVersion;
 }): z.infer<typeof metricAggregations> {
   const { currentAggregation, newMeasure, view, viewVersion } = params;
-  if (currentAggregation !== "count") return currentAggregation;
+  if (currentAggregation !== "count") {
+    return currentAggregation;
+  }
   return (
     viewDeclarations[viewVersion][view]?.measures?.[newMeasure]
       ?.defaultAggregation ?? currentAggregation
@@ -401,7 +407,9 @@ export function resolveWidgetFormVersion(params: {
 export function deriveEffectiveSort(
   values: WidgetFormValues,
 ): SortField | undefined {
-  if (values.chart.type !== "PIVOT_TABLE") return undefined;
+  if (values.chart.type !== "PIVOT_TABLE") {
+    return undefined;
+  }
   return sanitizePivotTableDefaultSort(values.chart.sort ?? undefined, {
     dimensions: values.dimensions.filter((d) => d.field && d.field !== "none"),
     metrics: values.metrics
@@ -494,8 +502,12 @@ export function normalizeWidgetFormValues(
   let dimensions = values.dimensions;
 
   if (!isPivot) {
-    if (metrics.length > 1) metrics = metrics.slice(0, 1);
-    if (dimensions.length > 1) dimensions = dimensions.slice(0, 1);
+    if (metrics.length > 1) {
+      metrics = metrics.slice(0, 1);
+    }
+    if (dimensions.length > 1) {
+      dimensions = dimensions.slice(0, 1);
+    }
   }
 
   const measure = metrics[0]?.measure ?? "count";
@@ -720,14 +732,22 @@ export function toSavePayload(
 
 /** Recursively finds the first non-empty `message` string in a react-hook-form error tree. */
 function firstFormErrorMessage(node: unknown): string | undefined {
-  if (!node || typeof node !== "object") return undefined;
+  if (!node || typeof node !== "object") {
+    return undefined;
+  }
   const message = (node as { message?: unknown }).message;
-  if (typeof message === "string" && message.length > 0) return message;
+  if (typeof message === "string" && message.length > 0) {
+    return message;
+  }
   for (const key of Object.keys(node as Record<string, unknown>)) {
     // `ref`/`type` are react-hook-form leaf metadata, not nested errors.
-    if (key === "ref" || key === "type" || key === "message") continue;
+    if (key === "ref" || key === "type" || key === "message") {
+      continue;
+    }
     const found = firstFormErrorMessage((node as Record<string, unknown>)[key]);
-    if (found) return found;
+    if (found) {
+      return found;
+    }
   }
   return undefined;
 }

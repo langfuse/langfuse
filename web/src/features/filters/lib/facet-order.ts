@@ -55,7 +55,9 @@ export function advanceFacetOrder(
   interactionToken: number,
 ): FacetOrder {
   const key = orderKey(promotedColumns);
-  if (key === order.key) return order;
+  if (key === order.key) {
+    return order;
+  }
   // Attribution alone decides: clearing the sole remaining facet in-list must
   // hold its place until the next settle, exactly like any other in-list
   // clear. External empties (a cleared search bar) carry no new interaction
@@ -87,7 +89,9 @@ export function settleOnNextChange(
  * (in config order) without re-settling the facets around it.
  */
 export function promoteFacet(order: FacetOrder, column: string): FacetOrder {
-  if (order.promoted.has(column)) return order;
+  if (order.promoted.has(column)) {
+    return order;
+  }
   return { ...order, promoted: new Set(order.promoted).add(column) };
 }
 

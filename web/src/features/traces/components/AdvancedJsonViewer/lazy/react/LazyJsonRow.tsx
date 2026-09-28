@@ -38,7 +38,9 @@ export interface LazyJsonRowProps {
 }
 
 function keyLabel(keyOrIndex: string | number | null): string | null {
-  if (keyOrIndex === null) return null;
+  if (keyOrIndex === null) {
+    return null;
+  }
   return typeof keyOrIndex === "number" ? `${keyOrIndex}` : keyOrIndex;
 }
 

@@ -67,7 +67,9 @@ async function loadModule(): Promise<Mod> {
 // ---------------------------------------------------------------------------
 
 function generateStructured(path: string, targetBytes: number): void {
-  if (existsSync(path) && statSync(path).size >= targetBytes * 0.98) return;
+  if (existsSync(path) && statSync(path).size >= targetBytes * 0.98) {
+    return;
+  }
   const fd = openSync(path, "w");
   try {
     let written = 0;
@@ -97,7 +99,9 @@ function generateStructured(path: string, targetBytes: number): void {
         buf = "";
       }
     }
-    if (buf.length) write(buf);
+    if (buf.length) {
+      write(buf);
+    }
     write("]");
   } finally {
     closeSync(fd);
@@ -105,7 +109,9 @@ function generateStructured(path: string, targetBytes: number): void {
 }
 
 function generateWide(path: string, count: number): void {
-  if (existsSync(path)) return;
+  if (existsSync(path)) {
+    return;
+  }
   const fd = openSync(path, "w");
   try {
     writeSync(fd, "[");
@@ -117,7 +123,9 @@ function generateWide(path: string, count: number): void {
         buf = "";
       }
     }
-    if (buf.length) writeSync(fd, buf);
+    if (buf.length) {
+      writeSync(fd, buf);
+    }
     writeSync(fd, "]");
   } finally {
     closeSync(fd);
@@ -132,7 +140,9 @@ function startRssSampler(): () => number {
   let peak = process.memoryUsage().rss;
   const timer = setInterval(() => {
     const rss = process.memoryUsage().rss;
-    if (rss > peak) peak = rss;
+    if (rss > peak) {
+      peak = rss;
+    }
   }, 10);
   timer.unref();
   return () => {
@@ -186,7 +196,9 @@ async function runIndexerRole(
   for (let k = 0; k < 3; k++) {
     const p = time(() => engine.childrenPage(root.nodeId, 0, 100));
     pageTimings.push(p.ms);
-    if (k === 0) firstPage = p.value;
+    if (k === 0) {
+      firstPage = p.value;
+    }
   }
   metrics.childrenPage_x3_ms = pageTimings;
   metrics.total = firstPage!.total;
@@ -297,10 +309,15 @@ function runJsonParseRole(path: string): RoleResult {
 
 async function runRole(role: string, path: string): Promise<void> {
   let result: RoleResult;
-  if (role === "indexer:structured") result = await runIndexerRole(path, false);
-  else if (role === "indexer:wide") result = await runIndexerRole(path, true);
-  else if (role === "json.parse") result = runJsonParseRole(path);
-  else throw new Error(`Unknown role: ${role}`);
+  if (role === "indexer:structured") {
+    result = await runIndexerRole(path, false);
+  } else if (role === "indexer:wide") {
+    result = await runIndexerRole(path, true);
+  } else if (role === "json.parse") {
+    result = runJsonParseRole(path);
+  } else {
+    throw new Error(`Unknown role: ${role}`);
+  }
   process.stdout.write(" RESULT " + JSON.stringify(result) + "\n");
 }
 
@@ -384,7 +401,9 @@ async function main(): Promise<void> {
   }
 
   // Orchestrator.
-  if (!existsSync(SCRATCH)) mkdirSync(SCRATCH, { recursive: true });
+  if (!existsSync(SCRATCH)) {
+    mkdirSync(SCRATCH, { recursive: true });
+  }
   console.log("Generating payloads (idempotent) in", SCRATCH);
   const genStruct = time(() =>
     generateStructured(structuredPath, STRUCTURED_TARGET_BYTES),

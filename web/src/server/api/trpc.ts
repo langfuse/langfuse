@@ -313,11 +313,12 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
 
   const actualInput = await opts.getRawInput();
   const parsedInput = inputProjectSchema.safeParse(actualInput);
-  if (!parsedInput.success)
+  if (!parsedInput.success) {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "Invalid input, projectId is required",
     });
+  }
 
   // check that the user is a member of this project
   const projectId = parsedInput.data.projectId;
@@ -675,11 +676,12 @@ const enforceSessionAccess = t.middleware(async (opts) => {
   const { ctx, next } = opts;
   const actualInput = await opts.getRawInput();
   const result = inputSessionSchema.safeParse(actualInput);
-  if (!result.success)
+  if (!result.success) {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "Invalid input, sessionId is required",
     });
+  }
 
   const { sessionId, projectId } = result.data;
 

@@ -147,7 +147,9 @@ const splitTextNodeWithPromptReferences = (
   node: MarkdownAstNode,
 ): MarkdownAstNode[] => {
   const value = node.value;
-  if (!value) return [node];
+  if (!value) {
+    return [node];
+  }
 
   const promptRegex = new RegExp(PromptDependencyRegex.source, "g");
   const parts: MarkdownAstNode[] = [];
@@ -159,10 +161,14 @@ const splitTextNodeWithPromptReferences = (
     const fullMatch = match[0];
     const innerContent = match[1];
 
-    if (typeof innerContent !== "string") continue;
+    if (typeof innerContent !== "string") {
+      continue;
+    }
 
     const tag = parsePromptDependencyInnerContent(innerContent, index);
-    if (!tag) continue;
+    if (!tag) {
+      continue;
+    }
 
     if (index > lastIndex) {
       parts.push({
@@ -185,7 +191,9 @@ const splitTextNodeWithPromptReferences = (
     lastIndex = index + fullMatch.length;
   }
 
-  if (parts.length === 0) return [node];
+  if (parts.length === 0) {
+    return [node];
+  }
 
   if (lastIndex < value.length) {
     parts.push({
@@ -198,7 +206,9 @@ const splitTextNodeWithPromptReferences = (
 };
 
 const transformPromptReferenceNodes = (node: MarkdownAstNode): void => {
-  if (!Array.isArray(node.children)) return;
+  if (!Array.isArray(node.children)) {
+    return;
+  }
   if (
     node.type === "code" ||
     node.type === "inlineCode" ||
@@ -312,7 +322,9 @@ const markdownComponents: NonNullable<Options["components"]> = {
     return <span className="text-muted-foreground underline">{children}</span>;
   },
   ul({ children }) {
-    if (isChecklist(children)) return <ul className="list-none">{children}</ul>;
+    if (isChecklist(children)) {
+      return <ul className="list-none">{children}</ul>;
+    }
 
     // Nested items contain a block list after the label. list-outside
     // plus left padding keeps the marker in the gutter beside that line.

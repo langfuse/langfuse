@@ -552,7 +552,9 @@ export function CodeMirrorEditor({
   // deps) doesn't fire on every render.
   const handleChange = useCallback(
     (c: string) => {
-      if (onChange) onChange(c);
+      if (onChange) {
+        onChange(c);
+      }
       setLinterEnabled(c !== "");
     },
     [onChange],

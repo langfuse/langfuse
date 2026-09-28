@@ -38,7 +38,9 @@ export function useFormPersistence<T extends Record<string, unknown>>({
 
   // Restore on mount (once)
   useEffect(() => {
-    if (!enabled || isInitialized.current) return;
+    if (!enabled || isInitialized.current) {
+      return;
+    }
     isInitialized.current = true;
 
     try {
@@ -63,7 +65,9 @@ export function useFormPersistence<T extends Record<string, unknown>>({
   const saveDraft = useDebounce(
     (values: T) => {
       const serialized = JSON.stringify(values);
-      if (serialized === lastSaved.current) return;
+      if (serialized === lastSaved.current) {
+        return;
+      }
       try {
         sessionStorage.setItem(storageKey, serialized);
         lastSaved.current = serialized;
@@ -77,9 +81,13 @@ export function useFormPersistence<T extends Record<string, unknown>>({
   );
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      return;
+    }
     const sub = form.watch((values) => {
-      if (form.formState.isDirty) saveDraft(values as T);
+      if (form.formState.isDirty) {
+        saveDraft(values as T);
+      }
     });
     return () => sub.unsubscribe();
   }, [form, enabled, saveDraft]);

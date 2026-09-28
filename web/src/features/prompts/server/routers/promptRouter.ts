@@ -276,7 +276,9 @@ export const promptRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       const { projectId, promptNames, ...timeWindow } = input;
-      if (promptNames.length === 0) return [];
+      if (promptNames.length === 0) {
+        return [];
+      }
       const useEventsTable = ctx.session.user.v4BetaEnabled === true;
 
       const getPromptCounts = useEventsTable

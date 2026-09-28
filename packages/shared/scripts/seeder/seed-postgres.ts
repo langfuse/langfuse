@@ -782,7 +782,9 @@ export async function createDatasets(
       }
 
       for (let datasetRunNumber = 0; datasetRunNumber < 3; datasetRunNumber++) {
-        if (!data.shouldRunExperiment) continue;
+        if (!data.shouldRunExperiment) {
+          continue;
+        }
 
         await prisma.datasetRuns.upsert({
           where: {
@@ -1015,7 +1017,9 @@ async function upsertNaturalLanguageFilterPrompt(projectId: string) {
   const seedPrompt = SEED_PROMPT_VERSIONS.find(
     (p) => p.name === NATURAL_LANGUAGE_FILTER_PROMPT_NAME,
   );
-  if (!seedPrompt) return;
+  if (!seedPrompt) {
+    return;
+  }
 
   await prisma.prompt.upsert({
     where: {

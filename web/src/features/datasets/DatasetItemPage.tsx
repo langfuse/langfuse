@@ -23,7 +23,9 @@ import {
 
 export default function DatasetItemPage() {
   const route = useReadyRouteParams(["projectId", "datasetId", "itemId"]);
-  if (!route.ready) return <RouteParamsPendingFallback />;
+  if (!route.ready) {
+    return <RouteParamsPendingFallback />;
+  }
   return (
     <DatasetItemContent
       projectId={route.params.projectId}

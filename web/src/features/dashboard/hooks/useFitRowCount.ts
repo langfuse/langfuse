@@ -40,7 +40,9 @@ export function useFitRowCount({
     (node: HTMLElement | null) => {
       observerRef.current?.disconnect();
       observerRef.current = null;
-      if (!node || typeof ResizeObserver === "undefined") return;
+      if (!node || typeof ResizeObserver === "undefined") {
+        return;
+      }
 
       const measure = () => {
         const measuredHeight = node.clientHeight;

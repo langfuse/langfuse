@@ -112,7 +112,9 @@ export function resolveAiSdkModelConfig(params: {
       }
     }
   } catch (cause) {
-    if (LLMValidationError.isInstance(cause)) throw cause;
+    if (LLMValidationError.isInstance(cause)) {
+      throw cause;
+    }
 
     throw new LLMValidationError({
       code: "invalid-connection",
@@ -131,7 +133,9 @@ export function recordAiSdkExecution(params: {
   modelConfig: AiSdkModelConfig;
 }): void {
   const span = getCurrentSpan();
-  if (!span) return;
+  if (!span) {
+    return;
+  }
 
   span.setAttribute("langfuse.llm.execution_engine", "ai-sdk");
   span.setAttribute("langfuse.llm.ai_sdk.adapter", params.model.adapter);

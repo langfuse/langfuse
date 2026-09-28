@@ -24,7 +24,9 @@ const tabs = ["Traces", "Sessions", "Scores"] as const;
 
 export default function UserDetailPage() {
   const route = useReadyRouteParams(["projectId", "userId"]);
-  if (!route.ready) return <RouteParamsPendingFallback />;
+  if (!route.ready) {
+    return <RouteParamsPendingFallback />;
+  }
   return (
     <UserDetailView
       projectId={route.params.projectId}

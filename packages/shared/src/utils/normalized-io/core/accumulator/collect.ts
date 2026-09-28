@@ -71,11 +71,15 @@ function collectRootToolDefinitions(
     })();
     for (const value of values) {
       const record = asRecord(value);
-      if (!record) continue;
+      if (!record) {
+        continue;
+      }
       collectToolDefinitionsFromRecord(record, accumulator);
       for (const nestedKey of ["message", "content", "parts"]) {
         const nested = parseRecord(record[nestedKey]);
-        if (nested) collectToolDefinitionsFromRecord(nested, accumulator);
+        if (nested) {
+          collectToolDefinitionsFromRecord(nested, accumulator);
+        }
       }
     }
   }
@@ -95,7 +99,9 @@ function collectMetadataToolDefinitions(
   addToolDefinitionValue(accumulator, metadata.tools);
 
   const attributes = parseRecord(metadata.attributes);
-  if (!attributes) return;
+  if (!attributes) {
+    return;
+  }
 
   addToolDefinitionValue(accumulator, attributes.tools);
   for (const provider of registeredProviders) {
@@ -120,7 +126,9 @@ function collectMessageSequence(
   const standaloneToolCalls: NormalizedMessagePart[] = [];
 
   const flushStandaloneToolCalls = () => {
-    if (standaloneToolCalls.length === 0) return;
+    if (standaloneToolCalls.length === 0) {
+      return;
+    }
     addMessage(
       messages,
       {
@@ -147,11 +155,15 @@ function collectMessageSequence(
     }
 
     const record = asRecord(value);
-    if (record) collectToolDefinitionsFromRecord(record, accumulator);
+    if (record) {
+      collectToolDefinitionsFromRecord(record, accumulator);
+    }
 
     // OpenAI Responses tool listings are declarations, not conversation
     // content. Keep them side-band without breaking an adjacent call batch.
-    if (record?.type === "mcp_list_tools") continue;
+    if (record?.type === "mcp_list_tools") {
+      continue;
+    }
 
     if (record && !isMessageLike(record)) {
       const parts = normalizePartValue(record, parserContext);
@@ -165,7 +177,9 @@ function collectMessageSequence(
 
     flushStandaloneToolCalls();
     const message = normalizeMessage(value, fallbackRole, parserContext);
-    if (message) addMessage(messages, message, parserContext);
+    if (message) {
+      addMessage(messages, message, parserContext);
+    }
   }
 
   flushStandaloneToolCalls();
@@ -193,7 +207,9 @@ function emitRootSource(
     rootSource.fallbackRole,
     parserContext,
   );
-  if (!message) return;
+  if (!message) {
+    return;
+  }
 
   const finishReason =
     (rootSource.finishReasonCarrier
@@ -217,7 +233,9 @@ function findSystemMessageSources(
   const sources: MessageSource[] = [];
   for (const provider of registeredProviders) {
     const systemMessage = provider.getSystemMessage?.(root, source);
-    if (systemMessage) sources.push(systemMessage);
+    if (systemMessage) {
+      sources.push(systemMessage);
+    }
   }
   return sources;
 }
@@ -280,7 +298,9 @@ function collectRecordMessages(
     const systemMessages: NormalizedMessage[] = [];
     for (const systemSource of systemSources) {
       emitRootSource(systemSource, parserContext, systemMessages, accumulator);
-      if (systemMessages.length > 0) break;
+      if (systemMessages.length > 0) {
+        break;
+      }
     }
     messages.unshift(...systemMessages);
   }
@@ -326,5 +346,7 @@ export function collectIO(
   }
 
   const message = normalizeMessage(parsedValue.value, fallbackRole, context);
-  if (message) addMessage(accumulator.messages, message, context);
+  if (message) {
+    addMessage(accumulator.messages, message, context);
+  }
 }

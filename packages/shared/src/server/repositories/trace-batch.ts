@@ -207,7 +207,9 @@ export async function* getTraceBatchEventStream(
     queryId?: string;
   } = {},
 ): AsyncGenerator<TraceBatchEventRow> {
-  if (props.traces.length === 0) return;
+  if (props.traces.length === 0) {
+    return;
+  }
 
   const { query, params, projectIds } = buildTraceBatchEventQuery(props);
   yield* queryClickhouseStream<TraceBatchEventRow>({

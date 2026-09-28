@@ -136,8 +136,11 @@ export function prepareSessionTimelineObservations<
   const observationsByTraceId = new Map<string | null, Observation[]>();
   for (const observation of observations) {
     const traceObservations = observationsByTraceId.get(observation.traceId);
-    if (traceObservations) traceObservations.push(observation);
-    else observationsByTraceId.set(observation.traceId, [observation]);
+    if (traceObservations) {
+      traceObservations.push(observation);
+    } else {
+      observationsByTraceId.set(observation.traceId, [observation]);
+    }
   }
   const standaloneToolCallIdsByTraceId = new Map(
     Array.from(observationsByTraceId, ([traceId, traceObservations]) => [
@@ -175,7 +178,9 @@ export function prepareSessionTimelineObservations<
   const latestToolCallById = new Map<string, ToolCallPart>();
   for (const { prepared } of chronologicalPreparedObservations) {
     for (const toolCall of prepared.processedMessages.rolledUpToolCalls) {
-      if (!toolCall.toolCallId) continue;
+      if (!toolCall.toolCallId) {
+        continue;
+      }
       latestToolCallById.set(
         `${prepared.observation.traceId ?? ""}\0${toolCall.toolCallId}`,
         toolCall,
@@ -198,10 +203,14 @@ export function prepareSessionTimelineObservations<
   const siblingToolCallsBySemanticKey = new Map<string, ToolCallPart[]>();
   const emittedToolCallIds = new Set<string>();
   for (const { prepared } of chronologicalPreparedObservations) {
-    if (prepared.parsed?.type !== "loaded") continue;
+    if (prepared.parsed?.type !== "loaded") {
+      continue;
+    }
     for (const message of prepared.parsed.messages) {
       for (const part of message.parts) {
-        if (part.type !== "tool-call" || !part.toolCallId) continue;
+        if (part.type !== "tool-call" || !part.toolCallId) {
+          continue;
+        }
         emittedToolCallIds.add(
           `${prepared.observation.traceId ?? ""}\0${part.toolCallId}`,
         );
@@ -228,34 +237,51 @@ export function prepareSessionTimelineObservations<
       if (semanticKey) {
         const directKey = `${observation.traceId ?? ""}\0${observation.parentObservationId ?? ""}\0${semanticKey}`;
         const directMatches = toolObservationsBySemanticKey.get(directKey);
-        if (directMatches) directMatches.push(observation);
-        else toolObservationsBySemanticKey.set(directKey, [observation]);
+        if (directMatches) {
+          directMatches.push(observation);
+        } else {
+          toolObservationsBySemanticKey.set(directKey, [observation]);
+        }
       }
     }
 
     for (const toolCall of prepared.processedMessages.rolledUpToolCalls) {
       const semanticKey = getToolSemanticKey(toolCall.toolName, toolCall.input);
-      if (!semanticKey) continue;
+      if (!semanticKey) {
+        continue;
+      }
       const directKey = `${observation.traceId ?? ""}\0${observation.id}\0${semanticKey}`;
       const directMatches = directToolCallsBySemanticKey.get(directKey);
-      if (directMatches) directMatches.push(toolCall);
-      else directToolCallsBySemanticKey.set(directKey, [toolCall]);
+      if (directMatches) {
+        directMatches.push(toolCall);
+      } else {
+        directToolCallsBySemanticKey.set(directKey, [toolCall]);
+      }
 
       const siblingKey = `${observation.traceId ?? ""}\0${observation.parentObservationId ?? ""}\0${semanticKey}`;
       const siblingMatches = siblingToolCallsBySemanticKey.get(siblingKey);
-      if (siblingMatches) siblingMatches.push(toolCall);
-      else siblingToolCallsBySemanticKey.set(siblingKey, [toolCall]);
+      if (siblingMatches) {
+        siblingMatches.push(toolCall);
+      } else {
+        siblingToolCallsBySemanticKey.set(siblingKey, [toolCall]);
+      }
     }
   }
   const matchedToolCalls = new Set<ToolCallPart>();
   const matchedToolObservations = new Set<Observation>();
   for (const [semanticKey, toolCalls] of directToolCallsBySemanticKey) {
-    if (toolCalls.length !== 1) continue;
+    if (toolCalls.length !== 1) {
+      continue;
+    }
     const toolObservations = toolObservationsBySemanticKey.get(semanticKey);
-    if (toolObservations?.length !== 1) continue;
+    if (toolObservations?.length !== 1) {
+      continue;
+    }
     const matchingCall = toolCalls[0];
     const matchingObservation = toolObservations[0];
-    if (!matchingCall || !matchingObservation) continue;
+    if (!matchingCall || !matchingObservation) {
+      continue;
+    }
     matchedToolCalls.add(matchingCall);
     matchedToolObservations.add(matchingObservation);
   }
@@ -263,14 +289,20 @@ export function prepareSessionTimelineObservations<
     const unmatchedToolCalls = toolCalls.filter(
       (toolCall) => !matchedToolCalls.has(toolCall),
     );
-    if (unmatchedToolCalls.length !== 1) continue;
+    if (unmatchedToolCalls.length !== 1) {
+      continue;
+    }
     const unmatchedToolObservations = (
       toolObservationsBySemanticKey.get(semanticKey) ?? []
     ).filter((observation) => !matchedToolObservations.has(observation));
-    if (unmatchedToolObservations.length !== 1) continue;
+    if (unmatchedToolObservations.length !== 1) {
+      continue;
+    }
     const matchingCall = unmatchedToolCalls[0];
     const matchingObservation = unmatchedToolObservations[0];
-    if (!matchingCall || !matchingObservation) continue;
+    if (!matchingCall || !matchingObservation) {
+      continue;
+    }
     matchedToolCalls.add(matchingCall);
     matchedToolObservations.add(matchingObservation);
   }
@@ -298,7 +330,9 @@ export function prepareSessionTimelineObservations<
 
   for (const prepared of preparedObservations) {
     const { observation } = prepared;
-    if (!observation.parentObservationId) continue;
+    if (!observation.parentObservationId) {
+      continue;
+    }
 
     const parentKey = `${observation.traceId ?? ""}\0${observation.parentObservationId}`;
     if (
@@ -316,7 +350,9 @@ export function prepareSessionTimelineObservations<
           left.observation.startTime.getTime() -
           right.observation.startTime.getTime(),
       );
-    } else childrenByParentKey.set(parentKey, [prepared]);
+    } else {
+      childrenByParentKey.set(parentKey, [prepared]);
+    }
   }
 
   const result: PreparedSessionTimelineItem<Observation>[] = [];
@@ -331,17 +367,23 @@ export function prepareSessionTimelineObservations<
     activeKeys: ReadonlySet<string>,
   ) => {
     const cached = nestedObservationCountsByKey.get(key);
-    if (cached) return cached;
+    if (cached) {
+      return cached;
+    }
 
     const nextActiveKeys = new Set(activeKeys).add(key);
     const counts: Record<string, number> = {};
     const rolledUpToolCallCount =
       preparedByKey.get(key)?.processedMessages.rolledUpToolCalls.length ?? 0;
-    if (rolledUpToolCallCount > 0) counts.TOOL = rolledUpToolCallCount;
+    if (rolledUpToolCallCount > 0) {
+      counts.TOOL = rolledUpToolCallCount;
+    }
 
     for (const child of childrenByParentKey.get(key) ?? []) {
       const childKey = observationKey(child.observation);
-      if (nextActiveKeys.has(childKey)) continue;
+      if (nextActiveKeys.has(childKey)) {
+        continue;
+      }
 
       const type = child.observation.type ?? "EVENT";
       counts[type] = (counts[type] ?? 0) + 1;
@@ -400,7 +442,9 @@ export function prepareSessionTimelineObservations<
     ancestorObservationIds: readonly string[],
   ) => {
     const key = observationKey(prepared.observation);
-    if (emitted.has(key) || active.has(key)) return;
+    if (emitted.has(key) || active.has(key)) {
+      return;
+    }
 
     const children = childrenByParentKey.get(key) ?? [];
     const messages = deduplicateTimelineInput(
@@ -462,10 +506,14 @@ export function prepareSessionTimelineObservations<
     const parentKey = prepared.observation.parentObservationId
       ? `${prepared.observation.traceId ?? ""}\0${prepared.observation.parentObservationId}`
       : null;
-    if (parentKey && preparedByKey.has(parentKey)) continue;
+    if (parentKey && preparedByKey.has(parentKey)) {
+      continue;
+    }
     emit(prepared, [], []);
   }
-  for (const prepared of preparedObservations) emit(prepared, [], []);
+  for (const prepared of preparedObservations) {
+    emit(prepared, [], []);
+  }
 
   return result;
 }

@@ -138,7 +138,9 @@ export const MobilePageTitle = ({
           <Popover
             open={isMenuOpen}
             onOpenChange={(open) => {
-              if (open) restoreFocus.current = true;
+              if (open) {
+                restoreFocus.current = true;
+              }
               setMenuOpen(open);
             }}
           >
@@ -157,7 +159,9 @@ export const MobilePageTitle = ({
               align="end"
               className="w-auto min-w-44 p-1"
               onCloseAutoFocus={(event) => {
-                if (!restoreFocus.current) event.preventDefault();
+                if (!restoreFocus.current) {
+                  event.preventDefault();
+                }
                 restoreFocus.current = true;
               }}
             >

@@ -48,7 +48,9 @@ export function escapeForJsonStringBody(text: string): string {
 /** Whether `text` is, on its own, syntactically valid JSON. */
 export function isValidJson(text: string): boolean {
   const trimmed = text.trim();
-  if (trimmed === "") return false;
+  if (trimmed === "") {
+    return false;
+  }
   try {
     JSON.parse(trimmed);
     return true;
@@ -81,7 +83,9 @@ function isInsideJsonStringPrefix(prefix: string): boolean {
         // A backslash at the very end escapes the caret position: the caret sits
         // mid-escape-sequence (e.g. between `\` and `n` of `\n`). Inserting there
         // would split the escape, so treat it as not a safe in-string point.
-        if (i === prefix.length - 1) return false;
+        if (i === prefix.length - 1) {
+          return false;
+        }
         i++; // skip the escaped character
       } else if (ch === '"') {
         inString = false;
@@ -111,7 +115,9 @@ function selectionStaysInJsonString(
     if (ch === "\\") {
       // A trailing backslash escapes a char outside the selection; replacing the
       // selection would orphan that escape, so treat it as leaving the string.
-      if (i === selected.length - 1) return false;
+      if (i === selected.length - 1) {
+        return false;
+      }
       i++; // skip the escaped character
     } else if (ch === '"') {
       return false; // an unescaped quote closes the string mid-selection
@@ -138,10 +144,14 @@ export function planMagicPaste(
   state: EditorState,
   pastedText: string,
 ): MagicPastePlan | null {
-  if (pastedText === "") return null;
+  if (pastedText === "") {
+    return null;
+  }
   // Multi-cursor: a single transform would only fill the main range and drop the
   // others, so defer to CodeMirror's native per-cursor paste.
-  if (state.selection.ranges.length > 1) return null;
+  if (state.selection.ranges.length > 1) {
+    return null;
+  }
   const sel = state.selection.main;
 
   // 1) Inside a JSON string → escape the fragment. The selection must start in a
@@ -153,7 +163,9 @@ export function planMagicPaste(
   ) {
     const insert = escapeForJsonStringBody(pastedText);
     // Nothing needed escaping: let CodeMirror paste normally (no surprise).
-    if (insert === pastedText) return null;
+    if (insert === pastedText) {
+      return null;
+    }
     return {
       kind: "escape",
       from: sel.from,
@@ -203,11 +215,15 @@ const magicPasteTipField = StateField.define<ActiveTip | null>({
     // A magic paste sets the tip in the same transaction it edits the doc, so
     // the effect always wins over the dismiss rule below.
     for (const effect of tr.effects) {
-      if (effect.is(setMagicPasteTip)) return effect.value;
+      if (effect.is(setMagicPasteTip)) {
+        return effect.value;
+      }
     }
     // Dismiss on the next real edit (not a bare cursor move) so the control
     // survives navigation/reading; a blur handler clears it on focus-out.
-    if (value && tr.docChanged) return null;
+    if (value && tr.docChanged) {
+      return null;
+    }
     return value;
   },
   provide: (field) =>
@@ -341,7 +357,9 @@ export function createJsonMagicPasteExtension(): Extension {
         key: PASTE_RAW_KEY,
         run: (view) => {
           const tip = view.state.field(magicPasteTipField, false);
-          if (!tip) return false; // no active transform → let the key fall through
+          if (!tip) {
+            return false;
+          } // no active transform → let the key fall through
           revertToRaw(view, tip);
           return true;
         },
@@ -358,18 +376,28 @@ export function createJsonMagicPasteExtension(): Extension {
       },
       paste(event, view) {
         // Let the editor's composition-aware paste handle IME composition.
-        if (view.composing) return false;
+        if (view.composing) {
+          return false;
+        }
         const clipboard = event.clipboardData;
-        if (!clipboard) return false;
+        if (!clipboard) {
+          return false;
+        }
         // Files belong to the media drop/paste handler. Use the same extractor it
         // does so we never both defer and leave the default handler to insert
         // unescaped text.
-        if (extractTransferFiles(clipboard).length > 0) return false;
+        if (extractTransferFiles(clipboard).length > 0) {
+          return false;
+        }
         const text = clipboard.getData("text/plain");
-        if (!text) return false;
+        if (!text) {
+          return false;
+        }
 
         const plan = planMagicPaste(view.state, text);
-        if (!plan) return false;
+        if (!plan) {
+          return false;
+        }
 
         event.preventDefault();
         const insertEnd = plan.from + plan.insert.length;

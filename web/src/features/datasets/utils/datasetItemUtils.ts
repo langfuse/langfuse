@@ -6,7 +6,9 @@ import type { Prisma } from "@langfuse/shared";
  * Returns empty string for null/undefined values.
  */
 export const stringifyDatasetItemData = (data: unknown): string => {
-  if (data === null || data === undefined) return "";
+  if (data === null || data === undefined) {
+    return "";
+  }
 
   try {
     return JSON.stringify(data, null, 2);
@@ -41,7 +43,9 @@ export const toDatasetSchema = (
     expectedOutputSchema?: Prisma.JsonValue | null;
   } | null,
 ): DatasetSchema | null => {
-  if (!dataset) return null;
+  if (!dataset) {
+    return null;
+  }
 
   return {
     id: dataset.id,

@@ -79,7 +79,9 @@ function VideoPlayer({ videoSrc }: { videoSrc: string }) {
                 setHasError(true);
                 return;
               }
-              if (error.name === "NotAllowedError") return;
+              if (error.name === "NotAllowedError") {
+                return;
+              }
             }
             throw error;
           });

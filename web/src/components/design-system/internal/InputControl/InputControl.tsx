@@ -72,7 +72,9 @@ export function InputControl({
     />
   );
 
-  if (!trailingAction) return control;
+  if (!trailingAction) {
+    return control;
+  }
 
   const TrailingActionIcon = trailingAction.icon;
 

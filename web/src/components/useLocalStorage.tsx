@@ -33,7 +33,9 @@ function useLocalStorage<T>(
   // This initialization is only run once when the component mounts
   const [value, setValue] = useState<T>(() => {
     // Return initial value if running on server-side
-    if (typeof window === "undefined") return initialValue;
+    if (typeof window === "undefined") {
+      return initialValue;
+    }
 
     try {
       const stored = localStorage.getItem(localStorageKey);
@@ -91,9 +93,13 @@ function useLocalStorage<T>(
   // update a component while rendering a different component".
   useEffect(() => {
     const stringified = safeLocalStorage.set(value);
-    if (!isOwnWriteRef.current) return;
+    if (!isOwnWriteRef.current) {
+      return;
+    }
     isOwnWriteRef.current = false;
-    if (stringified === null) return;
+    if (stringified === null) {
+      return;
+    }
     window.dispatchEvent(
       new CustomEvent("localStorageChange", {
         detail: { key: localStorageKey, newValue: stringified },
@@ -104,7 +110,9 @@ function useLocalStorage<T>(
 
   // Handle cross-tab synchronization
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined") {
+      return;
+    }
 
     // Handler for native localStorage events (triggered by other tabs)
     const handleStorageChange = (e: StorageEvent) => {

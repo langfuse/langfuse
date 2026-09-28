@@ -73,9 +73,12 @@ const featureRoot = (p) => {
 // Where the fix for a violation lands.
 /** @type {(ruleId: number, viol: Violation) => string} */
 function subjectOf(ruleId, viol) {
-  if (ruleId === 7 && viol.paths[1]) return viol.paths[1]; // the reached-into internals
-  if (ruleId === 8 && viol.paths[1])
-    return featureRoot(viol.paths[1]) ?? viol.paths[1]; // the feature that needs an index.ts
+  if (ruleId === 7 && viol.paths[1]) {
+    return viol.paths[1];
+  } // the reached-into internals
+  if (ruleId === 8 && viol.paths[1]) {
+    return featureRoot(viol.paths[1]) ?? viol.paths[1];
+  } // the feature that needs an index.ts
   return viol.paths[0];
 }
 
@@ -141,7 +144,9 @@ export function computeNextItems(results, topN) {
   /** @type {Map<string, Attributed[]>} subject path -> attributed violations */
   const bySubject = new Map();
   for (const [ruleId, viols] of results) {
-    if (SKIP_RULES.has(ruleId)) continue;
+    if (SKIP_RULES.has(ruleId)) {
+      continue;
+    }
     const weight = RULE_WEIGHTS[ruleId] ?? 1;
     for (const viol of viols) {
       const subj = subjectOf(ruleId, viol);
@@ -174,10 +179,14 @@ export function computeNextItems(results, topN) {
     /** @type {Attributed[]} */
     const live = [];
     let score = 0;
-    for (const subj of nodeSubjects.get(node) ?? [])
+    for (const subj of nodeSubjects.get(node) ?? []) {
       for (const a of bySubject.get(subj) ?? []) {
-        if (a.consumed) continue;
-        if (node !== subj && NO_ROLLUP.has(a.ruleId)) continue;
+        if (a.consumed) {
+          continue;
+        }
+        if (node !== subj && NO_ROLLUP.has(a.ruleId)) {
+          continue;
+        }
         score += a.weight;
         byRule.set(a.ruleId, (byRule.get(a.ruleId) ?? 0) + 1);
         byRuleWeighted.set(
@@ -186,6 +195,7 @@ export function computeNextItems(results, topN) {
         );
         live.push(a);
       }
+    }
     return { score, count: live.length, byRule, byRuleWeighted, live };
   };
 
@@ -199,7 +209,9 @@ export function computeNextItems(results, topN) {
     const live = [];
     let score = 0;
     for (const a of bySubject.get(node) ?? []) {
-      if (a.consumed) continue;
+      if (a.consumed) {
+        continue;
+      }
       score += a.weight;
       byRule.set(a.ruleId, (byRule.get(a.ruleId) ?? 0) + 1);
       byRuleWeighted.set(
@@ -217,9 +229,13 @@ export function computeNextItems(results, topN) {
   /** @type {(node: string) => NodeScore | null} */
   const candidateScore = (node) => {
     const s = scoreOf(node);
-    if (s.score === 0) return null;
+    if (s.score === 0) {
+      return null;
+    }
     const top = Math.max(0, ...s.byRuleWeighted.values());
-    if (top >= s.score * 0.7) return s;
+    if (top >= s.score * 0.7) {
+      return s;
+    }
     if (bySubject.has(node)) {
       const own = ownScoreOf(node);
       return own.score > 0 ? own : null;
@@ -233,26 +249,37 @@ export function computeNextItems(results, topN) {
     /** @type {{ node: string, s: NodeScore } | null} */
     let best = null;
     for (const node of nodeSubjects.keys()) {
-      if (NON_CANDIDATES.has(node)) continue;
+      if (NON_CANDIDATES.has(node)) {
+        continue;
+      }
       const s = candidateScore(node);
-      if (!s) continue;
+      if (!s) {
+        continue;
+      }
       if (
         !best ||
         s.score > best.s.score ||
         (s.score === best.s.score &&
           node.split("/").length > best.node.split("/").length)
-      )
+      ) {
         best = { node, s };
+      }
     }
-    if (!best) break;
+    if (!best) {
+      break;
+    }
 
     // prefer the deepest node that still captures nearly the whole win
     let descended = true;
     while (descended) {
       descended = false;
       for (const node of nodeSubjects.keys()) {
-        if (node === best.node || !node.startsWith(best.node + "/")) continue;
-        if (NON_CANDIDATES.has(node)) continue;
+        if (node === best.node || !node.startsWith(best.node + "/")) {
+          continue;
+        }
+        if (NON_CANDIDATES.has(node)) {
+          continue;
+        }
         const s = candidateScore(node);
         if (s && s.score >= best.s.score * 0.85) {
           best = { node, s };
@@ -274,7 +301,9 @@ export function computeNextItems(results, topN) {
       headline: headlineFor(dominantRule, dominantLive, best.node),
       samples: dominantLive.slice(0, 2).map((a) => a.viol.key),
     });
-    for (const a of best.s.live) a.consumed = true;
+    for (const a of best.s.live) {
+      a.consumed = true;
+    }
   }
   return items;
 }

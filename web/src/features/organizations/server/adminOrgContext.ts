@@ -56,7 +56,9 @@ export async function buildAdminOrgContext(ctx: {
     },
   });
 
-  if (!organization) return null;
+  if (!organization) {
+    return null;
+  }
 
   const parsedCloudConfig = CloudConfigSchema.safeParse(
     organization.cloudConfig,

@@ -39,8 +39,12 @@ const isServerErrorStatus = (httpStatus: number) =>
   httpStatus >= 500 && httpStatus < 600;
 
 const getLogLevelFromHTTPStatus = (httpStatus: number): TRPCErrorLogLevel => {
-  if (isServerErrorStatus(httpStatus)) return "error";
-  if (httpStatus === 401 || httpStatus === 404) return "info";
+  if (isServerErrorStatus(httpStatus)) {
+    return "error";
+  }
+  if (httpStatus === 401 || httpStatus === 404) {
+    return "info";
+  }
   return "warn";
 };
 

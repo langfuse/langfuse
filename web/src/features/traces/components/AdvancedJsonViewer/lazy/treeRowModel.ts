@@ -46,8 +46,12 @@ type VisibleEntry =
   | { kind: "loadMore"; ownerId: number; id: number };
 
 function keyOrIndexOf(d: NodeDescriptor): string | number | null {
-  if (d.key !== undefined) return d.key;
-  if (d.index !== undefined) return d.index;
+  if (d.key !== undefined) {
+    return d.key;
+  }
+  if (d.index !== undefined) {
+    return d.index;
+  }
   return null;
 }
 
@@ -152,7 +156,9 @@ export class TreeRowModel implements RowModel {
         continue;
       }
       const state = this.states.get(frame.nodeId);
-      if (!state) continue;
+      if (!state) {
+        continue;
+      }
       out.push({ kind: "node", nodeId: frame.nodeId });
       if (state.expandable && state.expanded) {
         // Push in reverse so children pop in order, with the load-more marker
@@ -225,8 +231,12 @@ export class TreeRowModel implements RowModel {
 
   async expand(nodeId: number): Promise<void> {
     const state = this.states.get(nodeId);
-    if (!state || !state.expandable || state.expanded) return;
-    if (!state.scanned) await this.loadPage(state);
+    if (!state || !state.expandable || state.expanded) {
+      return;
+    }
+    if (!state.scanned) {
+      await this.loadPage(state);
+    }
     state.expanded = true;
     this.revision++;
     this.rebuildVisible();
@@ -234,7 +244,9 @@ export class TreeRowModel implements RowModel {
 
   async collapse(nodeId: number): Promise<void> {
     const state = this.states.get(nodeId);
-    if (!state || !state.expanded) return;
+    if (!state || !state.expanded) {
+      return;
+    }
     // Keep childIds/loadedCount so re-expand restores sub-expansion + progress.
     state.expanded = false;
     this.revision++;
@@ -245,7 +257,9 @@ export class TreeRowModel implements RowModel {
     const ownerId =
       this.loadMoreOwner.get(loadMoreOrNodeId) ?? loadMoreOrNodeId;
     const state = this.states.get(ownerId);
-    if (!state || !state.expandable || !state.hasMore) return;
+    if (!state || !state.expandable || !state.hasMore) {
+      return;
+    }
     await this.loadPage(state);
     this.revision++;
     this.rebuildVisible();

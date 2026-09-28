@@ -70,7 +70,9 @@ export function isValidQuery(input: {
     }
   }
 
-  if (reason) return { valid: false, reason, accepted, rejected };
+  if (reason) {
+    return { valid: false, reason, accepted, rejected };
+  }
   return { valid: true, accepted, rejected: [] };
 }
 

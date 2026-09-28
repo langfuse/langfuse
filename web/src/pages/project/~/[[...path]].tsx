@@ -22,10 +22,14 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const sCtx = parseSentinelRequest(ctx);
 
   const crossRegion = crossRegionRedirect(sCtx);
-  if (crossRegion) return crossRegion;
+  if (crossRegion) {
+    return crossRegion;
+  }
 
   const signIn = await signInRedirect(sCtx);
-  if (signIn) return signIn;
+  if (signIn) {
+    return signIn;
+  }
 
   return projectRedirect(sCtx);
 };
@@ -60,10 +64,11 @@ const crossRegionRedirect = (req: SentinelContext) => {
 /** signInRedirect sends the user to sign-in, returning to the sentinel URL afterward. */
 const signInRedirect = async ({ getSession, resolvedUrl }: SentinelContext) => {
   const session = await getSession();
-  if (!session?.user)
+  if (!session?.user) {
     return redirect(
       `/auth/sign-in?callbackUrl=${encodeURIComponent(resolvedUrl)}`,
     );
+  }
 };
 
 /** projectRedirect resolves to the last visited project, the first accessible project, or home if no projects are available. */
@@ -85,7 +90,9 @@ const projectRedirect = async ({
   }
 
   const firstProjectId = projects.at(0)?.id;
-  if (!firstProjectId) return redirect("/");
+  if (!firstProjectId) {
+    return redirect("/");
+  }
 
   return redirect(`/project/${firstProjectId}${rest}`);
 };

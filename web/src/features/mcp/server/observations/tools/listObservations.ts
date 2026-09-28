@@ -342,9 +342,13 @@ const assertAllowedExpensiveObservationAccess = (
     }
   }
 
-  if (expensiveColumns.size === 0) return;
+  if (expensiveColumns.size === 0) {
+    return;
+  }
 
-  if (input.traceId || hasObservationIdFilter(input.filter)) return;
+  if (input.traceId || hasObservationIdFilter(input.filter)) {
+    return;
+  }
 
   if (!input.fromStartTime || !input.toStartTime) {
     throw new InvalidRequestError(

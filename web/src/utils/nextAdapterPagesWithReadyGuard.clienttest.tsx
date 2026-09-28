@@ -36,7 +36,9 @@ function renderGuardedAdapter(router: ReturnType<typeof makeRouter>) {
       }}
     </NextAdapterPagesWithReadyGuard>,
   );
-  if (!adapter) throw new Error("adapter was not provided to children");
+  if (!adapter) {
+    throw new Error("adapter was not provided to children");
+  }
   return adapter;
 }
 

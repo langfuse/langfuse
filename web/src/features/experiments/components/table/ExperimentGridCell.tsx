@@ -110,7 +110,9 @@ type GridCellData = {
  * quote the same value the cell shows.
  */
 const scoreValueOf = (aggregate?: AggregatedScoreData | null): string => {
-  if (!aggregate) return EMPTY_VALUE_PLACEHOLDER;
+  if (!aggregate) {
+    return EMPTY_VALUE_PLACEHOLDER;
+  }
   if (aggregate.type === "CATEGORICAL") {
     if (aggregate.valueCounts && aggregate.valueCounts.length > 0) {
       return [...aggregate.valueCounts].sort((a, b) => b.count - a.count)[0]

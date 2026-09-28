@@ -93,7 +93,9 @@ const UNICODE_SNIPPETS = [
 
 const sentence = (rng: Rng, words: number): string => {
   const parts: string[] = [];
-  for (let i = 0; i < words; i++) parts.push(rng.pick(WORDS));
+  for (let i = 0; i < words; i++) {
+    parts.push(rng.pick(WORDS));
+  }
   return parts.join(" ");
 };
 
@@ -209,7 +211,9 @@ const buildBase64Payload = (rng: Rng, targetBytes: number): string => {
   const distinctBlocks = Math.min(blockCount, 32);
   for (let b = 0; b < distinctBlocks; b++) {
     let block = "";
-    for (let i = 0; i < 4096; i++) block += BASE64_ALPHABET[rng.int(0, 63)];
+    for (let i = 0; i < 4096; i++) {
+      block += BASE64_ALPHABET[rng.int(0, 63)];
+    }
     blocks.push(block);
   }
   const parts: string[] = [];

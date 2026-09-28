@@ -22,15 +22,21 @@ export function addToolDefinitionValue(
 }
 
 function getToolCallKey(part: NormalizedMessagePart): string | undefined {
-  if (part.type !== "tool-call") return undefined;
+  if (part.type !== "tool-call") {
+    return undefined;
+  }
 
   // Keep legacy identity (including raw argument spelling) out of the public
   // part shape while still using it for output-side compatibility deduping.
   const rawKey = getToolCallKeyForPart(part);
-  if (rawKey) return rawKey;
+  if (rawKey) {
+    return rawKey;
+  }
 
   const id = part.toolCallId;
-  if (typeof id === "string" && id.length > 0) return `id:${id}`;
+  if (typeof id === "string" && id.length > 0) {
+    return `id:${id}`;
+  }
 
   try {
     return `value:${String(part.toolName)}:${JSON.stringify(part.input)}`;
@@ -51,8 +57,12 @@ export function addMessage(
     context.source === "output"
       ? message.parts.filter((part) => {
           const key = getToolCallKey(part);
-          if (!key) return true;
-          if (context.toolCallKeys.has(key)) return false;
+          if (!key) {
+            return true;
+          }
+          if (context.toolCallKeys.has(key)) {
+            return false;
+          }
 
           context.toolCallKeys.add(key);
           return true;
@@ -85,7 +95,9 @@ function addToolDefinition(
   }
 
   const existing = accumulator.toolDefinitions[existingIndex];
-  if (!existing) return;
+  if (!existing) {
+    return;
+  }
 
   accumulator.toolDefinitions[existingIndex] = {
     name: existing.name,

@@ -9,10 +9,16 @@ export class TraceBatchQueue {
     null;
 
   public static getInstance() {
-    if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return null;
-    if (this.instance) return this.instance;
+    if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+      return null;
+    }
+    if (this.instance) {
+      return this.instance;
+    }
     const options = createBullMQQueueOptionsWithRedis(QueueName.TraceBatch);
-    if (!options) return null;
+    if (!options) {
+      return null;
+    }
 
     this.instance = new Queue<TQueueJobTypes[QueueName.TraceBatch]>(
       QueueName.TraceBatch,

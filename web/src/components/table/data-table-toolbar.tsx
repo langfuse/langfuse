@@ -384,8 +384,9 @@ export function DataTableToolbar<TData, TValue>({
                             if (
                               !searchConfig.tableAllowsFullTextSearch &&
                               value.startsWith("metadata_fulltext")
-                            )
+                            ) {
                               return;
+                            }
                             searchConfig.setSearchType?.(
                               searchModeToType(value),
                             );

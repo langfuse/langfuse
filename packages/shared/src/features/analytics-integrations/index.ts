@@ -123,7 +123,9 @@ const legacyDescriptionForGroup = (
   group: ObservationFieldGroupFull,
 ): string => {
   const fields = legacyFieldsForGroup(group);
-  if (group === "model") fields.push(...MODEL_ENRICHMENT_FIELDS);
+  if (group === "model") {
+    fields.push(...MODEL_ENRICHMENT_FIELDS);
+  }
   return joinFields(fields);
 };
 

@@ -38,7 +38,9 @@ export function createSecureLlmFetch({
       });
     } catch (cause) {
       const validationError = findSecureLlmValidationError(cause);
-      if (!validationError) throw cause;
+      if (!validationError) {
+        throw cause;
+      }
 
       throw new LLMValidationError({
         code:

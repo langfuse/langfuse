@@ -604,8 +604,12 @@ export const otelIngestionQueueProcessorBuilder = (
       );
 
       // Ensure required infra config is present
-      if (!redis) throw new Error("Redis not available");
-      if (!prisma) throw new Error("Prisma not available");
+      if (!redis) {
+        throw new Error("Redis not available");
+      }
+      if (!prisma) {
+        throw new Error("Prisma not available");
+      }
 
       const ingestionService = new IngestionService(
         redis,

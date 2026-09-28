@@ -65,7 +65,9 @@ export default function ModelDetailPage() {
 
   // Get default tier or first tier by priority
   const defaultTier = useMemo(() => {
-    if (!model?.pricingTiers || model.pricingTiers.length === 0) return null;
+    if (!model?.pricingTiers || model.pricingTiers.length === 0) {
+      return null;
+    }
     return model.pricingTiers.find((t) => t.isDefault) || model.pricingTiers[0];
   }, [model?.pricingTiers]);
 
@@ -74,7 +76,9 @@ export default function ModelDetailPage() {
 
   // Get the active tier (selected or default)
   const activeTier = useMemo(() => {
-    if (!model?.pricingTiers) return null;
+    if (!model?.pricingTiers) {
+      return null;
+    }
     return resolvePricingTier(
       model.pricingTiers,
       selectedTierId ?? pricingTierParam ?? null,

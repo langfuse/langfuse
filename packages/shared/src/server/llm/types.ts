@@ -513,7 +513,9 @@ export type TypeSafeUpstream = (typeof TYPESAFE_UPSTREAMS)[number];
 export function resolveTypeSafeUpstream(
   baseURL: string | null | undefined,
 ): TypeSafeUpstream {
-  if (!baseURL) return TYPESAFE_UPSTREAMS[0];
+  if (!baseURL) {
+    return TYPESAFE_UPSTREAMS[0];
+  }
   return (
     TYPESAFE_UPSTREAMS.find((upstream) => upstream.baseURL === baseURL) ??
     TYPESAFE_UPSTREAMS[TYPESAFE_UPSTREAMS.length - 1]

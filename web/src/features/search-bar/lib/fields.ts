@@ -484,7 +484,9 @@ export function createFieldRegistry({
   const byName = new Map<string, FieldDef>();
   for (const field of fields) {
     byName.set(field.id.toLowerCase(), field);
-    for (const alias of field.aliases) byName.set(alias.toLowerCase(), field);
+    for (const alias of field.aliases) {
+      byName.set(alias.toLowerCase(), field);
+    }
   }
   const nullable = fields.filter((field) => field.nullable === true);
   const columnIds = new Map<string, string>();
@@ -633,18 +635,22 @@ function resolveFromRegistry(
       }
     }
   }
-  if (lower === HAS_KEY) return { type: "pseudo", id: lower };
+  if (lower === HAS_KEY) {
+    return { type: "pseudo", id: lower };
+  }
   if (
     registry.allowFreeText &&
     Object.keys(registry.searchScopes).length > 0 &&
     lower === "in"
-  )
+  ) {
     return { type: "pseudo", id: "in" };
+  }
   const scope = Object.hasOwn(registry.searchScopes, lower)
     ? registry.searchScopes[lower]
     : undefined;
-  if (registry.allowFreeText && scope)
+  if (registry.allowFreeText && scope) {
     return { type: "searchScope", id: lower, scope };
+  }
   const field = byName.get(lower);
   return field ? { type: "field", field } : null;
 }
@@ -713,8 +719,9 @@ export function operatorIssue(
       const name = refName(ref);
       return `AND grouping (all of) only applies to array fields like traceTags — "${name}" is not an array`;
     }
-    if (op !== "=")
+    if (op !== "=") {
       return `AND grouping only works with plain values, not ${label(op)}`;
+    }
   }
 
   switch (ref.type) {
@@ -821,7 +828,9 @@ export function negationIssue(
       if (f.kind === "number") {
         return `negated equality on "${f.id}" is not representable — use comparisons (${f.id}:<n or ${f.id}:>n)`;
       }
-      if (f.kind === "boolean") return null; // inverts the value
+      if (f.kind === "boolean") {
+        return null;
+      } // inverts the value
       // Negated exact on a textSearch field (`-name:=abc`) IS representable: it
       // is exact-inequality, which lowers to a stringOptions `none of` (there is
       // no `string !=`, but the option-set form covers it — and it is the shape

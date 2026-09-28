@@ -89,7 +89,9 @@ export const useOrgProjectSwitchPaths = () => {
       (segment) => segment.startsWith("[") && segment.endsWith("]"),
     );
     const stopSegment = idSegments.filter((id) => !allowlistedIds.includes(id));
-    if (stopSegment.length === 0) return path;
+    if (stopSegment.length === 0) {
+      return path;
+    }
     const stopIndex = segments.indexOf(stopSegment[0]);
     const truncatedPath = path.split("/").slice(0, stopIndex).join("/");
     return truncatedPath;

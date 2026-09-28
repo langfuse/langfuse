@@ -124,7 +124,9 @@ function resolveNumber(
   fallback: number,
   warnings: string[],
 ): number {
-  if (value === undefined) return fallback; // absent → default, silent
+  if (value === undefined) {
+    return fallback;
+  } // absent → default, silent
   if (typeof value !== "number" || !Number.isFinite(value)) {
     warnings.push(
       `${field}: expected a finite number, got ${JSON.stringify(value)}; using default ${fallback}`,
@@ -155,7 +157,9 @@ function resolveOptionalNumber(
   bound: Bound,
   warnings: string[],
 ): number | undefined {
-  if (value === undefined) return undefined; // absent → backend default, silent
+  if (value === undefined) {
+    return undefined;
+  } // absent → backend default, silent
   if (typeof value !== "number" || !Number.isFinite(value)) {
     warnings.push(
       `${field}: expected a finite number, got ${JSON.stringify(value)}; using backend default`,
@@ -182,7 +186,9 @@ function resolveBoolean(
   value: unknown,
   warnings: string[],
 ): boolean {
-  if (value === undefined) return false; // absent → false, silent
+  if (value === undefined) {
+    return false;
+  } // absent → false, silent
   if (typeof value !== "boolean") {
     warnings.push(
       `${field}: expected a boolean, got ${JSON.stringify(value)}; using default false`,
@@ -198,7 +204,9 @@ function resolveGzipLevel(
   value: unknown,
   warnings: string[],
 ): number | undefined {
-  if (value === undefined) return undefined;
+  if (value === undefined) {
+    return undefined;
+  }
   // Wrong type / non-integer / out-of-range warn distinctly; all fall back to
   // the zlib default.
   if (typeof value !== "number" || !Number.isFinite(value)) {

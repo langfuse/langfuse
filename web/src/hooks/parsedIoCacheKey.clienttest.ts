@@ -34,7 +34,9 @@ describe("cheapHash", () => {
 
   it("keeps a large object's signature tiny — no payload text in the key", () => {
     const wide: Record<string, string> = {};
-    for (let i = 0; i < 1000; i++) wide[`k${i}`] = "y".repeat(10_000);
+    for (let i = 0; i < 1000; i++) {
+      wide[`k${i}`] = "y".repeat(10_000);
+    }
     const sig = cheapHash(wide);
     expect(sig).toMatch(/^o1000:/);
     expect(sig.length).toBeLessThan(40);

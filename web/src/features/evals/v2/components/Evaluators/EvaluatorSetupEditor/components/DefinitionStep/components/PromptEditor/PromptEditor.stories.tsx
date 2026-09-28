@@ -76,7 +76,9 @@ export const MultipleMessages = meta.story({
     });
     const roleTag = canvas.getByText("System");
     const toolbar = collapseButton.parentElement?.parentElement;
-    if (!toolbar) throw new Error("Prompt toolbar not found");
+    if (!toolbar) {
+      throw new Error("Prompt toolbar not found");
+    }
 
     const expandedMetrics = {
       toolbarHeight: toolbar.getBoundingClientRect().height,
@@ -286,7 +288,9 @@ export const DraggingMessage = meta.story({
     );
     for (const sortableMessage of [promptMessage, collapsedMessage]) {
       const transform = getComputedStyle(sortableMessage).transform;
-      if (transform === "none") continue;
+      if (transform === "none") {
+        continue;
+      }
       const matrix = new DOMMatrix(transform);
       expect(matrix.a).toBe(1);
       expect(matrix.d).toBe(1);
@@ -316,7 +320,9 @@ export const AddMessageWhilePreviewing = meta.story({
 
     const editors = canvas.getAllByRole("textbox");
     const newPromptEditor = editors.at(-1);
-    if (!newPromptEditor) throw new Error("New prompt editor not found");
+    if (!newPromptEditor) {
+      throw new Error("New prompt editor not found");
+    }
 
     await expect(
       newPromptEditor.getBoundingClientRect().height,

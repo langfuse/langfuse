@@ -208,9 +208,15 @@ const inScope = (viol) => !scope || viol.paths.some((p) => p.startsWith(scope));
 /** @type {Map<number, Violation[]>} id -> sorted, deduped violations (scoped) */
 const results = new Map();
 for (const r of RULES) {
-  if (!r.get) continue;
+  if (!r.get) {
+    continue;
+  }
   const byKey = new Map(); // a pair of import statements can yield two graph edges
-  for (const viol of r.get()) if (inScope(viol)) byKey.set(viol.key, viol);
+  for (const viol of r.get()) {
+    if (inScope(viol)) {
+      byKey.set(viol.key, viol);
+    }
+  }
   results.set(
     r.id,
     [...byKey.values()].sort((a, b) => a.key.localeCompare(b.key)),
@@ -262,7 +268,9 @@ const keyInScope = (key) =>
 const baselineKeys = (id) => {
   /** @type {string[] | undefined} */
   const keys = baseline?.rules?.[id];
-  if (!keys) return null;
+  if (!keys) {
+    return null;
+  }
   return keys.filter(keyInScope);
 };
 
@@ -312,23 +320,29 @@ if (flag("next")) {
         `    ${it.score} pts · clears ${it.count} violation${it.count === 1 ? "" : "s"}`,
       ),
     );
-    for (const [id, n] of [...it.byRule.entries()].sort((a, b) => b[1] - a[1]))
+    for (const [id, n] of [...it.byRule.entries()].sort(
+      (a, b) => b[1] - a[1],
+    )) {
       console.log(
         `    ${String(n).padStart(3)}× rule ${String(id).padEnd(2)} ${dim(`— ${RULE_LABELS[id] ?? ""}`)}`,
       );
-    for (const s of it.samples) console.log(dim(`         e.g. ${s}`));
+    }
+    for (const s of it.samples) {
+      console.log(dim(`         e.g. ${s}`));
+    }
     console.log();
   });
-  if (!items.length)
+  if (!items.length) {
     console.log(
       `Nothing left to fix here — ${where} might already be the best project structure ever 🏆`,
     );
-  else
+  } else {
     console.log(
       dim(
         "pick #1, make it a small PR, re-run — the list rescores · everything for one item: --rule <n> --scope <path>",
       ),
     );
+  }
   process.exit(0);
 }
 
@@ -380,7 +394,9 @@ if (ruleFilter) {
   console.log(
     `${viols.length} violation${viols.length === 1 ? "" : "s"}${scope ? ` in ${scope}` : ""}\n`,
   );
-  for (const x of viols) console.log("  " + x.key);
+  for (const x of viols) {
+    console.log("  " + x.key);
+  }
   process.exit(0);
 }
 
@@ -393,21 +409,31 @@ if (flag("diff")) {
   }
   let anything = false;
   for (const r of RULES) {
-    if (!r.get) continue;
+    if (!r.get) {
+      continue;
+    }
     const now = new Set((results.get(r.id) ?? []).map((x) => x.key));
     const base = new Set(baselineKeys(r.id) ?? []);
     const fixed = [...base].filter((k) => !now.has(k));
     const added = [...now].filter((k) => !base.has(k));
-    if (!fixed.length && !added.length) continue;
+    if (!fixed.length && !added.length) {
+      continue;
+    }
     anything = true;
     console.log(
       bold(`rule ${r.id} — ${r.title}  (${fmtDelta(now.size - base.size)})`),
     );
-    for (const k of fixed) console.log(green("  − ") + dim(k));
-    for (const k of added) console.log(red("  + ") + k);
+    for (const k of fixed) {
+      console.log(green("  − ") + dim(k));
+    }
+    for (const k of added) {
+      console.log(red("  + ") + k);
+    }
     console.log();
   }
-  if (!anything) console.log("no changes vs baseline");
+  if (!anything) {
+    console.log("no changes vs baseline");
+  }
   process.exit(0);
 }
 
@@ -449,16 +475,19 @@ console.log(
     (hasBaseline ? `  since baseline: ${fmtDelta(total - baseTotal)}` : ""),
 );
 console.log();
-for (const [k, val] of Object.entries(metrics))
+for (const [k, val] of Object.entries(metrics)) {
   console.log(dim(`  ${String(val).padStart(5)}  ${k}`));
+}
 console.log();
 console.log(
   dim(
     "drill down:  pnpm structure:stats --rule 8 [--scope src/features/traces]",
   ),
 );
-if (!baseline)
+if (!baseline) {
   console.log(
     dim("snapshot:    pnpm structure:stats --baseline   (enables Δ + --diff)"),
   );
-else console.log(dim("what moved:  pnpm structure:stats --diff"));
+} else {
+  console.log(dim("what moved:  pnpm structure:stats --diff"));
+}

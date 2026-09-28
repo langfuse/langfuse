@@ -74,7 +74,9 @@ export function ExperimentBaselineControls({
           options={baselineOptionGroups}
           value={baselineId}
           onValueChange={(id) => {
-            if (id === baselineId) return;
+            if (id === baselineId) {
+              return;
+            }
             capture(
               "experiment:baseline_changed",
               baselineChangedProps({

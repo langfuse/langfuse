@@ -148,7 +148,9 @@ async function testLLMConnection(
       ? params.customModels[0]
       : supportedModels[params.adapter][0];
 
-    if (!model) throw Error("No model found");
+    if (!model) {
+      throw Error("No model found");
+    }
 
     if (isDecisionModelAdapter(params.adapter)) {
       return await testDecisionModelConnection({
@@ -165,8 +167,9 @@ async function testLLMConnection(
         const parsed = GCPServiceAccountKeySchema.safeParse(
           JSON.parse(params.secretKey),
         );
-        if (!parsed.success)
+        if (!parsed.success) {
           throw Error("Invalid GCP service account JSON key");
+        }
       }
     }
 

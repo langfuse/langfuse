@@ -127,7 +127,9 @@ export function parseDecisionModelQuestions(
   | { success: true; data: DecisionModelQuestions }
   | { success: false; error: string } {
   const parsed = DecisionModelQuestionsSchema.safeParse(value);
-  if (parsed.success) return { success: true, data: parsed.data };
+  if (parsed.success) {
+    return { success: true, data: parsed.data };
+  }
   return {
     success: false,
     error: parsed.error.issues

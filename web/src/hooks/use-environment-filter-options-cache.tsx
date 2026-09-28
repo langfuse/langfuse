@@ -32,22 +32,34 @@ type EnvironmentOptionsCacheStore = Record<
 >;
 
 const getCacheBucketFromTimeRange = (timeRange: TimeRange) => {
-  if ("range" in timeRange) return `relative:${timeRange.range}`;
+  if ("range" in timeRange) {
+    return `relative:${timeRange.range}`;
+  }
 
   return `absolute:${timeRange.from.getTime()}:${timeRange.to.getTime()}`;
 };
 
 const getTtlMsFromTimeRange = (timeRange: TimeRange) => {
   const absoluteTimeRange = toAbsoluteTimeRange(timeRange);
-  if (!absoluteTimeRange) return TTL_LONG_MS;
+  if (!absoluteTimeRange) {
+    return TTL_LONG_MS;
+  }
 
   const durationMs =
     absoluteTimeRange.to.getTime() - absoluteTimeRange.from.getTime();
 
-  if (durationMs <= HALF_HOUR_MS) return TTL_30_MINUTES_MS;
-  if (durationMs <= DAY_MS) return TTL_1_DAY_MS;
-  if (durationMs <= 7 * DAY_MS) return TTL_7_DAYS_MS;
-  if (durationMs <= 30 * DAY_MS) return TTL_30_DAYS_MS;
+  if (durationMs <= HALF_HOUR_MS) {
+    return TTL_30_MINUTES_MS;
+  }
+  if (durationMs <= DAY_MS) {
+    return TTL_1_DAY_MS;
+  }
+  if (durationMs <= 7 * DAY_MS) {
+    return TTL_7_DAYS_MS;
+  }
+  if (durationMs <= 30 * DAY_MS) {
+    return TTL_30_DAYS_MS;
+  }
   return TTL_LONG_MS;
 };
 
@@ -121,7 +133,9 @@ export function useEnvironmentFilterOptionsCache({
     );
 
   useEffect(() => {
-    if (!projectId || !environmentFilterOptions.data) return;
+    if (!projectId || !environmentFilterOptions.data) {
+      return;
+    }
 
     const options = dedupeOptions(
       environmentFilterOptions.data.map((value) => value.environment),
@@ -146,7 +160,9 @@ export function useEnvironmentFilterOptionsCache({
   ]);
 
   const environmentOptions = useMemo(() => {
-    if (hasValidCache && cacheEntry) return cacheEntry.options;
+    if (hasValidCache && cacheEntry) {
+      return cacheEntry.options;
+    }
 
     return dedupeOptions(
       environmentFilterOptions.data?.map((value) => value.environment) ?? [],

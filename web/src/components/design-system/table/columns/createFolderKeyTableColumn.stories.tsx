@@ -17,7 +17,9 @@ const columns = [
     accessorKey: "name",
     header: "Name",
     getCell: (name, { row }) => {
-      if (!name) return undefined;
+      if (!name) {
+        return undefined;
+      }
 
       if (row.original.type === "folder") {
         return { type: "folder", name, onClick: () => undefined };

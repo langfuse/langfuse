@@ -10,13 +10,19 @@ import { type Extension } from "@codemirror/state";
 export function extractTransferFiles(
   data: DataTransfer | null | undefined,
 ): File[] {
-  if (!data) return [];
-  if (data.files.length > 0) return Array.from(data.files);
+  if (!data) {
+    return [];
+  }
+  if (data.files.length > 0) {
+    return Array.from(data.files);
+  }
   const files: File[] = [];
   for (const item of Array.from(data.items)) {
     if (item.kind === "file") {
       const file = item.getAsFile();
-      if (file) files.push(file);
+      if (file) {
+        files.push(file);
+      }
     }
   }
   return files;
@@ -34,7 +40,9 @@ export function createFileDropPasteExtension({
   return EditorView.domEventHandlers({
     drop(event, view) {
       const files = extractTransferFiles(event.dataTransfer);
-      if (files.length === 0) return false;
+      if (files.length === 0) {
+        return false;
+      }
       event.preventDefault();
       const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
       onFiles(files, view, pos ?? undefined);
@@ -42,7 +50,9 @@ export function createFileDropPasteExtension({
     },
     paste(event, view) {
       const files = extractTransferFiles(event.clipboardData);
-      if (files.length === 0) return false;
+      if (files.length === 0) {
+        return false;
+      }
       event.preventDefault();
       // Freeze the caret at paste time so an async upload can't drift the insert.
       onFiles(files, view, view.state.selection.main.from);

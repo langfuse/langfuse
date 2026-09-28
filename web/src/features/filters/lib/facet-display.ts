@@ -29,7 +29,9 @@ export function getFacetSummary(filter: UIFilter): string | null {
     if (!filter.isActive) {
       // "All" only makes sense once there are several options to keep; while
       // options are loading, absent, or a lone value the header stays quiet.
-      if (filter.options.length === 0) return null;
+      if (filter.options.length === 0) {
+        return null;
+      }
       // An inactive facet can still keep a strict subset: the managed
       // environment policy applies an implicit `none of [hidden]` default
       // that never counts as user-authored (isActive stays false, no Clear).
@@ -109,7 +111,9 @@ export function getFacetSummary(filter: UIFilter): string | null {
   }
 
   if (filter.type === "numeric") {
-    if (!filter.isActive) return null;
+    if (!filter.isActive) {
+      return null;
+    }
     const unit = filter.unit ? ` ${filter.unit}` : "";
     if (filter.value === null) {
       return filter.conditions
@@ -120,14 +124,20 @@ export function getFacetSummary(filter: UIFilter): string | null {
   }
 
   if (filter.type === "string") {
-    if (!filter.isActive) return null;
+    if (!filter.isActive) {
+      return null;
+    }
     return `"${filter.value}"`;
   }
 
   // Keyed facets (metadata, categorical/numeric/boolean scores): one entry →
   // name the key; several → count them.
-  if (!filter.isActive) return null;
-  if (filter.value.length === 1) return filter.value[0].key;
+  if (!filter.isActive) {
+    return null;
+  }
+  if (filter.value.length === 1) {
+    return filter.value[0].key;
+  }
   return `${filter.value.length} conditions`;
 }
 
@@ -139,8 +149,12 @@ export function getFacetSummary(filter: UIFilter): string | null {
  * Mirrors getFacetSummary's single-value branches.
  */
 export function getFacetSummaryValue(filter: UIFilter): string | null {
-  if (filter.type !== "categorical") return null;
-  if (filter.textFilters && filter.textFilters.length > 0) return null;
+  if (filter.type !== "categorical") {
+    return null;
+  }
+  if (filter.textFilters && filter.textFilters.length > 0) {
+    return null;
+  }
 
   if (!filter.isActive) {
     // inactive strict-subset kept set (managed environments) with one value

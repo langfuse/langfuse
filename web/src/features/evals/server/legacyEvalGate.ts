@@ -15,7 +15,9 @@ export function assertCanCreateLegacyEvalJob(params: {
   target: string;
 }): void {
   const { projectId, target } = params;
-  if (!isLegacyEvalTarget(target)) return;
+  if (!isLegacyEvalTarget(target)) {
+    return;
+  }
 
   const allowed = isNewLegacyEvalAllowed({
     v4WriteMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,

@@ -13,10 +13,14 @@ export function getConversationEntries(
   const entries: ConversationEntry[] = [];
 
   messages.forEach((message, messageIndex) => {
-    if (source && message.source !== source) return;
+    if (source && message.source !== source) {
+      return;
+    }
 
     message.parts.forEach((part, partIndex) => {
-      if (part.type === "tool-call" || part.type === "tool-result") return;
+      if (part.type === "tool-call" || part.type === "tool-result") {
+        return;
+      }
 
       const { providerMetadata: _providerMetadata, ...semanticPart } = part;
       entries.push({

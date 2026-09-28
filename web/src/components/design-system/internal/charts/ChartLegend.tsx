@@ -132,7 +132,9 @@ export function ChartLegend({
     let nextVisibleItemCount = 0;
     for (let index = 0; index < itemCount; index += 1) {
       const hiddenItemCount = itemCount - index - 1;
-      if (hiddenItemCount === 0) break;
+      if (hiddenItemCount === 0) {
+        break;
+      }
       const triggerWidth =
         overflowTriggerRefs.current[
           hiddenItemCount - 1
@@ -142,7 +144,9 @@ export function ChartLegend({
         itemWidths[index] +
         triggerWidth +
         (index > 0 ? 2 : 1) * LEGEND_ITEM_GAP;
-      if (nextWidth > availableWidth) break;
+      if (nextWidth > availableWidth) {
+        break;
+      }
       visibleWidth += itemWidths[index] + (index > 0 ? LEGEND_ITEM_GAP : 0);
       nextVisibleItemCount = index + 1;
     }
@@ -151,7 +155,9 @@ export function ChartLegend({
 
   useLayoutEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container) {
+      return;
+    }
     const observer = new ResizeObserver(updateVisibleItemCount);
     observer.observe(container);
     return () => observer.disconnect();

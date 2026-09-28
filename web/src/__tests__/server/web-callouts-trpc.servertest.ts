@@ -139,7 +139,9 @@ const createPrismaStub = () => {
     endpoint: StoredEndpoint,
     select?: Partial<Record<keyof StoredEndpoint, boolean>>,
   ) => {
-    if (!select) return endpoint;
+    if (!select) {
+      return endpoint;
+    }
 
     return Object.fromEntries(
       Object.entries(select)

@@ -69,7 +69,9 @@ export function MobileFullTextSearch({
         setDraft(next);
         // Match the toolbar: clearing the field applies immediately so the
         // list unfilters without needing an explicit submit.
-        if (next === "") submit("");
+        if (next === "") {
+          submit("");
+        }
       }}
       onSubmit={submit}
       // Commit on blur too, so tapping the sheet's "Show results" (or anywhere
@@ -78,7 +80,9 @@ export function MobileFullTextSearch({
       // a focus/blur without changes (or right after an icon/Enter submit)
       // doesn't re-fire.
       onBlur={(value) => {
-        if (value !== committed) submit(value);
+        if (value !== committed) {
+          submit(value);
+        }
       }}
     />
   );

@@ -11,7 +11,9 @@ describe("OTEL ingestion tenant isolation", () => {
   const createdOrgIds: string[] = [];
 
   afterAll(async () => {
-    if (createdOrgIds.length === 0) return;
+    if (createdOrgIds.length === 0) {
+      return;
+    }
     await prisma.organization.deleteMany({
       where: { id: { in: createdOrgIds } },
     });

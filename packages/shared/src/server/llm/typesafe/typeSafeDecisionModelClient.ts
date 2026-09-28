@@ -86,9 +86,13 @@ function readConfidence(providerMetadata: unknown): Record<string, number> {
     return {};
   }
   const typesafe = (providerMetadata as Record<string, unknown>).typesafe;
-  if (typeof typesafe !== "object" || typesafe === null) return {};
+  if (typeof typesafe !== "object" || typesafe === null) {
+    return {};
+  }
   const confidence = (typesafe as Record<string, unknown>).confidence;
-  if (typeof confidence !== "object" || confidence === null) return {};
+  if (typeof confidence !== "object" || confidence === null) {
+    return {};
+  }
   return Object.fromEntries(
     Object.entries(confidence as Record<string, unknown>).flatMap(
       ([id, value]) =>

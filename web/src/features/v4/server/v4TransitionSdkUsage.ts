@@ -352,7 +352,9 @@ const isSdkUsageBlobUsable = (
   blob: SdkUsageCacheBlob | null,
   nowMs: number,
 ): blob is SdkUsageCacheBlob => {
-  if (!blob) return false;
+  if (!blob) {
+    return false;
+  }
   const blobHotStartMs = Date.parse(blob.hotStart);
   // Reject unparsable or future hotStart; Redis TTL is the only freshness
   // bound — we do not expire blobs early based on age.
@@ -527,7 +529,9 @@ export const getSdkUsageSummaries = async ({
 }: {
   projectIds: string[];
 }): Promise<SdkUsageSummaryByProjectResultRow[]> => {
-  if (projectIds.length === 0) return [];
+  if (projectIds.length === 0) {
+    return [];
+  }
 
   const nowMs = Date.now();
   const [seriesByProject, postUsageByProject] = await Promise.all([

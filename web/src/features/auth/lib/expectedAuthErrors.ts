@@ -65,7 +65,9 @@ export const isExpectedAuthErrorPageMessage = (message: string): boolean =>
  * TypeErrors from the same `signIn()` catch stay captured.
  */
 export const isNextAuthMissingSignInUrlError = (error: unknown): boolean => {
-  if (!(error instanceof TypeError)) return false;
+  if (!(error instanceof TypeError)) {
+    return false;
+  }
   const { message } = error;
   return (
     message.includes("Failed to construct 'URL'") ||
@@ -85,7 +87,9 @@ export const isNextAuthMissingSignInUrlError = (error: unknown): boolean => {
  * (eval, invalid regexp) still captures.
  */
 export const isJsonParseSyntaxError = (error: unknown): boolean => {
-  if (!(error instanceof SyntaxError)) return false;
+  if (!(error instanceof SyntaxError)) {
+    return false;
+  }
   const message = error.message;
   return (
     message.includes("JSON.parse") ||

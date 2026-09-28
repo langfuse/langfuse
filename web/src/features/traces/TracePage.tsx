@@ -35,10 +35,11 @@ export function TracePage({
     projectIdForAccessCheck,
   );
 
-  if (trace.isUnauthorized)
+  if (trace.isUnauthorized) {
     return <ErrorPage message="You do not have access to this trace." />;
+  }
 
-  if (trace.isNotFound)
+  if (trace.isNotFound) {
     return (
       <ErrorPage
         title="Trace not found"
@@ -49,8 +50,11 @@ export function TracePage({
         }}
       />
     );
+  }
 
-  if (!trace.data) return <div className="p-3">Loading...</div>;
+  if (!trace.data) {
+    return <div className="p-3">Loading...</div>;
+  }
 
   const isSharedTrace = trace.data.public;
   const showPublicIndicators = isSharedTrace && !hasProjectAccess;

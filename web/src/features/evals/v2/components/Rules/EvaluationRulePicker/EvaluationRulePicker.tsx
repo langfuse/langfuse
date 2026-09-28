@@ -116,7 +116,9 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
   const resolvedOpen = open ?? internalOpen;
 
   const changeOpen = (nextOpen: boolean) => {
-    if (open === undefined) setInternalOpen(nextOpen);
+    if (open === undefined) {
+      setInternalOpen(nextOpen);
+    }
     onOpenChange?.(nextOpen);
   };
 

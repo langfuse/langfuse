@@ -39,8 +39,9 @@ export function createNumberTableColumn<
     loadingCell,
     renderCell: (value, context) => {
       if (!getValue) {
-        if (value === null || value === undefined)
+        if (value === null || value === undefined) {
           return emptyValue ?? <EmptyValue />;
+        }
         return (
           <span>{formatter?.(value, context) ?? numberFormatter(value)}</span>
         );
@@ -48,12 +49,15 @@ export function createNumberTableColumn<
 
       const resolvedValue = getValue(value, context);
 
-      if (resolvedValue === undefined) return emptyValue ?? <EmptyValue />;
+      if (resolvedValue === undefined) {
+        return emptyValue ?? <EmptyValue />;
+      }
       if (
         typeof resolvedValue !== "number" &&
         typeof resolvedValue !== "bigint"
-      )
+      ) {
         return loadingCell;
+      }
 
       return (
         <span>

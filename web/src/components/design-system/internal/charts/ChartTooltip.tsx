@@ -147,9 +147,15 @@ export function ChartTooltip({
     fallbackPlacements = [activeTooltip.side === "top" ? "bottom" : "top"];
   }
   let placement: "top" | "bottom" | "left" | "right" = "top";
-  if (placementStrategy === "horizontal") placement = "right";
-  if (chartAnchored) placement = activeTooltip.side ?? "bottom";
-  if (activeTooltip?.placement) placement = activeTooltip.placement;
+  if (placementStrategy === "horizontal") {
+    placement = "right";
+  }
+  if (chartAnchored) {
+    placement = activeTooltip.side ?? "bottom";
+  }
+  if (activeTooltip?.placement) {
+    placement = activeTooltip.placement;
+  }
   const { floatingStyles, refs } = useFloating({
     elements: { reference: activeTooltip?.reference },
     placement,
@@ -186,8 +192,12 @@ export function ChartTooltip({
           }
           return 12;
         }
-        if (placementStrategy === "chart-bottom") return 12;
-        if (activeTooltip.anchor.type === "bar") return 12;
+        if (placementStrategy === "chart-bottom") {
+          return 12;
+        }
+        if (activeTooltip.anchor.type === "bar") {
+          return 12;
+        }
         const chartBounds = activeTooltip.chart.getBoundingClientRect();
         if (placement === "top") {
           return rects.reference.y - chartBounds.top + 12;
@@ -213,7 +223,9 @@ export function ChartTooltip({
     whileElementsMounted: autoUpdate,
   });
   useLayoutEffect(() => {
-    if (!activeTooltip) return;
+    if (!activeTooltip) {
+      return;
+    }
     const { clientPoint, reference, chart } = activeTooltip;
     if (chartAnchored && clientPoint) {
       refs.setPositionReference({
@@ -375,8 +387,12 @@ export function ChartTooltip({
         labelToCopy === undefined
           ? undefined
           : async (event: KeyboardEvent<SVGElement | HTMLElement>) => {
-              if (event.currentTarget instanceof HTMLElement) return;
-              if (event.key !== "Enter" && event.key !== " ") return;
+              if (event.currentTarget instanceof HTMLElement) {
+                return;
+              }
+              if (event.key !== "Enter" && event.key !== " ") {
+                return;
+              }
               event.preventDefault();
               await copyLabel(data.index, labelToCopy);
             },
@@ -393,8 +409,9 @@ export function ChartTooltip({
   if (activeTooltip?.type === "items") {
     for (const item of activeTooltip.items) {
       let emphasis: "default" | "emphasized" | "dimmed" = "dimmed";
-      if (activeTooltip.emphasizedItemId === undefined) emphasis = "default";
-      else if (activeTooltip.emphasizedItemId === item.id) {
+      if (activeTooltip.emphasizedItemId === undefined) {
+        emphasis = "default";
+      } else if (activeTooltip.emphasizedItemId === item.id) {
         emphasis = "emphasized";
       }
       tooltipRows.push({ ...item, emphasis, kind: "peer" });

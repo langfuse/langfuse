@@ -95,7 +95,9 @@ describe("TreeRowModel over the byte engine", () => {
     expect(blobRow.preview.length).toBeLessThanOrEqual(220); // bounded, not 5MB
     const res = await m.getValue(blobRow.nodeId);
     expect(res.ok).toBe(true);
-    if (res.ok) expect((res.value.value as string).length).toBe(5_000_000);
+    if (res.ok) {
+      expect((res.value.value as string).length).toBe(5_000_000);
+    }
   });
 
   it("round-trips multibyte UTF-8 through the byte path", async () => {
@@ -103,7 +105,9 @@ describe("TreeRowModel over the byte engine", () => {
     const textRow = (await allRows(m)).find((r) => r.keyOrIndex === "text")!;
     const res = await m.getValue(textRow.nodeId);
     expect(res.ok).toBe(true);
-    if (res.ok) expect(res.value.value).toBe("😀 CJK 文字 café");
+    if (res.ok) {
+      expect(res.value.value).toBe("😀 CJK 文字 café");
+    }
   });
 
   it("bumps revision on structural change and stamps row windows", async () => {

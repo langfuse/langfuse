@@ -372,10 +372,14 @@ const run = async (
 
   if (withV4) {
     const tracesById = new Map(traces.map((tr) => [tr.id, tr]));
-    for (const trace of traces) events.push(traceToEvent(trace));
+    for (const trace of traces) {
+      events.push(traceToEvent(trace));
+    }
     for (const obs of observations) {
       const trace = obs.trace_id ? tracesById.get(obs.trace_id) : undefined;
-      if (trace) events.push(observationToEvent(obs, trace));
+      if (trace) {
+        events.push(observationToEvent(obs, trace));
+      }
     }
   }
 
@@ -432,12 +436,18 @@ const run = async (
     });
   }
 
-  for (const batch of chunk(traces, 1000)) await createTracesCh(batch);
+  for (const batch of chunk(traces, 1000)) {
+    await createTracesCh(batch);
+  }
   for (const batch of chunk(observations, 1000)) {
     await createObservationsCh(batch);
   }
-  for (const batch of chunk(scores, 1000)) await createScoresCh(batch);
-  for (const batch of chunk(events, 500)) await createEventsCh(batch);
+  for (const batch of chunk(scores, 1000)) {
+    await createScoresCh(batch);
+  }
+  for (const batch of chunk(events, 500)) {
+    await createEventsCh(batch);
+  }
 
   // uniqExact(id): count() would see pre-merge ReplacingMergeTree duplicates
   // after re-runs with the same id prefix.

@@ -108,7 +108,9 @@ export function DatasetRunItemsByRunTable(props: {
       size: 110,
       isPinnedLeft: true,
       getCell: (datasetItemId) => {
-        if (!datasetItemId) return undefined;
+        if (!datasetItemId) {
+          return undefined;
+        }
         let versionParam = "";
         if (datasetVersion) {
           versionParam = `?version=${datasetVersion.toISOString()}`;
@@ -135,7 +137,9 @@ export function DatasetRunItemsByRunTable(props: {
       header: "Trace",
       size: 60,
       getCell: (trace) => {
-        if (!trace) return undefined;
+        if (!trace) {
+          return undefined;
+        }
         if (trace.observationId) {
           return {
             type: "link",

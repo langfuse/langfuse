@@ -133,18 +133,28 @@ export const shouldKeepPeekOpenOnOutsideInteraction = (
   target: EventTarget | null,
   ignoredSelectors: string[],
 ): boolean => {
-  if (!(target instanceof Element)) return false;
+  if (!(target instanceof Element)) {
+    return false;
+  }
   // Never dismiss for a target actually inside the peek. Radix usually detects
   // this, but primitives that capture the pointer natively (e.g. the inner
   // react-resizable-panels split handle) can bypass its inside-detection and be
   // misreported as outside — which would close the peek mid-drag and unmount
   // the panel group. This guard keeps interactions within the peek safe.
-  if (target.closest("[data-peek-content]")) return true;
-  if (shouldIgnoreOutsideInteraction(target)) return true;
+  if (target.closest("[data-peek-content]")) {
+    return true;
+  }
+  if (shouldIgnoreOutsideInteraction(target)) {
+    return true;
+  }
   // Toasts portal into a higher overlay layer than the peek, so Radix reports
   // them as outside. Closing / clicking one must not dismiss the peek.
-  if (target.closest(`[data-layer="${TOAST_LAYER}"]`)) return true;
-  if (target.closest("[data-row-index]")) return true;
+  if (target.closest(`[data-layer="${TOAST_LAYER}"]`)) {
+    return true;
+  }
+  if (target.closest("[data-row-index]")) {
+    return true;
+  }
   return [...ALWAYS_KEEP_PEEK_OPEN_SELECTORS, ...ignoredSelectors].some(
     (selector) => target.closest(selector),
   );
@@ -182,7 +192,9 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
         params.get(PEEK_VIEW_PARAM) === PEEK_VIEW_EXPANDED;
       // No-op when the flag already matches: skip the redundant shallow
       // router.replace (and the re-render it would otherwise trigger).
-      if (expanded === currentlyExpanded) return;
+      if (expanded === currentlyExpanded) {
+        return;
+      }
       // Header button, drag-past-threshold, and keyboard all commit through
       // here, so this (post no-op guard) fires once per real toggle.
       capture("peek:expand_toggle", {
@@ -191,8 +203,11 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
         isV4,
         tableName,
       });
-      if (expanded) params.set(PEEK_VIEW_PARAM, PEEK_VIEW_EXPANDED);
-      else params.delete(PEEK_VIEW_PARAM);
+      if (expanded) {
+        params.set(PEEK_VIEW_PARAM, PEEK_VIEW_EXPANDED);
+      } else {
+        params.delete(PEEK_VIEW_PARAM);
+      }
       router.replace(
         {
           pathname: getPathnameWithoutBasePath(),
@@ -234,7 +249,9 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   // Hooks run unconditionally above this early return so ordering stays stable
   // across open/close. Returning null on close unmounts PeekTableStateProvider,
   // which is what resets nested-table state when the peek closes (see README).
-  if (!itemId || !mounted) return null;
+  if (!itemId || !mounted) {
+    return null;
+  }
 
   const preventDismissOnKeptOpen = (event: {
     target: EventTarget | null;
@@ -250,7 +267,9 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   const handleOpenChange = (open: boolean) => {
     // Open is driven by row clicks / detail-page navigation; we only react to
     // close requests (Escape, swipe-down, click-outside, the close button).
-    if (open) return;
+    if (open) {
+      return;
+    }
     props.closePeek();
   };
 

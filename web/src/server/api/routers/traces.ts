@@ -211,7 +211,9 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (input.traceIds.length === 0) return [];
+      if (input.traceIds.length === 0) {
+        return [];
+      }
 
       const { filterState, hasNoMatches, matchingIds } =
         await applyCommentFilters({

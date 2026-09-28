@@ -170,8 +170,12 @@ export const collectPresentScoreKeys = (
 ): Set<string> => {
   const presentKeys = new Set<string>();
   for (const aggregate of aggregates) {
-    if (!aggregate) continue;
-    for (const key of Object.keys(aggregate)) presentKeys.add(key);
+    if (!aggregate) {
+      continue;
+    }
+    for (const key of Object.keys(aggregate)) {
+      presentKeys.add(key);
+    }
   }
   return presentKeys;
 };
@@ -199,7 +203,9 @@ export const withPresentScoreKeys = <T extends { key: string }>(
  */
 const isScoreColumnId = (columnId: string): boolean => {
   const segments = columnId.split("-");
-  if (segments.length < 3) return false;
+  if (segments.length < 3) {
+    return false;
+  }
   const [source, dataType] = segments.slice(-2);
   return (
     (ScoreSourceArray as readonly string[]).includes(source) &&
@@ -229,14 +235,18 @@ export const revealScoreColumns = (
   visibility: VisibilityState,
   scoreColumnIds: string[],
 ): VisibilityState | null => {
-  if (scoreColumnIds.length === 0) return null;
+  if (scoreColumnIds.length === 0) {
+    return null;
+  }
   const revealedIds = Array.from(
     new Set([
       ...scoreColumnIds,
       ...Object.keys(visibility).filter(isScoreColumnId),
     ]),
   );
-  if (revealedIds.some((id) => visibility[id])) return visibility;
+  if (revealedIds.some((id) => visibility[id])) {
+    return visibility;
+  }
   return {
     ...visibility,
     ...Object.fromEntries(revealedIds.map((id) => [id, true])),
@@ -279,7 +289,9 @@ export const splitScoreDataTypeIcon = (
 ): { icon?: string; label: string } => {
   const parts = header.split(" ");
   const iconIndex = parts.findIndex((part) => SCORE_DATA_TYPE_ICONS.has(part));
-  if (iconIndex === -1) return { label: header.trim() };
+  if (iconIndex === -1) {
+    return { label: header.trim() };
+  }
   return {
     icon: parts[iconIndex],
     label: [...parts.slice(0, iconIndex), ...parts.slice(iconIndex + 1)]

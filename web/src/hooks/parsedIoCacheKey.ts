@@ -75,10 +75,17 @@ function contentHash(value: object): number | string {
  * branches exist for defensive correctness and consistency.
  */
 export function cheapHash(value: unknown): string {
-  if (value === null || value === undefined) return "∅";
-  if (typeof value === "string") return `s${value.length}:${cyrb53(value)}`;
-  if (Array.isArray(value)) return `a${value.length}:${contentHash(value)}`;
-  if (typeof value === "object")
+  if (value === null || value === undefined) {
+    return "∅";
+  }
+  if (typeof value === "string") {
+    return `s${value.length}:${cyrb53(value)}`;
+  }
+  if (Array.isArray(value)) {
+    return `a${value.length}:${contentHash(value)}`;
+  }
+  if (typeof value === "object") {
     return `o${Object.keys(value).length}:${contentHash(value)}`;
+  }
   return `p${String(value)}`;
 }

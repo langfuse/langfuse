@@ -60,12 +60,15 @@ function joinPromptCoreAndMetricData(
   status: "loading" | "error" | "success";
   combinedData: (PromptCoreData & Partial<PromptMetric>)[] | undefined;
 } {
-  if (!promptCoreData) return { status: "loading", combinedData: undefined };
+  if (!promptCoreData) {
+    return { status: "loading", combinedData: undefined };
+  }
 
   const { promptVersions } = promptCoreData;
 
-  if (!promptMetricsData)
+  if (!promptMetricsData) {
     return { status: "success", combinedData: promptVersions };
+  }
 
   const promptMetricsMap = promptMetricsData.reduce(
     (acc, metric: PromptMetric) => {
@@ -178,7 +181,9 @@ export default function PromptMetricsPage({
       isPinnedLeft: true,
       size: 80,
       getCell: (version) => {
-        if (typeof version !== "number") return undefined;
+        if (typeof version !== "number") {
+          return undefined;
+        }
 
         return {
           type: "link",
@@ -217,8 +222,12 @@ export default function PromptMetricsPage({
       size: 140,
       formatter: (value) => formatIntervalSeconds(value / 1000, 3),
       getValue: (value) => {
-        if (!promptMetrics.isSuccess) return { type: "loading" };
-        if (!value) return undefined;
+        if (!promptMetrics.isSuccess) {
+          return { type: "loading" };
+        }
+        if (!value) {
+          return undefined;
+        }
 
         return value;
       },
@@ -231,8 +240,12 @@ export default function PromptMetricsPage({
       enableHiding: true,
       formatter: (value) => String(value),
       getValue: (value) => {
-        if (!promptMetrics.isSuccess) return { type: "loading" };
-        if (!value) return undefined;
+        if (!promptMetrics.isSuccess) {
+          return { type: "loading" };
+        }
+        if (!value) {
+          return undefined;
+        }
 
         return value;
       },
@@ -244,8 +257,12 @@ export default function PromptMetricsPage({
       enableHiding: true,
       formatter: (value) => String(value),
       getValue: (value) => {
-        if (!promptMetrics.isSuccess) return { type: "loading" };
-        if (!value) return undefined;
+        if (!promptMetrics.isSuccess) {
+          return { type: "loading" };
+        }
+        if (!value) {
+          return undefined;
+        }
 
         return value;
       },
@@ -256,8 +273,12 @@ export default function PromptMetricsPage({
       size: 120,
       formatter: (value) => usdFormatter(value),
       getValue: (value) => {
-        if (!promptMetrics.isSuccess) return { type: "loading" };
-        if (!value) return undefined;
+        if (!promptMetrics.isSuccess) {
+          return { type: "loading" };
+        }
+        if (!value) {
+          return undefined;
+        }
 
         return value;
       },

@@ -15,7 +15,9 @@ export function getHistoricalInputIndices(
   const historicalInputIndices = new Set<number>();
   currentInput.forEach((entry, index) => {
     const remainingOccurrences = remainingOccurrencesByKey.get(entry.key) ?? 0;
-    if (remainingOccurrences === 0) return;
+    if (remainingOccurrences === 0) {
+      return;
+    }
 
     historicalInputIndices.add(index);
     remainingOccurrencesByKey.set(entry.key, remainingOccurrences - 1);

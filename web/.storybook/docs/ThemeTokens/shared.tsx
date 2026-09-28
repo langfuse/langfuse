@@ -48,12 +48,14 @@ export const rootEntries: TokenEntry[] = (() => {
   }
   for (const declaration of parsed.dark) {
     const entry = byName.get(declaration.name);
-    if (entry) entry.dark = declaration;
-    else
+    if (entry) {
+      entry.dark = declaration;
+    } else {
       byName.set(declaration.name, {
         name: declaration.name,
         dark: declaration,
       });
+    }
   }
   return [...byName.values()];
 })();
@@ -78,8 +80,9 @@ function buildContext(dark: boolean): TokenContext {
     map.set(declaration.name, declaration.value);
   }
   if (dark) {
-    for (const declaration of parsed.dark)
+    for (const declaration of parsed.dark) {
       map.set(declaration.name, declaration.value);
+    }
   }
   const resolve = (value: string) => resolveDeclaredValue(value, map);
   return {
@@ -172,7 +175,9 @@ export function findTokenDeclaration(name: string): {
   staticDecl?: TokenDeclaration;
 } {
   const entry = rootEntries.find((candidate) => candidate.name === name);
-  if (entry) return { entry };
+  if (entry) {
+    return { entry };
+  }
   const staticDecl = [...parsed.fontTokens, ...parsed.inlineTokens].find(
     (candidate) => candidate.name === name,
   );
@@ -192,7 +197,9 @@ export { Eyebrow, InlineCode, PageHeader, PageSection, Panel };
  * ------------------------------------------------------------------------- */
 
 export function Swatch({ color }: { color: string | undefined }) {
-  if (!color) return null;
+  if (!color) {
+    return null;
+  }
   return (
     <span
       aria-hidden
@@ -236,7 +243,9 @@ function ValueCell({
   /** The active toolbar theme's cell reads louder. */
   emphasized: boolean;
 }) {
-  if (!decl) return <EmptyCell />;
+  if (!decl) {
+    return <EmptyCell />;
+  }
   const swatch = toCssColor(paint.resolve(decl.value));
   return (
     <div className="flex min-w-0 items-center gap-1.5">

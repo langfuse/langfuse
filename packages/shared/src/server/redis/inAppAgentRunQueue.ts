@@ -15,7 +15,9 @@ export class InAppAgentRunQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.InAppAgentRunQueue]
   > | null {
-    if (InAppAgentRunQueue.instance) return InAppAgentRunQueue.instance;
+    if (InAppAgentRunQueue.instance) {
+      return InAppAgentRunQueue.instance;
+    }
 
     const newRedis = createNewRedisInstance({
       enableOfflineQueue: false,

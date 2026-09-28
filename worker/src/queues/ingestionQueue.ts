@@ -268,8 +268,12 @@ export const ingestionQueueProcessorBuilder = (
       }
 
       // Perform merge of those events
-      if (!redis) throw new Error("Redis not available");
-      if (!prisma) throw new Error("Prisma not available");
+      if (!redis) {
+        throw new Error("Redis not available");
+      }
+      if (!prisma) {
+        throw new Error("Prisma not available");
+      }
 
       // Determine whether to forward to staging events table
       // Use explicit flag from job payload if provided, otherwise fall back to env flags

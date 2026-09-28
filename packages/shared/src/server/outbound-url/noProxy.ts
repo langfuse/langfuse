@@ -12,7 +12,9 @@ function parseNoProxy(noProxyValue: string): NoProxyEntry[] {
   const entries: NoProxyEntry[] = [];
 
   for (const block of noProxyValue.split(/[,\s]/)) {
-    if (!block) continue;
+    if (!block) {
+      continue;
+    }
 
     const parsed = block.match(/^(.+):(\d+)$/);
     entries.push({

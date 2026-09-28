@@ -11,7 +11,9 @@ import { prisma } from "@langfuse/shared/src/db";
 import { SpanKind } from "@opentelemetry/api";
 
 export const monitorQueueProcessor: Processor = async (job) => {
-  if (job.name !== QueueJobs.MonitorJob) return;
+  if (job.name !== QueueJobs.MonitorJob) {
+    return;
+  }
   return await instrumentAsync(
     {
       name: "process monitor",

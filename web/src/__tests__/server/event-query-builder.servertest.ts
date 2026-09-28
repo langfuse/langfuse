@@ -38,7 +38,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       );
 
       expect(filter).toBeDefined();
-      if (!filter) throw new Error("expected filter");
+      if (!filter) {
+        throw new Error("expected filter");
+      }
       const applied = filter.apply();
       expect(applied.query).toContain(expression);
       expect(applied.query).toContain(clickhouseType);
@@ -71,7 +73,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       );
 
       expect(filter).toBeDefined();
-      if (!filter) throw new Error("expected filter");
+      if (!filter) {
+        throw new Error("expected filter");
+      }
       expect(filter.apply().query).toContain(`${expression} is null`);
     },
   );
@@ -85,7 +89,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query.match(/FROM events_core e/g)).toHaveLength(1);
     expect(built.query).toContain("e.project_id = {projectId: String}");
@@ -121,7 +127,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query).toContain("FROM events_core e SAMPLE 6000000");
     expect(built.query).toContain("any(e._sample_factor) AS sample_factor");
@@ -140,7 +148,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query).not.toContain("SAMPLE");
     expect(built.query).not.toContain("_sample_factor");
@@ -157,7 +167,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query).toContain(
       "tuple('name', tupleElement(option, 1), tupleElement(option, 2), -toInt64(tupleElement(option, 2)), '')",
@@ -182,7 +194,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query).toContain("e.release");
     expect(built.query).toContain("tuple('release'");
@@ -198,7 +212,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query).toContain(
       "tuple(toString(ifNull(e.experiment_id, '')), toString(ifNull(e.experiment_name, '')))",
@@ -225,7 +241,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query.match(/FROM events_core e/g)).toHaveLength(1);
     expect(built.query).toContain("start_time");
@@ -254,7 +272,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query).toContain("empty(e.metadata_names)");
     expect(built.query).not.toContain("e.metadata is null");
@@ -275,7 +295,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     );
 
     expect(filter).toBeDefined();
-    if (!filter) throw new Error("expected filter");
+    if (!filter) {
+      throw new Error("expected filter");
+    }
 
     expect(filter.apply()).toEqual({
       query: "empty(e.experiment_metadata_names)",
@@ -310,7 +332,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query).toContain("LEFT JOIN scores_agg AS s");
     expect(built.query).toContain("LEFT JOIN trace_scores_agg AS ts");
@@ -345,7 +369,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     // One scan of events_core, one scope semi-join, no UNION ALL / GROUP BY /
     // approx sketch: facets are exact aggregates fanned out with arrayJoin.
@@ -389,7 +415,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query).toContain(
       "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String} AND timestamp >= {scoredTracesFromTime: DateTime64(3, 'UTC')} AND timestamp <= {scoredTracesToTime: DateTime64(3, 'UTC')})",
@@ -423,7 +451,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query).toContain(
       "AND timestamp > {scoredTracesFromTime: DateTime64(3, 'UTC')} AND timestamp < {scoredTracesToTime: DateTime64(3, 'UTC')}",
@@ -440,7 +470,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query).toContain(
       "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String})",
@@ -466,7 +498,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query.match(/FROM events_core e/g)).toHaveLength(1);
     expect(built.query).toContain("'level' AS column");
@@ -497,7 +531,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query).toContain("FROM events_core e SAMPLE 6000000");
     expect(built.query).toContain(
@@ -514,7 +550,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query).not.toContain("SAMPLE");
     expect(built.query).not.toContain("_sample_factor");
@@ -530,7 +568,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query).toContain("'release' AS column");
     expect(built.query).toContain("toString(e.release) AS value");
@@ -546,7 +586,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query).toContain("'ingestionApiKey' AS column");
     expect(built.query).toContain("toString(e.ingestion_api_key) AS value");
@@ -572,7 +614,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       });
 
       expect(built).not.toBeNull();
-      if (!built) throw new Error("expected query");
+      if (!built) {
+        throw new Error("expected query");
+      }
 
       expect(built.query).toContain(`'${column}' AS column`);
       expect(built.query).toContain(`toString(${expression}) AS value`);
@@ -603,7 +647,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       );
 
       expect(filter).toBeDefined();
-      if (!filter) throw new Error("expected filter");
+      if (!filter) {
+        throw new Error("expected filter");
+      }
       const applied = filter.apply();
       expect(applied.query).toContain('e."ingestion_api_key" IN');
       expect(Object.values(applied.params)).toContainEqual([apiKey]);
@@ -631,7 +677,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       );
 
       expect(filter).toBeDefined();
-      if (!filter) throw new Error("expected filter");
+      if (!filter) {
+        throw new Error("expected filter");
+      }
       const applied = filter.apply();
       expect(applied.query).toContain(expectedClause);
       expect(Object.values(applied.params)).toContainEqual([value]);
@@ -653,7 +701,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     );
 
     expect(filter).toBeDefined();
-    if (!filter) throw new Error("expected filter");
+    if (!filter) {
+      throw new Error("expected filter");
+    }
     const applied = filter.apply();
     expect(applied.query).toContain("e.release IN");
     expect(Object.values(applied.params)).toContainEqual(["181"]);
@@ -674,7 +724,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     );
 
     expect(filter).toBeDefined();
-    if (!filter) throw new Error("expected filter");
+    if (!filter) {
+      throw new Error("expected filter");
+    }
     expect(filter.apply().query).toContain(
       `(e.release = '' OR e.release IS NULL)`,
     );
@@ -695,7 +747,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     );
 
     expect(filter).toBeDefined();
-    if (!filter) throw new Error("expected filter");
+    if (!filter) {
+      throw new Error("expected filter");
+    }
     expect(filter.apply().query).toContain(
       `(e."experiment_id" = '' OR e."experiment_id" IS NULL)`,
     );
@@ -710,7 +764,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query.match(/FROM events_core e/g)).toHaveLength(1);
     expect(built.query).toContain("'isRootObservation' AS column");
@@ -733,7 +789,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query.match(/FROM events_core e/g)).toHaveLength(1);
     expect(built.query).toContain("'traceTags' AS column");
@@ -757,7 +815,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query.match(/FROM events_core e/g)).toHaveLength(1);
     expect(built.query).toContain("e.project_id = {projectId: String}");
@@ -802,7 +862,9 @@ describe("buildEventsMetadataValuesQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query).toContain("FROM events_core e");
     expect(built.query).toContain(
@@ -830,7 +892,9 @@ describe("buildEventsMetadataValuesQuery", () => {
     });
 
     expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
+    if (!built) {
+      throw new Error("expected query");
+    }
 
     expect(built.query).toContain("FROM events_core e SAMPLE 6000000");
     expect(built.query).toContain(

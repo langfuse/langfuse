@@ -25,9 +25,13 @@ export function AnnotationSaveStatus({
     ),
   );
   let status: "idle" | "saving" | "saved" | "error" = "idle";
-  if (state.pending) status = "saving";
-  else if (state.failed) status = "error";
-  else if (state.saved && !dirty && !errors.scoreData) status = "saved";
+  if (state.pending) {
+    status = "saving";
+  } else if (state.failed) {
+    status = "error";
+  } else if (state.saved && !dirty && !errors.scoreData) {
+    status = "saved";
+  }
 
   return (
     <div className="grid items-center justify-items-end">

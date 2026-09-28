@@ -31,7 +31,9 @@ const FLAT_TOOL_CALL_TYPE_MARKERS = new Set([
 function sniffLooseToolCall(
   value: Record<string, unknown>,
 ): NormalizedMessagePart | null | undefined {
-  if (value.type === "tool-result") return undefined;
+  if (value.type === "tool-result") {
+    return undefined;
+  }
 
   const functionCall = asRecord(value.function);
   const isCallShaped =
@@ -51,7 +53,9 @@ function sniffLooseToolCall(
         "index" in value ||
         FLAT_TOOL_CALL_TYPE_MARKERS.has(String(value.type))),
     );
-  if (!isCallShaped) return undefined;
+  if (!isCallShaped) {
+    return undefined;
+  }
 
   return toolCallPart({
     toolCallId:
@@ -81,7 +85,9 @@ export function normalizeFallbackPart(
   value: Record<string, unknown>,
 ): NormalizedMessagePart | null {
   const sniffed = sniffLooseToolCall(value);
-  if (sniffed !== undefined) return sniffed;
+  if (sniffed !== undefined) {
+    return sniffed;
+  }
 
   if (typeof value.type !== "string") {
     return { type: "data", value: toJsonValue(value) };

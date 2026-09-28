@@ -25,13 +25,17 @@ export function useCsvDragAndDrop({ handlers }: { handlers: DragHandlers }) {
     const { active, over } = event;
     setActiveColumn(null);
 
-    if (!over) return;
+    if (!over) {
+      return;
+    }
 
     const fromCardId = active.data.current?.fromCardId;
     const column = active.data.current?.column as CsvColumnPreview;
     const toId = over.id as string;
 
-    if (!column) return;
+    if (!column) {
+      return;
+    }
 
     // Only proceed if dropping on a valid drop zone
     const isValidDropZone =
@@ -40,7 +44,9 @@ export function useCsvDragAndDrop({ handlers }: { handlers: DragHandlers }) {
       toId === "expected" ||
       toId === "metadata";
 
-    if (!isValidDropZone) return;
+    if (!isValidDropZone) {
+      return;
+    }
 
     // Remove from previous mappings if dragging from mapped card
     if (fromCardId === "mapped") {
@@ -50,7 +56,9 @@ export function useCsvDragAndDrop({ handlers }: { handlers: DragHandlers }) {
     // Handle schema key drops (format: "input:key" or "expectedOutput:key")
     if (toId.includes(":")) {
       const [cardType, schemaKey] = toId.split(":");
-      if (!schemaKey) return;
+      if (!schemaKey) {
+        return;
+      }
 
       if (cardType === "input") {
         handlers.onAddToInputSchemaKey(schemaKey, column);

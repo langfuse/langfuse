@@ -72,7 +72,9 @@ const chbCalls = () =>
 /** The client's last request to CHB itself, as (url, init). */
 const lastChbCall = () => {
   const call = chbCalls().at(-1);
-  if (!call) throw new Error("the client never called CHB");
+  if (!call) {
+    throw new Error("the client never called CHB");
+  }
   return { url: call[0] as URL, init: call[1] };
 };
 

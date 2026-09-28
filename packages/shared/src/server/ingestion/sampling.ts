@@ -11,15 +11,19 @@ export function isTraceIdInSample(params: {
 
   const sampledProjects = env.LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS;
 
-  if (!projectId || !sampledProjects.has(projectId))
+  if (!projectId || !sampledProjects.has(projectId)) {
     return { isSampled: true, isSamplingConfigured: false };
+  }
 
   const sampleRate = sampledProjects.get(projectId);
-  if (sampleRate === undefined)
+  if (sampleRate === undefined) {
     return { isSampled: true, isSamplingConfigured: true };
+  }
 
   const traceId = parseTraceId(event);
-  if (!traceId) return { isSampled: true, isSamplingConfigured: true };
+  if (!traceId) {
+    return { isSampled: true, isSamplingConfigured: true };
+  }
 
   return {
     isSampled: isInSample(traceId, sampleRate),
@@ -35,8 +39,12 @@ function isInSample(traceId: string, sampleRate: number) {
     return true;
   }
 
-  if (sampleRate === 0) return false;
-  if (sampleRate === 1) return true;
+  if (sampleRate === 0) {
+    return false;
+  }
+  if (sampleRate === 1) {
+    return true;
+  }
 
   // Create SHA-256 hash of the input
   const hash = crypto.createHash("sha256").update(traceId).digest("hex");
@@ -53,7 +61,9 @@ function isInSample(traceId: string, sampleRate: number) {
 }
 
 function parseTraceId(event: IngestionEventType): string | null | undefined {
-  if (event.type === "trace-create") return event.body.id;
+  if (event.type === "trace-create") {
+    return event.body.id;
+  }
 
   return "traceId" in event.body ? event.body.traceId : null;
 }

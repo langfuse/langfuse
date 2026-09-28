@@ -27,8 +27,12 @@ export type WithStringifiedMetadata<
 export const stringifyMetadata = (
   metadata: MetadataDomain | MetadataDomainClient | null | undefined,
 ): MetadataDomainClient => {
-  if (!metadata) return null;
-  if (typeof metadata === "string") return metadata;
+  if (!metadata) {
+    return null;
+  }
+  if (typeof metadata === "string") {
+    return metadata;
+  }
   return JSON.stringify(metadata);
 };
 

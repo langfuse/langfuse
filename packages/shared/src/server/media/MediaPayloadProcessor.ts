@@ -148,7 +148,9 @@ export async function transformMediaPayload(
     return { value, bytesRemoved: state.bytesRemoved };
   }
 
-  if (isMediaReference(value)) return { value, bytesRemoved: 0 };
+  if (isMediaReference(value)) {
+    return { value, bytesRemoved: 0 };
+  }
 
   let valueToParse = value;
   let dataUriResult: Awaited<ReturnType<typeof replaceDataUris>> | undefined;
@@ -183,7 +185,9 @@ export async function transformMediaPayload(
   }
 
   const state = await transformStructuredValue(parsedValue, params, false);
-  if (!state.changed) return dataUriResult ?? { value, bytesRemoved: 0 };
+  if (!state.changed) {
+    return dataUriResult ?? { value, bytesRemoved: 0 };
+  }
 
   const transformedValue = JSON.stringify(parsedValue);
   return {
@@ -206,7 +210,9 @@ async function replaceDataUris(
 ): Promise<{ value: string; bytesRemoved: number }> {
   params.onDetectionPath("data_uri", Buffer.byteLength(value, "utf8"));
   const occurrences = findDataUris(value);
-  if (occurrences.length === 0) return { value, bytesRemoved: 0 };
+  if (occurrences.length === 0) {
+    return { value, bytesRemoved: 0 };
+  }
 
   let output = "";
   let cursor = 0;
@@ -251,7 +257,9 @@ function findDataUris(value: string): DataUriOccurrence[] {
 
   while (cursor < value.length) {
     let start = value.indexOf(DATA_URI_PREFIX, cursor);
-    if (start === -1) break;
+    if (start === -1) {
+      break;
+    }
 
     if (!hasPlausibleDataUriBoundary(value, start)) {
       occurrences.push({
@@ -280,7 +288,9 @@ function findDataUris(value: string): DataUriOccurrence[] {
         continue;
       }
       const code = value.charCodeAt(headerCursor);
-      if (code === 44) break;
+      if (code === 44) {
+        break;
+      }
       if (code === 59) {
         contentTypeEnd ??= headerCursor;
         if (value.startsWith(BASE64_MARKER, headerCursor)) {
@@ -292,7 +302,9 @@ function findDataUris(value: string): DataUriOccurrence[] {
     }
 
     if (markerStart === undefined) {
-      if (headerCursor === value.length) break;
+      if (headerCursor === value.length) {
+        break;
+      }
       cursor = headerCursor + 1;
       continue;
     }
@@ -319,7 +331,9 @@ function findDataUris(value: string): DataUriOccurrence[] {
       const code = value.charCodeAt(end);
       if (code === 61) {
         padding += 1;
-        if (padding > 2) valid = false;
+        if (padding > 2) {
+          valid = false;
+        }
       } else if (padding > 0) {
         valid = false;
       }
@@ -410,7 +424,9 @@ function getInvalidDataUriHeaderReason(
 }
 
 function hasPlausibleDataUriBoundary(value: string, start: number): boolean {
-  if (start === 0) return true;
+  if (start === 0) {
+    return true;
+  }
   const previousCode = value.charCodeAt(start - 1);
   return !(
     (previousCode >= 48 && previousCode <= 57) ||
@@ -470,7 +486,9 @@ async function transformStructuredValue(
 
   while (stack.length > 0) {
     const node = stack.pop();
-    if (!node || node.depth > MAX_RECURSION_DEPTH) continue;
+    if (!node || node.depth > MAX_RECURSION_DEPTH) {
+      continue;
+    }
 
     if (typeof node.value === "string") {
       state.checkedBytes += Buffer.byteLength(node.value, "utf8");
@@ -501,7 +519,9 @@ async function transformStructuredValue(
       }
       continue;
     }
-    if (!isObject(node.value)) continue;
+    if (!isObject(node.value)) {
+      continue;
+    }
 
     const structuredMedia = matchStructuredMedia(node.value);
     if (structuredMedia) {
@@ -534,7 +554,9 @@ async function transformStructuredValue(
   if (recordStructuredPath) {
     params.onDetectionPath("structured_payload", state.checkedBytes);
   }
-  for (const operation of operations) await operation();
+  for (const operation of operations) {
+    await operation();
+  }
   return state;
 }
 
@@ -601,7 +623,9 @@ function matchStructuredMedia(
 
   for (const inlineDataKey of ["inline_data", "inlineData"] as const) {
     const inlineData = value[inlineDataKey];
-    if (!isObject(inlineData) || typeof inlineData.data !== "string") continue;
+    if (!isObject(inlineData) || typeof inlineData.data !== "string") {
+      continue;
+    }
     const contentType = inlineData.mime_type ?? inlineData.mimeType;
     if (typeof contentType === "string") {
       return {
@@ -623,7 +647,9 @@ async function replaceStructuredMedia(
   media: StructuredMedia,
   params: TransformParams,
 ): Promise<number | undefined> {
-  if (isMediaReference(media.content) || isRemoteUrl(media.content)) return;
+  if (isMediaReference(media.content) || isRemoteUrl(media.content)) {
+    return;
+  }
 
   const candidate = parseStructuredMediaCandidate(media);
   if (candidate.status === "ignored") {
@@ -667,7 +693,9 @@ function parseStructuredMediaCandidate(
     if (!occurrence) {
       return { status: "invalid", reason: "invalid_base64" };
     }
-    if (occurrence.status !== "valid") return occurrence;
+    if (occurrence.status !== "valid") {
+      return occurrence;
+    }
     return {
       status: "valid",
       candidate: {
@@ -749,14 +777,18 @@ function isRemoteUrl(value: string): boolean {
 }
 
 function isValidBase64(value: string): boolean {
-  if (value.length === 0 || value.length % 4 === 1) return false;
+  if (value.length === 0 || value.length % 4 === 1) {
+    return false;
+  }
 
   let padding = 0;
   for (let index = 0; index < value.length; index += 1) {
     const code = value.charCodeAt(index);
     if (code === 61) {
       padding += 1;
-      if (padding > 2) return false;
+      if (padding > 2) {
+        return false;
+      }
     } else if (padding > 0 || !isBase64Character(code, false)) {
       return false;
     }

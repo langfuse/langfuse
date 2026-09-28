@@ -43,7 +43,9 @@ export function PromptLinkingEditor({
 
   // Function to handle inserting the prompt tag at the cursor position
   const handlePromptSelect = (tag: string) => {
-    if (cursorPosition === null) return;
+    if (cursorPosition === null) {
+      return;
+    }
 
     // Insert the tag at the stored cursor position
     const newValue =

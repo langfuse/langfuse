@@ -15,16 +15,22 @@ const MAX_OBJECT_KEYS = 25;
  * already be decoded.
  */
 export function buildJsonPathSuggestions(value: unknown): string[] {
-  if (value === null || typeof value !== "object") return [];
+  if (value === null || typeof value !== "object") {
+    return [];
+  }
 
   const paths: string[] = [];
   const push = (segments: PathSegment[]) => {
     const path = segmentsToJsonPath(segments);
-    if (path) paths.push(path);
+    if (path) {
+      paths.push(path);
+    }
   };
 
   const walk = (node: unknown, segments: PathSegment[], depth: number) => {
-    if (paths.length >= MAX_PATHS || depth > MAX_DEPTH) return;
+    if (paths.length >= MAX_PATHS || depth > MAX_DEPTH) {
+      return;
+    }
 
     if (Array.isArray(node)) {
       const shown = Math.min(node.length, MAX_ARRAY_ITEMS);
@@ -33,7 +39,9 @@ export function buildJsonPathSuggestions(value: unknown): string[] {
         push(childSegments);
         walk(node[index], childSegments, depth + 1);
       }
-      if (node.length > 0) push([...segments, WILDCARD]);
+      if (node.length > 0) {
+        push([...segments, WILDCARD]);
+      }
       return;
     }
 

@@ -94,7 +94,9 @@ export const TheRoomierSideWins = meta.story({
     const cluster = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-metrics"]',
     );
-    if (!cluster) throw new Error("no cluster");
+    if (!cluster) {
+      throw new Error("no cluster");
+    }
 
     // It went where the room is, not where the duration happened to fit.
     await expect(cluster.dataset.placement).toBe("after");

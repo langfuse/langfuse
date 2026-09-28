@@ -94,7 +94,9 @@ export function MultiSelect({
     !(chipsOnly && selectableOptions.length > compactSelectAllLimit);
 
   const allSelectedState = useMemo(() => {
-    if (selectableOptions.length === 0) return false;
+    if (selectableOptions.length === 0) {
+      return false;
+    }
     return selectableOptions.every((option) =>
       selectedValues.has(option.value),
     );
@@ -262,7 +264,9 @@ export function MultiSelect({
                 </>
               )}
               {mergedOptions.map((option) => {
-                if (option.value.length === 0) return;
+                if (option.value.length === 0) {
+                  return;
+                }
                 const isSelected = selectedValues.has(option.value);
                 const displayValue =
                   option.displayValue ??

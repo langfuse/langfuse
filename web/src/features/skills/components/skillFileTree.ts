@@ -57,7 +57,9 @@ export function buildSkillFileTree(
 }
 
 function ensureFolder(root: MutableFolder, path: string): MutableFolder {
-  if (!path) return root;
+  if (!path) {
+    return root;
+  }
 
   let parent = root;
   let currentPath = "";
@@ -86,7 +88,9 @@ function serializeChildren(
 ): SkillFileTreeNode[] {
   return [...children.values()]
     .toSorted((left, right) => {
-      if (left.kind !== right.kind) return left.kind === "folder" ? -1 : 1;
+      if (left.kind !== right.kind) {
+        return left.kind === "folder" ? -1 : 1;
+      }
       return left.name.localeCompare(right.name);
     })
     .map((node) =>

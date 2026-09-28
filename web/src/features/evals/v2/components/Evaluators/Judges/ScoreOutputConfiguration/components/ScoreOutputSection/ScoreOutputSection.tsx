@@ -128,7 +128,9 @@ export function ScoreOutputSection({
   };
 
   const handleAddCategoryOpenChange = (open: boolean) => {
-    if (open) setNewChoice({ label: "" });
+    if (open) {
+      setNewChoice({ label: "" });
+    }
     setAddCategoryOpen(open);
   };
 

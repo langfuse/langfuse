@@ -10,7 +10,9 @@ describe("prompt search contract", () => {
       PROMPTS_FIELD_REGISTRY,
     );
     expect(result.status).toBe("committed");
-    if (result.status !== "committed") return;
+    if (result.status !== "committed") {
+      return;
+    }
     expect(result.searchQuery).toBe("refund policy");
     expect(result.filters).toEqual([
       {

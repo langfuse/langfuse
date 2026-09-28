@@ -10,7 +10,9 @@ export const computeIdleGapSeconds = (
 
 export const formatIdleGap = (seconds: number): string => {
   const rounded = Math.max(0, Math.round(seconds));
-  if (rounded < 3600) return `${Math.round(rounded / 60)} min`;
+  if (rounded < 3600) {
+    return `${Math.round(rounded / 60)} min`;
+  }
   const hours = Math.round(rounded / 3600);
   return `${hours} ${hours === 1 ? "hr" : "hrs"}`;
 };

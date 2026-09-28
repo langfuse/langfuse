@@ -86,7 +86,9 @@ export function SingleSelect({
     const base =
       isCustomValue && value ? [{ value }, ...options] : [...options];
     const index = base.findIndex((option) => option.value === value);
-    if (index <= 0) return base;
+    if (index <= 0) {
+      return base;
+    }
     const [selected] = base.splice(index, 1);
     return [selected, ...base];
   }, [isCustomValue, value, options]);
@@ -95,8 +97,12 @@ export function SingleSelect({
   const filteredOptions = useMemo(
     () =>
       displayOptions.filter((option) => {
-        if (option.value.length === 0) return false;
-        if (!query) return true;
+        if (option.value.length === 0) {
+          return false;
+        }
+        if (!query) {
+          return true;
+        }
         return (
           option.value.toLowerCase().includes(query) ||
           (option.displayValue ?? "").toLowerCase().includes(query)
@@ -126,7 +132,9 @@ export function SingleSelect({
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) setSearch("");
+        if (!next) {
+          setSearch("");
+        }
       }}
     >
       <PopoverTrigger asChild>

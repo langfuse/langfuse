@@ -21,7 +21,9 @@ export function startEventLoopMetrics() {
   histogram.enable();
   const timer = setInterval(() => {
     // Empty windows must not publish a healthy value to an autoscaler.
-    if (histogram.count === 0) return;
+    if (histogram.count === 0) {
+      return;
+    }
     const delayMs = histogram.percentile(95) / 1_000_000;
     histogram.reset();
     // CloudWatch gauges do not retain tags; the service must be in the name

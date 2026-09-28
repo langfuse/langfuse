@@ -22,7 +22,9 @@ const BRACKET_SEGMENT_REGEX = /^\[(?:(\*)|(-1:)|(\d+)|("(?:[^"\\]|\\.)*"))\]/;
 
 /** Segments → the JSONPath stored on the mapping ("$.messages[*].content"). */
 export function segmentsToJsonPath(segments: PathSegment[]): string | null {
-  if (segments.length === 0) return null;
+  if (segments.length === 0) {
+    return null;
+  }
   return (
     "$" +
     segments
@@ -30,7 +32,9 @@ export function segmentsToJsonPath(segments: PathSegment[]): string | null {
         if (typeof segment === "symbol") {
           return SYMBOL_SEGMENT_JSON_PATH[segment];
         }
-        if (typeof segment === "number") return `[${segment}]`;
+        if (typeof segment === "number") {
+          return `[${segment}]`;
+        }
         return IDENTIFIER_REGEX.test(segment)
           ? `.${segment}`
           : `[${JSON.stringify(segment)}]`;
@@ -44,13 +48,17 @@ export function segmentsToJsonPath(segments: PathSegment[]): string | null {
  * the panel didn't generate (filters, slices, …).
  */
 export function jsonPathToSegments(path: string): PathSegment[] | null {
-  if (!path.startsWith("$")) return null;
+  if (!path.startsWith("$")) {
+    return null;
+  }
   const segments: PathSegment[] = [];
   let i = 1;
   while (i < path.length) {
     if (path[i] === ".") {
       const match = IDENTIFIER_PREFIX_REGEX.exec(path.slice(i + 1));
-      if (!match) return null;
+      if (!match) {
+        return null;
+      }
       segments.push(match[0]);
       i += 1 + match[0].length;
       continue;
@@ -58,7 +66,9 @@ export function jsonPathToSegments(path: string): PathSegment[] | null {
 
     if (path[i] === "[") {
       const match = BRACKET_SEGMENT_REGEX.exec(path.slice(i));
-      if (!match) return null;
+      if (!match) {
+        return null;
+      }
 
       const [, wildcard, last, numeric, quoted] = match;
       if (wildcard) {
@@ -110,11 +120,14 @@ export function formatMappingLabel(
   columnLabel: string,
   jsonSelector: string | null,
 ): string {
-  if (!jsonSelector) return columnLabel;
+  if (!jsonSelector) {
+    return columnLabel;
+  }
   const segments = jsonPathToSegments(jsonSelector);
   // Opaque path (filters, slices, …): fall back to the raw selector.
-  if (segments === null || segments.length === 0)
+  if (segments === null || segments.length === 0) {
     return `${columnLabel} › ${truncateEnd(jsonSelector, 20)}`;
+  }
 
   // Leaf = last segment; pull in the parent key for index/wildcard leaves.
   const last = segments[segments.length - 1];

@@ -130,7 +130,9 @@ export function useMultiSectionTreeState({
 
   // Auto-expand sections with search matches
   useEffect(() => {
-    if (!searchQuery || searchQuery.trim() === "") return;
+    if (!searchQuery || searchQuery.trim() === "") {
+      return;
+    }
 
     const matches = searchInTree(tree, searchQuery);
     const sectionsWithMatches = new Set<string>();

@@ -342,12 +342,16 @@ function IOPreviewJSONInner({
 
   // Search navigation callbacks
   const handleNextMatch = useCallback(() => {
-    if (searchMatchCount === 0) return;
+    if (searchMatchCount === 0) {
+      return;
+    }
     setCurrentMatchIndex((prev) => (prev + 1) % searchMatchCount);
   }, [searchMatchCount]);
 
   const handlePreviousMatch = useCallback(() => {
-    if (searchMatchCount === 0) return;
+    if (searchMatchCount === 0) {
+      return;
+    }
     setCurrentMatchIndex((prev) =>
       prev === 0 ? searchMatchCount - 1 : prev - 1,
     );
@@ -381,11 +385,15 @@ function IOPreviewJSONInner({
     // visibly present on screen (fallback + download), it just can't be inlined.
     const TOO_LARGE = "<omitted: too large to render — use the field download>";
     const dataObj: Record<string, unknown> = {};
-    if (showInput) dataObj.input = inputTooLarge ? TOO_LARGE : effectiveInput;
-    if (showOutput)
+    if (showInput) {
+      dataObj.input = inputTooLarge ? TOO_LARGE : effectiveInput;
+    }
+    if (showOutput) {
       dataObj.output = outputTooLarge ? TOO_LARGE : effectiveOutput;
-    if (showMetadata)
+    }
+    if (showMetadata) {
       dataObj.metadata = metadataTooLarge ? TOO_LARGE : effectiveMetadata;
+    }
     const jsonString = JSON.stringify(dataObj, null, 2);
     navigator.clipboard.writeText(jsonString);
   }, [
@@ -447,7 +455,9 @@ function IOPreviewJSONInner({
         </div>
       ),
       renderFooter: () => {
-        if (!probe) return null;
+        if (!probe) {
+          return null;
+        }
         // A huge STRING (e.g. a base64 image) is a single leaf — the lazy tree
         // adds nothing, so keep the bounded preview + download. A huge
         // STRUCTURED value is where the eager tree-build froze the tab: render

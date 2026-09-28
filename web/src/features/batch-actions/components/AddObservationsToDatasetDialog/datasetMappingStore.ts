@@ -28,7 +28,9 @@ type DatasetMappingState = {
 
 function mappingForDataset(dataset: DatasetInfo, state: DatasetMappingState) {
   const mapping = createDatasetMapping(dataset);
-  for (const field of state.editedFields) mapping[field] = state.mapping[field];
+  for (const field of state.editedFields) {
+    mapping[field] = state.mapping[field];
+  }
   return mapping;
 }
 
@@ -45,15 +47,18 @@ export function createDatasetMappingStore() {
         if (
           get().submission.status !== "idle" ||
           get().datasetId === dataset.id
-        )
+        ) {
           return;
+        }
         set({
           datasetId: dataset.id,
           mapping: mappingForDataset(dataset, get()),
         });
       },
       datasetCreated: (dataset) => {
-        if (get().submission.status !== "idle") return;
+        if (get().submission.status !== "idle") {
+          return;
+        }
         set({
           datasetId: dataset.id,
           createdDataset: dataset,
@@ -62,27 +67,37 @@ export function createDatasetMappingStore() {
         });
       },
       setScreen: (screen) => {
-        if (get().submission.status !== "idle") return;
+        if (get().submission.status !== "idle") {
+          return;
+        }
         set({ screen });
       },
       changeMapping: (field, config) => {
-        if (get().submission.status !== "idle") return;
+        if (get().submission.status !== "idle") {
+          return;
+        }
         set((state) => ({
           mapping: { ...state.mapping, [field]: config },
           editedFields: new Set([...state.editedFields, field]),
         }));
       },
       startSubmission: () => {
-        if (get().submission.status !== "idle") return false;
+        if (get().submission.status !== "idle") {
+          return false;
+        }
         set({ submission: { status: "pending" } });
         return true;
       },
       scheduled: (batchActionId, dataset) => {
-        if (get().submission.status !== "pending") return;
+        if (get().submission.status !== "pending") {
+          return;
+        }
         set({ submission: { status: "scheduled", batchActionId, dataset } });
       },
       submissionFailed: () => {
-        if (get().submission.status !== "pending") return;
+        if (get().submission.status !== "pending") {
+          return;
+        }
         set({ submission: { status: "idle" } });
       },
     },

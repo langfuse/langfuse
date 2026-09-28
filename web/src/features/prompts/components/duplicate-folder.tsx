@@ -84,7 +84,9 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
   );
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!projectId) return;
+    if (!projectId) {
+      return;
+    }
     capture("prompt_detail:duplicate_form_submit");
     setError(null);
     mutDuplicateFolder.mutate({

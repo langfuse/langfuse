@@ -25,7 +25,9 @@ export class CodeEvalExecutionQueue {
   static getShardIndexFromShardName(
     shardName: string | undefined,
   ): number | null {
-    if (!shardName) return null;
+    if (!shardName) {
+      return null;
+    }
 
     const shardIndex =
       shardName === QueueName.CodeEvalExecution
@@ -35,7 +37,9 @@ export class CodeEvalExecutionQueue {
             10,
           );
 
-    if (isNaN(shardIndex)) return null;
+    if (isNaN(shardIndex)) {
+      return null;
+    }
     return shardIndex;
   }
 

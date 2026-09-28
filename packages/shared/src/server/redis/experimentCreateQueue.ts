@@ -11,7 +11,9 @@ export class ExperimentCreateQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.ExperimentCreate]
   > | null {
-    if (ExperimentCreateQueue.instance) return ExperimentCreateQueue.instance;
+    if (ExperimentCreateQueue.instance) {
+      return ExperimentCreateQueue.instance;
+    }
 
     const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
       QueueName.ExperimentCreate,

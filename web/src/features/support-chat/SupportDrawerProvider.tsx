@@ -86,9 +86,10 @@ export function SupportDrawerProvider({
 
 export function useSupportDrawer() {
   const ctx = useContext(SupportDrawerContext);
-  if (!ctx)
+  if (!ctx) {
     throw new Error(
       "useSupportDrawer must be used within SupportDrawerProvider",
     );
+  }
   return ctx;
 }

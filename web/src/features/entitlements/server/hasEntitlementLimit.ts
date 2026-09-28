@@ -18,7 +18,9 @@ type HasEntitlementLimitParams = {
 export const hasEntitlementLimit = (
   p: HasEntitlementLimitParams,
 ): number | false => {
-  if (p.sessionUser.admin) return false; // Admins have unlimited access
+  if (p.sessionUser.admin) {
+    return false;
+  } // Admins have unlimited access
 
   const org =
     "projectId" in p
@@ -96,7 +98,9 @@ const isWithinEntitlementLimit = (
   p: HasEntitlementLimitParams & { currentUsage: number },
 ): boolean => {
   const limit = hasEntitlementLimit(p);
-  if (limit === false) return true; // No limit
+  if (limit === false) {
+    return true;
+  } // No limit
   return p.currentUsage < limit;
 };
 

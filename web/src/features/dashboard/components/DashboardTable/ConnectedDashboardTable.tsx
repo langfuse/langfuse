@@ -80,13 +80,17 @@ export function ConnectedDashboardTable() {
   );
 
   useEffect(() => {
-    if (!dashboards.data) return;
+    if (!dashboards.data) {
+      return;
+    }
 
     const pageCount = Math.max(
       1,
       Math.ceil(dashboards.data.totalCount / paginationState.pageSize),
     );
-    if (paginationState.pageIndex < pageCount) return;
+    if (paginationState.pageIndex < pageCount) {
+      return;
+    }
 
     setPaginationState({ ...paginationState, pageIndex: 0 });
   }, [dashboards.data, paginationState, setPaginationState]);
@@ -107,7 +111,9 @@ export function ConnectedDashboardTable() {
     error: dashboardError,
   } = dashboards;
   const tableData = useMemo<AsyncTableData<DashboardTableRow[]>>(() => {
-    if (dashboardStatus === "pending") return { status: "loading" };
+    if (dashboardStatus === "pending") {
+      return { status: "loading" };
+    }
     if (dashboardStatus === "error") {
       return { status: "error", error: dashboardError.message };
     }
@@ -151,7 +157,9 @@ export function ConnectedDashboardTable() {
               variant="destructive"
               loading={deleteDashboard.isPending}
               onConfirm={async () => {
-                if (!selectedDashboard) return;
+                if (!selectedDashboard) {
+                  return;
+                }
 
                 await deleteDashboard.mutateAsync({
                   projectId,

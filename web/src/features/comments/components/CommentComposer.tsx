@@ -59,7 +59,9 @@ export function CommentComposer({
   }));
   const attachForm = useCallback((node: HTMLFormElement | null) => {
     formElementRef.current = node;
-    if (node) setPortalContainer(node.closest<HTMLElement>('[role="dialog"]'));
+    if (node) {
+      setPortalContainer(node.closest<HTMLElement>('[role="dialog"]'));
+    }
   }, []);
   const hasMembersReadAccess = useHasProjectAccess({
     projectId,
@@ -79,9 +81,13 @@ export function CommentComposer({
 
   // Window capture runs before the overlay's document-level Escape handler.
   useEffect(() => {
-    if (!showDropdown || !isActive) return;
+    if (!showDropdown || !isActive) {
+      return;
+    }
     function dismissMentions(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape") {
+        return;
+      }
       event.preventDefault();
       event.stopImmediatePropagation();
       closeDropdown();
@@ -101,13 +107,16 @@ export function CommentComposer({
       if (
         element?.isConnected &&
         !element.closest('[inert], [hidden], [data-state="closed"]')
-      )
+      ) {
         editorRef.current?.focus();
+      }
     },
   });
 
   function submit(values: z.infer<typeof CreateCommentData>) {
-    if (createComment.isPending) return;
+    if (createComment.isPending) {
+      return;
+    }
     createComment.mutate({
       ...values,
       objectStartTime: objectStartTime ?? undefined,
@@ -120,7 +129,9 @@ export function CommentComposer({
 
   function insertMention(userId: string, displayName: string) {
     const editor = editorRef.current;
-    if (!editor || mentions.mentionStartPos === null) return;
+    if (!editor || mentions.mentionStartPos === null) {
+      return;
+    }
     editor.replaceRange(
       mentions.mentionStartPos,
       editor.getCursorPosition(),
@@ -131,19 +142,25 @@ export function CommentComposer({
   }
 
   function handleKeyDown(event: KeyboardEvent): boolean {
-    if (event.isComposing) return false;
+    if (event.isComposing) {
+      return false;
+    }
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
       form.handleSubmit(submit)();
       return true;
     }
-    if (!mentions.showDropdown) return false;
+    if (!mentions.showDropdown) {
+      return false;
+    }
     if (event.key === "Escape") {
       event.stopPropagation();
       event.stopImmediatePropagation();
       mentions.closeDropdown();
       return true;
     }
-    if (!mentions.users.length) return false;
+    if (!mentions.users.length) {
+      return false;
+    }
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       const direction = event.key === "ArrowDown" ? 1 : -1;
       mentions.setSelectedIndex(
@@ -154,7 +171,9 @@ export function CommentComposer({
     }
     if (event.key === "Enter" || event.key === "Tab") {
       const user = mentions.users[mentions.selectedIndex];
-      if (user) insertMention(user.id, user.name || user.email || "User");
+      if (user) {
+        insertMention(user.id, user.name || user.email || "User");
+      }
       return true;
     }
     return false;
@@ -201,7 +220,9 @@ export function CommentComposer({
         <Popover
           open={isActive && mentions.showDropdown}
           onOpenChange={(open) => {
-            if (!open) mentions.closeDropdown();
+            if (!open) {
+              mentions.closeDropdown();
+            }
           }}
         >
           <PopoverAnchor virtualRef={{ current: cursorAnchor }} />

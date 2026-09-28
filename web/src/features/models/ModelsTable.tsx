@@ -190,7 +190,9 @@ export default function ModelsTable({ projectId }: { projectId: string }) {
         const prices: Record<string, number> | undefined =
           row.getValue("prices");
 
-        if (!prices) return;
+        if (!prices) {
+          return;
+        }
 
         return (
           <PriceBreakdownTooltip
@@ -233,7 +235,9 @@ export default function ModelsTable({ projectId }: { projectId: string }) {
       enableHiding: true,
       size: 120,
       mapValue: (_, { row }) => {
-        if (!lastUsed.data) return { type: "loading" };
+        if (!lastUsed.data) {
+          return { type: "loading" };
+        }
         return lastUsed.data[row.original.modelId]?.toLocaleString() ?? "";
       },
     }),

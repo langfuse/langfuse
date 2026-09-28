@@ -69,7 +69,9 @@ function getToolCallStringField(
   toolCall: unknown,
   field: string,
 ): string | undefined {
-  if (!toolCall || typeof toolCall !== "object") return undefined;
+  if (!toolCall || typeof toolCall !== "object") {
+    return undefined;
+  }
 
   const value = (toolCall as Record<string, unknown>)[field];
 
@@ -84,7 +86,9 @@ function getToolCallName(toolCall: unknown): string | undefined {
 }
 
 function getToolCallArguments(toolCall: unknown): unknown {
-  if (!toolCall || typeof toolCall !== "object") return undefined;
+  if (!toolCall || typeof toolCall !== "object") {
+    return undefined;
+  }
 
   const toolCallRecord = toolCall as Record<string, unknown>;
 
@@ -164,8 +168,12 @@ export function computeToolCallBookkeeping(
   const sortedTools = Array.from(toolsMap.values()).sort((a, b) => {
     const callCountA = toolCallCounts.get(a.name) || 0;
     const callCountB = toolCallCounts.get(b.name) || 0;
-    if (callCountA > 0 && callCountB === 0) return -1;
-    if (callCountA === 0 && callCountB > 0) return 1;
+    if (callCountA > 0 && callCountB === 0) {
+      return -1;
+    }
+    if (callCountA === 0 && callCountB > 0) {
+      return 1;
+    }
     return callCountB - callCountA;
   });
 

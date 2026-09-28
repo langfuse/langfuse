@@ -153,7 +153,9 @@ export function DatasetRunItemsByItemTable(props: {
       header: "Trace",
       size: 60,
       getCell: (trace) => {
-        if (!trace) return undefined;
+        if (!trace) {
+          return undefined;
+        }
         if (trace.observationId) {
           return {
             type: "link",

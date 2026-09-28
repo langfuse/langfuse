@@ -16,8 +16,14 @@ export function isNewLegacyEvalAllowed(params: {
   isForceV3Project: boolean;
 }): boolean {
   const { v4WriteMode, isLangfuseCloud, isForceV3Project } = params;
-  if (v4WriteMode === "events_only") return false;
-  if (isForceV3Project) return true;
-  if (v4WriteMode === "dual") return !isLangfuseCloud;
+  if (v4WriteMode === "events_only") {
+    return false;
+  }
+  if (isForceV3Project) {
+    return true;
+  }
+  if (v4WriteMode === "dual") {
+    return !isLangfuseCloud;
+  }
   return v4WriteMode === "legacy";
 }

@@ -26,7 +26,9 @@ export function useMentionAutocomplete({
   }
 
   function updateQuery(value: string, cursorPosition: number) {
-    if (!enabled) return;
+    if (!enabled) {
+      return;
+    }
     const beforeCursor = value.slice(0, cursorPosition);
     const match = /(?:^|\s)@([^\s@[\]()]*)$/.exec(beforeCursor);
     if (!match) {
@@ -35,7 +37,9 @@ export function useMentionAutocomplete({
     }
     const query = match[1];
     setMentionStartPos(cursorPosition - query.length - 1);
-    if (query !== userSearch.searchQuery) setSelectedIndex(0);
+    if (query !== userSearch.searchQuery) {
+      setSelectedIndex(0);
+    }
     userSearch.setSearchQuery(query);
     onOpenChange?.(true);
   }

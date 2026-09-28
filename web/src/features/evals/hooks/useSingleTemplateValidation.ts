@@ -27,13 +27,17 @@ export function useSingleTemplateValidation({
   const templateRequiresDefaultModel = (
     template: Pick<TemplateValidationInput, "provider" | "model" | "type">,
   ): boolean => {
-    if (isCodeEvalTemplate(template)) return false;
+    if (isCodeEvalTemplate(template)) {
+      return false;
+    }
 
     return !template.provider || !template.model;
   };
 
   const isTemplateInvalid = (template: TemplateValidationInput): boolean => {
-    if (!enabled) return false;
+    if (!enabled) {
+      return false;
+    }
 
     if (isCodeEvalTemplate(template)) {
       return !shouldShowEvalTemplate(template, codeEvalCapabilities);

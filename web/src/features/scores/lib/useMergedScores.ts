@@ -44,7 +44,9 @@ export function useMergedScores(
   const deletedIds = useMemo(() => {
     const ids = new Set<string>();
     filteredServerScores.forEach((s) => {
-      if (isDeleted(s.id)) ids.add(s.id);
+      if (isDeleted(s.id)) {
+        ids.add(s.id);
+      }
     });
     return ids;
   }, [filteredServerScores, isDeleted]);

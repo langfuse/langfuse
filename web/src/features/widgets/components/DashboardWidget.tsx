@@ -374,10 +374,15 @@ export function DashboardWidget({
             ? (() => {
                 const val = dimensionValue;
                 // Empty first: "" is a string, so the order matters. (LFE-10694)
-                if (val === null || val === undefined || val === "")
+                if (val === null || val === undefined || val === "") {
                   return "n/a";
-                if (typeof val === "string") return val;
-                if (Array.isArray(val)) return val.join(", ");
+                }
+                if (typeof val === "string") {
+                  return val;
+                }
+                if (Array.isArray(val)) {
+                  return val.join(", ");
+                }
                 // Objects / numbers / booleans are stringified to avoid React key issues
                 return String(val);
               })()
@@ -420,7 +425,9 @@ export function DashboardWidget({
   // already memoized) — letting Chart's React.memo bail. (LFE-10549)
   const chartConfigForRender = useMemo(() => {
     const data = widget.data;
-    if (!data) return undefined;
+    if (!data) {
+      return undefined;
+    }
     return {
       ...data.chartConfig,
       // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
@@ -468,7 +475,9 @@ export function DashboardWidget({
   // double-mapped or dropped.
   const tableView = useMemo(() => {
     const view = widget.data?.view;
-    if (!view) return undefined;
+    if (!view) {
+      return undefined;
+    }
     const mergedFilters = mergeWidgetAndDashboardFilters({
       view: view as z.infer<typeof views>,
       widgetFilters: widget.data?.filters ?? [],
@@ -484,7 +493,9 @@ export function DashboardWidget({
   }, [projectId, widget.data, filterState, dateRange, readPath]);
 
   const handleViewAsTable = () => {
-    if (!tableView) return;
+    if (!tableView) {
+      return;
+    }
     capture("dashboard:widget_view_as_table", {
       widget_id: placement.widgetId,
       dashboard_id: dashboardId,

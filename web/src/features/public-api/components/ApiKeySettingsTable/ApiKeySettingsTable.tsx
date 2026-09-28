@@ -45,7 +45,9 @@ export function ApiKeySettingsTable({
         hideBelowMd: true,
         enableResizing: false,
         getUser: (user, { row }) => {
-          if (user?.name || user?.email) return { type: "user", user };
+          if (user?.name || user?.email) {
+            return { type: "user", user };
+          }
           if (user) {
             return {
               type: "user",

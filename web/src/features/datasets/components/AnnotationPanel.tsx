@@ -17,7 +17,9 @@ import { useCallback } from "react";
 
 export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
   const { activeCell, clearActiveCell, setCommentDraft } = useActiveCell();
-  if (!activeCell) return <Skeleton className="h-full w-full" />;
+  if (!activeCell) {
+    return <Skeleton className="h-full w-full" />;
+  }
   return (
     <ActiveAnnotationPanel
       key={JSON.stringify([
@@ -68,7 +70,9 @@ function ActiveAnnotationPanel({
       className="h-full"
       onLayoutChanged={(layout) => {
         const top = layout["annotation-top"];
-        if (top != null) setVerticalSize(top);
+        if (top != null) {
+          setVerticalSize(top);
+        }
       }}
     >
       <ResizablePanel

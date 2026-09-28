@@ -109,7 +109,9 @@ const EXAMPLES = [
 ] as const;
 
 function timeFilters(range: AbsoluteTimeRange | null): FilterState {
-  if (!range) return [];
+  if (!range) {
+    return [];
+  }
   return [
     {
       column: "startTime",
@@ -263,7 +265,9 @@ export function SampleObservationSelectorBase(
       const preset = reusableRuleFilters.presets.find(
         (candidate) => candidate.id === presetId,
       );
-      if (!preset) return;
+      if (!preset) {
+        return;
+      }
       capture("evaluation_rules:filter_reused", {
         tableName,
         evaluatorCount: preset.evaluatorCount,
@@ -428,7 +432,9 @@ export function SampleObservationSelectorBase(
         enableHiding: true,
         getCell: (_value, { row }) => {
           const io = observationIOById.get(row.original.id);
-          if (!io && observationIOPending) return { type: "loading" };
+          if (!io && observationIOPending) {
+            return { type: "loading" };
+          }
           return io?.input;
         },
         singleLine: rowHeight === "s",
@@ -442,7 +448,9 @@ export function SampleObservationSelectorBase(
         enableHiding: true,
         getCell: (_value, { row }) => {
           const io = observationIOById.get(row.original.id);
-          if (!io && observationIOPending) return { type: "loading" };
+          if (!io && observationIOPending) {
+            return { type: "loading" };
+          }
           return io?.output;
         },
         singleLine: rowHeight === "s",
@@ -456,7 +464,9 @@ export function SampleObservationSelectorBase(
         enableHiding: true,
         getCell: (_value, { row }) => {
           const io = observationIOById.get(row.original.id);
-          if (!io && observationIOPending) return { type: "loading" };
+          if (!io && observationIOPending) {
+            return { type: "loading" };
+          }
           return io?.metadata;
         },
         singleLine: rowHeight === "s",
@@ -593,7 +603,9 @@ export function SampleObservationSelectorBase(
             selectionToReconcile !== undefined
               ? (element) => {
                   // Commit fresh query results through the existing selection owner without a data-sync effect.
-                  if (element) onSelect(selectionToReconcile);
+                  if (element) {
+                    onSelect(selectionToReconcile);
+                  }
                 }
               : undefined
           }

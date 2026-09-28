@@ -53,7 +53,9 @@ export const getVisibleSessionObservations = <
       continue;
     }
     realCount++;
-    if (realShown >= SESSION_CARD_OBSERVATIONS_NOTICE_COUNT) continue;
+    if (realShown >= SESSION_CARD_OBSERVATIONS_NOTICE_COUNT) {
+      continue;
+    }
     page.push(observation);
     realShown++;
   }

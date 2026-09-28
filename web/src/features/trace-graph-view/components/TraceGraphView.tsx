@@ -160,7 +160,9 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   // nothing dims; an empty set means a query that hit nothing, and the whole
   // graph fades.
   const matchedNodeNames = useMemo(() => {
-    if (!search) return null;
+    if (!search) {
+      return null;
+    }
     return matchedGraphNodeNames({
       matchedObservationIds: search.matchedObservationIds,
       nodeToObservationsMap,
@@ -188,7 +190,9 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
     if (clickWroteObservationIdRef.current !== undefined) {
       const wrote = clickWroteObservationIdRef.current;
       clickWroteObservationIdRef.current = undefined;
-      if (wrote === (currentObservationId ?? null)) return;
+      if (wrote === (currentObservationId ?? null)) {
+        return;
+      }
     }
 
     // Find which node and index corresponds to currentObservationId.

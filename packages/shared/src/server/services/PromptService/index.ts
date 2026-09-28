@@ -92,7 +92,9 @@ export class PromptService {
   ): Promise<PromptResult | null> {
     const prompt = await this.findPrompt(params);
 
-    if (!prompt) return null;
+    if (!prompt) {
+      return null;
+    }
 
     return {
       ...prompt,
@@ -133,7 +135,9 @@ export class PromptService {
   public async resolvePrompt(
     prompt: Prompt | null,
   ): Promise<PromptResult | null> {
-    if (!prompt) return prompt;
+    if (!prompt) {
+      return prompt;
+    }
 
     const promptGraph = await this.buildAndResolvePromptGraph({
       projectId: prompt.projectId,
@@ -152,11 +156,15 @@ export class PromptService {
   ): Promise<PromptResult | null> {
     try {
       const key = await this.getCacheKey(params);
-      if (!key) return null;
+      if (!key) {
+        return null;
+      }
 
       const value = await this.redis?.get(key);
 
-      if (value) return JSON.parse(value) as PromptResult;
+      if (value) {
+        return JSON.parse(value) as PromptResult;
+      }
     } catch (e) {
       this.logError("Error getting cached prompt", e);
     }
@@ -167,7 +175,9 @@ export class PromptService {
   private async cachePrompt(params: PromptParams & { prompt: PromptResult }) {
     try {
       const key = await this.getCacheKey(params);
-      if (!key) return;
+      if (!key) {
+        return;
+      }
 
       const value = JSON.stringify(params.prompt);
 
@@ -180,7 +190,9 @@ export class PromptService {
   public async invalidateCache(
     params: Pick<PromptParams, "projectId">,
   ): Promise<void> {
-    if (!this.cacheEnabled) return;
+    if (!this.cacheEnabled) {
+      return;
+    }
 
     // Rotate the epoch token to move all prompt reads/writes to a fresh namespace.
     // Old keys remain untouched and naturally expire via TTL.
@@ -194,7 +206,9 @@ export class PromptService {
 
   private async getCacheKey(params: PromptParams): Promise<string | null> {
     const epoch = await this.getOrCreateEpoch(params);
-    if (!epoch) return null;
+    if (!epoch) {
+      return null;
+    }
 
     const prefix = this.getCacheKeyPrefix(params, epoch);
 
@@ -231,7 +245,9 @@ export class PromptService {
     const epochKey = this.getEpochKey(params);
 
     const currentEpoch = await this.redis?.get(epochKey);
-    if (currentEpoch) return currentEpoch;
+    if (currentEpoch) {
+      return currentEpoch;
+    }
 
     const newEpoch = this.newEpochToken();
     await this.redis?.set(epochKey, newEpoch, "EX", this.epochTtlSeconds, "NX");
@@ -339,14 +355,16 @@ export class PromptService {
 
             const logName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
 
-            if (!depPrompt)
+            if (!depPrompt) {
               throw new LangfuseConflictError(
                 `Prompt dependency not found: ${logName}`,
               );
-            if (depPrompt.type !== "text")
+            }
+            if (depPrompt.type !== "text") {
               throw new LangfuseConflictError(
                 `Prompt dependency is not a text prompt: ${logName}`,
               );
+            }
 
             // side-effect: populate adjacency list to return later as well
             graph.dependencies[currentPrompt.id] ??= []; // initializes an empty list if it does not exist yet

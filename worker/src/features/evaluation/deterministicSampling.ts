@@ -23,8 +23,12 @@ export function shouldSampleEvaluation(params: {
 }) {
   const { samplingValue, samplingRate } = params;
 
-  if (samplingRate >= 1) return true;
-  if (samplingRate <= 0) return false;
+  if (samplingRate >= 1) {
+    return true;
+  }
+  if (samplingRate <= 0) {
+    return false;
+  }
 
   return samplingValue < samplingRate;
 }

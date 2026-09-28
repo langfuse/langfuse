@@ -109,7 +109,9 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
     if (isGroupedOptions(options)) {
       for (const group of options) {
         const found = group.options.find((opt) => isEqual(opt.value, value));
-        if (found) return found;
+        if (found) {
+          return found;
+        }
       }
       return undefined;
     }
@@ -124,9 +126,13 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
     <Popover
       open={!disabled && open}
       onOpenChange={(nextOpen) => {
-        if (disabled) return;
+        if (disabled) {
+          return;
+        }
         setOpen(nextOpen);
-        if (!nextOpen) setSearch("");
+        if (!nextOpen) {
+          setSearch("");
+        }
       }}
     >
       <PopoverTrigger asChild>
@@ -161,7 +167,9 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
       <PopoverContent
         className="w-(--radix-popover-trigger-width) p-0"
         onCloseAutoFocus={(event) => {
-          if (disabled) event.preventDefault();
+          if (disabled) {
+            event.preventDefault();
+          }
         }}
       >
         <Command>

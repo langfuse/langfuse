@@ -395,7 +395,9 @@ export const sessionRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (input.sessionIds.length === 0) return [];
+      if (input.sessionIds.length === 0) {
+        return [];
+      }
       const finalFilter = await getPublicSessionsFilter(input.projectId, [
         {
           column: "id",
@@ -469,7 +471,9 @@ export const sessionRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (input.sessionIds.length === 0) return [];
+      if (input.sessionIds.length === 0) {
+        return [];
+      }
       const sessions = await getSessionMetricsFromEvents({
         projectId: input.projectId,
         sessionIds: input.sessionIds,
@@ -906,7 +910,9 @@ export const sessionRouter = createTRPCRouter({
           continue;
         }
         // Keep one past the display limit as the "more exist" sentinel.
-        if (realTaken >= SESSION_OBSERVATIONS_PER_TRACE_LIMIT + 1) continue;
+        if (realTaken >= SESSION_OBSERVATIONS_PER_TRACE_LIMIT + 1) {
+          continue;
+        }
         page.push(observation);
         realTaken++;
       }
@@ -920,8 +926,9 @@ export const sessionRouter = createTRPCRouter({
       const toPreviewHead = (value: unknown): unknown => {
         const text =
           typeof value === "string" ? value : (JSON.stringify(value) ?? "");
-        if (text.length <= SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT)
+        if (text.length <= SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT) {
           return value;
+        }
         const head = text.slice(0, SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT);
         const lastCode = head.charCodeAt(head.length - 1);
         return lastCode >= 0xd800 && lastCode <= 0xdbff
@@ -948,7 +955,9 @@ export const sessionRouter = createTRPCRouter({
         const withinBudget =
           cumulativeIOChars <= SESSION_TRACE_TOTAL_IO_CHAR_BUDGET;
         cumulativeIOChars += returnedIOChars;
-        if (withinBudget) return observation;
+        if (withinBudget) {
+          return observation;
+        }
 
         const input = toPreviewHead(observation.input);
         const output = toPreviewHead(observation.output);

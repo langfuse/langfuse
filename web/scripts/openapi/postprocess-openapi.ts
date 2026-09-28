@@ -21,7 +21,9 @@ const deprecatedSource = stampDeprecations(openApiSource, deprecatedOperations);
 const { source: syncedSource, stamped } =
   stampUnionVariantTitles(deprecatedSource);
 
-if (syncedSource !== openApiSource) fs.writeFileSync(openApiPath, syncedSource);
+if (syncedSource !== openApiSource) {
+  fs.writeFileSync(openApiPath, syncedSource);
+}
 
 console.log(
   `Synced ${deprecatedOperations.length} deprecated OpenAPI operations from Fern definitions.`,

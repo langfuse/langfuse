@@ -69,7 +69,9 @@ export function AreaChartTimeSeries({
     [groupedData, hideXAxisLabels],
   );
   const dateAxis = useMemo(() => {
-    if (timeAxis.mode !== "category") return timeAxis;
+    if (timeAxis.mode !== "category") {
+      return timeAxis;
+    }
     const dates = groupedData.flatMap((datum) => {
       const date = parseChartTimestamp(datum.time_dimension);
       return date ? [date.getTime()] : [];

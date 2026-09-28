@@ -123,7 +123,9 @@ const createModelPricing = async ({
 
   await Promise.all(
     prices.map(async ({ usageType, price }) => {
-      if (price == null) return;
+      if (price == null) {
+        return;
+      }
 
       await tx.price.create({
         data: {

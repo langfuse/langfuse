@@ -23,11 +23,15 @@ const readStoredColumnOrder = (localStorageKey: string): string[] => {
   }
   try {
     const storedValue = localStorage.getItem(localStorageKey);
-    if (!storedValue) return [];
+    if (!storedValue) {
+      return [];
+    }
     const parsed: unknown = JSON.parse(storedValue);
     // Local storage is hand-editable and keys get reused, so the parsed value
     // can be any shape. Anything but a list of column ids is discarded.
-    if (!Array.isArray(parsed)) return [];
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
     return parsed.filter((id): id is string => typeof id === "string");
   } catch (error) {
     console.warn("Error reading from local storage", error);
@@ -90,13 +94,19 @@ function useColumnOrder<TData>(
     // for a no-op pass costs one extra application of an idempotent transform
     // and converges instead.
     migrations?.forEach((migration) => {
-      if (hasRunMigration(migration.versionKey)) return;
+      if (hasRunMigration(migration.versionKey)) {
+        return;
+      }
       const migrated = migration.apply(finalColumnOrder);
-      if (migrated === null) return; // deferred, retry on a later render
+      if (migrated === null) {
+        return;
+      } // deferred, retry on a later render
       const settled =
         JSON.stringify(migrated) === JSON.stringify(finalColumnOrder);
       finalColumnOrder = migrated;
-      if (settled) markMigrationRun(migration.versionKey);
+      if (settled) {
+        markMigrationRun(migration.versionKey);
+      }
     });
 
     // Compare the new order with the current order to avoid unnecessary updates

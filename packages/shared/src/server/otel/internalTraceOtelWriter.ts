@@ -32,7 +32,9 @@ const INTERNAL_TRACE_WRITER_SCOPE = "langfuse-internal-trace-writer";
 const W3C_TRACE_ID_PATTERN = /^[0-9a-f]{32}$/;
 
 function asOtelAttributeString(value: unknown): string | undefined {
-  if (value === undefined || value === null) return undefined;
+  if (value === undefined || value === null) {
+    return undefined;
+  }
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
@@ -198,7 +200,9 @@ export async function publishOtelResourceSpans(params: {
   ingestionVersion?: string;
   isLangfuseInternal: boolean;
 }): Promise<void> {
-  if (params.resourceSpans.length === 0) return;
+  if (params.resourceSpans.length === 0) {
+    return;
+  }
 
   const processor = new OtelIngestionProcessor({
     projectId: params.projectId,
@@ -232,11 +236,15 @@ export async function publishInternalOtelSpans(params: {
   isLangfuseInternal?: boolean;
 }): Promise<void> {
   const serialized = JsonTraceSerializer.serializeRequest(params.spans);
-  if (!serialized) return;
+  if (!serialized) {
+    return;
+  }
 
   const { resourceSpans } = JSON.parse(new TextDecoder().decode(serialized));
 
-  if (!resourceSpans || resourceSpans.length === 0) return;
+  if (!resourceSpans || resourceSpans.length === 0) {
+    return;
+  }
 
   await publishOtelResourceSpans({
     resourceSpans,
@@ -300,7 +308,9 @@ export async function writeInternalTraceViaOtelIngestion(trace: {
   eventInputs: InternalOtelSpanInput[];
 }): Promise<void> {
   const { eventInputs } = trace;
-  if (eventInputs.length === 0) return;
+  if (eventInputs.length === 0) {
+    return;
+  }
 
   // Mirrors the createAiSdkTelemetryCapture guards: non-langfuse environments
   // would bypass the eval-loop safeguard, and a non-W3C trace ID would emit

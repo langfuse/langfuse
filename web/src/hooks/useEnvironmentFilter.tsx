@@ -53,7 +53,9 @@ export function useEnvironmentFilter(
 
   // Initialize or update visibility map when available environments change
   useEffect(() => {
-    if (!availableEnvironments) return;
+    if (!availableEnvironments) {
+      return;
+    }
 
     // Create updated map with new environments
     const updatedMap = { ...visibilityMap };

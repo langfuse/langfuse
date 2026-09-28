@@ -11,7 +11,9 @@ export function toCompactVerbosity(io: unknown): {
   success: boolean;
   data: string | null;
 } {
-  if (io === undefined || io === null) return { success: false, data: null };
+  if (io === undefined || io === null) {
+    return { success: false, data: null };
+  }
 
   // Parse stringified JSON if needed
   let parsedIO = io;

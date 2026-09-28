@@ -33,7 +33,9 @@ export function DateRangeInput({
         max={value.to}
         disabled={disabled}
         onChange={(event) => {
-          if (!event.target.value) return;
+          if (!event.target.value) {
+            return;
+          }
           onValueChange({ ...value, from: event.target.value });
         }}
       />
@@ -49,7 +51,9 @@ export function DateRangeInput({
         max={max}
         disabled={disabled}
         onChange={(event) => {
-          if (!event.target.value) return;
+          if (!event.target.value) {
+            return;
+          }
           onValueChange({ ...value, to: event.target.value });
         }}
       />

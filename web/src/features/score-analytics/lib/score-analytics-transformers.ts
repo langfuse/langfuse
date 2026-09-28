@@ -58,7 +58,9 @@ export function extractCategories(params: {
   confusionMatrix: ConfusionMatrixRow[];
   stackedDistribution?: StackedDistributionRow[];
 }): string[] | undefined {
-  if (params.dataType === "NUMERIC") return undefined;
+  if (params.dataType === "NUMERIC") {
+    return undefined;
+  }
 
   // For boolean scores: ALWAYS return both categories
   // This ensures confusion matrix, distributions, and time series show both False and True
@@ -174,10 +176,14 @@ export function calculateModeMetrics(params: {
   const maxCount = Math.max(...params.distribution.map((d) => d.count));
   const modeItem = params.distribution.find((d) => d.count === maxCount);
 
-  if (!modeItem) return null;
+  if (!modeItem) {
+    return null;
+  }
 
   const categoryName = binIndexToCategory.get(modeItem.binIndex);
-  if (!categoryName) return null;
+  if (!categoryName) {
+    return null;
+  }
 
   const modePercentage = (modeItem.count / params.totalCount) * 100;
 
@@ -223,7 +229,9 @@ export function transformHeatmapData(params: {
   | null {
   const { apiData, dataType } = params;
 
-  if (!apiData) return null;
+  if (!apiData) {
+    return null;
+  }
 
   const isNumeric = dataType === "NUMERIC";
 

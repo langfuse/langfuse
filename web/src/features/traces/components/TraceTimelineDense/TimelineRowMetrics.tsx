@@ -50,7 +50,9 @@ function createClusterFitter(budgetPx: number, gapPx: number) {
   let spentPx = 0;
   return (widthPx: number): boolean => {
     const next = spentPx + widthPx + (spentPx > 0 ? gapPx : 0);
-    if (next > budgetPx) return false;
+    if (next > budgetPx) {
+      return false;
+    }
     spentPx = next;
     return true;
   };
@@ -137,7 +139,9 @@ export function TimelineRowMetrics({
   // Nothing fitted: draw nothing. The row is not silent — hovering it names it
   // and states the same duration and cost, for every row at every density,
   // which is a better fallback than a title on a box of zero width.
-  if (!showDuration && !showCost) return null;
+  if (!showDuration && !showCost) {
+    return null;
+  }
 
   // What did not fit stays reachable on hover: a row that silently omits its
   // cost reads as a row without one.

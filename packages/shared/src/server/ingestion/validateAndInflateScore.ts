@@ -40,10 +40,11 @@ export async function validateAndInflateScore(
       },
     });
 
-    if (!config || !validateDbScoreConfigSafe(config).success)
+    if (!config || !validateDbScoreConfigSafe(config).success) {
       throw new LangfuseNotFoundError(
         "The configId you provided does not match a valid config in this project",
       );
+    }
 
     // Override some fields in the score body with config fields
     // We ignore the set fields in the body

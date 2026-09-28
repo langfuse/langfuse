@@ -77,7 +77,9 @@ export function planPeekHeaderLayout({
 
   const reductions: Array<() => void> = [
     () => {
-      if (hasActions) foldActions = true;
+      if (hasActions) {
+        foldActions = true;
+      }
     },
     () => {
       badgeShowLabel = false;
@@ -86,12 +88,16 @@ export function planPeekHeaderLayout({
       navCompact = true;
     },
     () => {
-      if (hasOpenInTab) foldOpenInTab = true;
+      if (hasOpenInTab) {
+        foldOpenInTab = true;
+      }
     },
   ];
 
   for (const reduce of reductions) {
-    if (titleAvailable() >= minTitle) break;
+    if (titleAvailable() >= minTitle) {
+      break;
+    }
     reduce();
   }
 

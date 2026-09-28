@@ -155,7 +155,9 @@ export const MultiSectionJsonViewer = forwardRef<
 
   // Compute search matches
   const searchMatches = useMemo(() => {
-    if (!searchQuery || !tree) return [];
+    if (!searchQuery || !tree) {
+      return [];
+    }
     return searchInTree(tree, searchQuery, { caseSensitive: false });
   }, [tree, searchQuery]);
 
@@ -186,8 +188,12 @@ export const MultiSectionJsonViewer = forwardRef<
 
   // Determine virtualization (auto-detect based on total nodes)
   const shouldVirtualize = useMemo(() => {
-    if (virtualizedProp !== undefined) return virtualizedProp;
-    if (!tree) return false;
+    if (virtualizedProp !== undefined) {
+      return virtualizedProp;
+    }
+    if (!tree) {
+      return false;
+    }
     return tree.totalNodeCount > 500;
   }, [virtualizedProp, tree]);
 

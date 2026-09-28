@@ -11,8 +11,9 @@ export class DatasetRunItemUpsertQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.DatasetRunItemUpsert]
   > | null {
-    if (DatasetRunItemUpsertQueue.instance)
+    if (DatasetRunItemUpsertQueue.instance) {
       return DatasetRunItemUpsertQueue.instance;
+    }
 
     const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
       QueueName.DatasetRunItemUpsert,

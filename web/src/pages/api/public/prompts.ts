@@ -32,7 +32,9 @@ export default withMiddlewares({
         version: query.version ?? undefined,
       });
 
-      if (!prompt) throw new LangfuseNotFoundError("Prompt not found");
+      if (!prompt) {
+        throw new LangfuseNotFoundError("Prompt not found");
+      }
 
       return {
         ...prompt,

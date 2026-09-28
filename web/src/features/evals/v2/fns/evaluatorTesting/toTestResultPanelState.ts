@@ -7,8 +7,12 @@ export function toTestResultPanelState(params: {
   isPending: boolean;
   result: unknown;
 }): TestResultPanelState {
-  if (params.isPending) return { status: "running" };
-  if (!params.result) return { status: "empty" };
+  if (params.isPending) {
+    return { status: "running" };
+  }
+  if (!params.result) {
+    return { status: "empty" };
+  }
   if (typeof params.result !== "object") {
     return { status: "run-error", message: String(params.result) };
   }

@@ -43,7 +43,9 @@ function descriptionScalar(
   description: string,
   previous?: Scalar.Type,
 ): Scalar<string> | string {
-  if (!description.includes("\n")) return description;
+  if (!description.includes("\n")) {
+    return description;
+  }
 
   const scalar = new Scalar(description);
   scalar.type =

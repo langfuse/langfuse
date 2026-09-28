@@ -9,9 +9,13 @@ export function getStandaloneToolCallIds(
   const toolCallIds = new Set<string>();
 
   for (const observation of observations) {
-    if (observation.type !== "TOOL") continue;
+    if (observation.type !== "TOOL") {
+      continue;
+    }
     const toolCallId = getToolObservationCallId(observation);
-    if (toolCallId) toolCallIds.add(toolCallId);
+    if (toolCallId) {
+      toolCallIds.add(toolCallId);
+    }
   }
 
   return toolCallIds;

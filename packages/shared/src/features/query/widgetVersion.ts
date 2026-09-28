@@ -30,7 +30,9 @@ export function isSuggestedWidgetView(
   view: string,
   targetVersion: ViewVersion,
 ): boolean {
-  if (targetVersion !== "v2") return true;
+  if (targetVersion !== "v2") {
+    return true;
+  }
   const queryView =
     persistedWidgetViewToQueryView[
       view as keyof typeof persistedWidgetViewToQueryView

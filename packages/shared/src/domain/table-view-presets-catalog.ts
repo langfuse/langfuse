@@ -214,7 +214,9 @@ export const getSystemTableViewPresetById = (
 ): SystemTableViewPreset | null => {
   for (const presets of Object.values(SYSTEM_TABLE_VIEW_PRESETS)) {
     const preset = presets?.find((candidate) => candidate.id === id);
-    if (preset) return preset;
+    if (preset) {
+      return preset;
+    }
   }
 
   return null;

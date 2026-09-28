@@ -241,7 +241,9 @@ describe("NewDatasetItemForm schema defaults", () => {
     generateExample.mockImplementation((schema) =>
       schema.default.startsWith("a")
         ? new Promise((resolve) => {
-            if (schema.default === "a input") resolveInput = resolve;
+            if (schema.default === "a input") {
+              resolveInput = resolve;
+            }
           })
         : Promise.resolve(JSON.stringify(schema.default)),
     );

@@ -202,7 +202,9 @@ const startOf = (node: LayoutNode) => node.startTime.getTime();
 
 /** End of a span, falling back to `latency` and then to an instant. */
 const endOf = (node: LayoutNode) => {
-  if (node.endTime) return node.endTime.getTime();
+  if (node.endTime) {
+    return node.endTime.getTime();
+  }
   if (node.latency != null && Number.isFinite(node.latency)) {
     return startOf(node) + node.latency * 1000;
   }
@@ -227,9 +229,15 @@ export function spanOffsetsOf(
 }
 
 export function formatDurationMs(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 0) return "0ms";
-  if (ms < 1_000) return `${Math.round(ms)}ms`;
-  if (ms < 60_000) return `${(ms / 1_000).toFixed(2)}s`;
+  if (!Number.isFinite(ms) || ms < 0) {
+    return "0ms";
+  }
+  if (ms < 1_000) {
+    return `${Math.round(ms)}ms`;
+  }
+  if (ms < 60_000) {
+    return `${(ms / 1_000).toFixed(2)}s`;
+  }
   const pad = (value: number) => String(value).padStart(2, "0");
   if (ms < 3_600_000) {
     return `${Math.floor(ms / 60_000)}m ${pad(Math.floor((ms % 60_000) / 1_000))}s`;
@@ -259,7 +267,9 @@ export function prepareTimeline<TNode extends LayoutNode>(
     all.push(node);
     originMs = Math.min(originMs, startOf(node));
     latestEndMs = Math.max(latestEndMs, endOf(node));
-    for (const child of node.children) boundsStack.push(child as TNode);
+    for (const child of node.children) {
+      boundsStack.push(child as TNode);
+    }
   }
 
   if (!Number.isFinite(originMs) || !Number.isFinite(latestEndMs)) {
@@ -272,7 +282,9 @@ export function prepareTimeline<TNode extends LayoutNode>(
   const rootIds = new Set(roots.map((root) => root.id));
   const spans: Array<[number, number]> = [];
   for (const node of all) {
-    if (rootIds.has(node.id)) continue;
+    if (rootIds.has(node.id)) {
+      continue;
+    }
     spans.push([startOf(node) - originMs, endOf(node) - originMs]);
   }
 
@@ -296,7 +308,9 @@ export function prepareTimeline<TNode extends LayoutNode>(
     const isCollapsed = collapsed.has(current.node.id);
     rows.push({ ...current, hasChildren, isCollapsed });
 
-    if (!hasChildren || isCollapsed) continue;
+    if (!hasChildren || isCollapsed) {
+      continue;
+    }
     const children = [...(current.node.children as TNode[])].sort(byStart);
     for (let i = children.length - 1; i >= 0; i--) {
       stack.push({
@@ -489,7 +503,9 @@ function placeLabel(args: {
   density: Density;
 }): { labelPlacement: LabelPlacement; labelX: number } {
   const { label, labelWidth, x, width, laneWidth, density } = args;
-  if (!label) return { labelPlacement: "hidden", labelX: x };
+  if (!label) {
+    return { labelPlacement: "hidden", labelX: x };
+  }
 
   if (labelWidth + density.labelPaddingPx * 2 <= width) {
     return { labelPlacement: "inside", labelX: x + density.labelPaddingPx };
@@ -499,7 +515,9 @@ function placeLabel(args: {
     return { labelPlacement: "after", labelX: after };
   }
   const before = x - density.labelGapPx - labelWidth;
-  if (before >= 0) return { labelPlacement: "before", labelX: before };
+  if (before >= 0) {
+    return { labelPlacement: "before", labelX: before };
+  }
 
   return { labelPlacement: "hidden", labelX: x };
 }
@@ -516,7 +534,9 @@ function buildTicks(context: {
   const realEnd = compression.toRealMs(view.start + view.duration);
   const realDuration = realEnd - realStart;
 
-  if (laneWidth <= 0) return [];
+  if (laneWidth <= 0) {
+    return [];
+  }
   if (!(realDuration > 0)) {
     return [{ realMs: realStart, x: 0, label: formatDurationMs(realStart) }];
   }
@@ -561,15 +581,23 @@ function buildTicks(context: {
 
   const first = Math.ceil(realStart / step) * step;
   for (let realMs = first; realMs <= realEnd; realMs += step) {
-    if (ticks.length >= MAX_TICKS) break;
-    if (insideCollapsedGap(realMs)) continue;
+    if (ticks.length >= MAX_TICKS) {
+      break;
+    }
+    if (insideCollapsedGap(realMs)) {
+      continue;
+    }
     const x = transform.toPx(compression.toCompressedMs(realMs));
     // `toPx ∘ toCompressedMs` is monotonic, so passing the right edge ends the
     // walk. Compression makes px spacing non-uniform, so labels are
     // de-overlapped against what is already placed, not assumed from the step.
-    if (x > laneWidth + EPSILON) break;
+    if (x > laneWidth + EPSILON) {
+      break;
+    }
     const label = formatDurationMs(realMs);
-    if (!fits(x, label) || collides(x)) continue;
+    if (!fits(x, label) || collides(x)) {
+      continue;
+    }
     ticks.push({ realMs, x, label });
   }
 
@@ -582,13 +610,17 @@ function buildGapMarkers(context: {
   laneWidth: number;
 }): GapMarker[] {
   const { compression, transform, laneWidth } = context;
-  if (!compression.enabled) return [];
+  if (!compression.enabled) {
+    return [];
+  }
 
   const markers: GapMarker[] = [];
   for (const gap of compression.gaps) {
     const left = transform.toPx(gap.compressedStart);
     const right = transform.toPx(gap.compressedEnd);
-    if (right < 0 || left > laneWidth) continue;
+    if (right < 0 || left > laneWidth) {
+      continue;
+    }
     const x = clamp(left, 0, laneWidth);
     markers.push({
       x,

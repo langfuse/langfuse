@@ -194,7 +194,9 @@ export const getDetectedInstrumentationSeries = (
   sdk.sdkUsageSeries.filter((usage) => usage.actionLevel === "none");
 
 export const formatSdkVersion = (sdkVersion: SdkVersionInfo | undefined) => {
-  if (!sdkVersion?.language || !sdkVersion.version) return null;
+  if (!sdkVersion?.language || !sdkVersion.version) {
+    return null;
+  }
 
   const language = (() => {
     if (sdkVersion.language === "javascript") {

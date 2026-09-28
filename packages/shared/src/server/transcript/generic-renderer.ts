@@ -19,13 +19,16 @@ export function renderGenericTranscript(
   const json = (value: unknown) =>
     typeof value === "string" ? value : (JSON.stringify(value) ?? "");
   const labeled = (label: string, raw: string, maxChars: number) => {
-    if (maxChars === 0) return `[${label}]`;
+    if (maxChars === 0) {
+      return `[${label}]`;
+    }
     let content = raw.replace(
       /data:[^:;,\s]+;base64,[A-Za-z0-9+/=_-]+/g,
       "[media omitted]",
     );
-    if (config.collapseWhitespace)
+    if (config.collapseWhitespace) {
       content = content.replace(/\s+/g, " ").trim();
+    }
     if (content.length > maxChars) {
       const head = Math.round(maxChars * config.headRatio);
       const tail = maxChars - head;
@@ -105,7 +108,9 @@ export function renderGenericTranscript(
   if (config.toolDefinitions.include) {
     const definitions = new Map<string, string>();
     for (const observation of observations) {
-      if (observation.type !== "GENERATION") continue;
+      if (observation.type !== "GENERATION") {
+        continue;
+      }
       const io = {
         input: observation.input,
         output: undefined,
@@ -113,28 +118,32 @@ export function renderGenericTranscript(
       };
       for (const definition of normalizeIO({ kind: "io", io })
         .toolDefinitions) {
-        if (!definitions.has(definition.name))
+        if (!definitions.has(definition.name)) {
           definitions.set(
             definition.name,
             definition.description?.split(/(?<=\.)\s/)[0] ?? "",
           );
+        }
       }
     }
     if (definitions.size) {
       lines.push(`AVAILABLE TOOLS (${definitions.size}):`);
-      for (const [name, description] of definitions)
+      for (const [name, description] of definitions) {
         lines.push(
           labeled(name, description, config.toolDefinitions.maxChars).replace(
             /^\[(.*?)\]/,
             "- $1:",
           ),
         );
+      }
     }
   }
 
   const threads = transcript?.threads ?? [];
   threads.forEach((thread, index) => {
-    if (threads.length > 1) lines.push(`=== thread ${index + 1} ===`);
+    if (threads.length > 1) {
+      lines.push(`=== thread ${index + 1} ===`);
+    }
     const history =
       config.history === "include"
         ? messageLines(thread.conversationHistory)
@@ -155,8 +164,10 @@ export function renderGenericTranscript(
         observation.level === "ERROR" ||
         (observation.level === "WARNING" && observation.statusMessage),
     );
-    if (errors.length) lines.push("ERRORS:");
-    for (const observation of errors)
+    if (errors.length) {
+      lines.push("ERRORS:");
+    }
+    for (const observation of errors) {
       lines.push(
         labeled(
           `${observation.level} ${observation.type} ${observation.name ?? ""}`.trim(),
@@ -164,6 +175,7 @@ export function renderGenericTranscript(
           config.errors.maxChars,
         ),
       );
+    }
   }
   return lines.join("\n");
 }

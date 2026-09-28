@@ -11,7 +11,9 @@ type EstimatedCostRowProps = {
 };
 
 function formatCostEstimate(cost: number): string {
-  if (cost > 0 && cost < 0.005) return "< $0.01";
+  if (cost > 0 && cost < 0.005) {
+    return "< $0.01";
+  }
   return `~${usdFormatter(cost, 2, 2)}`;
 }
 

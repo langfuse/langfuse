@@ -26,7 +26,9 @@ const usePointerSelectionFocusGuard = () => {
   const selectedViaPointerRef = useRef(false);
   return {
     markPointerSelection: (event: { detail: number }) => {
-      if (event.detail > 0) selectedViaPointerRef.current = true;
+      if (event.detail > 0) {
+        selectedViaPointerRef.current = true;
+      }
     },
     onCloseAutoFocus: (event: Event) => {
       if (selectedViaPointerRef.current) {
@@ -87,7 +89,9 @@ export function ScoreOutlierStripHeader({
             key={nextMode}
             onClick={(event) => {
               modeFocusGuard.markPointerSelection(event);
-              if (nextMode !== mode) onModeChange(nextMode);
+              if (nextMode !== mode) {
+                onModeChange(nextMode);
+              }
             }}
             className="text-xs"
           >
@@ -118,7 +122,9 @@ export function ScoreOutlierStripHeader({
                 key={agg}
                 onClick={(event) => {
                   aggregationFocusGuard.markPointerSelection(event);
-                  if (agg !== aggregation) onAggregationChange(agg);
+                  if (agg !== aggregation) {
+                    onAggregationChange(agg);
+                  }
                 }}
                 className="text-xs"
               >

@@ -134,11 +134,15 @@ describe("appendCategoryToExisting", () => {
   it("appends onto the latest list so a later add does not drop an earlier one", () => {
     const first = appendCategoryToExisting(existing, "pen_testing");
     expect(first.ok).toBe(true);
-    if (!first.ok) return;
+    if (!first.ok) {
+      return;
+    }
 
     const second = appendCategoryToExisting(first.categories, "just_testing");
     expect(second.ok).toBe(true);
-    if (!second.ok) return;
+    if (!second.ok) {
+      return;
+    }
 
     expect(second.categories.map((category) => category.label)).toEqual([
       "internal_user",

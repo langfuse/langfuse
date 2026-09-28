@@ -11,7 +11,9 @@ export default function Trace() {
   const route = useReadyRouteParams(["projectId", "traceId"]);
   const timestamp = parseTraceTimestampFromQuery(router.query.timestamp);
 
-  if (!route.ready) return <RouteParamsPendingFallback />;
+  if (!route.ready) {
+    return <RouteParamsPendingFallback />;
+  }
 
   return <TracePage traceId={route.params.traceId} timestamp={timestamp} />;
 }

@@ -11,7 +11,9 @@ export class DatasetDeleteQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.DatasetDelete]
   > | null {
-    if (DatasetDeleteQueue.instance) return DatasetDeleteQueue.instance;
+    if (DatasetDeleteQueue.instance) {
+      return DatasetDeleteQueue.instance;
+    }
 
     const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
       QueueName.DatasetDelete,

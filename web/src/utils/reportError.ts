@@ -24,8 +24,12 @@ function safeStringify(value: unknown): string {
 }
 
 function describeUnknown(value: unknown): string {
-  if (value === null) return "null";
-  if (typeof value !== "object") return String(value);
+  if (value === null) {
+    return "null";
+  }
+  if (typeof value !== "object") {
+    return String(value);
+  }
   const ctorName =
     (value as { constructor?: { name?: string } }).constructor?.name ??
     "Object";

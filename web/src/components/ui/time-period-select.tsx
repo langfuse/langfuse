@@ -28,8 +28,12 @@ export const TimePeriodSelect = React.forwardRef<
   PeriodSelectorProps
 >(({ period, setPeriod, date, setDate, onLeftFocus, onRightFocus }, ref) => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (e.key === "ArrowRight") onRightFocus?.();
-    if (e.key === "ArrowLeft") onLeftFocus?.();
+    if (e.key === "ArrowRight") {
+      onRightFocus?.();
+    }
+    if (e.key === "ArrowLeft") {
+      onLeftFocus?.();
+    }
   };
 
   const handleValueChange = (value: Period) => {

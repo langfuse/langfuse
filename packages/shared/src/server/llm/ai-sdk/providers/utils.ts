@@ -5,7 +5,9 @@
  */
 export function trimTrailingSlashes(url: string): string {
   let end = url.length;
-  while (end > 0 && url[end - 1] === "/") end--;
+  while (end > 0 && url[end - 1] === "/") {
+    end--;
+  }
   return url.slice(0, end);
 }
 
@@ -18,7 +20,9 @@ export function ensureBaseURLSuffix(
   baseURL: string | null | undefined,
   suffix: string,
 ): string | undefined {
-  if (!baseURL) return undefined;
+  if (!baseURL) {
+    return undefined;
+  }
 
   const trimmed = trimTrailingSlashes(baseURL);
   return trimmed.endsWith(suffix) ? trimmed : `${trimmed}${suffix}`;

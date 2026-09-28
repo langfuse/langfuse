@@ -137,7 +137,9 @@ describe("dataset name search filters", () => {
       );
 
       expect(result.status).toBe("committed");
-      if (result.status !== "committed") continue;
+      if (result.status !== "committed") {
+        continue;
+      }
 
       expect(result.filters).toEqual([
         {

@@ -299,7 +299,9 @@ describe("managed evaluator templates catalog", () => {
 
   it("ships code evaluator templates that pass client validation", async () => {
     for (const template of MANAGED_TEMPLATES_CATALOG.templates) {
-      if (template.evaluator.type !== "CODE") continue;
+      if (template.evaluator.type !== "CODE") {
+        continue;
+      }
 
       const result = await validateCodeEvalSourceWithLanguage({
         source: template.evaluator.source,

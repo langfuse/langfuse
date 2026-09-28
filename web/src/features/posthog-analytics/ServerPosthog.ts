@@ -21,7 +21,9 @@ export class ServerPosthog {
 
     if (apiKey && host) {
       this.posthog = new PostHog(apiKey, { host });
-      if (process.env.NODE_ENV === "development") this.posthog.debug();
+      if (process.env.NODE_ENV === "development") {
+        this.posthog.debug();
+      }
       // Unlike the browser SDK, posthog-node disable() is a local opt-out:
       // capture becomes a no-op and nothing is sent. HIPAA uses this instead
       // of skipping construction. The flag flips synchronously; the promise is

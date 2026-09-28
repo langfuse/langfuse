@@ -46,7 +46,9 @@ export type SearchCommit = (
 
 /** Order-independent scope-set equality (scopes are unique). */
 function sameScopes(a: TracingSearchType[], b: TracingSearchType[]): boolean {
-  if (a.length !== b.length) return false;
+  if (a.length !== b.length) {
+    return false;
+  }
   const bs = new Set(b);
   return a.every((s) => bs.has(s));
 }
@@ -212,7 +214,9 @@ export function useEventsSearchBar({
   // navigation). resetTo is a no-op when the draft already matches, so a
   // commit's own echo settles immediately without clobbering the caret.
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      return;
+    }
     store.getState().actions.resetTo(committedText);
   }, [enabled, committedText, store]);
 
@@ -221,7 +225,9 @@ export function useEventsSearchBar({
   // draftValid. Their identities can rotate across refetches, so revalidate()
   // bails when both effective contexts are unchanged.
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      return;
+    }
     store.getState().actions.revalidate();
   }, [enabled, observed, registry, store]);
 

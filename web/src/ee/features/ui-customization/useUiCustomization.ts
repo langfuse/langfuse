@@ -10,6 +10,8 @@ export const useUiCustomization = () => {
     refetchOnReconnect: false,
   });
 
-  if (!hasEntitlement) return null;
+  if (!hasEntitlement) {
+    return null;
+  }
   return customization.data ?? null;
 };

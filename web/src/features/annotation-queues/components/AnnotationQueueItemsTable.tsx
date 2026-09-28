@@ -299,7 +299,9 @@ export function AnnotationQueueItemsTable({
       size: 50,
       getCell: (_, { row }) => {
         const rowData = row.original;
-        if (!rowData.source) return undefined;
+        if (!rowData.source) {
+          return undefined;
+        }
 
         if (rowData.objectType === "OBSERVATION") {
           return {
@@ -371,7 +373,9 @@ export function AnnotationQueueItemsTable({
       variant: "avatar",
       emptyValue: "",
       getUser: (annotatorUser) => {
-        if (!annotatorUser || !annotatorUser.userId) return undefined;
+        if (!annotatorUser || !annotatorUser.userId) {
+          return undefined;
+        }
 
         const { userId, userName, image } = annotatorUser;
         return {

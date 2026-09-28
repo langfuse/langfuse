@@ -58,7 +58,9 @@ export async function processOtelEventMedia(params: {
     return;
   }
 
-  if (targets.length === 0) return;
+  if (targets.length === 0) {
+    return;
+  }
 
   try {
     await instrumentAsync(
@@ -143,7 +145,9 @@ export function createDirectOtelMediaTargets(
 ): OtelMediaTarget[] {
   const targets: OtelMediaTarget[] = [];
   for (const value of eventInputs) {
-    if (!isRecordWithMediaFields(value)) continue;
+    if (!isRecordWithMediaFields(value)) {
+      continue;
+    }
     if (typeof value.traceId !== "string" || typeof value.spanId !== "string") {
       continue;
     }
@@ -169,7 +173,9 @@ export function createLegacyOtelMediaTargets(
   const targets: OtelMediaTarget[] = [];
   for (const event of events) {
     const body: unknown = event.body;
-    if (!isRecordWithMediaFields(body)) continue;
+    if (!isRecordWithMediaFields(body)) {
+      continue;
+    }
 
     const entityType = getClickhouseEntityType(event.type);
     if (entityType === "trace" && typeof body.id === "string") {

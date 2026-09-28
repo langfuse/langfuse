@@ -90,7 +90,9 @@ function generateChartLabelFromColumns(
 ): string {
   return uniqueIdentifierColumns
     .map(({ accessor, formatFct }) => {
-      if (row[accessor] === null || row[accessor] === undefined) return null;
+      if (row[accessor] === null || row[accessor] === undefined) {
+        return null;
+      }
       return formatFct
         ? formatFct(row[accessor] as string)
         : (row[accessor] as string);

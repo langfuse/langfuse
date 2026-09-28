@@ -56,7 +56,9 @@ export const StackingAndTooltip = meta.story({
     const canvas = within(canvasElement);
     const api = canvas.getAllByRole("graphics-symbol", { name: "API: 12" })[0];
     const worker = canvas.getByRole("graphics-symbol", { name: "Worker: 8" });
-    if (!api) throw new Error("API bar missing");
+    if (!api) {
+      throw new Error("API bar missing");
+    }
     await expect(
       Number(worker.getAttribute("y")) + Number(worker.getAttribute("height")),
     ).toBeCloseTo(Number(api.getAttribute("y")), 0);
@@ -197,7 +199,9 @@ export const MissingBuckets = meta.story({
     const emptyBucket = canvasElement.querySelectorAll<SVGRectElement>(
       'rect[fill="transparent"]',
     )[0];
-    if (!emptyBucket) throw new Error("Missing empty bucket hover area");
+    if (!emptyBucket) {
+      throw new Error("Missing empty bucket hover area");
+    }
     await userEvent.hover(emptyBucket);
     await expect(
       within(canvasElement.ownerDocument.body).getByRole("tooltip"),
@@ -247,7 +251,9 @@ export const ManyBuckets = meta.story({
     for (let index = 1; index < labels.length; index++) {
       const previous = labels[index - 1];
       const current = labels[index];
-      if (!previous || !current) throw new Error("Axis label missing");
+      if (!previous || !current) {
+        throw new Error("Axis label missing");
+      }
       await expect(current.getBoundingClientRect().left).toBeGreaterThanOrEqual(
         previous.getBoundingClientRect().right,
       );

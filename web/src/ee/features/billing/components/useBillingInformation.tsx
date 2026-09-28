@@ -59,13 +59,17 @@ export const useBillingInformation = (): UseBillingInformationResult => {
 
   const cancellation = useMemo<BillingCancellationInfo | null>(() => {
     const cancel = subscriptionInfo?.cancellation;
-    if (!cancel) return null;
+    if (!cancel) {
+      return null;
+    }
     try {
       const date =
         typeof cancel.cancelAt === "number" && !Number.isNaN(cancel.cancelAt)
           ? new Date(cancel.cancelAt * 1000)
           : null;
-      if (!date || date.getTime() <= Date.now()) return null;
+      if (!date || date.getTime() <= Date.now()) {
+        return null;
+      }
       const formatted = formatLocalIsoDate(date, false, "day");
       return { isCancelled: true, date, formatted };
     } catch {
@@ -75,13 +79,17 @@ export const useBillingInformation = (): UseBillingInformationResult => {
 
   const scheduledPlanSwitch = useMemo<BillingScheduledSwitchInfo | null>(() => {
     const sc = subscriptionInfo?.scheduledChange;
-    if (!sc?.switchAt) return null;
+    if (!sc?.switchAt) {
+      return null;
+    }
     try {
       const date =
         typeof sc.switchAt === "number" && !Number.isNaN(sc.switchAt)
           ? new Date(sc.switchAt * 1000)
           : null;
-      if (!date || date.getTime() <= Date.now()) return null;
+      if (!date || date.getTime() <= Date.now()) {
+        return null;
+      }
       const formatted = formatLocalIsoDate(date, false, "day");
       const newPlanId = sc.newProductId;
       const product = newPlanId

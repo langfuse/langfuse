@@ -30,7 +30,9 @@ export const CreateObservationBatchEvaluationActionSchema = z
     rowLimit: z.number().int().positive().max(25_000).optional(),
   })
   .superRefine((value, ctx) => {
-    if (!value.evaluatorMappings) return;
+    if (!value.evaluatorMappings) {
+      return;
+    }
 
     if (value.evalVersion !== "v2") {
       ctx.addIssue({

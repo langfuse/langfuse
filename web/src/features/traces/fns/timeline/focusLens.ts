@@ -55,7 +55,9 @@ export function applyFocusLens(input: {
   magnification: number;
 }): LensRow[] {
   const rowCount = Math.max(Math.floor(finite(input.rowCount, 0)), 0);
-  if (rowCount === 0) return [];
+  if (rowCount === 0) {
+    return [];
+  }
 
   const totalHeight = Math.max(finite(input.totalHeight, 0), 0);
   const uniform = totalHeight / rowCount;
@@ -119,18 +121,26 @@ export function rowIndexAtY(
   rows: readonly LensRow[],
   y: number,
 ): number | null {
-  if (rows.length === 0) return null;
+  if (rows.length === 0) {
+    return null;
+  }
   const target = finite(y, 0);
-  if (target < 0) return null;
+  if (target < 0) {
+    return null;
+  }
 
   let low = 0;
   let high = rows.length - 1;
   while (low <= high) {
     const mid = (low + high) >> 1;
     const row = rows[mid]!;
-    if (target < row.y) high = mid - 1;
-    else if (target >= row.y + row.height) low = mid + 1;
-    else return mid;
+    if (target < row.y) {
+      high = mid - 1;
+    } else if (target >= row.y + row.height) {
+      low = mid + 1;
+    } else {
+      return mid;
+    }
   }
   return null;
 }

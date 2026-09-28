@@ -40,7 +40,9 @@ export function prepareCategoryBars(data: DataPoint[]): CategoryBars {
   const order = new Map<string, number>();
   for (const point of data) {
     const category = point.dimension;
-    if (category === undefined || order.has(category)) continue;
+    if (category === undefined || order.has(category)) {
+      continue;
+    }
     order.set(category, order.size);
   }
 

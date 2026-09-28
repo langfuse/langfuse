@@ -71,8 +71,9 @@ const MatrixCell = ({
   const { baseline, delta, movement } = summary;
   const notComparable = movement?.notComparable ?? 0;
 
-  if (!baseline)
+  if (!baseline) {
     return <span className="text-muted-foreground">not scored</span>;
+  }
 
   return (
     <span className="flex flex-wrap items-center gap-x-1 gap-y-0.5 tabular-nums">
@@ -204,7 +205,7 @@ export const ExperimentScoreMatrix = ({
     state: { pagination: pagination.state },
   });
 
-  if (isLoading)
+  if (isLoading) {
     return (
       <div className="flex flex-col gap-2 p-4">
         {Array.from({ length: 6 }).map((_, index) => (
@@ -212,10 +213,11 @@ export const ExperimentScoreMatrix = ({
         ))}
       </div>
     );
+  }
 
   // The empty state shares the footer, so the page controls stay reachable
   // when the items on this page happen to carry none of the visible scores.
-  if (scoreRows.length === 0)
+  if (scoreRows.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex flex-1 items-center justify-center p-4">
@@ -233,6 +235,7 @@ export const ExperimentScoreMatrix = ({
         />
       </div>
     );
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

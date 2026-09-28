@@ -293,7 +293,9 @@ function Harness({ projectId = PROJECT_ID }: { projectId?: string }) {
   const metadataFacet = queryFilter.filters.find(
     (filter) => filter.type === "stringKeyValue",
   );
-  if (!metadataFacet) throw new Error("Missing metadata facet");
+  if (!metadataFacet) {
+    throw new Error("Missing metadata facet");
+  }
 
   return (
     <div>

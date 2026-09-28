@@ -30,7 +30,9 @@ export const HistogramBinSpacing = meta.story({
     const bars = within(canvasElement).getAllByRole("graphics-symbol");
     const first = bars[0];
     const second = bars[1];
-    if (!first || !second) throw new Error("Histogram bins not found");
+    if (!first || !second) {
+      throw new Error("Histogram bins not found");
+    }
     await expect(first.getBoundingClientRect().right).toBeLessThan(
       second.getBoundingClientRect().left,
     );

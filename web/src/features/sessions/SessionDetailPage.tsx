@@ -12,7 +12,9 @@ export default function SessionDetailPage() {
   const route = useReadyRouteParams(["projectId", "sessionId"]);
   const { isV4 } = useReadPath();
 
-  if (!route.ready) return <RouteParamsPendingFallback />;
+  if (!route.ready) {
+    return <RouteParamsPendingFallback />;
+  }
 
   const { projectId, sessionId } = route.params;
 

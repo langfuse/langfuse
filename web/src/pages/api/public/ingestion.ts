@@ -90,7 +90,9 @@ export default async function handler(
         header.toLowerCase().startsWith("x_langfuse")
       ) {
         const value = req.headers[header];
-        if (value === undefined) return;
+        if (value === undefined) {
+          return;
+        }
         currentSpan?.setAttributes({
           [`langfuse.header.${header.slice(11).toLowerCase().replaceAll("_", "-")}`]:
             Array.isArray(value)
@@ -108,7 +110,9 @@ export default async function handler(
       currentSpan?.setAttribute(SDK_VERSION_ATTRIBUTE, sdkVersion);
     }
 
-    if (req.method !== "POST") throw new MethodNotAllowedError();
+    if (req.method !== "POST") {
+      throw new MethodNotAllowedError();
+    }
 
     // CHECK AUTH FOR ALL EVENTS; each event authorizes its own action below.
     const authResult = await shadowAuth({
@@ -116,7 +120,9 @@ export default async function handler(
       action: __dangerouslySkipAuthz,
       allowedAccessLevels: ["project", "scores"],
     });
-    if (!authResult.success) throw authResult.error;
+    if (!authResult.success) {
+      throw authResult.error;
+    }
     const { scope, ctx: authCtx } = authResult;
     // shadowAuth's project/scores gating guarantees a projectId; narrow the invariant.
     if (!scope.projectId) {
@@ -385,8 +391,12 @@ function authorizeIngestionBatch(
 function ingestionActionForEventType(
   type: string | null,
 ): ProjectAction | typeof __dangerouslySkipAuthz {
-  if (type === eventTypes.SDK_LOG) return __dangerouslySkipAuthz;
-  if (type === eventTypes.SCORE_CREATE) return "scores:create";
+  if (type === eventTypes.SDK_LOG) {
+    return __dangerouslySkipAuthz;
+  }
+  if (type === eventTypes.SCORE_CREATE) {
+    return "scores:create";
+  }
   return "traces:create";
 }
 

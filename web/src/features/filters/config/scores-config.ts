@@ -130,7 +130,9 @@ export function observationScopeFilter(
   observationId: string | undefined,
   includeTraceLevelScores: boolean,
 ): FilterState {
-  if (!observationId) return [];
+  if (!observationId) {
+    return [];
+  }
   return includeTraceLevelScores
     ? [
         {

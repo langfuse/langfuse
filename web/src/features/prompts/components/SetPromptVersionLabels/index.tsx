@@ -118,8 +118,11 @@ export function SetPromptVersionLabels({
   };
 
   const handleOnOpenChange = (open: boolean) => {
-    if (!hasAccess) setIsOpen(false);
-    else setIsOpen(open);
+    if (!hasAccess) {
+      setIsOpen(false);
+    } else {
+      setIsOpen(open);
+    }
   };
 
   // Derived label lists
@@ -154,7 +157,9 @@ export function SetPromptVersionLabels({
     trimmedSearch.length > 0 && !labels.includes(trimmedSearch);
 
   const handleCreateLabel = () => {
-    if (!isValidNewLabel) return;
+    if (!isValidNewLabel) {
+      return;
+    }
     setCreatedLabels((prev) => [...prev, trimmedSearch]);
     setSelectedLabels((prev) => [...new Set([...prev, trimmedSearch])]);
     capture("prompt_detail:add_label_submit");
@@ -235,7 +240,9 @@ export function SetPromptVersionLabels({
                     value={searchValue}
                     onChange={(e) => setSearchValue(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") handleCreateLabel();
+                      if (e.key === "Enter") {
+                        handleCreateLabel();
+                      }
                     }}
                     className="h-7 text-sm"
                   />

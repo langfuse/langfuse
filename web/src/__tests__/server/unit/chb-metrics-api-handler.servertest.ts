@@ -55,9 +55,15 @@ function createRequest({
   token?: string | null;
 } = {}) {
   const url = new URL("http://localhost/api/billing/metrics");
-  if (startTime) url.searchParams.set("startTime", startTime);
-  if (endTime) url.searchParams.set("endTime", endTime);
-  if (resourceId) url.searchParams.set("resourceId", resourceId);
+  if (startTime) {
+    url.searchParams.set("startTime", startTime);
+  }
+  if (endTime) {
+    url.searchParams.set("endTime", endTime);
+  }
+  if (resourceId) {
+    url.searchParams.set("resourceId", resourceId);
+  }
 
   return new NextRequest(url, {
     method: "GET",

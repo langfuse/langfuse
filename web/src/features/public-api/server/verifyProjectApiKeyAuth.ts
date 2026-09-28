@@ -93,7 +93,9 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
   const projectIdHeader = req.headers["x-langfuse-project-id"];
 
   // If not attempting admin auth, return null to proceed with regular auth
-  if (!authHeader?.startsWith("Bearer ") || !adminApiKeyHeader) return null;
+  if (!authHeader?.startsWith("Bearer ") || !adminApiKeyHeader) {
+    return null;
+  }
 
   // Verify this is a self-hosted instance (not Langfuse Cloud)
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
@@ -130,7 +132,9 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
     );
     const isEqual = bearerTokenEqual && headerEqual;
 
-    if (!isEqual) throw Error();
+    if (!isEqual) {
+      throw Error();
+    }
   } catch {
     throw { status: 401, message: "Invalid admin API key" };
   }

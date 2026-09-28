@@ -138,7 +138,9 @@ const ChartComponent = ({
   const renderedData = data;
 
   const resolvedConfig = useMemo(() => {
-    if (!config) return undefined;
+    if (!config) {
+      return undefined;
+    }
 
     return Object.fromEntries(
       Object.entries(config).map(([key, value]) => {

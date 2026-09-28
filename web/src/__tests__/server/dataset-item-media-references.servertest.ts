@@ -106,7 +106,9 @@ const createDatasetWithItem = async (
     input,
     expectedOutput,
   });
-  if (!result.success) throw new Error(result.message);
+  if (!result.success) {
+    throw new Error(result.message);
+  }
 
   return { datasetName, datasetItemId: result.datasetItem.id };
 };
@@ -607,7 +609,9 @@ describe("Dataset item media tRPC procedures", () => {
       datasetId: dataset.id,
       input: { image: media.referenceString },
     });
-    if (!sourceItem.success) throw new Error(sourceItem.message);
+    if (!sourceItem.success) {
+      throw new Error(sourceItem.message);
+    }
 
     const { id: duplicateDatasetId } = await caller.datasets.duplicateDataset({
       projectId,
@@ -648,7 +652,9 @@ describe("Dataset item media tRPC procedures", () => {
       datasetId: dataset.id,
       input: { image: media.referenceString },
     });
-    if (!sourceItem.success) throw new Error(sourceItem.message);
+    if (!sourceItem.success) {
+      throw new Error(sourceItem.message);
+    }
 
     // Media is deleted after the item was created (e.g. retention); the item
     // JSON still carries the reference string. dataset_item_media has no FK to

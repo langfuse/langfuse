@@ -121,8 +121,11 @@ export function createRowModelStore(
   return createStore<RowModelState>((set, get) => {
     const setPending = (id: number, on: boolean) => {
       const pending = new Set(get().pending);
-      if (on) pending.add(id);
-      else pending.delete(id);
+      if (on) {
+        pending.add(id);
+      } else {
+        pending.delete(id);
+      }
       set({ pending });
     };
 
@@ -143,7 +146,9 @@ export function createRowModelStore(
      * the list repaints against the new revision.
      */
     const refreshAfterMutation = async () => {
-      if (!model) return;
+      if (!model) {
+        return;
+      }
       set({
         revision: model.getRevision(),
         totalVisible: model.getTotalVisible(),
@@ -189,7 +194,9 @@ export function createRowModelStore(
         });
         try {
           const built = await buildModel(value);
-          if (gen !== myGen) return;
+          if (gen !== myGen) {
+            return;
+          }
           model = built;
           // Publish the model's facts, but stay in "loading" until the first
           // window is fetched, so the gate never drops the spinner onto empty
@@ -199,7 +206,9 @@ export function createRowModelStore(
             totalVisible: built.getTotalVisible(),
           });
           await get().ensureRange(0, INITIAL_ROW_COUNT);
-          if (gen !== myGen) return;
+          if (gen !== myGen) {
+            return;
+          }
           set({ status: "ready" });
           // Build + first window = time-to-first-row; the boundary retunes the
           // size gate from this and alarms if it blew the main-thread budget.
@@ -209,13 +218,17 @@ export function createRowModelStore(
             rowCount: get().totalVisible,
           });
         } catch (e) {
-          if (gen !== myGen) return;
+          if (gen !== myGen) {
+            return;
+          }
           captureAndSetError(e);
         }
       },
 
       ensureRange: async (start, count) => {
-        if (!model) return;
+        if (!model) {
+          return;
+        }
         const myGen = gen;
         // Capture THIS request's window locally. `lastStart`/`lastCount` are
         // shared closure state (used to refetch after a mutation), and a
@@ -236,10 +249,14 @@ export function createRowModelStore(
             break;
           }
         }
-        if (!hasGap) return;
+        if (!hasGap) {
+          return;
+        }
 
         const window = await model.getRows(s, c);
-        if (gen !== myGen) return;
+        if (gen !== myGen) {
+          return;
+        }
         // Drop a window whose revision no longer matches what we render. Within
         // a revision a row is immutable, so an out-of-order same-revision window
         // is safe to merge at its own offset below.
@@ -248,7 +265,9 @@ export function createRowModelStore(
         // which refetch). A future self-advancing source (streaming append)
         // would need to notify the store so it resyncs forward instead of
         // dropping — a seam concern, out of scope here.
-        if (window.revision !== get().revision) return;
+        if (window.revision !== get().revision) {
+          return;
+        }
 
         // Merge only missing indices: preserving existing objects keeps scroll
         // re-fetches from re-rendering unchanged rows. Only allocate a new Map
@@ -258,11 +277,15 @@ export function createRowModelStore(
         window.rows.forEach((row, k) => {
           const index = s + k;
           if (!existing.has(index)) {
-            if (!nextRows) nextRows = new Map(existing);
+            if (!nextRows) {
+              nextRows = new Map(existing);
+            }
             nextRows.set(index, row);
           }
         });
-        if (nextRows) set({ rows: nextRows });
+        if (nextRows) {
+          set({ rows: nextRows });
+        }
       },
 
       toggle: (nodeId, currentlyExpanded) => {
@@ -273,7 +296,9 @@ export function createRowModelStore(
         // unrelated node. Abandon it instead.
         const callGen = gen;
         return serialize(async () => {
-          if (!model || gen !== callGen) return;
+          if (!model || gen !== callGen) {
+            return;
+          }
           setPending(nodeId, true);
           const startedAt = performance.now();
           try {
@@ -282,7 +307,9 @@ export function createRowModelStore(
             } else {
               await model.expand(nodeId);
             }
-            if (gen !== callGen) return;
+            if (gen !== callGen) {
+              return;
+            }
             await refreshAfterMutation();
             // Expand pays the byte engine's deferred per-container scan (a wide
             // container's O(N) cost lands here); measure it so the boundary can
@@ -293,9 +320,13 @@ export function createRowModelStore(
           } catch (e) {
             // Deferred per-container scan threw on expand — don't let serialize's
             // rejection handler swallow it silently.
-            if (gen === callGen) captureAndSetError(e);
+            if (gen === callGen) {
+              captureAndSetError(e);
+            }
           } finally {
-            if (gen === callGen) setPending(nodeId, false);
+            if (gen === callGen) {
+              setPending(nodeId, false);
+            }
           }
         });
       },
@@ -303,27 +334,39 @@ export function createRowModelStore(
       loadMore: (loadMoreId) => {
         const callGen = gen;
         return serialize(async () => {
-          if (!model || gen !== callGen) return;
+          if (!model || gen !== callGen) {
+            return;
+          }
           setPending(loadMoreId, true);
           try {
             await model.loadMore(loadMoreId);
-            if (gen !== callGen) return;
+            if (gen !== callGen) {
+              return;
+            }
             await refreshAfterMutation();
           } catch (e) {
             // Deferred scan of the next page threw — capture, don't swallow.
-            if (gen === callGen) captureAndSetError(e);
+            if (gen === callGen) {
+              captureAndSetError(e);
+            }
           } finally {
-            if (gen === callGen) setPending(loadMoreId, false);
+            if (gen === callGen) {
+              setPending(loadMoreId, false);
+            }
           }
         });
       },
 
       materialize: async (nodeId, maxBytes) => {
-        if (!model) return;
+        if (!model) {
+          return;
+        }
         const myGen = gen;
         try {
           const result = await model.getValue(nodeId, maxBytes);
-          if (gen !== myGen) return;
+          if (gen !== myGen) {
+            return;
+          }
           // getValue reports failures as data (ok:false). Surface a genuine
           // materialization failure to Sentry, but do NOT tear down the whole
           // viewer for one leaf — store the result and let the caller react.
@@ -336,7 +379,9 @@ export function createRowModelStore(
         } catch (e) {
           // Defensive: the seam says getValue never throws, but a future source
           // might. Report without tearing the viewer down.
-          if (gen === myGen) reportError(e, { area: "json-viewer" });
+          if (gen === myGen) {
+            reportError(e, { area: "json-viewer" });
+          }
         }
       },
 

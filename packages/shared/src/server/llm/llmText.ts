@@ -442,7 +442,9 @@ function createProviderSupportedMediaUrlPolicy(
   // input the selected model rejected.
   const mediaTypesByUrl = new Map<string, string>();
   for (const message of messages) {
-    if (!Array.isArray(message.content)) continue;
+    if (!Array.isArray(message.content)) {
+      continue;
+    }
     for (const part of message.content) {
       if (part.type === "file" && part.data instanceof URL) {
         mediaTypesByUrl.set(part.data.href, part.mediaType);
@@ -493,13 +495,17 @@ export const providerSupportedMediaUrlPolicy: Experimental_DownloadFunction = (
 ) => enforceProviderSupportedMediaUrls(downloads, new Map());
 
 function assertDefinitionOnlyTools(tools: ToolSet | undefined): void {
-  if (!tools) return;
+  if (!tools) {
+    return;
+  }
 
   const executableTool = Object.entries(tools).find(
     ([, definition]) =>
       typeof (definition as { execute?: unknown }).execute === "function",
   );
-  if (!executableTool) return;
+  if (!executableTool) {
+    return;
+  }
 
   throw new LLMValidationError({
     code: "invalid-request",
@@ -521,7 +527,9 @@ function toTraceOutput(params: {
       ...(reasoningText ? { reasoningText } : {}),
     };
   }
-  if (reasoningText) return { text, reasoningText };
+  if (reasoningText) {
+    return { text, reasoningText };
+  }
 
   return text;
 }

@@ -40,7 +40,9 @@ export class DatabaseReadStream<EntityType> extends Readable {
   }
 
   async _read() {
-    if (!this.hasNextPage || this.isReading) return; // Avoid calling the database if there's no more data or if a read operation is already in progress
+    if (!this.hasNextPage || this.isReading) {
+      return;
+    } // Avoid calling the database if there's no more data or if a read operation is already in progress
 
     this.isReading = true;
 

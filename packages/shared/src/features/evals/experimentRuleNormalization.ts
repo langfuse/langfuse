@@ -76,7 +76,9 @@ export function normalizeEvaluationRuleTarget(params: {
       ? { ...params, filter: normalizeEventFilterColumns(params.filter) }
       : params;
 
-  if (!isExperimentEvaluationRule(normalizedParams)) return normalizedParams;
+  if (!isExperimentEvaluationRule(normalizedParams)) {
+    return normalizedParams;
+  }
 
   return {
     targetObject: EvalTargetObject.EVENT,

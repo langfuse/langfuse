@@ -58,12 +58,16 @@ describe("getGatewayModelConnectionSearchOptions", () => {
         { column: "provider", value: ["OPENAI"] },
       ],
     });
-    if (commit.status !== "committed") return;
+    if (commit.status !== "committed") {
+      return;
+    }
     const connectionFilter = commit.filters.find(
       (filter) => filter.column === "connection",
     );
     expect(connectionFilter?.type).toBe("arrayOptions");
-    if (connectionFilter?.type !== "arrayOptions") return;
+    if (connectionFilter?.type !== "arrayOptions") {
+      return;
+    }
     expect(
       result.connectionIdByDisplayValue.get(connectionFilter.value[0]!),
     ).toBe("connection-a");

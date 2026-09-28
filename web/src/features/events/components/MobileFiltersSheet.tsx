@@ -44,7 +44,9 @@ interface MobileFiltersSheetProps {
 }
 
 function Section({ label, children }: { label: string; children: ReactNode }) {
-  if (!children) return null;
+  if (!children) {
+    return null;
+  }
   return (
     // `if (!children)` only catches a null PROP; a child COMPONENT that renders
     // null (e.g. CategoryPresetChips while its query loads, or with no system

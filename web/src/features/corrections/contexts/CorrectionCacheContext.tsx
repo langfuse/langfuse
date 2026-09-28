@@ -115,7 +115,9 @@ export function CorrectionCacheProvider({ children }: { children: ReactNode }) {
     });
     // Also remove from cache if present
     setCache((prev) => {
-      if (!prev.has(id)) return prev;
+      if (!prev.has(id)) {
+        return prev;
+      }
       const newCache = new Map(prev);
       newCache.delete(id);
       return newCache;
@@ -125,7 +127,9 @@ export function CorrectionCacheProvider({ children }: { children: ReactNode }) {
   const rollbackSet = useCallback((id: string) => {
     // Remove from cache without marking as deleted
     setCache((prev) => {
-      if (!prev.has(id)) return prev;
+      if (!prev.has(id)) {
+        return prev;
+      }
       const newCache = new Map(prev);
       newCache.delete(id);
       return newCache;
@@ -135,7 +139,9 @@ export function CorrectionCacheProvider({ children }: { children: ReactNode }) {
   const rollbackDelete = useCallback(
     (id: string, meta?: CachedCorrectionMeta) => {
       setDeletedIds((prev) => {
-        if (!prev.has(id)) return prev;
+        if (!prev.has(id)) {
+          return prev;
+        }
         const newSet = new Set(prev);
         newSet.delete(id);
         return newSet;

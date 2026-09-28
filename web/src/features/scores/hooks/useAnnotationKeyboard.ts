@@ -31,7 +31,9 @@ export function useAnnotationKeyboard({
 }) {
   const focusFrame = useRef<number | null>(null);
   const focus = useCallback(() => {
-    if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
+    if (focusFrame.current !== null) {
+      cancelAnimationFrame(focusFrame.current);
+    }
     // Focus after panel layout, once the opening menu has released focus.
     focusFrame.current = requestAnimationFrame(() => {
       focusFrame.current = null;
@@ -40,15 +42,17 @@ export function useAnnotationKeyboard({
         !root?.isConnected ||
         root.closest('[hidden], [inert], [data-state="closed"]') ||
         hasBlockingOverlay(root)
-      )
+      ) {
         return;
+      }
       const active = document.activeElement;
       if (
         active instanceof HTMLElement &&
         root.contains(active) &&
         active.closest("[data-score-row], [data-add-score]")
-      )
+      ) {
         return;
+      }
       const entry =
         root.querySelector<HTMLElement>("[data-score-row]") ??
         root.querySelector<HTMLElement>("[data-add-score]:not(:disabled)");
@@ -57,9 +61,13 @@ export function useAnnotationKeyboard({
   }, [formRootRef]);
 
   useEffect(() => {
-    if (isActive) focus();
+    if (isActive) {
+      focus();
+    }
     return () => {
-      if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
+      if (focusFrame.current !== null) {
+        cancelAnimationFrame(focusFrame.current);
+      }
     };
   }, [isActive, focus]);
 
@@ -74,7 +82,9 @@ export function useAnnotationKeyboard({
   //  - `1`-`9`  pick the Nth option of the focused row (option rows only).
   // A focused text field owns its keys; an open popover/drawer suspends these.
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive) {
+      return;
+    }
     const targetFor = (field: AnnotationScoreSchemaType) =>
       targets.find((target) => target.key === field.targetKey)!;
     const configFor = (field: AnnotationScoreSchemaType | undefined) =>
@@ -97,18 +107,24 @@ export function useAnnotationKeyboard({
       );
     };
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (hasModifier(event)) return;
+      if (hasModifier(event)) {
+        return;
+      }
       const controlledFields = form.getValues("scoreData");
       const rowCount = controlledFields.filter((field) =>
         configFor(field),
       ).length;
 
       const root = formRootRef.current;
-      if (!root) return;
+      if (!root) {
+        return;
+      }
       // Suspend for an overlapping popover/drawer (e.g. the comment editor), but
       // NOT for a drawer this form is mounted inside (the Annotate drawer) — that
       // is an ancestor of the form, so the scheme stays alive there.
-      if (hasBlockingOverlay(root)) return;
+      if (hasBlockingOverlay(root)) {
+        return;
+      }
       const target = event.target;
       const editing =
         target instanceof HTMLInputElement ||
@@ -137,12 +153,13 @@ export function useAnnotationKeyboard({
           const row = target.closest<HTMLElement>("[data-score-row]");
           if (row) {
             const field = controlledFields[Number(row.dataset.scoreRow)];
-            if (field)
+            if (field) {
               actions.saveNumeric(
                 annotationFieldKey(field),
                 targetFor(field),
                 target,
               );
+            }
           }
           target.reportValidity();
           return;
@@ -150,15 +167,22 @@ export function useAnnotationKeyboard({
         event.preventDefault();
         const row = target.closest<HTMLElement>("[data-score-row]");
         // Focusing the row blurs the input (its onBlur saves) and resumes ↑/↓.
-        if (row) row.focus();
-        else target.blur();
+        if (row) {
+          row.focus();
+        } else {
+          target.blur();
+        }
         return;
       }
 
       // While editing a text field, leave its keys (typing, caret, number step)
       // alone — `Esc` / `Tab` move out.
-      if (editing) return;
-      if (rowCount === 0) return;
+      if (editing) {
+        return;
+      }
+      if (rowCount === 0) {
+        return;
+      }
 
       // The form containing focus acts; if focus is on the body the first
       // form acts. A control focused *outside* any form (e.g. the Mark Completed
@@ -170,16 +194,24 @@ export function useAnnotationKeyboard({
           ? active.closest("[data-annotation-form]")
           : null;
       if (focusedForm) {
-        if (focusedForm !== root) return;
+        if (focusedForm !== root) {
+          return;
+        }
       } else {
-        if (active && active !== document.body) return;
-        if (document.querySelector("[data-annotation-form]") !== root) return;
+        if (active && active !== document.body) {
+          return;
+        }
+        if (document.querySelector("[data-annotation-form]") !== root) {
+          return;
+        }
       }
 
       const rowEls = Array.from(
         root.querySelectorAll<HTMLElement>("[data-score-row]"),
       );
-      if (rowEls.length === 0) return;
+      if (rowEls.length === 0) {
+        return;
+      }
       const currentRow =
         active instanceof HTMLElement
           ? (active.closest("[data-score-row]") as HTMLElement | null)
@@ -190,21 +222,28 @@ export function useAnnotationKeyboard({
       if (
         active instanceof HTMLElement &&
         active.closest("[data-score-actions]")
-      )
+      ) {
         return;
+      }
 
       // `↑` / `↓` move focus between rows (to the row container itself, never
       // into a text field — so navigation is never trapped).
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        if (rowEls.length < 2) return;
+        if (rowEls.length < 2) {
+          return;
+        }
         // Navigate from a focused row, or enter from the body — but NOT from an
         // in-form non-row control (e.g. the config-picker trigger), which would
         // otherwise teleport focus to a row.
-        if (currentPos < 0 && active !== document.body) return;
+        if (currentPos < 0 && active !== document.body) {
+          return;
+        }
         event.preventDefault();
         const delta = event.key === "ArrowDown" ? 1 : -1;
         let nextPos = (currentPos + delta + rowEls.length) % rowEls.length;
-        if (currentPos < 0) nextPos = delta > 0 ? 0 : rowEls.length - 1;
+        if (currentPos < 0) {
+          nextPos = delta > 0 ? 0 : rowEls.length - 1;
+        }
         rowEls[nextPos].focus();
         return;
       }
@@ -242,7 +281,9 @@ export function useAnnotationKeyboard({
 
       // `1`-`9` pick an option on the focused row (option rows only).
       if (/^[1-9]$/.test(event.key)) {
-        if (currentPos < 0 || !currentRow) return;
+        if (currentPos < 0 || !currentRow) {
+          return;
+        }
         // Only from the row container itself or its value control — never the
         // in-row comment or score actions (else a stray digit writes a phantom
         // score). Mirrors the Enter branch's `active === currentRow` gate.
@@ -252,21 +293,27 @@ export function useAnnotationKeyboard({
             active instanceof HTMLElement &&
             active.closest("[data-score-control]")
           )
-        )
+        ) {
           return;
+        }
         const rowIndex = Number(currentRow.getAttribute("data-score-row"));
         const field = controlledFields[rowIndex];
-        if (!isKeyboardSelectable(field)) return;
+        if (!isKeyboardSelectable(field)) {
+          return;
+        }
         const config = field ? configFor(field) : undefined;
         const category = (config?.categories ?? [])[Number(event.key) - 1];
-        if (!category) return;
+        if (!category) {
+          return;
+        }
         event.preventDefault();
-        if (field)
+        if (field) {
           actions.saveCategory(
             annotationFieldKey(field),
             targetFor(field),
             category.label,
           );
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -280,23 +327,34 @@ export function useAnnotationKeyboard({
   // from closing. Scoped to fields inside this form (a portaled comment popover
   // is not inside the form root, so its own Esc-to-close still works).
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive) {
+      return;
+    }
     const onEscapeCapture = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape") {
+        return;
+      }
       const root = formRootRef.current;
-      if (!root) return;
+      if (!root) {
+        return;
+      }
       const target = event.target;
       const inField =
         (target instanceof HTMLInputElement ||
           target instanceof HTMLTextAreaElement) &&
         root.contains(target);
-      if (!inField) return;
+      if (!inField) {
+        return;
+      }
       event.stopPropagation();
       const row = (target as HTMLElement).closest<HTMLElement>(
         "[data-score-row]",
       );
-      if (row) row.focus();
-      else (target as HTMLElement).blur();
+      if (row) {
+        row.focus();
+      } else {
+        (target as HTMLElement).blur();
+      }
     };
     window.addEventListener("keydown", onEscapeCapture, true);
     return () => window.removeEventListener("keydown", onEscapeCapture, true);

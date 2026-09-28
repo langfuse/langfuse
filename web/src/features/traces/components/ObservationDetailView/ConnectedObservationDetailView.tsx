@@ -172,7 +172,9 @@ export function ConnectedObservationDetailView({
   // - costDetails/usageDetails (for tooltips) aren't in TreeNode, adding them causes high memory for all nodes, esp on big traces
   // - computation only runs when viewing a root observation and is memo'd
   const subtreeMetrics = useMemo(() => {
-    if (!isRoot || !treeNode) return null;
+    if (!isRoot || !treeNode) {
+      return null;
+    }
     const descendantIds = getDescendantIds(treeNode);
     const descendantIdSet = new Set(descendantIds);
 
@@ -185,11 +187,18 @@ export function ConnectedObservationDetailView({
 
   // "log" is v4-only and needs observations; everything else falls back to preview.
   const selectedTab = useMemo(() => {
-    if (globalSelectedTab === "messages" && showMessagesTab)
+    if (globalSelectedTab === "messages" && showMessagesTab) {
       return "messages" as const;
-    if (globalSelectedTab === "scores") return "scores" as const;
-    if (globalSelectedTab === "attributes") return "attributes" as const;
-    if (globalSelectedTab === "log" && showLogViewTab) return "log" as const;
+    }
+    if (globalSelectedTab === "scores") {
+      return "scores" as const;
+    }
+    if (globalSelectedTab === "attributes") {
+      return "attributes" as const;
+    }
+    if (globalSelectedTab === "log" && showLogViewTab) {
+      return "log" as const;
+    }
     return "preview" as const;
   }, [globalSelectedTab, showLogViewTab, showMessagesTab]);
 

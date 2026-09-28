@@ -74,12 +74,13 @@ export const UserAssignmentSection = ({
 
   // Handle user removal
   const handleUserRemove = (userId: string) => {
-    if (!!queueId)
+    if (!!queueId) {
       deleteQueueAssignmentMutation.mutate({
         projectId,
         queueId,
         userId,
       });
+    }
   };
 
   // Check if there are more assigned users than shown

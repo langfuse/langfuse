@@ -37,10 +37,18 @@ export default function BackgroundMigrationsTable() {
       id: "status",
       accessorFn: (row) => row,
       getStatus: (migration) => {
-        if (!migration) return undefined;
-        if (migration.failedAt) return "failed";
-        if (migration.finishedAt) return "finished";
-        if (migration.workerId) return "active";
+        if (!migration) {
+          return undefined;
+        }
+        if (migration.failedAt) {
+          return "failed";
+        }
+        if (migration.finishedAt) {
+          return "finished";
+        }
+        if (migration.workerId) {
+          return "active";
+        }
 
         return "queued";
       },

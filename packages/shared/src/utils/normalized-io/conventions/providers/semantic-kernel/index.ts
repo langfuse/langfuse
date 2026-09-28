@@ -18,7 +18,9 @@ function unwrapSemanticKernelEnvelope(
   ctx: MessageEnvelopeContext,
 ): ConventionResult<NormalizedMessage> {
   const content = parseRecord(value["gen_ai.event.content"]);
-  if (!content) return unmatched;
+  if (!content) {
+    return unmatched;
+  }
 
   return claimed(
     ctx.normalizeMessage(asRecord(content.message) ?? content, fallbackRole),

@@ -72,7 +72,9 @@ export const DeleteAutomationDialogController = ({
         children({
           disabled,
           openDialog: () => {
-            if (!hasAccess) return;
+            if (!hasAccess) {
+              return;
+            }
             openDialog();
           },
         })

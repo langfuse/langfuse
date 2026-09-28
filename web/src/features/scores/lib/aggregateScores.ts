@@ -59,7 +59,9 @@ export const collectScoreNameCoverage = (
 ): Map<string, number> => {
   const coverage = new Map<string, number>();
   for (const aggregate of aggregates) {
-    if (!aggregate) continue;
+    if (!aggregate) {
+      continue;
+    }
     for (const [key, value] of Object.entries(aggregate)) {
       const { name } = decomposeAggregateScoreKey(key);
       coverage.set(name, (coverage.get(name) ?? 0) + value.values.length);
@@ -131,7 +133,9 @@ export const aggregateScores = <T extends ScoreToAggregate>(
     const aggregateType = resolveAggregateType(scores[0].dataType);
     if (aggregateType === "NUMERIC") {
       const values = scores.map((score) => score.value ?? 0);
-      if (!Boolean(values.length)) return acc;
+      if (!Boolean(values.length)) {
+        return acc;
+      }
       const average = values.reduce((a, b) => a + b, 0) / values.length;
       acc[key] = {
         type: aggregateType,
@@ -154,7 +158,9 @@ export const aggregateScores = <T extends ScoreToAggregate>(
           isBoolean ? toBooleanScoreValue(score) : (score.stringValue ?? "n/a"),
         )
         .sort((a, b) => a.localeCompare(b));
-      if (!Boolean(values.length)) return acc;
+      if (!Boolean(values.length)) {
+        return acc;
+      }
       const valueCounts = values.reduce(
         (acc, value) => {
           acc[value] = (acc[value] || 0) + 1;

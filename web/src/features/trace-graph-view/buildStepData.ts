@@ -53,7 +53,9 @@ function takeNextStepGroup(
     const obsStart = timestampCache.get(obs.id)!.start;
 
     const startsAfterAnyOtherFinishes = currentGroup.some((otherObs) => {
-      if (otherObs === obs) return false;
+      if (otherObs === obs) {
+        return false;
+      }
 
       const otherEnd = timestampCache.get(otherObs.id)!.end;
       return obsStart > otherEnd; // handle simultaneous events gracefully
@@ -167,7 +169,9 @@ function assignGlobalTimingSteps(
         const parentId = current.parentObservationId;
         // Cycle guard: parent pointers are acyclic by DB schema, but a malformed
         // chain (parent already seen) would otherwise loop this walk forever.
-        if (ancestors.has(parentId)) break;
+        if (ancestors.has(parentId)) {
+          break;
+        }
         ancestors.add(parentId);
         current = obsMap.get(parentId);
       }
@@ -176,10 +180,14 @@ function assignGlobalTimingSteps(
 
     // identify spans which must be pushed (violations) and calculate adjustments
     for (const obs of result) {
-      if (!obs.parentObservationId || obs.step === null) continue;
+      if (!obs.parentObservationId || obs.step === null) {
+        continue;
+      }
 
       const parent = obsMap.get(obs.parentObservationId);
-      if (!parent || parent.step === null) continue;
+      if (!parent || parent.step === null) {
+        continue;
+      }
 
       const requiredMinStep = parent.step + 1;
       if (obs.step < requiredMinStep) {
@@ -188,7 +196,9 @@ function assignGlobalTimingSteps(
 
         // adjust the violating child and push all observations at future steps forward (except ancestors)
         for (const target of result) {
-          if (target.step === null) continue;
+          if (target.step === null) {
+            continue;
+          }
 
           if (target.id === obs.id) {
             // child adjustment

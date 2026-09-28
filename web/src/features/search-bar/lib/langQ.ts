@@ -90,7 +90,9 @@ function lex(input: string, diagnostics: Diagnostic[]): Token[] {
     const start = i;
     while (i < input.length) {
       const c = input[i]!;
-      if (WHITESPACE.test(c) || c === ")") break;
+      if (WHITESPACE.test(c) || c === ")") {
+        break;
+      }
       if (c === "(") {
         if (i > start && input[i - 1] === ":") {
           const close = findClosingParen(input, i);
@@ -141,7 +143,9 @@ export function findClosingQuote(input: string, openIdx: number): number {
       j++;
       continue;
     }
-    if (input[j] === '"') return j;
+    if (input[j] === '"') {
+      return j;
+    }
   }
   return -1;
 }
@@ -155,10 +159,14 @@ function findClosingParen(input: string, openIdx: number): number {
       j = close === -1 ? input.length : close;
       continue;
     }
-    if (c === "(") depth++;
+    if (c === "(") {
+      depth++;
+    }
     if (c === ")") {
       depth--;
-      if (depth === 0) return j;
+      if (depth === 0) {
+        return j;
+      }
     }
   }
   return -1;
@@ -198,7 +206,9 @@ export function indexOfOutsideQuotes(s: string, ch: string): number {
       j = close === -1 ? s.length : close + 1;
       continue;
     }
-    if (c === ch) return j;
+    if (c === ch) {
+      return j;
+    }
     j++;
   }
   return -1;
@@ -207,9 +217,15 @@ export function indexOfOutsideQuotes(s: string, ch: string): number {
 // ---- term classification ----
 
 function isKeyword(raw: string): "and" | "or" | "not" | null {
-  if (raw === "AND") return "and";
-  if (raw === "OR") return "or";
-  if (raw === "NOT") return "not";
+  if (raw === "AND") {
+    return "and";
+  }
+  if (raw === "OR") {
+    return "or";
+  }
+  if (raw === "NOT") {
+    return "not";
+  }
   return null;
 }
 
@@ -234,11 +250,19 @@ export function parseGlob(
 ): { op: CompareOp; core: string } | null {
   const leading = rawSegment.startsWith("*");
   const trailing = rawSegment.endsWith("*") && rawSegment.length > 1;
-  if (!leading && !trailing) return null;
+  if (!leading && !trailing) {
+    return null;
+  }
   let core = rawSegment;
-  if (leading) core = core.slice(1);
-  if (trailing) core = core.slice(0, -1);
-  if (core.length === 0) return null; // lone `*` / `**` → treat as literal
+  if (leading) {
+    core = core.slice(1);
+  }
+  if (trailing) {
+    core = core.slice(0, -1);
+  }
+  if (core.length === 0) {
+    return null;
+  } // lone `*` / `**` → treat as literal
   const op: CompareOp = leading && trailing ? "~" : trailing ? "^" : "$";
   return { op, core };
 }
@@ -308,7 +332,9 @@ function parseTermNode(
   // Op×field validity comes from the shared table so parser, validator, and
   // adapter agree (fields.operatorIssue).
   const pushOpIssue = (op: CompareOp, valueOp: "or" | "and" = "or") => {
-    if (ref === null) return;
+    if (ref === null) {
+      return;
+    }
     const issue = operatorIssue(ref, op, valueOp);
     if (issue !== null) {
       diagnostics.push({
@@ -617,10 +643,14 @@ export function parse(
     const children: ASTNode[] = [];
     while (true) {
       const t = peek();
-      if (t === null || t.type === "rparen") break;
+      if (t === null || t.type === "rparen") {
+        break;
+      }
       if (t.type === "term") {
         const kw = isKeyword(t.raw);
-        if (kw === "or") break;
+        if (kw === "or") {
+          break;
+        }
         if (kw === "and") {
           next();
           if (children.length === 0) {
@@ -653,16 +683,24 @@ export function parse(
         }
       }
       const node = parseUnary();
-      if (node !== null) children.push(node);
+      if (node !== null) {
+        children.push(node);
+      }
     }
-    if (children.length === 0) return null;
-    if (children.length === 1) return children[0]!;
+    if (children.length === 0) {
+      return null;
+    }
+    if (children.length === 1) {
+      return children[0]!;
+    }
     return { kind: "and", children };
   }
 
   function parseUnary(): ASTNode | null {
     const t = peek();
-    if (t === null) return null;
+    if (t === null) {
+      return null;
+    }
 
     if (t.type === "rparen") {
       next();
@@ -780,9 +818,13 @@ export function parse(
     });
     const more = parseOr();
     if (more !== null) {
-      if (ast === null) ast = more;
-      else if (ast.kind === "and") ast.children.push(more);
-      else ast = { kind: "and", children: [ast, more] };
+      if (ast === null) {
+        ast = more;
+      } else if (ast.kind === "and") {
+        ast.children.push(more);
+      } else {
+        ast = { kind: "and", children: [ast, more] };
+      }
     }
   }
 
@@ -801,7 +843,9 @@ function dedupeDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
   const seen = new Set<string>();
   return diagnostics.filter((d) => {
     const key = `${d.from}:${d.to}:${d.severity}:${d.message}`;
-    if (seen.has(key)) return false;
+    if (seen.has(key)) {
+      return false;
+    }
     seen.add(key);
     return true;
   });
@@ -827,7 +871,9 @@ export function termAt(
 ): { raw: string; from: number; to: number } | null {
   const throwaway: Diagnostic[] = [];
   for (const token of lex(input, throwaway)) {
-    if (token.type !== "term") continue;
+    if (token.type !== "term") {
+      continue;
+    }
     if (pos >= token.span.from && pos <= token.span.to) {
       return { raw: token.raw, from: token.span.from, to: token.span.to };
     }
@@ -905,17 +951,23 @@ function serializeFilter(node: FilterNode): string {
 }
 
 function sameFieldOrGroup(node: ASTNode): FilterNode[] | null {
-  if (node.kind !== "or") return null;
+  if (node.kind !== "or") {
+    return null;
+  }
   const filters = node.children.filter(
     (c): c is FilterNode => c.kind === "filter",
   );
-  if (filters.length !== node.children.length || filters.length < 2)
+  if (filters.length !== node.children.length || filters.length < 2) {
     return null;
+  }
   const first = filters[0]!;
-  if (first.op !== "=" || first.values.length !== 1) return null;
+  if (first.op !== "=" || first.values.length !== 1) {
+    return null;
+  }
   for (const f of filters) {
-    if (f.key !== first.key || f.op !== "=" || f.values.length !== 1)
+    if (f.key !== first.key || f.op !== "=" || f.values.length !== 1) {
       return null;
+    }
   }
   return filters;
 }
@@ -957,7 +1009,9 @@ export function serialize(
   ast: ASTNode | null,
   registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): string {
-  if (ast === null) return "";
+  if (ast === null) {
+    return "";
+  }
   switch (ast.kind) {
     case "filter":
       return serializeFilter(ast);
@@ -966,11 +1020,19 @@ export function serialize(
       return serializeText(ast, false, registry);
     case "not": {
       const child = ast.child;
-      if (child.kind === "filter") return `-${serializeFilter(child)}`;
+      if (child.kind === "filter") {
+        return `-${serializeFilter(child)}`;
+      }
       const sameField = sameFieldOrGroup(child);
-      if (sameField !== null) return serializeSameFieldOr(sameField, true);
-      if (child.kind === "not") return `NOT (${serialize(child, registry)})`;
-      if (child.kind === "text") return `NOT ${serialize(child, registry)}`;
+      if (sameField !== null) {
+        return serializeSameFieldOr(sameField, true);
+      }
+      if (child.kind === "not") {
+        return `NOT (${serialize(child, registry)})`;
+      }
+      if (child.kind === "text") {
+        return `NOT ${serialize(child, registry)}`;
+      }
       return `NOT (${serialize(child, registry)})`;
     }
     case "and":
@@ -984,7 +1046,9 @@ export function serialize(
               ? serialize(c, registry)
               : `(${serialize(c, registry)})`;
           }
-          if (c.kind === "and") return `(${serialize(c, registry)})`;
+          if (c.kind === "and") {
+            return `(${serialize(c, registry)})`;
+          }
           // A text child glued to a text sibling is part of a phrase — don't
           // force-quote a field-name word inside it (see serializeText).
           if (c.kind === "text") {
@@ -999,7 +1063,9 @@ export function serialize(
         .join(" ");
     case "or": {
       const sameField = sameFieldOrGroup(ast);
-      if (sameField !== null) return serializeSameFieldOr(sameField);
+      if (sameField !== null) {
+        return serializeSameFieldOr(sameField);
+      }
       // A nested OR group (e.g. "a OR (b OR c)") must keep its parens or the
       // chain flattens on reparse; AND children reparse correctly bare
       // (implicit AND binds tighter than OR).

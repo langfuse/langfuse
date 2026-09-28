@@ -12,7 +12,9 @@ export function OverviewSelectionBar({
   onClear: () => void;
   children: React.ReactNode;
 }) {
-  if (selectedCount === 0) return null;
+  if (selectedCount === 0) {
+    return null;
+  }
 
   return (
     <Layer name="panel">

@@ -32,7 +32,9 @@ export async function setReadPath(
   deps: SetReadPathDeps,
 ): Promise<void> {
   const { pendingReadPath, actions } = readPathToggleStore.getState();
-  if (pendingReadPath !== null) return;
+  if (pendingReadPath !== null) {
+    return;
+  }
   actions.begin(target);
 
   try {

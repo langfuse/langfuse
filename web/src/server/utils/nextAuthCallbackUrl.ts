@@ -10,7 +10,9 @@ type RequestWithCookieStore = Request & {
 // safely place in a Location header. Relative URLs must start with `/`;
 // absolute URLs must parse with an http(s) scheme.
 export const isValidCallbackUrl = (url: unknown): boolean => {
-  if (typeof url !== "string") return false;
+  if (typeof url !== "string") {
+    return false;
+  }
   try {
     validateHeaderValue("Location", url);
     return /^https?:/.test(
@@ -27,10 +29,14 @@ const parseCookieHeader = (cookieHeader: string | null) => {
 
   for (const part of cookieHeader?.split(";") ?? []) {
     const separatorIndex = part.indexOf("=");
-    if (separatorIndex === -1) continue;
+    if (separatorIndex === -1) {
+      continue;
+    }
 
     const name = part.slice(0, separatorIndex).trim();
-    if (!name) continue;
+    if (!name) {
+      continue;
+    }
 
     const value = part.slice(separatorIndex + 1).trim();
     try {

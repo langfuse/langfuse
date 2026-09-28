@@ -231,7 +231,9 @@ export const ExperimentGridView = ({
               onExperimentClick={
                 peekView?.openPeek
                   ? (event) => {
-                      if (shouldIgnoreRowClickTarget(event.target)) return;
+                      if (shouldIgnoreRowClickTarget(event.target)) {
+                        return;
+                      }
                       event.stopPropagation();
                       peekView.openPeek?.(row.original.itemId, {
                         ...row.original,

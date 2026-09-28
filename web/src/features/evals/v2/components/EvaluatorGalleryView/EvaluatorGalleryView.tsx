@@ -87,7 +87,9 @@ export function EvaluatorGalleryView({
   const hasTemplates = displayedSections.length > 0;
   const isSingleSection = resolvedSection !== EVALUATOR_GALLERY_ALL_SECTION_KEY;
   const selectSection = (key: string) => {
-    if (key !== resolvedSection) onSearchChange("");
+    if (key !== resolvedSection) {
+      onSearchChange("");
+    }
     onSelectSection(key);
   };
   const loadMoreSentinelRef = useCallback(

@@ -23,7 +23,9 @@ export function aggregateEvents(
   events: PrototypeEvent[],
   config: ChartViewConfig,
 ): DataPoint[] {
-  if (events.length === 0) return [];
+  if (events.length === 0) {
+    return [];
+  }
 
   const metric = getMetric(config.metric);
   const extractor = METRIC_EXTRACTORS[config.metric];
@@ -67,8 +69,11 @@ function aggregateTimeSeries(
       buckets.set(bucket, perSeries);
     }
     const list = perSeries.get(series);
-    if (list) list.push(e);
-    else perSeries.set(series, [e]);
+    if (list) {
+      list.push(e);
+    } else {
+      perSeries.set(series, [e]);
+    }
   }
 
   const points: DataPoint[] = [];
@@ -96,8 +101,11 @@ function aggregateCategorical(
   for (const e of events) {
     const key = seriesOf(e);
     const list = groups.get(key);
-    if (list) list.push(e);
-    else groups.set(key, [e]);
+    if (list) {
+      list.push(e);
+    } else {
+      groups.set(key, [e]);
+    }
   }
 
   return [...groups.entries()]
@@ -119,7 +127,9 @@ function aggregate(
     return events.length;
   }
   const values = events.map(extractor).filter((v) => Number.isFinite(v));
-  if (values.length === 0) return 0;
+  if (values.length === 0) {
+    return 0;
+  }
 
   switch (agg) {
     case "sum":
@@ -144,11 +154,15 @@ function aggregate(
 /** Linear-interpolated percentile over an unsorted numeric array. */
 function percentile(values: number[], p: number): number {
   const sorted = [...values].sort((a, b) => a - b);
-  if (sorted.length === 1) return sorted[0];
+  if (sorted.length === 1) {
+    return sorted[0];
+  }
   const rank = (p / 100) * (sorted.length - 1);
   const lo = Math.floor(rank);
   const hi = Math.ceil(rank);
-  if (lo === hi) return sorted[lo];
+  if (lo === hi) {
+    return sorted[lo];
+  }
   const weight = rank - lo;
   return sorted[lo] * (1 - weight) + sorted[hi] * weight;
 }
@@ -161,9 +175,13 @@ export function floorToGranularity(
   const d = new Date(iso);
   d.setUTCMilliseconds(0);
   d.setUTCSeconds(0);
-  if (granularity === "minute") return d.toISOString();
+  if (granularity === "minute") {
+    return d.toISOString();
+  }
   d.setUTCMinutes(0);
-  if (granularity === "hour") return d.toISOString();
+  if (granularity === "hour") {
+    return d.toISOString();
+  }
   d.setUTCHours(0);
   return d.toISOString();
 }

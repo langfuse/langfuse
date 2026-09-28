@@ -244,7 +244,9 @@ describe("Clickhouse Events Repository Test", () => {
       rowCount++;
       const traceKey = JSON.stringify([event.project_id, event.trace_id]);
       foundTraces.add(traceKey);
-      if (traceGroups.at(-1) !== traceKey) traceGroups.push(traceKey);
+      if (traceGroups.at(-1) !== traceKey) {
+        traceGroups.push(traceKey);
+      }
       if (event.span_id === companionOnlyRow.span_id) {
         companionOnlyRowSeen = true;
       }

@@ -37,7 +37,9 @@ let cachedSsoConfigs: {
  * @returns {Promise<SsoProviderSchema[]>} - A list of all SSO configurations. Empty array if none are configured or EE is not available.
  */
 async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
-  if (!multiTenantSsoAvailable) return [];
+  if (!multiTenantSsoAvailable) {
+    return [];
+  }
 
   const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
   const FAILEDTOFETCH_RETRY_AFTER = 60 * 1000; // 1 minute
@@ -101,7 +103,9 @@ async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
  * @returns {Promise<Provider[]>} - A list of all custom SSO providers.
  */
 export async function loadSsoProviders(): Promise<Provider[]> {
-  if (!multiTenantSsoAvailable) return [];
+  if (!multiTenantSsoAvailable) {
+    return [];
+  }
 
   const ssoConfigs = await getSsoConfigs();
 
@@ -109,7 +113,9 @@ export async function loadSsoProviders(): Promise<Provider[]> {
 
   for (const dbSsoConfig of ssoConfigs) {
     const provider = dbToNextAuthProvider(dbSsoConfig);
-    if (provider !== null) providers.push(provider);
+    if (provider !== null) {
+      providers.push(provider);
+    }
   }
 
   return providers;
@@ -119,7 +125,9 @@ export async function loadSsoProviders(): Promise<Provider[]> {
  * @returns `true` if any custom SSO provider is configured in the database.
  */
 export async function isAnySsoConfigured(): Promise<boolean> {
-  if (!multiTenantSsoAvailable) return false;
+  if (!multiTenantSsoAvailable) {
+    return false;
+  }
   const ssoConfigs = await getSsoConfigs();
   return ssoConfigs.length > 0;
 }
@@ -133,12 +141,16 @@ export async function isAnySsoConfigured(): Promise<boolean> {
 export async function getSsoAuthProviderIdForDomain(
   domain: string,
 ): Promise<string | null> {
-  if (!multiTenantSsoAvailable) return null;
+  if (!multiTenantSsoAvailable) {
+    return null;
+  }
   const ssoConfig = (await getSsoConfigs()).find(
     (ssoConfig) => ssoConfig.domain === domain.toLowerCase(),
   );
 
-  if (!ssoConfig) return null;
+  if (!ssoConfig) {
+    return null;
+  }
   return getAuthProviderIdForSsoConfig(ssoConfig);
 }
 
@@ -195,16 +207,18 @@ const getClientConfig = (authConfig: {
  */
 const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
   // If the SsoConfig does not use custom credentials, return null as no additional provider needs to be added to NextAuth
-  if (!provider.authConfig) return null;
+  if (!provider.authConfig) {
+    return null;
+  }
 
-  if (provider.authProvider === "google")
+  if (provider.authProvider === "google") {
     return GoogleProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
       ...getClientConfig(provider.authConfig),
     });
-  else if (provider.authProvider === "github")
+  } else if (provider.authProvider === "github") {
     return GitHubProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
@@ -212,42 +226,42 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       issuer: "https://github.com/login/oauth",
       ...getClientConfig(provider.authConfig),
     });
-  else if (provider.authProvider === "gitlab")
+  } else if (provider.authProvider === "gitlab") {
     return GitLabProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
       ...getClientConfig(provider.authConfig),
     });
-  else if (provider.authProvider === "auth0")
+  } else if (provider.authProvider === "auth0") {
     return Auth0Provider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
       ...getClientConfig(provider.authConfig),
     });
-  else if (provider.authProvider === "okta")
+  } else if (provider.authProvider === "okta") {
     return OktaProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
       ...getClientConfig(provider.authConfig),
     });
-  else if (provider.authProvider === "authentik")
+  } else if (provider.authProvider === "authentik") {
     return AuthentikProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
       ...getClientConfig(provider.authConfig),
     });
-  else if (provider.authProvider === "onelogin")
+  } else if (provider.authProvider === "onelogin") {
     return OneLoginProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
       ...getClientConfig(provider.authConfig),
     });
-  else if (provider.authProvider === "azure-ad") {
+  } else if (provider.authProvider === "azure-ad") {
     const ssoDomain = provider.domain.toLowerCase();
     const azureProvider = AzureADProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
@@ -300,21 +314,21 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
     };
 
     return azureProvider;
-  } else if (provider.authProvider === "cognito")
+  } else if (provider.authProvider === "cognito") {
     return CognitoProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
       ...getClientConfig(provider.authConfig),
     });
-  else if (provider.authProvider === "keycloak")
+  } else if (provider.authProvider === "keycloak") {
     return KeycloakProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
       ...getClientConfig(provider.authConfig),
     });
-  else if (provider.authProvider === "custom")
+  } else if (provider.authProvider === "custom") {
     return CustomSSOProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
@@ -324,7 +338,7 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       },
       ...getClientConfig(provider.authConfig),
     });
-  else if (provider.authProvider === "github-enterprise")
+  } else if (provider.authProvider === "github-enterprise") {
     return GitHubEnterpriseProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
@@ -336,7 +350,7 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
         .href,
       ...getClientConfig(provider.authConfig),
     });
-  else if (provider.authProvider === "jumpcloud")
+  } else if (provider.authProvider === "jumpcloud") {
     return JumpCloudProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
@@ -346,6 +360,7 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       },
       ...getClientConfig(provider.authConfig),
     });
+  }
 
   // Type check to ensure we handle all providers
 
@@ -370,7 +385,9 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
 const getAuthProviderIdForSsoConfig = (
   dbSsoConfig: SsoProviderSchema,
 ): string => {
-  if (!dbSsoConfig.authConfig) return dbSsoConfig.authProvider;
+  if (!dbSsoConfig.authConfig) {
+    return dbSsoConfig.authProvider;
+  }
   return `${dbSsoConfig.domain}.${dbSsoConfig.authProvider}`;
 };
 

@@ -65,7 +65,9 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
   );
   useLayoutEffect(() => {
     const el = parentRef.current;
-    if (!el) return;
+    if (!el) {
+      return;
+    }
     const measure = () => {
       setMaxVisualDepth(
         computeMaxVisualDepth(el.clientWidth, TREE_VISUAL_DEPTH),
@@ -126,7 +128,9 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
     // Keep the scroll PENDING when the row is missing (collapsed subtree,
     // level filter) — the ref stays un-advanced, so this retries when
     // flattenedItems changes and the row appears.
-    if (index === -1) return;
+    if (index === -1) {
+      return;
+    }
 
     const isInitial = prevSelectedIdRef.current === undefined;
     prevSelectedIdRef.current = selectedNodeId;

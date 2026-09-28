@@ -23,7 +23,9 @@ export function installCryptoRandomUUIDPolyfill(
   // assignable — `Crypto["randomUUID"]` returns a template-literal type.
   target: { randomUUID?: () => string } | undefined = globalThis.crypto,
 ): void {
-  if (!target || typeof target.randomUUID === "function") return;
+  if (!target || typeof target.randomUUID === "function") {
+    return;
+  }
   // Pass an options object so uuid's v4() takes its crypto.getRandomValues
   // path unconditionally. A bare v4() consults crypto.randomUUID at call
   // time — which is this polyfill once installed, so it would recurse.

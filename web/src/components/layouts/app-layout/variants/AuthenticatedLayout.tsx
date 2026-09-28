@@ -143,7 +143,9 @@ export function AuthenticatedLayout({
       name: region.name,
       content: `${region.flag} ${region.name}`,
       onClick: () => {
-        if (!region.rootUrl) return;
+        if (!region.rootUrl) {
+          return;
+        }
         window.open(
           getCloudRegionAuthUrl(region.rootUrl, user.email),
           "_blank",
@@ -487,7 +489,9 @@ function ConnectedAppSidebar({
 function useProjectCookie(router: NextRouter) {
   const projectId = router.query.projectId;
   useEffect(() => {
-    if (typeof projectId !== "string") return;
+    if (typeof projectId !== "string") {
+      return;
+    }
     fetch(`/api/project/${encodeURIComponent(projectId)}/visit`, {
       method: "POST",
     }).catch(() => {});

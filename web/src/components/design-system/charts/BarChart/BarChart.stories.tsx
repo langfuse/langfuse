@@ -30,7 +30,9 @@ export const PositiveBaseline = meta.story({
   play: async ({ canvasElement }) => {
     const bars = within(canvasElement).getAllByRole("graphics-symbol");
     const smallestBar = bars[0];
-    if (!smallestBar) throw new Error("Bar not found");
+    if (!smallestBar) {
+      throw new Error("Bar not found");
+    }
     await expect(Number(smallestBar.getAttribute("height"))).toBeGreaterThan(1);
   },
 });
@@ -72,7 +74,9 @@ export const CategoryHoverArea = meta.story({
     const area = canvasElement.querySelector<SVGRectElement>(
       "[data-bar-hover-area]",
     );
-    if (!area) throw new Error("Hover area not found");
+    if (!area) {
+      throw new Error("Hover area not found");
+    }
     await userEvent.hover(area);
     const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
       "tooltip",
@@ -99,7 +103,9 @@ export const TooltipFollowsBar = meta.story({
     for (let index = 0; index < bars.length; index++) {
       const bar = bars[index];
       const area = areas[index];
-      if (!bar || !area) throw new Error("Bar or hover area not found");
+      if (!bar || !area) {
+        throw new Error("Bar or hover area not found");
+      }
       await userEvent.hover(area);
       const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
         "tooltip",
@@ -107,7 +113,9 @@ export const TooltipFollowsBar = meta.story({
       const referenceLine = canvasElement.querySelector(
         "[data-active-reference-line]",
       );
-      if (!referenceLine) throw new Error("Reference line not found");
+      if (!referenceLine) {
+        throw new Error("Reference line not found");
+      }
       await expect(referenceLine.compareDocumentPosition(bar)).toBe(
         Node.DOCUMENT_POSITION_FOLLOWING,
       );
@@ -219,7 +227,9 @@ export const LongLabels = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const firstBar = canvas.getAllByRole("graphics-symbol")[0];
-    if (!firstBar) throw new Error("Bar not found");
+    if (!firstBar) {
+      throw new Error("Bar not found");
+    }
     await expect(
       canvasElement.querySelector("[data-x-axis-label]"),
     ).toHaveTextContent(/…$/);
@@ -251,7 +261,9 @@ export const EdgeLabels = meta.story({
       const label = canvasElement.querySelector<SVGTextElement>(
         "[data-active-x-axis-label]",
       );
-      if (!label) throw new Error("Active label not found");
+      if (!label) {
+        throw new Error("Active label not found");
+      }
       const chartWidth = label.ownerSVGElement?.width.baseVal.value ?? 0;
       const bounds = label.getBBox();
       await expect(bounds.x).toBeGreaterThanOrEqual(0);

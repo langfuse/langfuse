@@ -22,13 +22,19 @@ export const openAiModelDiscoveryAdapter: ModelDiscoveryAdapter = {
       url: new URL(`${definition.baseUrl}${definition.modelsPath}`),
       headers: { Authorization: `Bearer ${credential}` },
     });
-    if (!result.success) return result;
+    if (!result.success) {
+      return result;
+    }
 
     const error = standardHttpError(result.response);
-    if (error) return { success: false, error };
+    if (error) {
+      return { success: false, error };
+    }
 
     const parsed = responseSchema.safeParse(result.value);
-    if (!parsed.success) return { success: false, error: "provider_error" };
+    if (!parsed.success) {
+      return { success: false, error: "provider_error" };
+    }
     return {
       success: true,
       models: parsed.data.data.map((model) => ({

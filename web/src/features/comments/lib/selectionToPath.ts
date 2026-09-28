@@ -94,7 +94,9 @@ export function selectionToPath(
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const rowPath = row.dataset.jsonPath;
-    if (!rowPath) continue; // Skip structural elements without path
+    if (!rowPath) {
+      continue;
+    } // Skip structural elements without path
 
     if (i === 0) {
       // First row: from selection start to end of row
@@ -207,7 +209,9 @@ function collectRowsBetween(
   const startIdx = allRows.indexOf(startRow);
   const endIdx = allRows.indexOf(endRow);
 
-  if (startIdx === -1 || endIdx === -1) return [];
+  if (startIdx === -1 || endIdx === -1) {
+    return [];
+  }
 
   // Handle backwards selection
   const [minIdx, maxIdx] =

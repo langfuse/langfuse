@@ -47,11 +47,12 @@ import { syncOrgPlanChangeToSfdc } from "@/src/ee/features/sfdc-sync/server";
  * @returns NextResponse with appropriate status and message
  */
 export async function stripeWebhookHandler(req: NextRequest) {
-  if (req.method !== "POST")
+  if (req.method !== "POST") {
     return NextResponse.json(
       { message: "Method not allowed" },
       { status: 405 },
     );
+  }
 
   if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION || !stripeClient) {
     logger.error("[Stripe Webhook] Endpoint only available in Langfuse Cloud");

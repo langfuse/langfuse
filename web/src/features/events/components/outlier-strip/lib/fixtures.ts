@@ -50,10 +50,15 @@ function makeFixtureBins(params: {
     const daytime = hourOfDay >= 7 && hourOfDay <= 22;
 
     let present = true;
-    if (params.profile === "sparse") present = rand() < 0.3;
-    if (params.profile === "bursty")
+    if (params.profile === "sparse") {
+      present = rand() < 0.3;
+    }
+    if (params.profile === "bursty") {
       present = daytime ? rand() < 0.9 : rand() < 0.15;
-    if (!present) continue;
+    }
+    if (!present) {
+      continue;
+    }
 
     const outlier = (() => {
       if (params.profile === "spiky" || params.profile === "bursty") {

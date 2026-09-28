@@ -63,6 +63,8 @@ export function resolveDensity(options: {
 
 /** Browser-only companion to `resolveDensity`; never called from `layout()`. */
 export function detectPointerModality(): PointerModality {
-  if (typeof window === "undefined" || !window.matchMedia) return "fine";
+  if (typeof window === "undefined" || !window.matchMedia) {
+    return "fine";
+  }
   return window.matchMedia("(pointer: coarse)").matches ? "coarse" : "fine";
 }

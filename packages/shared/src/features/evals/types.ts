@@ -70,7 +70,9 @@ export function getEvaluatorPromptMessages(params: {
   promptMessages?: unknown;
 }): PersistedEvaluatorPromptMessages {
   const parsed = EvaluatorPromptMessagesSchema.safeParse(params.promptMessages);
-  if (parsed.success) return parsed.data;
+  if (parsed.success) {
+    return parsed.data;
+  }
 
   // Historical evaluator rows may contain blank prompts that do not satisfy
   // the current message schema. Keep those rows readable with valid content.

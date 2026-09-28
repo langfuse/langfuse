@@ -81,7 +81,9 @@ export const useModelParams = (
   const promptConfigProvider = options?.promptConfigModel?.provider;
   const promptConfigModel = options?.promptConfigModel?.model;
   const resolvedPromptConfigProvider = useMemo(() => {
-    if (!promptConfigModel) return undefined;
+    if (!promptConfigModel) {
+      return undefined;
+    }
 
     const apiKeys = availableLLMApiKeys.data?.data ?? [];
     const matchingApiKey = promptConfigProvider
@@ -122,7 +124,9 @@ export const useModelParams = (
   }
 
   const availableModels = useMemo(() => {
-    if (!selectedProviderApiKey) return [];
+    if (!selectedProviderApiKey) {
+      return [];
+    }
 
     const baseModels = selectedProviderApiKey.withDefaultModels
       ? selectedProviderApiKey.customModels.concat(
@@ -208,7 +212,9 @@ export const useModelParams = (
   ]);
 
   useEffect(() => {
-    if (!hasLoadedLlmConnections) return;
+    if (!hasLoadedLlmConnections) {
+      return;
+    }
 
     if (
       !modelParams.model.value ||

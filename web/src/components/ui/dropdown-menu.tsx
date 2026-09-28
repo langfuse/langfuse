@@ -296,7 +296,9 @@ const DropdownMenuController = ({
         style={maxWidth === undefined ? undefined : { maxWidth }}
         onClick={(event) => event.stopPropagation()}
         onCloseAutoFocus={(event) => {
-          if (!isActive) event.preventDefault();
+          if (!isActive) {
+            event.preventDefault();
+          }
           onCloseAutoFocus?.(event);
         }}
       >
@@ -455,8 +457,12 @@ const DropdownMenuItemWithSecondaryAction = (
       disabled={isDisabled}
       title={props.disabled?.reason}
       onClick={(event) => {
-        if (isDisabled) return;
-        if (event.target !== event.currentTarget) return;
+        if (isDisabled) {
+          return;
+        }
+        if (event.target !== event.currentTarget) {
+          return;
+        }
 
         event.preventDefault();
         primaryActionRef.current?.click();

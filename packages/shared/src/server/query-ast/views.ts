@@ -49,7 +49,9 @@ class VirtualViewPlugin implements KyselyPlugin {
   }
 
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
-    if (args.node.kind !== "SelectQueryNode") return args.node;
+    if (args.node.kind !== "SelectQueryNode") {
+      return args.node;
+    }
     const transformer = new ClickHouseOperationNodeTransformer();
     const node = transformer.transformNode(args.node) as SelectQueryNode;
 
@@ -58,7 +60,9 @@ class VirtualViewPlugin implements KyselyPlugin {
       .map(tableNameOfFrom)
       .filter((name): name is string => Boolean(name && this.views.has(name)));
 
-    if (viewNames.length === 0) return node;
+    if (viewNames.length === 0) {
+      return node;
+    }
 
     let withNode = node.with;
     for (const name of viewNames) {

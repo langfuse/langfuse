@@ -186,10 +186,11 @@ it.each(["refresh", "advance", "navigation"])(
   "retains completion and retries a failed %s without completing twice",
   async (phase) => {
     fetchNext.mockResolvedValueOnce(items.get("first-item"));
-    if (phase === "refresh")
+    if (phase === "refresh") {
       refreshItems.mockRejectedValueOnce(new Error("Refresh failed"));
-    else if (phase === "advance")
+    } else if (phase === "advance") {
       fetchNext.mockRejectedValueOnce(new Error("Next item failed"));
+    }
     fetchNext.mockResolvedValueOnce({
       ...items.get("second-item"),
       queueId: "first",
@@ -198,8 +199,9 @@ it.each(["refresh", "advance", "navigation"])(
       <AnnotationQueuesItem projectId="project" annotationQueueId="first" />,
     );
     expect(await screen.findByText("first-observation")).toBeVisible();
-    if (phase === "navigation")
+    if (phase === "navigation") {
       router.push.mockRejectedValueOnce(new Error("Navigation failed"));
+    }
     fireEvent.click(screen.getByRole("button", { name: /Mark Completed/ }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Item completed",

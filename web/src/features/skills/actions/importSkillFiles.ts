@@ -66,7 +66,9 @@ export async function importSkillFiles(
       const archivePaths = new Set<string>();
       const entries = unzipSync(bytes, {
         filter: (entry) => {
-          if (entry.name.endsWith("/")) return false;
+          if (entry.name.endsWith("/")) {
+            return false;
+          }
           if (archivePaths.has(entry.name)) {
             throw new Error(`Duplicate ZIP entry: ${entry.name}`);
           }
@@ -93,7 +95,9 @@ export async function importSkillFiles(
       addTextFile(path, bytes);
     }
   }
-  if (!imports.length) return [];
+  if (!imports.length) {
+    return [];
+  }
   const state = store.getState();
   const nextFiles = { ...state.files };
   for (const file of imports) {

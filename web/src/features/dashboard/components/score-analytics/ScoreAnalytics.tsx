@@ -75,11 +75,15 @@ export function ScoreAnalytics(props: {
 
     return scoreAnalyticsOptions.map(({ key }) => {
       const scoreData = scoreKeyToData.get(key);
-      if (!scoreData) return { value: key, label: key };
+      if (!scoreData) {
+        return { value: key, label: key };
+      }
 
       // Scores with the same name can differ by type or source, so only disambiguate duplicates to keep unique labels concise.
       const hasDuplicateName = (scoreNameCounts.get(scoreData.name) ?? 0) > 1;
-      if (!hasDuplicateName) return { value: key, label: scoreData.name };
+      if (!hasDuplicateName) {
+        return { value: key, label: scoreData.name };
+      }
 
       const suffix = [
         getScoreDataTypeIcon(scoreData.dataType),
@@ -124,7 +128,9 @@ export function ScoreAnalytics(props: {
         <div className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground grid grid-flow-row gap-4">
           {scoreAnalyticsValues.map(({ key: scoreKey }, index) => {
             const scoreData = scoreKeyToData.get(scoreKey);
-            if (!scoreData) return null;
+            if (!scoreData) {
+              return null;
+            }
             const { name, dataType, source } = scoreData;
 
             return (

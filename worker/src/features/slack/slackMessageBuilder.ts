@@ -13,7 +13,9 @@ type PromptVersionPayload = Extract<
 >;
 
 const getProductBaseUrl = () => {
-  if (!env.NEXTAUTH_URL) return undefined;
+  if (!env.NEXTAUTH_URL) {
+    return undefined;
+  }
 
   const baseUrl = new URL(env.NEXTAUTH_URL);
 
@@ -173,7 +175,9 @@ export class SlackMessageBuilder {
 
   private static buildPromptUrl(prompt: PromptVersionPayload["prompt"]) {
     const baseUrl = getProductBaseUrl();
-    if (!baseUrl) return undefined;
+    if (!baseUrl) {
+      return undefined;
+    }
 
     const url = new URL(
       `project/${prompt.projectId}/prompts/${encodeURIComponent(prompt.name)}`,

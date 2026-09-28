@@ -255,7 +255,9 @@ export function createEvaluatorSetupStore({
     actions: {
       setType: (type) =>
         set((state) => {
-          if (type === state.type) return state;
+          if (type === state.type) {
+            return state;
+          }
           if (type === EvalTemplateTypeEnum.DECISION_MODEL) {
             return {
               type,
@@ -300,7 +302,9 @@ export function createEvaluatorSetupStore({
       addStateKey: () =>
         set((state) => {
           let index = state.stateKeys.length + 1;
-          while (state.stateKeys.includes(`field_${index}`)) index += 1;
+          while (state.stateKeys.includes(`field_${index}`)) {
+            index += 1;
+          }
           const key = `field_${index}`;
           return {
             stateKeys: [...state.stateKeys, key],
@@ -392,7 +396,9 @@ export function createEvaluatorSetupStore({
         })),
       removePromptMessage: (index) =>
         set((state) => {
-          if (state.promptMessages.length === 1) return state;
+          if (state.promptMessages.length === 1) {
+            return state;
+          }
           const promptMessages = state.promptMessages.filter(
             (_, i) => i !== index,
           );
@@ -411,8 +417,9 @@ export function createEvaluatorSetupStore({
             toIndex < 0 ||
             fromIndex >= state.promptMessages.length ||
             toIndex >= state.promptMessages.length
-          )
+          ) {
             return state;
+          }
 
           const reorder = <T>(items: T[]) => {
             const result = [...items];

@@ -39,8 +39,11 @@ export function createTableSelectionStore(): TableSelectionStore {
     const toggleRows = (rowIds: string[], selected: boolean) => {
       const rowSelection = { ...get().rowSelection };
       for (const rowId of rowIds) {
-        if (selected) rowSelection[rowId] = true;
-        else delete rowSelection[rowId];
+        if (selected) {
+          rowSelection[rowId] = true;
+        } else {
+          delete rowSelection[rowId];
+        }
       }
       updateSelection(rowSelection, selected ? get().selectAll : false);
     };
@@ -59,7 +62,9 @@ export function createTableSelectionStore(): TableSelectionStore {
         toggleRow: (rowId, selected) => toggleRows([rowId], selected),
         toggleRows,
         togglePageRows: (rowIds, selected) => {
-          if (!selected) return clearSelection();
+          if (!selected) {
+            return clearSelection();
+          }
           toggleRows(rowIds, true);
         },
         clearSelection,

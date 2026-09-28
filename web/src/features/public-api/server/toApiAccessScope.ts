@@ -12,7 +12,9 @@ export function toApiAccessScope(
   principal: Principal,
   target: TargetResource,
 ): ApiAccessScope {
-  if (principal.kind === "admin") return adminScope(target);
+  if (principal.kind === "admin") {
+    return adminScope(target);
+  }
   if (principal.kind !== "apiKey") {
     throw new InternalServerError(
       `unexpected principal on the public-API seam: ${principal.kind}`,

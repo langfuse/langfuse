@@ -31,7 +31,9 @@ export function isChartDataEmpty(data: DataPoint[]): boolean {
 }
 
 function isMetricEmpty(metric: DataPoint["metric"]): boolean {
-  if (metric == null) return true;
+  if (metric == null) {
+    return true;
+  }
   if (Array.isArray(metric)) {
     return metric.length === 0 || metric.every((bin) => bin.length === 0);
   }

@@ -301,7 +301,9 @@ export const TestLoadedCellBackgrounds = meta.story({
   ),
   play: async ({ canvasElement }) => {
     const row = canvasElement.querySelector("tbody tr");
-    if (!(row instanceof HTMLTableRowElement)) throw new Error("Row not found");
+    if (!(row instanceof HTMLTableRowElement)) {
+      throw new Error("Row not found");
+    }
 
     const [inputCell, outputCell] = Array.from(row.cells);
     await expect(inputCell).toHaveClass("bg-muted/50");
@@ -323,7 +325,9 @@ export const TestLoadingCellBackgrounds = meta.story({
   ),
   play: async ({ canvasElement }) => {
     const row = canvasElement.querySelector("tbody tr");
-    if (!(row instanceof HTMLTableRowElement)) throw new Error("Row not found");
+    if (!(row instanceof HTMLTableRowElement)) {
+      throw new Error("Row not found");
+    }
 
     const [inputCell, outputCell] = Array.from(row.cells);
     await expect(inputCell).toHaveClass("bg-muted/50");

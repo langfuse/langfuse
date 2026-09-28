@@ -52,7 +52,9 @@ export const getRequestOrigin = (req: IncomingMessage): string | null => {
   const hostHeader = Array.isArray(headers.host)
     ? headers.host[0]
     : headers.host;
-  if (!hostHeader) return null;
+  if (!hostHeader) {
+    return null;
+  }
 
   const forwardedProto = Array.isArray(headers["x-forwarded-proto"])
     ? headers["x-forwarded-proto"][0]
@@ -73,7 +75,9 @@ export const readProjectCookie = (
   cookies: Partial<Record<string, string>>,
 ): ProjectCookie | null => {
   const raw = cookies[projectCookieName];
-  if (!raw) return null;
+  if (!raw) {
+    return null;
+  }
 
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -101,8 +105,14 @@ export const serializeProjectCookie = (value: ProjectCookie): string => {
     "SameSite=Lax",
     `Max-Age=${projectCookieMaxAgeSeconds}`,
   ];
-  if (options.domain) parts.push(`Domain=${options.domain}`);
-  if (options.httpOnly) parts.push("HttpOnly");
-  if (options.secure) parts.push("Secure");
+  if (options.domain) {
+    parts.push(`Domain=${options.domain}`);
+  }
+  if (options.httpOnly) {
+    parts.push("HttpOnly");
+  }
+  if (options.secure) {
+    parts.push("Secure");
+  }
   return parts.join("; ");
 };

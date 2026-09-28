@@ -72,7 +72,9 @@ export function EditRuleDialog({
   // Bookmarked `?rule=` links bypass table click routing. Once the rule loads,
   // synchronize the external router before any legacy data reaches the modern editor.
   useEffect(() => {
-    if (!navigationAction || navigationAction === "edit") return;
+    if (!navigationAction || navigationAction === "edit") {
+      return;
+    }
 
     if (navigationAction === "remap" && navigationUrl) {
       router.replace(navigationUrl);
@@ -90,7 +92,9 @@ export function EditRuleDialog({
     );
   }, [navigationAction, navigationUrl, router, ruleId]);
 
-  if (navigationAction && navigationAction !== "edit") return null;
+  if (navigationAction && navigationAction !== "edit") {
+    return null;
+  }
 
   return (
     <Dialog open onOpenChange={onOpenChange}>

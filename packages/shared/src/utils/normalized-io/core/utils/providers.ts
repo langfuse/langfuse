@@ -5,7 +5,9 @@ import type { IOConvention } from "../../conventions/io-convention";
 export function providersInOrder(
   preferredProvider?: IOConvention,
 ): readonly IOConvention[] {
-  if (!preferredProvider) return registeredProviders;
+  if (!preferredProvider) {
+    return registeredProviders;
+  }
   return [
     preferredProvider,
     ...registeredProviders.filter((provider) => provider !== preferredProvider),

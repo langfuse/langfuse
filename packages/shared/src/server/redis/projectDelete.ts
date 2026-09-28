@@ -11,7 +11,9 @@ export class ProjectDeleteQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.ProjectDelete]
   > | null {
-    if (ProjectDeleteQueue.instance) return ProjectDeleteQueue.instance;
+    if (ProjectDeleteQueue.instance) {
+      return ProjectDeleteQueue.instance;
+    }
 
     const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
       QueueName.ProjectDelete,

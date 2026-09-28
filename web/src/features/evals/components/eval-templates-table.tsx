@@ -587,7 +587,9 @@ export default function EvalsTemplateTable({
       <Dialog
         open={!!editTemplateId && template.isSuccess}
         onOpenChange={(open) => {
-          if (!open) setEditTemplateId(null);
+          if (!open) {
+            setEditTemplateId(null);
+          }
         }}
       >
         <DialogContent

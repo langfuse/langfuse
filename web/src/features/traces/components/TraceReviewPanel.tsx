@@ -11,7 +11,9 @@ import { type TraceReviewPanelStore } from "../state/traceReviewPanelStore";
 
 function closeReviewPanel(store: TraceReviewPanelStore, router: NextRouter) {
   store.getState().actions.close();
-  if (router.query.comments !== "open") return;
+  if (router.query.comments !== "open") {
+    return;
+  }
   const { comments, commentObjectType, commentObjectId, ...query } =
     router.query;
   router.replace({ pathname: router.pathname, query }, undefined, {
@@ -108,26 +110,35 @@ export function TraceReviewPanel({ projectId }: { projectId: string }) {
   const router = useRouter();
 
   useEffect(() => {
-    if (!active) return;
+    if (!active) {
+      return;
+    }
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.key !== "Escape" || event.defaultPrevented) {
+        return;
+      }
       const root = rootRef.current;
-      if (!root || hasBlockingOverlay(root)) return;
+      if (!root || hasBlockingOverlay(root)) {
+        return;
+      }
       const workspace = root.closest("[data-trace-review-open]");
       if (
         event.target instanceof Node &&
         event.target !== document.body &&
         !workspace?.contains(event.target)
-      )
+      ) {
         return;
-      if (active === "comments" && store.getState().comments?.mentionsOpen)
+      }
+      if (active === "comments" && store.getState().comments?.mentionsOpen) {
         return;
+      }
       if (
         active === "annotate" &&
         (event.target instanceof HTMLInputElement ||
           event.target instanceof HTMLTextAreaElement)
-      )
+      ) {
         return;
+      }
       event.preventDefault();
       event.stopImmediatePropagation();
       closeReviewPanel(store, router);

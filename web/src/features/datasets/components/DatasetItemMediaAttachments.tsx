@@ -37,7 +37,9 @@ export function collectMediaReferenceStrings(
   };
 
   for (const jsonString of jsonStrings) {
-    if (!jsonString) continue;
+    if (!jsonString) {
+      continue;
+    }
     let parsed: unknown;
     try {
       parsed = JSON.parse(jsonString);
@@ -117,7 +119,9 @@ export function insertMediaReferenceAtCursor(
   referenceString: string,
 ): void {
   const view = editorRef.current?.view;
-  if (!view) return;
+  if (!view) {
+    return;
+  }
   insertMediaReferenceIntoView(view, referenceString);
 }
 
@@ -184,7 +188,9 @@ function DatasetItemMediaUploadButton({
         onChange={async (e) => {
           const file = e.target.files?.[0];
           e.target.value = "";
-          if (!file) return;
+          if (!file) {
+            return;
+          }
           setIsUploading(true);
           try {
             await onSelectFile(file);
@@ -302,8 +308,9 @@ function DatasetItemAttachments({
     media.length === 0 &&
     referenceStrings.length === 0 &&
     pendingUploads.length === 0
-  )
+  ) {
     return null;
+  }
   return (
     <div className="flex flex-col gap-2">
       <span className="text-sm font-bold">Attachments</span>

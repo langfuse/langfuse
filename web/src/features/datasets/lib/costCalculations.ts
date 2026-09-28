@@ -40,7 +40,9 @@ const findObservationDescendants = <T extends ObservationCostData>(
 
   while (queue.length > 0) {
     const currentId = queue.shift()!;
-    if (visited.has(currentId)) continue;
+    if (visited.has(currentId)) {
+      continue;
+    }
 
     visited.add(currentId);
     const currentObs = observationById.get(currentId);
@@ -74,7 +76,9 @@ const sumObservationCosts = (
       : undefined;
 
     // No cost data - skip
-    if (!totalCost && !inputCost && !outputCost) return prev;
+    if (!totalCost && !inputCost && !outputCost) {
+      return prev;
+    }
 
     // Prefer total cost
     if (totalCost && !totalCost.isZero()) {

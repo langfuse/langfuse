@@ -32,8 +32,12 @@ export function getEvalPreviewDetailPageListKey(
   target: EvalTargetObjectType,
   useEventsTable: boolean,
 ) {
-  if (target === EvalTargetObject.TRACE) return detailPageListKeys.traces;
-  if (isExperimentTarget(target)) return detailPageListKeys.events;
+  if (target === EvalTargetObject.TRACE) {
+    return detailPageListKeys.traces;
+  }
+  if (isExperimentTarget(target)) {
+    return detailPageListKeys.events;
+  }
   if (isEventTarget(target)) {
     return useEventsTable
       ? detailPageListKeys.events
@@ -46,7 +50,9 @@ export function getEvalPreviewPointerFromDetailPageEntry(
   entry: ListEntry | undefined,
   target: EvalTargetObjectType,
 ): EvalPreviewPointer | undefined {
-  if (!entry) return undefined;
+  if (!entry) {
+    return undefined;
+  }
 
   if (target === EvalTargetObject.TRACE) {
     return {
@@ -57,7 +63,9 @@ export function getEvalPreviewPointerFromDetailPageEntry(
 
   const observationEntry = entry as ObservationDetailPageListEntry;
   const traceId = observationEntry.params?.traceId;
-  if (!traceId) return undefined;
+  if (!traceId) {
+    return undefined;
+  }
 
   return {
     traceId,
@@ -73,7 +81,9 @@ export function getEvalPreviewPointerFromUrlQuery(
   target: EvalTargetObjectType,
 ): EvalPreviewPointer | undefined {
   const traceId = typeof query.traceId === "string" ? query.traceId : undefined;
-  if (!traceId) return undefined;
+  if (!traceId) {
+    return undefined;
+  }
 
   const observationId =
     typeof query.observationId === "string" ? query.observationId : undefined;
@@ -102,12 +112,18 @@ export function buildEvalPreviewNavigationPath({
   target: EvalTargetObjectType;
 }) {
   const pointer = getEvalPreviewPointerFromDetailPageEntry(entry, target);
-  if (!pointer) return basePath;
+  if (!pointer) {
+    return basePath;
+  }
 
   const params = new URLSearchParams();
 
-  if (pointer.traceId) params.set("traceId", pointer.traceId);
-  if (pointer.observationId) params.set("observationId", pointer.observationId);
+  if (pointer.traceId) {
+    params.set("traceId", pointer.traceId);
+  }
+  if (pointer.observationId) {
+    params.set("observationId", pointer.observationId);
+  }
   if (pointer.timestamp) {
     params.set(
       target === EvalTargetObject.TRACE ? "timestamp" : "startTime",

@@ -59,7 +59,9 @@ class MediaTagWidgetStore {
   getSnapshot = () => this.snapshot;
 
   private queueEmit() {
-    if (this.emitScheduled) return;
+    if (this.emitScheduled) {
+      return;
+    }
     this.emitScheduled = true;
     queueMicrotask(() => {
       this.emitScheduled = false;
@@ -68,7 +70,9 @@ class MediaTagWidgetStore {
   }
 
   scheduleDetachedSweep() {
-    if (this.sweepScheduled) return;
+    if (this.sweepScheduled) {
+      return;
+    }
     this.sweepScheduled = true;
     const schedule =
       typeof requestAnimationFrame === "function"
@@ -94,8 +98,12 @@ class MediaTagWidgetStore {
         }
       }
 
-      if (changed) this.queueEmit();
-      if (hasDetachedAnchors) this.scheduleDetachedSweep();
+      if (changed) {
+        this.queueEmit();
+      }
+      if (hasDetachedAnchors) {
+        this.scheduleDetachedSweep();
+      }
     });
   }
 
@@ -148,7 +156,9 @@ function createMediaTagWidgetExtension(store: MediaTagWidgetStore): Extension {
     regexp: new RegExp(`"(${MEDIA_REFERENCE_PATTERN.source})"`, "g"),
     decoration: (match) => {
       const descriptor = classifyMediaValue(match[1]);
-      if (descriptor?.kind !== "langfuseRef") return null;
+      if (descriptor?.kind !== "langfuseRef") {
+        return null;
+      }
       return Decoration.replace({
         widget: new MediaTagWidget(store, descriptor),
       });

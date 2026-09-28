@@ -354,7 +354,9 @@ export function WidgetForm({
     [timeRange],
   );
   const selectedOption = useMemo(() => {
-    if ("range" in timeRange) return timeRange.range;
+    if ("range" in timeRange) {
+      return timeRange.range;
+    }
     return "custom" as const;
   }, [timeRange]);
   const setDateRangeAndOption = (
@@ -362,7 +364,9 @@ export function WidgetForm({
     range?: { from: Date; to: Date },
   ) => {
     if (option === "custom") {
-      if (range) setTimeRange({ from: range.from, to: range.to });
+      if (range) {
+        setTimeRange({ from: range.from, to: range.to });
+      }
     } else {
       setTimeRange({ range: option });
     }
@@ -633,10 +637,15 @@ export function WidgetForm({
             dimensionValue !== undefined && dimensionField !== "none"
               ? (() => {
                   const val = dimensionValue;
-                  if (val === null || val === undefined || val === "")
+                  if (val === null || val === undefined || val === "") {
                     return "n/a";
-                  if (typeof val === "string") return val;
-                  if (Array.isArray(val)) return val.join(", ");
+                  }
+                  if (typeof val === "string") {
+                    return val;
+                  }
+                  if (Array.isArray(val)) {
+                    return val.join(", ");
+                  }
                   return String(val);
                 })()
               : formatMetricName(metricField),
@@ -659,7 +668,9 @@ export function WidgetForm({
   );
 
   const chartPresentation = useMemo(() => {
-    if (chartType === "PIVOT_TABLE") return undefined;
+    if (chartType === "PIVOT_TABLE") {
+      return undefined;
+    }
     return getWidgetMetricPresentation({
       metric: { measure: selectedMeasure, agg: selectedAggregation },
       view: selectedView,
@@ -690,15 +701,21 @@ export function WidgetForm({
   ) => {
     form.setValue("metrics", candidate.metrics);
     form.setValue("dimensions", candidate.dimensions);
-    if (opts.filters) form.setValue("filters", candidate.filters);
-    if (opts.view) form.setValue("view", candidate.view);
+    if (opts.filters) {
+      form.setValue("filters", candidate.filters);
+    }
+    if (opts.view) {
+      form.setValue("view", candidate.view);
+    }
     form.setValue("chart.type", candidate.chart.type, { shouldValidate: true });
   };
 
   // View change (ports resetChartFieldsForView + setSelectedView + the mount
   // resolve/breakdown-wipe healing so the post-view-change state is valid).
   const onViewChange = (newView: z.infer<typeof views>) => {
-    if (newView === selectedView) return;
+    if (newView === selectedView) {
+      return;
+    }
     const newViewVersion = resolveWidgetFormVersion({
       view: newView,
       baseMinVersion,

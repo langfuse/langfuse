@@ -58,7 +58,9 @@ export const resolveMetadataJsonPath = (
 
   try {
     const value = evaluateJsonPath(metadata ?? {}, path);
-    if (value === undefined) return { state: "no-match" };
+    if (value === undefined) {
+      return { state: "no-match" };
+    }
 
     const displayValue = (() => {
       if (typeof value === "string") {
@@ -83,7 +85,9 @@ export const resolveMetadataJsonPath = (
 
 export const getMetadataJsonPathLabel = (path: string): string => {
   const dotProperty = path.match(/\.([A-Za-z_$][\w$]*)$/)?.[1];
-  if (dotProperty) return dotProperty;
+  if (dotProperty) {
+    return dotProperty;
+  }
 
   const bracketProperty = path.match(/\[['"]([^'"]+)['"]\]$/)?.[1];
   return bracketProperty ?? path;

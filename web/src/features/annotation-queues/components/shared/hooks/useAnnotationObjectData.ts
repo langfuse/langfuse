@@ -33,8 +33,9 @@ export const useAnnotationObjectData = (
         if (
           error.data?.code === "UNAUTHORIZED" ||
           error.data?.code === "NOT_FOUND"
-        )
+        ) {
           return false;
+        }
         return failureCount < 3;
       },
     },
@@ -61,8 +62,9 @@ export const useAnnotationObjectData = (
         if (
           error.data?.code === "UNAUTHORIZED" ||
           error.data?.code === "NOT_FOUND"
-        )
+        ) {
           return false;
+        }
         return failureCount < 3;
       },
     },
@@ -80,8 +82,9 @@ export const useAnnotationObjectData = (
         if (
           error.data?.code === "UNAUTHORIZED" ||
           error.data?.code === "NOT_FOUND"
-        )
+        ) {
           return false;
+        }
         return failureCount < 3;
       },
     },

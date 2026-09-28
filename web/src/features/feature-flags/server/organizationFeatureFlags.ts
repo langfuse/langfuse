@@ -40,8 +40,12 @@ const getFeaturePreviewOverrideState = (
   flags: string[],
   flag: UserFeatureFlag,
 ): FeaturePreviewOverrideState => {
-  if (flags.includes(getFeaturePreviewOptOutFlag(flag))) return "disabled";
-  if (flags.includes(flag)) return "enabled";
+  if (flags.includes(getFeaturePreviewOptOutFlag(flag))) {
+    return "disabled";
+  }
+  if (flags.includes(flag)) {
+    return "enabled";
+  }
   return "inherit";
 };
 
@@ -61,7 +65,9 @@ export async function getOrganizationFeaturePreviewStatesByUserId({
   userIds: string[];
   organizationDefaults: string[];
 }): Promise<Map<string, OrganizationFeaturePreviewStates>> {
-  if (userIds.length === 0) return new Map();
+  if (userIds.length === 0) {
+    return new Map();
+  }
 
   const users = await prisma.user.findMany({
     where: { id: { in: userIds } },
@@ -185,7 +191,9 @@ async function setUserFeaturePreviewInTransaction({
     FOR UPDATE
   `;
   const user = rows[0];
-  if (!user) throw new LangfuseNotFoundError("User not found");
+  if (!user) {
+    throw new LangfuseNotFoundError("User not found");
+  }
 
   const affectedFlags: UserFeatureFlag[] = [flag];
   if (flag === "sessionTimeline" && enabled) {
@@ -276,7 +284,9 @@ export async function setUserFeaturePreviewWithAuthorization({
       },
       select: { id: true },
     });
-    if (!targetMembership) return undefined;
+    if (!targetMembership) {
+      return undefined;
+    }
 
     const management = await getUserFeaturePreviewManagementCapabilities({
       prisma: tx,
@@ -285,7 +295,9 @@ export async function setUserFeaturePreviewWithAuthorization({
       targetUserIds: [targetUserId],
       demoOrgId,
     });
-    if (!management.get(targetUserId)?.allowed) return undefined;
+    if (!management.get(targetUserId)?.allowed) {
+      return undefined;
+    }
 
     const result = await setUserFeaturePreviewInTransaction({
       tx,
@@ -337,7 +349,9 @@ export async function setOrganizationFeatureFlagDefault({
       (currentFlag) =>
         !affectedFlags.some((affectedFlag) => currentFlag === affectedFlag),
     );
-    if (enabled) nextStoredDefaults.push(...affectedFlags);
+    if (enabled) {
+      nextStoredDefaults.push(...affectedFlags);
+    }
     const after = filterFeaturePreviewFlags(nextStoredDefaults);
 
     await tx.organization.update({

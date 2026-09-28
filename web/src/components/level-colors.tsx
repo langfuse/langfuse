@@ -56,7 +56,9 @@ const levelBarColors: Record<string, string> = {
 /** Renders the colored status bar for a level facet option (renderIcon). */
 export function renderLevelIcon(value: string): React.ReactNode {
   const color = levelBarColors[value.toUpperCase()];
-  if (!color) return null;
+  if (!color) {
+    return null;
+  }
   return (
     <span
       aria-hidden

@@ -26,10 +26,14 @@ export function assertExportSourceAllowed({
 }): void {
   if (nextExportSource) {
     const validation = validateExportSource(nextExportSource, ctx);
-    if (!validation.ok) throw new InvalidRequestError(validation.message);
+    if (!validation.ok) {
+      throw new InvalidRequestError(validation.message);
+    }
     return;
   }
-  if (!persistedExportSource) return;
+  if (!persistedExportSource) {
+    return;
+  }
   // Capability-only check: dropping the creation dates disables the Cloud
   // date cutoffs, which gate newly chosen values only.
   const validation = validateExportSource(persistedExportSource, {
@@ -37,5 +41,7 @@ export function assertExportSourceAllowed({
     enrichedAvailable: ctx.enrichedAvailable,
     legacyWritesActive: ctx.legacyWritesActive,
   });
-  if (!validation.ok) throw new InvalidRequestError(validation.message);
+  if (!validation.ok) {
+    throw new InvalidRequestError(validation.message);
+  }
 }

@@ -372,7 +372,9 @@ export const evalRouter = createTRPCRouter({
         ctx.prisma,
       ).getConfig(input.projectId, input.id);
 
-      if (!config) return null;
+      if (!config) {
+        return null;
+      }
 
       const displayStatus = deriveEvaluatorDisplayStateFromExecutionCounts({
         status: config.status,

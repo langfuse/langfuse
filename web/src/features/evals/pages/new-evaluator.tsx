@@ -113,7 +113,9 @@ export default function NewEvaluatorPage() {
     latestTemplate.version > currentTemplate.version;
 
   const handleUseUpdatedEvaluator = () => {
-    if (!latestTemplate) return;
+    if (!latestTemplate) {
+      return;
+    }
 
     router.replace(
       {

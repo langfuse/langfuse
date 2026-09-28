@@ -144,7 +144,9 @@ export function MembersSettingsTable({
             />
           );
 
-          if (!project || !hasOrgCudAccess) return select;
+          if (!project || !hasOrgCudAccess) {
+            return select;
+          }
 
           return (
             <HoverCard openDelay={0} closeDelay={0}>
@@ -179,7 +181,9 @@ export function MembersSettingsTable({
               },
               size: 160,
               cell: ({ row }) => {
-                if (!projectRolesEntitlement) return "N/A on plan";
+                if (!projectRolesEntitlement) {
+                  return "N/A on plan";
+                }
                 return (
                   <RoleSelect
                     value={row.original.projectRole ?? "NONE"}
@@ -207,7 +211,9 @@ export function MembersSettingsTable({
               cell: ({ row }) => {
                 const { featurePreviews, featurePreviewManagement, meta } =
                   row.original;
-                if (!featurePreviews || !featurePreviewManagement) return null;
+                if (!featurePreviews || !featurePreviewManagement) {
+                  return null;
+                }
                 return (
                   <Popover>
                     <UserFeaturePreviewsControl

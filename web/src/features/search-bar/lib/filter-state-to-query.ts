@@ -84,7 +84,9 @@ function lowerSingle(
     case "stringOptions":
     case "arrayOptions": {
       let id = registry.columnIdOf(filter.column);
-      if (id === null || filter.value.length === 0) return null;
+      if (id === null || filter.value.length === 0) {
+        return null;
+      }
       let values = filter.value;
       let ref = registry.resolveField(id);
       const displayValueByFilterValue =
@@ -125,7 +127,9 @@ function lowerSingle(
         // as any-of, so emitting it would silently flip the operator shape on
         // the next commit. Skip it (preserved via skippedFilters) rather than
         // rewrite; multi-value all-of serializes to the `(a AND b)` group.
-        if (filter.value.length < 2) return null;
+        if (filter.value.length < 2) {
+          return null;
+        }
         return filterNode(id, "=", values, "and");
       }
       // Single-value any-of on a textSearch field: emit the explicit exact form
@@ -142,7 +146,9 @@ function lowerSingle(
         directRef?.type === "field"
           ? directRef.field.id
           : registry.columnIdOf(filter.column);
-      if (id === null) return null;
+      if (id === null) {
+        return null;
+      }
       if (filter.operator === "does not contain") {
         // Mirror the positive contains carve-out below: a textSearch field emits
         // the bare `-input:refund`, not the `-input:*refund*` glob, so the
@@ -154,7 +160,9 @@ function lowerSingle(
         return negate(filterNode(id, "~", [filter.value]));
       }
       const op = STRING_OP_SYMBOL[filter.operator];
-      if (op === undefined) return null;
+      if (op === undefined) {
+        return null;
+      }
       // '=' on option-backed fields reads better as the bare any-of form.
       if (op === "exact") {
         const ref = registry.resolveField(id);
@@ -181,13 +189,17 @@ function lowerSingle(
     }
     case "number": {
       const id = registry.columnIdOf(filter.column);
-      if (id === null) return null;
+      if (id === null) {
+        return null;
+      }
       const op = filter.operator === "=" ? "=" : filter.operator;
       return filterNode(id, op, [String(filter.value)]);
     }
     case "datetime": {
       const id = registry.columnIdOf(filter.column);
-      if (id === null) return null;
+      if (id === null) {
+        return null;
+      }
       const value =
         filter.value instanceof Date
           ? filter.value.toISOString()
@@ -196,13 +208,17 @@ function lowerSingle(
     }
     case "boolean": {
       const id = registry.columnIdOf(filter.column);
-      if (id === null) return null;
+      if (id === null) {
+        return null;
+      }
       const value = filter.operator === "<>" ? !filter.value : filter.value;
       return filterNode(id, "=", [String(value)]);
     }
     case "stringObject": {
       const id = registry.columnIdOf(filter.column);
-      if (id !== "metadata") return null;
+      if (id !== "metadata") {
+        return null;
+      }
       // A key with grammar chars (`:`, space, …) is quoted so it re-lexes as one
       // token (`metadata."my key"`); resolveField unquotes it on the way back.
       const key = `metadata.${quoteIfNeeded(filter.key)}`;
@@ -210,35 +226,47 @@ function lowerSingle(
         return negate(filterNode(key, "~", [filter.value]));
       }
       const op = STRING_OP_SYMBOL[filter.operator];
-      if (op === undefined) return null;
+      if (op === undefined) {
+        return null;
+      }
       // Mirror the `string` carve-out: metadata only supports
       // exact/contains/starts/ends (no contains-default ambiguity), so equality
       // reads as the bare `metadata.key:value` the user typed and the README
       // documents — not the explicit `metadata.key:=value` `exact` would emit.
-      if (op === "exact") return filterNode(key, "=", [filter.value]);
+      if (op === "exact") {
+        return filterNode(key, "=", [filter.value]);
+      }
       return filterNode(key, op, [filter.value]);
     }
     case "numberObject": {
       const path = scorePathOf(filter.column, filter.key, registry);
-      if (path === null) return null;
+      if (path === null) {
+        return null;
+      }
       const op = filter.operator === "=" ? "=" : filter.operator;
       return filterNode(path, op, [String(filter.value)]);
     }
     case "booleanObject": {
       const path = scorePathOf(filter.column, filter.key, registry);
-      if (path === null) return null;
+      if (path === null) {
+        return null;
+      }
       const node = filterNode(path, "=", [String(filter.value)]);
       return filter.operator === "<>" ? negate(node) : node;
     }
     case "categoryOptions": {
       const path = scorePathOf(filter.column, filter.key, registry);
-      if (path === null || filter.value.length === 0) return null;
+      if (path === null || filter.value.length === 0) {
+        return null;
+      }
       const node = filterNode(path, "=", filter.value);
       return filter.operator === "none of" ? negate(node) : node;
     }
     case "null": {
       const id = registry.columnIdOf(filter.column);
-      if (id === null) return null;
+      if (id === null) {
+        return null;
+      }
       const node = filterNode("has", "=", [id]);
       return filter.operator === "is null" ? negate(node) : node;
     }
@@ -357,14 +385,18 @@ export function foldDerivedNegation(
   scoreTypes?: ScoreTypeContext,
   registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): ASTNode | null {
-  if (node === null) return null;
+  if (node === null) {
+    return null;
+  }
   switch (node.kind) {
     case "not": {
       const child =
         foldDerivedNegation(node.child, scoreTypes, registry) ?? node.child;
       if (child.kind === "filter") {
         const folded = foldNegatedFilter(child, registry);
-        if (folded !== null) return folded;
+        if (folded !== null) {
+          return folded;
+        }
       }
       return { ...node, child };
     }
@@ -391,7 +423,9 @@ function normalizeFilterValues(
   registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): FilterNode {
   const ref = registry.resolveField(f.key);
-  if (ref === null) return f;
+  if (ref === null) {
+    return f;
+  }
   // `:=` (exact) folds to `:` (=) everywhere the two lower identically.
   let op: FilterNode["op"] =
     f.op === "exact" && exactEqualsBareForm(ref) ? "=" : f.op;
@@ -419,7 +453,9 @@ function normalizeFilterValues(
 // `:` is contains and `:=` is exact, two different ops — as is datetime, which
 // has only comparison forms.
 function exactEqualsBareForm(ref: FieldRef): boolean {
-  if (ref.type === "metadata" || ref.type === "scores") return true;
+  if (ref.type === "metadata" || ref.type === "scores") {
+    return true;
+  }
   if (ref.type === "field") {
     const k = ref.field.kind;
     return (
@@ -438,21 +474,29 @@ function normalizeValuesFor(
 ): string[] {
   if (ref.type === "field") {
     const k = ref.field.kind;
-    if (k === "boolean") return values.map((v) => v.toLowerCase());
-    if (k === "number") return values.map(normalizeNumberString);
-    if (k === "datetime") return values.map(normalizeIsoString);
+    if (k === "boolean") {
+      return values.map((v) => v.toLowerCase());
+    }
+    if (k === "number") {
+      return values.map(normalizeNumberString);
+    }
+    if (k === "datetime") {
+      return values.map(normalizeIsoString);
+    }
     return values; // text — verbatim
   }
   if (ref.type === "scores") {
-    if (resolveScoreType(scoreTypes, ref.level, ref.key) === "boolean")
+    if (resolveScoreType(scoreTypes, ref.level, ref.key) === "boolean") {
       return values.map((v) => v.toLowerCase());
+    }
     // Numeric / unknown scores get Number-canonicalized by lowerNumeric; a
     // known-CATEGORICAL score keeps its label verbatim (a numeric-looking label
     // like "2.0" must NOT be rewritten to "2"). normalizeNumberString only
     // touches finite-number strings, but gate on type so a decimal category is
     // never folded.
-    if (resolveScoreType(scoreTypes, ref.level, ref.key) === "categorical")
+    if (resolveScoreType(scoreTypes, ref.level, ref.key) === "categorical") {
       return values;
+    }
     return values.map(normalizeNumberString);
   }
   return values; // metadata text / pseudo — verbatim

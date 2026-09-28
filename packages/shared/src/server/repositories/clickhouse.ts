@@ -280,7 +280,9 @@ export async function upsertClickhouse<
 export async function* queryClickhouseStream<T>(
   opts: ClickhouseQueryOpts & { queryId?: string },
 ): AsyncGenerator<T> {
-  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+  if (!opts.allowLegacyEventsRead) {
+    assertNoLegacyEventsRead(opts.query);
+  }
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
   const tracer = getTracer("clickhouse-query-stream");
   const span = tracer.startSpan("clickhouse-query-stream", {
@@ -351,7 +353,9 @@ export async function* queryClickhouseStream<T>(
 export async function* queryClickhouseStreamRawText(
   opts: ClickhouseQueryOpts,
 ): AsyncGenerator<string> {
-  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+  if (!opts.allowLegacyEventsRead) {
+    assertNoLegacyEventsRead(opts.query);
+  }
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
   const tracer = getTracer("clickhouse-query-stream-raw-text");
   const span = tracer.startSpan("clickhouse-query-stream-raw-text", {
@@ -457,7 +461,9 @@ export type ClickhouseExecRawResult = {
 export async function queryClickhouseExecRaw(
   opts: ClickhouseQueryOpts & { format: string },
 ): Promise<ClickhouseExecRawResult> {
-  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+  if (!opts.allowLegacyEventsRead) {
+    assertNoLegacyEventsRead(opts.query);
+  }
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
   const tracer = getTracer("clickhouse-query-exec-raw");
   const span = tracer.startSpan("clickhouse-query-exec-raw", {
@@ -532,7 +538,9 @@ export async function queryClickhouseExecRaw(
     // (end, error, no-arg destroy); span.end() is idempotent.
     guardedStream.once("close", () => {
       span.end();
-      if (!res.stream.destroyed) res.stream.destroy();
+      if (!res.stream.destroyed) {
+        res.stream.destroy();
+      }
     });
 
     return {
@@ -542,7 +550,9 @@ export async function queryClickhouseExecRaw(
     };
   } catch (error) {
     span.end();
-    if (error instanceof ClickHouseResourceError) throw error;
+    if (error instanceof ClickHouseResourceError) {
+      throw error;
+    }
     throw ClickHouseResourceError.wrapIfResourceError(
       enrichWithQueryId(error as Error, queryId),
       normalizedTags,
@@ -551,7 +561,9 @@ export async function queryClickhouseExecRaw(
 }
 
 function enrichWithQueryId(error: Error, queryId: string | undefined): Error {
-  if (!queryId) return error;
+  if (!queryId) {
+    return error;
+  }
   const enriched = new Error(`${error.message} [query_id: ${queryId}]`, {
     cause: error,
   });
@@ -612,7 +624,9 @@ function recordSummaryOnSpan(
   responseHeaders: Record<string, string | string[] | undefined>,
 ): void {
   const summaryHeader = responseHeaders["x-clickhouse-summary"];
-  if (!summaryHeader) return;
+  if (!summaryHeader) {
+    return;
+  }
   try {
     const summary = Array.isArray(summaryHeader)
       ? JSON.parse(summaryHeader[0])
@@ -681,7 +695,9 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
  * Determines if an error is retryable (socket hang up, connection reset, broken pipe, etc.)
  */
 function isRetryableError(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
+  if (!error || typeof error !== "object") {
+    return false;
+  }
 
   const errorMessage = (error as Error).message?.toLowerCase() || "";
 
@@ -702,7 +718,9 @@ function isRetryableError(error: unknown): boolean {
 export async function queryClickhouse<T>(
   opts: ClickhouseQueryOpts,
 ): Promise<T[]> {
-  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+  if (!opts.allowLegacyEventsRead) {
+    assertNoLegacyEventsRead(opts.query);
+  }
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
   const table = clickHouseQueryTableLabel(opts.query);
   const shape = clickHouseQueryShape(opts.query);
@@ -792,7 +810,9 @@ export async function queryClickhouse<T>(
 export async function* queryClickhouseWithProgress<T>(
   opts: ClickhouseQueryOpts,
 ): AsyncGenerator<RowOrProgress<T>> {
-  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+  if (!opts.allowLegacyEventsRead) {
+    assertNoLegacyEventsRead(opts.query);
+  }
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
 
   const tracer = getTracer("clickhouse-query-progress");

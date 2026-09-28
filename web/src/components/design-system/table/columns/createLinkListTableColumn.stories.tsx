@@ -16,8 +16,12 @@ const columns = [
     accessorKey: "userIds",
     header: "User IDs",
     getCell: (userIds, { row }) => {
-      if (row.original.isLinkListLoading) return { type: "loading" };
-      if (!userIds?.length) return undefined;
+      if (row.original.isLinkListLoading) {
+        return { type: "loading" };
+      }
+      if (!userIds?.length) {
+        return undefined;
+      }
 
       return userIds.map((userId) => ({
         path: `/users/${encodeURIComponent(userId)}`,

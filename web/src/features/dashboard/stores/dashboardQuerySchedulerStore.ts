@@ -41,18 +41,26 @@ const promote = (
 ): Record<string, SchedulerItem> => {
   let running = 0;
   for (const item of Object.values(items)) {
-    if (item.status === "running") running += 1;
+    if (item.status === "running") {
+      running += 1;
+    }
   }
-  if (running >= maxConcurrent) return items;
+  if (running >= maxConcurrent) {
+    return items;
+  }
 
   const candidates = Object.values(items)
     .filter((item) => item.status === "queued" && item.isEligible)
     .sort((a, b) => a.priority - b.priority);
-  if (candidates.length === 0) return items;
+  if (candidates.length === 0) {
+    return items;
+  }
 
   const next = { ...items };
   for (const candidate of candidates) {
-    if (running >= maxConcurrent) break;
+    if (running >= maxConcurrent) {
+      break;
+    }
     next[candidate.id] = { ...candidate, status: "running" };
     running += 1;
   }
@@ -120,7 +128,9 @@ export function createDashboardQuerySchedulerStore({
 
       unregister: (id) =>
         set((state) => {
-          if (!state.items[id]) return state;
+          if (!state.items[id]) {
+            return state;
+          }
           const { [id]: _removed, ...rest } = state.items;
           return { items: promote(rest, state.maxConcurrent) };
         }),
@@ -128,7 +138,9 @@ export function createDashboardQuerySchedulerStore({
       markDone: (id) =>
         set((state) => {
           const item = state.items[id];
-          if (!item || item.status === "done") return state;
+          if (!item || item.status === "done") {
+            return state;
+          }
           return {
             items: promote(
               { ...state.items, [id]: { ...item, status: "done" } },

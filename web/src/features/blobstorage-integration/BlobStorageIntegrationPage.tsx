@@ -54,7 +54,9 @@ export default function BlobStorageIntegrationPage() {
       staleTime: 50 * 60 * 1000, // 50 minutes
       refetchInterval: (query) => {
         const cfg = query.state.data?.config;
-        if (!cfg) return false;
+        if (!cfg) {
+          return false;
+        }
         const status = syncStatusFromConfig(cfg);
         return status === "running" || status === "queued" ? 5_000 : false;
       },

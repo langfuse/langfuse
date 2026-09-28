@@ -40,7 +40,9 @@ const LangGraphMessageSchema = z
           msg !== null &&
           ("role" in msg || "additional_kwargs" in msg),
       );
-      if (!hasLangGraphMessageShape) return false;
+      if (!hasLangGraphMessageShape) {
+        return false;
+      }
 
       // Reject if any message has top-level parts (Microsoft Agent/Gemini format)
       return !data.some(
@@ -65,7 +67,9 @@ const LangGraphWrappedSchema = z.looseObject({
  * Tool results have tool_call_id, tool definitions do not
  */
 function isLangGraphToolDefinition(msg: unknown): boolean {
-  if (!msg || typeof msg !== "object") return false;
+  if (!msg || typeof msg !== "object") {
+    return false;
+  }
 
   const message = msg as Record<string, unknown>;
 
@@ -110,7 +114,9 @@ function extractToolDefinitions(messages: unknown[]): Array<{
 }
 
 function normalizeMessage(msg: unknown): Record<string, unknown> {
-  if (!msg || typeof msg !== "object") return {};
+  if (!msg || typeof msg !== "object") {
+    return {};
+  }
 
   let normalized = removeNullFields(msg);
 
@@ -227,7 +233,9 @@ function filterAndNormalizeMessages(data: unknown[]): unknown[] {
 }
 
 function preprocessData(data: unknown): unknown {
-  if (!data) return data;
+  if (!data) {
+    return data;
+  }
 
   // Array of messages
   if (Array.isArray(data)) {
@@ -283,7 +291,9 @@ export const langgraphAdapter: ProviderAdapter = {
     const meta = parseMetadata(ctx.metadata);
 
     // EXPLICIT: Framework hint
-    if (ctx.framework === "langgraph") return true;
+    if (ctx.framework === "langgraph") {
+      return true;
+    }
 
     // REJECTIONS: Reject AI SDK v5, OpenAI Agents SDK, Semantic Kernel and Pydantic formats
     if (meta && typeof meta === "object") {
@@ -296,7 +306,9 @@ export const langgraphAdapter: ProviderAdapter = {
         const scope = meta.scope as Record<string, unknown>;
 
         // Reject AI SDK v5 (scope.name === "ai")
-        if (scope.name === "ai") return false;
+        if (scope.name === "ai") {
+          return false;
+        }
 
         // Reject OpenAI Agents SDK
         if (
@@ -314,11 +326,15 @@ export const langgraphAdapter: ProviderAdapter = {
           return false;
         }
 
-        if (scope?.name === "pydantic-ai") return false;
+        if (scope?.name === "pydantic-ai") {
+          return false;
+        }
       }
 
       // Reject AI SDK metadata
-      if (meta["scope.name"] === "ai") return false;
+      if (meta["scope.name"] === "ai") {
+        return false;
+      }
 
       // Check attributes["operation.name"] for AI SDK pattern
       if ("attributes" in meta && typeof meta.attributes === "object") {
@@ -373,8 +389,12 @@ export const langgraphAdapter: ProviderAdapter = {
     }
 
     // STRUCTURAL: Schema-based detection on metadata
-    if (schemaMatches(LangChainMessageSchema, ctx.metadata)) return true;
-    if (schemaMatches(LangGraphMessageSchema, ctx.metadata)) return true;
+    if (schemaMatches(LangChainMessageSchema, ctx.metadata)) {
+      return true;
+    }
+    if (schemaMatches(LangGraphMessageSchema, ctx.metadata)) {
+      return true;
+    }
 
     // Check wrapped messages format
     if (schemaMatches(LangGraphWrappedSchema, ctx.metadata)) {
@@ -383,13 +403,21 @@ export const langgraphAdapter: ProviderAdapter = {
       if (Array.isArray(wrapped.tools)) {
         return false;
       }
-      if (schemaMatches(LangChainMessageSchema, wrapped.messages)) return true;
-      if (schemaMatches(LangGraphMessageSchema, wrapped.messages)) return true;
+      if (schemaMatches(LangChainMessageSchema, wrapped.messages)) {
+        return true;
+      }
+      if (schemaMatches(LangGraphMessageSchema, wrapped.messages)) {
+        return true;
+      }
     }
 
     // finally Schema-based detection on data b/c of performance
-    if (schemaMatches(LangChainMessageSchema, ctx.data)) return true;
-    if (schemaMatches(LangGraphMessageSchema, ctx.data)) return true;
+    if (schemaMatches(LangChainMessageSchema, ctx.data)) {
+      return true;
+    }
+    if (schemaMatches(LangGraphMessageSchema, ctx.data)) {
+      return true;
+    }
 
     // Check wrapped messages format on data
     if (schemaMatches(LangGraphWrappedSchema, ctx.data)) {
@@ -398,8 +426,12 @@ export const langgraphAdapter: ProviderAdapter = {
       if (Array.isArray(wrapped.tools)) {
         return false;
       }
-      if (schemaMatches(LangChainMessageSchema, wrapped.messages)) return true;
-      if (schemaMatches(LangGraphMessageSchema, wrapped.messages)) return true;
+      if (schemaMatches(LangChainMessageSchema, wrapped.messages)) {
+        return true;
+      }
+      if (schemaMatches(LangGraphMessageSchema, wrapped.messages)) {
+        return true;
+      }
     }
 
     return false;

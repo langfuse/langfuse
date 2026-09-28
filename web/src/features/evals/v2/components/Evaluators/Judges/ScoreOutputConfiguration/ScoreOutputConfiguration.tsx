@@ -17,7 +17,9 @@ type ScoreOutputConfigurationProps = { state: ScoreOutputFormState } & (
 export function ScoreOutputConfiguration(props: ScoreOutputConfigurationProps) {
   const readOnly = props.mode === "read-only";
   const change = (next: ScoreOutputFormState) => {
-    if (props.mode === "editable") props.onChange(next);
+    if (props.mode === "editable") {
+      props.onChange(next);
+    }
   };
   const changeSelector = (selector: ScoreOutputSelectorState) =>
     change({ ...props.state, ...selector });

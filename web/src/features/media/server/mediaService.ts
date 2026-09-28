@@ -128,7 +128,9 @@ export async function createMediaUploadUrl(params: {
 
     return GetMediaUploadUrlResponseSchema.parse({ mediaId, uploadUrl });
   } catch (error) {
-    if (error instanceof InternalServerError) throw error;
+    if (error instanceof InternalServerError) {
+      throw error;
+    }
 
     logger.error(
       `Failed to get media upload URL for trace ${traceId} and observation ${observationId}.`,
@@ -148,7 +150,9 @@ export async function getMedia(params: { projectId: string; mediaId: string }) {
     },
   });
 
-  if (!media) throw new LangfuseNotFoundError("Media asset not found");
+  if (!media) {
+    throw new LangfuseNotFoundError("Media asset not found");
+  }
   if (!media.uploadHttpStatus) {
     throw new LangfuseNotFoundError("Media not yet uploaded");
   }

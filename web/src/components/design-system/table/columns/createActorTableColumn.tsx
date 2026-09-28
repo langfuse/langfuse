@@ -34,7 +34,9 @@ export function createActorTableColumn<TData extends RowData>({
     ...options,
     loadingCell: <UserTableCell variant="loading" presentation={variant} />,
     renderCell: (actor) => {
-      if (!actor) return <span>{emptyValue}</span>;
+      if (!actor) {
+        return <span>{emptyValue}</span>;
+      }
 
       if (actor.type === "API_KEY") {
         const label = actor.body.publicKey ?? actor.body.id ?? emptyValue;

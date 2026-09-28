@@ -27,8 +27,12 @@ export function createLinkListTableColumn<TData extends RowData>({
     loadingCell: <Skeleton className="h-4 w-1/2" />,
     renderCell: (value, context) => {
       const cell = getCell(value, context);
-      if (!cell) return null;
-      if (!Array.isArray(cell)) return <Skeleton className="h-4 w-1/2" />;
+      if (!cell) {
+        return null;
+      }
+      if (!Array.isArray(cell)) {
+        return <Skeleton className="h-4 w-1/2" />;
+      }
 
       return (
         <div className="flex gap-1">

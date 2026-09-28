@@ -75,7 +75,9 @@ export function normalizePartList(
 function asParts(
   value: NormalizedMessagePart | NormalizedMessagePart[] | null,
 ): NormalizedMessagePart[] {
-  if (value === null) return [];
+  if (value === null) {
+    return [];
+  }
   return Array.isArray(value) ? value : [value];
 }
 
@@ -85,10 +87,14 @@ function normalizePartBase(
 ): NormalizedMessagePart[] {
   if (typeof value === "string") {
     const mediaReference = parseMediaReference(value);
-    if (mediaReference) return [filePartFromMediaReference(mediaReference)];
+    if (mediaReference) {
+      return [filePartFromMediaReference(mediaReference)];
+    }
     return [{ type: "text", text: value }];
   }
-  if (!isRecord(value)) return [];
+  if (!isRecord(value)) {
+    return [];
+  }
 
   const partContext = createPartContext(parserContext);
   const providers = providersInOrder(parserContext?.preferredProvider);
@@ -97,19 +103,27 @@ function normalizePartBase(
   if (type) {
     for (const provider of providers) {
       const handler = ownLookup(provider.typedParts, type);
-      if (!handler) continue;
+      if (!handler) {
+        continue;
+      }
       const result = handler(value, partContext);
-      if (result.matched) return asParts(result.value);
+      if (result.matched) {
+        return asParts(result.value);
+      }
     }
     const sharedHandler = ownLookup(SHARED_TYPED_PART_HANDLERS, type);
     if (sharedHandler) {
       const result = sharedHandler(value, partContext);
-      if (result.matched) return asParts(result.value);
+      if (result.matched) {
+        return asParts(result.value);
+      }
     }
   } else {
     for (const provider of providers) {
       const result = provider.tryNormalizeUntypedPart?.(value, partContext);
-      if (result?.matched) return asParts(result.value);
+      if (result?.matched) {
+        return asParts(result.value);
+      }
     }
   }
 
@@ -247,7 +261,9 @@ function withProviderMetadata<T extends NormalizedMessagePart>(
     part.providerExecuted === true &&
     isRecord(part.input)
   ) {
-    for (const key of Object.keys(part.input)) consumedKeys.add(key);
+    for (const key of Object.keys(part.input)) {
+      consumedKeys.add(key);
+    }
   }
 
   const providerMetadata = remainingProviderMetadata(
@@ -298,7 +314,9 @@ function getRawToolCallKey(
   value: unknown,
   part: Extract<NormalizedMessagePart, { type: "tool-call" }>,
 ): string {
-  if (part.toolCallId) return `id:${part.toolCallId}`;
+  if (part.toolCallId) {
+    return `id:${part.toolCallId}`;
+  }
 
   const record = asRecord(value);
   const functionCall =

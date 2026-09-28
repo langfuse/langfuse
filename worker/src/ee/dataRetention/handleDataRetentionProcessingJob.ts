@@ -75,17 +75,23 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
       select: { id: true, mcpApiKeyId: true },
       take: Math.min(100, 10_000 - processedRuns),
     });
-    if (keyRuns.length === 0) break;
+    if (keyRuns.length === 0) {
+      break;
+    }
     for (const run of keyRuns) {
       // Prisma does not narrow the nullable field type from the `not: null` query filter.
-      if (!run.mcpApiKeyId) continue;
+      if (!run.mcpApiKeyId) {
+        continue;
+      }
       await deleteInAppAgentMcpApiKeyFromDb({
         prisma,
         id: run.mcpApiKeyId,
         projectId,
         redis,
       }).catch((error: unknown) => {
-        if (!isMissingInAppAgentMcpApiKeyError(error)) throw error;
+        if (!isMissingInAppAgentMcpApiKeyError(error)) {
+          throw error;
+        }
       });
     }
     await prisma.$executeRaw`

@@ -274,7 +274,9 @@ const sendCloudWatchMetric = (key: string, value: number, replace: boolean) => {
 
 // Flush all cached metrics in a single API call
 export const flushMetricsToCloudWatch = () => {
-  if (Object.keys(metricCache).length === 0) return;
+  if (Object.keys(metricCache).length === 0) {
+    return;
+  }
 
   lastFlushTime = Date.now();
 

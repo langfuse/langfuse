@@ -34,8 +34,12 @@ export type DecisionModelQuestionResult = {
 const percent = (value: number) => `${Math.round(value * 100)}%`;
 
 function confidenceTone(confidence: number) {
-  if (confidence >= 0.8) return "text-dark-green";
-  if (confidence >= 0.5) return "text-dark-yellow";
+  if (confidence >= 0.8) {
+    return "text-dark-green";
+  }
+  if (confidence >= 0.5) {
+    return "text-dark-yellow";
+  }
   return "text-destructive";
 }
 

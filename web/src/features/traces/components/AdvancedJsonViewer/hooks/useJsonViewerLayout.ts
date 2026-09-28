@@ -59,7 +59,9 @@ export function useJsonViewerLayout({
 
   // Calculate minimum width for scrollable column (PRESENTATION LAYER)
   const scrollableMinWidth = useMemo(() => {
-    if (!tree) return undefined;
+    if (!tree) {
+      return undefined;
+    }
 
     if (stringWrapMode === "nowrap") {
       // Use full untruncated width from tree metadata
@@ -86,7 +88,9 @@ export function useJsonViewerLayout({
 
   // Calculate maximum width for scrollable column (PRESENTATION LAYER)
   const scrollableMaxWidth = useMemo(() => {
-    if (!tree) return undefined;
+    if (!tree) {
+      return undefined;
+    }
 
     if (stringWrapMode === "nowrap") {
       // No maximum for nowrap - use full width for horizontal scrolling
@@ -115,15 +119,21 @@ export function useJsonViewerLayout({
   // This matches getItemKey by using getNodeByIndex, ensuring both see the same tree state
   const estimateSize = useCallback(
     (index: number) => {
-      if (!tree) return theme.lineHeight;
+      if (!tree) {
+        return theme.lineHeight;
+      }
 
       const node = getNodeByIndex(tree.rootNode, index);
-      if (!node) return theme.lineHeight;
+      if (!node) {
+        return theme.lineHeight;
+      }
 
       const row = treeNodeToFlatRow(node, index);
 
       // Expandable rows are always single line (show preview only)
-      if (row.isExpandable) return theme.lineHeight;
+      if (row.isExpandable) {
+        return theme.lineHeight;
+      }
 
       // In nowrap/truncate modes, all strings are single line
       if (stringWrapMode === "nowrap" || stringWrapMode === "truncate") {

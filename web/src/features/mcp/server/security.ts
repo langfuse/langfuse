@@ -45,7 +45,9 @@ function getAllowedMcpOriginsAndHostnames() {
 
   for (const entry of env.LANGFUSE_MCP_ALLOWED_HOSTS) {
     const allowedHost = parseAllowedMcpHostEntry(entry, baseUrl.protocol);
-    if (!allowedHost) continue;
+    if (!allowedHost) {
+      continue;
+    }
 
     allowedHostnames.add(allowedHost.hostname);
     allowedOrigins.add(allowedHost.origin);

@@ -151,7 +151,9 @@ function SessionUsers({
 }) {
   const [page, setPage] = useState(0);
 
-  if (!users) return null;
+  if (!users) {
+    return null;
+  }
 
   const initialUsers = users?.slice(0, INITIAL_SESSION_USERS_DISPLAY_COUNT);
   const remainingUsers = users?.slice(INITIAL_SESSION_USERS_DISPLAY_COUNT);
@@ -449,8 +451,9 @@ export const SessionPage: React.FC<{
         if (
           error.data?.code === "UNAUTHORIZED" ||
           error.data?.code === "NOT_FOUND"
-        )
+        ) {
           return false;
+        }
         return failureCount < 3;
       },
     },
@@ -536,12 +539,16 @@ export const SessionPage: React.FC<{
     usePeekNavigation(peekNavigationConfig);
 
   useEffect(() => {
-    if (!session.isSuccess) return;
+    if (!session.isSuccess) {
+      return;
+    }
     const nextList = session.data.traces.map((t: LegacySessionTrace) => ({
       id: t.id,
       params: { timestamp: t.timestamp.toISOString() },
     }));
-    if (areDetailPageListsEqual(detailPagelists.traces, nextList)) return;
+    if (areDetailPageListsEqual(detailPagelists.traces, nextList)) {
+      return;
+    }
     setDetailPageList("traces", nextList);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.isSuccess, session.data, detailPagelists.traces]);
@@ -573,10 +580,11 @@ export const SessionPage: React.FC<{
   });
   const virtualItems = virtualizer.getVirtualItems();
 
-  if (session.error?.data?.code === "UNAUTHORIZED")
+  if (session.error?.data?.code === "UNAUTHORIZED") {
     return <ErrorPage message="You do not have access to this session." />;
+  }
 
-  if (session.error?.data?.code === "NOT_FOUND")
+  if (session.error?.data?.code === "NOT_FOUND") {
     return (
       <ErrorPage
         title="Session not found"
@@ -587,6 +595,7 @@ export const SessionPage: React.FC<{
         }}
       />
     );
+  }
 
   return (
     <SessionDetailStoreProvider store={sessionDetailStore}>
@@ -951,7 +960,9 @@ export const SessionPage: React.FC<{
                 >
                   {virtualItems.map((virtualItem) => {
                     const trace = session.data?.traces[virtualItem.index];
-                    if (!trace) return null;
+                    if (!trace) {
+                      return null;
+                    }
 
                     return (
                       <SessionVirtualizedRow
@@ -1009,8 +1020,9 @@ export const SessionEventsPage: React.FC<{
         if (
           error.data?.code === "UNAUTHORIZED" ||
           error.data?.code === "NOT_FOUND"
-        )
+        ) {
           return false;
+        }
         return failureCount < 3;
       },
     },
@@ -1024,17 +1036,19 @@ export const SessionEventsPage: React.FC<{
         if (
           error.data?.code === "UNAUTHORIZED" ||
           error.data?.code === "NOT_FOUND"
-        )
+        ) {
           return false;
+        }
         return failureCount < 3;
       },
     },
   );
 
-  if (session.error?.data?.code === "UNAUTHORIZED")
+  if (session.error?.data?.code === "UNAUTHORIZED") {
     return <ErrorPage message="You do not have access to this session." />;
+  }
 
-  if (session.error?.data?.code === "NOT_FOUND")
+  if (session.error?.data?.code === "NOT_FOUND") {
     return (
       <ErrorPage
         title="Session not found"
@@ -1045,6 +1059,7 @@ export const SessionEventsPage: React.FC<{
         }}
       />
     );
+  }
 
   if (!session.data) {
     return (
@@ -1210,12 +1225,16 @@ const LoadedSessionEventsPage: React.FC<{
     usePeekNavigation(peekNavigationConfig);
 
   useEffect(() => {
-    if (!isTracesSuccess || !traces) return;
+    if (!isTracesSuccess || !traces) {
+      return;
+    }
     const nextList = traces.map((t: EventSessionTrace) => ({
       id: t.id,
       params: { timestamp: t.timestamp.toISOString() },
     }));
-    if (areDetailPageListsEqual(detailPagelists.traces, nextList)) return;
+    if (areDetailPageListsEqual(detailPagelists.traces, nextList)) {
+      return;
+    }
     setDetailPageList("traces", nextList);
   }, [isTracesSuccess, traces, setDetailPageList, detailPagelists.traces]);
 
@@ -1411,7 +1430,9 @@ const LoadedSessionEventsPage: React.FC<{
     {
       loading: isFilterOptionsPending,
       onExplicitFilterStateChange: (change) => {
-        if (change.origin === "user") hasUserFilterEditRef.current = true;
+        if (change.origin === "user") {
+          hasUserFilterEditRef.current = true;
+        }
         onExplicitFilterStateChange(change);
       },
       stateLocation: "urlAndSessionStorage",
@@ -1559,7 +1580,9 @@ const LoadedSessionEventsPage: React.FC<{
           filter.type === "stringOptions" &&
           filter.operator === "none of",
       );
-      if (existingFilter?.value.includes(name)) return;
+      if (existingFilter?.value.includes(name)) {
+        return;
+      }
 
       const nextFilters = existingFilter
         ? queryFilter.filterState.map((filter) =>
@@ -1598,13 +1621,20 @@ const LoadedSessionEventsPage: React.FC<{
   // "All observations", otherwise indistinguishable from a fresh load) or the
   // filter is non-empty (unambiguous). The filter itself is never changed.
   useEffect(() => {
-    if (isViewLoading) return;
-    if (selectedViewId) return;
-    if (viewControllers.viewUpdateTarget || hasUserFilterEditRef.current)
+    if (isViewLoading) {
       return;
+    }
+    if (selectedViewId) {
+      return;
+    }
+    if (viewControllers.viewUpdateTarget || hasUserFilterEditRef.current) {
+      return;
+    }
     const filterMatchedView =
       findSessionDetailViewByFilters(visibleFilterState);
-    if (!filterMatchedView) return;
+    if (!filterMatchedView) {
+      return;
+    }
     const shouldRecover =
       filterMatchedView.id === initialViewIdRef.current ||
       visibleFilterState.length > 0;
@@ -1612,10 +1642,11 @@ const LoadedSessionEventsPage: React.FC<{
     // pushing would mint a viewId-less history entry that Back re-triggers
     // (the filter survives in sessionStorage, so this effect re-fires on any
     // pop to a param-less URL — LFE-10715).
-    if (shouldRecover)
+    if (shouldRecover) {
       viewControllers.handleSetViewId(filterMatchedView.id, {
         updateType: "replaceIn",
       });
+    }
   }, [isViewLoading, selectedViewId, visibleFilterState, viewControllers]);
 
   // Whether this arrival is a Back/Forward revisit of an existing history
@@ -1636,20 +1667,33 @@ const LoadedSessionEventsPage: React.FC<{
   // default would overwrite what the user deliberately left there
   // (LFE-10715).
   useEffect(() => {
-    if (defaultPresetResolvedSessionRef.current === sessionId) return;
-    if (isViewLoading) return; // Wait for view manager to initialize
-    defaultPresetResolvedSessionRef.current = sessionId;
-    if (viewControllers.viewUpdateTarget || hasUserFilterEditRef.current)
+    if (defaultPresetResolvedSessionRef.current === sessionId) {
       return;
-    if (selectedViewId) return;
-    if (initialViewIdRef.current) return;
-    if (arrivedOnVisitedHistoryEntry) return;
+    }
+    if (isViewLoading) {
+      return;
+    } // Wait for view manager to initialize
+    defaultPresetResolvedSessionRef.current = sessionId;
+    if (viewControllers.viewUpdateTarget || hasUserFilterEditRef.current) {
+      return;
+    }
+    if (selectedViewId) {
+      return;
+    }
+    if (initialViewIdRef.current) {
+      return;
+    }
+    if (arrivedOnVisitedHistoryEntry) {
+      return;
+    }
     const presetToApply = getSessionDetailPresetToApply({
       selectedViewId: null,
       hasFilters: visibleFilterState.length > 0,
       isTimelineEnabled: isSessionTimelineEnabled && isModernSessionEnabled,
     });
-    if (!presetToApply) return;
+    if (!presetToApply) {
+      return;
+    }
     applySystemPreset(presetToApply);
   }, [
     applySystemPreset,
@@ -2127,7 +2171,9 @@ const LoadedSessionEventsPage: React.FC<{
                   >
                     {virtualItems.map((virtualItem) => {
                       const trace = traces?.[virtualItem.index];
-                      if (!trace) return null;
+                      if (!trace) {
+                        return null;
+                      }
 
                       return (
                         <SessionVirtualizedRow

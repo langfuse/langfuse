@@ -144,7 +144,9 @@ export async function ensureSeedMediaUploaded(
   mediaKey: SeedMediaKey,
 ): Promise<SeedMediaFixture | null> {
   const fixture = getSeedMediaFixture(mediaKey);
-  if (!fixture) return null;
+  if (!fixture) {
+    return null;
+  }
 
   const mediaId = await uploadAndCreateMediaRecord(
     projectId,
@@ -299,7 +301,9 @@ async function linkSeedMediaToTrace(
   mediaFile: MediaFile,
 ): Promise<void> {
   const mediaId = await uploadAndCreateMediaRecord(projectId, mediaFile);
-  if (!mediaId) return;
+  if (!mediaId) {
+    return;
+  }
 
   await prisma.$queryRaw`
     INSERT INTO "trace_media" ("id", "project_id", "trace_id", "media_id", "field")

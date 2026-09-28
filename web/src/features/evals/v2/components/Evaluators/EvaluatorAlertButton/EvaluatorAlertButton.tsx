@@ -75,7 +75,9 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
     isAggregateCost ||
     (props.scope === "evaluator" && props.evaluatorType === "LLM_AS_JUDGE");
   const scoreAlertUrl = (dataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL") => {
-    if (props.scope !== "evaluator") return "";
+    if (props.scope !== "evaluator") {
+      return "";
+    }
     return evaluatorAlertUrl(projectId, {
       type: "score",
       evaluatorId: props.evaluatorId,

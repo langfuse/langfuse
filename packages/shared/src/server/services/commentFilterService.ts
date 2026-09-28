@@ -196,8 +196,12 @@ export async function applyCommentFilters({
           filter.operator === "<=" ||
           filter.operator === "<";
 
-        if (!isUpperBound) return tightest;
-        if (!tightest) return filter;
+        if (!isUpperBound) {
+          return tightest;
+        }
+        if (!tightest) {
+          return filter;
+        }
 
         const isTighter =
           filter.value < tightest.value ||

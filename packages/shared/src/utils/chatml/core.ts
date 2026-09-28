@@ -110,7 +110,9 @@ export function cleanLegacyOutput(output: unknown, fallback?: unknown) {
 export function extractAdditionalInput(
   input: unknown,
 ): Record<string, unknown> | undefined {
-  if (isSingleChatMlMessage(input)) return undefined;
+  if (isSingleChatMlMessage(input)) {
+    return undefined;
+  }
 
   const adapter = selectAdapter({ metadata: input, data: input });
   const consumedInputKeys = new Set(

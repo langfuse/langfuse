@@ -144,7 +144,9 @@ function DatasetsMultiSelectActionMenu({
     },
   });
 
-  if (selectedCount === 0 && !selectAll) return null;
+  if (selectedCount === 0 && !selectAll) {
+    return null;
+  }
 
   const tableActions: TableAction[] = [
     {
@@ -336,7 +338,9 @@ export function DatasetsTable(props: { projectId: string }) {
       size: 150,
       isFixedPosition: true,
       getCell: (key, { row }) => {
-        if (!key) return undefined;
+        if (!key) {
+          return undefined;
+        }
         const rowData = row.original;
 
         if (rowData.isFolder) {
@@ -398,7 +402,9 @@ export function DatasetsTable(props: { projectId: string }) {
         const inputSchema: DatasetTableRow["inputSchema"] =
           row.getValue("inputSchema");
 
-        if (!inputSchema) return null;
+        if (!inputSchema) {
+          return null;
+        }
 
         return (
           <DatasetSchemaHoverCard schema={inputSchema} schemaType="input" />
@@ -415,7 +421,9 @@ export function DatasetsTable(props: { projectId: string }) {
         const expectedOutputSchema: DatasetTableRow["expectedOutputSchema"] =
           row.getValue("expectedOutputSchema");
 
-        if (!expectedOutputSchema) return null;
+        if (!expectedOutputSchema) {
+          return null;
+        }
 
         return (
           <DatasetSchemaHoverCard
@@ -533,8 +541,9 @@ export function DatasetsTable(props: { projectId: string }) {
 
   // Backend returns folder representatives with row_type metadata
   const processedRowData = useMemo(() => {
-    if (!datasetsDatasetTableRow.rows)
+    if (!datasetsDatasetTableRow.rows) {
       return { ...datasetsDatasetTableRow, rows: [] };
+    }
 
     const combinedRows: DatasetTableRow[] = [];
 

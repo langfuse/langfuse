@@ -1078,7 +1078,9 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     const scoreSessionId = randomUUID();
 
     beforeAll(async () => {
-      if (!hasV2Apis) return;
+      if (!hasV2Apis) {
+        return;
+      }
 
       // Create observation in events table for scores to reference
       await createEventsCh([
@@ -1235,7 +1237,9 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     const eventsScoreVersion = "events-v1.2.3";
 
     beforeAll(async () => {
-      if (!hasV2Apis) return;
+      if (!hasV2Apis) {
+        return;
+      }
 
       eventsScoreTraceId = randomUUID();
       eventsObservationId = randomUUID();
@@ -1349,7 +1353,9 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     let obsEventsScoreId: string;
 
     beforeAll(async () => {
-      if (!hasV2Apis) return;
+      if (!hasV2Apis) {
+        return;
+      }
 
       obsEventsTraceId = randomUUID();
       obsEventsObservationId = randomUUID();

@@ -45,7 +45,9 @@ export const contextWithLangfuseProps = (
   if (props.headers) {
     (env.LANGFUSE_LOG_PROPAGATED_HEADERS as string[]).forEach((name) => {
       const value = props.headers![name];
-      if (!value) return;
+      if (!value) {
+        return;
+      }
       const strValue = redactLangfuseSecretKeys(
         Array.isArray(value) ? JSON.stringify(value) : value,
       );
@@ -61,7 +63,9 @@ export const contextWithLangfuseProps = (
         name.toLowerCase().startsWith("x_langfuse")
       ) {
         const value = props.headers![name];
-        if (!value) return;
+        if (!value) {
+          return;
+        }
         const strValue = redactLangfuseSecretKeys(
           Array.isArray(value) ? JSON.stringify(value) : value,
         );

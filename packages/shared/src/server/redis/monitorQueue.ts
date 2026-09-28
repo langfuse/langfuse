@@ -15,7 +15,9 @@ export class MonitorQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.MonitorQueue]
   > | null {
-    if (MonitorQueue.instance) return MonitorQueue.instance;
+    if (MonitorQueue.instance) {
+      return MonitorQueue.instance;
+    }
 
     const newRedis = createNewRedisInstance({
       enableOfflineQueue: false,

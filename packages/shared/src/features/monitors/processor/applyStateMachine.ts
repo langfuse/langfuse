@@ -115,8 +115,9 @@ function shouldEmit(args: {
     args.prev === MonitorSeveritySchema.enum.NO_DATA &&
     args.next === MonitorSeveritySchema.enum.NO_DATA
   ) {
-    if (args.noData.mode !== MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA)
+    if (args.noData.mode !== MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA) {
       return false;
+    }
     // An alert from a prior severity stretch doesn't count toward the current
     // NO_DATA stretch; treat it as cold-start.
     const stretchAlertedAt =
@@ -140,9 +141,13 @@ function shouldEmit(args: {
 
   // Self-loops. OK -> OK is the only one that ignores renotify entirely.
   if (args.prev === args.next) {
-    if (args.next === MonitorSeveritySchema.enum.OK) return false;
+    if (args.next === MonitorSeveritySchema.enum.OK) {
+      return false;
+    }
     // Renotify is a *re*-emit, so a NULL prevAlertedAt is silent.
-    if (args.prevAlertedAt === null) return false;
+    if (args.prevAlertedAt === null) {
+      return false;
+    }
     return (
       args.renotify.mode === "EVERY" &&
       passedDelay(args.prevAlertedAt, args.renotify.intervalMinutes, args.now)
@@ -159,7 +164,9 @@ function passedDelay(
   intervalMinutes: number,
   now: Date,
 ): boolean {
-  if (prevAlertedAt === null) return true;
+  if (prevAlertedAt === null) {
+    return true;
+  }
   const intervalMs = intervalMinutes * 60_000;
   return now.getTime() - prevAlertedAt.getTime() >= intervalMs;
 }

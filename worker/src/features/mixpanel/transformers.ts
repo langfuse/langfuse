@@ -32,7 +32,9 @@ const MIXPANEL_BAD_DISTINCT_IDS = new Set([
 ]);
 
 function isBadDistinctId(value: unknown): boolean {
-  if (typeof value !== "string" || !value) return true;
+  if (typeof value !== "string" || !value) {
+    return true;
+  }
   return MIXPANEL_BAD_DISTINCT_IDS.has(value.trim().toLowerCase());
 }
 

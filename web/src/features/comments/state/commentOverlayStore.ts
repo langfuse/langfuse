@@ -47,20 +47,28 @@ export function createCommentOverlayStore() {
     mentionsOpen: false,
     actions: {
       async open({ target, canWrite, loadComments, confirmDiscard }) {
-        if (get().hasDraft && !confirmDiscard()) return;
+        if (get().hasDraft && !confirmDiscard()) {
+          return;
+        }
         const id = ++requestId;
         pendingRequestId = id;
         const initialDraftRevision = draftRevision;
         let presentation: CommentOverlay["presentation"] = "thread";
         try {
           const comments = await loadComments();
-          if (comments.length === 0 && canWrite) presentation = "composer";
+          if (comments.length === 0 && canWrite) {
+            presentation = "composer";
+          }
         } catch {
           // The thread query owns the error and retry UI.
         }
-        if (requestId !== id) return;
+        if (requestId !== id) {
+          return;
+        }
         pendingRequestId = undefined;
-        if (get().hasDraft && draftRevision !== initialDraftRevision) return;
+        if (get().hasDraft && draftRevision !== initialDraftRevision) {
+          return;
+        }
         set({
           overlay: { id, target, presentation, isOpen: true },
           hasDraft: false,
@@ -72,14 +80,18 @@ export function createCommentOverlayStore() {
         if (
           current.overlay &&
           (current.overlay.id !== overlay.id || !current.overlay.isOpen)
-        )
+        ) {
           return false;
-        if (!confirmDiscard && pendingRequestId !== undefined) return false;
+        }
+        if (!confirmDiscard && pendingRequestId !== undefined) {
+          return false;
+        }
         if (
           confirmDiscard &&
           (current.mentionsOpen || (current.hasDraft && !confirmDiscard()))
-        )
+        ) {
           return false;
+        }
         ++requestId;
         pendingRequestId = undefined;
         set({
@@ -94,18 +106,22 @@ export function createCommentOverlayStore() {
         if (
           (current.overlay?.id ?? 0) !== sessionId ||
           current.overlay?.isOpen === false
-        )
+        ) {
           return;
+        }
         draftRevision += 1;
-        if (current.hasDraft !== hasDraft) set({ hasDraft });
+        if (current.hasDraft !== hasDraft) {
+          set({ hasDraft });
+        }
       },
       setMentionsOpen(sessionId, mentionsOpen) {
         if (
           (get().overlay?.id ?? 0) === sessionId &&
           get().overlay?.isOpen !== false &&
           get().mentionsOpen !== mentionsOpen
-        )
+        ) {
           set({ mentionsOpen });
+        }
       },
       consumeSelection(overlay) {
         const current = get().overlay ?? overlay;
@@ -113,8 +129,9 @@ export function createCommentOverlayStore() {
           current.id !== overlay.id ||
           !current.isOpen ||
           current.target.type !== "inline-comment"
-        )
+        ) {
           return;
+        }
         set({
           overlay: {
             ...current,

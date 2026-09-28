@@ -112,8 +112,12 @@ function renderMigration(
   rendered = rendered
     .replace(unclusteredOnlyPattern, mode === "unclustered" ? "$1" : "")
     .replace(historicalFinalNewlinesPattern, (_, finalNewlines) => {
-      if (finalNewlines === "2") return "\n\n";
-      if (finalNewlines === "clustered" && mode === "clustered") return "\n";
+      if (finalNewlines === "2") {
+        return "\n\n";
+      }
+      if (finalNewlines === "clustered" && mode === "clustered") {
+        return "\n";
+      }
       return "";
     });
 

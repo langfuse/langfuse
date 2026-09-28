@@ -169,5 +169,7 @@ export function assertPersistedExportSourceAllowed({
       exporterCutoff,
     ),
   );
-  if (!validation.ok) throw new InvalidRequestError(validation.message);
+  if (!validation.ok) {
+    throw new InvalidRequestError(validation.message);
+  }
 }

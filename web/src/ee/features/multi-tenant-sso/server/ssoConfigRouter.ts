@@ -26,7 +26,9 @@ type SsoConfigRow = {
 const maskAuthConfig = (
   authConfig: SsoConfigRow["authConfig"],
 ): Record<string, unknown> | null => {
-  if (!authConfig) return null;
+  if (!authConfig) {
+    return null;
+  }
   const { clientSecret: _omit, ...rest } = authConfig as {
     clientSecret?: unknown;
   } & Record<string, unknown>;
@@ -56,7 +58,9 @@ export const ssoConfigRouter = createTRPCRouter({
         select: { domain: true },
       });
 
-      if (verifiedDomains.length === 0) return [];
+      if (verifiedDomains.length === 0) {
+        return [];
+      }
 
       const rows = await ctx.prisma.ssoConfig.findMany({
         where: { domain: { in: verifiedDomains.map((d) => d.domain) } },

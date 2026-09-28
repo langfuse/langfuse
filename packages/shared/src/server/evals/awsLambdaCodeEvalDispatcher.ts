@@ -311,7 +311,9 @@ function logDispatcherError(params: {
   functionName: string;
   error: CodeEvalDispatcherError;
 }): void {
-  if (USER_ERROR_CODES.has(params.error.code)) return;
+  if (USER_ERROR_CODES.has(params.error.code)) {
+    return;
+  }
 
   logger.warn(
     `Code eval Lambda ${params.functionName} dispatcher failed: ${params.error.message}`,
@@ -335,7 +337,9 @@ function setDispatcherErrorSpanAttributes(
 function getAwsMetadataSpanAttributes(
   metadata: unknown,
 ): Record<string, AttributeValue | undefined> {
-  if (!isRecord(metadata)) return {};
+  if (!isRecord(metadata)) {
+    return {};
+  }
 
   return {
     "aws.request_id":
@@ -545,7 +549,9 @@ function parseUserCodeError(payload: unknown): UserCodeError | null {
 }
 
 function parseLambdaErrorPayload(payload: Uint8Array | undefined): unknown {
-  if (!payload) return null;
+  if (!payload) {
+    return null;
+  }
 
   try {
     return JSON.parse(Buffer.from(payload).toString("utf8")) as unknown;

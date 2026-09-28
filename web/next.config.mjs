@@ -18,7 +18,9 @@ import { renamedRouteRedirects } from "./redirects.mjs";
 // the local Docker Compose MinIO endpoint too.
 const mediaUploadConnectSrc = (() => {
   const endpoint = env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT;
-  if (!endpoint) return "";
+  if (!endpoint) {
+    return "";
+  }
   try {
     const url = new URL(endpoint);
     const port = url.port ? `:${url.port}` : "";

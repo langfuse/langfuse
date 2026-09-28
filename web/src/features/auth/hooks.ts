@@ -8,7 +8,9 @@ export const useIsAuthenticatedAndProjectMember = (
 ): boolean => {
   const session = useSession();
 
-  if (projectId === "") return false;
+  if (projectId === "") {
+    return false;
+  }
 
   const isAdmin = session.data?.user?.admin ?? false;
 

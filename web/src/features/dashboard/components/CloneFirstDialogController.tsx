@@ -60,7 +60,9 @@ export function CloneFirstDialogController({
           {...props}
           closeDialog={closeDialog}
           cancelDialog={() => {
-            if (cloneInFlightRef.current) return false;
+            if (cloneInFlightRef.current) {
+              return false;
+            }
             closeDialog();
             handleCancel();
             return true;
@@ -109,10 +111,18 @@ function CloneFirstDialogContent({
     const cloneName = `${dashboardName} (Clone)`;
     const numberedClonePrefix = `${dashboardName} (Clone `;
     return dashboards.data?.dashboards.find((dashboard) => {
-      if (dashboard.owner !== "PROJECT") return false;
-      if (dashboard.name === cloneName) return true;
-      if (!dashboard.name.startsWith(numberedClonePrefix)) return false;
-      if (!dashboard.name.endsWith(")")) return false;
+      if (dashboard.owner !== "PROJECT") {
+        return false;
+      }
+      if (dashboard.name === cloneName) {
+        return true;
+      }
+      if (!dashboard.name.startsWith(numberedClonePrefix)) {
+        return false;
+      }
+      if (!dashboard.name.endsWith(")")) {
+        return false;
+      }
 
       const cloneNumber = dashboard.name.slice(numberedClonePrefix.length, -1);
       return /^\d+$/.test(cloneNumber);
@@ -207,7 +217,9 @@ function CloneFirstDialogContent({
                     existing_clone_id: existingClone.id,
                     had_pending_change: Boolean(pendingDefinition),
                   });
-                  if (!cancelDialog()) return;
+                  if (!cancelDialog()) {
+                    return;
+                  }
                   router.push(
                     `/project/${projectId}/dashboards/${encodeURIComponent(existingClone.id)}`,
                   );

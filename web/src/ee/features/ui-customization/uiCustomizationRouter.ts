@@ -16,7 +16,9 @@ export const uiCustomizationRouter = createTRPCRouter({
       plan: ctx.session.environment.selfHostedInstancePlan,
       entitlement: "self-host-ui-customization",
     });
-    if (!hasEntitlement) return null;
+    if (!hasEntitlement) {
+      return null;
+    }
 
     return {
       hostname: env.LANGFUSE_UI_API_HOST,

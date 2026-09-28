@@ -48,7 +48,9 @@ export function DuplicateDatasetDialogController({
         children({
           disabled,
           openDialog: () => {
-            if (hasAccess) openDialog();
+            if (hasAccess) {
+              openDialog();
+            }
           },
         })
       }

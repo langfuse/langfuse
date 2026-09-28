@@ -162,7 +162,9 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
             disabled={confirmName !== folderPath || mutDeleteFolder.isPending}
             loading={mutDeleteFolder.isPending}
             onClick={() => {
-              if (!projectId) return;
+              if (!projectId) {
+                return;
+              }
               mutDeleteFolder.mutate({
                 projectId,
                 pathPrefix: folderPath,

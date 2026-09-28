@@ -192,7 +192,9 @@ describe("evalsV2 tRPC", () => {
     const remainingId = created.find(
       (evaluator) => !firstPageIds.has(evaluator.id),
     )?.id;
-    if (!remainingId) throw new Error("Expected an evaluator on the next page");
+    if (!remainingId) {
+      throw new Error("Expected an evaluator on the next page");
+    }
     await prisma.evaluator.update({
       where: { id: remainingId },
       data: { updatedAt: new Date(Date.now() + 60_000) },

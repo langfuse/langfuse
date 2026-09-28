@@ -9,7 +9,9 @@ function storageKey(projectId: string): string {
 }
 
 export function getRecentSearches(projectId: string): string[] {
-  if (typeof localStorage === "undefined") return [];
+  if (typeof localStorage === "undefined") {
+    return [];
+  }
   try {
     const raw = JSON.parse(
       localStorage.getItem(storageKey(projectId)) ?? "[]",
@@ -23,9 +25,13 @@ export function getRecentSearches(projectId: string): string[] {
 }
 
 export function recordRecentSearch(projectId: string, query: string): void {
-  if (typeof localStorage === "undefined") return;
+  if (typeof localStorage === "undefined") {
+    return;
+  }
   const trimmed = query.trim();
-  if (trimmed.length === 0) return;
+  if (trimmed.length === 0) {
+    return;
+  }
   const next = [
     trimmed,
     ...getRecentSearches(projectId).filter((q) => q !== trimmed),

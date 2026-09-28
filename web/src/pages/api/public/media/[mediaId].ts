@@ -18,7 +18,9 @@ export default withMiddlewares({
     querySchema: GetMediaQuerySchema,
     responseSchema: GetMediaResponseSchema,
     fn: async ({ query, auth }) => {
-      if (auth.scope.accessLevel !== "project") throw new ForbiddenError();
+      if (auth.scope.accessLevel !== "project") {
+        throw new ForbiddenError();
+      }
 
       const { projectId } = auth.scope;
       const { mediaId } = query;
@@ -37,7 +39,9 @@ export default withMiddlewares({
     responseSchema: z.void(),
     rateLimitResource: "media-upload",
     fn: async ({ query, body, auth }) => {
-      if (auth.scope.accessLevel !== "project") throw new ForbiddenError();
+      if (auth.scope.accessLevel !== "project") {
+        throw new ForbiddenError();
+      }
 
       const { projectId } = auth.scope;
       const { mediaId } = query;

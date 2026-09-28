@@ -11,7 +11,9 @@ export class WebhookQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.WebhookQueue]
   > | null {
-    if (WebhookQueue.instance) return WebhookQueue.instance;
+    if (WebhookQueue.instance) {
+      return WebhookQueue.instance;
+    }
 
     const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
       QueueName.WebhookQueue,

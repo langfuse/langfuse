@@ -110,7 +110,9 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
 
   // Handle disconnect action
   const handleDisconnect = async () => {
-    if (isDisconnecting) return;
+    if (isDisconnecting) {
+      return;
+    }
 
     setIsDisconnecting(true);
 

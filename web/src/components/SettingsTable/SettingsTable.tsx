@@ -128,7 +128,9 @@ export function SettingsTable<TData extends object>({
                   placeholder={search.placeholder}
                   onChange={(value) => {
                     setSearchDraft({ value, committedValue: search.value });
-                    if (value === "") search.onChange("");
+                    if (value === "") {
+                      search.onChange("");
+                    }
                   }}
                   onSubmit={(value) => {
                     setSearchDraft({ value, committedValue: value });

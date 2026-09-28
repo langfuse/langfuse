@@ -19,8 +19,12 @@ const getIconForPeriod = (period: Period) => {
 
 export const TimeIcon: React.FC<{ time: Date | Period }> = ({ time }) => {
   if (time instanceof Date) {
-    if (isNoon(time)) return <Sun className="size-5" />;
-    if (isMidnight(time)) return <Moon className="size-5" />;
+    if (isNoon(time)) {
+      return <Sun className="size-5" />;
+    }
+    if (isMidnight(time)) {
+      return <Moon className="size-5" />;
+    }
     return <Clock className="size-5" />;
   }
 

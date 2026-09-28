@@ -15,7 +15,9 @@ const RESOLVE_OPTIONS = { maxAliasCount: -1 };
 const UNION_KEYS = ["oneOf", "anyOf"] as const;
 
 function scalarString(node: unknown): string | undefined {
-  if (!isScalar(node)) return undefined;
+  if (!isScalar(node)) {
+    return undefined;
+  }
   const value = node.value;
   return typeof value === "string" ? value : undefined;
 }
@@ -25,20 +27,28 @@ function pairKey(pair: Pair): string | undefined {
 }
 
 function refName(node: Node | null | undefined): string | undefined {
-  if (!isMap(node)) return undefined;
+  if (!isMap(node)) {
+    return undefined;
+  }
   const ref = scalarString(node.get("$ref", true));
   return ref?.split("/").at(-1) ?? ref;
 }
 
 /** References that compose the variant itself, excluding refs in properties. */
 function composingRefNames(variant: Node): string[] {
-  if (!isMap(variant)) return [];
+  if (!isMap(variant)) {
+    return [];
+  }
 
   const direct = refName(variant);
-  if (direct) return [direct];
+  if (direct) {
+    return [direct];
+  }
 
   const allOf = variant.get("allOf", true);
-  if (!isSeq(allOf)) return [];
+  if (!isSeq(allOf)) {
+    return [];
+  }
 
   return allOf.items
     .map((item) => refName(item as Node))
@@ -57,13 +67,19 @@ function inferVariantName(
   variant: Node,
   schemas: Node | null | undefined,
 ): string | undefined {
-  if (!isMap(variant)) return undefined;
+  if (!isMap(variant)) {
+    return undefined;
+  }
 
   const title = scalarString(variant.get("title", true));
-  if (title) return pascalCase(title);
+  if (title) {
+    return pascalCase(title);
+  }
 
   const uniqueRefs = [...new Set(composingRefNames(variant))];
-  if (uniqueRefs.length > 1) return undefined;
+  if (uniqueRefs.length > 1) {
+    return undefined;
+  }
 
   const refName = uniqueRefs[0];
   if (refName) {
@@ -72,13 +88,17 @@ function inferVariantName(
       : undefined;
     if (isMap(referencedSchema)) {
       const referencedTitle = scalarString(referencedSchema.get("title", true));
-      if (referencedTitle) return pascalCase(referencedTitle);
+      if (referencedTitle) {
+        return pascalCase(referencedTitle);
+      }
     }
     return refName;
   }
 
   const type = scalarString(variant.get("type", true));
-  if (!type) return undefined;
+  if (!type) {
+    return undefined;
+  }
 
   const format = scalarString(variant.get("format", true));
   return pascalCase(format ? `${format}-${type}` : type);
@@ -94,7 +114,9 @@ function stampNode(
   if (isMap(node)) {
     for (const unionKey of UNION_KEYS) {
       const union = node.get(unionKey, true);
-      if (!isSeq(union)) continue;
+      if (!isSeq(union)) {
+        continue;
+      }
 
       const names = union.items.map((variant, index) => {
         const name = inferVariantName(variant as Node, schemas);

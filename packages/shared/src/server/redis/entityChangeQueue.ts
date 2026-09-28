@@ -11,7 +11,9 @@ export class EntityChangeQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.EntityChangeQueue]
   > | null {
-    if (EntityChangeQueue.instance) return EntityChangeQueue.instance;
+    if (EntityChangeQueue.instance) {
+      return EntityChangeQueue.instance;
+    }
 
     const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
       QueueName.EntityChangeQueue,

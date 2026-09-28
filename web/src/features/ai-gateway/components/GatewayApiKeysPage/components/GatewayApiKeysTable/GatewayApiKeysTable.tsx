@@ -90,7 +90,9 @@ export function GatewayApiKeysTable({
 }
 
 function getMetadataEntries(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
   return Object.entries(value).flatMap(([key, item]) =>
     item === null ||
     typeof item === "string" ||

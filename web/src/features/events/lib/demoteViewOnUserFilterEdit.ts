@@ -26,7 +26,9 @@ export function demoteViewOnUserFilterEdit(
   change: ExplicitFilterStateChange,
   controllers: ViewDemotionControllers | null,
 ): void {
-  if (change.origin !== "user") return;
+  if (change.origin !== "user") {
+    return;
+  }
   controllers?.handleUserStateChange(
     change.previousFilters,
     change.nextFilters,

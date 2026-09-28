@@ -37,10 +37,20 @@ export const recordExportVolume = ({
   path,
 }: ExportVolume): void => {
   const tags: Record<string, string> = { integration };
-  if (integration === "blob_storage") tags.projectId = projectId;
-  if (destinationType !== undefined) tags.destination_type = destinationType;
-  if (source !== undefined) tags.source = source;
-  if (table !== undefined) tags.table = table;
-  if (path !== undefined) tags.path = path;
+  if (integration === "blob_storage") {
+    tags.projectId = projectId;
+  }
+  if (destinationType !== undefined) {
+    tags.destination_type = destinationType;
+  }
+  if (source !== undefined) {
+    tags.source = source;
+  }
+  if (table !== undefined) {
+    tags.table = table;
+  }
+  if (path !== undefined) {
+    tags.path = path;
+  }
   recordIncrement(EXPORT_VOLUME_METRIC, bytes, tags);
 };

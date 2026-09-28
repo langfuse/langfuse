@@ -68,7 +68,9 @@ const getCommaArrayParam = (table: TableName) => ({
                   : f.value,
           )}`;
 
-          if (DEBUG_QUERY_STATE) console.log("stringified", stringified);
+          if (DEBUG_QUERY_STATE) {
+            console.log("stringified", stringified);
+          }
           return stringified;
         })
         .filter((s): s is string => s !== null),
@@ -78,11 +80,14 @@ const getCommaArrayParam = (table: TableName) => ({
   decode: (arrayStr: string | (string | null)[] | null | undefined) =>
     (decodeDelimitedArray(arrayStr, ",")
       ?.map((f) => {
-        if (!f) return null;
+        if (!f) {
+          return null;
+        }
         const [column, type, key, operator, value] = f.split(";");
 
-        if (DEBUG_QUERY_STATE)
+        if (DEBUG_QUERY_STATE) {
           console.log("values", [column, type, key, operator, value]);
+        }
         const decodedValue = value ? decodeURIComponent(value) : undefined;
         const normalizedKey =
           type === "positionInTrace"
@@ -117,7 +122,9 @@ const getCommaArrayParam = (table: TableName) => ({
           return decodedValue;
         })();
 
-        if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
+        if (DEBUG_QUERY_STATE) {
+          console.log("parsedValue", parsedValue);
+        }
         const parsed = singleFilter.safeParse({
           column: getColumnName(table, column),
           key: normalizedKey !== "" ? normalizedKey : undefined,
@@ -125,7 +132,9 @@ const getCommaArrayParam = (table: TableName) => ({
           value: parsedValue,
           type,
         });
-        if (!parsed.success) return null;
+        if (!parsed.success) {
+          return null;
+        }
         return parsed.data;
       })
       .filter((v) => v !== null) as FilterState | undefined) ?? undefined,

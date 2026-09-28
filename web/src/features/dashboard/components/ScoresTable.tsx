@@ -27,7 +27,9 @@ const dropValuesForCategoricalScores = (
   value: number,
   scoreDataType: ScoreDataTypeType,
 ): string => {
-  if (isCategoricalDataType(scoreDataType)) return "-";
+  if (isCategoricalDataType(scoreDataType)) {
+    return "-";
+  }
   if (isBooleanDataType(scoreDataType) || isNumericDataType(scoreDataType)) {
     return compactNumberFormatter(value);
   }
@@ -155,8 +157,9 @@ export const ScoresTable = ({
   }
 
   const joinRequestData = () => {
-    if (!metrics.data || !zeroValueScores.data || !oneValueScores.data)
+    if (!metrics.data || !zeroValueScores.data || !oneValueScores.data) {
       return [];
+    }
 
     return metrics.data.map((metric) => {
       const scoreName = metric.scoreName as string;

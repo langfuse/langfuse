@@ -84,8 +84,11 @@ export const isTraceOrDatasetObject = (object: string): boolean => {
 export const mapLegacyToModernTarget = (
   legacyTarget: string,
 ): EvalTargetObjectType => {
-  if (legacyTarget === EvalTargetObject.TRACE) return EvalTargetObject.EVENT;
-  if (legacyTarget === EvalTargetObject.DATASET)
+  if (legacyTarget === EvalTargetObject.TRACE) {
+    return EvalTargetObject.EVENT;
+  }
+  if (legacyTarget === EvalTargetObject.DATASET) {
     return EvalTargetObject.EXPERIMENT;
+  }
   return legacyTarget as EvalTargetObjectType;
 };

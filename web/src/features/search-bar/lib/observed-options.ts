@@ -35,7 +35,9 @@ function toObservedValues(options: RawOption[]): ObservedValue[] {
   const out: ObservedValue[] = [];
   for (const o of options) {
     if (typeof o === "string") {
-      if (o.length > 0) out.push({ value: o });
+      if (o.length > 0) {
+        out.push({ value: o });
+      }
     } else if (o && typeof o.value === "string" && o.value.length > 0) {
       out.push(
         o.count !== undefined
@@ -51,7 +53,9 @@ function removeObservedValues(
   options: ObservedValue[] | undefined,
   excluded: ReadonlySet<string>,
 ): ObservedValue[] | undefined {
-  if (!options || excluded.size === 0) return options;
+  if (!options || excluded.size === 0) {
+    return options;
+  }
   return options.filter((option) => !excluded.has(option.value));
 }
 
@@ -84,11 +88,15 @@ export function toObservedOptions(
   raw: RawFilterOptions | undefined,
   loading: boolean,
 ): ObservedOptions | undefined {
-  if (loading || raw === undefined) return undefined;
+  if (loading || raw === undefined) {
+    return undefined;
+  }
 
   const out: ObservedOptions = {};
   for (const [column, options] of Object.entries(raw)) {
-    if (options === undefined) continue;
+    if (options === undefined) {
+      continue;
+    }
     if (Array.isArray(options)) {
       out[column] = toObservedValues(options);
       continue;
@@ -115,7 +123,9 @@ export function withMetadataPathOptions(
   observed: ObservedOptions | undefined,
   paths: Record<string, StoredKeyInfo> | undefined,
 ): ObservedOptions | undefined {
-  if (observed === undefined) return observed;
+  if (observed === undefined) {
+    return observed;
+  }
   const suggestions = observedMetadataOptions(paths);
   return Object.keys(suggestions).length === 0
     ? observed
@@ -174,10 +184,14 @@ export type ObservedScoreNames = {
 export function observedScoreNamesFromOptions(
   observed: ObservedOptions | undefined,
 ): ObservedScoreNames | undefined {
-  if (observed === undefined) return undefined;
+  if (observed === undefined) {
+    return undefined;
+  }
   const names = (column: string): string[] | undefined => {
     const values = observed[column];
-    if (values === undefined) return undefined;
+    if (values === undefined) {
+      return undefined;
+    }
     const out = values.map((o) => o.value);
     if (
       out.length > MAX_SCORE_NAMES_PER_TYPE ||
@@ -201,11 +215,21 @@ function nameSetsEqual(
   a: ReadonlySet<string> | undefined,
   b: ReadonlySet<string> | undefined,
 ): boolean {
-  if (a === b) return true;
+  if (a === b) {
+    return true;
+  }
   const sizeA = a?.size ?? 0;
   const sizeB = b?.size ?? 0;
-  if (sizeA !== sizeB) return false;
-  if (a) for (const v of a) if (!b?.has(v)) return false;
+  if (sizeA !== sizeB) {
+    return false;
+  }
+  if (a) {
+    for (const v of a) {
+      if (!b?.has(v)) {
+        return false;
+      }
+    }
+  }
   return true;
 }
 
@@ -220,7 +244,9 @@ export function scoreTypeContextEqual(
   a: ScoreTypeContext | undefined,
   b: ScoreTypeContext | undefined,
 ): boolean {
-  if (a === b) return true;
+  if (a === b) {
+    return true;
+  }
   return (
     nameSetsEqual(a?.numericScoreNames, b?.numericScoreNames) &&
     nameSetsEqual(a?.categoricalScoreNames, b?.categoricalScoreNames) &&

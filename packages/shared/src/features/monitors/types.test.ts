@@ -174,7 +174,9 @@ describe("MonitorSchema.triggerIds", () => {
   it("defaults to [] when omitted", () => {
     const result = MonitorSchema.safeParse(validMonitorBase);
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.triggerIds).toEqual([]);
+    if (result.success) {
+      expect(result.data.triggerIds).toEqual([]);
+    }
   });
 
   it("accepts a list of trigger IDs", () => {
@@ -183,8 +185,9 @@ describe("MonitorSchema.triggerIds", () => {
       triggerIds: ["trig-a", "trig-b"],
     });
     expect(result.success).toBe(true);
-    if (result.success)
+    if (result.success) {
       expect(result.data.triggerIds).toEqual(["trig-a", "trig-b"]);
+    }
   });
 });
 
@@ -267,7 +270,9 @@ describe("MonitorAlertSchema", () => {
       timestamp: "2026-05-18T12:01:00.000Z",
     });
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.timestamp).toBeInstanceOf(Date);
+    if (result.success) {
+      expect(result.data.timestamp).toBeInstanceOf(Date);
+    }
   });
 
   it("rejects an alert missing fromTimestamp", () => {

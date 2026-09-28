@@ -47,7 +47,9 @@ export default function RenameProject() {
   });
 
   function onSubmit(values: z.infer<typeof projectNameSchema>) {
-    if (!hasAccess || !project) return;
+    if (!hasAccess || !project) {
+      return;
+    }
     capture("project_settings:rename_form_submit");
     renameProject
       .mutateAsync({

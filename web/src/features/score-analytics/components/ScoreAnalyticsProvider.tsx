@@ -151,7 +151,9 @@ export function ScoreAnalyticsProvider({
   // Compute comprehensive color mappings for all categories/values
   const colorMappings = useMemo(() => {
     const data = queryResult.data;
-    if (!data) return {};
+    if (!data) {
+      return {};
+    }
 
     return buildColorMappings({
       dataType: data.metadata.dataType,

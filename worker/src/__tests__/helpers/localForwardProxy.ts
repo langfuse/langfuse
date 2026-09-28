@@ -92,7 +92,9 @@ export async function startLocalForwardProxy(): Promise<LocalForwardProxy> {
         server.close((err) => (err ? reject(err) : resolve()));
         // Keep-alive and tunneled sockets would otherwise keep close() pending.
         server.closeAllConnections();
-        for (const socket of sockets) socket.destroy();
+        for (const socket of sockets) {
+          socket.destroy();
+        }
       }),
   };
 }

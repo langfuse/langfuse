@@ -18,7 +18,9 @@ export function DatasetAnalytics(props: {
       hideClearButton
       showSelectedValueStrings={false}
       onValueChange={(values, changedValue, selectedKeys) => {
-        if (values.length === 0) props.setSelectedMetrics([]);
+        if (values.length === 0) {
+          props.setSelectedMetrics([]);
+        }
 
         if (changedValue) {
           if (selectedKeys?.has(changedValue)) {

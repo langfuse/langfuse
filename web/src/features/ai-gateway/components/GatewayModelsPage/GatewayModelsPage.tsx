@@ -95,9 +95,13 @@ function aggregateModels(
   const models = new Map<string, ModelRow>();
 
   for (const result of results) {
-    if (!result.success) continue;
+    if (!result.success) {
+      continue;
+    }
     const connection = connectionsById.get(result.connectionId);
-    if (!connection) continue;
+    if (!connection) {
+      continue;
+    }
     for (const modelId of result.models) {
       const existing = models.get(modelId);
       const availableVia = {

@@ -110,7 +110,9 @@ export function useEvaluatorSavedBackfill({
               ? { knownTestRunCostUsd }
               : {}),
           });
-        if (estimateRequestId.current !== requestId) return;
+        if (estimateRequestId.current !== requestId) {
+          return;
+        }
         const estimate = result.find(
           ({ evaluatorId: resultEvaluatorId }) =>
             resultEvaluatorId === evaluatorId,
@@ -209,7 +211,9 @@ export function useEvaluatorSavedBackfill({
     scope: EvaluatorBackfillScope,
     executionRange: EvaluatorBackfillRange,
   ) => {
-    if (!enabled || hasScheduled.current) return;
+    if (!enabled || hasScheduled.current) {
+      return;
+    }
     const normalizedExecutionRange = normalizeBackfillRange(
       executionRange,
       range.from,

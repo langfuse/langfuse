@@ -74,8 +74,12 @@ function listYamlFiles(directory: string): string[] {
     .flatMap((entry) => {
       const entryPath = path.join(directory, entry.name);
 
-      if (entry.isDirectory()) return listYamlFiles(entryPath);
-      if (entry.isFile() && /\.ya?ml$/.test(entry.name)) return [entryPath];
+      if (entry.isDirectory()) {
+        return listYamlFiles(entryPath);
+      }
+      if (entry.isFile() && /\.ya?ml$/.test(entry.name)) {
+        return [entryPath];
+      }
       return [];
     })
     .sort();
@@ -144,7 +148,9 @@ function deprecatedAvailabilityPaths(
   value: unknown,
   prefix: string[] = [],
 ): string[][] {
-  if (!value || typeof value !== "object") return [];
+  if (!value || typeof value !== "object") {
+    return [];
+  }
 
   return Object.entries(value).flatMap(([key, child]) => {
     const childPath = [...prefix, key];
@@ -205,7 +211,9 @@ export function getFernTypeScriptDeprecations(
       for (const [propertyName, property] of Object.entries(
         endpoint.request?.body?.properties ?? {},
       )) {
-        if (!isDeprecated(property.availability)) continue;
+        if (!isDeprecated(property.availability)) {
+          continue;
+        }
 
         const propertyAvailabilityPath = [
           "service",
@@ -346,7 +354,9 @@ function patchJsDoc(
   }
   if (tags.length === 1) {
     const tag = tags[0];
-    if (tag[0] === canonicalTag) return { contents: doc, changed: false };
+    if (tag[0] === canonicalTag) {
+      return { contents: doc, changed: false };
+    }
     return {
       contents: `${doc.slice(0, tag.index)}${canonicalTag}${doc.slice(tag.index + tag[0].length)}`,
       changed: true,
@@ -364,7 +374,9 @@ function patchJsDoc(
   }
 
   const close = doc.lastIndexOf(`${indent} */`);
-  if (close < 0) throw new Error(`${label}: malformed generated JSDoc`);
+  if (close < 0) {
+    throw new Error(`${label}: malformed generated JSDoc`);
+  }
   const beforeClose = doc.slice(0, close);
   const separator = beforeClose.endsWith(`${star}\n`) ? "" : `${star}\n`;
   return {
@@ -381,7 +393,9 @@ function replaceJsDoc(
   label: string,
 ): { contents: string; changed: boolean } {
   const patched = patchJsDoc(jsDoc.contents, message, indent, label);
-  if (!patched.changed) return { contents, changed: false };
+  if (!patched.changed) {
+    return { contents, changed: false };
+  }
   return {
     contents: `${contents.slice(0, jsDoc.start)}${patched.contents}${contents.slice(jsDoc.end)}`,
     changed: true,
@@ -507,14 +521,18 @@ export function patchGeneratedTypeScriptDeprecations({
           )
         : patchProperty(pendingFile.contents, deprecation, generatedFilePath);
 
-    if (patched.changed) decoratedSymbols += 1;
+    if (patched.changed) {
+      decoratedSymbols += 1;
+    }
     pendingFile.contents = patched.contents;
     pendingFiles.set(generatedFilePath, pendingFile);
   }
 
   let changedFiles = 0;
   for (const [generatedFilePath, pendingFile] of pendingFiles) {
-    if (pendingFile.contents === pendingFile.originalContents) continue;
+    if (pendingFile.contents === pendingFile.originalContents) {
+      continue;
+    }
     fs.writeFileSync(generatedFilePath, pendingFile.contents);
     changedFiles += 1;
   }

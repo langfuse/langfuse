@@ -105,7 +105,9 @@ function buildFlowEdges(
     const seen = new Set<string>();
     let parentId = obs.parentObservationId;
     while (parentId && !seen.has(parentId)) {
-      if (included.has(parentId)) return parentId;
+      if (included.has(parentId)) {
+        return parentId;
+      }
       seen.add(parentId);
       parentId = ancestryById.get(parentId)?.parentObservationId ?? null;
     }
@@ -116,8 +118,11 @@ function buildFlowEdges(
   for (const obs of observations) {
     const parent = resolveParent(obs);
     const group = groups.get(parent);
-    if (group) group.push(obs);
-    else groups.set(parent, [obs]);
+    if (group) {
+      group.push(obs);
+    } else {
+      groups.set(parent, [obs]);
+    }
   }
 
   const edges: Edge[] = [];
@@ -130,7 +135,9 @@ function buildFlowEdges(
     const starts = ordered.map(startMs);
     const ends = ordered.map(endMs);
     for (let i = 0; i < ordered.length; i++) {
-      if (edges.length > MAX_EXPANDED_EDGES) return null;
+      if (edges.length > MAX_EXPANDED_EDGES) {
+        return null;
+      }
       const current = ordered[i];
       // Stats over the siblings that finished before this one started
       // ("happened before"): the latest end (fallback anchor) and the two
@@ -145,7 +152,9 @@ function buildFlowEdges(
       let maxStartIdx = -1;
       let secondMaxStart = -Infinity;
       for (let j = 0; j < i; j++) {
-        if (ends[j] > starts[i]) continue;
+        if (ends[j] > starts[i]) {
+          continue;
+        }
         finishedCount++;
         if (ends[j] >= maxEnd) {
           maxEnd = ends[j];
@@ -162,7 +171,9 @@ function buildFlowEdges(
       if (finishedCount === 0) {
         // Nothing precedes it in this scope: descend from the parent. Root
         // group sources get no edge — __start__ wiring covers them.
-        if (parentId !== null) edges.push({ from: parentId, to: current.id });
+        if (parentId !== null) {
+          edges.push({ from: parentId, to: current.id });
+        }
         continue;
       }
       // Direct predecessors only (transitive reduction of the interval
@@ -174,11 +185,15 @@ function buildFlowEdges(
       // chain instead of orphaning every successor onto __start__.
       let emitted = false;
       for (let j = 0; j < i; j++) {
-        if (ends[j] > starts[i]) continue;
+        if (ends[j] > starts[i]) {
+          continue;
+        }
         const othersMaxStart = j === maxStartIdx ? secondMaxStart : maxStart;
         if (ends[j] > othersMaxStart) {
           edges.push({ from: ordered[j].id, to: current.id });
-          if (parentId === null) rootSiblingFroms.add(ordered[j].id);
+          if (parentId === null) {
+            rootSiblingFroms.add(ordered[j].id);
+          }
           emitted = true;
         }
       }
@@ -230,7 +245,9 @@ export function buildExpandedGraph(
   }));
 
   const built = buildFlowEdges(observations, ancestry);
-  if (built === null) return EDGE_LIMIT_RESULT;
+  if (built === null) {
+    return EDGE_LIMIT_RESULT;
+  }
   const { edges, sinkIds } = built;
 
   // Synthetic entry/exit anchors, derived from the built edges: __start__
@@ -260,7 +277,9 @@ export function buildExpandedGraph(
   }
   // Anchor wiring counts against the budget too (a degenerate trace of
   // isolated observations gets two anchor edges apiece).
-  if (edges.length > MAX_EXPANDED_EDGES) return EDGE_LIMIT_RESULT;
+  if (edges.length > MAX_EXPANDED_EDGES) {
+    return EDGE_LIMIT_RESULT;
+  }
 
   // One observation per node — clicking a node selects exactly that call.
   const nodeToObservationsMap: Record<string, string[]> = {};

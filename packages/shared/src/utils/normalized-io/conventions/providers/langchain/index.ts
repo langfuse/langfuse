@@ -48,7 +48,9 @@ function unwrapLangchainEnvelope(
   ctx: MessageEnvelopeContext,
 ): ConventionResult<NormalizedMessage> {
   const kwargs = value.lc !== undefined ? asRecord(value.kwargs) : undefined;
-  if (!kwargs) return unmatched;
+  if (!kwargs) {
+    return unmatched;
+  }
 
   const classPath = Array.isArray(value.id) ? value.id : [];
   const className = optionalString(classPath[classPath.length - 1]);
@@ -94,7 +96,9 @@ function langchainCollectSiblingParts(
           input: record.args,
         })
       : null;
-    if (!part) continue;
+    if (!part) {
+      continue;
+    }
     const error = optionalString(record?.error);
     parts.push(
       compact<ToolCallPart>({
@@ -114,15 +118,21 @@ function langchainMessages(
   root: Record<string, unknown>,
   kind: "input" | "output",
 ): MessageSource[] {
-  if (kind !== "output" || !Array.isArray(root.generations)) return [];
+  if (kind !== "output" || !Array.isArray(root.generations)) {
+    return [];
+  }
 
   // LLMResult batches generations; ChatResult contains a flat list.
   const sources: MessageSource[] = [];
   for (const value of root.generations.flat(1)) {
     const generation = asRecord(value);
-    if (!generation) return [];
+    if (!generation) {
+      return [];
+    }
     const message = asRecord(generation.message);
-    if (!message && typeof generation.text !== "string") return [];
+    if (!message && typeof generation.text !== "string") {
+      return [];
+    }
     sources.push({
       kind: "single",
       value: message ?? generation.text,

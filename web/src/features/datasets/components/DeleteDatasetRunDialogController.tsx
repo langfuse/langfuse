@@ -55,7 +55,9 @@ export const DeleteDatasetRunDialogController = ({
         children({
           disabled: !hasAccess,
           openDialog: () => {
-            if (!hasAccess) return;
+            if (!hasAccess) {
+              return;
+            }
             capture("dataset_run:delete_form_open");
             openDialog();
           },

@@ -90,7 +90,9 @@ export function buildTimeCompression(options: {
   // where it is needed most. One fixed-point step fixes it: compress with no
   // buffer, then re-compress with the buffer priced at the resulting scale.
   const unbuffered = compressOnce(spans, durationMs, physicalWidth, 0);
-  if (!unbuffered) return identityCompression(durationMs);
+  if (!unbuffered) {
+    return identityCompression(durationMs);
+  }
 
   const labelBufferMs =
     (unbuffered.compressedDurationMs / physicalWidth) *
@@ -109,7 +111,9 @@ function compressOnce(
 ): TimeCompression | null {
   const merged = mergeIntervals(padIntervals(spans, durationMs, labelBufferMs));
   const collapsible = collectCollapsibleGaps(merged, durationMs);
-  if (collapsible.length === 0) return null;
+  if (collapsible.length === 0) {
+    return null;
+  }
 
   const collapsedGapPx = Math.min(
     COLLAPSED_GAP_WIDTH_PX,
@@ -123,7 +127,9 @@ function compressOnce(
   const activeDuration = durationMs - collapsedDuration;
   const denominator = 1 - gapWidthRatio * collapsible.length;
 
-  if (denominator <= 0 || activeDuration <= 0) return null;
+  if (denominator <= 0 || activeDuration <= 0) {
+    return null;
+  }
 
   const compressedDurationMs = activeDuration / denominator;
   const retainedDuration = compressedDurationMs * gapWidthRatio;
@@ -149,7 +155,9 @@ function compressOnce(
     toCompressedMs: (realMs) => {
       let removed = 0;
       for (const gap of gaps) {
-        if (realMs < gap.start) break;
+        if (realMs < gap.start) {
+          break;
+        }
         if (realMs <= gap.end) {
           const progress =
             gap.durationMs > 0 ? (realMs - gap.start) / gap.durationMs : 0;
@@ -162,7 +170,9 @@ function compressOnce(
     toRealMs: (compressedMs) => {
       let restored = 0;
       for (const gap of gaps) {
-        if (compressedMs < gap.compressedStart) break;
+        if (compressedMs < gap.compressedStart) {
+          break;
+        }
         if (compressedMs <= gap.compressedEnd) {
           const progress =
             retainedDuration > 0
@@ -190,7 +200,9 @@ function padIntervals(
   const clampMs = (ms: number) => Math.min(Math.max(ms, 0), durationMs);
 
   return spans.flatMap(([start, end]) => {
-    if (!Number.isFinite(start) || !Number.isFinite(end)) return [];
+    if (!Number.isFinite(start) || !Number.isFinite(end)) {
+      return [];
+    }
     const from = clampMs(start);
     const to = clampMs(end);
     return to > from
@@ -229,7 +241,9 @@ function collectCollapsibleGaps(
   let previousEnd = 0;
 
   for (const [start, end] of intervals) {
-    if (start - previousEnd >= threshold) gaps.push([previousEnd, start]);
+    if (start - previousEnd >= threshold) {
+      gaps.push([previousEnd, start]);
+    }
     previousEnd = Math.max(previousEnd, end);
   }
   if (durationMs - previousEnd >= threshold) {

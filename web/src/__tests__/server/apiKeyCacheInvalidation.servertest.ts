@@ -110,7 +110,9 @@ async function survivingKeys(keys: string[]) {
   const present: string[] = [];
   for (const key of keys) {
     const [hit] = await getRedisKeysByPattern(redis, key);
-    if (hit) present.push(hit);
+    if (hit) {
+      present.push(hit);
+    }
   }
   return present;
 }

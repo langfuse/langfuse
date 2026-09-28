@@ -246,7 +246,9 @@ export function DetailHeaderActionsMenuController({
       : []),
   ];
 
-  if (renderMenu) return renderMenu(items);
+  if (renderMenu) {
+    return renderMenu(items);
+  }
 
   return (
     <DropdownMenu items={items} placement="bottom-end">

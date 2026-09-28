@@ -111,7 +111,9 @@ export const disconnectQueues = async (disconnectTimeoutMs = 2_000) => {
         } catch (error) {
           logger.error(`Error disconnecting queue ${queue.name}: ${error}`);
         } finally {
-          if (timeoutId) clearTimeout(timeoutId);
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
         }
       }
     }),

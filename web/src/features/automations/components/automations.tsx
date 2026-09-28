@@ -254,13 +254,17 @@ export default function AutomationsPage() {
 
   const handleDeleteAutomation = () => {
     // Find the current automation index
-    if (!automations || !selectedAutomation) return;
+    if (!automations || !selectedAutomation) {
+      return;
+    }
 
     const currentIndex = automations.findIndex(
       (automation) => automation.id === selectedAutomation.automationId,
     );
 
-    if (currentIndex === -1) return;
+    if (currentIndex === -1) {
+      return;
+    }
 
     // Select the next automation, or the previous one if this was the last
     let nextIndex: number;

@@ -51,7 +51,9 @@ export function computeMaxVisualDepth(
   config: VisualDepthConfig,
 ): number {
   const { indentPx, reservedPx, minDepth, maxDepth } = config;
-  if (availableWidth <= 0) return maxDepth;
+  if (availableWidth <= 0) {
+    return maxDepth;
+  }
   const byWidth = Math.floor((availableWidth - reservedPx) / indentPx);
   return Math.min(maxDepth, Math.max(minDepth, byWidth));
 }

@@ -145,7 +145,9 @@ export async function parseCsvClient(
 }
 
 function inferColumnType(samples: string[]): ColumnType {
-  if (samples.length === 0) return "unknown";
+  if (samples.length === 0) {
+    return "unknown";
+  }
 
   // Try to parse all samples as JSON and get their types
   const types = new Set(samples.map((value) => inferTypeFromValue(value)));
@@ -171,17 +173,25 @@ function inferColumnType(samples: string[]): ColumnType {
 }
 
 function inferTypeFromValue(value: string): ColumnType {
-  if (!value || value.toLowerCase() === "null") return "null";
+  if (!value || value.toLowerCase() === "null") {
+    return "null";
+  }
 
   const parsed = parseValue(value);
-  if (Array.isArray(parsed)) return "array";
-  if (typeof parsed === "object" && parsed !== null) return "json";
+  if (Array.isArray(parsed)) {
+    return "array";
+  }
+  if (typeof parsed === "object" && parsed !== null) {
+    return "json";
+  }
   return typeof parsed as ColumnType;
 }
 
 // Helper to parse a single value
 export function parseValue(value: string): Prisma.JsonValue {
-  if (value === "" || value.toLowerCase() === "null") return null;
+  if (value === "" || value.toLowerCase() === "null") {
+    return null;
+  }
 
   const parsed = parseJsonPrioritised(value);
   if (
@@ -191,8 +201,12 @@ export function parseValue(value: string): Prisma.JsonValue {
     return parsed as Prisma.JsonValue;
   }
 
-  if (value.toLowerCase() === "true") return true;
-  if (value.toLowerCase() === "false") return false;
+  if (value.toLowerCase() === "true") {
+    return true;
+  }
+  if (value.toLowerCase() === "false") {
+    return false;
+  }
 
   const numericValue = Number(value);
   if (
@@ -212,7 +226,9 @@ export function parseColumns(
   headerMap: Map<string, number>,
   options?: { wrapSingleColumn?: boolean },
 ): Prisma.JsonValue {
-  if (columnNames.length === 0) return null;
+  if (columnNames.length === 0) {
+    return null;
+  }
 
   // Single column: wrap if requested, else return raw value
   if (columnNames.length === 1) {
@@ -239,7 +255,9 @@ export function buildSchemaObject(
   headerMap: Map<string, number>,
 ): Prisma.JsonValue {
   const entries = Object.entries(mapping);
-  if (entries.length === 0) return null;
+  if (entries.length === 0) {
+    return null;
+  }
 
   return Object.fromEntries(
     entries.map(([schemaKey, csvColumns]) => {

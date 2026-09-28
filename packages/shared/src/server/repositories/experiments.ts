@@ -1012,7 +1012,9 @@ function combineConditions(
   operator: "AND" | "OR" = "OR",
 ): { query: string; params: Record<string, any> } {
   const valid = conditions.filter((c) => c.query.trim().length > 0);
-  if (valid.length === 0) return { query: "", params: {} };
+  if (valid.length === 0) {
+    return { query: "", params: {} };
+  }
 
   return {
     query: `(${valid.map((c) => `(${c.query})`).join(` ${operator} `)})`,

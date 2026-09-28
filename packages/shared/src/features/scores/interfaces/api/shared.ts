@@ -60,12 +60,16 @@ export const GetScoresQuery = z.object({
     .string()
     .optional()
     .transform((str) => {
-      if (!str) return undefined;
+      if (!str) {
+        return undefined;
+      }
       try {
         const parsed = JSON.parse(str);
         return parsed;
       } catch (e) {
-        if (e instanceof InvalidRequestError) throw e;
+        if (e instanceof InvalidRequestError) {
+          throw e;
+        }
         throw new InvalidRequestError("Invalid JSON in filter parameter");
       }
     })

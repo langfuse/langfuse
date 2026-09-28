@@ -74,7 +74,9 @@ export function EvaluatorMigrationDialog({
   const capture = usePostHogClientCapture();
   const startAssistant = async () => {
     const opened = openAssistant("v4_migration");
-    if (!opened) return;
+    if (!opened) {
+      return;
+    }
 
     onAssistantStarted();
     onOpenChange(false);
@@ -115,7 +117,9 @@ export function EvaluatorMigrationDialog({
       <Dialog
         open={open}
         onOpenChange={(nextOpen) => {
-          if (!nextOpen) setSelectedAction(null);
+          if (!nextOpen) {
+            setSelectedAction(null);
+          }
           onOpenChange(nextOpen);
         }}
       >

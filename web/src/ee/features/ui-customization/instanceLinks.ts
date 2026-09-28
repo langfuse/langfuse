@@ -35,7 +35,9 @@ const InstanceLinks = z
  * failing the deployment.
  */
 export function parseInstanceLinks(raw?: string): InstanceLink[] | null {
-  if (!raw || !raw.trim()) return null;
+  if (!raw || !raw.trim()) {
+    return null;
+  }
 
   let parsed: unknown;
   try {
@@ -69,7 +71,9 @@ export function findCurrentInstance(
   links: InstanceLink[],
   currentHost: string | undefined,
 ): InstanceLink | undefined {
-  if (!currentHost) return undefined;
+  if (!currentHost) {
+    return undefined;
+  }
 
   return links.find((link) => {
     try {

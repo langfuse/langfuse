@@ -11,7 +11,9 @@ export function extractCitations(
   for (const provider of registeredProviders) {
     for (const key of provider.citationKeys ?? []) {
       const citations = parseArray(value[key]);
-      if (citations && citations.length > 0) return toJsonValue(citations);
+      if (citations && citations.length > 0) {
+        return toJsonValue(citations);
+      }
     }
   }
   return undefined;

@@ -60,7 +60,9 @@ function normalizeGeminiPart(
   value: Record<string, unknown>,
   _context: PartHandlerContext,
 ): ConventionResult<NormalizedMessagePart> {
-  if (typeof value.type === "string") return unmatched;
+  if (typeof value.type === "string") {
+    return unmatched;
+  }
 
   const functionCall =
     asRecord(value.function_call) ?? asRecord(value.functionCall);
@@ -93,7 +95,9 @@ function normalizeGeminiPart(
     const data = optionalString(inlineData.data);
     if (data) {
       const reference = parseMediaReference(data);
-      if (reference) return claimed(filePartFromMediaReference(reference));
+      if (reference) {
+        return claimed(filePartFromMediaReference(reference));
+      }
       return claimed(
         compact<FilePart>({
           type: "file",
@@ -178,9 +182,13 @@ function normalizeGeminiPart(
 function geminiToolDefinitionSources(
   carrier: ToolDefinitionCarrier,
 ): ToolDefinitionSource[] {
-  if (!carrier.root) return [];
+  if (!carrier.root) {
+    return [];
+  }
   const tools = parseArray(asRecord(carrier.root.config)?.tools);
-  if (!tools) return [];
+  if (!tools) {
+    return [];
+  }
   recordKeyAsParsed(carrier.root, "config", "tools");
 
   return tools.map((tool, index) => {
@@ -211,14 +219,18 @@ function geminiSystemMessage(
   root: Record<string, unknown>,
   kind: "input" | "output",
 ): MessageSource | undefined {
-  if (kind !== "input") return undefined;
+  if (kind !== "input") {
+    return undefined;
+  }
 
   const systemInstruction =
     recordKeyAsParsed(root, "systemInstruction") ??
     recordKeyAsParsed(root, "system_instruction") ??
     recordKeyAsParsed(root, "config", "system_instruction") ??
     recordKeyAsParsed(root, "config", "systemInstruction");
-  if (!systemInstruction) return undefined;
+  if (!systemInstruction) {
+    return undefined;
+  }
 
   return {
     kind: "single",

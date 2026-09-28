@@ -31,7 +31,9 @@ let cachedGatewayIngestionTokenSigner:
 
 function getGatewayIngestionTokenSigner() {
   const privateKey = env.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY;
-  if (!privateKey) return undefined;
+  if (!privateKey) {
+    return undefined;
+  }
 
   const publicKey = env.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY;
   const keyId = env.LANGFUSE_AI_GATEWAY_JWT_KEY_ID;

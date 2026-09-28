@@ -70,29 +70,42 @@ const TimePickerInput = React.forwardRef<
        * The second entered digit will break the condition and the value will be set to 10-12.
        */
       if (picker === "12hours") {
-        if (flag && calculatedValue.slice(1, 2) === "1" && prevIntKey === "0")
+        if (flag && calculatedValue.slice(1, 2) === "1" && prevIntKey === "0") {
           return "0" + key;
+        }
       }
 
       return !flag ? "0" + key : calculatedValue.slice(1, 2) + key;
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Tab") return;
+      if (e.key === "Tab") {
+        return;
+      }
       e.preventDefault();
-      if (e.key === "ArrowRight") onRightFocus?.();
-      if (e.key === "ArrowLeft") onLeftFocus?.();
+      if (e.key === "ArrowRight") {
+        onRightFocus?.();
+      }
+      if (e.key === "ArrowLeft") {
+        onLeftFocus?.();
+      }
       if (["ArrowUp", "ArrowDown"].includes(e.key)) {
         const step = e.key === "ArrowUp" ? 1 : -1;
         const newValue = getArrowByType(calculatedValue, step, picker);
-        if (flag) setFlag(false);
+        if (flag) {
+          setFlag(false);
+        }
         setDate(setDateByType(new Date(date), newValue, picker, period));
       }
       if (e.key >= "0" && e.key <= "9") {
-        if (picker === "12hours") setPrevIntKey(e.key);
+        if (picker === "12hours") {
+          setPrevIntKey(e.key);
+        }
 
         const newValue = calculateNewValue(e.key);
-        if (flag) onRightFocus?.();
+        if (flag) {
+          onRightFocus?.();
+        }
         setFlag((prev) => !prev);
         setDate(setDateByType(new Date(date), newValue, picker, period));
       }

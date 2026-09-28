@@ -28,9 +28,13 @@ export function toDecisionModelResults(
       : {};
 
   return scores.flatMap((score, index): DecisionModelQuestionResult[] => {
-    if (!isRecord(score)) return [];
+    if (!isRecord(score)) {
+      return [];
+    }
     const typesafe = isRecord(score.metadata) ? score.metadata.typesafe : null;
-    if (!isRecord(typesafe)) return [];
+    if (!isRecord(typesafe)) {
+      return [];
+    }
 
     const questionId = String(typesafe.questionId ?? index);
     const question = requestQuestions[questionId];

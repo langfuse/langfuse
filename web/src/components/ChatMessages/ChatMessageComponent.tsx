@@ -137,7 +137,9 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
 
   const toggleRole = () => {
     // Only allow role toggling for messages that have a role property (not placeholder messages)
-    if (!("role" in message)) return;
+    if (!("role" in message)) {
+      return;
+    }
 
     // if user has set custom roles, available roles will be non-empty and we toggle through custom and default roles (assistant, user)
     if (!!availableRoles && Boolean(availableRoles.length)) {

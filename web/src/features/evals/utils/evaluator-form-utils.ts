@@ -77,7 +77,9 @@ export function getActiveJsonPathCompatibilityWarning(mappingRow: {
   selectedColumnId?: string | null;
   jsonSelector?: string | null;
 }): string | null {
-  if (!fieldHasJsonSelectorOption(mappingRow.selectedColumnId)) return null;
+  if (!fieldHasJsonSelectorOption(mappingRow.selectedColumnId)) {
+    return null;
+  }
 
   return getJsonPathCompatibilityWarning(mappingRow.jsonSelector);
 }

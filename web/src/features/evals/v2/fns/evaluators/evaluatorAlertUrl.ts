@@ -6,7 +6,9 @@ export function evaluatorAlertsListUrl(
   evaluatorId?: string,
 ): string {
   const base = `/project/${encodeURIComponent(projectId)}/alerts`;
-  if (!evaluatorId) return base;
+  if (!evaluatorId) {
+    return base;
+  }
 
   const filter = encodeFiltersGeneric([
     {

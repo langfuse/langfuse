@@ -298,7 +298,9 @@ const metricsFilterTimeFilter = (
   column: "timestamp" | "startTime",
   dateRange?: MetricsFilterDateRange,
 ): TimeFilter[] | undefined => {
-  if (!dateRange) return undefined;
+  if (!dateRange) {
+    return undefined;
+  }
   const filters: TimeFilter[] = [
     { column, type: "datetime", operator: ">=", value: dateRange.from },
   ];

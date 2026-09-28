@@ -244,7 +244,9 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
       const queryParams = config?.queryParams
         ?.map((param) => {
           // The resolved trace id is the path segment; don't repeat it.
-          if (resolved && param === "traceId") return null;
+          if (resolved && param === "traceId") {
+            return null;
+          }
           const value =
             resolved && param === "timestamp"
               ? (resolved.timestamp?.toISOString() ?? null)

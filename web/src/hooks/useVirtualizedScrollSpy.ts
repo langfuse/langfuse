@@ -28,7 +28,9 @@ function getScrollSpyAnchor({
   endTransitionRatio: number;
 }) {
   const maxScrollOffset = Math.max(0, totalSize - viewportHeight);
-  if (viewportHeight <= 0 || maxScrollOffset === 0) return scrollOffset;
+  if (viewportHeight <= 0 || maxScrollOffset === 0) {
+    return scrollOffset;
+  }
 
   const clampedScrollOffset = Math.max(
     0,
@@ -43,7 +45,9 @@ function getScrollSpyAnchor({
     viewportHeight * clampedEndTransitionRatio,
     maxScrollOffset,
   );
-  if (transitionDistance === 0) return clampedScrollOffset;
+  if (transitionDistance === 0) {
+    return clampedScrollOffset;
+  }
 
   const distanceToBottom = maxScrollOffset - clampedScrollOffset;
   if (distanceToBottom >= transitionDistance) {
@@ -113,7 +117,9 @@ export function useVirtualizedScrollSpy<
 
   useEffect(() => {
     const scrollElement = scrollElementRef.current;
-    if (!selectedFallback || !scrollElement) return;
+    if (!selectedFallback || !scrollElement) {
+      return;
+    }
 
     const clearFallbackOutsideBuffer = () => {
       if (
@@ -140,7 +146,9 @@ export function useVirtualizedScrollSpy<
       const scrollElement = scrollElementRef.current;
       const item = items[index];
       const offset = virtualizer.getOffsetForIndex(index, "start")?.[0];
-      if (!item || !scrollElement || offset === undefined) return;
+      if (!item || !scrollElement || offset === undefined) {
+        return;
+      }
 
       const totalSize = virtualizer.getTotalSize();
       const scrollTarget = Math.min(

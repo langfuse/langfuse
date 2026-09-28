@@ -54,8 +54,9 @@ export function useTraceDetailData({
         if (
           error.data?.code === "UNAUTHORIZED" ||
           error.data?.code === "NOT_FOUND"
-        )
+        ) {
           return false;
+        }
         return failureCount < 3;
       },
       staleTime: 60 * 1000,

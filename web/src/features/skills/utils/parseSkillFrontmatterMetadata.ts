@@ -14,7 +14,9 @@ export function parseSkillFrontmatterMetadata(
   markdown: string,
 ): SkillFrontmatterMetadata | null {
   const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(markdown);
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
 
   const document = parseDocument(match[1] ?? "");
   const nameNode = isMap(document.contents)
@@ -31,7 +33,9 @@ export function parseSkillFrontmatterMetadata(
     name: displayName,
     nameError: `Fix the YAML frontmatter in SKILL.md. ${SKILL_NAME_RULES}`,
   };
-  if (document.errors.length > 0) return invalidFrontmatter;
+  if (document.errors.length > 0) {
+    return invalidFrontmatter;
+  }
 
   try {
     const value: unknown = document.toJS({ maxAliasCount: 0 });

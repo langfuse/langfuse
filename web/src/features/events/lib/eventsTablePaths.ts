@@ -209,8 +209,12 @@ export function buildEventsTablePathForMetadataFilter({
       f.type === "stringObject" &&
       f.key === metadataKey &&
       f.value === value;
-    if (!sameTarget) return true;
-    if (isExclude) return false;
+    if (!sameTarget) {
+      return true;
+    }
+    if (isExclude) {
+      return false;
+    }
     return f.operator !== "contains" && f.operator !== "does not contain";
   });
 

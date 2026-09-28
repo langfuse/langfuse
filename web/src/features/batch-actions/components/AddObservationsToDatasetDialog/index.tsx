@@ -31,7 +31,9 @@ type AddObservationsToDatasetDialogProps = {
 };
 
 function normalizeValue(value: unknown) {
-  if (typeof value !== "string") return value;
+  if (typeof value !== "string") {
+    return value;
+  }
   const parsed = parseJsonPrioritised(value);
   return parsed === undefined ? value : parsed;
 }
@@ -104,8 +106,9 @@ export function AddObservationsToDatasetDialog(
           !open &&
           store.getState().submission.status !== "pending" &&
           !createPending.current
-        )
+        ) {
           props.onClose();
+        }
       }}
     >
       <DialogContent size="xl">

@@ -39,7 +39,9 @@ export function removeInternalEvaluationEnvironmentColumnOptions(
 export function removeInternalEvaluationEnvironmentOptions(
   observed: ObservedOptions | undefined,
 ): ObservedOptions | undefined {
-  if (observed?.environment === undefined) return observed;
+  if (observed?.environment === undefined) {
+    return observed;
+  }
 
   const internalEnvironments = new Set<string>(
     INTERNAL_EVALUATION_ENVIRONMENTS,

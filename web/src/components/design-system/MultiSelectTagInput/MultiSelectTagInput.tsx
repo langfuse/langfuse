@@ -86,7 +86,9 @@ export function MultiSelectTagInput<V extends string>({
   ).length;
   React.useLayoutEffect(() => {
     const tagsContainer = tagsContainerRef.current;
-    if (!tagsContainer) return;
+    if (!tagsContainer) {
+      return;
+    }
 
     const recomputeTagVisibility = () => {
       const containerBounds = tagsContainer.getBoundingClientRect();
@@ -98,7 +100,9 @@ export function MultiSelectTagInput<V extends string>({
           tagBounds.left >= containerBounds.left - 1 &&
           tagBounds.right <= containerBounds.right + 1;
 
-        if (isFullyVisible) nextValues.add(optionValue);
+        if (isFullyVisible) {
+          nextValues.add(optionValue);
+        }
       });
 
       const rightmostVisibleTag = [...tagRefs.current.entries()]
@@ -139,7 +143,9 @@ export function MultiSelectTagInput<V extends string>({
   }, [selectedOptions]);
 
   const changeValue = (newValue: V[]) => {
-    if (disabled) return;
+    if (disabled) {
+      return;
+    }
     onValueChange([
       ...newValue.filter(
         (nextValue) =>
@@ -163,7 +169,9 @@ export function MultiSelectTagInput<V extends string>({
     <PopoverPrimitive.Root
       open={!disabled && open}
       onOpenChange={(newOpen) => {
-        if (disabled) return;
+        if (disabled) {
+          return;
+        }
         setOpen(newOpen);
       }}
     >
@@ -181,15 +189,23 @@ export function MultiSelectTagInput<V extends string>({
             aria-disabled={disabled}
             tabIndex={disabled ? -1 : 0}
             onPointerDown={(event) => {
-              if (disabled) event.preventDefault();
+              if (disabled) {
+                event.preventDefault();
+              }
             }}
             onClick={(event) => {
-              if (disabled) event.preventDefault();
+              if (disabled) {
+                event.preventDefault();
+              }
             }}
             onKeyDown={(event) => {
-              if (disabled) return;
+              if (disabled) {
+                return;
+              }
 
-              if (event.target !== event.currentTarget) return;
+              if (event.target !== event.currentTarget) {
+                return;
+              }
 
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
@@ -204,7 +220,9 @@ export function MultiSelectTagInput<V extends string>({
                     (selectedValue) => !disabledValues.includes(selectedValue),
                   )
                   .at(-1);
-                if (lastValue !== undefined) removeValue(lastValue);
+                if (lastValue !== undefined) {
+                  removeValue(lastValue);
+                }
               }
             }}
           >
@@ -311,7 +329,9 @@ export function MultiSelectTagInput<V extends string>({
             align="start"
             sideOffset={4}
             onCloseAutoFocus={(event) => {
-              if (disabled) event.preventDefault();
+              if (disabled) {
+                event.preventDefault();
+              }
             }}
             onWheel={stopScrollPropagation()}
             onTouchMove={stopScrollPropagation()}

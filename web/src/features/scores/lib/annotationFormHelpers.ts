@@ -29,7 +29,9 @@ export const validateNumericScore = ({
   if (badInput || (isPresent(value) && !Number.isFinite(value))) {
     return "Enter a number";
   }
-  if (!isPresent(value)) return null;
+  if (!isPresent(value)) {
+    return null;
+  }
   if (
     (isPresent(maxValue) && value > maxValue) ||
     (isPresent(minValue) && value < minValue)
@@ -49,14 +51,18 @@ export const enrichCategoryOptionsWithStaleScoreValue = (
   categories: ScoreConfigCategoryDomain[],
   currentStringValue?: string | null,
 ): (ScoreConfigCategoryDomain & { isOutdated: boolean })[] => {
-  if (categories.length === 0) return [];
+  if (categories.length === 0) {
+    return [];
+  }
 
   const enrichedCategories = categories.map((category) => ({
     ...category,
     isOutdated: false,
   }));
 
-  if (!currentStringValue) return enrichedCategories;
+  if (!currentStringValue) {
+    return enrichedCategories;
+  }
 
   // If current value exists in categories, return as-is
   if (categories.some((category) => category.label === currentStringValue)) {
@@ -82,14 +88,18 @@ export const resolveCategoricalNumericValue = ({
   stringValue: string;
   numericValue?: number;
 }): number | undefined => {
-  if (isPresent(numericValue)) return numericValue;
+  if (isPresent(numericValue)) {
+    return numericValue;
+  }
   return categories?.find(({ label }) => label === stringValue)?.value;
 };
 
 export const nextCategoryValue = (
   categories: Pick<ScoreConfigCategoryDomain, "value">[],
 ): number => {
-  if (categories.length === 0) return 0;
+  if (categories.length === 0) {
+    return 0;
+  }
   return (
     categories.reduce((max, category) => Math.max(max, category.value), 0) + 1
   );
@@ -100,7 +110,9 @@ export const validateNewCategoryLabel = (
   categories: Pick<ScoreConfigCategoryDomain, "label">[],
 ): string | null => {
   const trimmed = label.trim();
-  if (!trimmed) return "Category name is required";
+  if (!trimmed) {
+    return "Category name is required";
+  }
   if (categories.some((category) => category.label === trimmed)) {
     return "A category with this name already exists";
   }
@@ -126,7 +138,9 @@ export const appendCategoryToExisting = (
   | { ok: false; error: string } => {
   const trimmed = label.trim();
   const error = validateNewCategoryLabel(trimmed, categories);
-  if (error) return { ok: false, error };
+  if (error) {
+    return { ok: false, error };
+  }
 
   return {
     ok: true,

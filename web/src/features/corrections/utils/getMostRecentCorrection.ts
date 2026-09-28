@@ -10,7 +10,9 @@ import { type ScoreDomain } from "@langfuse/shared";
 export function getMostRecentCorrection(
   corrections: ScoreDomain[],
 ): ScoreDomain | undefined {
-  if (corrections.length === 0) return undefined;
+  if (corrections.length === 0) {
+    return undefined;
+  }
 
   return corrections.sort(
     (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),

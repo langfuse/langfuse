@@ -18,7 +18,9 @@ const tracingFormat = function () {
     if (baggage) {
       const headerObj: Record<string, string> = {};
       baggage.getAllEntries().forEach(([k, v]) => (headerObj[k] = v.value));
-      if (Object.keys(headerObj).length) info = { ...headerObj, ...info };
+      if (Object.keys(headerObj).length) {
+        info = { ...headerObj, ...info };
+      }
     }
     return info;
   })();

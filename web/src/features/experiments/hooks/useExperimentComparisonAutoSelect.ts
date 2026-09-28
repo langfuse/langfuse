@@ -40,23 +40,35 @@ export function useExperimentComparisonAutoSelect({
   const attemptedForBaselineRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    if (!isAutoSelectEnabled || !baselineId || isLoading) return;
+    if (!isAutoSelectEnabled || !baselineId || isLoading) {
+      return;
+    }
     // Query-param writes issued before the router is ready are dropped, and the
     // URL's own `c=` is not readable yet, so nothing here can be trusted.
-    if (!router.isReady) return;
-    if (attemptedForBaselineRef.current === baselineId) return;
+    if (!router.isReady) {
+      return;
+    }
+    if (attemptedForBaselineRef.current === baselineId) {
+      return;
+    }
 
     const baseline = experimentNames.find(
       (experiment) => experiment.experimentId === baselineId,
     );
-    if (!baseline) return;
+    if (!baseline) {
+      return;
+    }
 
     attemptedForBaselineRef.current = baselineId;
 
     // The URL already carries a choice.
-    if (comparisonIds.length > 0) return;
+    if (comparisonIds.length > 0) {
+      return;
+    }
     // Never guess across datasets: a run on another dataset scored other items.
-    if (!baseline.datasetId) return;
+    if (!baseline.datasetId) {
+      return;
+    }
 
     // experimentNames is newest-first, so this is the run that ran before it.
     const previousRun = experimentNames.find(
@@ -66,7 +78,9 @@ export function useExperimentComparisonAutoSelect({
         experiment.startTime.getTime() <= baseline.startTime.getTime(),
     );
     // The only run on its dataset — there is nothing to compare it to.
-    if (!previousRun) return;
+    if (!previousRun) {
+      return;
+    }
 
     onComparisonIdsChange([previousRun.experimentId], {
       updateType: "replaceIn",

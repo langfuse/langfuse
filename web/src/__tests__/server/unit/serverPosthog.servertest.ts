@@ -30,7 +30,9 @@ vi.mock("posthog-node", () => ({
       postHogConstructor(...args);
     }
     capture = (...args: unknown[]) => {
-      if (disableMock.mock.calls.length > 0) return;
+      if (disableMock.mock.calls.length > 0) {
+        return;
+      }
       captureMock(...args);
     };
     disable = disableMock;

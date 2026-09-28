@@ -38,9 +38,12 @@ export async function submitDatasetBatch({
     prepareDatasetMapping(mapping, observation, dataset).some(
       (field) => field.errors.length,
     )
-  )
+  ) {
     return;
-  if (!actions.startSubmission()) return;
+  }
+  if (!actions.startSubmission()) {
+    return;
+  }
   const query = source.selectAll
     ? source.query
     : {

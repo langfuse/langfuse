@@ -64,9 +64,12 @@ export function V4MigrationPanelProvider({
     project: V4MigrationTargetProject,
     source: V4MigrationPanelOpenSource,
   ) => {
-    if (!v4UpgradeUiEnabled) return;
-    if (!open || project.id !== targetProject?.id)
+    if (!v4UpgradeUiEnabled) {
+      return;
+    }
+    if (!open || project.id !== targetProject?.id) {
       capture("v4_migration:panel_opened", { source });
+    }
     // Entry points that only appear for actionable projects may omit readiness.
     // Normalize them here so a later route change can distinguish that known
     // state from an unrelated project whose readiness has not been loaded.
@@ -88,9 +91,10 @@ export function V4MigrationPanelProvider({
 
 export function useV4MigrationPanel() {
   const ctx = useContext(V4MigrationPanelContext);
-  if (!ctx)
+  if (!ctx) {
     throw new Error(
       "useV4MigrationPanel must be used within V4MigrationPanelProvider",
     );
+  }
   return ctx;
 }

@@ -130,7 +130,9 @@ async function processItem(
     config,
   );
 
-  if (!llmResult.success) return { success: false };
+  if (!llmResult.success) {
+    return { success: false };
+  }
 
   /********************
    * ASYNC RUN ITEM EVAL *

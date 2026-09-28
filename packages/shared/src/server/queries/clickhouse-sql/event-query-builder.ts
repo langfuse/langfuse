@@ -16,7 +16,9 @@ import { FilterList, StringFilter } from "./clickhouse-filter";
  */
 function extractAlias(expr: string): string {
   const asMatch = expr.match(/\bas\s+"?([\w]+)"?\s*$/i);
-  if (asMatch) return asMatch[1];
+  if (asMatch) {
+    return asMatch[1];
+  }
   // No alias: use the expression after the last dot (e.g. "e.input" → "input")
   const dotIdx = expr.lastIndexOf(".");
   return dotIdx >= 0 ? expr.slice(dotIdx + 1) : expr;
@@ -789,7 +791,9 @@ abstract class AbstractQueryBuilder {
    * Helper to build HAVING section
    */
   protected buildHavingSection(): string {
-    if (this.havingClauses.length === 0) return "";
+    if (this.havingClauses.length === 0) {
+      return "";
+    }
     return `HAVING ${this.havingClauses.join("\n  AND ")}`;
   }
 
@@ -873,7 +877,9 @@ abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
    * Helper to build WHERE section
    */
   protected buildWhereSection(): string {
-    if (this.whereClauses.length === 0) return "";
+    if (this.whereClauses.length === 0) {
+      return "";
+    }
     return `WHERE ${this.whereClauses.join("\n  AND ")}`;
   }
 }
@@ -1296,7 +1302,9 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   getSelectedAliases(): string[] {
     return [...this.selectFields].flatMap((fieldKey) => {
       const expr = EVENTS_FIELDS[fieldKey as keyof typeof EVENTS_FIELDS];
-      if (!expr) return [];
+      if (!expr) {
+        return [];
+      }
       return [extractAlias(expr)];
     });
   }
@@ -2205,9 +2213,12 @@ export function buildEventsFullTableSplitQuery(opts: {
   // keys with the table prefix). Use "b.col as col" for clean JSON keys.
   const baseAliases = opts.baseBuilder.getSelectedAliases();
   cteBuilder.select(...baseAliases.map((a) => `b.${a} as ${a}`));
-  if (opts.includeIO)
+  if (opts.includeIO) {
     cteBuilder.select("i.input as input", "i.output as output");
-  if (opts.includeMetadata) cteBuilder.select("i.metadata as metadata");
+  }
+  if (opts.includeMetadata) {
+    cteBuilder.select("i.metadata as metadata");
+  }
 
   return cteBuilder as unknown as SplitQueryBuilder;
 }

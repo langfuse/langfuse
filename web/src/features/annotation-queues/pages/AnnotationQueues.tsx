@@ -31,7 +31,9 @@ export default function AnnotationQueues() {
 
   const showOnboarding = !isLoading && !hasAnyQueue;
 
-  if (!hasAccess) return <SupportOrUpgradePage />;
+  if (!hasAccess) {
+    return <SupportOrUpgradePage />;
+  }
 
   return (
     <Page

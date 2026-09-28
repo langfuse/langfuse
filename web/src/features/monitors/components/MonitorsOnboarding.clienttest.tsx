@@ -10,11 +10,15 @@ const parsePrefill = (
 ): { eventSource?: string; actionType?: string; redirectUrl?: string } => {
   const url = new URL(href, "http://localhost");
   const raw = url.searchParams.get("prefill");
-  if (!raw) return {};
+  if (!raw) {
+    return {};
+  }
   const padded = raw.replace(/-/g, "+").replace(/_/g, "/");
   const binary = atob(padded);
   const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
   return JSON.parse(new TextDecoder().decode(bytes));
 };
 

@@ -15,7 +15,9 @@ function matchFilterIndices(
   const matched = new Set<number>();
   const matches = new Map<number, number>();
   const match = (nextIndex: number, previousIndex: number) => {
-    if (previousIndex < 0) return;
+    if (previousIndex < 0) {
+      return;
+    }
     matched.add(previousIndex);
     matches.set(nextIndex, previousIndex);
   };
@@ -31,7 +33,9 @@ function matchFilterIndices(
     );
   });
   nextFilters.forEach((filter, nextIndex) => {
-    if (matches.has(nextIndex)) return;
+    if (matches.has(nextIndex)) {
+      return;
+    }
     match(
       nextIndex,
       previousFilters.findIndex(
@@ -40,7 +44,9 @@ function matchFilterIndices(
     );
   });
   nextFilters.forEach((filter, nextIndex) => {
-    if (matches.has(nextIndex)) return;
+    if (matches.has(nextIndex)) {
+      return;
+    }
     const previousCandidates = previousFilters.flatMap((previous, index) =>
       !matched.has(index) && sameField(previous, filter) ? [index] : [],
     );
@@ -65,10 +71,14 @@ export function reconcileFilterTargets(
   const nextTargets: Record<number, string> = {};
   for (const [nextIndex, previousIndex] of matches) {
     const target = targets[previousIndex];
-    if (target !== undefined) nextTargets[nextIndex] = target;
+    if (target !== undefined) {
+      nextTargets[nextIndex] = target;
+    }
   }
   nextFilters.forEach((filter, nextIndex) => {
-    if (matches.has(nextIndex)) return;
+    if (matches.has(nextIndex)) {
+      return;
+    }
     const previousCandidates = previousFilters.flatMap((previous, index) =>
       !matched.has(index) && sameField(previous, filter) ? [index] : [],
     );
@@ -80,7 +90,9 @@ export function reconcileFilterTargets(
     );
     if (nextCount <= previousCandidates.length && candidateTargets.size === 1) {
       const target = targets[previousCandidates[0]!];
-      if (target !== undefined) nextTargets[nextIndex] = target;
+      if (target !== undefined) {
+        nextTargets[nextIndex] = target;
+      }
     }
   });
   return nextTargets;
@@ -107,11 +119,15 @@ export function hasAmbiguousTargetChange(
         .size > 1
     );
   });
-  if (removedDuplicate) return true;
+  if (removedDuplicate) {
+    return true;
+  }
 
   const { matched, matches } = matchFilterIndices(previousFilters, nextFilters);
   return nextFilters.some((filter, nextIndex) => {
-    if (matches.has(nextIndex)) return false;
+    if (matches.has(nextIndex)) {
+      return false;
+    }
     const previousCandidates = previousFilters.flatMap((previous, index) =>
       !matched.has(index) && sameField(previous, filter) ? [index] : [],
     );

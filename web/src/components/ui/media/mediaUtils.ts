@@ -64,12 +64,18 @@ const DATA_URI_HEADER_PATTERN =
  * case, possibly thousands per view) cost only a couple of `startsWith` calls.
  */
 export function classifyMediaValue(value: unknown) {
-  if (typeof value !== "string" || value.length === 0) return null;
+  if (typeof value !== "string" || value.length === 0) {
+    return null;
+  }
 
   if (value.startsWith(LANGFUSE_MEDIA_PREFIX)) {
-    if (value.length > MAX_LANGFUSE_REFERENCE_LENGTH) return null;
+    if (value.length > MAX_LANGFUSE_REFERENCE_LENGTH) {
+      return null;
+    }
     const parsed = MediaReferenceStringSchema.safeParse(value);
-    if (!parsed.success) return null;
+    if (!parsed.success) {
+      return null;
+    }
     return {
       kind: "langfuseRef" as const,
       contentType: parsed.data.type,
@@ -89,15 +95,23 @@ export function classifyMediaValue(value: unknown) {
       value.slice(0, MAX_DATA_URI_HEADER_SCAN),
     );
     const contentType = match?.[1];
-    if (!contentType) return null;
-    if (!PREVIEWABLE_TOP_LEVEL.has(contentType.split("/")[0]!)) return null;
+    if (!contentType) {
+      return null;
+    }
+    if (!PREVIEWABLE_TOP_LEVEL.has(contentType.split("/")[0]!)) {
+      return null;
+    }
     return { kind: "dataUri" as const, contentType, src: value };
   }
 
   if (value.startsWith("http://") || value.startsWith("https://")) {
-    if (value.length > MAX_URL_LENGTH) return null;
+    if (value.length > MAX_URL_LENGTH) {
+      return null;
+    }
     const contentType = mimeFromUrl(value);
-    if (!contentType) return null;
+    if (!contentType) {
+      return null;
+    }
     return { kind: "url" as const, contentType, src: value };
   }
 
@@ -124,7 +138,9 @@ export function splitStringByMediaReferences(value: string) {
     const index = match.index ?? 0;
     const descriptor = classifyMediaValue(reference);
 
-    if (!descriptor) continue;
+    if (!descriptor) {
+      continue;
+    }
 
     if (index > lastIndex) {
       segments.push({ type: "text", value: value.slice(lastIndex, index) });
@@ -154,6 +170,8 @@ function mimeFromUrl(url: string) {
     return null;
   }
   const ext = pathname.split(".").pop()?.toLowerCase();
-  if (!ext || ext === pathname) return null;
+  if (!ext || ext === pathname) {
+    return null;
+  }
   return URL_EXTENSION_TO_MIME[ext] ?? null;
 }

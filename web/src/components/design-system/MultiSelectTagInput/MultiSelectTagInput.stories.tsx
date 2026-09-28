@@ -247,7 +247,9 @@ export const TestOverflowBadgePlacement = meta.story({
       expect(layout).not.toBeNull();
       expect(clearButton).not.toBeNull();
 
-      if (!overflowBadge || !lastVisibleTag || !layout || !clearButton) return;
+      if (!overflowBadge || !lastVisibleTag || !layout || !clearButton) {
+        return;
+      }
 
       const gap =
         overflowBadge.getBoundingClientRect().left -

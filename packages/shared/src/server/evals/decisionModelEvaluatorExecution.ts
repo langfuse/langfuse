@@ -83,7 +83,9 @@ export function buildDecisionModelState(
 ): Record<string, unknown> {
   const state: Record<string, unknown> = {};
   for (const variable of variables) {
-    if (variable.value === null || variable.value === undefined) continue;
+    if (variable.value === null || variable.value === undefined) {
+      continue;
+    }
     state[variable.var] = variable.value;
   }
   return state;

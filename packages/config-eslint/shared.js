@@ -30,6 +30,7 @@ export default [
       "no-useless-assignment": "off",
       "preserve-caught-error": "off",
       "no-shadow-restricted-names": ["error", { reportGlobalThis: false }],
+      curly: ["error", "all"],
       "no-void": "warn",
       "no-else-return": "warn",
       "no-unneeded-ternary": "warn",

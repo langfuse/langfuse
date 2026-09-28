@@ -23,7 +23,9 @@ export const TraceAnnotationProcessor: React.FC<
   const { isV4 } = useReadPath();
   const traceId = item.parentTraceId ?? item.objectId;
 
-  if (!data) return <div className="p-3">Loading...</div>;
+  if (!data) {
+    return <div className="p-3">Loading...</div>;
+  }
 
   const leftPanel = (
     <Trace

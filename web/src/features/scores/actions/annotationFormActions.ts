@@ -92,8 +92,12 @@ export function createAnnotationFormActions({
   let savedStatusTimer: ReturnType<typeof setTimeout> | undefined;
   let isClosed = true;
   const scheduleSavedStatusClear = () => {
-    if (savedStatusTimer) clearTimeout(savedStatusTimer);
-    if (isClosed) return;
+    if (savedStatusTimer) {
+      clearTimeout(savedStatusTimer);
+    }
+    if (isClosed) {
+      return;
+    }
     savedStatusTimer = setTimeout(() => {
       saveStore.setState({ saved: false });
       savedStatusTimer = undefined;
@@ -107,8 +111,11 @@ export function createAnnotationFormActions({
     !hasChangedAnnotationValue(left, right);
   const finishPendingField = (key: string) => {
     const remaining = (pendingFields.get(key) ?? 1) - 1;
-    if (remaining) pendingFields.set(key, remaining);
-    else pendingFields.delete(key);
+    if (remaining) {
+      pendingFields.set(key, remaining);
+    } else {
+      pendingFields.delete(key);
+    }
   };
 
   const beginSave = (
@@ -156,18 +163,21 @@ export function createAnnotationFormActions({
         finishPendingField(key);
         saveStore.setState((state) => {
           const confirmedFields = new Map(state.confirmedFields);
-          if ((confirmedFields.get(key)?.sequence ?? 0) <= operationSequence)
+          if ((confirmedFields.get(key)?.sequence ?? 0) <= operationSequence) {
             confirmedFields.set(key, {
               field: { ...field },
               sequence: operationSequence,
             });
+          }
           return {
             confirmedFields,
             pending: state.pending - 1,
             saved: state.saved || changed,
           };
         });
-        if (changed) scheduleSavedStatusClear();
+        if (changed) {
+          scheduleSavedStatusClear();
+        }
         tracked?.success();
       },
       () => {
@@ -188,7 +198,9 @@ export function createAnnotationFormActions({
 
   const reportFailure = (field: AnnotationScoreFormData, message: string) => {
     const index = indexOf(annotationFieldKey(field));
-    if (index < 0) return;
+    if (index < 0) {
+      return;
+    }
     form.setError(
       `scoreData.${index}.${isNumericDataType(field.dataType) ? "value" : "stringValue"}`,
       { type: "server", message },
@@ -197,7 +209,9 @@ export function createAnnotationFormActions({
 
   const clear = (key: string, target: PreparedAnnotationTarget) => {
     const field = find(key);
-    if (!field) return;
+    if (!field) {
+      return;
+    }
     const cleared = {
       ...field,
       id: null,
@@ -210,7 +224,7 @@ export function createAnnotationFormActions({
     const index = indexOf(key);
     form.clearErrors(`scoreData.${index}`);
     replaceField(index, cleared);
-    if (field.id)
+    if (field.id) {
       trackSave(
         deleteScore({
           id: field.id,
@@ -220,11 +234,14 @@ export function createAnnotationFormActions({
         cleared,
         () => {
           const currentIndex = indexOf(key);
-          if (currentIndex < 0) return;
+          if (currentIndex < 0) {
+            return;
+          }
           replaceField(currentIndex, field);
           reportFailure(field, "Failed to clear score");
         },
       );
+    }
   };
 
   const upsert = (
@@ -234,7 +251,9 @@ export function createAnnotationFormActions({
     stringValue: string | null,
   ) => {
     const field = find(key);
-    if (!field) return;
+    if (!field) {
+      return;
+    }
     const config = target.configControl.configs.find(
       (config) => config.id === field.configId,
     );
@@ -250,9 +269,13 @@ export function createAnnotationFormActions({
       field.stringValue,
     );
     let control: "text" | "number" | "select" | "segmented" = "segmented";
-    if (isTextDataType(field.dataType)) control = "text";
-    else if (isNumericDataType(field.dataType)) control = "number";
-    else if (shouldUseCombobox(categories)) control = "select";
+    if (isTextDataType(field.dataType)) {
+      control = "text";
+    } else if (isNumericDataType(field.dataType)) {
+      control = "number";
+    } else if (shouldUseCombobox(categories)) {
+      control = "select";
+    }
     const tracked = beginSave(field.id ? "update" : "create", next, {
       control,
       optionCount: config?.categories?.length ?? 0,
@@ -292,7 +315,9 @@ export function createAnnotationFormActions({
       next,
       () => {
         const currentIndex = indexOf(key);
-        if (currentIndex < 0) return;
+        if (currentIndex < 0) {
+          return;
+        }
         form.setValue(`scoreData.${currentIndex}.value`, field.value);
         form.setValue(
           `scoreData.${currentIndex}.stringValue`,
@@ -319,7 +344,9 @@ export function createAnnotationFormActions({
     const config = target.configControl.configs.find(
       (config) => config.id === field?.configId,
     );
-    if (!field || !config) return undefined;
+    if (!field || !config) {
+      return undefined;
+    }
     const value = input.value === "" ? null : input.valueAsNumber;
     const error = validateNumericScore({
       value,
@@ -331,11 +358,14 @@ export function createAnnotationFormActions({
     const name = `scoreData.${index}.value` as const;
     const currentError = form.getFieldState(name).error;
     if (error) {
-      if (currentError?.message !== error)
+      if (currentError?.message !== error) {
         form.setError(name, { type: "validate", message: error });
+      }
       return undefined;
     }
-    if (currentError) form.clearErrors(name);
+    if (currentError) {
+      form.clearErrors(name);
+    }
     return value;
   };
 
@@ -350,7 +380,9 @@ export function createAnnotationFormActions({
       let changed = false;
       for (const next of incoming) {
         const key = annotationFieldKey(next);
-        if (pendingFields.has(key) || failedFields.has(key)) continue;
+        if (pendingFields.has(key) || failedFields.has(key)) {
+          continue;
+        }
         const current = find(key);
         const confirmed = confirmedFields.get(key);
         // A repeated pre-save snapshot is not an external edit, including
@@ -363,8 +395,9 @@ export function createAnnotationFormActions({
           !sameScore(confirmed.field, previousServer) &&
           sameScore(next, previousServer) &&
           !sameScore(next, confirmed.field)
-        )
+        ) {
           continue;
+        }
         if (current) {
           const index = indexOf(key);
           if (
@@ -372,8 +405,9 @@ export function createAnnotationFormActions({
             form.getFieldState(`scoreData.${index}.value`).invalid ||
             form.getFieldState(`scoreData.${index}.stringValue`).invalid ||
             form.getFieldState(`scoreData.${index}.comment`).invalid
-          )
+          ) {
             continue;
+          }
           const properties = [
             "id",
             "name",
@@ -390,14 +424,18 @@ export function createAnnotationFormActions({
               property === "timestamp"
                 ? next.timestamp?.getTime() === current.timestamp?.getTime()
                 : value === previous;
-            if (equal) continue;
+            if (equal) {
+              continue;
+            }
             form.setValue(`scoreData.${index}.${property}`, value);
             changed = true;
           }
         } else {
           // Empty selections belong to the local form. Only saved server
           // scores can introduce rows during a refresh.
-          if (!next.id) continue;
+          if (!next.id) {
+            continue;
+          }
           const currentFields = fields();
           const before = currentFields.findIndex(
             (field) => field.name.localeCompare(next.name) > 0,
@@ -413,7 +451,9 @@ export function createAnnotationFormActions({
           sequence: confirmed?.sequence ?? 0,
         });
       }
-      if (changed) saveStore.setState({ confirmedFields });
+      if (changed) {
+        saveStore.setState({ confirmedFields });
+      }
     },
     addDraftTarget(key: string, destination: PreparedAnnotationTarget) {
       const field = find(key);
@@ -425,8 +465,9 @@ export function createAnnotationFormActions({
         !destination.configControl.allowManualSelection ||
         !config ||
         config.isArchived
-      )
+      ) {
         return undefined;
+      }
       const next = {
         ...field,
         targetKey: destination.key,
@@ -437,7 +478,9 @@ export function createAnnotationFormActions({
         comment: null,
       };
       const nextKey = annotationFieldKey(next);
-      if (find(nextKey)) return nextKey;
+      if (find(nextKey)) {
+        return nextKey;
+      }
       insertField(indexOf(key) + 1, next, { shouldFocus: false });
       capture("score:level_added", {
         ...destination.analyticsData,
@@ -448,7 +491,9 @@ export function createAnnotationFormActions({
     },
     changeDraftTarget(key: string, destination: PreparedAnnotationTarget) {
       const field = find(key);
-      if (!field || field.id || saveStore.getState().pending) return undefined;
+      if (!field || field.id || saveStore.getState().pending) {
+        return undefined;
+      }
       const source = initialTargets.find(
         (target) => target.key === field.targetKey,
       );
@@ -465,8 +510,9 @@ export function createAnnotationFormActions({
         find(annotationFieldKey(next)) ||
         form.getFieldState(`scoreData.${index}.value`).invalid ||
         form.getFieldState(`scoreData.${index}.stringValue`).invalid
-      )
+      ) {
         return undefined;
+      }
       replaceField(index, next);
       capture("score:level_changed", {
         ...source.analyticsData,
@@ -482,7 +528,9 @@ export function createAnnotationFormActions({
     },
     close() {
       isClosed = true;
-      if (savedStatusTimer) clearTimeout(savedStatusTimer);
+      if (savedStatusTimer) {
+        clearTimeout(savedStatusTimer);
+      }
       savedStatusTimer = undefined;
       analytics.forEach((tracker, key) =>
         tracker.close(fields().filter((field) => field.targetKey === key)),
@@ -494,16 +542,27 @@ export function createAnnotationFormActions({
       input: HTMLInputElement,
     ) {
       const value = validateNumericInput(key, target, input);
-      if (value === undefined) return;
+      if (value === undefined) {
+        return;
+      }
       if (value === null) {
-        if (find(key)?.id) clear(key, target);
-      } else upsert(key, target, value, null);
+        if (find(key)?.id) {
+          clear(key, target);
+        }
+      } else {
+        upsert(key, target, value, null);
+      }
     },
     saveText(key: string, target: PreparedAnnotationTarget) {
       const field = find(key);
-      if (!field) return;
-      if (field.stringValue) upsert(key, target, 0, field.stringValue);
-      else if (field.id) clear(key, target);
+      if (!field) {
+        return;
+      }
+      if (field.stringValue) {
+        upsert(key, target, 0, field.stringValue);
+      } else if (field.id) {
+        clear(key, target);
+      }
     },
     saveCategory(
       key: string,
@@ -515,13 +574,17 @@ export function createAnnotationFormActions({
       const config = target.configControl.configs.find(
         (config) => config.id === field?.configId,
       );
-      if (!config) return;
+      if (!config) {
+        return;
+      }
       const value = resolveCategoricalNumericValue({
         categories: config.categories,
         stringValue,
         numericValue,
       });
-      if (isPresent(value)) upsert(key, target, value, stringValue);
+      if (isPresent(value)) {
+        upsert(key, target, value, stringValue);
+      }
     },
     saveComment(
       key: string,
@@ -529,7 +592,9 @@ export function createAnnotationFormActions({
       comment: string | null,
     ) {
       const field = find(key);
-      if (!field?.id) return;
+      if (!field?.id) {
+        return;
+      }
       const next = { ...field, comment };
       const tracked = beginSave(
         comment ? "update_comment" : "delete_comment",
@@ -548,7 +613,9 @@ export function createAnnotationFormActions({
         next,
         () => {
           const index = indexOf(key);
-          if (index < 0) return;
+          if (index < 0) {
+            return;
+          }
           replaceField(index, field);
           form.setError(`scoreData.${index}.comment`, {
             type: "server",

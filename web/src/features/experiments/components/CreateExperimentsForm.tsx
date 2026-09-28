@@ -332,8 +332,9 @@ export const CreateExperimentsForm = ({
                           !datasetId ||
                           !isRemoteExperimentEnabled ||
                           !hasDatasetAccess
-                        )
+                        ) {
                           return;
+                        }
                         setShowRemoteExperimentTriggerModal(true);
                       }}
                     >
@@ -353,7 +354,9 @@ export const CreateExperimentsForm = ({
                     className="w-full"
                     disabled={!datasetId || isRemoteExperimentLoading}
                     onClick={() => {
-                      if (!datasetId || isRemoteExperimentLoading) return;
+                      if (!datasetId || isRemoteExperimentLoading) {
+                        return;
+                      }
                       setShowRemoteExperimentUpsertForm(true);
                     }}
                   >

@@ -159,7 +159,9 @@ export function DatasetItemsTable({
       size: 90,
       isFixedPosition: true,
       getCell: (id) => {
-        if (!id) return undefined;
+        if (!id) {
+          return undefined;
+        }
         let versionParam = "";
         if (selectedVersion) {
           versionParam = `?version=${encodeURIComponent(selectedVersion.toISOString())}`;
@@ -182,7 +184,9 @@ export function DatasetItemsTable({
       },
       size: 90,
       getCell: (source) => {
-        if (!source) return undefined;
+        if (!source) {
+          return undefined;
+        }
         if (source.observationId) {
           return {
             type: "link",
@@ -245,7 +249,9 @@ export function DatasetItemsTable({
       header: "Actions",
       size: 70,
       renderMenu: (id, { row }) => {
-        if (!id) return null;
+        if (!id) {
+          return null;
+        }
         const status = row.original.status;
         return (
           <>

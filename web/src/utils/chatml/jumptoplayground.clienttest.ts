@@ -204,7 +204,9 @@ describe("Playground Jump Full Pipeline", () => {
     const inResult = normalizeInput(input, ctx);
 
     expect(inResult.success).toBe(true);
-    if (!inResult.data) throw new Error("Expected data to be defined");
+    if (!inResult.data) {
+      throw new Error("Expected data to be defined");
+    }
 
     // convert all messages to playground format
     const playgroundMessages = inResult.data
@@ -329,7 +331,9 @@ describe("Playground Jump Full Pipeline", () => {
     const inResult = normalizeInput(input, ctx);
 
     expect(inResult.success).toBe(true);
-    if (!inResult.data) throw new Error("Expected data to be defined");
+    if (!inResult.data) {
+      throw new Error("Expected data to be defined");
+    }
 
     // Convert all messages to playground format
     const playgroundMessages = inResult.data
@@ -1155,7 +1159,9 @@ describe("Playground Jump Full Pipeline", () => {
 
     const inResult = normalizeInput(input, ctx);
     expect(inResult.success).toBe(true);
-    if (!inResult.data) throw new Error("Expected data to be defined");
+    if (!inResult.data) {
+      throw new Error("Expected data to be defined");
+    }
 
     const playgroundMessages = inResult.data
       .map(convertChatMlToPlayground)
@@ -1197,7 +1203,9 @@ describe("Playground Jump Full Pipeline", () => {
     const inResult = normalizeInput(input, ctx);
 
     expect(inResult.success).toBe(true);
-    if (!inResult.data) throw new Error("Expected data to be defined");
+    if (!inResult.data) {
+      throw new Error("Expected data to be defined");
+    }
 
     const playgroundMessages = inResult.data
       .map(convertChatMlToPlayground)

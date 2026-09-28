@@ -98,7 +98,9 @@ export function withMiddlewares(
         await runMiddleware(req, res, cors);
 
         const method = req.method as HttpMethod;
-        if (!handlers[method]) throw new MethodNotAllowedError();
+        if (!handlers[method]) {
+          throw new MethodNotAllowedError();
+        }
 
         const finalHandlers: Required<Handlers> = {
           ...{

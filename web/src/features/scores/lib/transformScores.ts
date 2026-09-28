@@ -79,7 +79,9 @@ function transformFlatScores(
     )
     .map((score) => {
       const config = configs.find((c) => c.id === score.configId);
-      if (!config || !score.configId) return null;
+      if (!config || !score.configId) {
+        return null;
+      }
 
       return {
         id: score.id,
@@ -120,14 +122,18 @@ function transformAggregates(
 
     // Only ANNOTATION source can be edited, and must have single ID
     // Multi-value aggregates (no id) are child observation scores - skip them
-    if (source !== "ANNOTATION" || !aggregate.id) return;
+    if (source !== "ANNOTATION" || !aggregate.id) {
+      return;
+    }
 
     const dataType = rawDataType as AnnotationScoreDataType;
 
     const config = configs.find(
       (c) => normalizeScoreName(c.name) === name && c.dataType === dataType,
     );
-    if (!config) return;
+    if (!config) {
+      return;
+    }
 
     const score: AnnotationScore = {
       id: aggregate.id,

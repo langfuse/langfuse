@@ -167,7 +167,9 @@ export function AnnotationQueueFormDialogContent({
                         target="_blank"
                         onClick={onManageScoreConfigsClick}
                         onAuxClick={(event) => {
-                          if (event.button === 1) onManageScoreConfigsClick();
+                          if (event.button === 1) {
+                            onManageScoreConfigsClick();
+                          }
                         }}
                       >
                         <Settings2 className="size-3" aria-hidden="true" />

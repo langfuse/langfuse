@@ -36,7 +36,9 @@ export function isSameDataset(
   datasetIds: Array<string | null | undefined>,
 ): boolean {
   const known = datasetIds.filter((id): id is string => Boolean(id));
-  if (known.length <= 1) return true;
+  if (known.length <= 1) {
+    return true;
+  }
   return known.every((id) => id === known[0]);
 }
 
@@ -148,7 +150,9 @@ function scoreMetricShape(metricId: string): {
   const match = metricId.match(
     /^(obs|trace|experiment)-score-(numeric|categorical):/,
   );
-  if (!match) return { scoreLevel: "none", dataType: "none" };
+  if (!match) {
+    return { scoreLevel: "none", dataType: "none" };
+  }
   const level =
     match[1] === "obs" ? "observation" : (match[1] as "trace" | "experiment");
   return { scoreLevel: level, dataType: match[2] as "numeric" | "categorical" };
@@ -164,7 +168,9 @@ export function scoreColumnScopeToggledProps({
   enabledCount: number;
 }) {
   const scope = scoreColumnGroupScope(groupId);
-  if (!scope) return null;
+  if (!scope) {
+    return null;
+  }
   return {
     ...experimentAnalyticsDimensions(tableName),
     scope,
@@ -205,7 +211,9 @@ export function itemRegressionFilterAppliedProps({
   // shared URL can outlive. The table treats such a filter as inactive, so
   // there is no applied filter to report and an out-of-range index would only
   // be noise: the caller skips the event.
-  if (comparisonIndex < 0) return null;
+  if (comparisonIndex < 0) {
+    return null;
+  }
 
   return {
     ...experimentAnalyticsDimensions(tableName),

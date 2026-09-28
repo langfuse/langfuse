@@ -7,8 +7,9 @@ export function eventsSearchRegistry(
   omittedColumns: readonly string[],
   useHostSearchScopes = false,
 ) {
-  if (omittedColumns.length === 0 && !useHostSearchScopes)
+  if (omittedColumns.length === 0 && !useHostSearchScopes) {
     return EVENTS_FIELD_REGISTRY;
+  }
   const omitted = new Set(omittedColumns);
   return createFieldRegistry({
     ...EVENTS_FIELD_REGISTRY,

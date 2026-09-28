@@ -31,15 +31,19 @@ export function getBillingProvider(
   org: OrgWithCloudConfig,
   opts?: { cutoff?: Date | null; now?: Date },
 ): BillingProvider {
-  if (org.cloudConfig?.clickhouse?.organizationId) return "clickhouse";
+  if (org.cloudConfig?.clickhouse?.organizationId) {
+    return "clickhouse";
+  }
   if (
     org.cloudConfig?.stripe?.customerId ||
     org.cloudConfig?.stripe?.activeSubscriptionId
-  )
+  ) {
     return "stripe";
+  }
   const cutoff = opts?.cutoff;
-  if (cutoff && (opts?.now ?? new Date()).getTime() >= cutoff.getTime())
+  if (cutoff && (opts?.now ?? new Date()).getTime() >= cutoff.getTime()) {
     return "clickhouse";
+  }
   return "stripe";
 }
 

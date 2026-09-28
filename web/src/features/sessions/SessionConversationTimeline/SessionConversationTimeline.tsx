@@ -22,7 +22,9 @@ let nextObservationIdentity = 0;
 
 const getObservationIdentity = (observation: SessionObservation) => {
   const existingIdentity = observationIdentityByReference.get(observation);
-  if (existingIdentity !== undefined) return existingIdentity;
+  if (existingIdentity !== undefined) {
+    return existingIdentity;
+  }
 
   const identity = nextObservationIdentity++;
   observationIdentityByReference.set(observation, identity);
@@ -75,11 +77,15 @@ export function useSessionConversationTimelineController(
     observationScrollCleanupRef.current?.();
     observationScrollCleanupRef.current = null;
     selectTrace(index);
-    if (!observationId) return;
+    if (!observationId) {
+      return;
+    }
 
     const feed = feedRef.current;
     const traceId = traces[index]?.trace.id;
-    if (!feed || !traceId) return;
+    if (!feed || !traceId) {
+      return;
+    }
 
     const scrollToObservation = () => {
       const observation = Array.from(
@@ -90,7 +96,9 @@ export function useSessionConversationTimelineController(
           element.closest<HTMLElement>("[data-session-trace-id]")?.dataset
             .sessionTraceId === traceId,
       );
-      if (!observation) return false;
+      if (!observation) {
+        return false;
+      }
 
       const top =
         feed.scrollTop +
@@ -101,7 +109,9 @@ export function useSessionConversationTimelineController(
       return true;
     };
 
-    if (scrollToObservation()) return;
+    if (scrollToObservation()) {
+      return;
+    }
 
     let timeout: number;
     const cleanup = () => {
@@ -109,7 +119,9 @@ export function useSessionConversationTimelineController(
       window.clearTimeout(timeout);
     };
     const observer = new MutationObserver(() => {
-      if (!scrollToObservation()) return;
+      if (!scrollToObservation()) {
+        return;
+      }
       cleanup();
       if (observationScrollCleanupRef.current === cleanup) {
         observationScrollCleanupRef.current = null;
@@ -188,7 +200,9 @@ export function SessionConversationTimeline({
       const traceIndex = traceIndexByObservation.get(
         preparedObservation.observation,
       );
-      if (traceIndex === undefined) return;
+      if (traceIndex === undefined) {
+        return;
+      }
 
       preparedObservationGroups[traceIndex]?.push(preparedObservation);
     });
@@ -200,9 +214,15 @@ export function SessionConversationTimeline({
           { observations },
           traceIndex,
         ): PreparedSessionConversationTimelineTraceState => {
-          if (observations === undefined) return { type: "loading" };
-          if (observations === null) return { type: "error" };
-          if (observations.length === 0) return emptyState;
+          if (observations === undefined) {
+            return { type: "loading" };
+          }
+          if (observations === null) {
+            return { type: "error" };
+          }
+          if (observations.length === 0) {
+            return emptyState;
+          }
 
           return {
             type: "loaded",
@@ -251,7 +271,9 @@ function SessionConversationTimelineFeed({
 }) {
   const { feedRef, virtualItems, virtualizer } = controller;
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
-    if (!onLoadMoreObservations) return;
+    if (!onLoadMoreObservations) {
+      return;
+    }
 
     const { clientHeight, scrollTop } = event.currentTarget;
     const viewportBottom = scrollTop + clientHeight;
@@ -286,7 +308,9 @@ function SessionConversationTimelineFeed({
         {virtualItems.map((virtualItem) => {
           const timelineTrace = traces[virtualItem.index];
           const state = states[virtualItem.index];
-          if (!timelineTrace || !state) return null;
+          if (!timelineTrace || !state) {
+            return null;
+          }
           const { trace, turnNumber } = timelineTrace;
 
           return (

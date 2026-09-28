@@ -326,7 +326,9 @@ async function processMembershipInvitations(email: string, userId: string) {
       email: email.toLowerCase(),
     },
   });
-  if (invitationsForUser.length === 0) return false;
+  if (invitationsForUser.length === 0) {
+    return false;
+  }
 
   const joinedReadableRealProjectViaInvitation = invitationsForUser.some(
     (invitation) => {

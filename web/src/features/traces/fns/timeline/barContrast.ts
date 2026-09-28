@@ -57,10 +57,14 @@ export function resolveBarTones(
 ): Record<string, BarTextTone> {
   const key = `${theme}|${surfaceClassName}|${classNames.join(",")}`;
   const cached = cache.get(key);
-  if (cached) return cached;
+  if (cached) {
+    return cached;
+  }
 
   const tones: Record<string, BarTextTone> = {};
-  if (typeof document === "undefined") return tones;
+  if (typeof document === "undefined") {
+    return tones;
+  }
 
   const context = document.createElement("canvas").getContext("2d");
   const probe = document.createElement("div");
@@ -70,7 +74,9 @@ export function resolveBarTones(
   document.body.appendChild(probe);
 
   try {
-    if (!context) return tones;
+    if (!context) {
+      return tones;
+    }
     const colourOf = (className: string) => {
       probe.className = className;
       return getComputedStyle(probe).backgroundColor;
@@ -87,7 +93,9 @@ export function resolveBarTones(
       context.fillStyle = colour;
       context.fillRect(0, 0, 1, 1);
       const [r, g, b, a] = context.getImageData(0, 0, 1, 1).data;
-      if (r == null || g == null || b == null || a === 0) continue;
+      if (r == null || g == null || b == null || a === 0) {
+        continue;
+      }
       tones[className] =
         luminanceOf(r, g, b) > TONE_THRESHOLD ? "dark" : "light";
     }

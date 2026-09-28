@@ -21,7 +21,9 @@ export const countLegacyApiEntrypoints = (
 
   for (const row of rows ?? []) {
     const entrypoint = normalizeLegacyApiEntrypoint(row.entrypoint);
-    if (entrypoint) entrypoints.add(entrypoint);
+    if (entrypoint) {
+      entrypoints.add(entrypoint);
+    }
   }
 
   return entrypoints.size;

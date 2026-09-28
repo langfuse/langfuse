@@ -109,9 +109,13 @@ const UpdateDashboardFiltersInput = z.object({
 function nextCloneName(sourceName: string, existingNames: string[]): string {
   const taken = new Set(existingNames);
   const base = `${sourceName} (Clone)`;
-  if (!taken.has(base)) return base;
+  if (!taken.has(base)) {
+    return base;
+  }
   let n = 2;
-  while (taken.has(`${sourceName} (Clone ${n})`)) n++;
+  while (taken.has(`${sourceName} (Clone ${n})`)) {
+    n++;
+  }
   return `${sourceName} (Clone ${n})`;
 }
 
@@ -176,7 +180,9 @@ function clickhouseHistogramToChartData(
   const histogramBins = result[0]?.histogram_value as
     | Array<[number, number, number]>
     | undefined;
-  if (!histogramBins?.length) return { chartData: [], chartLabels: [] };
+  if (!histogramBins?.length) {
+    return { chartData: [], chartLabels: [] };
+  }
 
   const round = (v: number) => parseFloat(v.toFixed(2));
   return {

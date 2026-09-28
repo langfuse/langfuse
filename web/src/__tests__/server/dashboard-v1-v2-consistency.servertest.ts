@@ -460,7 +460,9 @@ describe("dashboard v1 vs v2 consistency", () => {
   let toTimestamp: string;
 
   beforeAll(async () => {
-    if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") return;
+    if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
+      return;
+    }
 
     const org = await createOrgProjectAndApiKey();
     projectId = org.projectId;
@@ -818,7 +820,9 @@ describe("dashboard v1 vs v2 consistency", () => {
         // observations per trace (boundary events), slightly shifting quantiles.
         for (const [name, v1Row] of v1Map) {
           const v2Row = v2Map.get(name);
-          if (!v2Row) continue;
+          if (!v2Row) {
+            continue;
+          }
 
           for (const metric of [
             "p50_latency",
@@ -829,7 +833,9 @@ describe("dashboard v1 vs v2 consistency", () => {
             const v1Val = Number(v1Row[metric]);
             const v2Val = Number(v2Row[metric]);
 
-            if (v1Val === 0 && v2Val === 0) continue;
+            if (v1Val === 0 && v2Val === 0) {
+              continue;
+            }
 
             const maxVal = Math.max(Math.abs(v1Val), Math.abs(v2Val));
             const diff = Math.abs(v1Val - v2Val);

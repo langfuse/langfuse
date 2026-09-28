@@ -126,7 +126,9 @@ describe("rowModelStore", () => {
     await store.getState().materialize(leaf.nodeId);
     const result = store.getState().values.get(leaf.nodeId);
     expect(result?.ok).toBe(true);
-    if (result?.ok) expect(result.value.value).toBe("hello world");
+    if (result?.ok) {
+      expect(result.value.value).toBe("hello world");
+    }
   });
 
   it("abandons in-flight work after dispose (no state churn)", async () => {
@@ -172,9 +174,13 @@ function makeControllableModel(total: number) {
     getRows: (start, count) => {
       const rows: JsonRow[] = [];
       const n = Math.max(0, Math.min(count, total - start));
-      for (let k = 0; k < n; k++) rows.push(makeRow(start + k));
+      for (let k = 0; k < n; k++) {
+        rows.push(makeRow(start + k));
+      }
       const win: RowWindow = { revision, rows };
-      if (!gated) return Promise.resolve(win);
+      if (!gated) {
+        return Promise.resolve(win);
+      }
       return new Promise<RowWindow>((resolve) => {
         gatedCalls.push({ start, resolve: () => resolve(win) });
       });
@@ -212,7 +218,9 @@ function makeControllableModel(total: number) {
     },
     resolveGated: (start: number) => {
       const i = gatedCalls.findIndex((c) => c.start === start);
-      if (i >= 0) gatedCalls.splice(i, 1)[0]!.resolve();
+      if (i >= 0) {
+        gatedCalls.splice(i, 1)[0]!.resolve();
+      }
     },
     getMaxExpandConcurrency: () => maxExpandConcurrency,
   };

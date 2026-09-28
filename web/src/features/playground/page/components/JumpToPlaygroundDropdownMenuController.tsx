@@ -139,7 +139,9 @@ export function useJumpToPlayground(
   const generation =
     props.source === "generation" ? (props.generation ?? undefined) : undefined;
   const capturedState = useMemo(() => {
-    if (prompt) return parsePrompt(prompt);
+    if (prompt) {
+      return parsePrompt(prompt);
+    }
     if (generation) {
       return parseGeneration(generation, modelToProviderMap, includeOutput);
     }
@@ -285,7 +287,9 @@ const parsePrompt = (
             )
         : [];
 
-      if (messages.length === 0) return null;
+      if (messages.length === 0) {
+        return null;
+      }
 
       return { messages, sourcePrompt: asSourcePrompt(messages) };
     } catch {
@@ -314,7 +318,9 @@ const parseGeneration = (
   modelToProviderMap: Record<string, string>,
   includeOutput = false,
 ): PlaygroundCache => {
-  if (!isGenerationLike(generation.type)) return null;
+  if (!isGenerationLike(generation.type)) {
+    return null;
+  }
 
   let modelParams = parseModelParams(generation, modelToProviderMap);
   const tools = parseTools(
@@ -347,7 +353,9 @@ const parseGeneration = (
 
   let input = generation.input?.valueOf();
 
-  if (!input) return null;
+  if (!input) {
+    return null;
+  }
 
   // parse string inputs as JSON or treat as text prompt
   if (typeof input === "string") {
@@ -448,7 +456,9 @@ const parseGeneration = (
         }
       }
 
-      if (messages.length === 0) return null;
+      if (messages.length === 0) {
+        return null;
+      }
 
       // Extract tools from normalized ChatML messages (they may have tools attached)
       const normalizedTools =
@@ -487,7 +497,9 @@ function parseModelParams(
   if (generationModel) {
     const provider = modelToProviderMap[generationModel];
 
-    if (!provider) return;
+    if (!provider) {
+      return;
+    }
 
     modelParams = {
       provider: { value: provider, enabled: true },
@@ -501,7 +513,9 @@ function parseModelParams(
 
       if (parsedParams.success) {
         Object.entries(parsedParams.data).forEach(([key, value]) => {
-          if (!modelParams) return;
+          if (!modelParams) {
+            return;
+          }
 
           modelParams[key as keyof typeof parsedParams.data] = {
             value: value as any,
@@ -520,7 +534,9 @@ function parseTools(
   outputString: string | null,
   metadataString: MetadataDomainClient,
 ): PlaygroundTool[] {
-  if (!inputString && !outputString && !metadataString) return [];
+  if (!inputString && !outputString && !metadataString) {
+    return [];
+  }
 
   try {
     const input = inputString ? JSON.parse(inputString) : null;
@@ -528,7 +544,9 @@ function parseTools(
     const metadata = metadataString ? JSON.parse(metadataString) : null;
 
     const inputTools = extractTools(input, metadata);
-    if (inputTools.length > 0) return inputTools;
+    if (inputTools.length > 0) {
+      return inputTools;
+    }
 
     // also check the output for tools, e.g. if a user jumps from the last generation
     if (output) {
@@ -565,13 +583,14 @@ function parseStructuredOutputSchema(
         metadata["response_format"],
       );
 
-      if (parseStructuredOutputSchema.success)
+      if (parseStructuredOutputSchema.success) {
         return {
           id: Math.random().toString(36).substring(2),
           name: parseStructuredOutputSchema.data.json_schema.name,
           description: "Schema parsed from generation",
           schema: parseStructuredOutputSchema.data.json_schema.schema,
         };
+      }
     }
 
     // LiteLLM records response_format in model params
@@ -588,13 +607,14 @@ function parseStructuredOutputSchema(
       const parseStructuredOutputSchema =
         OpenAIResponseFormatSchema.safeParse(parsedResponseFormat);
 
-      if (parseStructuredOutputSchema.success)
+      if (parseStructuredOutputSchema.success) {
         return {
           id: Math.random().toString(36).substring(2),
           name: parseStructuredOutputSchema.data.json_schema.name,
           description: "Schema parsed from generation",
           schema: parseStructuredOutputSchema.data.json_schema.schema,
         };
+      }
     }
   } catch {}
   return null;

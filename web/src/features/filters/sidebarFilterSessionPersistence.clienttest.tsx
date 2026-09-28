@@ -129,8 +129,9 @@ describe("numeric conditions restored from the URL", () => {
     const facet = result.current.filters.find(
       (filter) => filter.type === "numeric",
     );
-    if (!facet || facet.type !== "numeric")
+    if (!facet || facet.type !== "numeric") {
       throw new Error("numeric facet missing");
+    }
 
     expect(getFacetSummary(facet)).toBe("> 0.2 · < 0.8");
     expect(facet.value).toBeNull();
@@ -190,8 +191,9 @@ describe("numeric conditions restored from the URL", () => {
       const facet = result.current.filters.find(
         (filter) => filter.type === "numeric",
       );
-      if (!facet || facet.type !== "numeric")
+      if (!facet || facet.type !== "numeric") {
         throw new Error("numeric facet missing");
+      }
 
       expect(getFacetSummary(facet)).toBe(summary);
       expect(facet.value).toEqual(range);

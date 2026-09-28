@@ -118,22 +118,31 @@ function SortableGatewayProvidersView({
   );
   const registerRowNode = useCallback(
     (id: string, node: HTMLTableRowElement | null) => {
-      if (node) rowNodes.current.set(id, node);
-      else rowNodes.current.delete(id);
+      if (node) {
+        rowNodes.current.set(id, node);
+      } else {
+        rowNodes.current.delete(id);
+      }
     },
     [],
   );
 
   useLayoutEffect(() => {
     const previousPositions = pendingRowPositions.current;
-    if (!previousPositions) return;
+    if (!previousPositions) {
+      return;
+    }
     pendingRowPositions.current = null;
 
     for (const [id, node] of rowNodes.current) {
       const previousTop = previousPositions.get(id);
-      if (previousTop === undefined) continue;
+      if (previousTop === undefined) {
+        continue;
+      }
       const offset = previousTop - node.getBoundingClientRect().top;
-      if (offset === 0) continue;
+      if (offset === 0) {
+        continue;
+      }
 
       node.animate(
         [
@@ -160,13 +169,19 @@ function SortableGatewayProvidersView({
     async (sourceId: string, targetId: string, animateRows = false) => {
       const previousIds = orderedIds;
       const nextIds = reorderProviderIds(previousIds, sourceId, targetId);
-      if (nextIds === previousIds) return;
+      if (nextIds === previousIds) {
+        return;
+      }
 
-      if (animateRows) pendingRowPositions.current = captureRowPositions();
+      if (animateRows) {
+        pendingRowPositions.current = captureRowPositions();
+      }
       setOrderedIds(nextIds);
 
       if (!(await onReorder(sourceId, targetId))) {
-        if (animateRows) pendingRowPositions.current = captureRowPositions();
+        if (animateRows) {
+          pendingRowPositions.current = captureRowPositions();
+        }
         setOrderedIds(previousIds);
       }
     },
@@ -187,8 +202,9 @@ function SortableGatewayProvidersView({
             canReorder={canReorder}
             onMove={async (targetIndex) => {
               const target = orderedConnections[targetIndex];
-              if (target)
+              if (target) {
                 await moveConnection(row.original.id, target.id, true);
+              }
             }}
           />
         ),
@@ -261,7 +277,9 @@ function SortableGatewayProvidersView({
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const reorder = getProviderReorder(event, canReorder);
-    if (reorder) await moveConnection(reorder.sourceId, reorder.targetId);
+    if (reorder) {
+      await moveConnection(reorder.sourceId, reorder.targetId);
+    }
   };
 
   return (
@@ -443,8 +461,12 @@ function ModelCount({
   value: number | "loading" | undefined;
   href: string;
 }) {
-  if (value === "loading") return <>Loading…</>;
-  if (value === undefined) return <>—</>;
+  if (value === "loading") {
+    return <>Loading…</>;
+  }
+  if (value === undefined) {
+    return <>—</>;
+  }
   return (
     <Link className="text-primary hover:underline" href={href}>
       {value} {value === 1 ? "model" : "models"} available

@@ -261,7 +261,9 @@ describe("NullFilter metadata aliases through table mappings", () => {
     );
 
     expect(filter).toBeDefined();
-    if (!filter) throw new Error("expected filter");
+    if (!filter) {
+      throw new Error("expected filter");
+    }
 
     expect(filter.apply()).toEqual({
       query: "empty(e.experiment_item_metadata_names)",

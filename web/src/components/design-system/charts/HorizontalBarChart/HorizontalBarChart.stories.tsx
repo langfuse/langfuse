@@ -52,11 +52,15 @@ export const HoverTransition = meta.story({
       canvasElement.querySelectorAll<SVGRectElement>("[data-bar-fill]");
     const first = bars[0];
     const second = bars[1];
-    if (!first || !second) throw new Error("Bars not found");
+    if (!first || !second) {
+      throw new Error("Bars not found");
+    }
     const hoverArea = first.parentElement?.querySelector<SVGRectElement>(
       'rect[fill="transparent"][aria-hidden="true"]',
     );
-    if (!hoverArea) throw new Error("Hover area not found");
+    if (!hoverArea) {
+      throw new Error("Hover area not found");
+    }
     await userEvent.hover(hoverArea);
     await expect(second).toHaveAttribute(
       "fill",
@@ -75,11 +79,15 @@ export const HoverAcrossRowGap = meta.story({
     const svg = canvasElement.querySelector<SVGSVGElement>(
       "svg[aria-label='Horizontal bar chart']",
     );
-    if (!first || !second || !svg) throw new Error("Chart bars not found");
+    if (!first || !second || !svg) {
+      throw new Error("Chart bars not found");
+    }
     const hoverArea = first.parentElement?.querySelector<SVGRectElement>(
       'rect[fill="transparent"][aria-hidden="true"]',
     );
-    if (!hoverArea) throw new Error("Hover area not found");
+    if (!hoverArea) {
+      throw new Error("Hover area not found");
+    }
     await userEvent.hover(hoverArea);
     const firstBounds = first.getBoundingClientRect();
     const secondBounds = second.getBoundingClientRect();
@@ -101,7 +109,9 @@ export const HoverAcrossRowGap = meta.story({
     const secondHoverArea = second.parentElement?.querySelector<SVGRectElement>(
       'rect[fill="transparent"][aria-hidden="true"]',
     );
-    if (!secondHoverArea) throw new Error("Second hover area not found");
+    if (!secondHoverArea) {
+      throw new Error("Second hover area not found");
+    }
     await userEvent.hover(secondHoverArea);
     await expect(first).toHaveAttribute("fill", expect.stringContaining("20%"));
     await userEvent.unhover(secondHoverArea);
@@ -122,7 +132,9 @@ export const FillsAvailableHeight = meta.story({
     );
     const first = bars[0];
     const last = bars[bars.length - 1];
-    if (!first || !last || !svg) throw new Error("Chart bars not found");
+    if (!first || !last || !svg) {
+      throw new Error("Chart bars not found");
+    }
     const topGap = Number(first.getAttribute("y")) - 26;
     const bottomGap =
       Number(svg.getAttribute("height")) -
@@ -142,7 +154,9 @@ export const CenteredRowText = meta.story({
     for (const bar of bars) {
       const row = bar.parentElement;
       const texts = row?.querySelectorAll<SVGTextElement>("text");
-      if (!texts || texts.length !== 2) throw new Error("Row text not found");
+      if (!texts || texts.length !== 2) {
+        throw new Error("Row text not found");
+      }
       const barBounds = bar.getBoundingClientRect();
       const barCenter = (barBounds.top + barBounds.bottom) / 2;
       for (const text of texts) {
@@ -169,7 +183,9 @@ export const LayoutAndCopy = meta.story({
     const hoverArea = bar.parentElement?.querySelector<SVGRectElement>(
       "rect[fill='transparent'][aria-hidden='true']",
     );
-    if (!hoverArea) throw new Error("Row hover area not found");
+    if (!hoverArea) {
+      throw new Error("Row hover area not found");
+    }
     await userEvent.hover(hoverArea);
     const hoveredTooltip = await within(
       canvasElement.ownerDocument.body,
@@ -248,7 +264,9 @@ export const NarrowWithLongValues = meta.story({
     for (let index = 1; index < ticks.length; index++) {
       const previous = ticks[index - 1];
       const current = ticks[index];
-      if (!previous || !current) throw new Error("Axis tick not found");
+      if (!previous || !current) {
+        throw new Error("Axis tick not found");
+      }
       await expect(current.getBoundingClientRect().left).toBeGreaterThanOrEqual(
         previous.getBoundingClientRect().right,
       );
@@ -402,12 +420,16 @@ export const TinyBarsBesideOutlier = meta.story({
       name: "User 1: $0.310000",
     });
     const row = small.parentElement;
-    if (!row) throw new Error("Bar row not found");
+    if (!row) {
+      throw new Error("Bar row not found");
+    }
     const bar = row.querySelector<SVGRectElement>("[data-bar-fill]");
     const label = within(row).getByText("User 1");
     const value = within(row).getByText("$0.310000");
     const leader = row.querySelector<SVGLineElement>("[data-leader-line]");
-    if (!bar || !leader) throw new Error("Bar or leader not found");
+    if (!bar || !leader) {
+      throw new Error("Bar or leader not found");
+    }
     await expect(label.getBoundingClientRect().left).toBeGreaterThanOrEqual(
       bar.getBoundingClientRect().right,
     );
@@ -452,7 +474,9 @@ export const LeaderEndpoints = meta.story({
     for (const bar of bars) {
       const row = bar.parentElement;
       const leader = row?.querySelector<SVGLineElement>("[data-leader-line]");
-      if (!leader) throw new Error("Leader not found");
+      if (!leader) {
+        throw new Error("Leader not found");
+      }
       if (leader.getAttribute("visibility") === "visible") {
         visibleLeaders++;
       }
@@ -480,7 +504,9 @@ export const ManyRows = meta.story({
     const chart = canvasElement.querySelector<HTMLElement>(
       "[data-testid='top-list-chart']",
     );
-    if (!chart) throw new Error("Chart not found");
+    if (!chart) {
+      throw new Error("Chart not found");
+    }
     await expect(chart.scrollHeight).toBeGreaterThan(chart.clientHeight);
     const lastBar = within(canvasElement).getByRole("graphics-symbol", {
       name: "Category 30: 1",

@@ -10,11 +10,15 @@ import type { ConventionResult, IOConvention } from "../../io-convention";
 function parsePythonReprMessage(
   value: string,
 ): { role: string; content: string } | undefined {
-  if (!value.startsWith("role='")) return undefined;
+  if (!value.startsWith("role='")) {
+    return undefined;
+  }
 
   const match =
     /^role='(\w+)' content=(?:'([\s\S]*?)'|"([\s\S]*?)")(?= \w+=)/.exec(value);
-  if (!match) return undefined;
+  if (!match) {
+    return undefined;
+  }
 
   const content = (match[2] ?? match[3] ?? "")
     .replace(/\\'/g, "'")

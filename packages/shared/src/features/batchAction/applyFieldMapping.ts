@@ -143,18 +143,24 @@ export function applyFieldMappingConfig(props: {
       return withValue(null);
 
     case "custom": {
-      if (!config.custom) return withValue(observation[defaultSourceField]);
+      if (!config.custom) {
+        return withValue(observation[defaultSourceField]);
+      }
 
       if (config.custom.type === "root") {
         const rootConfig = config.custom.rootConfig;
-        if (!rootConfig) return withValue(observation[defaultSourceField]);
+        if (!rootConfig) {
+          return withValue(observation[defaultSourceField]);
+        }
 
         const evaluated = safeEvaluate(
           rootConfig.sourceField,
           rootConfig.jsonPath,
           null,
         );
-        if (!evaluated.success) return withValue(undefined);
+        if (!evaluated.success) {
+          return withValue(undefined);
+        }
         if (evaluated.value === undefined) {
           misses.push({
             sourceField: rootConfig.sourceField,
@@ -173,7 +179,9 @@ export function applyFieldMappingConfig(props: {
 
         const result: Record<string, unknown> = {};
         for (const entry of keyValueMapConfig.entries) {
-          if (!entry.value && entry.value !== "") continue;
+          if (!entry.value && entry.value !== "") {
+            continue;
+          }
 
           let resolvedValue: unknown;
           if (isJsonPath(entry.value)) {

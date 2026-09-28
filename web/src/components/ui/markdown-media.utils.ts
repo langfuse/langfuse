@@ -14,7 +14,9 @@ import { type z } from "zod";
 const getMediaReferenceId = (
   value: string | ParsedMediaReferenceType | null | undefined,
 ): string | null => {
-  if (!value) return null;
+  if (!value) {
+    return null;
+  }
 
   if (typeof value === "string") {
     const parsedReference = MediaReferenceStringSchema.safeParse(value);
@@ -26,10 +28,14 @@ const getMediaReferenceId = (
 
 export const getStandaloneMediaReferenceStrings = (value: string): string[] => {
   const matches = value.match(MEDIA_REFERENCE_PATTERN) ?? [];
-  if (matches.length === 0) return [];
+  if (matches.length === 0) {
+    return [];
+  }
 
   const remainingText = value.replace(MEDIA_REFERENCE_PATTERN, "").trim();
-  if (remainingText.length > 0) return [];
+  if (remainingText.length > 0) {
+    return [];
+  }
 
   const parsedMatches = matches.map((match) =>
     MediaReferenceStringSchema.safeParse(match),

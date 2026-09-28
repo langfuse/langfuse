@@ -75,8 +75,12 @@ export const DatasetItemField = ({
   // Objects and arrays go to the JSON table; scalars and empty values render
   // as one framed mono line so all three fields share the same frame.
   const pretty = useMemo<{ json: unknown; scalar: string | null }>(() => {
-    if (!showPrettyView) return { json: value, scalar: null };
-    if (value.trim() === "") return { json: null, scalar: "" };
+    if (!showPrettyView) {
+      return { json: value, scalar: null };
+    }
+    if (value.trim() === "") {
+      return { json: null, scalar: "" };
+    }
     try {
       const parsed: unknown = JSON.parse(value);
       if (typeof parsed === "object" && parsed !== null) {
@@ -93,8 +97,9 @@ export const DatasetItemField = ({
 
   const handleSelectFile = async (file: File) => {
     const referenceString = await onUploadMedia?.(file);
-    if (referenceString)
+    if (referenceString) {
       insertMediaReferenceAtCursor(editorRef, referenceString);
+    }
   };
 
   // `onUploadMedia` (tRPC-backed) is a fresh reference each render; route the

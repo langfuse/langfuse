@@ -23,7 +23,9 @@ export async function suggestMonitorName({
     prisma,
     projectId,
   });
-  if (!availability.available) return null;
+  if (!availability.available) {
+    return null;
+  }
 
   try {
     const generated = await generateLangfuseAIText({

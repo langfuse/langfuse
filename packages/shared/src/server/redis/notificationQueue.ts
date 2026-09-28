@@ -11,7 +11,9 @@ export class NotificationQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.NotificationQueue]
   > | null {
-    if (NotificationQueue.instance) return NotificationQueue.instance;
+    if (NotificationQueue.instance) {
+      return NotificationQueue.instance;
+    }
 
     const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
       QueueName.NotificationQueue,

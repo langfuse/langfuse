@@ -12,10 +12,18 @@ import type { TreeNode } from "./treeStructure";
  * Always returns the FULL untruncated length - this is data layer, not presentation.
  */
 function getValueDisplayLength(value: unknown): number {
-  if (value === null) return 4; // "null"
-  if (value === undefined) return 9; // "undefined"
-  if (typeof value === "boolean") return value ? 4 : 5; // "true" or "false"
-  if (typeof value === "number") return String(value).length;
+  if (value === null) {
+    return 4;
+  } // "null"
+  if (value === undefined) {
+    return 9;
+  } // "undefined"
+  if (typeof value === "boolean") {
+    return value ? 4 : 5;
+  } // "true" or "false"
+  if (typeof value === "number") {
+    return String(value).length;
+  }
   if (typeof value === "string") {
     const str = value as string;
     // Always use full length + quotes (data layer = actual content width)
@@ -26,8 +34,12 @@ function getValueDisplayLength(value: unknown): number {
   }
   if (typeof value === "object") {
     const keys = Object.keys(value);
-    if (keys.length === 0) return 2; // "{}"
-    if (keys.length === 1) return keys[0].length + 2; // "{keyName}"
+    if (keys.length === 0) {
+      return 2;
+    } // "{}"
+    if (keys.length === 1) {
+      return keys[0].length + 2;
+    } // "{keyName}"
     return `{${keys.length} keys}`.length;
   }
   return 0;

@@ -41,15 +41,21 @@ export function TimelineChartCard() {
   // Calculate overall average for numeric data (for description)
   // Note: useMemo must be called before any early returns (React hooks rule)
   const overallAverage = useMemo(() => {
-    if (!data || data.metadata.dataType !== "NUMERIC") return null;
+    if (!data || data.metadata.dataType !== "NUMERIC") {
+      return null;
+    }
 
     const timeSeries = data.timeSeries.numeric.all;
-    if (timeSeries.length === 0) return 0;
+    if (timeSeries.length === 0) {
+      return 0;
+    }
 
     const validValues = timeSeries
       .map((t) => t.avg1)
       .filter((v): v is number => v !== null);
-    if (validValues.length === 0) return 0;
+    if (validValues.length === 0) {
+      return 0;
+    }
 
     return validValues.reduce((sum, v) => sum + v, 0) / validValues.length;
   }, [data]);
@@ -69,7 +75,9 @@ export function TimelineChartCard() {
         count: number;
       }>
   >(() => {
-    if (!data) return [];
+    if (!data) {
+      return [];
+    }
 
     const { timeSeries, metadata } = data;
     const { dataType } = metadata;
@@ -123,7 +131,9 @@ export function TimelineChartCard() {
   // Derive colors based on active tab and data type
   // Note: useMemo must be called before any early returns (React hooks rule)
   const chartColors = useMemo(() => {
-    if (!data) return colorMappings;
+    if (!data) {
+      return colorMappings;
+    }
 
     const { dataType } = data.metadata;
 
@@ -171,7 +181,9 @@ export function TimelineChartCard() {
   // Build description
   // Note: useMemo must be called before any early returns (React hooks rule)
   const description = useMemo(() => {
-    if (!data) return "";
+    if (!data) {
+      return "";
+    }
 
     const { metadata, statistics } = data;
     const { mode, dataType } = metadata;

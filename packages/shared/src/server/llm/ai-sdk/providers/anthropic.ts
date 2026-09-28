@@ -132,7 +132,9 @@ export function translateAnthropicProviderOptions(
 function translateAnthropicThinking(
   value: unknown,
 ): { ok: true; value: Record<string, unknown> } | { ok: false } {
-  if (typeof value !== "object" || value === null) return { ok: false };
+  if (typeof value !== "object" || value === null) {
+    return { ok: false };
+  }
 
   const {
     type,
@@ -142,7 +144,9 @@ function translateAnthropicThinking(
     ...rest
   } = value as Record<string, unknown>;
 
-  if (Object.keys(rest).length > 0) return { ok: false };
+  if (Object.keys(rest).length > 0) {
+    return { ok: false };
+  }
   if (typeof type !== "string" || !ANTHROPIC_THINKING_TYPES.has(type)) {
     return { ok: false };
   }
@@ -162,7 +166,9 @@ function translateAnthropicThinking(
 function translateAnthropicMetadata(
   value: unknown,
 ): { ok: true; value: Record<string, unknown> } | { ok: false } {
-  if (typeof value !== "object" || value === null) return { ok: false };
+  if (typeof value !== "object" || value === null) {
+    return { ok: false };
+  }
 
   const {
     user_id: userIdSnake,
@@ -170,7 +176,9 @@ function translateAnthropicMetadata(
     ...rest
   } = value as Record<string, unknown>;
 
-  if (Object.keys(rest).length > 0) return { ok: false };
+  if (Object.keys(rest).length > 0) {
+    return { ok: false };
+  }
 
   const userId = userIdCamel ?? userIdSnake;
 

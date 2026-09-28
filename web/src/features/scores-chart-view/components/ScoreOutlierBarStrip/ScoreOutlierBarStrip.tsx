@@ -311,12 +311,16 @@ export function ScoreOutlierBarStrip({
         aria-label={`${metricSpec.shortLabel} per bucket`}
         className="block cursor-crosshair touch-pan-y select-none"
         onPointerLeave={(event) => {
-          if (event.pointerType !== "mouse") return;
+          if (event.pointerType !== "mouse") {
+            return;
+          }
           setHoverIndex(null);
           setMouse(null);
         }}
         onPointerDown={(event) => {
-          if (event.button !== 0 && event.pointerType === "mouse") return;
+          if (event.button !== 0 && event.pointerType === "mouse") {
+            return;
+          }
           event.preventDefault();
           const rect = event.currentTarget.getBoundingClientRect();
           dragRef.current = {
@@ -334,18 +338,24 @@ export function ScoreOutlierBarStrip({
             setMouse({ x: event.clientX, y: event.clientY });
           }
           const drag = dragRef.current;
-          if (!drag) return;
+          if (!drag) {
+            return;
+          }
           if (!drag.dragging && Math.abs(x - drag.startX) < DRAG_THRESHOLD_PX) {
             return;
           }
-          if (!drag.dragging) setTouchPreview(null);
+          if (!drag.dragging) {
+            setTouchPreview(null);
+          }
           drag.dragging = true;
           onSelectionChange?.(spanToRange(drag.startX, x));
         }}
         onPointerUp={(event) => {
           const drag = dragRef.current;
           dragRef.current = null;
-          if (!drag) return;
+          if (!drag) {
+            return;
+          }
           const rect = event.currentTarget.getBoundingClientRect();
           const x = event.clientX - rect.left;
           if (drag.dragging) {
@@ -367,7 +377,9 @@ export function ScoreOutlierBarStrip({
           }
           const index = Math.floor(x / slotPx);
           const bin = dense[index];
-          if (!bin) return;
+          if (!bin) {
+            return;
+          }
           if (event.pointerType !== "mouse") {
             onSelectionChange?.(null);
             setTouchPreview({
@@ -402,12 +414,16 @@ export function ScoreOutlierBarStrip({
         {selection &&
           (() => {
             const first = dense[0]?.bucketStartMs;
-            if (first === undefined) return null;
+            if (first === undefined) {
+              return null;
+            }
             const startX = ((selection.fromMs - first) / stepMs) * slotPx;
             const endX = ((selection.toMs - first) / stepMs) * slotPx;
             const x = Math.max(startX, 0);
             const w = Math.min(endX, widthPx) - x;
-            if (w <= 0) return null;
+            if (w <= 0) {
+              return null;
+            }
             return (
               <g>
                 <rect

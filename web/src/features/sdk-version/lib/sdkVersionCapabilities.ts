@@ -67,7 +67,9 @@ const parseVersionCore = (version?: string | null) => {
   const match = version
     ?.trim()
     .match(/^v?(\d+)\.(\d+)\.(\d+)(?:[-+.]?[0-9A-Za-z][0-9A-Za-z.-]*)?$/);
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
 
   const parsed = match.slice(1, 4).map(Number);
   return parsed.every(Number.isSafeInteger) ? parsed : null;
@@ -77,11 +79,15 @@ export const getSdkVersionCapabilityStatus = (
   sdk: SdkVersionInfo | undefined,
   capability: SdkVersionCapability,
 ): SdkVersionCapabilityStatus => {
-  if (!sdk) return "unknown";
+  if (!sdk) {
+    return "unknown";
+  }
 
   const sdkName = normalizeIngestionSdkName(sdk.language);
   const version = parseVersionCore(sdk.version);
-  if (!sdkName || !version) return "unknown";
+  if (!sdkName || !version) {
+    return "unknown";
+  }
 
   const minimum = SDK_VERSION_CAPABILITIES[capability][sdkName];
   for (let index = 0; index < version.length; index++) {

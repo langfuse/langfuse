@@ -89,7 +89,9 @@ export function translateGoogleProviderOptions(params: {
       thinkingBudget,
       thinkingLevel,
     });
-    if (!thinkingConfig.ok) return thinkingConfig;
+    if (!thinkingConfig.ok) {
+      return thinkingConfig;
+    }
 
     translated.thinkingConfig = {
       ...(typeof translated.thinkingConfig === "object"
@@ -158,10 +160,15 @@ function buildThinkingConfig(params: {
 
   // Remap unsupported levels for the pro families.
   if (model.startsWith("gemini-3-pro")) {
-    if (thinkingLevel === "minimal") thinkingLevel = "low";
-    else if (thinkingLevel === "medium") thinkingLevel = "high";
+    if (thinkingLevel === "minimal") {
+      thinkingLevel = "low";
+    } else if (thinkingLevel === "medium") {
+      thinkingLevel = "high";
+    }
   } else if (model.startsWith("gemini-3.1-pro")) {
-    if (thinkingLevel === "minimal") thinkingLevel = "low";
+    if (thinkingLevel === "minimal") {
+      thinkingLevel = "low";
+    }
   }
 
   return {

@@ -261,7 +261,9 @@ export const NeitherAxisScrolls = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
 
     // The whole claim of this spike: nothing scrolls in either axis. The surface
     // is a map — it pans — so there must be no scrollable overflow at all.
@@ -304,7 +306,9 @@ export const ScrollPansPinchZooms = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     const rowHeight = () =>
       canvasElement.querySelector<HTMLElement>(
         '[data-testid="dense-rowheight"]',
@@ -373,7 +377,9 @@ export const ScrollPansPinchZooms = meta.story({
  */
 const luminance = (colour: string) => {
   const context = document.createElement("canvas").getContext("2d");
-  if (!context) throw new Error("no 2d context to measure a colour with");
+  if (!context) {
+    throw new Error("no 2d context to measure a colour with");
+  }
   context.fillStyle = colour;
   context.fillRect(0, 0, 1, 1);
   const [r = 0, g = 0, b = 0] = context.getImageData(0, 0, 1, 1).data;
@@ -423,7 +429,9 @@ export const LabelsStayReadableOnBars = meta.story({
       const bar = label
         .closest('[data-testid="timeline-dense-row"]')
         ?.querySelector<HTMLElement>('[data-testid="timeline-dense-bar"]');
-      if (!bar) throw new Error("a label with no bar to sit on");
+      if (!bar) {
+        throw new Error("a label with no bar to sit on");
+      }
       const barLuminance = luminance(getComputedStyle(bar).backgroundColor);
       const textLuminance = luminance(getComputedStyle(label).color);
       // Light bar → dark text, dark bar → light text. Either way the two must
@@ -466,7 +474,9 @@ export const LabelsKeepTheirDistance = meta.story({
       const bar = label
         .closest('[data-testid="timeline-dense-row"]')
         ?.querySelector<HTMLElement>('[data-testid="timeline-dense-bar"]');
-      if (!bar) continue;
+      if (!bar) {
+        continue;
+      }
       const l = label.getBoundingClientRect();
       const b = bar.getBoundingClientRect();
       const before = label.dataset.placement === "before";
@@ -501,7 +511,9 @@ export const TooltipShowsTheCost = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     const rect = surface.getBoundingClientRect();
     surface.dispatchEvent(
       new PointerEvent("pointermove", {
@@ -528,7 +540,9 @@ export const TooltipShowsTheCost = meta.story({
     // flexible item, so cost and tokens truncated it to nothing — the one thing
     // the hover was for.
     const name = box.querySelector<HTMLElement>("span[title]");
-    if (!name) throw new Error("no name in the tooltip");
+    if (!name) {
+      throw new Error("no name in the tooltip");
+    }
     await expect(name.getBoundingClientRect().width).toBeGreaterThan(20);
     await expect(name.innerText.length).toBeGreaterThan(0);
 
@@ -560,7 +574,9 @@ export const ZoomLandsOnContent = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     const bars = () =>
       canvasElement.querySelectorAll('[data-testid="timeline-dense-bar"]')
         .length;
@@ -610,7 +626,9 @@ export const HoverPeeksTheNames = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     // Names live in the peek overlay OR in the in-flow gutter, depending on
     // whether the open is a peek or a committed one.
     const names = () =>
@@ -632,7 +650,9 @@ export const HoverPeeksTheNames = meta.story({
       const bar = canvasElement.querySelector<HTMLElement>(
         '[data-testid="timeline-dense-bar"]',
       );
-      if (!bar) return null;
+      if (!bar) {
+        return null;
+      }
       const box = bar.getBoundingClientRect();
       return `${Math.round(box.left)}:${Math.round(box.width)}`;
     };
@@ -678,7 +698,9 @@ export const PeekRowClickSelects = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     const rect = surface.getBoundingClientRect();
     surface.dispatchEvent(
       new PointerEvent("pointermove", {
@@ -697,7 +719,9 @@ export const PeekRowClickSelects = meta.story({
     const peekRow = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-peek-row"]',
     );
-    if (!peekRow) throw new Error("expected a peek row to click");
+    if (!peekRow) {
+      throw new Error("expected a peek row to click");
+    }
     peekRow.dispatchEvent(
       new MouseEvent("click", { bubbles: true, detail: 1 }),
     );
@@ -733,7 +757,9 @@ export const DoubleClickFocusesBothAxes = meta.story({
     const row = canvasElement.querySelectorAll<HTMLElement>(
       '[data-testid="timeline-dense-content"] > div',
     )[40];
-    if (!row) throw new Error("expected a row to double-click");
+    if (!row) {
+      throw new Error("expected a row to double-click");
+    }
     row.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
 
     // Both axes move: the rows reach a readable height AND the time window
@@ -751,7 +777,9 @@ const lastRowId = (roots: ReturnType<typeof manySpans>): string => {
   const stack = [...roots].reverse();
   while (stack.length > 0) {
     const node = stack.pop();
-    if (!node) break;
+    if (!node) {
+      break;
+    }
     last = node.id;
     stack.push(...[...node.children].reverse());
   }
@@ -785,7 +813,9 @@ export const ExternalSelectionIsRevealed = meta.story({
     // the selection, all the way down at row 2999 of 3000.
     await waitFor(() => expect(rows()).toContain("of 3000"));
     const window = /rows ([\d.]+)[–-]([\d.]+)/.exec(rows());
-    if (!window) throw new Error(`no row window in "${rows()}"`);
+    if (!window) {
+      throw new Error(`no row window in "${rows()}"`);
+    }
     await expect(Number(window[1])).toBeGreaterThan(2_000);
     // Revealed by PANNING: 600 rows of window before and after, because bringing
     // a row into view is not a request to change how far in you are looking.
@@ -800,7 +830,9 @@ export const ExternalSelectionIsRevealed = meta.story({
       .querySelector('[data-testid="timeline-dense-surface"]')
       ?.getBoundingClientRect();
     const row = selected?.getBoundingClientRect();
-    if (!surface || !row) throw new Error("no surface or selected row");
+    if (!surface || !row) {
+      throw new Error("no surface or selected row");
+    }
     await expect(row.top).toBeGreaterThanOrEqual(surface.top - 0.5);
     await expect(row.bottom).toBeLessThanOrEqual(surface.bottom + 0.5);
   },
@@ -824,7 +856,9 @@ export const ShiftDragZoomsToABox = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     surface.setPointerCapture = () => undefined;
     surface.releasePointerCapture = () => undefined;
     const readout = () =>
@@ -864,7 +898,9 @@ export const ShiftDragZoomsToABox = meta.story({
     // It FLIES there, so this is the landing rather than the first frame.
     const rowSpan = () => {
       const window = /rows ([\d.]+)[–-]([\d.]+)/.exec(readout());
-      if (!window) throw new Error(`no row window in "${readout()}"`);
+      if (!window) {
+        throw new Error(`no row window in "${readout()}"`);
+      }
       return Number(window[2]) - Number(window[1]);
     };
     await waitFor(() => expect(rowSpan()).toBeCloseTo(120, 0));
@@ -901,14 +937,18 @@ export const AGestureTakesOverFromAFlight = meta.story({
     const row = canvasElement.querySelectorAll<HTMLElement>(
       '[data-testid="timeline-dense-content"] > div',
     )[40];
-    if (!row) throw new Error("expected a row to double-click");
+    if (!row) {
+      throw new Error("expected a row to double-click");
+    }
 
     // Start the 320ms focus flight, then immediately zoom out with the toolbar.
     row.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     const zoomOut = canvasElement.querySelector<HTMLElement>(
       'button[aria-label="Zoom out"]',
     );
-    if (!zoomOut) throw new Error("no zoom-out button");
+    if (!zoomOut) {
+      throw new Error("no zoom-out button");
+    }
     zoomOut.click();
     const afterGesture = readout();
 
@@ -962,7 +1002,9 @@ export const PinchZoomsOnTouch = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     surface.setPointerCapture = () => undefined;
     surface.releasePointerCapture = () => undefined;
     const rowHeight = () =>
@@ -992,7 +1034,9 @@ export const PinchZoomsOnTouch = meta.story({
     // Fingers apart = zoomed in: taller rows AND a narrower row window.
     const zoomed = rowWindow();
     const span = /rows ([\d.]+)[–-]([\d.]+)/.exec(zoomed);
-    if (!span) throw new Error(`no row window in "${zoomed}"`);
+    if (!span) {
+      throw new Error(`no row window in "${zoomed}"`);
+    }
     await expect(Number(span[2]) - Number(span[1])).toBeLessThan(600);
 
     // Lifting one finger hands over to a one-finger pan from where THAT finger
@@ -1033,7 +1077,9 @@ export const DoubleTapFocusesOnTouch = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     surface.setPointerCapture = () => undefined;
     surface.releasePointerCapture = () => undefined;
     const readout = () =>
@@ -1082,7 +1128,9 @@ export const RailTapsAreNotADoubleTap = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     surface.setPointerCapture = () => undefined;
     surface.releasePointerCapture = () => undefined;
     const readout = () =>
@@ -1155,7 +1203,9 @@ export const TooltipFollowsTheContent = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     const tooltip = () =>
       document.querySelector<HTMLElement>(
         '[data-testid="timeline-dense-tooltip"]',
@@ -1236,7 +1286,9 @@ export const ALateRowIsStillRevealed = meta.story({
     // observation fetched by id, or one past the load cap.
     await waitFor(() => expect(rows()).toContain("of 0"));
     const load = canvasElement.querySelector("button");
-    if (!load) throw new Error("expected the load button");
+    if (!load) {
+      throw new Error("expected the load button");
+    }
     await userEvent.click(load);
 
     // Spending the one reveal on the absent row left the highlight off-screen
@@ -1244,7 +1296,9 @@ export const ALateRowIsStillRevealed = meta.story({
     await waitFor(() => expect(rows()).toContain("of 3000"));
     await waitFor(() => {
       const window = /rows ([\d.]+)[–-]([\d.]+)/.exec(rows());
-      if (!window) throw new Error(`no row window in "${rows()}"`);
+      if (!window) {
+        throw new Error(`no row window in "${rows()}"`);
+      }
       expect(Number(window[1])).toBeGreaterThan(2_000);
     });
   },
@@ -1268,7 +1322,9 @@ export const DoubleClickSelectsOnce = meta.story({
     const row = canvasElement.querySelectorAll<HTMLElement>(
       '[data-testid="timeline-dense-content"] > div',
     )[40];
-    if (!row) throw new Error("expected a row to double-click");
+    if (!row) {
+      throw new Error("expected a row to double-click");
+    }
 
     // A double-click delivers two clicks and then dblclick. Selecting is not
     // free — it captures analytics and reopens the detail panel — so it must
@@ -1307,7 +1363,9 @@ export const TypeSquareStaysInsideTheRail = meta.story({
     for (const square of squares) {
       const rail = square.parentElement?.getBoundingClientRect();
       const box = square.getBoundingClientRect();
-      if (!rail) throw new Error("square without a rail");
+      if (!rail) {
+        throw new Error("square without a rail");
+      }
       await expect(box.width).toBeGreaterThanOrEqual(2);
       await expect(box.left).toBeGreaterThanOrEqual(rail.left - 0.5);
       await expect(box.right).toBeLessThanOrEqual(rail.right + 0.5);
@@ -1336,7 +1394,9 @@ export const HoverOpensATooltip = meta.story({
     const content = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-content"]',
     );
-    if (!surface || !content) throw new Error("dense surface not found");
+    if (!surface || !content) {
+      throw new Error("dense surface not found");
+    }
 
     const heightBefore = content.getBoundingClientRect().height;
     const rect = surface.getBoundingClientRect();
@@ -1407,7 +1467,9 @@ export const DeepConnectorsStillMeet = meta.story({
     for (let index = 1; index < rows.length; index++) {
       const parentSpine = spineOf(rows[index - 1]!);
       const stub = stubOf(rows[index]!);
-      if (!parentSpine || !stub) continue;
+      if (!parentSpine || !stub) {
+        continue;
+      }
       await expect(stub.getBoundingClientRect().left).toBeCloseTo(
         parentSpine.getBoundingClientRect().left,
         0,
@@ -1443,7 +1505,9 @@ export const AHairlineTapDoesNotArmTheNames = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     surface.setPointerCapture = () => undefined;
     surface.releasePointerCapture = () => undefined;
     const readout = () =>
@@ -1499,14 +1563,18 @@ export const ADoubleTapSelectsOnce = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     surface.setPointerCapture = () => undefined;
     surface.releasePointerCapture = () => undefined;
     const rect = surface.getBoundingClientRect();
     const x = rect.left + rect.width * 0.6;
     const y = rect.top + 200;
     const row = document.elementFromPoint(x, y)?.closest("div");
-    if (!row) throw new Error("no row under the tap");
+    if (!row) {
+      throw new Error("no row under the tap");
+    }
 
     for (const _ of [1, 2]) {
       touch(surface, "pointerdown", 1, x, y);
@@ -1552,7 +1620,9 @@ export const TheTooltipEscapesTheSurface = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     const rect = surface.getBoundingClientRect();
     // The LAST row, hard against the bottom edge — the case in the report.
     surface.dispatchEvent(
@@ -1568,7 +1638,9 @@ export const TheTooltipEscapesTheSurface = meta.story({
       const el = document.querySelector<HTMLElement>(
         '[data-testid="timeline-dense-tooltip"]',
       );
-      if (!el) throw new Error("no tooltip");
+      if (!el) {
+        throw new Error("no tooltip");
+      }
       return el;
     });
 
@@ -1621,7 +1693,9 @@ export const TheTooltipCoversTheWholeRow = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     const rect = surface.getBoundingClientRect();
     // Over the NAME, well inside the gutter.
     surface.dispatchEvent(
@@ -1636,7 +1710,9 @@ export const TheTooltipCoversTheWholeRow = meta.story({
       const el = document.querySelector<HTMLElement>(
         '[data-testid="timeline-dense-tooltip"]',
       );
-      if (!el) throw new Error("hovering a name said nothing");
+      if (!el) {
+        throw new Error("hovering a name said nothing");
+      }
       return el;
     });
     await expect(tooltip.innerText).toContain("level-");
@@ -1661,7 +1737,9 @@ export const HoverDoesNotRecolourTheBar = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     const bars = () => [
       ...canvasElement.querySelectorAll<HTMLElement>(
         '[data-testid="timeline-dense-bar"]',
@@ -1711,14 +1789,18 @@ export const FitIsDisabledWhenItWouldDoNothing = meta.story({
         'button[aria-label*="fits"], button[aria-label="Fit whole trace"]',
       );
     const button = fit();
-    if (!button) throw new Error("no fit button");
+    if (!button) {
+      throw new Error("no fit button");
+    }
     // At rest the whole trace already fits.
     await expect(button.disabled).toBe(true);
 
     const zoomIn = canvasElement.querySelector<HTMLButtonElement>(
       'button[aria-label="Zoom in"]',
     );
-    if (!zoomIn) throw new Error("no zoom button");
+    if (!zoomIn) {
+      throw new Error("no zoom button");
+    }
     await userEvent.click(zoomIn);
     await waitFor(() => expect(fit()?.disabled).toBe(false));
   },
@@ -1764,13 +1846,17 @@ export const ShowLabelsKeepsTheWholeClock = meta.story({
     const show = canvasElement.querySelector<HTMLButtonElement>(
       'button[aria-label="Show labels"]',
     );
-    if (!show) throw new Error("no show-labels button");
+    if (!show) {
+      throw new Error("no show-labels button");
+    }
     await expect(show.disabled).toBe(false);
     await expect(show.innerText.toLowerCase()).toContain("show labels");
     const caption = [...(toolbar()?.querySelectorAll("span") ?? [])].find(
       (el) => el.textContent?.trim().toLowerCase() === "show labels",
     );
-    if (!caption) throw new Error("Show labels text is not on the button");
+    if (!caption) {
+      throw new Error("Show labels text is not on the button");
+    }
     await expect(show.contains(caption)).toBe(true);
     await userEvent.click(caption);
 
@@ -1781,7 +1867,9 @@ export const ShowLabelsKeepsTheWholeClock = meta.story({
     const fit = canvasElement.querySelector<HTMLButtonElement>(
       'button[aria-label="Fit whole trace"]',
     );
-    if (!fit) throw new Error("no fit button after expanding");
+    if (!fit) {
+      throw new Error("no fit button after expanding");
+    }
     await expect(fit.disabled).toBe(false);
     await userEvent.click(fit);
 
@@ -1813,7 +1901,9 @@ export const FitStaysAfterATimeOnlyBox = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     surface.setPointerCapture = () => undefined;
     surface.releasePointerCapture = () => undefined;
     const readout = () =>
@@ -1851,7 +1941,9 @@ export const FitStaysAfterATimeOnlyBox = meta.story({
     const fit = canvasElement.querySelector<HTMLButtonElement>(
       'button[aria-label="Fit whole trace"]',
     );
-    if (!fit) throw new Error("Fit disappeared after a time-only box");
+    if (!fit) {
+      throw new Error("Fit disappeared after a time-only box");
+    }
     await expect(fit.disabled).toBe(false);
   },
 });
@@ -1891,12 +1983,16 @@ export const ShowLabelsOpensTheGutterOnANarrowPane = meta.story({
     const show = canvasElement.querySelector<HTMLButtonElement>(
       'button[aria-label="Show labels"]',
     );
-    if (!show) throw new Error("no show-labels button on a squeezed pane");
+    if (!show) {
+      throw new Error("no show-labels button on a squeezed pane");
+    }
     await expect(show.innerText.toLowerCase()).toContain("show labels");
     const caption = [...show.querySelectorAll("span")].find(
       (el) => el.textContent?.trim().toLowerCase() === "show labels",
     );
-    if (!caption) throw new Error("Show labels text is not on the button");
+    if (!caption) {
+      throw new Error("Show labels text is not on the button");
+    }
     const leftBefore = barLeft();
 
     await userEvent.click(caption);
@@ -1931,7 +2027,9 @@ export const ShowLabelsPeekTogglesOffOnATooNarrowPane = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     surface.setPointerCapture = () => undefined;
     surface.releasePointerCapture = () => undefined;
     const peekNames = () =>
@@ -1957,7 +2055,9 @@ export const ShowLabelsPeekTogglesOffOnATooNarrowPane = meta.story({
     const show = canvasElement.querySelector<HTMLButtonElement>(
       'button[aria-label="Show labels"]',
     );
-    if (!show) throw new Error("no show-labels button on a peek-only pane");
+    if (!show) {
+      throw new Error("no show-labels button on a peek-only pane");
+    }
     const leftBefore = barLeft();
 
     await userEvent.click(show);
@@ -1998,7 +2098,9 @@ export const ShowLabelsRecommitsAfterARailCollapse = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     surface.setPointerCapture = () => undefined;
     surface.releasePointerCapture = () => undefined;
     const peekNames = () =>
@@ -2024,7 +2126,9 @@ export const ShowLabelsRecommitsAfterARailCollapse = meta.story({
       const show = canvasElement.querySelector<HTMLButtonElement>(
         'button[aria-label="Show labels"]',
       );
-      if (!show) throw new Error("no show-labels button");
+      if (!show) {
+        throw new Error("no show-labels button");
+      }
       await userEvent.click(show);
     };
 
@@ -2070,7 +2174,9 @@ export const ShowLabelsSurvivesAVerticalPan = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     const readout = () =>
       canvasElement.querySelector<HTMLElement>(
         '[data-testid="timeline-dense-readout"]',
@@ -2100,7 +2206,9 @@ export const ShowLabelsSurvivesAVerticalPan = meta.story({
       canvasElement.querySelector('button[aria-label="Fit whole trace"]'),
     ).toBeNull();
 
-    if (!show()) throw new Error("Show labels vanished after a vertical pan");
+    if (!show()) {
+      throw new Error("Show labels vanished after a vertical pan");
+    }
     await userEvent.click(show()!);
     await waitFor(() => expect(readout()).toContain("26.0px rows (labelled)"));
     await expect(readout()).toContain("zoomed");
@@ -2138,7 +2246,9 @@ export const TheTooltipDoesNotRepeatTheAxis = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     const rect = surface.getBoundingClientRect();
     const hover = (offsetY: number) =>
       surface.dispatchEvent(
@@ -2179,7 +2289,9 @@ export const DragZoomsWithoutAModifier = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     // Spy rather than stub: WHEN the pointer is captured is the contract here.
     // Capture retargets the click that follows to the capturing element, so
     // taking it on pointerdown kills click-to-select on every row — and no
@@ -2240,7 +2352,9 @@ export const AFingerDragStillPans = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     surface.setPointerCapture = () => undefined;
     surface.releasePointerCapture = () => undefined;
     const rowsLabel = () =>
@@ -2299,13 +2413,17 @@ export const TheCursorMatchesTheGesture = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     await expect(getComputedStyle(surface).cursor).toBe("default");
 
     const bar = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-bar"]',
     );
-    if (!bar) throw new Error("no bar");
+    if (!bar) {
+      throw new Error("no bar");
+    }
     await expect(getComputedStyle(bar).cursor).toBe("pointer");
   },
 });
@@ -2322,7 +2440,9 @@ export const TheToolbarDoesNotExplainItself = meta.story({
     const toolbar = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-toolbar"]',
     );
-    if (!toolbar) throw new Error("no toolbar");
+    if (!toolbar) {
+      throw new Error("no toolbar");
+    }
 
     // At rest: no tutorial, and nothing about where you are — you are nowhere in
     // particular, you are looking at all of it.
@@ -2345,7 +2465,9 @@ export const TheToolbarDoesNotExplainItself = meta.story({
     const zoomIn = canvasElement.querySelector<HTMLButtonElement>(
       'button[aria-label="Zoom in"]',
     );
-    if (!zoomIn) throw new Error("no zoom button");
+    if (!zoomIn) {
+      throw new Error("no zoom button");
+    }
     await userEvent.click(zoomIn);
 
     // Zoomed: it says where you are, and still explains nothing.
@@ -2376,7 +2498,9 @@ export const APinchAbandonsAnUnfinishedBox = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     surface.setPointerCapture = () => undefined;
     surface.releasePointerCapture = () => undefined;
     const readout = () =>
@@ -2455,11 +2579,15 @@ export const TheFirstTokenHasItsMark = meta.story({
     const bar = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-bar"]',
     );
-    if (!bar) throw new Error("no bar");
+    if (!bar) {
+      throw new Error("no bar");
+    }
     const mark = bar.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-first-token"]',
     );
-    if (!mark) throw new Error("the streaming split is not drawn");
+    if (!mark) {
+      throw new Error("the streaming split is not drawn");
+    }
 
     // A quarter of the way along, whatever the scale happens to be.
     const barBox = bar.getBoundingClientRect();
@@ -2506,7 +2634,9 @@ export const TheClusterTakesTheRoomierSide = meta.story({
       const bar = row?.querySelector<HTMLElement>(
         '[data-testid="timeline-dense-bar"]',
       );
-      if (!bar) continue;
+      if (!bar) {
+        continue;
+      }
       const barBox = bar.getBoundingClientRect();
       const lane = cluster.parentElement!.getBoundingClientRect();
       // Whichever side it picked, it must be the one with the most room.
@@ -2556,7 +2686,9 @@ export const ARowTooTightForMetricsStillSaysThem = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    if (!surface) throw new Error("dense surface not found");
+    if (!surface) {
+      throw new Error("dense surface not found");
+    }
     const rect = surface.getBoundingClientRect();
     surface.dispatchEvent(
       new PointerEvent("pointermove", {
@@ -2571,7 +2703,9 @@ export const ARowTooTightForMetricsStillSaysThem = meta.story({
       const el = document.querySelector<HTMLElement>(
         '[data-testid="timeline-dense-tooltip"]',
       );
-      if (!el) throw new Error("no tooltip");
+      if (!el) {
+        throw new Error("no tooltip");
+      }
       return el;
     });
     // The duration and the cost, on a row that had no room to print either.

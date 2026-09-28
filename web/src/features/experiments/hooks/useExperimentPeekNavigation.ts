@@ -28,7 +28,9 @@ export function useExperimentPeekNavigation() {
   const experimentTargets = useMemo(():
     | Record<string, ExperimentTarget>
     | undefined => {
-    if (!peekItemId) return undefined;
+    if (!peekItemId) {
+      return undefined;
+    }
     const list = detailPagelists["experiment-items"];
     const entry = list?.find((e) => e.id === peekItemId);
     return entry?.meta?.experimentTargets as
@@ -53,7 +55,9 @@ export function useExperimentPeekNavigation() {
       i >= 0 && i < allExperimentIds.length;
       i += step
     ) {
-      if (experimentTargets?.[allExperimentIds[i]]) return allExperimentIds[i];
+      if (experimentTargets?.[allExperimentIds[i]]) {
+        return allExperimentIds[i];
+      }
     }
     return null;
   };
@@ -65,7 +69,9 @@ export function useExperimentPeekNavigation() {
   const goTo = useCallback(
     (experimentId: string) => {
       const target = experimentTargets?.[experimentId];
-      if (!target) return;
+      if (!target) {
+        return;
+      }
 
       const params = new URLSearchParams(window.location.search);
       params.set("peekExperimentId", experimentId);
@@ -83,11 +89,15 @@ export function useExperimentPeekNavigation() {
   );
 
   const goToPrev = useCallback(() => {
-    if (prevId) goTo(prevId);
+    if (prevId) {
+      goTo(prevId);
+    }
   }, [prevId, goTo]);
 
   const goToNext = useCallback(() => {
-    if (nextId) goTo(nextId);
+    if (nextId) {
+      goTo(nextId);
+    }
   }, [nextId, goTo]);
 
   return {

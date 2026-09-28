@@ -28,7 +28,9 @@ function attributesToOtelList(
 ): OtelAttribute[] {
   return Object.entries(attributes)
     .map(([key, value]) => {
-      if (value === undefined || value === null) return undefined;
+      if (value === undefined || value === null) {
+        return undefined;
+      }
       return {
         key,
         value: {
@@ -107,7 +109,9 @@ export async function publishAiFeatureTraceViaOtelIngestion(params: {
   eventInputs: InternalTraceEventInput[];
   projectId: string;
 }): Promise<void> {
-  if (params.eventInputs.length === 0) return;
+  if (params.eventInputs.length === 0) {
+    return;
+  }
 
   await publishOtelResourceSpans({
     resourceSpans: aiFeatureTraceInputsToResourceSpans(params.eventInputs),

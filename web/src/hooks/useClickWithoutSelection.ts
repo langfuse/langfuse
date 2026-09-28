@@ -56,7 +56,9 @@ export function useClickWithoutSelection({
 
   const handleMouseDown = useCallback(
     (e: MouseEvent) => {
-      if (!enabled) return;
+      if (!enabled) {
+        return;
+      }
 
       // Only track left mouse button
       if (e.button === 0) {

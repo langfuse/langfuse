@@ -12,19 +12,31 @@ import type { JSONType } from "../types";
  */
 export function getJSONType(value: unknown): JSONType {
   // Handle null explicitly (typeof null === 'object')
-  if (value === null) return "null";
+  if (value === null) {
+    return "null";
+  }
 
   // Handle undefined
-  if (value === undefined) return "undefined";
+  if (value === undefined) {
+    return "undefined";
+  }
 
   // Handle arrays (Array.isArray is built-in)
-  if (Array.isArray(value)) return "array";
+  if (Array.isArray(value)) {
+    return "array";
+  }
 
   // Handle primitives
   const type = typeof value;
-  if (type === "string") return "string";
-  if (type === "number") return "number";
-  if (type === "boolean") return "boolean";
+  if (type === "string") {
+    return "string";
+  }
+  if (type === "number") {
+    return "number";
+  }
+  if (type === "boolean") {
+    return "boolean";
+  }
 
   // Everything else is object
   return "object";
@@ -55,14 +67,20 @@ export function formatValuePreview(value: unknown, maxLength = 50): string {
       const obj = value as Record<string, unknown>;
       const keys = Object.keys(obj);
       const count = keys.length;
-      if (count === 0) return "{}";
-      if (count === 1) return `{${keys[0]}}`;
+      if (count === 0) {
+        return "{}";
+      }
+      if (count === 1) {
+        return `{${keys[0]}}`;
+      }
       return `{${count} keys}`;
     }
 
     case "string": {
       const str = value as string;
-      if (str.length === 0) return '""';
+      if (str.length === 0) {
+        return '""';
+      }
       if (str.length > maxLength) {
         return `"${str.slice(0, maxLength)}..."`;
       }
@@ -107,7 +125,9 @@ export function getChildren(value: unknown): [string | number, unknown][] {
  * Check if a key looks like an array index
  */
 export function isArrayIndex(key: string | number): boolean {
-  if (typeof key === "number") return true;
+  if (typeof key === "number") {
+    return true;
+  }
 
   // String that is a valid array index
   const num = Number(key);

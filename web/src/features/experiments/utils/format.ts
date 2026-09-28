@@ -3,7 +3,9 @@ import { type Prisma } from "@langfuse/shared";
 export const getFormattedPayload = (
   payload: Prisma.JsonValue | undefined,
 ): string => {
-  if (!payload) return "{}";
+  if (!payload) {
+    return "{}";
+  }
 
   if (typeof payload === "string") {
     // Check if it's a double-stringified JSON

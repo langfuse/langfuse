@@ -61,7 +61,9 @@ export default withMiddlewares({
       let bodyFailureMessage = "Failed to read request body";
       try {
         const bodyResult = await bodyResultPromise;
-        if (!bodyResult.success) throw bodyResult.error;
+        if (!bodyResult.success) {
+          throw bodyResult.error;
+        }
         body = bodyResult.body;
         encodedBodyBytes = body.byteLength;
 

@@ -29,7 +29,9 @@ export const saveWindowIds = (ids: string[]): void => {
 export const getWindowState = (windowId: string): PlaygroundCache | null => {
   const key = getCacheKey(windowId);
   const cachedState = sessionStorage.getItem(key);
-  if (!cachedState) return null;
+  if (!cachedState) {
+    return null;
+  }
   try {
     return JSON.parse(cachedState) as PlaygroundCache;
   } catch (error) {

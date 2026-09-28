@@ -28,9 +28,13 @@ const readStoredVisibilityState = (
   }
   try {
     const storedValue = localStorage.getItem(localStorageKey);
-    if (!storedValue) return {};
+    if (!storedValue) {
+      return {};
+    }
     const parsed: unknown = JSON.parse(storedValue);
-    if (!isVisibilityState(parsed)) return {};
+    if (!isVisibilityState(parsed)) {
+      return {};
+    }
     // Values matter as much as the shape: entries whose value is not a boolean
     // are not column visibility, and they outlive the object they came from
     // (nothing else prunes them) until a saved view rejects them.
@@ -108,9 +112,13 @@ function useColumnVisibility<TData>(
     // Apply any opt-in one-time migrations (e.g. a column that became visible
     // by default). Each runs at most once, guarded by its versionKey.
     migrations?.forEach((migration) => {
-      if (hasRunMigration(migration.versionKey)) return;
+      if (hasRunMigration(migration.versionKey)) {
+        return;
+      }
       const migrated = migration.apply(initialColumnVisibility);
-      if (migrated === null) return; // deferred, retry on a later render
+      if (migrated === null) {
+        return;
+      } // deferred, retry on a later render
       initialColumnVisibility = migrated;
       markMigrationRun(migration.versionKey);
     });

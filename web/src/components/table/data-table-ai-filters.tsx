@@ -97,7 +97,9 @@ export function DataTableAIFilters({
         value={aiPrompt}
         onChange={(e) => {
           setAiPrompt(e.target.value);
-          if (aiError) setAiError(null);
+          if (aiError) {
+            setAiError(null);
+          }
         }}
         placeholder="Describe the filters you want to apply..."
         className="min-h-[80px] resize-none"

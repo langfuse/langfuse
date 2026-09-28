@@ -105,7 +105,9 @@ export function CorrectedOutputField({
   // In text mode: unwrap JSON strings for easier editing
   // In JSON mode: show raw JSON
   const displayValue = useMemo(() => {
-    if (!value) return "";
+    if (!value) {
+      return "";
+    }
 
     if (strictJsonMode) {
       // JSON mode: format JSON nicely
@@ -141,7 +143,9 @@ export function CorrectedOutputField({
     setStrictJsonMode(isStrictJsonMode);
 
     // Smart conversion only when toggling modes
-    if (!isEditing || !value.trim()) return;
+    if (!isEditing || !value.trim()) {
+      return;
+    }
 
     if (isStrictJsonMode) {
       // Switching TO JSON mode: wrap plain text, keep JSON objects/arrays

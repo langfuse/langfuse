@@ -121,7 +121,9 @@ export function ExperimentComparisonSelector({
         isPickerOpenRef.current = false;
         return;
       }
-      if (isPickerOpenRef.current) return;
+      if (isPickerOpenRef.current) {
+        return;
+      }
       isPickerOpenRef.current = true;
 
       // Counted over the whole available list rather than the filtered rows, so
@@ -185,8 +187,12 @@ export function ExperimentComparisonSelector({
     // The baseline's dataset first: comparing across datasets compares
     // different items, so it must never be what the list offers first.
     return [...byDataset.values()].sort((a, b) => {
-      if (a.datasetKey === baselineDatasetKey) return -1;
-      if (b.datasetKey === baselineDatasetKey) return 1;
+      if (a.datasetKey === baselineDatasetKey) {
+        return -1;
+      }
+      if (b.datasetKey === baselineDatasetKey) {
+        return 1;
+      }
       return (
         (b.options[0]?.startTime.getTime() ?? 0) -
         (a.options[0]?.startTime.getTime() ?? 0)
@@ -222,7 +228,9 @@ export function ExperimentComparisonSelector({
         isExpanded,
       });
 
-      if (!isExpanded) continue;
+      if (!isExpanded) {
+        continue;
+      }
 
       for (const option of group.options) {
         result.push({
@@ -439,7 +447,9 @@ export function ExperimentComparisonSelector({
           );
         }}
         renderSelectedItem={(row, onRemove) => {
-          if (row.kind !== "option") return null;
+          if (row.kind !== "option") {
+            return null;
+          }
 
           const { option } = row;
           const position = selectedIds.indexOf(option.experimentId);

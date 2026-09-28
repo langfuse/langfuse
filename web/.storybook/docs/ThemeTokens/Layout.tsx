@@ -196,7 +196,9 @@ function LayerStack({
   layers: Array<{ token: string; label: string }>;
 }) {
   const [head, ...rest] = layers;
-  if (!head) return null;
+  if (!head) {
+    return null;
+  }
   return (
     <div
       className="flex flex-col gap-2 rounded-md border p-3"

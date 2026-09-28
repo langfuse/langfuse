@@ -36,12 +36,16 @@ export function DeleteOrganizationDialogController({
     : { reason: "You don't have permission to delete this organization." };
 
   const openDialog = () => {
-    if (!hasAccess) return;
+    if (!hasAccess) {
+      return;
+    }
     setOpen(true);
   };
 
   const onSubmit = async () => {
-    if (!organization || hasProjects) return;
+    if (!organization || hasProjects) {
+      return;
+    }
     try {
       await deleteOrganization.mutateAsync({
         orgId: organization.id,

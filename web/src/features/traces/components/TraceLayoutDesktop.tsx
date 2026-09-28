@@ -53,7 +53,9 @@ const NAV_COMFORTABLE_MAX_PX = 460; // never default the tree wider than this
 // the tree clamped to its comfortable band. Returns undefined when the width is
 // unknown (SSR).
 function computeNavPercent(containerWidthPx: number): number | undefined {
-  if (!(containerWidthPx > 0)) return undefined;
+  if (!(containerWidthPx > 0)) {
+    return undefined;
+  }
   const navPx = Math.min(
     NAV_COMFORTABLE_MAX_PX,
     Math.max(
@@ -240,8 +242,12 @@ function TraceNavigationDetailLayout({
   const [peekView] = useQueryParam("peekView", StringParam);
   const isPeekExpanded = isPeekMode && peekView === "expanded";
   const containerWidthPx = useMemo(() => {
-    if (typeof window === "undefined") return 0;
-    if (!isPeekMode || isPeekExpanded) return window.innerWidth;
+    if (typeof window === "undefined") {
+      return 0;
+    }
+    if (!isPeekMode || isPeekExpanded) {
+      return window.innerWidth;
+    }
     return resolveEffectiveWidthFraction() * window.innerWidth;
   }, [isPeekMode, isPeekExpanded]);
 
@@ -250,7 +256,9 @@ function TraceNavigationDetailLayout({
   // Undefined during SSR.
   const computedDefaultLayout = useMemo(() => {
     const navPercent = computeNavPercent(containerWidthPx);
-    if (navPercent === undefined) return undefined;
+    if (navPercent === undefined) {
+      return undefined;
+    }
     return {
       [RESIZABLE_PANEL_NAVIGATION_ID]: navPercent,
       [RESIZABLE_PANEL_PREVIEW_ID]: 100 - navPercent,
@@ -315,10 +323,14 @@ function TraceNavigationDetailLayout({
     const element = document.getElementById(groupId);
     const applyLayout = () => {
       const group = groupRef.current;
-      if (cancelled || !group) return;
+      if (cancelled || !group) {
+        return;
+      }
       if (reviewOpen) {
         const width = element?.clientWidth ?? 0;
-        if (!width) return;
+        if (!width) {
+          return;
+        }
         const navigationWidth = reviewNavigationCollapsed
           ? COLLAPSED_PANEL_PX
           : Math.max(
@@ -335,7 +347,9 @@ function TraceNavigationDetailLayout({
       }
       appliedReviewMode.current = reviewOpen;
     };
-    if (reviewOpen) queueMicrotask(applyLayout);
+    if (reviewOpen) {
+      queueMicrotask(applyLayout);
+    }
     // The outer split must finish expanding before the library validates the
     // restored percentages against the inner panel's minimum widths.
     else if (appliedReviewMode.current) {
@@ -346,7 +360,9 @@ function TraceNavigationDetailLayout({
     const observer = reviewOpen
       ? new ResizeObserver(() => queueMicrotask(applyLayout))
       : null;
-    if (element) observer?.observe(element);
+    if (element) {
+      observer?.observe(element);
+    }
     return () => {
       cancelled = true;
       cancelAnimationFrame(outerFrame);
@@ -396,7 +412,9 @@ function TraceNavigationDetailLayout({
   // wins: the panel lands on its own min and the sibling keeps its min (both at
   // mins + horizontal scroll); on a wide peek it's a true 50/50.
   useEffect(() => {
-    if (!pendingExpand) return;
+    if (!pendingExpand) {
+      return;
+    }
     if (reviewOpen) {
       setPendingExpand(null);
       return;
@@ -458,8 +476,11 @@ function TraceNavigationDetailLayout({
           // (otherwise it would briefly unpin and the solver could re-collapse
           // the panel we just opened). The sibling's flag is left to its own
           // onResize: when it stays collapsed nothing fires and the flag holds.
-          if (target === "navigation") setIsNavigationPanelCollapsed(false);
-          else setIsDetailPanelCollapsed(false);
+          if (target === "navigation") {
+            setIsNavigationPanelCollapsed(false);
+          } else {
+            setIsDetailPanelCollapsed(false);
+          }
         }
         // Always clear the transient intent — even on a failed expand — so a
         // later resize/onResize isn't blocked by a stale pendingExpand.
@@ -475,8 +496,12 @@ function TraceNavigationDetailLayout({
   // Guarded so it's a no-op (not a resize) when already open — safe to call on
   // every row click, which is how re-selecting the same node reopens it.
   const expandDetailPanel = () => {
-    if (reviewOpen) return;
-    if (!detailPanelRef.current?.isCollapsed()) return;
+    if (reviewOpen) {
+      return;
+    }
+    if (!detailPanelRef.current?.isCollapsed()) {
+      return;
+    }
     setPendingExpand("detail");
   };
 
@@ -491,13 +516,17 @@ function TraceNavigationDetailLayout({
   const showMessages =
     selectedTab === "messages" && internalFeaturesEnabled && isV4;
   useEffect(() => {
-    if (!showMessages || reviewOpen) return;
+    if (!showMessages || reviewOpen) {
+      return;
+    }
     panelRef.current?.collapse();
   }, [showMessages, reviewOpen, panelRef]);
   useEffect(() => {
     // Guard on selectedNodeId so a deliberately-collapsed panel isn't reopened
     // on mount/refresh when there's no selection (effects always run once).
-    if (selectedNodeId || expandDetailOnMount) expandDetailPanel();
+    if (selectedNodeId || expandDetailOnMount) {
+      expandDetailPanel();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNodeId]);
 
@@ -525,7 +554,9 @@ function TraceNavigationDetailLayout({
       toggleReviewNavigation();
       return;
     }
-    if (!panelRef.current) return;
+    if (!panelRef.current) {
+      return;
+    }
 
     if (panelRef.current.isCollapsed()) {
       setPendingExpand("navigation");
@@ -568,7 +599,9 @@ function TraceNavigationDetailLayout({
           groupRef={groupRef}
           defaultLayout={defaultLayout ?? computedDefaultLayout}
           onLayoutChanged={(layout) => {
-            if (reviewOpen || appliedReviewMode.current !== reviewOpen) return;
+            if (reviewOpen || appliedReviewMode.current !== reviewOpen) {
+              return;
+            }
             normalLayout.current = layout;
             onLayoutChanged({
               [RESIZABLE_PANEL_NAVIGATION_ID]:
@@ -619,7 +652,9 @@ TraceLayoutDesktop.NavigationPanel = function Navigation({
       // so it fills the remainder.
       defaultSize="40%"
       onResize={() => {
-        if (reviewOpen) return;
+        if (reviewOpen) {
+          return;
+        }
         setIsNavigationPanelCollapsed(panelRef.current?.isCollapsed() ?? false);
       }}
     >
@@ -670,7 +705,9 @@ TraceLayoutDesktop.DetailPanel = function Detail({
       collapsedSize="40px"
       minSize={`${DETAIL_PANEL_MIN_PX}px`}
       onResize={() => {
-        if (reviewOpen) return;
+        if (reviewOpen) {
+          return;
+        }
         setIsDetailPanelCollapsed(
           detailPanelRef.current?.isCollapsed() ?? false,
         );

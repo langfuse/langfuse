@@ -20,7 +20,9 @@ function hasEmptyPromptMessage(messages: EvaluatorPromptMessage[]): boolean {
 export function getPromptMessagesValidationError(
   messages: EvaluatorPromptMessage[],
 ): string | null {
-  if (hasEmptyPromptMessage(messages)) return EMPTY_PROMPT_MESSAGE_ERROR;
+  if (hasEmptyPromptMessage(messages)) {
+    return EMPTY_PROMPT_MESSAGE_ERROR;
+  }
   if (hasInvalidSystemPromptMessage(messages)) {
     return INVALID_SYSTEM_PROMPT_MESSAGE_ERROR;
   }

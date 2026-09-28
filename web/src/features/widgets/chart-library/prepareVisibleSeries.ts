@@ -54,7 +54,9 @@ export function prepareVisibleSeries(
 
   const ranked = [...dimensions].sort((a, b) => {
     const diff = magnitude(b) - magnitude(a);
-    if (diff !== 0 && !Number.isNaN(diff)) return diff;
+    if (diff !== 0 && !Number.isNaN(diff)) {
+      return diff;
+    }
     if (a < b) {
       return -1;
     }

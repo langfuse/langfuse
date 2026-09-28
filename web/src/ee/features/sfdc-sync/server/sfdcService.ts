@@ -197,7 +197,9 @@ export class SfdcService {
   private constructor(private readonly config: SfdcConfig) {}
 
   static tryCreate(): SfdcService | null {
-    if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return null;
+    if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+      return null;
+    }
     if (
       !env.MULESOFT_SFDC_USER_URL ||
       !env.MULESOFT_SFDC_ORG_URL ||
@@ -500,7 +502,9 @@ export class SfdcService {
       });
 
       // Tolerate empty / non-JSON bodies; we only care if an ID comes back.
-      if (!expectJsonResponse || !responseText) return { ok: true, data: null };
+      if (!expectJsonResponse || !responseText) {
+        return { ok: true, data: null };
+      }
 
       let parsed: unknown;
       try {

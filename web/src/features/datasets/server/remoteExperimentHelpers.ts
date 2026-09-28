@@ -118,7 +118,9 @@ export function processRemoteExperimentHeaders(
 
   for (const [rawKey, headerObj] of Object.entries(inputHeaders)) {
     const key = rawKey.trim().toLowerCase();
-    if (!key) continue;
+    if (!key) {
+      continue;
+    }
 
     if (seenKeys.has(key)) {
       throw new TRPCError({

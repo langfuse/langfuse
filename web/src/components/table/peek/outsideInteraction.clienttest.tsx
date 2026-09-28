@@ -8,10 +8,14 @@ function targetWith(
   wrap?: Record<string, string>,
 ) {
   const el = document.createElement("span");
-  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  for (const [k, v] of Object.entries(attrs)) {
+    el.setAttribute(k, v);
+  }
   if (wrap) {
     const parent = document.createElement("div");
-    for (const [k, v] of Object.entries(wrap)) parent.setAttribute(k, v);
+    for (const [k, v] of Object.entries(wrap)) {
+      parent.setAttribute(k, v);
+    }
     parent.appendChild(el);
     document.body.appendChild(parent);
   } else {

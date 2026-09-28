@@ -58,7 +58,9 @@ export function makeIdempotencyKey(parts: {
   fields: Record<string, string | number | undefined>;
   opId?: string;
 }): string | undefined {
-  if (!parts.opId) return undefined;
+  if (!parts.opId) {
+    return undefined;
+  }
   const left = Object.entries(parts.fields)
     .filter(([, v]) => v !== undefined)
     .map(([k, v]) => `${k}=${String(v)}`)

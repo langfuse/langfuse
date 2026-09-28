@@ -120,7 +120,9 @@ if (typeof window !== "undefined" && postHogClientConfig) {
     ui_host: "https://eu.posthog.com",
     // Enable debug mode in development
     loaded: (posthog) => {
-      if (process.env.NODE_ENV === "development") posthog.debug();
+      if (process.env.NODE_ENV === "development") {
+        posthog.debug();
+      }
     },
     disable_session_recording: !isPostHogSessionRecordingEnabled,
     session_recording: {

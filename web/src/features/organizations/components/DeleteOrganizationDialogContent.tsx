@@ -45,7 +45,9 @@ export function DeleteOrganizationDialogContent({
   });
 
   const onSubmit = () => {
-    if (hasProjects) return;
+    if (hasProjects) {
+      return;
+    }
     return onConfirm();
   };
 

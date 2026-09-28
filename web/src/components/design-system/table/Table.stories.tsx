@@ -81,7 +81,9 @@ function SortableTableStory() {
       (left, right) => left.createdAt.getTime() - right.createdAt.getTime(),
     );
   }
-  if (orderBy?.order === "DESC") rows.reverse();
+  if (orderBy?.order === "DESC") {
+    rows.reverse();
+  }
 
   return (
     <Table

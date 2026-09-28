@@ -132,18 +132,23 @@ export function CategoryPresetChips({
     "no_interaction" | "previewed_only" | "applied" | "cleared"
   >("no_interaction");
   const markExplored = () => {
-    if (outcomeRef.current === "no_interaction")
+    if (outcomeRef.current === "no_interaction") {
       outcomeRef.current = "previewed_only";
+    }
   };
 
   const presetsByCategory = useMemo(() => {
     // While the preset list is loading, render no chips at all (null below)
     // rather than a lone Quality chip holding just the coming-soon placeholder
     // — the other chips popping in on response would shift the toolbar row.
-    if (!TableViewPresetsList) return null;
+    if (!TableViewPresetsList) {
+      return null;
+    }
     const grouped = new Map<SystemTableViewPresetCategory, PresetItem[]>();
     for (const view of TableViewPresetsList) {
-      if (!view.category) continue;
+      if (!view.category) {
+        continue;
+      }
       const list = grouped.get(view.category) ?? [];
       list.push({
         id: view.id,
@@ -178,7 +183,9 @@ export function CategoryPresetChips({
       )
     : [];
 
-  if (!presetsByCategory || categories.length === 0) return null;
+  if (!presetsByCategory || categories.length === 0) {
+    return null;
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -229,8 +236,9 @@ export function CategoryPresetChips({
                 onKeyDown={(event) => {
                   // Keyboard activation explicitly marks a non-pointer open,
                   // clearing a stale flag from a pointer toggle-close.
-                  if (event.key === "Enter" || event.key === " ")
+                  if (event.key === "Enter" || event.key === " ") {
                     pointerDownRef.current = false;
+                  }
                 }}
                 className={cn(
                   "gap-1.5",
@@ -253,7 +261,9 @@ export function CategoryPresetChips({
                 // open lets Radix focus the first row so the presets stay
                 // keyboard-reachable — previewing the row focus lands on is
                 // then the expected behavior.
-                if (openedByPointerRef.current) event.preventDefault();
+                if (openedByPointerRef.current) {
+                  event.preventDefault();
+                }
               }}
             >
               <div className="text-muted-foreground px-2 py-1.5 text-xs font-bold">
@@ -271,7 +281,9 @@ export function CategoryPresetChips({
                       // signal for the follow-up quality presets.
                       aria-disabled={preset.disabled || undefined}
                       onMouseEnter={() => {
-                        if (!preset.state) return;
+                        if (!preset.state) {
+                          return;
+                        }
                         markExplored();
                         onPreviewView?.(preset.state);
                         capture("saved_views:category_preset_preview", {
@@ -286,7 +298,9 @@ export function CategoryPresetChips({
                         !preset.disabled && onPreviewView?.(null)
                       }
                       onFocus={() => {
-                        if (!preset.state) return;
+                        if (!preset.state) {
+                          return;
+                        }
                         markExplored();
                         onPreviewView?.(preset.state);
                       }}

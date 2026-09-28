@@ -12,7 +12,9 @@ const EmptyInputSchema = z.object({});
 const OBSERVATION_MCP_FILTER_COLUMNS = eventsTableCols
   .filter((column) => {
     for (const allowedColumn of OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS) {
-      if (allowedColumn === column.id) return true;
+      if (allowedColumn === column.id) {
+        return true;
+      }
     }
     return false;
   })

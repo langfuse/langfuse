@@ -11,7 +11,9 @@ function formatFilterLabel(filter: FilterState[number]) {
 }
 
 function formatFilterValue(filter: FilterState[number]) {
-  if (filter.type === "null") return "";
+  if (filter.type === "null") {
+    return "";
+  }
 
   if (filter.type === "positionInTrace") {
     return formatSessionPositionInTraceFilterValue(filter);

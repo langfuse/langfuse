@@ -246,7 +246,9 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
     driBatch: DatasetRunItem[],
     lookbackDays: number,
   ): Promise<SpanRecord[]> {
-    if (driBatch.length === 0) return [];
+    if (driBatch.length === 0) {
+      return [];
+    }
 
     const tracePairs = this.buildTracePairs(driBatch);
     const { minTime, maxTime } = computeBatchTimeWindow(driBatch, lookbackDays);
@@ -326,7 +328,9 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
     driBatch: DatasetRunItem[],
     lookbackDays: number,
   ): Promise<SpanRecord[]> {
-    if (driBatch.length === 0) return [];
+    if (driBatch.length === 0) {
+      return [];
+    }
 
     const tracePairs = this.buildTracePairs(driBatch);
     const { minTime, maxTime } = computeBatchTimeWindow(driBatch, lookbackDays);
@@ -410,7 +414,9 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
    * events_full is a ReplacingMergeTree.
    */
   private async insertEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
-    if (spans.length === 0) return;
+    if (spans.length === 0) {
+      return;
+    }
 
     await clickhouseClient().insert({
       table: "events_full",
@@ -539,7 +545,9 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
         span.trace_id,
         span.span_id,
       );
-      if (enrichedSpanKeys.has(spanKey)) continue;
+      if (enrichedSpanKeys.has(spanKey)) {
+        continue;
+      }
       const traceProperties = tracePropertiesMap.get(
         projectScopedKey(span.project_id, span.trace_id),
       );

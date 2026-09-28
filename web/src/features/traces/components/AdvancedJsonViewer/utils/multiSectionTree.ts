@@ -43,11 +43,15 @@ export interface SectionConfig {
  * Get expansion state from sessionStorage
  */
 function getStoredExpansion(key: string): boolean | undefined {
-  if (typeof window === "undefined") return undefined;
+  if (typeof window === "undefined") {
+    return undefined;
+  }
 
   try {
     const stored = sessionStorage.getItem(`json-expansion:${key}`);
-    if (stored === null) return undefined;
+    if (stored === null) {
+      return undefined;
+    }
     return JSON.parse(stored) as boolean;
   } catch {
     return undefined;
@@ -355,7 +359,9 @@ export function updateSpacerHeights(tree: TreeState, lineHeight: number): void {
       (n) => n.nodeType === "section-spacer",
     );
 
-    if (!spacerNode) return;
+    if (!spacerNode) {
+      return;
+    }
 
     // Recalculate spacer height based on current content
     const minHeightPx = parseFloat(headerNode.minHeight);

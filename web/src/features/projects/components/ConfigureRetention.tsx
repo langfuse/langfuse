@@ -50,7 +50,9 @@ export default function ConfigureRetention() {
   });
 
   function onSubmit(values: z.infer<typeof projectRetentionSchema>) {
-    if (!hasAccess || !project) return;
+    if (!hasAccess || !project) {
+      return;
+    }
     capture("project_settings:retention_form_submit");
     setRetention
       .mutateAsync({

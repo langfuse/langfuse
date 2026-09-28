@@ -24,7 +24,9 @@ import { type TreeNode } from "@/src/features/traces/types/treeNode";
  * @returns Earliest start time across the tree, or `null` when there are no nodes
  */
 export function findEarliestStartTime(roots: TreeNode[]): Date | null {
-  if (roots.length === 0) return null;
+  if (roots.length === 0) {
+    return null;
+  }
 
   let earliest = Infinity;
 
@@ -33,7 +35,9 @@ export function findEarliestStartTime(roots: TreeNode[]): Date | null {
   while (stack.length > 0) {
     const node = stack.pop()!;
     const start = node.startTime.getTime();
-    if (start < earliest) earliest = start;
+    if (start < earliest) {
+      earliest = start;
+    }
     for (const child of node.children) {
       stack.push(child);
     }
@@ -65,7 +69,9 @@ export function calculateTraceDuration(
   roots: TreeNode[],
   origin: Date,
 ): number {
-  if (roots.length === 0) return 0;
+  if (roots.length === 0) {
+    return 0;
+  }
 
   const originMs = origin.getTime();
   let latestEndMs = -Infinity;
@@ -75,8 +81,12 @@ export function calculateTraceDuration(
   while (stack.length > 0) {
     const node = stack.pop()!;
     const end = (node.endTime ?? node.startTime).getTime();
-    if (end > latestEndMs) latestEndMs = end;
-    for (const child of node.children) stack.push(child);
+    if (end > latestEndMs) {
+      latestEndMs = end;
+    }
+    for (const child of node.children) {
+      stack.push(child);
+    }
   }
 
   const spanFromEnds = (latestEndMs - originMs) / 1000;

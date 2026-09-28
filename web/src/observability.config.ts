@@ -144,7 +144,9 @@ const sdk = new NodeSDK({
         // ClientRequests expose `path` instead.
         if (!("path" in req) && req?.headers) {
           const { sdkName, sdkVersion } = extractSdkAttributes(req.headers);
-          if (sdkName) span.setAttribute(SDK_NAME_ATTRIBUTE, sdkName);
+          if (sdkName) {
+            span.setAttribute(SDK_NAME_ATTRIBUTE, sdkName);
+          }
           if (sdkVersion) {
             span.setAttribute(SDK_VERSION_ATTRIBUTE, sdkVersion);
           }

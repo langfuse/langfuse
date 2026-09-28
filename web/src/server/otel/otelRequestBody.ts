@@ -64,7 +64,9 @@ type RawBodyError = Error & {
 };
 
 function isRawBodyTooLargeError(error: unknown): error is RawBodyError {
-  if (!(error instanceof Error)) return false;
+  if (!(error instanceof Error)) {
+    return false;
+  }
 
   const rawBodyError = error as RawBodyError;
   return (

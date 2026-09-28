@@ -353,8 +353,9 @@ describe("AI gateway live end-to-end", () => {
             });
 
             const ingestionToken = resolved.ingestion?.access_token;
-            if (!ingestionToken)
+            if (!ingestionToken) {
               throw new Error("Resolve did not return an ingestion token");
+            }
 
             await ingestTrace(ingestionToken, {
               provider,
@@ -434,7 +435,9 @@ async function restoreProviderConnections() {
       where: { id: { in: [...createdConnectionIds] } },
     });
   }
-  if (connectionSnapshots.length === 0) return;
+  if (connectionSnapshots.length === 0) {
+    return;
+  }
 
   await prisma.$transaction(
     connectionSnapshots.map((connection) =>
@@ -456,7 +459,9 @@ async function restoreProviderConnections() {
 }
 
 async function restoreGatewayConfig() {
-  if (!gatewayConfigPrepared) return;
+  if (!gatewayConfigPrepared) {
+    return;
+  }
 
   if (gatewayConfigSnapshot) {
     await prisma.gatewayConfig.update({
@@ -535,7 +540,9 @@ async function selectOnlyConnection(targetConnectionId: string) {
 }
 
 async function clearModelCaches(connectionIds: string[]) {
-  if (!redis || connectionIds.length === 0) return;
+  if (!redis || connectionIds.length === 0) {
+    return;
+  }
   await redis.del(
     ...connectionIds.map(
       (connectionId) => `ai-gateway:models:${ORGANIZATION_ID}:${connectionId}`,
@@ -560,7 +567,9 @@ async function gatewayControlPlaneRequest(input: {
   )}`;
   const isModelsRequest = input.path === MODELS_PATH;
   const url = new URL(`${BASE_URL}${input.path}`);
-  if (isModelsRequest) url.searchParams.set("api_format", input.apiFormat);
+  if (isModelsRequest) {
+    url.searchParams.set("api_format", input.apiFormat);
+  }
 
   const response = await fetch(url, {
     method: isModelsRequest ? "GET" : "POST",
@@ -719,7 +728,9 @@ async function expectResponseStatus(
   expectedStatus: number,
   label: string,
 ) {
-  if (response.status === expectedStatus) return;
+  if (response.status === expectedStatus) {
+    return;
+  }
   throw new Error(
     `${label} returned ${response.status}; expected ${expectedStatus}. Response: ${await response.text()}`,
   );

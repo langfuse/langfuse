@@ -521,7 +521,9 @@ export default function SignInPage({
       nextAuthError);
 
   useEffect(() => {
-    if (!nextAuthError) return;
+    if (!nextAuthError) {
+      return;
+    }
     // Expected = user-caused or provider-transient outcomes the form already
     // renders: mapped codes, allowlisted codes (expectedAuthErrors.ts), and
     // IdP-described errors. They breadcrumb instead of capturing; anything
@@ -659,8 +661,9 @@ export default function SignInPage({
       !previewAutoSignInEnabled ||
       previewAutoSignInAttempted.current ||
       sessionStatus === "loading"
-    )
+    ) {
       return;
+    }
     previewAutoSignInAttempted.current = true;
     if (sessionStatus === "authenticated") {
       // already signed in — useAuthGuard navigates away from this page
@@ -675,7 +678,9 @@ export default function SignInPage({
       redirect: false,
     })
       .then((result) => {
-        if (result?.ok) return; // session updates and useAuthGuard navigates
+        if (result?.ok) {
+          return;
+        } // session updates and useAuthGuard navigates
         setPreviewAutoSignInPending(false);
         setCredentialsFormError(
           result?.error ?? "Automatic preview sign-in failed.",

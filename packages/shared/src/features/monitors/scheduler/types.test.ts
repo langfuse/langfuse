@@ -29,7 +29,9 @@ describe("MonitorQueueEventSchema", () => {
       runAt: "2026-05-18T12:00:00.000Z",
     });
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.runAt).toBeInstanceOf(Date);
+    if (result.success) {
+      expect(result.data.runAt).toBeInstanceOf(Date);
+    }
   });
 
   it("coerces a string schedulerBatchId to a bigint", () => {
@@ -38,8 +40,9 @@ describe("MonitorQueueEventSchema", () => {
       schedulerBatchId: "42",
     });
     expect(result.success).toBe(true);
-    if (result.success)
+    if (result.success) {
       expect(typeof result.data.schedulerBatchId).toBe("bigint");
+    }
   });
 
   it("preserves full precision when coercing a large bigint string wire value", () => {
@@ -187,7 +190,9 @@ describe("MonitorWebhookQueueEventSchema", () => {
       timestamp: "2026-05-18T12:01:00.000Z",
     });
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.timestamp).toBeInstanceOf(Date);
+    if (result.success) {
+      expect(result.data.timestamp).toBeInstanceOf(Date);
+    }
   });
 });
 

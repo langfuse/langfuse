@@ -71,9 +71,15 @@ function getPreviewMode({
   target: EvalTargetObjectType;
   shouldUseEventsTable: boolean;
 }): PreviewMode {
-  if (!enabled) return "none";
-  if (target === EvalTargetObject.TRACE) return "trace";
-  if (isExperimentTarget(target) && shouldUseEventsTable) return "experiment";
+  if (!enabled) {
+    return "none";
+  }
+  if (target === EvalTargetObject.TRACE) {
+    return "trace";
+  }
+  if (isExperimentTarget(target) && shouldUseEventsTable) {
+    return "experiment";
+  }
   if (isEventTarget(target)) {
     return shouldUseEventsTable ? "event" : "observation";
   }
@@ -116,7 +122,9 @@ function getRecordValue(
   record: Record<string, unknown> | null | undefined,
   selectedColumnId: string,
 ) {
-  if (!record) return null;
+  if (!record) {
+    return null;
+  }
 
   const { value } = extractValueFromObject(record, selectedColumnId);
   return value === undefined ? null : value;
@@ -343,10 +351,18 @@ export function usePreviewData({
     enabled: mode === "experiment",
   });
 
-  if (mode === "trace") return tracePreview;
-  if (mode === "observation") return observationPreview;
-  if (mode === "event") return eventPreview;
-  if (mode === "experiment") return experimentPreview;
+  if (mode === "trace") {
+    return tracePreview;
+  }
+  if (mode === "observation") {
+    return observationPreview;
+  }
+  if (mode === "event") {
+    return eventPreview;
+  }
+  if (mode === "experiment") {
+    return experimentPreview;
+  }
 
   return EMPTY_PREVIEW_RESULT;
 }

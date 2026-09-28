@@ -30,7 +30,9 @@ export function resolveClickhouseService(
     case "ReadWrite":
       return "main";
     case "EventsReadOnly":
-      if (env.CLICKHOUSE_EVENTS_READ_ONLY_URL) return "events_read_replica";
+      if (env.CLICKHOUSE_EVENTS_READ_ONLY_URL) {
+        return "events_read_replica";
+      }
       return env.CLICKHOUSE_READ_ONLY_URL ? "read_replica" : "main";
     case "ReadOnly":
     default:
@@ -154,7 +156,9 @@ export class ClickHouseClientManager {
   private getRequestTimeoutClickHouseSettings(
     requestTimeout?: number,
   ): RequestTimeoutClickHouseSettings {
-    if (!requestTimeout) return {};
+    if (!requestTimeout) {
+      return {};
+    }
 
     return {
       timeout_before_checking_execution_speed: 0,

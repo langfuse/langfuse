@@ -9,8 +9,9 @@ export function resolveEvaluatorIdMetadata(metadata: unknown): string | null {
     }
   }
 
-  if (typeof parsedMetadata !== "object" || parsedMetadata === null)
+  if (typeof parsedMetadata !== "object" || parsedMetadata === null) {
     return null;
+  }
 
   const evaluatorId = (parsedMetadata as Record<string, unknown>).evaluator_id;
   return typeof evaluatorId === "string" && evaluatorId.length > 0

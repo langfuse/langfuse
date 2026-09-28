@@ -8,7 +8,9 @@ import { Badge } from "@/src/components/ui/badge";
 import { QUESTION_TYPE_COPY } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionTypeSelector/QuestionTypeSelector";
 
 function entryText(entry: DecisionModelEntry | null | undefined) {
-  if (entry == null) return "";
+  if (entry == null) {
+    return "";
+  }
   return typeof entry === "string" ? entry : JSON.stringify(entry);
 }
 

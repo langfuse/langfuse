@@ -72,7 +72,9 @@ function isObjectJsonSchema(schema: JsonSchemaObject): boolean {
 }
 
 function hasJsonSchemaUnion(value: unknown): boolean {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
 
   if (Array.isArray(value)) {
     return value.some(hasJsonSchemaUnion);

@@ -195,7 +195,9 @@ export const TestLastDateFullyVisible = meta.story({
       expect(svg).toBeTruthy();
     });
     const svg = canvasElement.querySelector("svg");
-    if (!svg) throw new Error("plot svg not found");
+    if (!svg) {
+      throw new Error("plot svg not found");
+    }
     const svgBox = svg.getBoundingClientRect();
     const timeLabels = [...svg.querySelectorAll("text")].filter((el) =>
       /^[A-Z][a-z]{2} \d/.test(el.textContent ?? ""),

@@ -73,7 +73,9 @@ function flattenToolDefinition(tool: unknown): {
     }
   }
 
-  if (!tool || typeof tool !== "object") return {};
+  if (!tool || typeof tool !== "object") {
+    return {};
+  }
   const t = tool as Record<string, unknown>;
 
   // Handle nested {type, function: {name, ...}} format (OpenAI Chat Completions)
@@ -100,7 +102,9 @@ function flattenToolCall(call: unknown): {
   type?: string;
   index?: number;
 } {
-  if (!call || typeof call !== "object") return {};
+  if (!call || typeof call !== "object") {
+    return {};
+  }
   const c = call as Record<string, unknown>;
 
   // Handle nested {function: {name, arguments}} format
@@ -127,7 +131,9 @@ function addToolDefinition(
   tool: unknown,
 ): void {
   const flattened = flattenToolDefinition(tool);
-  if (!flattened.name) return; // Skip invalid tools
+  if (!flattened.name) {
+    return;
+  } // Skip invalid tools
 
   const normalized: ClickhouseToolDefinition = {
     name: flattened.name,
@@ -148,7 +154,9 @@ function addToolDefinition(
  */
 function addToolArgument(args: ClickhouseToolArgument[], call: unknown): void {
   const flattened = flattenToolCall(call);
-  if (!flattened.name) return; // Skip invalid calls
+  if (!flattened.name) {
+    return;
+  } // Skip invalid calls
 
   args.push({
     id: flattened.id ?? "",
@@ -163,7 +171,9 @@ function addToolArguments(
   args: ClickhouseToolArgument[],
   calls: unknown[] | undefined,
 ): void {
-  if (!calls) return;
+  if (!calls) {
+    return;
+  }
 
   for (const call of calls) {
     addToolArgument(args, call);
@@ -171,8 +181,12 @@ function addToolArguments(
 }
 
 function parseArrayIfString(data: unknown): unknown[] | undefined {
-  if (Array.isArray(data)) return data;
-  if (typeof data !== "string") return undefined;
+  if (Array.isArray(data)) {
+    return data;
+  }
+  if (typeof data !== "string") {
+    return undefined;
+  }
 
   try {
     const parsed = JSON.parse(data);
@@ -187,10 +201,14 @@ function parseArrayIfString(data: unknown): unknown[] | undefined {
  * Excludes available tool definitions and tool result payloads.
  */
 function isToolCallLike(value: unknown): boolean {
-  if (!value || typeof value !== "object") return false;
+  if (!value || typeof value !== "object") {
+    return false;
+  }
 
   const call = value as Record<string, unknown>;
-  if (call.type === "tool-result") return false;
+  if (call.type === "tool-result") {
+    return false;
+  }
 
   const functionCall = call.function as Record<string, unknown> | undefined;
   const hasOpenAiShape = Boolean(
@@ -225,7 +243,9 @@ function isToolCallLike(value: unknown): boolean {
 }
 
 function isMessageLike(value: unknown): boolean {
-  if (!value || typeof value !== "object") return false;
+  if (!value || typeof value !== "object") {
+    return false;
+  }
 
   const message = value as Record<string, unknown>;
   return ["role", "content", "tool_calls", "additional_kwargs"].some(
@@ -262,7 +282,9 @@ function extractToolsFromRawInput(
   input: unknown,
   definitions: ClickhouseToolDefinition[],
 ): void {
-  if (!input || typeof input !== "object") return;
+  if (!input || typeof input !== "object") {
+    return;
+  }
 
   const obj = Array.isArray(input)
     ? { messages: input }
@@ -307,7 +329,9 @@ function extractToolCallsFromRawOutput(
   output: unknown,
   args: ClickhouseToolArgument[],
 ): void {
-  if (!output) return;
+  if (!output) {
+    return;
+  }
 
   // Array of messages
   if (Array.isArray(output)) {
@@ -324,7 +348,9 @@ function extractToolCallsFromRawOutput(
     return;
   }
 
-  if (typeof output !== "object") return;
+  if (typeof output !== "object") {
+    return;
+  }
   const obj = output as Record<string, unknown>;
 
   if (isToolCallLike(obj) && !isMessageLike(obj)) {
@@ -426,7 +452,9 @@ function parseMetadataAttributes(
 }
 
 function toIngestionJsonValue(value: unknown): IngestionJsonValue {
-  if (value == null) return value;
+  if (value == null) {
+    return value;
+  }
 
   const valueType = typeof value;
   return valueType === "string" ||
@@ -446,8 +474,12 @@ function isToolMetadataEntryLike(
   options: { allowProviderToolWithoutName?: boolean } = {},
 ): boolean {
   const parsedTool = parseIfString(tool);
-  if (!isPlainRecord(parsedTool)) return false;
-  if (isToolDefinitionLike(parsedTool)) return true;
+  if (!isPlainRecord(parsedTool)) {
+    return false;
+  }
+  if (isToolDefinitionLike(parsedTool)) {
+    return true;
+  }
 
   return (
     options.allowProviderToolWithoutName === true &&
@@ -463,10 +495,14 @@ function parseToolDefinitionArray(
   } = {},
 ): unknown[] | undefined {
   const parsedTools = parseArrayIfString(tools);
-  if (!parsedTools) return undefined;
+  if (!parsedTools) {
+    return undefined;
+  }
 
   const normalizedTools = parsedTools.map(parseIfString);
-  if (normalizedTools.length === 0) return [];
+  if (normalizedTools.length === 0) {
+    return [];
+  }
 
   const toolLikeEntries = normalizedTools.filter((tool) =>
     isToolMetadataEntryLike(tool, {
@@ -492,8 +528,12 @@ function dedupeToolDefinitions(tools: unknown[]): unknown[] {
   const seenToolNames = new Set<string>();
   return tools.filter((tool) => {
     const name = flattenToolDefinition(tool).name;
-    if (!name) return true;
-    if (seenToolNames.has(name)) return false;
+    if (!name) {
+      return true;
+    }
+    if (seenToolNames.has(name)) {
+      return false;
+    }
     seenToolNames.add(name);
     return true;
   });
@@ -509,7 +549,9 @@ function collectAndRemoveToolDefinitionsFromMetadata(
     options: ToolDefinitionArrayOptions = {},
   ) => {
     const parsedTools = parseToolDefinitionArray(value, options);
-    if (!parsedTools) return false;
+    if (!parsedTools) {
+      return false;
+    }
 
     tools = tools.concat(parsedTools);
     return true;
@@ -783,7 +825,9 @@ function extractToolsFromParsedObservation(
   const seenIds = new Set<string>();
   const uniqueArgs = toolArguments.filter((arg) => {
     const key = arg.id || `${arg.name}-${arg.arguments}`;
-    if (seenIds.has(key)) return false;
+    if (seenIds.has(key)) {
+      return false;
+    }
     seenIds.add(key);
     return true;
   });

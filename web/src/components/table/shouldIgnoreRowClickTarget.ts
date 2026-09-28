@@ -15,7 +15,9 @@ const INTERACTIVE_ROW_CLICK_SELECTOR =
  * surface.
  */
 export const shouldIgnoreRowClickTarget = (target: EventTarget | null) => {
-  if (!(target instanceof Element)) return false;
+  if (!(target instanceof Element)) {
+    return false;
+  }
 
   return Boolean(target.closest(INTERACTIVE_ROW_CLICK_SELECTOR));
 };

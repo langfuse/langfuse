@@ -76,11 +76,14 @@ function collectLeaves(
 ): void {
   switch (node.kind) {
     case "filter":
-      if (node.span)
+      if (node.span) {
         out.push({ span: node.span, kind: "filter", node, negated: false });
+      }
       return;
     case "text":
-      if (node.span) out.push({ span: node.span, kind: "text", node });
+      if (node.span) {
+        out.push({ span: node.span, kind: "text", node });
+      }
       return;
     case "not":
       // "-env:dev" is one lexer term (the NOT span starts at the dash) → one
@@ -103,7 +106,9 @@ function collectLeaves(
       return;
     case "and":
     case "or":
-      for (const c of node.children) collectLeaves(c, text, out, registry);
+      for (const c of node.children) {
+        collectLeaves(c, text, out, registry);
+      }
       return;
   }
 }
@@ -115,7 +120,9 @@ function isKeywordTerm(raw: string): boolean {
 function overlappingErrors(diagnostics: Diagnostic[], span: Span): string[] {
   const messages: string[] = [];
   for (const d of diagnostics) {
-    if (d.severity !== "error") continue;
+    if (d.severity !== "error") {
+      continue;
+    }
     if (d.from < span.to && d.to > span.from && !messages.includes(d.message)) {
       messages.push(d.message);
     }
@@ -154,14 +161,19 @@ export function deriveComposerSegments(
     draftText === cacheKey &&
     scoreTypes === cacheScoreTypes &&
     registry === cacheRegistry
-  )
+  ) {
     return cacheVal;
+  }
 
   const { ast, diagnostics } = validateQuery(draftText, scoreTypes, registry);
   const leaves: Leaf[] = [];
-  if (ast !== null) collectLeaves(ast, draftText, leaves, registry);
+  if (ast !== null) {
+    collectLeaves(ast, draftText, leaves, registry);
+  }
   const leafByFrom = new Map<number, Leaf>();
-  for (const leaf of leaves) leafByFrom.set(leaf.span.from, leaf);
+  for (const leaf of leaves) {
+    leafByFrom.set(leaf.span.from, leaf);
+  }
 
   const segments: ComposerSegment[] = [];
   for (const token of lexTokens(draftText)) {

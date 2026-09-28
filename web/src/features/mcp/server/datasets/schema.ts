@@ -50,7 +50,9 @@ const GetDatasetItemsMcpRuntimeInput = GetDatasetItemsMcpBaseInput.extend({
 
 export const GetDatasetItemsMcpInput = GetDatasetItemsMcpRuntimeInput.refine(
   (data) => {
-    if (data.version && !data.datasetId) return false;
+    if (data.version && !data.datasetId) {
+      return false;
+    }
     return true;
   },
   {

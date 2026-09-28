@@ -56,11 +56,21 @@ export async function createPylonIssue(
     },
   };
 
-  if (requesterName) body.requester_name = requesterName;
-  if (tags?.length) body.tags = tags;
-  if (priority) body.priority = priority;
-  if (attachmentUrls?.length) body.attachment_urls = attachmentUrls;
-  if (params.customFields?.length) body.custom_fields = params.customFields;
+  if (requesterName) {
+    body.requester_name = requesterName;
+  }
+  if (tags?.length) {
+    body.tags = tags;
+  }
+  if (priority) {
+    body.priority = priority;
+  }
+  if (attachmentUrls?.length) {
+    body.attachment_urls = attachmentUrls;
+  }
+  if (params.customFields?.length) {
+    body.custom_fields = params.customFields;
+  }
 
   const res = await fetch(`${PYLON_API_BASE}/issues`, {
     method: "POST",
@@ -233,20 +243,39 @@ export function buildPylonMetadataString(params: {
   browserMetadata?: Record<string, unknown>;
 }): string {
   const rows: string[] = [];
-  if (params.messageType) rows.push(`Type: ${params.messageType}`);
-  if (params.severity) rows.push(`Severity: ${params.severity}`);
-  if (params.topic) rows.push(`Topic: ${params.topic}`);
-  if (params.integrationType)
+  if (params.messageType) {
+    rows.push(`Type: ${params.messageType}`);
+  }
+  if (params.severity) {
+    rows.push(`Severity: ${params.severity}`);
+  }
+  if (params.topic) {
+    rows.push(`Topic: ${params.topic}`);
+  }
+  if (params.integrationType) {
     rows.push(`Integration: ${params.integrationType}`);
-  if (params.url) rows.push(`URL: ${params.url}`);
-  if (params.organizationId)
+  }
+  if (params.url) {
+    rows.push(`URL: ${params.url}`);
+  }
+  if (params.organizationId) {
     rows.push(`Organization ID: ${params.organizationId}`);
-  if (params.projectId) rows.push(`Project ID: ${params.projectId}`);
-  if (params.plan) rows.push(`Plan: ${params.plan}`);
-  if (params.cloudRegion) rows.push(`Cloud Region: ${params.cloudRegion}`);
-  if (params.version) rows.push(`Version: ${params.version}`);
-  if (params.browserMetadata)
+  }
+  if (params.projectId) {
+    rows.push(`Project ID: ${params.projectId}`);
+  }
+  if (params.plan) {
+    rows.push(`Plan: ${params.plan}`);
+  }
+  if (params.cloudRegion) {
+    rows.push(`Cloud Region: ${params.cloudRegion}`);
+  }
+  if (params.version) {
+    rows.push(`Version: ${params.version}`);
+  }
+  if (params.browserMetadata) {
     rows.push(`Browser: ${JSON.stringify(params.browserMetadata)}`);
+  }
   return rows.join("\n");
 }
 
@@ -294,7 +323,9 @@ export function mapToPylonCaseSeverity(params: {
 }
 
 export function mapPlanToPylonCustomerTier(plan: string): string {
-  if (plan === "oss") return "self_hosted_free";
+  if (plan === "oss") {
+    return "self_hosted_free";
+  }
   return plan.replace(/[:-]/g, "_");
 }
 

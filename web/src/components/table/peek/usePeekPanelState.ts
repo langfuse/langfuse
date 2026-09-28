@@ -47,9 +47,13 @@ export type PeekPanelView = {
 
 /** Right edge of the (left-docked) sidebar = its current width, in px. */
 function readSidebarOffsetPx(): number {
-  if (typeof document === "undefined") return 0;
+  if (typeof document === "undefined") {
+    return 0;
+  }
   const el = document.querySelector('[data-sidebar="sidebar"]');
-  if (!el) return 0;
+  if (!el) {
+    return 0;
+  }
   const rect = el.getBoundingClientRect();
   // Guard against the off-canvas mobile sidebar (rendered in a Sheet): only a
   // left-docked, on-screen sidebar contributes an offset.
@@ -148,7 +152,9 @@ export function usePeekPanelState({
       sidebar && typeof ResizeObserver !== "undefined"
         ? new ResizeObserver(measure)
         : null;
-    if (sidebar) observer?.observe(sidebar);
+    if (sidebar) {
+      observer?.observe(sidebar);
+    }
     return () => {
       window.removeEventListener("resize", measure);
       observer?.disconnect();
@@ -225,7 +231,9 @@ export function usePeekPanelState({
           .getState()
           .actions.nudgeWidth(event.key === "ArrowLeft" ? "grow" : "shrink");
         // Nudging against the min/max clamp changes nothing — notify nothing.
-        if (store.getState().widthFraction === before) return;
+        if (store.getState().widthFraction === before) {
+          return;
+        }
         cancelKeyboardResizeNotify();
         keyboardResizeNotifyTimeoutRef.current = setTimeout(() => {
           keyboardResizeNotifyTimeoutRef.current = null;

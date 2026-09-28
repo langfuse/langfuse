@@ -20,7 +20,9 @@ export function useCommentedPaths(
   comments: CommentWithPosition[] | undefined,
 ): CommentedPathsByField | undefined {
   return useMemo(() => {
-    if (!comments) return undefined;
+    if (!comments) {
+      return undefined;
+    }
 
     const inputMap = new Map<string, Array<CommentRange>>();
     const outputMap = new Map<string, Array<CommentRange>>();
@@ -49,10 +51,15 @@ export function useCommentedPaths(
           };
 
           let targetMap;
-          if (comment.dataField === "input") targetMap = inputMap;
-          else if (comment.dataField === "output") targetMap = outputMap;
-          else if (comment.dataField === "metadata") targetMap = metadataMap;
-          else return;
+          if (comment.dataField === "input") {
+            targetMap = inputMap;
+          } else if (comment.dataField === "output") {
+            targetMap = outputMap;
+          } else if (comment.dataField === "metadata") {
+            targetMap = metadataMap;
+          } else {
+            return;
+          }
 
           const existing = targetMap.get(jsonPath) || [];
           targetMap.set(jsonPath, [...existing, range]);

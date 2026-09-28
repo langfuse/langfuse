@@ -116,7 +116,9 @@ const REMOTE_EXPERIMENT_TIMEOUT_MS = 20_000;
 const REMOTE_EXPERIMENT_MAX_REDIRECTS = 10;
 
 const getAzureStorageVersionFromUploadUrl = (uploadUrl?: string | null) => {
-  if (!uploadUrl) return null;
+  if (!uploadUrl) {
+    return null;
+  }
 
   try {
     return new URL(uploadUrl).searchParams.get("sv");
@@ -166,7 +168,9 @@ export const getItemMediaUploadHeaders = ({
  * @returns The search condition
  */
 const resolveSearchCondition = (searchQuery?: string | null) => {
-  if (!searchQuery || searchQuery.trim() === "") return Prisma.empty;
+  if (!searchQuery || searchQuery.trim() === "") {
+    return Prisma.empty;
+  }
 
   // Add case-insensitive search condition
   return Prisma.sql`AND d.name ILIKE ${`%${searchQuery}%`}`;
@@ -198,7 +202,9 @@ const requiresClickhouseLookups = (filters: FilterState): boolean => {
 };
 
 const resolveMetadata = (metadata: string | null | undefined) => {
-  if (metadata === "") return Prisma.DbNull;
+  if (metadata === "") {
+    return Prisma.DbNull;
+  }
   try {
     return !!metadata
       ? (JSON.parse(metadata) as Prisma.InputJsonObject)
@@ -490,7 +496,9 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:read",
       });
 
-      if (input.datasetIds.length === 0) return { metrics: [] };
+      if (input.datasetIds.length === 0) {
+        return { metrics: [] };
+      }
 
       const [runsMetrics, itemsCounts] = await Promise.all([
         ctx.session.user.v4BetaEnabled === true
@@ -618,7 +626,9 @@ export const datasetRouter = createTRPCRouter({
         },
       });
 
-      if (!run) return null;
+      if (!run) {
+        return null;
+      }
 
       // Resolve dataset version from run items
       const datasetVersion = await getDatasetVersionForRun({
@@ -939,10 +949,11 @@ export const datasetRouter = createTRPCRouter({
       // Mirror the public media route: this is the only server-side size gate
       // before a direct-to-storage upload URL is signed, so enforce the media
       // size limit here too.
-      if (input.contentLength > env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH)
+      if (input.contentLength > env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH) {
         throw new InvalidRequestError(
           `File size must be less than ${env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH} bytes`,
         );
+      }
 
       const result = await createMediaUploadUrl({
         projectId: input.projectId,
@@ -1020,7 +1031,9 @@ export const datasetRouter = createTRPCRouter({
           projectId: input.projectId,
           datasetItemId: input.datasetItemId,
         });
-        if (!item) return [];
+        if (!item) {
+          return [];
+        }
         validFrom = item.validFrom;
       }
 
@@ -1424,7 +1437,9 @@ export const datasetRouter = createTRPCRouter({
           folderPaths: input.folderPaths,
         });
 
-        if (datasetsToDelete.length === 0) return [];
+        if (datasetsToDelete.length === 0) {
+          return [];
+        }
 
         await deleteDatasetsByIds({
           client: tx,
@@ -1574,7 +1589,9 @@ export const datasetRouter = createTRPCRouter({
           page,
         });
 
-        if (itemsBatch.length === 0) break;
+        if (itemsBatch.length === 0) {
+          break;
+        }
 
         const preparedItems = itemsBatch.map((item) => ({
           id: v4(),
@@ -1631,7 +1648,9 @@ export const datasetRouter = createTRPCRouter({
           },
         });
 
-        if (itemsBatch.length < DUPLICATE_DATASET_ITEMS_BATCH_SIZE) break; // Last batch
+        if (itemsBatch.length < DUPLICATE_DATASET_ITEMS_BATCH_SIZE) {
+          break;
+        } // Last batch
         page++;
       }
 
@@ -1741,7 +1760,9 @@ export const datasetRouter = createTRPCRouter({
           validateOpts: { normalizeUndefinedToNull: true },
         });
 
-        if (!result.success) return result;
+        if (!result.success) {
+          return result;
+        }
 
         await Promise.all(
           result.datasetItems.map(async (item) =>
@@ -2301,7 +2322,9 @@ export const datasetRouter = createTRPCRouter({
         },
       });
 
-      if (!dataset || !dataset.remoteExperimentUrl) return null;
+      if (!dataset || !dataset.remoteExperimentUrl) {
+        return null;
+      }
 
       return {
         url: dataset.remoteExperimentUrl,

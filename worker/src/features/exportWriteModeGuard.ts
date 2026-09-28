@@ -30,7 +30,9 @@ export function assertExportSourceWritable(
       env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
     ),
   });
-  if (validation.ok) return;
+  if (validation.ok) {
+    return;
+  }
   if (validation.reason === "enriched-unavailable") {
     throw new Error(
       "The configured export source reads the enriched events tables, but this deployment runs LANGFUSE_MIGRATION_V4_WRITE_MODE=legacy and does not write them. Set LANGFUSE_MIGRATION_V4_WRITE_MODE to dual or events_only, or select a legacy export source.",

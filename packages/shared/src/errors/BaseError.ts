@@ -27,8 +27,12 @@ export class BaseError extends Error {
 }
 
 export const isBaseError = (error: unknown): error is BaseError => {
-  if (error instanceof BaseError) return true;
-  if (!(error instanceof Error)) return false;
+  if (error instanceof BaseError) {
+    return true;
+  }
+  if (!(error instanceof Error)) {
+    return false;
+  }
 
   const candidate = error as Partial<BaseError>;
 

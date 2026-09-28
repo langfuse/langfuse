@@ -238,7 +238,9 @@ const toScoreTimestampFilters = (
   column: "Timestamp" | "timestamp",
 ): FilterCondition[] => {
   return (startTimeFilter ?? []).flatMap((filter) => {
-    if (!isEventFilterOptionsLowerBoundStartTimeFilter(filter)) return [];
+    if (!isEventFilterOptionsLowerBoundStartTimeFilter(filter)) {
+      return [];
+    }
 
     return [
       {
@@ -384,7 +386,9 @@ async function getEventListPage(
     Array<(typeof validatedScores)[number]>
   >();
   for (const score of validatedScores) {
-    if (!score.observationId) continue;
+    if (!score.observationId) {
+      continue;
+    }
     const existingScores = scoresByObservationId.get(score.observationId);
     if (existingScores) {
       existingScores.push(score);
@@ -399,7 +403,9 @@ async function getEventListPage(
   >();
   for (const score of validatedTraceScores) {
     // Trace-level scores have traceId set and no observationId
-    if (!score.traceId || score.observationId) continue;
+    if (!score.traceId || score.observationId) {
+      continue;
+    }
     const existingScores = scoresByTraceId.get(score.traceId);
     if (existingScores) {
       existingScores.push(score);
@@ -846,7 +852,9 @@ export async function getEventFilterOptions(
       return "categorical";
     })(); // CATEGORICAL + TEXT
     const levels = (scoreNameLevelsByType[typeClass][score.name] ??= []);
-    if (!levels.includes(level)) levels.push(level);
+    if (!levels.includes(level)) {
+      levels.push(level);
+    }
   };
   observationLevelScoreNames.forEach((score) =>
     addScoreNameLevel(score, "observation"),

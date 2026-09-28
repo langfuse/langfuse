@@ -75,7 +75,9 @@ const CHECKPOINT_FILE = `${FILE}.checkpoint`;
 const ERRORS_FILE = resolve(dirname(FILE), `errors.csv`);
 
 function readCheckpoint(): number {
-  if (!RESUME || !existsSync(CHECKPOINT_FILE)) return 0;
+  if (!RESUME || !existsSync(CHECKPOINT_FILE)) {
+    return 0;
+  }
   const content = readFileSync(CHECKPOINT_FILE, "utf-8").trim();
   const offset = parseInt(content, 10);
   return isNaN(offset) ? 0 : offset;
@@ -129,11 +131,15 @@ async function readKeys(): Promise<string[]> {
     }
 
     rowNumber++;
-    if (rowNumber <= startOffset) continue;
+    if (rowNumber <= startOffset) {
+      continue;
+    }
 
     const fields = splitCSVLine(line);
     const key = parseCSVField(fields[keyIndex] ?? "");
-    if (key) keys.push(key);
+    if (key) {
+      keys.push(key);
+    }
   }
 
   return keys;

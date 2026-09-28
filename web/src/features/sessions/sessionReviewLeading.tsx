@@ -20,6 +20,8 @@ export function SessionReviewLeadingProvider({
 /** Renders above the session/review split when a workspace provides a slot. */
 export function SessionReviewLeading({ children }: { children: ReactNode }) {
   const target = useContext(SessionReviewLeadingContext);
-  if (!target) return children;
+  if (!target) {
+    return children;
+  }
   return createPortal(children, target);
 }

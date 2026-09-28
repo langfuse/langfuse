@@ -372,7 +372,9 @@ describe("Tree Structure Building", () => {
       const nodesByIndex: TreeNode[] = [];
       for (let i = 0; i < tree.totalNodeCount; i++) {
         const node = getNodeByIndex(tree.rootNode, i);
-        if (node) nodesByIndex.push(node);
+        if (node) {
+          nodesByIndex.push(node);
+        }
       }
 
       // Verify line numbers increase
@@ -461,7 +463,9 @@ describe("Tree Structure Building", () => {
       // Check max depth
       let maxDepth = 0;
       tree.allNodes.forEach((node) => {
-        if (node.depth > maxDepth) maxDepth = node.depth;
+        if (node.depth > maxDepth) {
+          maxDepth = node.depth;
+        }
       });
       expect(maxDepth).toBe(20);
     });

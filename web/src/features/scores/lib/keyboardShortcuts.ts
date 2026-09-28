@@ -12,7 +12,9 @@
  * swallow normal text entry (e.g. the free-form score field or comment box).
  */
 export function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
 
   if (
     target instanceof HTMLInputElement ||
@@ -22,7 +24,9 @@ export function isTypingTarget(target: EventTarget | null): boolean {
     return true;
   }
 
-  if (target.isContentEditable) return true;
+  if (target.isContentEditable) {
+    return true;
+  }
 
   // Radix Select/Combobox dropdowns move focus onto the listbox/option elements
   // while navigating with the keyboard; bail there too so `1`-`9` don't pick a
@@ -33,8 +37,9 @@ export function isTypingTarget(target: EventTarget | null): boolean {
     role === "combobox" ||
     role === "listbox" ||
     role === "option"
-  )
+  ) {
     return true;
+  }
 
   return false;
 }
@@ -57,16 +62,26 @@ export function isInteractiveTarget(
   target: EventTarget | null,
   except?: HTMLElement | null,
 ): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  if (except && (target === except || except.contains(target))) return false;
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  if (except && (target === except || except.contains(target))) {
+    return false;
+  }
 
-  if (target instanceof HTMLButtonElement) return true;
+  if (target instanceof HTMLButtonElement) {
+    return true;
+  }
 
   const role = target.getAttribute("role");
-  if (role === "button" || role === "radio") return true;
+  if (role === "button" || role === "radio") {
+    return true;
+  }
 
   // Radix roving-focus widgets (ToggleGroup, RadioGroup, …) tag their items.
-  if (target.closest("[data-radix-collection-item]")) return true;
+  if (target.closest("[data-radix-collection-item]")) {
+    return true;
+  }
 
   return false;
 }
@@ -77,7 +92,9 @@ export function isInteractiveTarget(
  * dialog is the user's focus context.
  */
 export function isOpenDialogPresent(): boolean {
-  if (typeof document === "undefined") return false;
+  if (typeof document === "undefined") {
+    return false;
+  }
   return !!document.querySelector('[role="dialog"]:not([aria-hidden="true"])');
 }
 
@@ -93,12 +110,16 @@ export function isOpenDialogPresent(): boolean {
  * of `root`, so it doesn't count.
  */
 export function hasBlockingOverlay(root: HTMLElement | null): boolean {
-  if (typeof document === "undefined") return false;
+  if (typeof document === "undefined") {
+    return false;
+  }
   const overlays = document.querySelectorAll(
     '[role="dialog"]:not([aria-hidden="true"]):not([data-state="closed"]), [role="menu"]:not([data-state="closed"])',
   );
   for (const overlay of overlays) {
-    if (!root || !overlay.contains(root)) return true;
+    if (!root || !overlay.contains(root)) {
+      return true;
+    }
   }
   return false;
 }
@@ -130,7 +151,8 @@ export function isCompleteShortcut(event: KeyboardEvent): boolean {
  * hot.
  */
 export function hasModifier(event: KeyboardEvent): boolean {
-  if (event.getModifierState && event.getModifierState("AltGraph"))
+  if (event.getModifierState && event.getModifierState("AltGraph")) {
     return false;
+  }
   return event.metaKey || (event.ctrlKey && !event.altKey);
 }

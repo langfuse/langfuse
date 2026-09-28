@@ -35,7 +35,9 @@ export function DeleteDatasetDialogController({
         children({
           disabled,
           openDialog: () => {
-            if (!hasAccess) return;
+            if (!hasAccess) {
+              return;
+            }
 
             openDialog();
             capture("datasets:delete_form_open", { source });

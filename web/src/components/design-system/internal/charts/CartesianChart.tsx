@@ -87,8 +87,11 @@ function ChartXAxis({
   const labels = axisTicks.map((tick, index) => {
     let textAnchor: "start" | "middle" | "end" = "middle";
     if (alignment === "endpoints" && axisTicks.length > 1) {
-      if (index === 0) textAnchor = "start";
-      else if (index === axisTicks.length - 1) textAnchor = "end";
+      if (index === 0) {
+        textAnchor = "start";
+      } else if (index === axisTicks.length - 1) {
+        textAnchor = "end";
+      }
     }
     const anchor = tick.textAnchor ?? textAnchor;
     const maxCharacters = tick.maxWidth
@@ -101,8 +104,11 @@ function ChartXAxis({
     const labelWidth = label.length * characterWidth;
     const x = tick.x;
     let left = x;
-    if (anchor === "middle") left = x - labelWidth / 2;
-    else if (anchor === "end") left = x - labelWidth;
+    if (anchor === "middle") {
+      left = x - labelWidth / 2;
+    } else if (anchor === "end") {
+      left = x - labelWidth;
+    }
     return { tick, index, active: false, anchor, label, labelWidth, x, left };
   });
   const active = labels.find(({ tick }) => tick.key === activeTick?.key);
@@ -219,8 +225,11 @@ function ChartYAxis({
   return ticks.map((tick, index) => {
     let dominantBaseline: "middle" | "text-after-edge" | "text-before-edge" =
       "middle";
-    if (index === 0) dominantBaseline = "text-after-edge";
-    else if (index === ticks.length - 1) dominantBaseline = "text-before-edge";
+    if (index === 0) {
+      dominantBaseline = "text-after-edge";
+    } else if (index === ticks.length - 1) {
+      dominantBaseline = "text-before-edge";
+    }
 
     return (
       <text

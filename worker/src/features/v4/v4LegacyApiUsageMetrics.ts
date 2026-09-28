@@ -21,13 +21,17 @@ export const V4_LEGACY_API_USAGE_HEARTBEAT_AGE_METRIC =
 export const emitV4LegacyApiUsageFreshnessMetrics = async (
   nowMs = Date.now(),
 ): Promise<void> => {
-  if (!redis) return;
+  if (!redis) {
+    return;
+  }
 
   const heartbeatIso = await redis.get(V4_LEGACY_API_USAGE_HEARTBEAT_KEY);
   const heartbeatMs = heartbeatIso ? Date.parse(heartbeatIso) : NaN;
   // Missing/unparsable heartbeat (never ran) surfaces as a no-data alert; the
   // key's 15d TTL means a running pipeline always has a value to age off.
-  if (!Number.isFinite(heartbeatMs)) return;
+  if (!Number.isFinite(heartbeatMs)) {
+    return;
+  }
 
   try {
     recordGauge(

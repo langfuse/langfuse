@@ -55,17 +55,23 @@ export function createAnnotationQueueRun({
     progressIndex: number,
     initialize = false,
   ) {
-    if (!dependencies.isActive()) return;
+    if (!dependencies.isActive()) {
+      return;
+    }
     const navigated = await dependencies.navigate(
       history[progressIndex],
       initialize,
     );
-    if (navigated === false) throw new Error("Queue navigation was cancelled");
+    if (navigated === false) {
+      throw new Error("Queue navigation was cancelled");
+    }
     store.setState({ history, progressIndex });
   }
 
   async function advance(dependencies: QueueRunDependencies) {
-    if (!dependencies.isActive()) return;
+    if (!dependencies.isActive()) {
+      return;
+    }
     const { history, progressIndex } = store.getState();
     if (progressIndex + 1 < history.length) {
       await enter(dependencies, history, progressIndex + 1);
@@ -74,7 +80,9 @@ export function createAnnotationQueueRun({
     const next =
       pendingNext ??
       (await dependencies.loadNext(history.map((item) => item.id)));
-    if (!dependencies.isActive()) return;
+    if (!dependencies.isActive()) {
+      return;
+    }
     if (!next) {
       store.setState({ exhausted: true });
       return;
@@ -88,7 +96,9 @@ export function createAnnotationQueueRun({
   }
 
   async function transition(name: Transition, action: () => Promise<void>) {
-    if (store.getState().isTransitioning) return;
+    if (store.getState().isTransitioning) {
+      return;
+    }
     store.setState({ isTransitioning: true, error: null });
     try {
       await action();
@@ -96,10 +106,11 @@ export function createAnnotationQueueRun({
       const { history, progressIndex, completedItemIds } = store.getState();
       const completed = completedItemIds.has(history[progressIndex]?.id);
       let message = "Could not open the queue item. Try again.";
-      if (name === "complete")
+      if (name === "complete") {
         message = completed
           ? "Item completed, but the queue could not refresh. Try again to continue."
           : "Could not complete this item. Try again.";
+      }
       store.setState({
         error: {
           action: name,
@@ -140,15 +151,18 @@ export function createAnnotationQueueRun({
     back(dependencies: QueueRunDependencies) {
       return transition("back", async () => {
         const { history, progressIndex } = store.getState();
-        if (progressIndex > 0)
+        if (progressIndex > 0) {
           await enter(dependencies, history, progressIndex - 1);
+        }
       });
     },
     complete(dependencies: QueueRunDependencies) {
       return transition("complete", async () => {
         const { history, progressIndex, completedItemIds } = store.getState();
         const item = history[progressIndex];
-        if (!item) return;
+        if (!item) {
+          return;
+        }
         if (!completedItemIds.has(item.id)) {
           await dependencies.completeItem(item.id);
           store.setState({
@@ -156,7 +170,9 @@ export function createAnnotationQueueRun({
           });
         }
         await dependencies.refreshItems();
-        if (!singleItem) await advance(dependencies);
+        if (!singleItem) {
+          await advance(dependencies);
+        }
       });
     },
     retry(dependencies: QueueRunDependencies): Promise<void> {

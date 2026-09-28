@@ -77,8 +77,12 @@ export function TraceGraphDataProvider({
     let maxTime = 0;
     for (const obs of observations) {
       const t = obs.startTime.getTime();
-      if (t < minTime) minTime = t;
-      if (t > maxTime) maxTime = t;
+      if (t < minTime) {
+        minTime = t;
+      }
+      if (t > maxTime) {
+        maxTime = t;
+      }
     }
 
     return {

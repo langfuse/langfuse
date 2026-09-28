@@ -20,7 +20,9 @@ export function useResourceMetricsDiff(
     totalCostDiff: null,
   };
 
-  if (!baseline) return baseProps;
+  if (!baseline) {
+    return baseProps;
+  }
 
   return {
     ...baseProps,

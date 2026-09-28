@@ -233,7 +233,9 @@ function toTraceEvalConfig(rule: TraceRule): TraceEvalConfig | null {
   // TRACE/DATASET are legacy-target rules and intentionally retain the old
   // one-rule/one-evaluator contract. Multi-assignment rules belong to the
   // modern EVENT/EXPERIMENT flow and must not be flattened ambiguously here.
-  if (rule.assignments.length !== 1) return null;
+  if (rule.assignments.length !== 1) {
+    return null;
+  }
   const assignment = rule.assignments[0];
   const evaluator = assignment.evaluator;
   const version = evaluator.versions[0];

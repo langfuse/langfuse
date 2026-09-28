@@ -88,10 +88,14 @@ const SETUP_PASSWORD_PATH = "/auth/setup-password";
  * selects the email copy only — never an authorization decision.
  */
 function isSetupPasswordFlow(url: string | undefined): boolean {
-  if (!url) return false;
+  if (!url) {
+    return false;
+  }
   try {
     const callbackUrl = new URL(url).searchParams.get("callbackUrl");
-    if (!callbackUrl) return false;
+    if (!callbackUrl) {
+      return false;
+    }
     // Relative callback URLs need a base to parse; the origin is irrelevant here.
     const { pathname } = new URL(callbackUrl, "http://localhost");
     return pathname.replace(/\/+$/, "").endsWith(SETUP_PASSWORD_PATH);

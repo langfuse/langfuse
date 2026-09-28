@@ -40,9 +40,13 @@ export function useClipboardWidgetProbe(
           // Chromium; browsers without it throw and we stay "unknown".
           name: "clipboard-read" as PermissionName,
         });
-        if (status.state !== "granted") return;
+        if (status.state !== "granted") {
+          return;
+        }
         const text = await navigator.clipboard.readText();
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         setProbe(isPasteable(text) ? "widget" : "no-widget");
       } catch {
         // Permission query unsupported (Firefox/Safari) or read failed —

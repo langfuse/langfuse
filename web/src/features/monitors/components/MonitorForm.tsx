@@ -227,7 +227,9 @@ export const MonitorForm = ({
 
   const suggestName = api.monitors.suggestName.useMutation();
   const generateNameSuggestion = async (): Promise<string | null> => {
-    if (!nameAIAssistanceAvailable) return null;
+    if (!nameAIAssistanceAvailable) {
+      return null;
+    }
     try {
       return await suggestName.mutateAsync({
         projectId,

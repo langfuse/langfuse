@@ -62,7 +62,9 @@ export async function validateAllDatasetItems(params: {
     });
 
     // No more items
-    if (items.length === 0) break;
+    if (items.length === 0) {
+      break;
+    }
 
     // Create validator once per batch - compiles schemas once, reuses for all items
     // This provides 3800x+ performance improvement over fresh compilation per item
@@ -83,7 +85,9 @@ export async function validateAllDatasetItems(params: {
             field: "input",
             errors: result.errors,
           });
-          if (errors.length >= MAX_ERRORS) break;
+          if (errors.length >= MAX_ERRORS) {
+            break;
+          }
         }
       }
 
@@ -96,22 +100,30 @@ export async function validateAllDatasetItems(params: {
             field: "expectedOutput",
             errors: result.errors,
           });
-          if (errors.length >= MAX_ERRORS) break;
+          if (errors.length >= MAX_ERRORS) {
+            break;
+          }
         }
       }
 
       // Early exit if we have enough errors
-      if (errors.length >= MAX_ERRORS) break;
+      if (errors.length >= MAX_ERRORS) {
+        break;
+      }
     }
 
     // Move to next batch
     page++;
 
     // Last batch was incomplete - we've processed all items
-    if (items.length < BATCH_SIZE) break;
+    if (items.length < BATCH_SIZE) {
+      break;
+    }
 
     // Early exit if we have enough errors
-    if (errors.length >= MAX_ERRORS) break;
+    if (errors.length >= MAX_ERRORS) {
+      break;
+    }
   }
 
   return {

@@ -198,15 +198,23 @@ const foldLegacyDatasetColumn =
 
     let folded = false;
     return filters.flatMap((filter) => {
-      if (filter.column !== "experimentDatasetId") return [filter];
-      if (filter.type !== "stringOptions") return [filter];
+      if (filter.column !== "experimentDatasetId") {
+        return [filter];
+      }
+      if (filter.type !== "stringOptions") {
+        return [filter];
+      }
 
       const names = filter.value.map((id) => datasetNameById.get(id));
       // Partial knowledge would drop a constraint, so fold all or nothing.
-      if (names.some((name) => name === undefined)) return [filter];
+      if (names.some((name) => name === undefined)) {
+        return [filter];
+      }
       // A second legacy entry would fold onto the same column and re-create
       // the AND this exists to remove.
-      if (folded) return [];
+      if (folded) {
+        return [];
+      }
       folded = true;
 
       return [

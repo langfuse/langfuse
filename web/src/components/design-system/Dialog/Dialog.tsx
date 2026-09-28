@@ -77,7 +77,9 @@ function DialogRoot({
           // Radix otherwise focuses Cancel because it is the first tabbable.
           // Prefer the rightmost safe action, falling back to Cancel rather
           // than immediately triggering a destructive action.
-          if (text === undefined) return;
+          if (text === undefined) {
+            return;
+          }
 
           let safeActionButton: HTMLButtonElement | null = null;
           for (let index = (actions?.length ?? 0) - 1; index >= 0; index--) {
@@ -108,10 +110,14 @@ function DialogRoot({
           }
         }}
         onPointerDownOutside={(event) => {
-          if (!closeOnInteractionOutside) event.preventDefault();
+          if (!closeOnInteractionOutside) {
+            event.preventDefault();
+          }
         }}
         onInteractOutside={(event) => {
-          if (!closeOnInteractionOutside) event.preventDefault();
+          if (!closeOnInteractionOutside) {
+            event.preventDefault();
+          }
         }}
       >
         <header className="bg-modal sticky top-0 z-30 flex shrink-0 flex-col gap-1 rounded-t-lg p-4">

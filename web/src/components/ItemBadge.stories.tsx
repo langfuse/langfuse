@@ -99,7 +99,9 @@ export const IconOnlyIsSquare = meta.story({
     const labelled = canvasElement
       .querySelector<HTMLElement>('[data-testid="labelled"] > *')
       ?.getBoundingClientRect();
-    if (!labelled) throw new Error("no labelled badge");
+    if (!labelled) {
+      throw new Error("no labelled badge");
+    }
     await expect(labelled.width).toBeGreaterThan(labelled.height);
   },
 });

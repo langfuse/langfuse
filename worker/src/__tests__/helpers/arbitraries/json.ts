@@ -28,7 +28,9 @@ export function recursiveJsonArbitrary(
     fc.double({ noNaN: true, noDefaultInfinity: true }),
     fc.string({ maxLength: 24, unit: "grapheme" }),
   ) as Arbitrary<Json>;
-  if (depth === 0) return leaf;
+  if (depth === 0) {
+    return leaf;
+  }
   const child = recursiveJsonArbitrary(depth - 1, maxWidth);
 
   return fc.oneof(

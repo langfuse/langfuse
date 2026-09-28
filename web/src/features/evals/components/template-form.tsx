@@ -386,7 +386,9 @@ const InnerEvalTemplateForm = (props: {
     { id: string; version: number }
   >();
   for (const template of existingTemplatesQuery.data?.templates ?? []) {
-    if (template.projectId !== props.projectId) continue;
+    if (template.projectId !== props.projectId) {
+      continue;
+    }
     const existing = existingTemplateByName.get(template.name);
     if (!existing || template.version > existing.version) {
       existingTemplateByName.set(template.name, {

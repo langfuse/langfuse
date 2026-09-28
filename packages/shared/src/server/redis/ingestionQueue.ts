@@ -21,7 +21,9 @@ export class IngestionQueue {
   static getShardIndexFromShardName(
     shardName: string | undefined,
   ): number | null {
-    if (!shardName) return null;
+    if (!shardName) {
+      return null;
+    }
 
     // Extract shard index from shard name
     const shardIndex =
@@ -29,7 +31,9 @@ export class IngestionQueue {
         ? 0
         : parseInt(shardName.replace(`${QueueName.IngestionQueue}-`, ""), 10);
 
-    if (isNaN(shardIndex)) return null;
+    if (isNaN(shardIndex)) {
+      return null;
+    }
     return shardIndex;
   }
 
@@ -99,7 +103,9 @@ export class SecondaryIngestionQueue {
   static getShardIndexFromShardName(
     shardName: string | undefined,
   ): number | null {
-    if (!shardName) return null;
+    if (!shardName) {
+      return null;
+    }
 
     const shardIndex =
       shardName === QueueName.IngestionSecondaryQueue
@@ -109,7 +115,9 @@ export class SecondaryIngestionQueue {
             10,
           );
 
-    if (isNaN(shardIndex)) return null;
+    if (isNaN(shardIndex)) {
+      return null;
+    }
     return shardIndex;
   }
 

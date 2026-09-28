@@ -55,8 +55,9 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
           className="[--annotation-surface:var(--modal)]"
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            if (triggerRef.current?.isConnected)
+            if (triggerRef.current?.isConnected) {
               triggerRef.current.focus({ preventScroll: true });
+            }
           }}
         >
           <div className="min-h-0 overflow-y-auto overscroll-contain p-3">
@@ -73,7 +74,9 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
         children({
           disabled,
           openDrawer: (payload) => {
-            if (disabled) return;
+            if (disabled) {
+              return;
+            }
 
             capture("annotation:entry_click", {
               ...payload.analyticsData,
@@ -90,7 +93,9 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
                 .getState()
                 .actions.rememberTrigger(triggerRef.current);
               reviewPanel.getState().actions.openAnnotation(payload);
-            } else openDrawer(payload);
+            } else {
+              openDrawer(payload);
+            }
           },
         })
       }

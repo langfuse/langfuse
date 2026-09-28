@@ -31,7 +31,9 @@ describe("policy authenticate() composition", () => {
   it("resolves a project context from Basic auth", async () => {
     const result = await auth(basicHeader());
     expect(result.success).toBe(true);
-    if (!result.success) return;
+    if (!result.success) {
+      return;
+    }
     expect(result.context.principal.kind).toBe("apiKey");
     expect(
       authorize(result.context, "traces:read", {
@@ -44,7 +46,9 @@ describe("policy authenticate() composition", () => {
     await backfillFastHash();
     const result = await auth(`Bearer ${fixture.secretKey}`);
     expect(result.success).toBe(true);
-    if (!result.success) return;
+    if (!result.success) {
+      return;
+    }
     expect(
       authorize(result.context, "traces:read", {
         projectId: fixture.projectId,
@@ -55,7 +59,9 @@ describe("policy authenticate() composition", () => {
   it("authenticates a public key over Bearer with scores-only scope", async () => {
     const result = await auth(`Bearer ${fixture.publicKey}`);
     expect(result.success).toBe(true);
-    if (!result.success) return;
+    if (!result.success) {
+      return;
+    }
     expect(
       authorize(result.context, "scores:create", {
         projectId: fixture.projectId,

@@ -23,7 +23,9 @@ export function ConnectedBatchActionsTable({
   });
 
   const tableData = useMemo<AsyncTableData<BatchActionRow[]>>(() => {
-    if (batchActions.isPending) return { status: "loading" };
+    if (batchActions.isPending) {
+      return { status: "loading" };
+    }
     if (batchActions.isError) {
       return { status: "error", error: batchActions.error.message };
     }
