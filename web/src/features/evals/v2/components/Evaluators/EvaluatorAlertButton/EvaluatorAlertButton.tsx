@@ -108,14 +108,14 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
     navigate(href, closePopover);
   };
 
-  function getConditionalText(__nestedTernaryValues: {
-    isAggregateCost: typeof isAggregateCost;
-    supportsCostAlert: typeof supportsCostAlert;
-  }) {
-    if (__nestedTernaryValues.isAggregateCost) {
+  function getEmptyAlertDescription(
+    aggregateCost: boolean,
+    supportsCost: boolean,
+  ) {
+    if (aggregateCost) {
       return "Get notified when evaluator cost crosses a threshold.";
     }
-    if (__nestedTernaryValues.supportsCostAlert) {
+    if (supportsCost) {
       return "Get notified when this evaluator's scores or cost cross a threshold.";
     }
     return "Get notified when this evaluator's score crosses a threshold.";
@@ -197,7 +197,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                     : "No alerts on this evaluator"}
                 </p>
                 <p className="text-muted-foreground mt-0.5 text-xs">
-                  {getConditionalText({ isAggregateCost, supportsCostAlert })}
+                  {getEmptyAlertDescription(isAggregateCost, supportsCostAlert)}
                 </p>
               </div>
             )}
