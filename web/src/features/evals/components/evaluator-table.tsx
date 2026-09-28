@@ -7,7 +7,7 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useColumnVisibility } from "@/src/features/column-visibility";
 import { EvaluatorFilterCell } from "@/src/features/evals/components/EvaluatorFilterCell";
@@ -440,28 +440,30 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       defaultSidebarCollapsed={evaluatorFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
-        <TableSearchBar
-          key={queryFilter.draftResetKey}
-          projectId={projectId}
-          tableName={evaluatorFilterConfig.tableName}
-          registry={LEGACY_EVALUATORS_FIELD_REGISTRY}
-          filterState={queryFilter.searchBarFilterState}
-          setFilterState={queryFilter.setFilterState}
-          observed={toObservedOptions(newFilterOptions, false)}
-          search={{ query: searchQuery, setQuery: setSearchQuery }}
-          isV4={false}
-        />
-        {/* Toolbar spanning full width */}
-        <DataTableToolbar
-          tableName="evaluators"
-          columns={columns}
-          filterState={queryFilter.filterState}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibility}
-        />
-
-        {/* Content area with sidebar and table */}
-        <ResizableFilterLayout>
+        <SearchableTableFilterLayout
+          search={
+            <TableSearchBar
+              key={queryFilter.draftResetKey}
+              projectId={projectId}
+              tableName={evaluatorFilterConfig.tableName}
+              registry={LEGACY_EVALUATORS_FIELD_REGISTRY}
+              filterState={queryFilter.searchBarFilterState}
+              setFilterState={queryFilter.setFilterState}
+              observed={toObservedOptions(newFilterOptions, false)}
+              search={{ query: searchQuery, setQuery: setSearchQuery }}
+              isV4={false}
+            />
+          }
+          toolbar={
+            <DataTableToolbar
+              tableName="evaluators"
+              columns={columns}
+              filterState={queryFilter.filterState}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={setColumnVisibility}
+            />
+          }
+        >
           <DataTableControls
             key={queryFilter.draftResetKey}
             queryFilter={queryFilter}
@@ -499,7 +501,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               onColumnVisibilityChange={setColumnVisibility}
             />
           </div>
-        </ResizableFilterLayout>
+        </SearchableTableFilterLayout>
         <TablePeekViewEvaluatorConfigDetail
           {...peekConfig}
           projectId={projectId}
