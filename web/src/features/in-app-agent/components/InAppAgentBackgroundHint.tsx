@@ -26,7 +26,7 @@ export function InAppAgentBackgroundHint({
           type="button"
           variant="ghost"
           size="sm"
-          aria-label="Minimize assistant"
+          aria-label="Minimize Halo"
           className="-my-0.5 h-5 shrink-0 gap-1 px-1"
           onClick={onMinimize}
         >

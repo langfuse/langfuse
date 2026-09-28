@@ -67,7 +67,7 @@ export const InAppAiAgentButton = ({
       variant="outline"
       // Count lives on the button name — a nested badge aria-label is ignored
       // once the parent already has aria-label.
-      aria-label={`${open ? "Close" : "Open"} assistant${attentionSuffix}`}
+      aria-label={`${open ? "Close" : "Open"} Halo${attentionSuffix}`}
       aria-pressed={open}
       data-ignore-outside-interaction
       onClick={() => toggleAssistant("top_nav")}
@@ -112,7 +112,7 @@ export const InAppAiAgentButton = ({
           reveal in the 640–767px band and overflow the box. */}
       {!prominent && (
         <>
-          <span className="hidden sm:inline">Assistant</span>
+          <span className="hidden sm:inline">Halo</span>
           <span className="hidden md:inline-flex">
             <KeyboardShortcut variant="subtle" keys={["Mod", "I"]} />
           </span>

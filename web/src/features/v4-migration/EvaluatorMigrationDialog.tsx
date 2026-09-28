@@ -37,7 +37,7 @@ type EvaluatorMigrationDialogProps = {
 type SelectedMigrationAction = "assistant";
 
 const ADMIN_REQUEST_MESSAGE =
-  "Hi! Could you enable AI features for our Langfuse organization? I need them to use the Assistant to upgrade our deprecated evaluators for v4. Thanks!";
+  "Hi! Could you enable AI features for our Langfuse organization? I need them to use Halo to upgrade our deprecated evaluators for v4. Thanks!";
 
 export function EvaluatorMigrationDialog({
   open,
@@ -133,8 +133,8 @@ export function EvaluatorMigrationDialog({
             {effectiveAction === "assistant" ? (
               <p className="text-muted-foreground text-sm">
                 {aiFeaturesEnabled
-                  ? "The Assistant will review your deprecated evaluators and suggest upgrading all of them at once."
-                  : "Enable AI features in the other tab, then return here to start the upgrade with the Assistant."}
+                  ? "Halo will review your deprecated evaluators and suggest upgrading all of them at once."
+                  : "Enable AI features in the other tab, then return here to start the upgrade with Halo."}
               </p>
             ) : (
               <>
@@ -147,7 +147,7 @@ export function EvaluatorMigrationDialog({
                   >
                     <BotMessageSquare className="h-5 w-5 shrink-0" />
                     <span className="flex flex-col gap-1">
-                      <span className="font-bold">Use Assistant</span>
+                      <span className="font-bold">Use Halo</span>
                       <span className="text-muted-foreground text-sm font-normal">
                         Suggest upgrading all deprecated evaluators at once.
                       </span>
@@ -218,8 +218,8 @@ export function EvaluatorMigrationDialog({
           </DialogHeader>
           <DialogBody className="gap-3">
             <p className="text-muted-foreground text-sm">
-              The Assistant can help you upgrade all deprecated evaluators at
-              once. An organization admin needs to enable AI features for your
+              Halo can help you upgrade all deprecated evaluators at once. An
+              organization admin needs to enable AI features for your
               organization before you can use it.
             </p>
             <a

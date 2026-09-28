@@ -26,7 +26,7 @@ const WATCH_RECONNECT_BASE_DELAY_MS = 500;
 
 class InvalidWatchFrameError extends BackgroundExecutionConnectionError {
   constructor() {
-    super("Assistant watch returned an invalid frame", { retryable: false });
+    super("Halo watch returned an invalid frame", { retryable: false });
   }
 }
 
@@ -284,7 +284,7 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
     const reader = response.body?.getReader();
 
     if (!reader) {
-      throw new Error("The assistant stream is unavailable");
+      throw new Error("The Halo stream is unavailable");
     }
 
     const decoder = new TextDecoder();
@@ -359,7 +359,7 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
 function getErrorMessage(error: unknown): string {
   return error instanceof Error
     ? error.message
-    : "Assistant watch connection failed";
+    : "Halo watch connection failed";
 }
 
 function getLastUserMessageContent(
@@ -392,5 +392,5 @@ async function readErrorMessage(response: Response): Promise<string> {
     // Fall through to the generic message below.
   }
 
-  return "The assistant is unavailable right now";
+  return "Halo is unavailable right now";
 }

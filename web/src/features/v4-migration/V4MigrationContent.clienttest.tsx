@@ -1186,7 +1186,7 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Use Assistant" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use Halo" }));
     // The panel entry point preselects the assistant: no choice screen.
     const migrationDialog = screen.getByRole("dialog");
     expect(
@@ -1196,7 +1196,7 @@ describe("V4MigrationDetailsContent", () => {
     ).toBeInTheDocument();
     expect(
       within(migrationDialog).queryByRole("button", {
-        name: /^Use Assistant/,
+        name: /^Use Halo/,
       }),
     ).not.toBeInTheDocument();
     fireEvent.click(
@@ -1222,7 +1222,7 @@ describe("V4MigrationDetailsContent", () => {
 
     // Without AI features the button drops the assistant branding …
     expect(
-      screen.queryByRole("button", { name: "Use Assistant" }),
+      screen.queryByRole("button", { name: "Use Halo" }),
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Update evals" }));
 
@@ -1236,7 +1236,7 @@ describe("V4MigrationDetailsContent", () => {
     ).toBeInTheDocument();
     expect(
       within(migrationDialog).getByRole("button", {
-        name: /^Use Assistant/,
+        name: /^Use Halo/,
       }),
     ).toBeInTheDocument();
   });
@@ -1252,7 +1252,7 @@ describe("V4MigrationDetailsContent", () => {
     const migrationDialog = screen.getByRole("dialog");
     fireEvent.click(
       within(migrationDialog).getByRole("button", {
-        name: /^Use Assistant/,
+        name: /^Use Halo/,
       }),
     );
 
@@ -1303,7 +1303,7 @@ describe("V4MigrationHeaderContent", () => {
     expect(screen.queryByText("Upgrade to v4")).not.toBeInTheDocument();
     expect(screen.queryByText(/Project 1/)).not.toBeInTheDocument();
     expect(screen.getByText(/Langfuse v4 is live/)).toHaveTextContent(
-      "Langfuse v4 is live: a re-architecture of our data model and database tables. It is up to 165× more performant in UI and on APIs. It also enables new features such as full-text search, a new filter search bar, alerts, code evaluators, and the Langfuse Assistant. Complete the action items below to avoid disruption. See docs.",
+      "Langfuse v4 is live: a re-architecture of our data model and database tables. It is up to 165× more performant in UI and on APIs. It also enables new features such as full-text search, a new filter search bar, alerts, code evaluators, and Langfuse Halo. Complete the action items below to avoid disruption. See docs.",
     );
     expect(
       screen.getByRole("link", { name: "full-text search" }),
@@ -1327,9 +1327,10 @@ describe("V4MigrationHeaderContent", () => {
       "href",
       "https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators",
     );
-    expect(
-      screen.getByRole("link", { name: "Langfuse Assistant" }),
-    ).toHaveAttribute("href", "https://langfuse.com/docs/langfuse-assistant");
+    expect(screen.getByRole("link", { name: "Langfuse Halo" })).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/langfuse-halo",
+    );
     expect(screen.getByRole("link", { name: "See docs." })).toHaveAttribute(
       "href",
       "https://langfuse.com/docs/v4",

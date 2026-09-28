@@ -13,20 +13,20 @@ export type InAppAgentActivityCard = {
 };
 
 function getCardCopy(state: InAppAgentActivityCard["state"]) {
-  // Lead with "Assistant" so the toast reads as the same product as the
+  // Lead with the feature name so the toast reads as the same product as the
   // launcher (BotMessageSquare), not a generic system alert.
   if (state === "approval") {
     return {
-      label: "Assistant needs your approval",
+      label: "Halo needs your approval",
       tone: "accent" as const,
     };
   }
 
   if (state === "failed-unread") {
-    return { label: "Assistant run failed", tone: "destructive" as const };
+    return { label: "Halo run failed", tone: "destructive" as const };
   }
 
-  return { label: "Assistant finished", tone: "accent" as const };
+  return { label: "Halo finished", tone: "accent" as const };
 }
 
 /** Pure floating stack: ordering/cap live here; callers own delivery lifecycle. */

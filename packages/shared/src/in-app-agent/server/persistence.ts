@@ -496,7 +496,7 @@ export async function maybeInferAndPersistConversationTitle(params: {
           role: ChatMessageRole.System,
           type: ChatMessageType.System,
           content: `
-Generate a concise title for this Langfuse assistant conversation.
+Generate a concise title for this Langfuse Halo conversation.
 The title should be 3-6 words, one sentence, and not exceed 100 characters.
 The title should focus on the user's task, problem, or topic, and preserve important product names, entities, or task intent.
 
