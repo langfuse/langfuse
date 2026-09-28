@@ -60,25 +60,20 @@ const manyModelCounts = Object.fromEntries(
 const actions = {
   getModelsUrl: (connection) =>
     `/organization/org-1/settings/ai-gateway-models?connection=${connection.id}`,
-  renderCredentialActions: (connection) => (
-    <Button
-      size="sm"
-      variant="ghost"
-      onClick={() => onCredentialAction(connection.id)}
-    >
-      Manage
-    </Button>
-  ),
+  actions: (connection) => [
+    {
+      id: "manage",
+      type: "item",
+      title: "Manage",
+      onClick: () => onCredentialAction(connection.id),
+    },
+  ],
   canReorder: true,
   pageOffset: 0,
   onMove: fn(),
 } satisfies Pick<
   ComponentProps<typeof GatewayProvidersTable>,
-  | "getModelsUrl"
-  | "renderCredentialActions"
-  | "canReorder"
-  | "onMove"
-  | "pageOffset"
+  "getModelsUrl" | "actions" | "canReorder" | "onMove" | "pageOffset"
 >;
 
 export const OrderedCredentials = meta.story({

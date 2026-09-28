@@ -18,6 +18,34 @@ const connections = ["Alpha", "Beta"].map((name, index) => ({
 })) satisfies GatewayConnection[];
 
 describe("gateway providers table", () => {
+  it("renders priority first and exposes a table actions menu", () => {
+    render(
+      <ConnectedGatewayProvidersTable
+        connections={connections}
+        pageOffset={0}
+        modelCounts={{}}
+        getModelsUrl={(connection) => `/models/${connection.id}`}
+        actions={() => [
+          {
+            id: "edit",
+            type: "item",
+            title: "Edit credential",
+            onClick: () => {},
+          },
+        ]}
+        canReorder
+        onReorder={async () => true}
+      />,
+    );
+
+    expect(screen.getAllByRole("columnheader")[0]).toHaveTextContent(
+      "Priority",
+    );
+    expect(
+      screen.getAllByRole("button", { name: "Open actions menu" }),
+    ).toHaveLength(2);
+  });
+
   it("keeps a successful move through a stale refresh and shows absolute priorities", async () => {
     const onReorder = vi.fn(async () => true);
     const props = {
@@ -26,7 +54,7 @@ describe("gateway providers table", () => {
       modelCounts: {},
       getModelsUrl: (connection: GatewayConnection) =>
         `/models/${connection.id}`,
-      renderCredentialActions: () => null,
+      actions: () => [],
       canReorder: true,
       onReorder,
     };
@@ -65,7 +93,7 @@ describe("gateway providers table", () => {
         nextConnectionId="next-page"
         modelCounts={{}}
         getModelsUrl={(connection) => `/models/${connection.id}`}
-        renderCredentialActions={() => null}
+        actions={() => []}
         canReorder
         onReorder={onReorder}
       />,
@@ -93,7 +121,7 @@ describe("gateway providers table", () => {
       modelCounts: {},
       getModelsUrl: (connection: GatewayConnection) =>
         `/models/${connection.id}`,
-      renderCredentialActions: () => null,
+      actions: () => [],
       canReorder: true,
       onReorder,
     };

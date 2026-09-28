@@ -28,10 +28,14 @@ import {
 export function ProviderDialogController({
   organizationId,
   connection,
+  initiallyOpen = false,
+  onClose,
   children,
 }: {
   organizationId: string;
   connection?: GatewayConnection;
+  initiallyOpen?: boolean;
+  onClose?: () => void;
   children: (control: { openDialog: () => void }) => ReactNode;
 }) {
   const [provider, setProvider] = useState<GatewayProvider>(
@@ -98,16 +102,21 @@ export function ProviderDialogController({
       ]);
       closeDialog();
       reset();
+      onClose?.();
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-providers");
     }
   };
 
   return (
-    <DialogController
+    <DialogController<null>
+      initialState={initiallyOpen ? () => null : undefined}
       size="default"
       closeOnInteractionOutside={false}
-      onDismiss={reset}
+      onDismiss={() => {
+        reset();
+        onClose?.();
+      }}
       onBeforeClose={() => !isPending}
       renderContent={({ closeDialog }) => (
         <>
@@ -181,7 +190,7 @@ export function ProviderDialogController({
         </>
       )}
     >
-      {({ openDialog }) => children({ openDialog })}
+      {({ openDialog }) => children({ openDialog: () => openDialog(null) })}
     </DialogController>
   );
 }

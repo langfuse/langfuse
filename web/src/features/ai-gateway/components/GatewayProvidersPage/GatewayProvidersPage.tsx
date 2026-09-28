@@ -1,16 +1,16 @@
 import { useRef, useState } from "react";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { Button } from "@/src/components/ui/button";
+import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { DeleteProviderDialog } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/DeleteProviderDialog";
 import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/ProviderDialogController/ProviderDialogController";
 import { ConnectedGatewayProvidersTable } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/GatewayProvidersTable/ConnectedGatewayProvidersTable";
-import { RetryProviderButton } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/RetryProviderButton";
 import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
+import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
 export function GatewayProvidersPage({
@@ -30,10 +30,52 @@ export function GatewayProvidersPage({
     Record<string, number>
   >({});
   const [pageIndex, setPageIndex] = useState(0);
+  const [editingConnection, setEditingConnection] =
+    useState<GatewayConnection | null>(null);
+  const [deletingConnection, setDeletingConnection] =
+    useState<GatewayConnection | null>(null);
   const [isReordering, setIsReordering] = useState(false);
   const reorderLock = useRef(false);
   const utils = api.useUtils();
   const reorder = api.aiGateway.reorderConnections.useMutation();
+  const retry = api.aiGateway.retryConnection.useMutation();
+  const remove = api.aiGateway.deleteConnection.useMutation();
+
+  const retryConnection = async (connection: GatewayConnection) => {
+    try {
+      const result = await retry.mutateAsync({
+        orgId: organizationId,
+        id: connection.id,
+      });
+      if (result.success) {
+        setRetriedModelCounts((current) => ({
+          ...current,
+          [connection.id]: result.models.length,
+        }));
+      }
+      await utils.aiGateway.listConnections.invalidate({
+        orgId: organizationId,
+      });
+    } catch (error) {
+      reportNonTrpcError(error, "ai-gateway-providers");
+    }
+  };
+
+  const deleteConnection = async () => {
+    if (!deletingConnection) return;
+    try {
+      await remove.mutateAsync({
+        orgId: organizationId,
+        id: deletingConnection.id,
+      });
+      await utils.aiGateway.listConnections.invalidate({
+        orgId: organizationId,
+      });
+      setDeletingConnection(null);
+    } catch (error) {
+      reportNonTrpcError(error, "ai-gateway-providers");
+    }
+  };
 
   if (connectionsQuery.isPending) {
     return <ProvidersSkeleton />;
@@ -150,44 +192,59 @@ export function GatewayProvidersPage({
               setIsReordering(false);
             }
           }}
-          renderCredentialActions={(connection) => {
-            return (
-              <>
-                <RetryProviderButton
-                  organizationId={organizationId}
-                  connectionId={connection.id}
-                  onModelsLoaded={(count) =>
-                    setRetriedModelCounts((current) => ({
-                      ...current,
-                      [connection.id]: count,
-                    }))
-                  }
-                />
-                <ProviderDialogController
-                  key={`${connection.id}:${connection.updatedAt.toISOString()}`}
-                  organizationId={organizationId}
-                  connection={connection}
-                >
-                  {({ openDialog }) => (
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      aria-label="Edit credential"
-                      onClick={openDialog}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                  )}
-                </ProviderDialogController>
-                <DeleteProviderDialog
-                  organizationId={organizationId}
-                  connection={connection}
-                />
-              </>
-            );
-          }}
+          actions={(connection) => [
+            {
+              id: "retry",
+              type: "item",
+              title: "Retry provider validation",
+              icon: RefreshCw,
+              disabled: retry.isPending
+                ? { reason: "Validation in progress" }
+                : undefined,
+              onClick: () => retryConnection(connection),
+            },
+            {
+              id: "edit",
+              type: "item",
+              title: "Edit credential",
+              icon: Pencil,
+              onClick: () => setEditingConnection(connection),
+            },
+            {
+              id: "delete",
+              type: "item",
+              title: "Delete credential",
+              icon: Trash2,
+              variant: "destructive",
+              onClick: () => setDeletingConnection(connection),
+            },
+          ]}
         />
       </div>
+      {editingConnection && (
+        <ProviderDialogController
+          key={`${editingConnection.id}:${editingConnection.updatedAt.toISOString()}`}
+          organizationId={organizationId}
+          connection={editingConnection}
+          initiallyOpen
+          onClose={() => setEditingConnection(null)}
+        >
+          {() => null}
+        </ProviderDialogController>
+      )}
+      {deletingConnection && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setDeletingConnection(null);
+          }}
+          title="Delete provider credential"
+          description={`Delete “${deletingConnection.name}”? Requests will immediately stop using it.`}
+          confirmLabel="Delete credential"
+          loading={remove.isPending}
+          onConfirm={deleteConnection}
+        />
+      )}
       <PaginationBar
         mode="cursor"
         state={{ pageIndex: visiblePageIndex, pageSize: 50 }}

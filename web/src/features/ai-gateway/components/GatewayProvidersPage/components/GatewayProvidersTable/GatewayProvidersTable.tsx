@@ -1,10 +1,11 @@
 /* eslint-disable no-nested-ternary */
-import { useMemo, type ReactNode } from "react";
+import { useMemo } from "react";
 import { ArrowDown, ArrowUp, Route } from "lucide-react";
 import Link from "next/link";
 import { SiAnthropic, SiOpenai } from "react-icons/si";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import type { TableProps } from "@/src/components/design-system/table/Table";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
@@ -22,10 +23,7 @@ export type GatewayProvidersTableProps = {
   nextConnectionId?: string;
   modelCounts: Record<string, number | "loading">;
   getModelsUrl: (connection: GatewayConnection) => string;
-  renderCredentialActions: (
-    connection: GatewayConnection,
-    index: number,
-  ) => ReactNode;
+  actions: NonNullable<TableProps<GatewayConnection>["actions"]>;
   canReorder: boolean;
   onMove: (sourceId: string, targetId: string) => void;
 };
@@ -43,7 +41,7 @@ export function GatewayProvidersTable({
   nextConnectionId,
   modelCounts,
   getModelsUrl,
-  renderCredentialActions,
+  actions,
   canReorder,
   onMove,
 }: GatewayProvidersTableProps) {
@@ -51,7 +49,6 @@ export function GatewayProvidersTable({
     () => [
       {
         accessorKey: "routingPriority",
-        id: "priority",
         header: "Priority",
         size: 110,
         cell: ({ row }) => (
@@ -111,7 +108,6 @@ export function GatewayProvidersTable({
         header: "Credential",
         size: 180,
         sensitive: true,
-        cellClassName: "font-mono",
       }),
       createStatusTableColumn<GatewayConnection, GatewayConnection["status"]>({
         accessorKey: "status",
@@ -132,18 +128,6 @@ export function GatewayProvidersTable({
           />
         ),
       },
-      {
-        accessorKey: "id",
-        id: "actions",
-        header: "Actions",
-        size: 160,
-        enableResizing: false,
-        cell: ({ row }) => (
-          <div className="flex justify-end gap-1">
-            {renderCredentialActions(row.original, row.index)}
-          </div>
-        ),
-      },
     ],
     [
       canReorder,
@@ -154,7 +138,6 @@ export function GatewayProvidersTable({
       getModelsUrl,
       modelCounts,
       onMove,
-      renderCredentialActions,
     ],
   );
 
@@ -162,6 +145,7 @@ export function GatewayProvidersTable({
     <SettingsTable
       tableName="gateway-provider-credentials"
       columns={columns}
+      actions={actions}
       data={{ status: "success", data: connections }}
       noResultsMessage="No provider credentials configured."
     />
