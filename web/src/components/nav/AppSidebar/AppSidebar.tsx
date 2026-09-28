@@ -212,7 +212,7 @@ export function AppSidebar({
           data-testid={APP_SHELL_CHROME_ROW_TEST_ID}
           className={cn(
             APP_SHELL_CHROME_ROW_CLASS,
-            "min-w-0 gap-2 px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+            "min-w-0 gap-2 px-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
           )}
         >
           <Link href="/" className="flex items-center">
@@ -292,7 +292,7 @@ function MobileNavSwitcher({
                   >
                     {organization.name}
                   </span>
-                  <ChevronDownIcon className="ml-auto h-4 w-4 shrink-0" />
+                  <ChevronDownIcon className="ml-auto size-3.5 shrink-0" />
                 </SidebarMenuButton>
               )}
             </OrganizationDropdownMenu>
@@ -321,7 +321,7 @@ function MobileNavSwitcher({
                     >
                       {project.name}
                     </span>
-                    <ChevronDownIcon className="ml-auto h-4 w-4 shrink-0" />
+                    <ChevronDownIcon className="ml-auto size-3.5 shrink-0" />
                   </SidebarMenuButton>
                 )}
               </ProjectDropdownMenu>
