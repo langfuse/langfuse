@@ -216,6 +216,37 @@ it.each(["refresh", "advance", "navigation"])(
   },
 );
 
+it("does not fail bootstrap when initial queue navigation is cancelled", async () => {
+  router.push.mockResolvedValueOnce(false);
+  render(
+    <AnnotationQueuesItem projectId="project" annotationQueueId="first" />,
+  );
+  expect(await screen.findByText("first-observation")).toBeVisible();
+  expect(
+    screen.queryByText("Unable to load the annotation queue."),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+it("retries skip after cancelled queue navigation without an error banner", async () => {
+  const nextItem = { ...items.get("second-item"), queueId: "first" };
+  fetchNext
+    .mockResolvedValueOnce(items.get("first-item"))
+    .mockResolvedValueOnce(nextItem);
+  render(
+    <AnnotationQueuesItem projectId="project" annotationQueueId="first" />,
+  );
+  expect(await screen.findByText("first-observation")).toBeVisible();
+  router.push.mockResolvedValueOnce(false);
+  fireEvent.click(screen.getByRole("button", { name: "Skip to next item" }));
+  expect(await screen.findByText("first-observation")).toBeVisible();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Skip to next item" }));
+  expect(await screen.findByText("second-observation")).toBeVisible();
+  expect(fetchNext).toHaveBeenCalledTimes(2);
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
 it("locks only one starting item during Strict Mode replay", async () => {
   render(
     <StrictMode>
