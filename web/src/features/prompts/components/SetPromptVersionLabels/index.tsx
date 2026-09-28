@@ -168,14 +168,11 @@ export function SetPromptVersionLabels({
     );
   };
 
-  function getConditionalText(__nestedTernaryValues: {
-    isPromotingToProduction: typeof isPromotingToProduction;
-    isDemotingFromProduction: typeof isDemotingFromProduction;
-  }) {
-    if (__nestedTernaryValues.isPromotingToProduction) {
+  function getSaveButtonLabel(promoting: boolean, demoting: boolean) {
+    if (promoting) {
       return "Save and promote to production";
     }
-    if (__nestedTernaryValues.isDemotingFromProduction) {
+    if (demoting) {
       return "Save and remove from production";
     }
     return "Save";
@@ -349,10 +346,10 @@ export function SetPromptVersionLabels({
             className="w-full"
             onClick={handleSubmitLabels}
           >
-            {getConditionalText({
+            {getSaveButtonLabel(
               isPromotingToProduction,
               isDemotingFromProduction,
-            })}
+            )}
           </Button>
         </div>
       </PopoverContent>
