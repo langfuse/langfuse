@@ -21,6 +21,7 @@ export function SessionBadge({
       className="ph-no-capture inline-flex"
     >
       <Badge
+        color="ghost"
         text="session"
         title={sessionId}
         trailingIcon={ArrowUpRight}
@@ -46,6 +47,7 @@ export function UserIdBadge({
       className="ph-no-capture inline-flex"
     >
       <Badge
+        color="ghost"
         label={label}
         text={text}
         trailingIcon={ArrowUpRight}
@@ -71,6 +73,7 @@ export function TargetTraceBadge({
       className="ph-no-capture inline-flex"
     >
       <Badge
+        color="ghost"
         label={label}
         text={text}
         trailingIcon={ArrowUpRight}
@@ -81,13 +84,13 @@ export function TargetTraceBadge({
 }
 
 export function EnvironmentBadge({ environment }: { environment: string }) {
-  return <Badge label="env" text={environment} />;
+  return <Badge color="ghost" label="env" text={environment} />;
 }
 
 export function ReleaseBadge({ release }: { release: string }) {
-  return <Badge label="release" text={release} />;
+  return <Badge color="ghost" label="release" text={release} />;
 }
 
 export function VersionBadge({ version }: { version: string }) {
-  return <Badge label="version" text={version} />;
+  return <Badge color="ghost" label="version" text={version} />;
 }

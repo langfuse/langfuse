@@ -22,7 +22,7 @@ export function TracePanelNavigationLayoutDesktop({
 }: {
   children: ReactNode;
 }) {
-  const { isNavigationPanelCollapsed, handleTogglePanel, shouldPulseToggle } =
+  const { isNavigationPanelCollapsed, handleTogglePanel } =
     useDesktopLayoutContext();
 
   return (
@@ -30,7 +30,6 @@ export function TracePanelNavigationLayoutDesktop({
       <TracePanelNavigationHeader
         isPanelCollapsed={isNavigationPanelCollapsed}
         onTogglePanel={handleTogglePanel}
-        shouldPulseToggle={shouldPulseToggle}
       />
       <div
         className={cn(

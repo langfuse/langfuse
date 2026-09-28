@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { cn } from "@/src/utils/tailwind";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
@@ -33,13 +32,15 @@ export const PagedSettingsContainer = ({
   fullHeight = false,
 }: SettingsProps) => {
   const router = useRouter();
-  const availablePages = pages.filter((page) =>
-    "show" in page
-      ? typeof page.show === "function"
-        ? page.show()
-        : page.show
-      : true,
-  );
+  const availablePages = pages.filter((page) => {
+    if ("show" in page) {
+      if (typeof page.show === "function") {
+        return page.show();
+      }
+      return page.show;
+    }
+    return true;
+  });
 
   const currentPage =
     availablePages.find((page) => page.slug === activeSlug) ??

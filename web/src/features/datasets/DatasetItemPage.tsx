@@ -8,9 +8,12 @@ import { api } from "@/src/utils/api";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
 import { toDatasetSchema } from "@/src/features/datasets/utils/datasetItemUtils";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { type DatasetItemRenderMode } from "@/src/features/datasets/components/DatasetItemField";
 import { Label } from "@/src/components/ui/label";
 import { Button } from "@/src/components/ui/button";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import { History, PanelRightOpen } from "lucide-react";
 import { useState } from "react";
 import {
@@ -48,6 +51,13 @@ function DatasetItemContent({
   );
   const [isVersionPanelOpen, setIsVersionPanelOpen] =
     useState(!!selectedVersion);
+  const [storedRenderMode, setRenderMode] =
+    useLocalStorage<DatasetItemRenderMode>(
+      "datasetItemJsonViewPreference",
+      "pretty",
+    );
+  const renderMode: DatasetItemRenderMode =
+    storedRenderMode === "json" ? "json" : "pretty";
 
   const routeReady =
     Boolean(projectId) && Boolean(datasetId) && Boolean(itemId);
@@ -124,7 +134,20 @@ function DatasetItemContent({
           )}
 
           {/* Version panel toggle button */}
-          <div className="bg-background sticky top-0 z-10 flex justify-end border-b p-2">
+          <div className="bg-background sticky top-0 z-10 flex items-center justify-end gap-2 border-b p-2">
+            {!isViewingOldVersion && (
+              <Tabs
+                value={renderMode}
+                onValueChange={(value) =>
+                  setRenderMode(value === "json" ? "json" : "pretty")
+                }
+              >
+                <Tabs.List size="sm">
+                  <Tabs.Trigger value="pretty" size="sm" label="Formatted" />
+                  <Tabs.Trigger value="json" size="sm" label="Raw" />
+                </Tabs.List>
+              </Tabs>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -192,6 +215,7 @@ function DatasetItemContent({
                 item={item.data ?? null}
                 isLoading={item.isLoading}
                 dataset={toDatasetSchema(dataset.data ?? null)}
+                renderMode={renderMode}
               />
             )}
           </div>

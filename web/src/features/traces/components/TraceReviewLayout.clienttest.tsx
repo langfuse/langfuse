@@ -15,7 +15,6 @@ const { navigationContext } = vi.hoisted(() => ({
   navigationContext: {
     isNavigationPanelCollapsed: false,
     handleTogglePanel: vi.fn(),
-    shouldPulseToggle: false,
   },
 }));
 

@@ -4,10 +4,11 @@ import {
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
+  BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Fragment, useState } from "react";
-import { ChevronDownIcon, PlusIcon, Slash } from "lucide-react";
+import { ChevronDownIcon, PlusIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 import { env } from "@/src/env.mjs";
@@ -91,7 +92,7 @@ const BreadcrumbComponent = ({
                     {planLabels[organization.plan]}
                   </Badge>
                 )}
-              <ChevronDownIcon className="h-4 w-4" />
+              <ChevronDownIcon className="text-foreground-tertiary size-3 translate-y-px" />
             </PopoverTrigger>
             <SwitcherMenuContent
               onClose={() => setOrgSwitcherOpen(false)}
@@ -123,8 +124,8 @@ const BreadcrumbComponent = ({
         )}
         {organization && project && (
           <>
-            <BreadcrumbSeparator>
-              <Slash />
+            <BreadcrumbSeparator className="text-foreground-tertiary">
+              /
             </BreadcrumbSeparator>
             <Popover
               open={projectSwitcherOpen}
@@ -132,7 +133,7 @@ const BreadcrumbComponent = ({
             >
               <PopoverTrigger className="text-primary flex h-5 items-center gap-1 p-0 leading-none">
                 {project?.name ?? "Project"}
-                <ChevronDownIcon className="h-4 w-4" />
+                <ChevronDownIcon className="text-foreground-tertiary size-3 translate-y-px" />
               </PopoverTrigger>
               <SwitcherMenuContent
                 onClose={() => setProjectSwitcherOpen(false)}
@@ -168,22 +169,28 @@ const BreadcrumbComponent = ({
             </Popover>
           </>
         )}
-        {items?.map((item, index) => (
-          <Fragment key={index}>
-            <BreadcrumbSeparator>
-              <Slash />
-            </BreadcrumbSeparator>
-            <BreadcrumbItem key={index}>
-              {item.href ? (
-                <BreadcrumbLink asChild>
-                  <Link href={item.href}>{item.name}</Link>
-                </BreadcrumbLink>
-              ) : (
-                <span>{item.name}</span>
-              )}
-            </BreadcrumbItem>
-          </Fragment>
-        ))}
+        {items?.map((item, index) => {
+          const isCurrentPage = index === items.length - 1;
+          const name = item.href ? (
+            <Link href={item.href}>{item.name}</Link>
+          ) : (
+            item.name
+          );
+          return (
+            <Fragment key={index}>
+              <BreadcrumbSeparator className="text-foreground-tertiary">
+                /
+              </BreadcrumbSeparator>
+              <BreadcrumbItem key={index}>
+                {isCurrentPage && <BreadcrumbPage>{name}</BreadcrumbPage>}
+                {!isCurrentPage && item.href && (
+                  <BreadcrumbLink asChild>{name}</BreadcrumbLink>
+                )}
+                {!isCurrentPage && !item.href && <span>{name}</span>}
+              </BreadcrumbItem>
+            </Fragment>
+          );
+        })}
       </BreadcrumbList>
     </Breadcrumb>
   );

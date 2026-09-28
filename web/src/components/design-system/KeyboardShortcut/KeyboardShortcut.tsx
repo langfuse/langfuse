@@ -86,18 +86,17 @@ function getKeyboardKeyLabel(key: KeyboardKey, isMac: boolean) {
 }
 
 const keyboardShortcutVariants = cva(
-  "pointer-events-none inline-flex items-center justify-center gap-1 rounded-md border font-mono leading-none font-bold select-none",
+  "pointer-events-none inline-flex items-baseline justify-center gap-1 rounded-sm font-mono leading-none font-normal select-none",
   {
     variants: {
       variant: {
-        default: "bg-muted text-muted-foreground shadow-xs",
-        subtle: "bg-transparent text-muted-foreground shadow-none",
-        inverse:
-          "border-primary-foreground/30 bg-primary-foreground/20 text-primary-foreground shadow-xs",
+        default: "bg-transparent text-foreground-tertiary",
+        subtle: "bg-transparent text-foreground-tertiary",
+        inverse: "bg-transparent text-primary-foreground",
       },
       size: {
-        default: "h-5 min-w-5 px-1.5 text-[10px]",
-        sm: "h-4 min-w-4 px-1 text-[9px]",
+        default: "h-5 min-w-5 text-xs",
+        sm: "h-4 min-w-4 px-1 text-[10px]",
         xs: "h-3.5 min-w-3.5 px-1 text-[9px]",
       },
     },
@@ -107,6 +106,12 @@ const keyboardShortcutVariants = cva(
     },
   },
 );
+
+const symbolSizeClass = {
+  default: "text-lg",
+  sm: "text-sm",
+  xs: "text-xs",
+} as const;
 
 export type KeyboardShortcutProps = {
   ref?: React.Ref<HTMLElement>;
@@ -129,9 +134,21 @@ export function KeyboardShortcut({
       className={keyboardShortcutVariants({ variant, size })}
       title={title}
     >
-      {keys.map((key, index) => (
-        <span key={index}>{getKeyboardKeyLabel(key, isMac)}</span>
-      ))}
+      {keys.map((key, index) => {
+        const label = getKeyboardKeyLabel(key, isMac);
+        // Modifier and arrow glyphs draw small and high in the mono face; one step up, letters nudged up to meet them.
+        const isSymbol = /^[^\p{L}\p{N}]$/u.test(label);
+        return (
+          <span
+            key={index}
+            className={
+              isSymbol ? symbolSizeClass[size ?? "default"] : "-translate-y-0.5"
+            }
+          >
+            {label}
+          </span>
+        );
+      })}
     </kbd>
   );
 }

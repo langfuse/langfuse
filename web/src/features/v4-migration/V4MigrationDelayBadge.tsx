@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
@@ -153,14 +152,18 @@ export function V4MigrationDelayBadge({
 
   // The hover's action clause echoes the panel section the click opens;
   // multiple delayed paths get the generic clause.
-  const description =
-    actionablePaths > 1
-      ? "Upgrade to v4 for real-time data"
-      : sdkActionable
-        ? "Update your SDK for real-time data"
-        : otelActionable
-          ? "Update your OTel instrumentation for real-time data"
-          : "Upgrade your instrumentation for real-time data";
+  const description = (() => {
+    if (actionablePaths > 1) {
+      return "Upgrade to v4 for real-time data";
+    }
+    if (sdkActionable) {
+      return "Update your SDK for real-time data";
+    }
+    if (otelActionable) {
+      return "Update your OTel instrumentation for real-time data";
+    }
+    return "Upgrade your instrumentation for real-time data";
+  })();
 
   return (
     <V4MigrationBadgeContent

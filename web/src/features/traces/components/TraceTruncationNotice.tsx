@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 /**
  * Inline notice above the tree/timeline/search list when the trace has more
@@ -34,22 +33,29 @@ export function TraceTruncationNotice() {
   // The detached row carries no marker of its own (deliberately — a per-row label
   // is noise on every scroll), so this sentence is the ONLY place that can say
   // the tree is showing it out of position.
-  const detachedNote = !detachedObservationId
-    ? null
-    : detachedObservationIsMisplaced
-      ? " The one you opened is loaded separately, and appears at the top level because its parent is missing too."
-      : " The one you opened is loaded separately.";
+  const detachedNote = (() => {
+    if (!detachedObservationId) {
+      return null;
+    }
+    if (detachedObservationIsMisplaced) {
+      return " The one you opened is loaded separately, and appears at the top level because its parent is missing too.";
+    }
+    return " The one you opened is loaded separately.";
+  })();
 
   // Ranked by how much the message says. Dismissing hides that message and
   // everything it already covered, but never a later one that says MORE — so
   // dismissing the short detached note cannot swallow the out-of-position
   // caveat, which is the only warning that row gets.
-  const rank =
-    detachedObservationId && detachedObservationIsMisplaced
-      ? 2
-      : detachedObservationId
-        ? 1
-        : 0;
+  const rank = (() => {
+    if (detachedObservationId && detachedObservationIsMisplaced) {
+      return 2;
+    }
+    if (detachedObservationId) {
+      return 1;
+    }
+    return 0;
+  })();
   if (rank <= dismissedRank) return null;
 
   return (

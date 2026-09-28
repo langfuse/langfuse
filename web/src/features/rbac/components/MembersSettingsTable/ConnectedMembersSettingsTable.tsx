@@ -319,6 +319,7 @@ export function ConnectedMembersSettingsTable({
             },
           ]}
           pagination={{
+            mode: "offset",
             totalCount: members.data?.totalCount ?? null,
             onChange: (state) => setPaginationState({ ...state, rolesKey }),
             state: paginationState,

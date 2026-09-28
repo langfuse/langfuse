@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import {
   EvalTemplateType,
   Prisma,
@@ -235,28 +234,31 @@ async function evaluatorWhere(params: {
     status: {
       stringOptions: (filter) => {
         const statuses: Prisma.EvaluatorWhereInput[] = filter.value.map(
-          (status) =>
-            status === "BLOCKED"
-              ? { blockedAt: { not: null } }
-              : status === "ACTIVE"
-                ? {
-                    blockedAt: null,
-                    assignments: {
-                      some: {
-                        projectId: params.projectId,
-                        evaluationRule: { status: "ACTIVE" },
-                      },
-                    },
-                  }
-                : {
-                    blockedAt: null,
-                    assignments: {
-                      none: {
-                        projectId: params.projectId,
-                        evaluationRule: { status: "ACTIVE" },
-                      },
-                    },
+          (status) => {
+            if (status === "BLOCKED") {
+              return { blockedAt: { not: null } };
+            }
+            if (status === "ACTIVE") {
+              return {
+                blockedAt: null,
+                assignments: {
+                  some: {
+                    projectId: params.projectId,
+                    evaluationRule: { status: "ACTIVE" },
                   },
+                },
+              };
+            }
+            return {
+              blockedAt: null,
+              assignments: {
+                none: {
+                  projectId: params.projectId,
+                  evaluationRule: { status: "ACTIVE" },
+                },
+              },
+            };
+          },
         );
         return filter.operator === "any of"
           ? { OR: statuses }

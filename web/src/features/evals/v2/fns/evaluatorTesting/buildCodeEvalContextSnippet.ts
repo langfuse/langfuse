@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import {
   EvalTemplateSourceCodeLanguageEnum,
   type EvalTemplateSourceCodeLanguage,
@@ -29,11 +28,13 @@ function serializeValue(
   }
   if (typeof value === "string") return JSON.stringify(truncate(value));
   if (typeof value === "boolean") {
-    return language === EvalTemplateSourceCodeLanguageEnum.PYTHON
-      ? value
-        ? "True"
-        : "False"
-      : String(value);
+    if (language === EvalTemplateSourceCodeLanguageEnum.PYTHON) {
+      if (value) {
+        return "True";
+      }
+      return "False";
+    }
+    return String(value);
   }
   if (typeof value === "number") return String(value);
   if (Array.isArray(value)) {

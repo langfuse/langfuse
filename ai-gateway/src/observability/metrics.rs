@@ -83,9 +83,9 @@ pub(crate) fn rejected(phase: &'static str) {
     METRICS.rejections.add(1, &[KeyValue::new("phase", phase)]);
 }
 
-pub(crate) fn delivery(outcome: &'static str, reason: &'static str) {
+pub(crate) fn delivery(outcome: &'static str, reason: &'static str, records: u64) {
     METRICS.delivery.add(
-        1,
+        records,
         &[
             KeyValue::new("outcome", outcome),
             KeyValue::new("reason", reason),

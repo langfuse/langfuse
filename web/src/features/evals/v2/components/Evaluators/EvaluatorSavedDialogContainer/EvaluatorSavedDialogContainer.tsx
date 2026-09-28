@@ -395,12 +395,15 @@ export function EvaluatorSavedDialogContainer({
     }
   };
 
-  const currentBackfillScope =
-    mode === "test-filters"
-      ? { filter: supportedRuleFilters, sampling: testFilterSampling }
-      : selectedRule
-        ? { filter: selectedRule.filter, sampling: selectedRule.sampling }
-        : null;
+  const currentBackfillScope = (() => {
+    if (mode === "test-filters") {
+      return { filter: supportedRuleFilters, sampling: testFilterSampling };
+    }
+    if (selectedRule) {
+      return { filter: selectedRule.filter, sampling: selectedRule.sampling };
+    }
+    return null;
+  })();
 
   const handlePrimaryAction = () => {
     if (mode === "test-filters") {
@@ -568,59 +571,65 @@ export function EvaluatorSavedDialogContainer({
     </div>
   ) : null;
 
-  return dialogPhase === "saved" || dialogPhase === "closing-saved" ? (
-    <EvaluatorSavedDialog
-      open={dialogPhase === "saved"}
-      mode={mode}
-      modeContentByMode={modeContentByMode}
-      backfillContent={backfillContent}
-      costSummary={costSummary}
-      canSubmit={
-        !isEstimating &&
-        !isCompleting &&
-        (!backfill.enabled || !backfill.isEstimating) &&
-        (!backfill.enabled || historicEvaluationLimit.isSuccess) &&
-        (mode === "test-filters" || selectedRuleId !== undefined)
-      }
-      isSubmitting={
-        attach.isPending ||
-        createOrAttachFromEvaluatorFilters.isPending ||
-        backfill.isScheduling ||
-        isCompleting
-      }
-      primaryActionLabel={
-        mode === "test-filters"
-          ? "Execute"
-          : selectedRule
-            ? "Execute"
-            : "Open rule editor"
-      }
-      onModeChange={handleModeChange}
-      onOpenAutoFocus={requestInitialEstimate}
-      onDismiss={() => {
-        createRuleHandoffPending.current = false;
-        setDialogPhase("closed");
-        onDismiss().catch(trpcErrorToast);
-      }}
-      onSecondaryAction={() => {
-        setDialogPhase("closed");
-        finish().catch(trpcErrorToast);
-      }}
-      onPrimaryAction={handlePrimaryAction}
-      onCloseAnimationEnd={completeCreateRuleHandoff}
-    />
-  ) : dialogPhase === "create-rule" ? (
-    <CreateRuleDialog
-      projectId={projectId}
-      open
-      onOpenChange={(open) => {
-        if (!open) {
-          setDialogPhase("closed");
-          finish().catch(() => undefined);
+  if (dialogPhase === "saved" || dialogPhase === "closing-saved") {
+    return (
+      <EvaluatorSavedDialog
+        open={dialogPhase === "saved"}
+        mode={mode}
+        modeContentByMode={modeContentByMode}
+        backfillContent={backfillContent}
+        costSummary={costSummary}
+        canSubmit={
+          !isEstimating &&
+          !isCompleting &&
+          (!backfill.enabled || !backfill.isEstimating) &&
+          (!backfill.enabled || historicEvaluationLimit.isSuccess) &&
+          (mode === "test-filters" || selectedRuleId !== undefined)
         }
-      }}
-      initialEvaluator={{ ...evaluator, initialVariableMapping: null }}
-      successNotification="none"
-    />
-  ) : null;
+        isSubmitting={
+          attach.isPending ||
+          createOrAttachFromEvaluatorFilters.isPending ||
+          backfill.isScheduling ||
+          isCompleting
+        }
+        primaryActionLabel={
+          mode === "test-filters"
+            ? "Execute"
+            : selectedRule
+              ? "Execute"
+              : "Open rule editor"
+        }
+        onModeChange={handleModeChange}
+        onOpenAutoFocus={requestInitialEstimate}
+        onDismiss={() => {
+          createRuleHandoffPending.current = false;
+          setDialogPhase("closed");
+          onDismiss().catch(trpcErrorToast);
+        }}
+        onSecondaryAction={() => {
+          setDialogPhase("closed");
+          finish().catch(trpcErrorToast);
+        }}
+        onPrimaryAction={handlePrimaryAction}
+        onCloseAnimationEnd={completeCreateRuleHandoff}
+      />
+    );
+  }
+  if (dialogPhase === "create-rule") {
+    return (
+      <CreateRuleDialog
+        projectId={projectId}
+        open
+        onOpenChange={(open) => {
+          if (!open) {
+            setDialogPhase("closed");
+            finish().catch(() => undefined);
+          }
+        }}
+        initialEvaluator={{ ...evaluator, initialVariableMapping: null }}
+        successNotification="none"
+      />
+    );
+  }
+  return null;
 }

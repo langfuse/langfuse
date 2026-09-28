@@ -154,11 +154,16 @@ export const supportCopilotFollowUpFixture = {
       {
         conversationHistory: replayedHistory,
         currentTurn: {
+          nestingLevel: 2,
           messages: followUpCopy(
             firstThread.currentTurn.messages.filter(
               (message) => message.role !== "system",
             ),
-          ),
+          ).map((message) => ({
+            ...message,
+            startTime: new Date(message.startTime),
+            endTime: message.endTime ? new Date(message.endTime) : null,
+          })),
           observations: followUpCopy(firstThread.currentTurn.observations),
         },
       },

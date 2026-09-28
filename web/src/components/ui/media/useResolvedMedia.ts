@@ -27,6 +27,7 @@ export function useResolvedMedia(
     },
     {
       enabled: enabled && Boolean(projectId),
+      meta: { silentHttpCodes: [404] },
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,

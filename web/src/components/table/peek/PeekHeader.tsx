@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { Button } from "@/src/components/ui/button";
 import {
   Popover,
@@ -53,13 +54,12 @@ type PeekHeaderProps = {
 
 // The title keeps at least this much width before anything else collapses; the
 // type badge falls back to this width when icon-only; the "…" trigger is an
-// icon-xs button. Tuned by eye — planner `safety` covers inter-control gaps.
+// icon button. Tuned by eye — planner `safety` covers inter-control gaps.
 const MIN_TITLE_PX = 240;
 const BADGE_ICON_PX = 32;
-const MORE_BUTTON_PX = 32;
+const MORE_BUTTON_PX = 36;
 const BADGE_LABEL_FALLBACK_PX = 72;
-const NAV_FULL_FALLBACK_PX = 92;
-const NAV_COMPACT_FALLBACK_PX = 52;
+const NAV_FALLBACK_PX = 68;
 
 const samePlan = (a: PeekHeaderPlan, b: PeekHeaderPlan) =>
   a.foldActions === b.foldActions &&
@@ -76,33 +76,6 @@ const FULL: PeekHeaderPlan = {
 
 // Header tooltips appear quickly and share one style (Radix Tooltip, not the
 // slow/inconsistent native `title`).
-const TOOLTIP_DELAY_MS = 300;
-
-function HeaderIconButton({
-  label,
-  onClick,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label={label}
-          onClick={onClick}
-        >
-          {children}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  );
-}
 
 /**
  * Visible peek chrome shared by the desktop sheet and the mobile drawer. The
@@ -111,8 +84,8 @@ function HeaderIconButton({
  *
  * The header adapts to the PEEK's own width (measured, not screen breakpoints):
  * it keeps the title readable and, as the peek narrows, folds the trace actions
- * into a labeled "…" menu, shrinks the type badge to icon-only, compacts the
- * prev/next nav, then folds open-in-tab — see {@link planPeekHeaderLayout}.
+ * into a labeled "…" menu, shrinks the type badge to icon-only, then folds
+ * open-in-tab — see {@link planPeekHeaderLayout}.
  */
 export function PeekHeader({
   itemType,
@@ -136,6 +109,7 @@ export function PeekHeader({
   const openInTabRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLDivElement>(null);
   // Cached widths survive a part being folded / collapsed (it can't be
   // re-measured while hidden, in the closed popover, or in the other nav mode).
   const widthsRef = useRef<{
@@ -172,10 +146,13 @@ export function PeekHeader({
     if (pinnedRef.current) {
       const navW = hasNav && navRef.current ? navRef.current.offsetWidth : 0;
       if (hasNav) {
-        if (plan.navCompact) widthsRef.current.navCompact = navW;
-        else widthsRef.current.navFull = navW;
+        widthsRef.current.navCompact = navW;
+        widthsRef.current.navFull = navW;
       }
-      widthsRef.current.otherPinned = pinnedRef.current.offsetWidth - navW;
+      widthsRef.current.otherPinned =
+        pinnedRef.current.offsetWidth -
+        navW +
+        (closeRef.current?.offsetWidth ?? 0);
     }
 
     const next = planPeekHeaderLayout({
@@ -183,11 +160,9 @@ export function PeekHeader({
       minTitle: MIN_TITLE_PX,
       badgeLabelWidth: widthsRef.current.badgeLabel ?? BADGE_LABEL_FALLBACK_PX,
       badgeIconWidth: BADGE_ICON_PX,
-      navFullWidth: hasNav
-        ? (widthsRef.current.navFull ?? NAV_FULL_FALLBACK_PX)
-        : 0,
+      navFullWidth: hasNav ? (widthsRef.current.navFull ?? NAV_FALLBACK_PX) : 0,
       navCompactWidth: hasNav
-        ? (widthsRef.current.navCompact ?? NAV_COMPACT_FALLBACK_PX)
+        ? (widthsRef.current.navCompact ?? NAV_FALLBACK_PX)
         : 0,
       otherPinnedWidth: widthsRef.current.otherPinned ?? 0,
       moreWidth: MORE_BUTTON_PX,
@@ -210,7 +185,7 @@ export function PeekHeader({
   const anyFolded = plan.foldActions || plan.foldOpenInTab;
 
   return (
-    <TooltipProvider delayDuration={TOOLTIP_DELAY_MS}>
+    <TooltipProvider>
       <div
         ref={headerRef}
         className="bg-muted flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
@@ -236,6 +211,52 @@ export function PeekHeader({
           ref={clusterRef}
           className="flex shrink-0 flex-row items-center gap-1"
         >
+          {hasOpenInTab && !plan.foldOpenInTab && openInNewTab ? (
+            <div ref={openInTabRef}>
+              <HeaderActionButton
+                label="Open in new tab"
+                icon={<ExternalLink className="h-4 w-4" />}
+                onClick={openInNewTab}
+              />
+            </div>
+          ) : null}
+
+          {/* Pinned block: expand, nav (keeps K/J live). */}
+          <div
+            ref={pinnedRef}
+            className="flex h-full flex-row items-center gap-1"
+          >
+            {expand && (
+              <HeaderActionButton
+                label={expand.isExpanded ? "Collapse" : "Expand"}
+                icon={
+                  expand.isExpanded ? (
+                    <Minimize2 className="h-4 w-4" />
+                  ) : (
+                    <Maximize2 className="h-4 w-4" />
+                  )
+                }
+                onClick={expand.onToggle}
+              />
+            )}
+            {hasNav && (
+              <div ref={navRef} className="flex flex-row items-center">
+                <DetailPageNav
+                  currentId={itemId}
+                  path={resolveDetailNavigationPath!}
+                  listKey={detailNavigationKey!}
+                  compact
+                />
+              </div>
+            )}
+          </div>
+
+          {hasActions && !plan.foldActions ? (
+            <div ref={actionsRef} className="flex flex-row items-center gap-1">
+              {actions}
+            </div>
+          ) : null}
+
           {/* Overflow: a labeled menu of whatever folded away. */}
           {anyFolded && (
             <Popover>
@@ -244,8 +265,9 @@ export function PeekHeader({
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="icon-xs"
+                      size="icon"
                       aria-label="More actions"
+                      className="text-foreground-secondary hover:text-foreground-secondary"
                     >
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
@@ -272,50 +294,12 @@ export function PeekHeader({
             </Popover>
           )}
 
-          {hasActions && !plan.foldActions ? (
-            <div ref={actionsRef} className="flex flex-row items-center gap-1">
-              {actions}
-            </div>
-          ) : null}
-
-          {hasOpenInTab && !plan.foldOpenInTab && openInNewTab ? (
-            <div ref={openInTabRef}>
-              <HeaderIconButton label="Open in new tab" onClick={openInNewTab}>
-                <ExternalLink className="h-4 w-4" />
-              </HeaderIconButton>
-            </div>
-          ) : null}
-
-          {/* Pinned block: nav (keeps K/J live), expand, close. */}
-          <div
-            ref={pinnedRef}
-            className="flex h-full flex-row items-center gap-1"
-          >
-            {hasNav && (
-              <div ref={navRef} className="flex flex-row items-center">
-                <DetailPageNav
-                  currentId={itemId}
-                  path={resolveDetailNavigationPath!}
-                  listKey={detailNavigationKey!}
-                  compact={plan.navCompact}
-                />
-              </div>
-            )}
-            {expand && (
-              <HeaderIconButton
-                label={expand.isExpanded ? "Collapse" : "Expand"}
-                onClick={expand.onToggle}
-              >
-                {expand.isExpanded ? (
-                  <Minimize2 className="h-4 w-4" />
-                ) : (
-                  <Maximize2 className="h-4 w-4" />
-                )}
-              </HeaderIconButton>
-            )}
-            <HeaderIconButton label="Close" onClick={onClose}>
-              <X className="h-4 w-4" />
-            </HeaderIconButton>
+          <div ref={closeRef}>
+            <HeaderActionButton
+              label="Close"
+              icon={<X className="h-4 w-4" />}
+              onClick={onClose}
+            />
           </div>
         </div>
       </div>

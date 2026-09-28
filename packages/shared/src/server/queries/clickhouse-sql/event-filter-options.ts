@@ -373,12 +373,15 @@ const optionRowsArrayExpression = (column: EventFilterOptionColumn) => {
   const topAlias = optionTopAlias(column);
   // Alpha facets use a constant sort key; the final ORDER BY value tie-breaker
   // below provides alphabetical ordering within the top-k candidate set.
-  const sortKeyExpression =
-    definition.sort === "countDesc"
-      ? "-toInt64(tupleElement(option, 2))"
-      : definition.sort === "booleanAsc"
-        ? "if(tupleElement(option, 1) = 'true', toInt64(1), toInt64(0))"
-        : "toInt64(0)";
+  const sortKeyExpression = (() => {
+    if (definition.sort === "countDesc") {
+      return "-toInt64(tupleElement(option, 2))";
+    }
+    if (definition.sort === "booleanAsc") {
+      return "if(tupleElement(option, 1) = 'true', toInt64(1), toInt64(0))";
+    }
+    return "toInt64(0)";
+  })();
   // labeledScalar top-k entries nest (value, label) in element 1; scalar/array/
   // boolean entries put the value directly in element 1 and carry no label.
   const isLabeled = definition.kind === "labeledScalar";
@@ -450,12 +453,15 @@ export const buildEventsFilterOptionColumnQuery = (params: {
     ),
   );
 
-  const valueExpression =
-    definition.kind === "scalar" || definition.kind === "labeledScalar"
-      ? `toString(${definition.expression})`
-      : definition.kind === "boolean"
-        ? `if(${definition.expression}, 'true', 'false')`
-        : `arrayJoin(${optionValuesArrayExpression(definition)})`;
+  const valueExpression = (() => {
+    if (definition.kind === "scalar" || definition.kind === "labeledScalar") {
+      return `toString(${definition.expression})`;
+    }
+    if (definition.kind === "boolean") {
+      return `if(${definition.expression}, 'true', 'false')`;
+    }
+    return `arrayJoin(${optionValuesArrayExpression(definition)})`;
+  })();
 
   const queryBuilder = new EventsAggQueryBuilder({
     projectId: params.projectId,
@@ -634,12 +640,15 @@ const exactOptionRowsArrayExpression = (
   // key = value              (scalar / array / boolean)
   // key = (value, label)     (labeledScalar)
   // Output row is cast to the named EVENTS_FILTER_OPTION_ROW_TUPLE_TYPE.
-  const sortKeyExpression =
-    definition.sort === "countDesc"
-      ? "-toInt64(tupleElement(option, 2))"
-      : definition.sort === "booleanAsc"
-        ? "if(tupleElement(option, 1) = 'true', toInt64(1), toInt64(0))"
-        : "toInt64(0)";
+  const sortKeyExpression = (() => {
+    if (definition.sort === "countDesc") {
+      return "-toInt64(tupleElement(option, 2))";
+    }
+    if (definition.sort === "booleanAsc") {
+      return "if(tupleElement(option, 1) = 'true', toInt64(1), toInt64(0))";
+    }
+    return "toInt64(0)";
+  })();
   const valueExpression = isLabeled
     ? "tupleElement(tupleElement(option, 1), 1)"
     : "tupleElement(option, 1)";

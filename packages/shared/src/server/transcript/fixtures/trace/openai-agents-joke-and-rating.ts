@@ -372,6 +372,7 @@ export const openaiAgentsJokeAndRatingFixture = {
       {
         conversationHistory: [],
         currentTurn: {
+          nestingLevel: 3,
           messages: [
             {
               role: "user",
@@ -383,6 +384,8 @@ export const openaiAgentsJokeAndRatingFixture = {
               ],
               source: "input",
               observationId: "f8fdd8164d6f8dbe",
+              startTime: new Date("2025-09-30T09:04:06.682Z"),
+              endTime: new Date("2025-09-30T09:04:07.517Z"),
               traceId: "afa1ae379b6c3a5333e2bab357f31cdc",
             },
             {
@@ -399,6 +402,8 @@ export const openaiAgentsJokeAndRatingFixture = {
               ],
               source: "output",
               observationId: "f8fdd8164d6f8dbe",
+              startTime: new Date("2025-09-30T09:04:06.682Z"),
+              endTime: new Date("2025-09-30T09:04:07.517Z"),
               traceId: "afa1ae379b6c3a5333e2bab357f31cdc",
             },
           ],
@@ -413,6 +418,7 @@ export const openaiAgentsJokeAndRatingFixture = {
       {
         conversationHistory: [],
         currentTurn: {
+          nestingLevel: 3,
           messages: [
             {
               role: "user",
@@ -424,6 +430,8 @@ export const openaiAgentsJokeAndRatingFixture = {
               ],
               source: "input",
               observationId: "496efdc060a5399b",
+              startTime: new Date("2025-09-30T09:04:07.522Z"),
+              endTime: new Date("2025-09-30T09:04:09.029Z"),
               traceId: "afa1ae379b6c3a5333e2bab357f31cdc",
             },
             {
@@ -440,6 +448,8 @@ export const openaiAgentsJokeAndRatingFixture = {
               ],
               source: "output",
               observationId: "496efdc060a5399b",
+              startTime: new Date("2025-09-30T09:04:07.522Z"),
+              endTime: new Date("2025-09-30T09:04:09.029Z"),
               traceId: "afa1ae379b6c3a5333e2bab357f31cdc",
             },
           ],

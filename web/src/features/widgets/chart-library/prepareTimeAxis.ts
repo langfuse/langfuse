@@ -216,8 +216,15 @@ export function prepareTimeAxis(
   const temporal =
     timestamps.length > 0 && timestamps.length >= rawValues.length / 2;
   if (!temporal) {
-    const full = (raw: unknown): string =>
-      raw == null ? "" : typeof raw === "string" ? raw : String(raw);
+    const full = (raw: unknown): string => {
+      if (raw == null) {
+        return "";
+      }
+      if (typeof raw === "string") {
+        return raw;
+      }
+      return String(raw);
+    };
     // Opt-in (experiments / dataset-compare): hide the entity names on the axis
     // entirely and surface the full name on hover instead — the names cluttered
     // the axis with little value. Nothing to fit, so draw every tick (`0`)

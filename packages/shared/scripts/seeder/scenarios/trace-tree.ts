@@ -101,12 +101,15 @@ const buildTreeShape = (
   // jitter() not rng for kinds: observation `type` is the 2nd v3 ORDER BY
   // column, and stream-position randomness would re-key rows when flags
   // that shift rng consumption change between same-prefix re-runs.
-  const kindAt = (index: number): ObservationType =>
-    index < kinds.length
-      ? kinds[index]
-      : jitter(seed, index * 5 + 3, 9) < 4
-        ? "GENERATION"
-        : kinds[jitter(seed, index * 5 + 4, kinds.length - 1)];
+  const kindAt = (index: number): ObservationType => {
+    if (index < kinds.length) {
+      return kinds[index];
+    }
+    if (jitter(seed, index * 5 + 3, 9) < 4) {
+      return "GENERATION";
+    }
+    return kinds[jitter(seed, index * 5 + 4, kinds.length - 1)];
+  };
 
   for (let i = 0; i < count; i++) {
     if (i === 0) {
@@ -361,11 +364,15 @@ const run = async (
 
     const longName = node.index % 37 === 11;
     const baseName = rng.pick(NAME_BY_KIND[node.kind]);
-    const name = longName
-      ? `${baseName}-with-an-extremely-long-name-${"x".repeat(140)}`
-      : isFailedToolRetryPair
-        ? `${baseName}-retry`
-        : baseName;
+    const name = (() => {
+      if (longName) {
+        return `${baseName}-with-an-extremely-long-name-${"x".repeat(140)}`;
+      }
+      if (isFailedToolRetryPair) {
+        return `${baseName}-retry`;
+      }
+      return baseName;
+    })();
 
     const payloadForNode = (): string | null => {
       if (node.index === 0) return rootInput;
@@ -375,16 +382,22 @@ const run = async (
       if (isGeneration) {
         // Mostly long system prompts (collapse behavior), some name-bearing
         // (title shows the name, not the role), a few short (no collapse).
-        const systemMessage =
-          node.index % 5 === 0
-            ? { role: "system", content: "You are a helpful support agent." }
-            : node.index % 3 === 1
-              ? {
-                  role: "system",
-                  name: "support-agent-instructions",
-                  content: LONG_SYSTEM_PROMPT,
-                }
-              : { role: "system", content: LONG_SYSTEM_PROMPT };
+        const systemMessage = (() => {
+          if (node.index % 5 === 0) {
+            return {
+              role: "system",
+              content: "You are a helpful support agent.",
+            };
+          }
+          if (node.index % 3 === 1) {
+            return {
+              role: "system",
+              name: "support-agent-instructions",
+              content: LONG_SYSTEM_PROMPT,
+            };
+          }
+          return { role: "system", content: LONG_SYSTEM_PROMPT };
+        })();
         return JSON.stringify({
           messages: [
             systemMessage,

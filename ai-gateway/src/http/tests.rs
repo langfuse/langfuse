@@ -509,7 +509,7 @@ async fn pre_header_provider_failures_export_the_status_returned_to_the_caller()
             let sent = sent.clone();
             async move {
                 let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
-                sent.send(serde_json::from_slice::<Value>(&bytes).unwrap())
+                sent.send(crate::test_support::upload_json(&bytes))
                     .await
                     .unwrap();
                 Response::new(Body::from("{}"))
@@ -517,7 +517,7 @@ async fn pre_header_provider_failures_export_the_status_returned_to_the_caller()
         })
         .await;
         let telemetry =
-            Telemetry::new(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap()).unwrap();
+            Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
         let upstream = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let upstream_url = format!("http://{}", upstream.local_addr().unwrap());
         let upstream_task = tokio::spawn(async move {

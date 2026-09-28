@@ -1181,7 +1181,7 @@ jobs:
         run: |
           (set +e; bash scripts/ci/install-playwright.sh > /tmp/playwright-install.log 2>&1; echo $? > /tmp/playwright-install.exit) &
       - name: Build
-        run: pnpm run build --filter=!ai-gateway
+        run: pnpm run build --filter=!ai-gateway --filter=!worker --filter=!@langfuse/native
         env:
           NODE_OPTIONS: --max_old_space_size=8192
           # TypeScript is checked explicitly in the lint job; skip duplicate

@@ -199,6 +199,7 @@ export function DashboardGrid({
     widget.type === "preset" ? (
       <PresetDashboardWidget
         dashboardId={dashboardId}
+        chartSync={chartSync}
         projectId={projectId}
         readPath={readPath}
         placement={widget}

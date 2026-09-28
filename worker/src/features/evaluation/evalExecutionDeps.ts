@@ -9,6 +9,7 @@ import {
   compileLangfuseMediaMessages,
   createLLMOutput,
   createTypeSafeDecisionModelClient,
+  decryptAndParseExtraHeaders,
   DefaultEvalModelService,
   generateLLMText,
   IngestionQueue,
@@ -350,11 +351,15 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
       }
 
       let decryptedSecretKey: string;
+      let extraHeaders: Record<string, string> | undefined;
       try {
         decryptedSecretKey = decrypt(secretKey);
+        extraHeaders = decryptAndParseExtraHeaders(
+          typeof apiKey.extraHeaders === "string" ? apiKey.extraHeaders : null,
+        );
       } catch {
         throw new UnrecoverableError(
-          "TypeSafe connection secret could not be decrypted",
+          "TypeSafe connection secrets could not be decrypted",
         );
       }
 
@@ -362,6 +367,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         apiKey: decryptedSecretKey,
         model: params.modelConfig.model,
         baseURL: typeof apiKey.baseURL === "string" ? apiKey.baseURL : null,
+        extraHeaders,
       });
 
       return client.evaluate(params.request);

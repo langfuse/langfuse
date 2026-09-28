@@ -864,7 +864,7 @@ export default function SignInPage({
                               </Link>
                             </FormLabel>
                             <FormControl>
-                              <PasswordInput {...field} />
+                              <PasswordInput allowPasswordManager {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>

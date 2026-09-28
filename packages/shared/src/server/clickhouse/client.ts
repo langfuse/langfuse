@@ -20,6 +20,24 @@ export type PreferredClickhouseService =
   | "ReadOnly"
   | "EventsReadOnly";
 
+/** Node a query actually lands on once unset replica URLs fall back. */
+export type ClickhouseService = "main" | "read_replica" | "events_read_replica";
+
+export function resolveClickhouseService(
+  preferredClickhouseService: PreferredClickhouseService = "ReadWrite",
+): ClickhouseService {
+  switch (preferredClickhouseService) {
+    case "ReadWrite":
+      return "main";
+    case "EventsReadOnly":
+      if (env.CLICKHOUSE_EVENTS_READ_ONLY_URL) return "events_read_replica";
+      return env.CLICKHOUSE_READ_ONLY_URL ? "read_replica" : "main";
+    case "ReadOnly":
+    default:
+      return env.CLICKHOUSE_READ_ONLY_URL ? "read_replica" : "main";
+  }
+}
+
 type ServiceClickhouseSettings = ClickHouseSettings & {
   enable_full_text_index?: 1;
 };
@@ -149,18 +167,13 @@ export class ClickHouseClientManager {
   private getClickhouseUrl = (
     preferredClickhouseService: PreferredClickhouseService,
   ) => {
-    switch (preferredClickhouseService) {
-      case "ReadWrite":
+    switch (resolveClickhouseService(preferredClickhouseService)) {
+      case "events_read_replica":
+        return env.CLICKHOUSE_EVENTS_READ_ONLY_URL;
+      case "read_replica":
+        return env.CLICKHOUSE_READ_ONLY_URL;
+      case "main":
         return env.CLICKHOUSE_URL;
-      case "EventsReadOnly":
-        return (
-          env.CLICKHOUSE_EVENTS_READ_ONLY_URL ||
-          env.CLICKHOUSE_READ_ONLY_URL ||
-          env.CLICKHOUSE_URL
-        );
-      case "ReadOnly":
-      default:
-        return env.CLICKHOUSE_READ_ONLY_URL || env.CLICKHOUSE_URL;
     }
   };
 

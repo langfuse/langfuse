@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { BaseError, type Plan } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
@@ -81,18 +80,21 @@ export async function assertInAppAgentRunCapacity(params: {
   const perOrg = env.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG;
 
   // User first, so the message names the limit the caller can act on.
-  const exceeded =
-    userActiveRuns >= perUser
-      ? {
-          limit: "user" as const,
-          message: `You already have ${perUser} assistant runs in progress. Wait for one to finish.`,
-        }
-      : orgActiveRuns >= perOrg
-        ? {
-            limit: "org" as const,
-            message: `Your organization is at its limit of ${perOrg} assistant runs in progress. Try again shortly.`,
-          }
-        : null;
+  const exceeded = (() => {
+    if (userActiveRuns >= perUser) {
+      return {
+        limit: "user" as const,
+        message: `You already have ${perUser} assistant runs in progress. Wait for one to finish.`,
+      };
+    }
+    if (orgActiveRuns >= perOrg) {
+      return {
+        limit: "org" as const,
+        message: `Your organization is at its limit of ${perOrg} assistant runs in progress. Try again shortly.`,
+      };
+    }
+    return null;
+  })();
 
   if (!exceeded) {
     return;

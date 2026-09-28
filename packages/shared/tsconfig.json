@@ -4,7 +4,7 @@
     "jsx": "react",
     "moduleResolution": "NodeNext",
     "module": "NodeNext",
-    "lib": ["es2023"],
+    "lib": ["es2024"],
     "outDir": "./dist",
     "types": ["node"],
     "target": "es2024",

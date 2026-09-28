@@ -92,7 +92,7 @@ import type {
   StringKeyValueFilterEntry,
   TextFilterEntry,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
+import { KeyValueFilterBuilder } from "@/src/components/table/KeyValueFilterBuilder";
 import {
   Popover,
   PopoverContent,

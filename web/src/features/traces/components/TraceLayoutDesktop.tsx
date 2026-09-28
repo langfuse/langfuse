@@ -145,7 +145,6 @@ interface TraceLayoutDesktopContext {
   setIsNavigationPanelCollapsed: (collapsed: boolean) => void;
   panelRef: React.RefObject<PanelImperativeHandle | null>;
   handleTogglePanel: () => void;
-  shouldPulseToggle: boolean;
   // Detail (info/preview) panel — collapsible like the navigation panel.
   detailPanelRef: React.RefObject<PanelImperativeHandle | null>;
   isDetailPanelCollapsed: boolean;
@@ -219,10 +218,6 @@ function TraceNavigationDetailLayout({
   reviewNavigationCollapsed: boolean;
   toggleReviewNavigation: () => void;
 }) {
-  // Get current view mode from URL
-  const [viewMode] = useQueryParam("view", StringParam);
-  const isTimelineView = viewMode === "timeline";
-
   // Peek sizing depends on the drawer width; persistence scope is caller-owned.
   const { isPeekMode } = useViewPreferences();
 
@@ -539,21 +534,6 @@ function TraceNavigationDetailLayout({
     }
   };
 
-  // Pulse animation: hint to user that panel can be collapsed when switching to timeline
-  const [shouldPulseToggle, setShouldPulseToggle] = useState(false);
-
-  useEffect(() => {
-    if (isTimelineView) {
-      setShouldPulseToggle(true);
-      const timeout = setTimeout(() => {
-        setShouldPulseToggle(false);
-      }, 12000); // Stop pulse after 12 seconds
-      return () => clearTimeout(timeout);
-    }
-    // Reset pulse when leaving timeline view
-    setShouldPulseToggle(false);
-  }, [isTimelineView]);
-
   const contextValue: TraceLayoutDesktopContext = {
     reviewOpen,
     isNavigationPanelCollapsed: reviewOpen
@@ -562,7 +542,6 @@ function TraceNavigationDetailLayout({
     setIsNavigationPanelCollapsed,
     panelRef,
     handleTogglePanel,
-    shouldPulseToggle,
     detailPanelRef,
     isDetailPanelCollapsed: reviewOpen ? false : isDetailPanelCollapsed,
     setIsDetailPanelCollapsed,

@@ -90,6 +90,7 @@ function MediaPreview({ mediaItem }: { mediaItem: MediaReturnType }) {
     },
     {
       enabled: Boolean(projectId),
+      meta: { silentHttpCodes: [404] },
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,

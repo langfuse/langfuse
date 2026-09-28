@@ -388,7 +388,7 @@ export const TestCheckboxAndSubmenu = meta.story({
     const checkbox = body.getByRole("menuitemcheckbox", {
       name: "Include output",
     });
-    await expect(checkbox).toHaveFocus();
+    await waitFor(() => expect(checkbox).toHaveFocus());
     await userEvent.keyboard("{Enter}");
     await expect(onCheckboxChange).toHaveBeenCalledWith(true);
     await userEvent.keyboard("{ArrowDown}");

@@ -12,19 +12,23 @@ export function evaluatorScoresUrl(
   evaluatorName: string,
   evaluatorType: EvalTemplateType,
 ) {
+  // Code and decision-model evaluators name their scores themselves (per
+  // question for decision models), so only the evaluator ID finds them.
+  // Judge scores are named after the evaluator, and name also matches judge
+  // scores written before scores carried an evaluator ID.
   const evaluatorFilter: FilterState[number] =
-    evaluatorType === EvalTemplateTypeEnum.CODE
+    evaluatorType === EvalTemplateTypeEnum.LLM_AS_JUDGE
       ? {
-          column: "evaluatorId",
-          type: "stringOptions",
-          operator: "any of",
-          value: [evaluatorId],
-        }
-      : {
           column: "name",
           type: "stringOptions",
           operator: "any of",
           value: [evaluatorName],
+        }
+      : {
+          column: "evaluatorId",
+          type: "stringOptions",
+          operator: "any of",
+          value: [evaluatorId],
         };
 
   const filter: FilterState = [

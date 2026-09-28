@@ -4,7 +4,7 @@ name: Release Reminder
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 10,16 * * *"
+    - cron: "0 10,16 * * 1-5"
       timezone: "Europe/Berlin"
 
 permissions: {}
@@ -107,6 +107,11 @@ jobs:
           SLACK_WEBHOOK: ${{ secrets.SLACK_ENGINEERING_WEBHOOK_URL }}
         run: |
           set -euo pipefail
+
+          if [ "$(TZ=Europe/Berlin date +%u)" -gt 5 ]; then
+            echo "Weekend in Europe/Berlin; skipping Slack notification."
+            exit 0
+          fi
 
           if [ -z "${SLACK_WEBHOOK:-}" ]; then
             echo "::error::SLACK_ENGINEERING_WEBHOOK_URL is unset."

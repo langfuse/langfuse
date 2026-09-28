@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { evaluateJsonPath } from "@langfuse/shared";
 import { z } from "zod";
 
@@ -61,14 +60,18 @@ export const resolveMetadataJsonPath = (
     const value = evaluateJsonPath(metadata ?? {}, path);
     if (value === undefined) return { state: "no-match" };
 
-    const displayValue =
-      typeof value === "string"
-        ? value
-        : typeof value === "number" || typeof value === "boolean"
-          ? String(value)
-          : value === null
-            ? "null"
-            : (JSON.stringify(value) ?? String(value));
+    const displayValue = (() => {
+      if (typeof value === "string") {
+        return value;
+      }
+      if (typeof value === "number" || typeof value === "boolean") {
+        return String(value);
+      }
+      if (value === null) {
+        return "null";
+      }
+      return JSON.stringify(value) ?? String(value);
+    })();
     return { state: "match", displayValue };
   } catch (error) {
     return {

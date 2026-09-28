@@ -7,7 +7,9 @@ license = "MIT"
 
 [dependencies]
 axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "matched-path", "tokio"] }
+base64 = "0.23"
 chrono = { version = "0.4", default-features = false, features = ["std"] }
+flate2 = "1.1"
 hmac = "0.13"
 http-body-util = "0.1"
 futures-util = "0.3"

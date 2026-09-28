@@ -50,14 +50,18 @@ export default function PostHogIntegrationPage() {
 
   // A persisted fault outranks active/inactive: it is the state the admin has
   // to act on, and it is cleared by the next successful sync.
-  const status =
-    state.isLoading || !hasAccess
-      ? undefined
-      : state.data?.config?.lastError
-        ? "error"
-        : state.data?.config?.enabled
-          ? "active"
-          : "inactive";
+  const status = (() => {
+    if (state.isLoading || !hasAccess) {
+      return undefined;
+    }
+    if (state.data?.config?.lastError) {
+      return "error";
+    }
+    if (state.data?.config?.enabled) {
+      return "active";
+    }
+    return "inactive";
+  })();
 
   return (
     <ContainerPage

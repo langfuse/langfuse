@@ -3,8 +3,8 @@
 ## Purpose
 
 - Rust native addon (napi-rs) loaded in-process by the worker as
-  `@langfuse/native`. Currently a hello-world scaffold; see `README.md` for
-  layout, commands, and how the addon ships in the worker image.
+  `@langfuse/native`. Exports telemetry, the startup probe, and the prepared-event
+  Native codec; see `README.md` for build and deployment layout.
 
 ## Maintenance Contract
 
@@ -23,6 +23,9 @@
   mirrors dd-trace and the winston logger (`DD_*`, `LANGFUSE_LOG_*`).
 - The worker calls `initTelemetry()` once in `worker/src/initialize.ts` and
   imports functions from `@langfuse/native` directly; keep call sites few.
+- `PreparedEvent` snapshots finalized JS rows into owned Rust fields;
+  `encodeClickhouseEvents()` asynchronously encodes batches of those handles.
+  Keep column definitions in `src/native_schema.rs` and JS handles off worker threads.
 
 ## Verification
 

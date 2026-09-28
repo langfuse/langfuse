@@ -8,6 +8,7 @@ import {
   compileLangfuseMediaMessages,
   createTypeSafeDecisionModelClient,
   createW3CTraceId,
+  decryptAndParseExtraHeaders,
   DefaultEvalModelService,
   createLLMOutput,
   executeDecisionModelEvaluator,
@@ -147,6 +148,9 @@ async function testDecisionModelEvaluator(params: {
       apiKey: decrypt(modelConfig.config.apiKey.secretKey),
       model: modelConfig.config.model,
       baseURL: modelConfig.config.apiKey.baseURL,
+      extraHeaders: decryptAndParseExtraHeaders(
+        modelConfig.config.apiKey.extraHeaders,
+      ),
     });
     const execution = await executeDecisionModelEvaluator({
       variables: params.variables,

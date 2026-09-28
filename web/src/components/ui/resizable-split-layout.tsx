@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { type ReactNode, useCallback, useId, useLayoutEffect } from "react";
 import {
@@ -82,11 +81,15 @@ export function ResizableSplitLayout({
       : NOOP_LAYOUT_STORAGE;
 
   const renderSecondaryPanel = keepSecondaryMounted || open;
-  const panelIds = renderSecondaryPanel
-    ? secondaryPosition === "left"
-      ? [SECONDARY_PANEL_ID, PRIMARY_PANEL_ID]
-      : [PRIMARY_PANEL_ID, SECONDARY_PANEL_ID]
-    : [PRIMARY_PANEL_ID];
+  const panelIds = (() => {
+    if (renderSecondaryPanel) {
+      if (secondaryPosition === "left") {
+        return [SECONDARY_PANEL_ID, PRIMARY_PANEL_ID];
+      }
+      return [PRIMARY_PANEL_ID, SECONDARY_PANEL_ID];
+    }
+    return [PRIMARY_PANEL_ID];
+  })();
 
   const secondaryPanelRef = usePanelRef();
 

@@ -3,6 +3,7 @@ import { renderHook } from "@testing-library/react";
 import { useSession } from "next-auth/react";
 
 import useIsFeatureEnabled from "./useIsFeatureEnabled";
+import { useInternalFeaturesEnabled } from "./useInternalFeaturesEnabled";
 import { INTERNAL_FEATURE_FLAG } from "../available-flags";
 
 vi.mock("next-auth/react", () => ({
@@ -42,6 +43,34 @@ const mockSession = ({
 };
 
 describe("useIsFeatureEnabled", () => {
+  it.each([
+    {
+      admin: true,
+      internalFeatures: false,
+      enableExperimentalFeatures: true,
+      expected: false,
+    },
+    {
+      admin: true,
+      internalFeatures: true,
+      enableExperimentalFeatures: false,
+      expected: true,
+    },
+    {
+      admin: false,
+      internalFeatures: true,
+      enableExperimentalFeatures: false,
+      expected: false,
+    },
+  ])(
+    "resolves internal view as $expected for $admin admin / $internalFeatures preference",
+    ({ expected, ...options }) => {
+      mockSession({ aiGateway: false, ...options });
+      const { result } = renderHook(() => useInternalFeaturesEnabled());
+      expect(result.current).toBe(expected);
+    },
+  );
+
   it("does not let admin or experimental-feature overrides enable restricted flags", () => {
     mockSession({
       aiGateway: false,

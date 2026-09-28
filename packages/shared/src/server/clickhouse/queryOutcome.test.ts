@@ -235,6 +235,7 @@ describe("ClickHouse query outcome metric", () => {
       },
       "events_full",
       "io_content",
+      "events_read_replica",
     );
 
     expect(recordIncrement).toHaveBeenCalledTimes(1);
@@ -247,6 +248,7 @@ describe("ClickHouse query outcome metric", () => {
         route: "get_/api/public/v2/observations",
         table: "events_full",
         query_shape: "io_content",
+        clickhouse_service: "events_read_replica",
       },
     );
   });
@@ -260,6 +262,7 @@ describe("ClickHouse query outcome metric", () => {
       },
       "other",
       "other",
+      "main",
     );
 
     expect(recordIncrement).toHaveBeenCalledWith(
@@ -271,6 +274,7 @@ describe("ClickHouse query outcome metric", () => {
         route: "other",
         table: "other",
         query_shape: "other",
+        clickhouse_service: "main",
       },
     );
   });

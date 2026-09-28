@@ -288,7 +288,7 @@ function StandardSignupFlow({
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <PasswordInput {...field} />
+                    <PasswordInput allowPasswordManager {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

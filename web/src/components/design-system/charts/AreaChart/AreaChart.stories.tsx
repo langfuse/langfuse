@@ -1,0 +1,522 @@
+import { useState } from "react";
+import preview from "../../../../../.storybook/preview";
+import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
+import { AreaChart } from "./AreaChart";
+import { type LineChartLegend } from "../LineChart/LineChart";
+import { AreaChartTimeSeries } from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
+import { LineChartTimeSeries } from "@/src/features/widgets/chart-library/LineChartTimeSeries";
+
+const series = [
+  { id: "api", label: "API", color: "#3a3dee" },
+  { id: "worker", label: "Worker", color: "#07b9d5" },
+];
+
+const data = Array.from({ length: 14 }, (_, index) => ({
+  x: new Date(Date.UTC(2026, 8, index + 1)),
+  values: {
+    api: 18 + index * 2 + Math.sin(index) * 8,
+    worker: 42 - index + Math.cos(index) * 6,
+  },
+}));
+
+const gaps = [
+  { x: new Date(Date.UTC(2026, 8, 1)), values: { api: 8, worker: null } },
+  { x: new Date(Date.UTC(2026, 8, 2)), values: { api: null, worker: null } },
+  { x: new Date(Date.UTC(2026, 8, 3)), values: { api: 12, worker: 4 } },
+  { x: new Date(Date.UTC(2026, 8, 4)), values: { api: null, worker: 9 } },
+  { x: new Date(Date.UTC(2026, 8, 5)), values: { api: 16, worker: null } },
+];
+
+type StoryProps = {
+  scenario?:
+    | "single"
+    | "time"
+    | "stacked"
+    | "gaps"
+    | "negative"
+    | "category"
+    | "denseCategory"
+    | "narrowCategory"
+    | "mixedBuckets";
+  connectNulls?: boolean;
+  legend?: LineChartLegend;
+};
+
+function AreaChartDemo({
+  scenario = "single",
+  connectNulls,
+  legend,
+}: StoryProps) {
+  const [activeKey, setActiveKey] = useState<string>();
+  if (scenario === "mixedBuckets") {
+    const mixedData = [
+      { time_dimension: "2026-09-01", dimension: "api", metric: 12 },
+      { time_dimension: "2026-09-04", dimension: "api", metric: 18 },
+      { time_dimension: "Unknown", dimension: "api", metric: 7 },
+    ];
+    return (
+      <div className="flex size-full flex-col">
+        <div className="min-h-0 flex-1" data-chart="area">
+          <AreaChartTimeSeries
+            data={mixedData}
+            sync={{ activeKey, onActiveKeyChange: setActiveKey }}
+          />
+        </div>
+        <div className="min-h-0 flex-1" data-chart="line">
+          <LineChartTimeSeries
+            data={mixedData}
+            sync={{ activeKey, onActiveKeyChange: setActiveKey }}
+          />
+        </div>
+      </div>
+    );
+  }
+  if (scenario === "narrowCategory") {
+    return (
+      <div className="h-full w-[220px]">
+        <AreaChart
+          data={Array.from({ length: 6 }, (_, index) => ({
+            x: `Category ${index}`,
+            values: { api: index },
+          }))}
+          series={series.slice(0, 1)}
+          xAxis={{ type: "category" }}
+        />
+      </div>
+    );
+  }
+  if (scenario === "denseCategory") {
+    return (
+      <AreaChart
+        data={Array.from({ length: 80 }, (_, index) => ({
+          x: `Category ${index}`,
+          values: { api: index },
+        }))}
+        series={series.slice(0, 1)}
+        xAxis={{ type: "category" }}
+      />
+    );
+  }
+  if (scenario === "category") {
+    return (
+      <AreaChart
+        data={[
+          { x: "Development", values: { api: 12, worker: 7 } },
+          { x: "Staging", values: { api: 26, worker: 14 } },
+          { x: "Production", values: { api: 43, worker: 31 } },
+        ]}
+        series={series}
+        xAxis={{ type: "category" }}
+        legend={legend}
+      />
+    );
+  }
+
+  let chartData: {
+    x: Date;
+    values: { api: number | null; worker: number | null };
+  }[] = data;
+  if (scenario === "gaps") chartData = gaps;
+  else if (scenario === "negative") {
+    chartData = data.map((datum, index) => ({
+      ...datum,
+      values: { api: index * 3 - 18, worker: 12 - index * 2 },
+    }));
+  }
+
+  return (
+    <AreaChart
+      data={chartData}
+      series={scenario === "single" ? series.slice(0, 1) : series}
+      xAxis={{ type: "time" }}
+      valueFormatter={(value) => `${value.toFixed(1)} requests`}
+      stacked={scenario === "stacked"}
+      connectNulls={connectNulls}
+      legend={legend}
+    />
+  );
+}
+
+const meta = preview.meta({
+  component: AreaChartDemo,
+  parameters: { layout: "fullscreen" },
+  args: {},
+  decorators: [
+    (Story) => (
+      <div className="h-dvh w-full">
+        <Story />
+      </div>
+    ),
+  ],
+});
+
+export const Default = meta.story({});
+
+export const TooltipBelowChart = meta.story({
+  name: "(Test) Tooltip Below Chart",
+  args: { scenario: "time" },
+  decorators: [
+    (Story) => (
+      <div className="h-40 w-[420px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const hoverArea = canvasElement.querySelector<SVGRectElement>(
+      'rect[fill="transparent"]',
+    );
+    if (!hoverArea) throw new Error("Chart hover area not found");
+    fireEvent.pointerMove(hoverArea, {
+      clientX: hoverArea.getBoundingClientRect().left + 4,
+      clientY: hoverArea.getBoundingClientRect().top + 40,
+    });
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await waitFor(() => {
+      const hoverBottom = hoverArea.getBoundingClientRect().bottom;
+      const tooltipBounds = tooltip.getBoundingClientRect();
+      expect(tooltipBounds.top).toBeLessThan(hoverBottom);
+      expect(tooltipBounds.bottom).toBeGreaterThan(hoverBottom);
+    });
+  },
+});
+
+export const SingleValueAnchor = meta.story({
+  name: "(Test) Single Value Anchor",
+  play: async ({ canvasElement }) => {
+    const hoverArea = canvasElement.querySelector<SVGRectElement>(
+      'rect[fill="transparent"]',
+    );
+    if (!hoverArea) throw new Error("Missing hover area");
+    const chartBounds = hoverArea.ownerSVGElement?.getBoundingClientRect();
+    if (!chartBounds) throw new Error("Chart bounds missing");
+    const clientX = hoverArea.getBoundingClientRect().left + 4;
+    fireEvent.pointerMove(hoverArea, {
+      clientX,
+      clientY: chartBounds.top + 120,
+    });
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await waitFor(() => {
+      expect(tooltip.getBoundingClientRect().top).toBeGreaterThan(0);
+    });
+    const firstTop = tooltip.getBoundingClientRect().top;
+    fireEvent.pointerMove(hoverArea, {
+      clientX,
+      clientY: chartBounds.top + 200,
+    });
+    await waitFor(() => {
+      expect(tooltip.getBoundingClientRect().top).toBeCloseTo(firstTop, 0);
+    });
+  },
+});
+
+export const Intermittent = meta.story({
+  name: "(Test) Intermittent",
+  args: { scenario: "gaps" },
+  play: async ({ canvasElement }) => {
+    const labelsBeforeHover = canvasElement.querySelectorAll(
+      '[data-x-axis-label=""]',
+    ).length;
+    const hoverArea = canvasElement.querySelectorAll<SVGRectElement>(
+      'rect[fill="transparent"]',
+    )[1];
+    if (!hoverArea) throw new Error("Missing hover area for data gap");
+    await userEvent.hover(hoverArea);
+    const tooltip = within(document.body).getByRole("tooltip");
+    await expect(tooltip).toHaveTextContent("No data available");
+    await expect(tooltip).toHaveTextContent("Sep 2, 2026");
+    const labels = Array.from(
+      canvasElement.querySelectorAll('[data-x-axis-label=""]'),
+      (label) => label.textContent,
+    );
+    await expect(labels).toHaveLength(labelsBeforeHover);
+    await expect(new Set(labels).size).toBe(labels.length);
+  },
+});
+
+export const DenseCategories = meta.story({
+  name: "(Test) Dense Categories",
+  args: { scenario: "denseCategory" },
+  play: async ({ canvasElement }) => {
+    const labels = canvasElement.querySelectorAll('[data-x-axis-label=""]');
+    await expect(labels.length).toBeGreaterThan(1);
+    await expect(labels.length).toBeLessThan(80);
+    await expect(labels[0]).toHaveTextContent("Category");
+  },
+});
+
+export const NarrowCategories = meta.story({
+  name: "(Test) Narrow Categories",
+  args: { scenario: "narrowCategory" },
+  play: async ({ canvasElement }) => {
+    const labels = Array.from(
+      canvasElement.querySelectorAll<SVGTextElement>('[data-x-axis-label=""]'),
+    );
+    await expect(labels.length).toBeGreaterThan(0);
+    await expect(labels[0]).toHaveTextContent("Category 0");
+    await expect(
+      canvasElement.querySelectorAll("[data-category-tick]"),
+    ).toHaveLength(2);
+    const bounds = labels.map((label) => label.getBoundingClientRect());
+    for (let index = 1; index < bounds.length; index++) {
+      await expect(bounds[index]!.left).toBeGreaterThanOrEqual(
+        bounds[index - 1]!.right,
+      );
+    }
+  },
+});
+
+export const MixedBuckets = meta.story({
+  name: "(Test) Mixed Buckets",
+  args: { scenario: "mixedBuckets" },
+  play: async ({ canvasElement }) => {
+    const area = canvasElement.querySelector<HTMLElement>(
+      '[data-chart="area"]',
+    );
+    const line = canvasElement.querySelector<HTMLElement>(
+      '[data-chart="line"]',
+    );
+    if (!area || !line) throw new Error("Charts not found");
+    for (const chart of [area, line]) {
+      await expect(
+        within(chart).getByRole("graphics-symbol", { name: /Unknown.*7/ }),
+      ).toBeInTheDocument();
+      await expect(
+        chart.querySelector('[data-x-axis-label=""]'),
+      ).toHaveTextContent("Sep 1");
+    }
+    const datePoint = within(area).getByRole("graphics-symbol", {
+      name: /Sep 1, 2026.*12/,
+    });
+    const hoverArea = datePoint.parentElement?.querySelector("rect");
+    if (!hoverArea) throw new Error("Hover area not found");
+    await userEvent.hover(hoverArea);
+    await expect(
+      line.querySelector('line[stroke-dasharray="3 3"]'),
+    ).toBeInTheDocument();
+  },
+});
+
+export const OverlappingAreas = meta.story({
+  name: "(Test) Overlapping Areas",
+  args: { scenario: "time" },
+  play: async ({ canvasElement }) => {
+    const fills = canvasElement.querySelectorAll<SVGPathElement>(
+      'path[fill^="url(#"]',
+    );
+    await expect(fills).toHaveLength(2);
+    const stops = canvasElement.querySelectorAll(
+      'linearGradient stop[stop-color^="color-mix"]',
+    );
+    await expect(stops).toHaveLength(4);
+    await expect(stops[0]).toHaveAttribute(
+      "stop-color",
+      "color-mix(in srgb, #3a3dee 75%, hsl(var(--background)))",
+    );
+    await expect(stops[2]).toHaveAttribute(
+      "stop-color",
+      "color-mix(in srgb, #07b9d5 75%, hsl(var(--background)))",
+    );
+    for (const fill of fills) {
+      await expect(fill).not.toHaveAttribute("fill-opacity");
+      await expect(fill.getAttribute("fill")).toMatch(/^url\(#.+\)$/);
+    }
+    const hoverArea = canvasElement.querySelector<SVGRectElement>(
+      'rect[fill="transparent"]',
+    );
+    if (!hoverArea) throw new Error("Hover area not found");
+    await userEvent.hover(hoverArea);
+    await expect(stops[0]).toHaveAttribute(
+      "stop-color",
+      "color-mix(in srgb, #3a3dee 75%, hsl(var(--background)))",
+    );
+    await expect(stops[2]).toHaveAttribute(
+      "stop-color",
+      "color-mix(in srgb, #07b9d5 75%, hsl(var(--background)))",
+    );
+    for (const stroke of canvasElement.querySelectorAll('path[stroke^="#"]')) {
+      await expect(stroke).toHaveAttribute("stroke-width", "2.5");
+    }
+  },
+});
+
+export const StackedAreas = meta.story({
+  name: "(Test) Stacked Areas",
+  args: {
+    scenario: "stacked",
+    legend: { visibility: "visible", interaction: "toggle", summary: "sum" },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const apiPoint = canvas.getAllByRole("graphics-symbol", { name: /API/ })[0];
+    const workerPoint = canvas.getAllByRole("graphics-symbol", {
+      name: /Worker/,
+    })[0];
+    if (!apiPoint || !workerPoint) throw new Error("Data points not found");
+    await expect(Number(workerPoint.getAttribute("cy"))).toBeLessThan(
+      Number(apiPoint.getAttribute("cy")),
+    );
+    const workerFill = canvasElement.querySelectorAll<SVGPathElement>(
+      'path[fill^="url(#"]',
+    )[1];
+    const baseline = workerFill?.getAttribute("d")?.match(/L[\d.]+,([\d.]+)Z$/);
+    await expect(Number(baseline?.[1])).toBeCloseTo(
+      Number(apiPoint.getAttribute("cy")),
+      0,
+    );
+    workerPoint.focus();
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await expect(tooltip).toHaveTextContent("Worker");
+    await expect(tooltip).toHaveTextContent("48.0 requests");
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "Hide API" }),
+    );
+    await expect(
+      canvasElement.querySelectorAll('path[fill^="url(#"]'),
+    ).toHaveLength(1);
+  },
+});
+
+export const StackedAreasStableTicks = meta.story({
+  name: "(Test) Stacked Areas Stable Ticks",
+  args: { scenario: "stacked" },
+  decorators: [
+    (Story) => (
+      <div className="h-40 w-[420px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const getLabels = () =>
+      Array.from(
+        canvasElement.querySelectorAll<SVGTextElement>("[data-x-axis-label]"),
+        (label) => [label.textContent, label.getAttribute("x")] as const,
+      );
+    const before = new Map(getLabels());
+    const hoverArea = canvasElement.querySelectorAll<SVGRectElement>(
+      'rect[fill="transparent"]',
+    )[1];
+    if (!hoverArea) throw new Error("Second hover area not found");
+    await userEvent.hover(hoverArea);
+    const after = getLabels();
+    for (const [label, x] of after) {
+      if (label === "Sep 2") continue;
+      await expect(before.get(label)).toBe(x);
+    }
+    await expect(after.length).toBeLessThanOrEqual(before.size + 1);
+  },
+});
+
+export const WithLegend = meta.story({
+  name: "(Test) With Legend",
+  args: {
+    scenario: "time",
+    legend: { visibility: "visible", interaction: "toggle", summary: "sum" },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const api = await canvas.findByRole("button", { name: "Hide API" });
+    await expect(api).toHaveTextContent("Sum:");
+    await userEvent.click(api);
+    await expect(
+      canvas.getByRole("button", { name: "Show API" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    await expect(
+      canvasElement.querySelector('linearGradient stop[stop-color*="#3a3dee"]'),
+    ).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "Show API" }));
+    await expect(
+      canvasElement.querySelector('linearGradient stop[stop-color*="#3a3dee"]'),
+    ).toBeInTheDocument();
+  },
+});
+
+export const HighlightLegend = meta.story({
+  name: "(Test) Highlight Legend",
+  args: {
+    scenario: "time",
+    legend: {
+      visibility: "visible",
+      interaction: "highlight",
+      summary: "none",
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "Show only API" }),
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Show all series" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      canvasElement.querySelector('linearGradient stop[stop-color*="#07b9d5"]'),
+    ).toHaveAttribute(
+      "stop-color",
+      "color-mix(in srgb, #07b9d5 15%, hsl(var(--background)))",
+    );
+  },
+});
+
+export const LimitedVisibleSeries = meta.story({
+  name: "(Test) Limited Visible Series",
+  args: {
+    scenario: "time",
+    legend: {
+      visibility: "visible",
+      interaction: "toggle",
+      summary: "none",
+      maxVisibleSeries: 1,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvasElement.querySelectorAll('path[fill^="url(#"]'),
+    ).toHaveLength(1);
+    await expect(
+      await canvas.findByRole("button", { name: /Show (API|Worker)/ }),
+    ).toHaveAttribute("aria-pressed", "false");
+  },
+});
+
+export const GapsAndIsolatedPoints = meta.story({
+  name: "(Test) Gaps And Isolated Points",
+  args: { scenario: "gaps" },
+  play: async ({ canvasElement }) => {
+    await expect(
+      canvasElement.querySelectorAll('circle[fill="#3a3dee"][r="4"]'),
+    ).toHaveLength(3);
+    const firstPoint = within(canvasElement).getByRole("graphics-symbol", {
+      name: /API 8\.0 requests/,
+    });
+    firstPoint.focus();
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await expect(tooltip).toHaveTextContent("8.0 requests");
+  },
+});
+
+export const ConnectNulls = meta.story({
+  args: { scenario: "gaps", connectNulls: true },
+});
+
+export const NegativeValues = meta.story({
+  name: "(Test) Negative Values",
+  args: { scenario: "negative" },
+  play: async ({ canvasElement }) => {
+    await expect(
+      canvasElement.querySelector("[data-zero-baseline]"),
+    ).toBeInTheDocument();
+  },
+});
+
+export const Categories = meta.story({ args: { scenario: "category" } });

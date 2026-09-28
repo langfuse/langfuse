@@ -23,9 +23,31 @@ const allColors = Object.keys({
   violet: true,
   teal: true,
   green: true,
+  ghost: true,
 } satisfies Record<Color, true>) as Color[];
 
 export const Default = meta.story({});
+
+export const WithDescenders = meta.story({
+  parameters: {
+    controls: {
+      disable: true,
+    },
+  },
+  render: () => (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Badge
+        text="gpt-5"
+        trailingIcon={ExternalLinkIcon}
+        trailingIconTone="link"
+      />
+      <Badge
+        text="Prompt: langfuse-docs-assistant-chat - v27"
+        trailingIcon={ExternalLinkIcon}
+      />
+    </div>
+  ),
+});
 
 export const WithTrailingIcon = meta.story({
   name: "(Test) With Trailing Icon",
@@ -40,6 +62,15 @@ export const WithTrailingIcon = meta.story({
 
 export const Small = meta.story({
   args: { text: "DEBUG", size: "sm" },
+});
+
+export const GhostInteractive = meta.story({
+  args: {
+    color: "ghost",
+    interactive: true,
+    label: "cost",
+    text: "$0.0042",
+  },
 });
 
 export const VariantMatrix = meta.story({

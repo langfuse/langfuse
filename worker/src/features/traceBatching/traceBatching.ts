@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { createHash, randomUUID } from "node:crypto";
 import { xxh32 } from "@node-rs/xxhash";
 import {
@@ -40,8 +39,15 @@ export type PendingTrace = {
 
 const compareNumbers = (left: number, right: number) => left - right;
 
-const compareStrings = (left: string, right: string) =>
-  left < right ? -1 : left > right ? 1 : 0;
+const compareStrings = (left: string, right: string) => {
+  if (left < right) {
+    return -1;
+  }
+  if (left > right) {
+    return 1;
+  }
+  return 0;
+};
 
 const toMinuteBucket = (timestamp: number) => Math.floor(timestamp / MINUTE_MS);
 
@@ -771,9 +777,15 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       projectId: (JSON.parse(member) as [string, string])[0],
     }));
     // Stable sorting keeps Redis readiness order within each project.
-    members.sort((a, b) =>
-      a.projectId < b.projectId ? -1 : a.projectId > b.projectId ? 1 : 0,
-    );
+    members.sort((a, b) => {
+      if (a.projectId < b.projectId) {
+        return -1;
+      }
+      if (a.projectId > b.projectId) {
+        return 1;
+      }
+      return 0;
+    });
     recordDistribution("langfuse.trace_batch.snapshot_size", members.length);
 
     const enqueue = async (batch: PendingTrace[]) => {
@@ -800,12 +812,15 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         "langfuse.trace_batch.project_count",
         new Set(traces.map((trace) => trace.projectId)).size,
       );
-      const fill =
-        batch.length === 1
-          ? "singleton"
-          : batch.length === env.LANGFUSE_TRACE_BATCH_MAX_SIZE
-            ? "full"
-            : "partial";
+      const fill = (() => {
+        if (batch.length === 1) {
+          return "singleton";
+        }
+        if (batch.length === env.LANGFUSE_TRACE_BATCH_MAX_SIZE) {
+          return "full";
+        }
+        return "partial";
+      })();
       recordIncrement("langfuse.trace_batch.dispatched_batches", 1, {
         strategy,
         fill,

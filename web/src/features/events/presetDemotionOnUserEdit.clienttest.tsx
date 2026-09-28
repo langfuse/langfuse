@@ -19,7 +19,7 @@ import {
   useSidebarFilterState,
 } from "@/src/features/filters";
 import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
-import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
+import { KeyValueFilterBuilder } from "@/src/components/table/KeyValueFilterBuilder";
 import { useOrderByState } from "@/src/features/orderBy";
 import {
   demoteViewOnUserFilterEdit,
@@ -407,6 +407,17 @@ const applyPresetAndAssertActive = async () => {
 };
 
 describe("saved-view demotion on user filter edits", () => {
+  beforeAll(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     sessionStorage.clear();

@@ -111,7 +111,7 @@ const runDrainAndClose = async () => {
   await BackgroundMigrationManager.close();
 
   // Flush all pending writes to Clickhouse AFTER closing ingestion queue worker that is writing to it
-  await ClickhouseWriter.getInstance().shutdown();
+  await ClickhouseWriter.shutdownAll();
   logger.info("Clickhouse writer has been shut down.");
 
   // Closes the shared client and every per-queue client in one pass. Each

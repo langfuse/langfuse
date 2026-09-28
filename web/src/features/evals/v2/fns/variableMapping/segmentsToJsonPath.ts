@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /**
  * The drill-down JSONPath grammar shared between the prompt pills and the
  * mapping panel: plain keys, numeric indices, the every-entry wildcard, and
@@ -85,13 +84,16 @@ export function jsonPathToSegments(path: string): PathSegment[] | null {
 }
 
 export function crumbLabel(segment: PathSegment): string {
-  return segment === WILDCARD
-    ? "[*]"
-    : segment === LAST
-      ? "[last]"
-      : typeof segment === "number"
-        ? `[${segment}]`
-        : segment;
+  if (segment === WILDCARD) {
+    return "[*]";
+  }
+  if (segment === LAST) {
+    return "[last]";
+  }
+  if (typeof segment === "number") {
+    return `[${segment}]`;
+  }
+  return segment;
 }
 
 export function truncateEnd(label: string, max: number): string {

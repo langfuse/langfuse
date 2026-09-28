@@ -11,6 +11,7 @@ const UPSTREAM_DESCRIPTIONS: Record<TypeSafeUpstreamId, string> = {
   typesafe: "Direct connection, billed by TypeSafe.",
   "vercel-ai-gateway": "Routed and billed through your AI Gateway.",
   openrouter: "Routed and billed through OpenRouter.",
+  custom: "Your own TypeSafe-compatible gateway.",
 };
 
 type TypeSafeUpstreamCardsProps = {
@@ -35,7 +36,7 @@ export function TypeSafeUpstreamCards({
       {...rootProps}
       value={value}
       onValueChange={(next) => onValueChange(next as TypeSafeUpstreamId)}
-      className="grid gap-2 sm:grid-cols-3"
+      className="grid gap-2 sm:grid-cols-4"
     >
       {TYPESAFE_UPSTREAMS.map(({ id, label }) => {
         return (

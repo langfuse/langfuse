@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { logger, traceException } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { createManyDatasetItems } from "@langfuse/shared/src/server";
@@ -187,12 +186,15 @@ export async function processAddObservationsToDataset(params: {
   }
 
   // Determine final status
-  const finalStatus =
-    failed === 0
-      ? BatchActionStatus.Completed
-      : processed === 0
-        ? BatchActionStatus.Failed
-        : BatchActionStatus.Partial;
+  const finalStatus = (() => {
+    if (failed === 0) {
+      return BatchActionStatus.Completed;
+    }
+    if (processed === 0) {
+      return BatchActionStatus.Failed;
+    }
+    return BatchActionStatus.Partial;
+  })();
 
   // Aggregate error summary
   const errorSummary =

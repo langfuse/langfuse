@@ -146,12 +146,15 @@ const experimentScoreCTE = (params: {
   // The agnostic arrays carry the canonical column names the level-agnostic
   // filters target; the trace-only mode keeps its prefix so legacy
   // `trace_*` filters still resolve against a trace-only aggregate.
-  const prefix =
-    params.level === "any"
-      ? ""
-      : params.level === "observation"
-        ? "obs_"
-        : "trace_";
+  const prefix = (() => {
+    if (params.level === "any") {
+      return "";
+    }
+    if (params.level === "observation") {
+      return "obs_";
+    }
+    return "trace_";
+  })();
 
   const joinedEventScores = new CTEQueryBuilder()
     .withCTE("event_keys", {

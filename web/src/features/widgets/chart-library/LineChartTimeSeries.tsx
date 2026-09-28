@@ -27,6 +27,15 @@ import {
 } from "@/src/features/widgets/chart-library/TimeSeriesLegend";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 
+const defaultConfig: NonNullable<ChartProps["config"]> = {
+  metric: {
+    theme: {
+      light: "hsl(var(--chart-1))",
+      dark: "hsl(var(--chart-1))",
+    },
+  },
+};
+
 function toDesignSystemThreshold(
   threshold: ChartThreshold,
 ): LineChartThreshold {
@@ -62,15 +71,8 @@ function toDesignSystemThreshold(
  */
 export function LineChartTimeSeries({
   data,
-  config = {
-    metric: {
-      theme: {
-        light: "hsl(var(--chart-1))",
-        dark: "hsl(var(--chart-1))",
-      },
-    },
-  },
-  metricFormatter = (value, options) => formatMetric(value, options),
+  config = defaultConfig,
+  metricFormatter = formatMetric,
   legendPosition = "auto",
   legendSummary = "none",
   legendInteraction = "highlight",
@@ -97,6 +99,9 @@ export function LineChartTimeSeries({
     [data, allDimensions],
   );
   const dimensions = visibleSeries.visible;
+  const hasNonTimestampBucket = groupedData.some(
+    (datum) => !parseChartTimestamp(datum.time_dimension),
+  );
   const timeAxis = useMemo(
     () =>
       prepareTimeAxis(
@@ -106,8 +111,19 @@ export function LineChartTimeSeries({
       ),
     [groupedData, hideXAxisLabels],
   );
-  const formatValue = (value: number) =>
-    toFullMetricString(metricFormatter(value, { style: "compact" }));
+  const dateAxis = useMemo(() => {
+    if (timeAxis.mode !== "category") return timeAxis;
+    const dates = groupedData.flatMap((datum) => {
+      const date = parseChartTimestamp(datum.time_dimension);
+      return date ? [date.getTime()] : [];
+    });
+    return dates.length ? prepareTimeAxis(dates) : timeAxis;
+  }, [groupedData, timeAxis]);
+  const formatValue = useMemo(
+    () => (value: number) =>
+      toFullMetricString(metricFormatter(value, { style: "compact" })),
+    [metricFormatter],
+  );
   const chartData = useMemo(
     () =>
       groupedData.map((datum) => ({
@@ -121,13 +137,29 @@ export function LineChartTimeSeries({
       })),
     [dimensions, groupedData],
   );
-  const chartSeries = dimensions.map((dimension, index) => ({
-    id: dimension,
-    label:
-      getPlainTextFromReactNode(config?.[dimension]?.label ?? dimension) ??
-      dimension,
-    color: seriesColor(index),
-  }));
+  const chartSeries = useMemo(
+    () =>
+      dimensions.map((dimension, index) => ({
+        id: dimension,
+        label:
+          getPlainTextFromReactNode(config?.[dimension]?.label ?? dimension) ??
+          dimension,
+        color: seriesColor(index),
+      })),
+    [dimensions, config],
+  );
+  const timeChartData = useMemo(
+    () =>
+      chartData.flatMap((datum) => {
+        const date = parseChartTimestamp(datum.x);
+        return date ? [{ ...datum, x: date }] : [];
+      }),
+    [chartData],
+  );
+  const chartThresholds = useMemo(
+    () => thresholds?.map(toDesignSystemThreshold),
+    [thresholds],
+  );
   let chartLegend: LineChartLegend = { visibility: "hidden" };
   if (legendPosition !== "none" && legendInteraction === "toggle") {
     chartLegend = {
@@ -144,40 +176,45 @@ export function LineChartTimeSeries({
     };
   }
   const chart =
-    timeAxis.mode === "category" ? (
+    timeAxis.mode === "category" || hasNonTimestampBucket ? (
       <DesignSystemLineChart
         data={chartData}
         series={chartSeries}
         valueFormatter={formatValue}
         showDataPointDots={showDataPointDots}
         connectNulls={connectNulls}
-        thresholds={thresholds?.map(toDesignSystemThreshold)}
+        thresholds={chartThresholds}
         sync={sync}
         legend={chartLegend}
         xAxis={{
           type: "category",
           labels: hideXAxisLabels ? "hidden" : "visible",
-          tickFormatter: (value) => timeAxis.formatTick(value),
-          tooltipFormatter: (value) => timeAxis.formatTooltip(value),
+          tickFormatter: (value) => {
+            const date = parseChartTimestamp(value);
+            return date
+              ? dateAxis.formatTick(date.getTime())
+              : timeAxis.formatTick(value);
+          },
+          tooltipFormatter: (value) => {
+            const date = parseChartTimestamp(value);
+            return date
+              ? dateAxis.formatTooltip(date.getTime())
+              : timeAxis.formatTooltip(value);
+          },
         }}
       />
     ) : (
       <DesignSystemLineChart
-        data={chartData.flatMap((datum) => {
-          const date = parseChartTimestamp(datum.x);
-          return date ? [{ ...datum, x: date }] : [];
-        })}
+        data={timeChartData}
         series={chartSeries}
         valueFormatter={formatValue}
         showDataPointDots={showDataPointDots}
         connectNulls={connectNulls}
-        thresholds={thresholds?.map(toDesignSystemThreshold)}
+        thresholds={chartThresholds}
         sync={sync}
         legend={chartLegend}
         xAxis={{
           type: "time",
-          tickFormatter: (value) => timeAxis.formatTick(value.getTime()),
-          tooltipFormatter: (value) => timeAxis.formatTooltip(value.getTime()),
         }}
       />
     );

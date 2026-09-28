@@ -7,7 +7,6 @@ import {
   TargetTraceBadge,
   UserIdBadge,
 } from "./TraceMetadataBadges";
-import { UsageBadge } from "./ObservationMetadataBadgesTooltip";
 
 describe("TraceMetadataBadges session replay privacy", () => {
   it("blocks trace identifiers from PostHog session recordings", () => {
@@ -29,15 +28,5 @@ describe("TraceMetadataBadges session replay privacy", () => {
     expect(screen.getByText("target-trace").closest("a")).toHaveClass(
       "ph-no-capture",
     );
-  });
-});
-
-describe("UsageBadge", () => {
-  it("keeps custom usage details accessible without aggregate token totals", () => {
-    render(<UsageBadge totalUsage={0} usageDetails={{ audio_seconds: 12 }} />);
-
-    expect(
-      screen.getByRole("button", { name: "View usage breakdown" }),
-    ).toBeInTheDocument();
   });
 });

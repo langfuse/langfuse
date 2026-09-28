@@ -28,6 +28,7 @@ import { EvaluatorPickerOption } from "@/src/features/evals/v2/components/Rules/
 import type { RuleCostEstimate } from "@/src/features/evals/v2/hooks/useRuleCostEstimate";
 import { RuleEvaluatorCostEstimate } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleEvaluatorCostEstimate";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { cn } from "@/src/utils/tailwind";
 
 export function EvaluatorAssignmentsEditor({
   evaluatorOptions,
@@ -36,8 +37,11 @@ export function EvaluatorAssignmentsEditor({
   onSearchChange,
   sampleObject,
   unvalidatedSourceColumnIds,
+  emptyActionLabel = "Attach evaluator",
+  additionalActionLabel = "Attach another evaluator",
   emptyDescription = "Attach an evaluator to run on matching observations.",
   sourceUnavailableMessage,
+  pickerWidth = "fixed",
   disabled = false,
   costEstimates,
   estimatingEvaluatorIds,
@@ -49,8 +53,11 @@ export function EvaluatorAssignmentsEditor({
   onSearchChange: (search: string) => void;
   sampleObject: Record<string, unknown> | null;
   unvalidatedSourceColumnIds?: string[];
+  emptyActionLabel?: string;
+  additionalActionLabel?: string;
   emptyDescription?: string;
   sourceUnavailableMessage?: string;
+  pickerWidth?: "fixed" | "trigger";
   disabled?: boolean;
   costEstimates: RuleCostEstimate[];
   estimatingEvaluatorIds: string[];
@@ -86,7 +93,7 @@ export function EvaluatorAssignmentsEditor({
           >
             <span className="flex items-center gap-2 text-sm font-bold">
               <Link2 className="h-4 w-4" />
-              Attach evaluator
+              {emptyActionLabel}
             </span>
             <span className="text-muted-foreground text-sm font-normal">
               {emptyDescription}
@@ -98,16 +105,24 @@ export function EvaluatorAssignmentsEditor({
             variant="ghost"
             size="sm"
             disabled={disabled}
-            className="text-foreground hover:text-foreground inline-flex h-auto items-center gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
+            className={cn(
+              "text-foreground hover:text-foreground inline-flex h-auto items-center gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline",
+              pickerWidth === "trigger" && "w-full justify-start",
+            )}
           >
             <Plus className="size-3.5 shrink-0" aria-hidden="true" />
-            Attach another evaluator
+            {additionalActionLabel}
           </Button>
         )}
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="h-80 w-[32rem] max-w-[calc(100vw-2rem)] p-0"
+        className={cn(
+          "h-80 max-w-[calc(100vw-2rem)] p-0",
+          pickerWidth === "trigger"
+            ? "w-(--radix-popover-trigger-width)"
+            : "w-[32rem]",
+        )}
       >
         <Command shouldFilter={false}>
           <CommandInput

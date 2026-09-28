@@ -36,7 +36,7 @@ export function V4MigrationNavItem() {
 
   return (
     <SidebarMenuButton onClick={handleClick} tooltip={label}>
-      <div className="relative mx-1 flex h-2 w-2 shrink-0 items-center justify-center">
+      <div className="relative flex size-3.5 shrink-0 items-center justify-center">
         <span className="inline-flex h-2 w-2 rounded-full bg-orange-400" />
       </div>
       <span className="truncate font-bold" title={label}>

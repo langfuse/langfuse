@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import {
   DashboardWidgetChartType,
@@ -85,15 +84,21 @@ const throwActionableDashboardWidgetError = (
     (field === "filters"
       ? Array.from(getWidgetImportFilterConfig(input.view).allowedColumns)
       : []);
-  const fieldLabel = field?.startsWith("dimensions")
-    ? "dimensions"
-    : field?.endsWith(".agg")
-      ? "aggregations"
-      : field?.endsWith(".measure")
-        ? "measures"
-        : field === "filters"
-          ? "filter columns"
-          : "values";
+  const fieldLabel = (() => {
+    if (field?.startsWith("dimensions")) {
+      return "dimensions";
+    }
+    if (field?.endsWith(".agg")) {
+      return "aggregations";
+    }
+    if (field?.endsWith(".measure")) {
+      return "measures";
+    }
+    if (field === "filters") {
+      return "filter columns";
+    }
+    return "values";
+  })();
   const supportedValuesHint =
     allowedValues.length > 0
       ? ` Supported ${fieldLabel} for "${input.view}": ${allowedValues.join(", ")}.`

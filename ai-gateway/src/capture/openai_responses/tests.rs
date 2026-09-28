@@ -1,5 +1,8 @@
 use super::*;
-use crate::capture::{ExecutionCapture, ProtocolCapture, RelayOutcome, sse::SseDecoder};
+use crate::capture::{
+    ExecutionCapture, InputOmission, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES, ProtocolCapture,
+    RelayOutcome, sse::SseDecoder,
+};
 use crate::resolution::ApiFormat;
 use crate::{
     providers::{ProviderLimits, ProviderTransport},
@@ -357,7 +360,8 @@ async fn oversized_and_malformed_events_do_not_prevent_later_facts() {
     let mut observer = observer("full").await;
     record_response(&mut observer, "text/event-stream");
     observer.push_bytes(b"data: malformed\n\n");
-    observer.push_bytes(format!("data: {}\n\n", "x".repeat(MAX_CAPTURE_BYTES + 1)).as_bytes());
+    observer
+        .push_bytes(format!("data: {}\n\n", "x".repeat(MAX_OUTPUT_CAPTURE_BYTES + 1)).as_bytes());
     observer.push_bytes(terminal("completed", 0).as_bytes());
     observer.end_body();
     let capture = captured(&observer);
@@ -716,7 +720,7 @@ async fn client_compression_preferences_do_not_disable_capture() {
             let received = received.clone();
             async move {
                 let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
-                *received.lock().unwrap() = serde_json::from_slice(&bytes).unwrap();
+                *received.lock().unwrap() = crate::test_support::upload_json(&bytes);
                 Response::new(Body::from("{}"))
             }
         })
@@ -724,6 +728,7 @@ async fn client_compression_preferences_do_not_disable_capture() {
         let telemetry = crate::telemetry::Telemetry::new(
             &crate::resolution::ControlPlaneConfig::new(&collector.url, "test-service-key")
                 .unwrap(),
+            crate::telemetry::DEFAULT_RETAINED_BYTES,
         )
         .unwrap();
         let context = resolved_request_context_with_mode("provider-secret", "full").await;
@@ -787,13 +792,14 @@ async fn codex_body_metadata_reaches_the_generation_without_agent_headers() {
         let received = received.clone();
         async move {
             let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
-            *received.lock().unwrap() = serde_json::from_slice(&bytes).unwrap();
+            *received.lock().unwrap() = crate::test_support::upload_json(&bytes);
             Response::new(Body::from("{}"))
         }
     })
     .await;
     let telemetry = crate::telemetry::Telemetry::new(
         &crate::resolution::ControlPlaneConfig::new(&collector.url, "test-service-key").unwrap(),
+        crate::telemetry::DEFAULT_RETAINED_BYTES,
     )
     .unwrap();
     let context = resolved_request_context_with_mode("provider-secret", "full").await;
@@ -860,7 +866,7 @@ async fn codex_body_metadata_reaches_the_generation_without_agent_headers() {
 #[tokio::test]
 async fn capture_regression_large_request_does_not_invalidate_output() {
     let context = resolved_request_context_with_mode("provider-secret", "full").await;
-    let request = json!({"input": "x".repeat(MAX_CAPTURE_BYTES)}).to_string();
+    let request = json!({"input": "x".repeat(MAX_INPUT_CAPTURE_BYTES)}).to_string();
     for streaming in [false, true] {
         let mut observer = ExecutionCapture::for_request(
             ApiFormat::OpenAiResponses,
@@ -885,11 +891,42 @@ async fn capture_regression_large_request_does_not_invalidate_output() {
         observer.end_body();
         let facts = &captured(&observer).facts;
         assert!(!facts.input_complete);
+        assert!(facts.input.is_none());
+        assert_eq!(
+            facts.input_omission,
+            Some(InputOmission {
+                reason: InputOmissionReason::SizeLimit,
+                body_bytes: request.len(),
+            })
+        );
         assert!(
             facts.output_complete,
             "response capture must be independent of request size"
         );
     }
+}
+
+#[tokio::test]
+async fn request_at_input_limit_is_captured_in_full() {
+    let context = resolved_request_context_with_mode("provider-secret", "full").await;
+    let request = json!({"input": "x".repeat(MAX_INPUT_CAPTURE_BYTES - 12)}).to_string();
+    assert_eq!(request.len(), MAX_INPUT_CAPTURE_BYTES);
+    let observer = ExecutionCapture::for_request(
+        ApiFormat::OpenAiResponses,
+        &context,
+        &HeaderMap::new(),
+        request.as_bytes(),
+    );
+    let facts = &captured(&observer).facts;
+    assert!(facts.input_complete);
+    assert!(facts.input_omission.is_none());
+    assert_eq!(
+        facts.input.as_ref().unwrap()["input"]
+            .as_str()
+            .unwrap()
+            .len(),
+        MAX_INPUT_CAPTURE_BYTES - 12
+    );
 }
 
 #[tokio::test]

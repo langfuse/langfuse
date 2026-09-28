@@ -35,8 +35,12 @@ export interface PresetWidgetContext {
   isLoading: boolean;
   metricsVersion: ViewVersion;
   schedulerId?: string;
-  /** Shared recharts syncId so time-series tiles move their crosshairs together. */
+  /** Recharts sync group for legacy preset charts. */
   syncId: string;
+  sync: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
   className: string;
 }
 
@@ -95,6 +99,7 @@ const HOME_PRESETS: Record<
       metricsVersion={ctx.metricsVersion}
       schedulerId={ctx.schedulerId}
       syncId={ctx.syncId}
+      sync={ctx.sync}
     />
   ),
   "home-model-usage": (ctx) => (
@@ -110,6 +115,7 @@ const HOME_PRESETS: Record<
       metricsVersion={ctx.metricsVersion}
       schedulerId={ctx.schedulerId}
       syncId={ctx.syncId}
+      sync={ctx.sync}
     />
   ),
   "home-users": (ctx) => (
@@ -136,6 +142,7 @@ const HOME_PRESETS: Record<
       metricsVersion={ctx.metricsVersion}
       schedulerId={ctx.schedulerId}
       syncId={ctx.syncId}
+      sync={ctx.sync}
     />
   ),
   "home-latency-table-traces": (ctx) => (
@@ -189,6 +196,7 @@ const HOME_PRESETS: Record<
       metricsVersion={ctx.metricsVersion}
       schedulerId={ctx.schedulerId}
       syncId={ctx.syncId}
+      sync={ctx.sync}
     />
   ),
   "home-score-analytics": (ctx) => (
@@ -203,6 +211,7 @@ const HOME_PRESETS: Record<
       metricsVersion={ctx.metricsVersion}
       schedulerId={ctx.schedulerId}
       syncId={ctx.syncId}
+      sync={ctx.sync}
     />
   ),
 };

@@ -5,28 +5,42 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
+import {
+  recordExportStaleness,
+  windowClassFromBlobFrequency,
+} from "../../services/exportStalenessMetric";
 
 let legacyJobsDrained = false;
 
 export const handleBlobStorageIntegrationSchedule = async () => {
   const now = new Date();
 
-  const blobStorageIntegrationProjects =
-    await prisma.blobStorageIntegration.findMany({
-      select: {
-        lastSyncAt: true,
-        projectId: true,
-      },
-      where: {
-        enabled: true,
-        OR: [
-          // Never synced before
-          { lastSyncAt: null },
-          // Next sync is due
-          { nextSyncAt: { lte: now } },
-        ],
-      },
-    });
+  const enabledIntegrations = await prisma.blobStorageIntegration.findMany({
+    select: {
+      lastSyncAt: true,
+      nextSyncAt: true,
+      exportFrequency: true,
+      projectId: true,
+    },
+    where: {
+      enabled: true,
+    },
+  });
+
+  recordExportStaleness({
+    integration: "blob_storage",
+    now,
+    integrations: enabledIntegrations.map((integration) => ({
+      lastSyncAt: integration.lastSyncAt,
+      window: windowClassFromBlobFrequency(integration.exportFrequency),
+    })),
+  });
+
+  const blobStorageIntegrationProjects = enabledIntegrations.filter(
+    (integration) =>
+      integration.lastSyncAt === null ||
+      (integration.nextSyncAt !== null && integration.nextSyncAt <= now),
+  );
 
   if (blobStorageIntegrationProjects.length === 0) {
     logger.info("No blob storage integrations ready for sync");

@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /**
  * Langfuse seed CLI — one-shot local test data for humans and coding agents.
  *
@@ -154,12 +153,15 @@ const printDoctor = (
     return;
   }
   for (const check of result.checks) {
-    const icon =
-      check.status === "pass"
-        ? "PASS"
-        : check.status === "warn"
-          ? "WARN"
-          : "FAIL";
+    const icon = (() => {
+      if (check.status === "pass") {
+        return "PASS";
+      }
+      if (check.status === "warn") {
+        return "WARN";
+      }
+      return "FAIL";
+    })();
     console.log(`${icon}  ${check.name.padEnd(22)} ${check.detail}`);
     if (check.fix && check.status !== "pass") {
       console.log(`      fix: ${check.fix}`);

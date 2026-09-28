@@ -211,6 +211,7 @@ export function ConnectedDashboardTable() {
                     }}
                   />
                   <PaginationBar
+                    mode="offset"
                     totalCount={dashboards.data?.totalCount ?? null}
                     onChange={setPaginationState}
                     state={paginationState}

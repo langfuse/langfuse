@@ -24,15 +24,37 @@ export function redactLangfuseSecretKeys(value: string): string {
   );
 }
 
+const MAX_LOGGED_PUBLIC_KEY_LENGTH = 64;
+
 /**
  * Formats a client-submitted public key for logging. Only a value that is
- * actually a Langfuse public key is echoed verbatim; anything else is masked to
- * its display form because it may be a secret placed in the wrong slot.
+ * actually a Langfuse public key is echoed; anything else is masked to its
+ * display form because it may be a secret placed in the wrong slot.
+ *
+ * The value reaches us straight from a client-controlled Authorization header,
+ * and the callers that log it are the ones where the key was not found, so it
+ * may be arbitrary bytes of arbitrary length. Log formatters interpolate a
+ * message verbatim, so echoing the value as-is would let a caller forge log
+ * lines with a newline, or drive an operator's terminal with an escape
+ * sequence (CWE-117).
+ *
+ * A real public key is printable ASCII (`pk-lf-` plus a UUID), so allow-list
+ * that range rather than enumerating the dangerous one: a single rule covers C0
+ * controls, DEL and the C1 range, which `JSON.stringify` leaves unescaped.
+ * `JSON.stringify` then quotes the result, delimiting it within the log line
+ * and escaping any embedded quote or backslash.
  */
 export function formatSubmittedPublicKeyForLog(value: string): string {
-  if (value.startsWith("pk-lf-")) return value;
-  if (value.length < 12) return "****";
-  return getDisplaySecretKey(value);
+  let formatted: string;
+  if (value.startsWith("pk-lf-")) formatted = value;
+  else if (value.length < 12) formatted = "****";
+  else formatted = getDisplaySecretKey(value);
+
+  return JSON.stringify(
+    formatted
+      .slice(0, MAX_LOGGED_PUBLIC_KEY_LENGTH)
+      .replace(/[^\x20-\x7e]/g, "\uFFFD"),
+  );
 }
 
 export async function hashSecretKey(key: string) {

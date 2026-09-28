@@ -1093,12 +1093,15 @@ export function SearchComposer({
       const current = highlightedRef.current;
       const idx = current === null ? -1 : ids.indexOf(current);
       const delta = event.key === "ArrowDown" ? 1 : -1;
-      const next =
-        idx === -1
-          ? delta > 0
-            ? 0
-            : ids.length - 1
-          : (idx + delta + ids.length) % ids.length;
+      const next = (() => {
+        if (idx === -1) {
+          if (delta > 0) {
+            return 0;
+          }
+          return ids.length - 1;
+        }
+        return (idx + delta + ids.length) % ids.length;
+      })();
       setHighlightedOptionId(ids[next]!);
     }
   };
@@ -1331,12 +1334,15 @@ export function SearchComposer({
   const removeTargetIdActual = removeTarget?.id ?? null;
   // Measured separately from the remove target: an operator token explains
   // itself but is not editable, so it never has a remove X to anchor to.
-  const tooltipTargetId =
-    errorTarget !== null
-      ? errorTarget.id
-      : explanation !== null
-        ? explainTargetId
-        : null;
+  const tooltipTargetId = (() => {
+    if (errorTarget !== null) {
+      return errorTarget.id;
+    }
+    if (explanation !== null) {
+      return explainTargetId;
+    }
+    return null;
+  })();
   const measurePositions = React.useCallback(() => {
     const root = rootRef.current;
     const container = containerRef.current;

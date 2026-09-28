@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-exotic-operators */
 import { type FilterState } from "@langfuse/shared";
 import {
@@ -146,23 +145,31 @@ export function SessionMetadataJsonPathControl({
       queryHashes: observationQueryHashes,
       traceIds: loadedTraces.map((trace) => trace.id),
     });
-  const source = !shouldObserveMetadata
-    ? ({ state: "idle" } as const)
-    : traces.state === "loading"
-      ? ({ state: "loading" } as const)
-      : firstObservation
-        ? ({
-            state: "ready",
-            metadata: firstObservation.metadata,
-            metadataTruncated: firstObservation.metadataTruncated,
-          } as const)
-        : isFetching
-          ? ({ state: "loading" } as const)
-          : isError && !hasResolvedQuery
-            ? ({ state: "error" } as const)
-            : hasResolvedQuery || loadedTraces.length === 0
-              ? ({ state: "empty" } as const)
-              : ({ state: "loading" } as const);
+  const source = (() => {
+    if (!shouldObserveMetadata) {
+      return { state: "idle" } as const;
+    }
+    if (traces.state === "loading") {
+      return { state: "loading" } as const;
+    }
+    if (firstObservation) {
+      return {
+        state: "ready",
+        metadata: firstObservation.metadata,
+        metadataTruncated: firstObservation.metadataTruncated,
+      } as const;
+    }
+    if (isFetching) {
+      return { state: "loading" } as const;
+    }
+    if (isError && !hasResolvedQuery) {
+      return { state: "error" } as const;
+    }
+    if (hasResolvedQuery || loadedTraces.length === 0) {
+      return { state: "empty" } as const;
+    }
+    return { state: "loading" } as const;
+  })();
 
   return children({
     paths,

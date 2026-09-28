@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import React, { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type FilterState } from "@langfuse/shared";
@@ -239,14 +238,18 @@ export function ConnectedModernSessionBodyLegacy({
     const mayHaveMoreObservations = Boolean(
       lastRelevantQuery?.isPending || lastRelevantQuery?.data?.hasMore,
     );
-    const observations =
-      isPending && !hasLoadedObservations
-        ? undefined
-        : isError
-          ? null
-          : mayHaveMoreObservations && !hasLoadedObservations
-            ? undefined
-            : (observationsByTraceId.get(trace.id) ?? []);
+    const observations = (() => {
+      if (isPending && !hasLoadedObservations) {
+        return undefined;
+      }
+      if (isError) {
+        return null;
+      }
+      if (mayHaveMoreObservations && !hasLoadedObservations) {
+        return undefined;
+      }
+      return observationsByTraceId.get(trace.id) ?? [];
+    })();
 
     if (
       searchQuery &&
@@ -394,7 +397,7 @@ export function ConnectedModernSessionBodyLegacy({
   };
 
   return (
-    <div className="bg-background relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden @3xl/session-workspace:grid-cols-[clamp(200px,24cqw,296px)_minmax(0,1fr)] @3xl/session-workspace:grid-rows-1">
+    <div className="bg-background session-review-stack:grid-rows-[minmax(7rem,9rem)_minmax(0,1fr)] session-review-stack:gap-x-0 relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden @3xl/session-workspace:grid-cols-[clamp(200px,24cqw,296px)_minmax(0,1fr)] @3xl/session-workspace:grid-rows-1">
       {tracesState.type === "loading" ? (
         <ModernSessionSidebar state="loading" />
       ) : (
@@ -421,7 +424,7 @@ export function ConnectedModernSessionBodyLegacy({
           }
         />
       )}
-      <div className="bg-card dark:bg-background relative min-h-0 min-w-[320px]">
+      <div className="bg-card dark:bg-background session-review-stack:min-w-0 relative min-h-0 min-w-[320px]">
         <div
           ref={feedRef}
           className="h-full min-h-0 overflow-y-auto scroll-smooth"

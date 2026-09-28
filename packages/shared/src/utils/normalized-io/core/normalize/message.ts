@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import type {
   MessageEnvelopeContext,
   PartHandlerContext,
@@ -22,13 +21,18 @@ function normalizeMessageContent(
   nestedContent: Record<string, unknown> | undefined,
   parserContext: ParserContext,
 ): NormalizedMessagePart[] {
-  const rawParts = Array.isArray(value.parts)
-    ? value.parts
-    : Array.isArray(value.content)
-      ? value.content
-      : Array.isArray(nestedContent?.parts)
-        ? nestedContent.parts
-        : undefined;
+  const rawParts = (() => {
+    if (Array.isArray(value.parts)) {
+      return value.parts;
+    }
+    if (Array.isArray(value.content)) {
+      return value.content;
+    }
+    if (Array.isArray(nestedContent?.parts)) {
+      return nestedContent.parts;
+    }
+    return undefined;
+  })();
   if (rawParts) return normalizePartList(rawParts, parserContext);
 
   if (typeof value.content === "string" && value.content.length > 0) {

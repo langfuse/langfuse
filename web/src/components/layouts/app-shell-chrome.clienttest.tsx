@@ -135,17 +135,6 @@ describe("app shell chrome row", () => {
     expect(rowContent?.lastElementChild?.className).toContain("min-h-[43px]");
   });
 
-  it("sizes the desktop sidebar toggle to the same 20px as the wordmark", () => {
-    const { container } = render(<Shell />);
-
-    const desktopToggle = [
-      ...container.querySelectorAll("[data-sidebar=trigger] svg"),
-    ].find((svg) => (svg.getAttribute("class") ?? "").includes("md:block"));
-
-    expect(desktopToggle?.getAttribute("class")).toContain("size-5");
-    expect(desktopToggle?.getAttribute("class")).not.toContain("size-4");
-  });
-
   it("keeps the page-header chrome divider full-width on container pages", () => {
     render(
       <SidebarPresenceProvider>
@@ -170,6 +159,23 @@ describe("mobile page action focus handoff", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+  });
+
+  it("keeps an explicit mobile primary action out of the overflow menu", () => {
+    render(
+      <MobilePageTitle
+        headerProps={{
+          title: "Evaluators",
+          mobileActionButtons: <button>New evaluator</button>,
+          actionButtonsRight: <button>Desktop evaluator actions</button>,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "New evaluator" })).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "More actions" }),
+    ).not.toBeInTheDocument();
   });
 
   it("closes before panel focus and restores the trigger only on ordinary dismissals", async () => {

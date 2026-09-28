@@ -8,7 +8,7 @@
 // useExperimentEvaluatorSelection stays deep so evals' template-selector
 // does not load CreateExperimentsForm.
 export { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
-export { ExperimentFormatSetting } from "@/src/features/experiments/components/ExperimentFormatSetting";
+export { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
 export { ExperimentPeekFooter } from "@/src/features/experiments/components/ExperimentPeekFooter";
 export { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 export { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";

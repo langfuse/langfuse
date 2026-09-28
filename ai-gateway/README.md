@@ -12,8 +12,8 @@ format; Rust relays native JSON or SSE without rewriting provider bytes. Models 
 are GET proxies of the provider catalog and token counting returns the native count;
 neither is ingested as a generation. A bounded capture layer captures request/response
 facts and logs capture completeness at debug level. Each finalized generation is
-immediately uploaded as a Langfuse generation through OTLP. Building and testing need
-no real Web, database or provider credentials.
+uploaded as a Langfuse generation through OTLP, batched per project. Building and
+testing need no real Web, database or provider credentials.
 
 ## Run locally
 
@@ -79,6 +79,7 @@ do not load dotenv files:
 | `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300                              |
 | `LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS` | `128` | Positive integer up to Tokio's semaphore capacity; authenticated requests per instance |
 | `LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS` | `128` | Positive integer up to Tokio's semaphore capacity; concurrent Web resolutions per instance |
+| `LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES` | `67108864` (64 MiB) | Integer from 4194304 (4 MiB) to 4294967296 (4 GiB); span and credential bytes an instance holds for upload before dropping new records |
 
 The gateway shares `LANGFUSE_LOG_LEVEL` with Web and worker. Values are lowercase;
 `fatal` maps to Rust's `error` level and therefore includes ordinary error logs.
@@ -138,7 +139,10 @@ has no unattributed wall time:
 | `request.capture` | Parsing the request for inference telemetry; CPU-bound and proportional to `http.request.body.size` |
 | `provider.headers` | The provider HTTP send through response headers, including connection setup |
 | `provider.stream` | Relaying the provider body to the caller until the relay is finalized; `http.response.body.size`, `gateway.chunks`, `gateway.outcome`, and an error status on timeout or transport failure |
-| `ingestion` | The inference-telemetry upload, scheduled after the relay finishes |
+
+Inference-telemetry uploads carry records from many requests, so each runs in its
+own trace: a root `telemetry.batch` span with `gateway.telemetry.records` and a span
+link to every request it carries, and an `ingestion` client span per HTTP attempt.
 
 `reqwest-tracing` instruments resolver, provider-header, and ingestion requests.
 Each request starts a fresh operational trace, independent of incoming trace IDs,
@@ -308,14 +312,34 @@ headers, hop-by-hop headers and upstream framing are excluded.
 
 ## Langfuse uploads
 
-When inference is configured, each finalized execution starts one background POST
-to the Web base URL's `/api/public/otel/v1/traces` endpoint. The client response and
-provider admission never wait for ingestion. There is no batching, waiting queue,
-retry, or durable delivery. A successful upload acknowledges ingestion acceptance;
-storage and cost processing still happen asynchronously in Langfuse.
+When inference is configured, each finalized execution is mapped to a generation
+span and queued without waiting. A single delivery worker groups spans by project
+and POSTs each batch to the Web base URL's `/api/public/otel/v1/traces` endpoint
+when it reaches 512 spans or 4 MiB, five seconds after it opened, 30 seconds before its
+grant expires, when more than 256 projects have open batches (the batch due soonest
+goes first), or at shutdown. The client response and provider admission never wait
+for ingestion. There is no durable delivery. A successful upload acknowledges
+ingestion acceptance; storage and cost processing still happen asynchronously in
+Langfuse.
 
-The original resolver-issued project grant authenticates the upload, together with
-a fresh gateway HMAC signature over that grant. The uploader uses the existing Web
+A batch gets up to three attempts. Only failures a resend can fix are retried:
+transport errors and timeouts, and HTTP 408, 429, 500, 502, 503 or 504. The second
+attempt waits 250–500 ms and the third 1–2 s (the upper half of a 0.5 s × 4ⁿ step,
+randomized), or longer when `Retry-After` asks for up to 10 s; a longer
+`Retry-After`, or a wait that would leave under a second of grant lifetime, fails
+the batch instead. Other statuses, expired grants, invalid responses and partial
+OTLP rejections are not retried. Each batch is serialized and gzip-compressed once,
+off the async runtime, and every attempt resends the identical payload: Web
+stores spans by span ID, so a span already ingested by a timed-out attempt is
+replaced rather than duplicated. A batch holds an upload slot only while an attempt
+runs, but keeps its retained bytes until its last attempt settles, so a failing
+ingestion endpoint fills the byte budget and new records are dropped instead of
+queuing without bound.
+
+A resolver-issued project grant authenticates the upload, together with a fresh
+gateway HMAC signature over that grant. Web authorizes a grant by its organization
+and project alone, so a batch uses the latest-expiring grant among its records;
+ingestion mode is already applied while mapping each span. The uploader uses the existing Web
 URL and service key, preserves deployment prefixes, disables redirects and proxies,
 and never sends the provider credential or the client's gateway key to ingestion.
 Ingestion JWTs stay outside serializable capture facts and debug logs. Expired grants
@@ -360,34 +384,40 @@ historical traces are not rewritten.
 headers arrive. After headers arrive it retains the relayed status, even if a
 stream subsequently fails; cancellation before headers leaves the status unknown.
 Relay outcome, provider status, completeness flags and first-byte timing remain
-internal facts rather than generation metadata. Ingestion removes mapped observation-attribute
-duplicates for the gateway scope while preserving custom attributes, scope and
-resources.
+internal facts rather than generation metadata. For the gateway scope, ingestion removes
+Langfuse attributes already mapped to trace and observation fields, such as user, session,
+trace name, tags and environment, while preserving custom attributes, scope and resources.
 
 Provider HTTP failures and failed SSE responses set the generation level to `ERROR`
 with the available HTTP status in its status message. Full mode also includes a
 bounded provider error code/message; usage mode omits these details because provider
 errors may echo request content.
 
-Provisional upload limits are 32 concurrent tasks, 4 MiB serialized facts per record,
-16 MiB total retained serialized-fact/credential bytes, 8 MiB encoded payloads, and
+Provisional upload limits are 32 concurrent uploads, 1024 queued records, 16 MiB
+serialized span and credentials per record (a 5 MiB input plus 1 MiB output, each
+possibly doubled by JSON string escaping), 64 MiB total retained span/credential
+bytes by default (`LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES`), 20 MiB of OTLP JSON per
+payload before gzip compression, and
 64 KiB ingestion responses. Serialization and mapping have additional bounded memory
 overhead; these byte budgets are not an RSS limit. Uploads have a two-second connect
-timeout and a five-second total timeout, shortened to the grant's remaining lifetime.
+timeout and a 30-second total timeout per attempt, enough for a full payload over a
+slow link and shortened to the grant's remaining lifetime.
 Capacity exhaustion, oversized payloads, auth/HTTP errors, rejected OTLP spans, and
-transport failures are reported without changing inference results. Sanitized logs
+transport failures are reported per record without changing inference results; a
+batch that fails its last attempt fails every record in it. The `telemetry.batch`
+span records `gateway.telemetry.attempts`. Sanitized logs
 record failures/drops; shutdown reports accepted, failed and dropped counts.
 
-SIGTERM marks the gateway unready, drains inference, then finishes uploads within
-the remaining shared shutdown budget. At the deadline, unfinished uploads are
-cancelled and counted as drops. Process crashes or forced shutdown can lose telemetry;
+SIGTERM marks the gateway unready, drains inference, then flushes open batches and
+finishes uploads within the remaining shared shutdown budget. At the deadline, unfinished uploads,
+including batches waiting to retry, are cancelled and counted as drops. Process crashes or forced shutdown can lose telemetry;
 these records are not a durable accounting ledger.
 
-`telemetry/mod.rs` owns admission and task lifecycle, `telemetry/mapping.rs` maps facts,
-and `telemetry/otlp.rs` owns encoding and HTTP delivery. The uploader already accepts
-a span collection; future project batching can replace immediate scheduling while
-retaining each execution's original attribution/content policy and selecting a valid
-compatible grant. Capture and provider byte forwarding do not need to change.
+`telemetry/mod.rs` owns admission and shutdown, `telemetry/mapping.rs` maps facts,
+`telemetry/batch.rs` is the pure per-project grouping and flush policy,
+`telemetry/retry.rs` is the pure retry decision,
+`telemetry/worker.rs` is the delivery actor that owns batches and upload tasks, and
+`telemetry/otlp.rs` owns encoding and HTTP delivery.
 
 ## Caller tracing context
 
@@ -405,6 +435,7 @@ The following optional headers enrich the generation, including in usage mode:
 | `langfuse-trace-name` | String | `langfuse_trace_name` |
 | `langfuse-session-id` | String | `langfuse_session_id` |
 | `langfuse-user-id` | String | `langfuse_user_id` |
+| `langfuse-environment` | Environment name | `langfuse_environment` |
 | `langfuse-tags` | Comma-separated strings | `langfuse_tags` |
 | `langfuse-metadata` | Comma-separated `key:value` entries | `langfuse_metadata_<key>` |
 
@@ -414,6 +445,7 @@ For example:
 langfuse-trace-name: support-workflow
 langfuse-session-id: conversation-123
 langfuse-user-id: user-456
+langfuse-environment: production
 langfuse-tags: support,production
 langfuse-metadata: team:search,variant:B,note:hello%2C%20world
 ```
@@ -426,8 +458,13 @@ metadata merges by key with explicit entries winning. Invalid entries are ignore
 independently, and invalid overrides leave valid baggage intact. Caller metadata
 cannot replace protected gateway facts or trusted API-key attribution.
 
-Extraction is bounded to 8 KiB across the eight context header values above
-(`traceparent`, `tracestate`, `baggage` and the five custom headers). Above that
+The environment follows the SDK rule: at most 40 lowercase letters, digits, `-`
+or `_`, not starting with the reserved `langfuse` prefix. An invalid value is
+ignored like any other invalid field, so the generation lands in the `default`
+environment unless valid baggage supplies one.
+
+Extraction is bounded to 8 KiB across the nine context header values above
+(`traceparent`, `tracestate`, `baggage` and the six custom headers). Above that
 limit, context is ignored and a fresh generation trace is created. Decoded fields
 are limited to 1 KiB; each baggage/tag/metadata list is limited to 64 entries.
 Repeated list header lines are combined in order within that same entry limit.
@@ -581,13 +618,21 @@ The implementation separates shared `ExecutionCapture` lifecycle/timing, the
 `ResponseBody` content-type sniffing and bounded `SseDecoder`. A private
 `ProtocolCapture` enum dispatches to the adapter selected by API format. Finalization
 hands an owned `InferenceFacts` record to telemetry for a safe debug summary and
-immediate upload. Capture and upload run independently of log level; debug emission
+batched upload. Capture and upload run independently of log level; debug emission
 alone is gated.
 
-Capture is limited to 1 MiB request inspection, 1 MiB JSON/SSE event inspection,
+Capture is limited to 5 MiB request inspection, 1 MiB JSON/SSE event inspection,
 1 MiB retained output and 256 output items per execution. The active-request limit
 bounds the number of captures. Trusted key metadata is bounded by the resolver's
-256 KiB response limit. Oversized input is omitted; oversized output items
+256 KiB response limit. In full mode, an input that is not recorded (over 5 MiB,
+content-encoded or not a JSON object) is explained in generation metadata:
+`langfuse.gateway.request.input_omitted` (`size_limit`, `content_encoding` or
+`invalid_json`), `langfuse.gateway.request.body_bytes`, and, for `size_limit`,
+`langfuse.gateway.request.input_limit_bytes`. If a generation with its input would
+exceed the telemetry record limit (capped at the retained buffer size) or the buffer
+is full, the input is dropped from that record and the generation is still uploaded,
+with `input_omitted` set to `record_limit` or `telemetry_buffer` and
+`langfuse.gateway.request.input_bytes`. Oversized output items
 are skipped and completeness is false. Malformed, truncated or compressed bodies
 do not interrupt the relay. Capture buffers are independent of forwarding, so
 these limits never cap the actual provider response. Media is not fetched/uploaded.
@@ -672,6 +717,10 @@ including chunked responses. Redirects, automatic retries, ambient proxy setting
 and transparent decompression are disabled. Errors expose fixed categories;
 upstream error bodies and transport details are discarded. A successful response
 must match the strict v1 schema and carry an unexpired project ingestion grant.
+The grant's JWT payload must name the attribution's `organization_id` and
+`project_id`: Web writes uploads into the token's project, and telemetry batches may
+send any record of a project with any of that project's grants. The gateway reads
+these claims without verifying the signature, which Web checks on ingestion.
 Its connection must also be one of the known official pairings: the `provider`
 serves the requested `api_format`, `base_url` is that provider's official origin,
 and `auth` uses that provider's credential scheme. Any other combination is an

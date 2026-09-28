@@ -9,7 +9,7 @@ import {
   DataTableControls,
   DataTableControlsProvider,
 } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
@@ -566,43 +566,51 @@ export function RulesTable({
       tableName={evaluationRuleTableFilterConfig.tableName}
     >
       <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
-        <TableSearchBar
-          key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
-          projectId={projectId}
-          tableName={filterConfig.tableName}
-          registry={evaluationRulesListFieldRegistry(filterConfig)}
-          filterState={queryFilter.searchBarFilterState}
-          setFilterState={queryFilter.setFilterState}
-          observed={toObservedOptions(
-            filterOptions,
-            filterOptionsQuery.isPending,
-          )}
-          search={{ query: searchQuery ?? null, setQuery: handleSearchChange }}
-          isV4={false}
-        />
-        <RulesTableToolbar
-          columns={columns}
-          currentQuery={searchQuery ?? ""}
-          pageRowIds={rules.data?.rules.map(({ id }) => id) ?? []}
-          pageSize={pagination.limit}
-          pageIndex={pagination.page - 1}
-          totalCount={rules.data?.totalItems ?? null}
-          selectionStore={selectionStore}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={handleColumnVisibilityChange}
-          columnOrder={columnOrder}
-          setColumnOrder={handleColumnOrderChange}
-          rowHeight={rowHeight}
-          setRowHeight={setRowHeight}
-          filterState={filterState}
-          orderByState={orderBy}
-          viewConfig={{
-            tableName: TableViewPresetTableName.EvaluationRules,
-            projectId,
-            controllers: viewControllers,
-          }}
-        />
-        <ResizableFilterLayout>
+        <SearchableTableFilterLayout
+          search={
+            <TableSearchBar
+              key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+              projectId={projectId}
+              tableName={filterConfig.tableName}
+              registry={evaluationRulesListFieldRegistry(filterConfig)}
+              filterState={queryFilter.searchBarFilterState}
+              setFilterState={queryFilter.setFilterState}
+              observed={toObservedOptions(
+                filterOptions,
+                filterOptionsQuery.isPending,
+              )}
+              search={{
+                query: searchQuery ?? null,
+                setQuery: handleSearchChange,
+              }}
+              isV4={false}
+            />
+          }
+          toolbar={
+            <RulesTableToolbar
+              columns={columns}
+              currentQuery={searchQuery ?? ""}
+              pageRowIds={rules.data?.rules.map(({ id }) => id) ?? []}
+              pageSize={pagination.limit}
+              pageIndex={pagination.page - 1}
+              totalCount={rules.data?.totalItems ?? null}
+              selectionStore={selectionStore}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={handleColumnVisibilityChange}
+              columnOrder={columnOrder}
+              setColumnOrder={handleColumnOrderChange}
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+              filterState={filterState}
+              orderByState={orderBy}
+              viewConfig={{
+                tableName: TableViewPresetTableName.EvaluationRules,
+                projectId,
+                controllers: viewControllers,
+              }}
+            />
+          }
+        >
           <DataTableControls
             key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
             queryFilter={queryFilter}
@@ -679,7 +687,7 @@ export function RulesTable({
               }}
             />
           </div>
-        </ResizableFilterLayout>
+        </SearchableTableFilterLayout>
         <TablePeekViewEvaluatorConfigDetail
           {...legacyPeekConfig}
           projectId={projectId}

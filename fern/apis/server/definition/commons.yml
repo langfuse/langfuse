@@ -643,10 +643,10 @@ types:
         type: unknown
         docs: Metadata associated with the dataset
       inputSchema:
-        type: nullable<unknown>
+        type: nullable<map<string, unknown>>
         docs: JSON Schema for validating dataset item inputs
       expectedOutputSchema:
-        type: nullable<unknown>
+        type: nullable<map<string, unknown>>
         docs: JSON Schema for validating dataset item expected outputs
       projectId: string
       createdAt: datetime

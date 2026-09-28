@@ -112,9 +112,33 @@ function OptionContent({
   label: ReactNode;
   secondaryLabel?: string;
   title: string;
-  type: "checkbox" | "checkmark";
+  type: "checkbox" | "checkmark" | "radio";
   checked: boolean;
 }) {
+  let indicator = (
+    <Check
+      aria-hidden="true"
+      className={cn("size-4", checked ? "opacity-100" : "opacity-0")}
+    />
+  );
+  if (type === "checkbox") {
+    indicator = (
+      <Checkbox checked={checked} size="sm" tabIndex={-1} aria-hidden="true" />
+    );
+  } else if (type === "radio") {
+    indicator = (
+      <span
+        aria-hidden="true"
+        className={cn(
+          "border-control-border flex size-3.5 items-center justify-center rounded-full border shadow-sm",
+          checked && "border-control-fill",
+        )}
+      >
+        {checked && <span className="bg-control-fill size-1.5 rounded-full" />}
+      </span>
+    );
+  }
+
   return (
     <>
       <span className="min-w-0 flex-1 truncate" title={title}>
@@ -126,22 +150,10 @@ function OptionContent({
       <span
         className={cn(
           "pointer-events-none flex size-3.5 shrink-0 items-center justify-center",
-          type === "checkbox" && "order-first",
+          (type === "checkbox" || type === "radio") && "order-first",
         )}
       >
-        {type === "checkbox" ? (
-          <Checkbox
-            checked={checked}
-            size="sm"
-            tabIndex={-1}
-            aria-hidden="true"
-          />
-        ) : (
-          <Check
-            aria-hidden="true"
-            className={cn("size-4", checked ? "opacity-100" : "opacity-0")}
-          />
-        )}
+        {indicator}
       </span>
     </>
   );

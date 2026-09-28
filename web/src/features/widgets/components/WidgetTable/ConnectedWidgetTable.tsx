@@ -280,6 +280,7 @@ function ConnectedDashboardWidgetTableContent({
         }}
       />
       <PaginationBar
+        mode="offset"
         totalCount={widgets.data?.totalCount ?? null}
         onChange={setPaginationState}
         state={paginationState}

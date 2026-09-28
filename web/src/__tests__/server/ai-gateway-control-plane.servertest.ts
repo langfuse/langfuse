@@ -571,6 +571,13 @@ describe("AI gateway control plane", () => {
       project_id: project.id,
     });
     expect(rawClaims).not.toHaveProperty("api_key_id");
+    // The gateway batches uploads by attribution but ingestion writes into the
+    // token's project, so both must name the same tenant.
+    expect(result.attribution).toMatchObject({
+      organization_id: ingestionClaims.organization_id,
+      project_id: ingestionClaims.project_id,
+    });
+    expect(result.ingestion_mode).toBe(rawClaims.ingestion_mode);
     expect(result.ingestion_mode).toBe("full");
     expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);
   });

@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useTheme } from "next-themes";
 import { countJsonRows } from "@/src/features/traces/components/AdvancedJsonViewer/utils/rowCount";
@@ -401,17 +400,15 @@ function IOPreviewJSONInner({
     effectiveMetadata,
   ]);
 
-  const wrapIcon = useMemo(
-    () =>
-      stringWrapMode === "truncate" ? (
-        <Minus size={14} />
-      ) : stringWrapMode === "wrap" ? (
-        <WrapText size={14} />
-      ) : (
-        <ChevronDown size={14} className="-rotate-90" />
-      ),
-    [stringWrapMode],
-  );
+  const wrapIcon = useMemo(() => {
+    if (stringWrapMode === "truncate") {
+      return <Minus size={14} />;
+    }
+    if (stringWrapMode === "wrap") {
+      return <WrapText size={14} />;
+    }
+    return <ChevronDown size={14} className="-rotate-90" />;
+  }, [stringWrapMode]);
 
   // Build sections - memoized to prevent re-creation. A gated field renders as
   // a section with no data (hideData → the viewer builds no tree for it, so it

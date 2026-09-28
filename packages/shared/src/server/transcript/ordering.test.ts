@@ -22,7 +22,12 @@ describe("orderObservations", () => {
       observation("g1", 5, "A"),
       observation("A", 0),
     ]);
-    expect(ordered.map(({ id }) => id)).toEqual(["A", "g1", "B", "g2"]);
+    expect(ordered.map(({ id, nestingLevel }) => [id, nestingLevel])).toEqual([
+      ["A", 0],
+      ["g1", 1],
+      ["B", 0],
+      ["g2", 1],
+    ]);
   });
 
   it("keeps the earliest row per id and roots rows without a known parent", () => {
@@ -31,6 +36,7 @@ describe("orderObservations", () => {
       observation("x", 1),
       observation("orphan", 2, "missing"),
     ]);
+    expect(ordered.map(({ nestingLevel }) => nestingLevel)).toEqual([0, 0]);
     expect(
       ordered.map(({ id, startTime }) => [id, startTime.getUTCSeconds()]),
     ).toEqual([

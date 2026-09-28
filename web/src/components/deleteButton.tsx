@@ -15,7 +15,6 @@ import { type ProjectScope } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { showSuccessToast } from "@/src/features/notifications";
-import { useHasEntitlement } from "@/src/features/entitlements";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 export type DeleteButtonProps = {
@@ -237,55 +236,6 @@ export function DeleteButton({
         {deleteBlocker}
       </PopoverContent>
     </Popover>
-  );
-}
-
-export function DeleteTraceButton(props: DeleteButtonProps) {
-  const utils = api.useUtils();
-  const {
-    itemId,
-    projectId,
-    scope = "traces:delete",
-    invalidateFunc = () => utils.traces.all.invalidate(),
-  } = props;
-  const traceMutation = api.traces.deleteMany.useMutation();
-  const executeDeleteMutation = async (onSuccess: () => void) => {
-    try {
-      await traceMutation.mutateAsync({
-        traceIds: [itemId],
-        projectId,
-      });
-    } catch (error) {
-      return Promise.reject(error);
-    }
-    showSuccessToast({
-      title: "Trace deleted",
-      description:
-        "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 24 hours.",
-    });
-    onSuccess();
-  };
-  const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
-  return (
-    <DeleteButton
-      {...props}
-      scope={scope}
-      invalidateFunc={invalidateFunc}
-      captureDeleteOpen={(capture, isTableAction) =>
-        capture("trace:delete_form_open", {
-          source: isTableAction ? "table-single-row" : "trace detail",
-        })
-      }
-      captureDeleteSuccess={(capture, isTableAction) =>
-        capture("trace:delete", {
-          source: isTableAction ? "table-single-row" : "trace",
-        })
-      }
-      entityToDeleteName="trace"
-      executeDeleteMutation={executeDeleteMutation}
-      isDeleteMutationLoading={traceMutation.isPending}
-      enabled={hasTraceDeletionEntitlement}
-    />
   );
 }
 

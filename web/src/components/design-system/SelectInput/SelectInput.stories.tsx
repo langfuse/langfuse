@@ -91,6 +91,47 @@ export const WithLongText = meta.story({
   ),
 });
 
+export const SearchableWithBadges = meta.story({
+  name: "(Test) Searchable with badges",
+  args: {
+    value: "quality",
+    placeholder: "Select a key",
+    search: { placeholder: "Search keys..." },
+    options: [
+      {
+        value: "quality",
+        label: "quality",
+        badges: [
+          { text: "Trace", color: "violet" },
+          { text: "Observation", color: "blue" },
+        ],
+      },
+      { value: "relevance", label: "relevance" },
+    ],
+    onValueChange: fn(),
+  },
+  render: (args) => {
+    const [value, setValue] = useState(args.value);
+    return (
+      <div className="w-64">
+        <SelectInput {...args} value={value} onValueChange={setValue} />
+      </div>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("combobox"));
+    await userEvent.type(
+      body.getByPlaceholderText("Search keys..."),
+      "relevance",
+    );
+    await expect(body.getByRole("option", { name: /relevance/ })).toBeVisible();
+    await userEvent.click(body.getByRole("option", { name: /relevance/ }));
+    await expect(canvas.getByRole("combobox")).toHaveTextContent("relevance");
+  },
+});
+
 export const Empty = meta.story({
   name: "(Test) Empty",
   args: {

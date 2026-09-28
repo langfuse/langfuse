@@ -39,6 +39,7 @@ export const Default = meta.story({
 // Peek popover forced open with a resolved image.
 export const PreviewImage = meta.story({
   args: {
+    contentType: "image/jpeg",
     open: true,
     status: "ready",
     url: sampleImage,

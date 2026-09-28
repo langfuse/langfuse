@@ -5,6 +5,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
+import { recordExportStaleness } from "../../services/exportStalenessMetric";
 
 export const handleMixpanelIntegrationSchedule = async () => {
   const mixpanelIntegrationProjects = await prisma.mixpanelIntegration.findMany(
@@ -18,6 +19,15 @@ export const handleMixpanelIntegrationSchedule = async () => {
       },
     },
   );
+
+  recordExportStaleness({
+    integration: "mixpanel",
+    now: new Date(),
+    integrations: mixpanelIntegrationProjects.map((integration) => ({
+      lastSyncAt: integration.lastSyncAt,
+      window: "1h",
+    })),
+  });
 
   if (mixpanelIntegrationProjects.length === 0) {
     logger.info("[MIXPANEL] No Mixpanel integrations ready for sync");

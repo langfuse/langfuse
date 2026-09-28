@@ -1,51 +1,63 @@
-/* eslint-disable @repo/no-exotic-operators */
 import {
   clickhouseClient,
   ClickhouseClientType,
-  BlobStorageFileLogInsertType,
   getCurrentSpan,
-  ObservationRecordInsertType,
-  ObservationBatchStagingRecordInsertType,
   recordDistribution,
   recordGauge,
   recordHistogram,
   recordIncrement,
-  ScoreRecordInsertType,
-  TraceRecordInsertType,
-  TraceNullRecordInsertType,
-  DatasetRunItemRecordInsertType,
-  EventRecordInsertType,
   buildClickHouseLogComment,
 } from "@langfuse/shared/src/server";
 
-import { Decimal } from "decimal.js";
+import type { PreparedEvent } from "@langfuse/native";
 
 import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 import { backOff } from "exponential-backoff";
+import {
+  jsonWriteStrategyFactory,
+  nativeWriteStrategyFactory,
+  type ClickhouseWriteStrategy,
+  type ClickhouseWriteStrategyFactory,
+} from "./writeStrategies";
+import { TableName, type RecordInsertType } from "./types";
+export { TableName } from "./types";
 
-// Decimal64(12): valid range is (-10^6, 10^6), i.e. 18 total digits with 12 fractional.
-// JS double can't represent 999999.999999999999 exactly (rounds to 1e6), so we use a
-// value with enough decimal places to be safe while staying representable as a JS number.
-const DECIMAL_64_12_LIMIT = new Decimal("1e6");
-const DECIMAL_64_12_MAX_NUM = 999_999.999_999;
-const DECIMAL_64_12_MIN_NUM = -DECIMAL_64_12_MAX_NUM;
 const MULTI_PROJECT_LOG_COMMENT_PROJECT_ID = "MULTI_PROJECT";
 
-export class ClickhouseWriter {
-  private static instance: ClickhouseWriter | null = null;
-  private static client: ClickhouseClientType | null = null;
+export class ClickhouseWriter<
+  PayloadMap extends WriterPayloadMap = JsonWriterPayloadMap,
+> {
+  private static instance: ClickhouseWriter<JsonWriterPayloadMap> | null = null;
+  private static nativeInstance: ClickhouseWriter<NativeWriterPayloadMap> | null =
+    null;
+  private client: ClickhouseClientType | null;
+  private readonly strategyFactory: ClickhouseWriteStrategyFactory<
+    PayloadMap[TableName]
+  >;
+  private readonly allowedTable: TableName | undefined;
+  private readonly logger: typeof logger;
+  private readonly logPrefix: string;
   private readonly activeFlushes = new Set<Promise<void>>();
   batchSize: number;
   writeInterval: number;
   maxAttempts: number;
-  queue: ClickhouseQueue;
+  queue: ClickhouseQueue<PayloadMap>;
 
   isIntervalFlushInProgress: boolean;
   intervalId: NodeJS.Timeout | null = null;
 
-  private constructor() {
+  private constructor(
+    client: ClickhouseClientType | undefined,
+    strategyFactory: ClickhouseWriteStrategyFactory<PayloadMap[TableName]>,
+    allowedTable?: TableName,
+  ) {
+    this.client = client ?? null;
+    this.strategyFactory = strategyFactory;
+    this.allowedTable = allowedTable;
+    this.logger = logger.child({ format: strategyFactory.format });
+    this.logPrefix = strategyFactory.format === "native" ? "[native] " : "";
     this.batchSize = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE;
     this.writeInterval = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS;
     this.maxAttempts = env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS;
@@ -66,25 +78,54 @@ export class ClickhouseWriter {
     this.start();
   }
 
-  /**
-   * Get the singleton instance of ClickhouseWriter.
-   * Client parameter is only used for testing.
-   */
-  public static getInstance(clickhouseClient?: ClickhouseClientType) {
-    if (clickhouseClient) {
-      ClickhouseWriter.client = clickhouseClient;
+  /** Get the singleton JSON writer. A supplied client replaces the current client. */
+  public static getInstance(
+    client?: ClickhouseClientType,
+  ): ClickhouseWriter<JsonWriterPayloadMap> {
+    let instance = ClickhouseWriter.instance;
+    if (!instance) {
+      instance = new ClickhouseWriter<JsonWriterPayloadMap>(
+        client,
+        jsonWriteStrategyFactory,
+      );
+      ClickhouseWriter.instance = instance;
+    } else if (client) {
+      instance.client = client;
     }
+    return instance;
+  }
 
-    if (!ClickhouseWriter.instance) {
-      ClickhouseWriter.instance = new ClickhouseWriter();
+  /** Get the singleton Native writer, which accepts only prepared events for events_full. */
+  public static getNativeInstance(
+    client?: ClickhouseClientType,
+  ): ClickhouseWriter<NativeWriterPayloadMap> {
+    let instance = ClickhouseWriter.nativeInstance;
+    if (!instance) {
+      instance = new ClickhouseWriter<NativeWriterPayloadMap>(
+        client,
+        nativeWriteStrategyFactory,
+        TableName.EventsFull,
+      );
+      ClickhouseWriter.nativeInstance = instance;
+    } else if (client) {
+      instance.client = client;
     }
+    return instance;
+  }
 
-    return ClickhouseWriter.instance;
+  /** Stop every writer instance created in this process. */
+  public static async shutdownAll(): Promise<void> {
+    await Promise.all([
+      ClickhouseWriter.instance?.shutdown(),
+      ClickhouseWriter.nativeInstance?.shutdown(),
+    ]);
+    ClickhouseWriter.instance = null;
+    ClickhouseWriter.nativeInstance = null;
   }
 
   private start() {
-    logger.info(
-      `Starting ClickhouseWriter. Max interval: ${this.writeInterval} ms, Max batch size: ${this.batchSize}`,
+    this.logger.info(
+      `${this.logPrefix}Starting ClickhouseWriter. Max interval: ${this.writeInterval} ms, Max batch size: ${this.batchSize}`,
     );
 
     this.intervalId = setInterval(() => {
@@ -99,7 +140,7 @@ export class ClickhouseWriter {
   }
 
   public async shutdown(): Promise<void> {
-    logger.info("Shutting down ClickhouseWriter...");
+    this.logger.info(`${this.logPrefix}Shutting down ClickhouseWriter...`);
 
     if (this.intervalId) {
       clearInterval(this.intervalId);
@@ -112,28 +153,39 @@ export class ClickhouseWriter {
 
     await this.flushAll(true);
 
-    logger.info("ClickhouseWriter shutdown complete.");
+    this.logger.info(`${this.logPrefix}ClickhouseWriter shutdown complete.`);
   }
 
   public async flushAll(fullQueue = false) {
+    const tables = this.allowedTable
+      ? [this.allowedTable]
+      : [
+          TableName.Traces,
+          TableName.TracesNull,
+          TableName.Scores,
+          TableName.Observations,
+          TableName.ObservationsBatchStaging,
+          TableName.BlobStorageFileLog,
+          TableName.DatasetRunItems,
+          TableName.EventsFull,
+        ];
     return this.trackActiveFlush(
       instrumentAsync(
         {
           name: "write-to-clickhouse",
         },
-        async () => {
-          recordIncrement("langfuse.queue.clickhouse_writer.request");
-          await Promise.all([
-            this.flush(TableName.Traces, fullQueue),
-            this.flush(TableName.TracesNull, fullQueue),
-            this.flush(TableName.Scores, fullQueue),
-            this.flush(TableName.Observations, fullQueue),
-            this.flush(TableName.ObservationsBatchStaging, fullQueue),
-            this.flush(TableName.BlobStorageFileLog, fullQueue),
-            this.flush(TableName.DatasetRunItems, fullQueue),
-            this.flush(TableName.EventsFull, fullQueue),
-          ]).catch((err) => {
-            logger.error("ClickhouseWriter.flushAll", err);
+        async (span) => {
+          span.setAttribute("format", this.strategyFactory.format);
+          recordIncrement("langfuse.queue.clickhouse_writer.request", 1, {
+            format: this.strategyFactory.format,
+          });
+          await Promise.all(
+            tables.map((table) => this.flush(table, fullQueue)),
+          ).catch((err) => {
+            this.logger.error(
+              `${this.logPrefix}ClickhouseWriter.flushAll`,
+              err,
+            );
           });
         },
       ),
@@ -194,25 +246,30 @@ export class ClickhouseWriter {
    */
   private handleStringLengthError<T extends TableName>(
     tableName: T,
-    queueItems: ClickhouseWriterQueueItem<T>[],
+    queueItems: ClickhouseWriterQueueItem<PayloadMap[T]>[],
+    truncate: (table: TableName, row: PayloadMap[T]) => PayloadMap[T],
+    strategy: ClickhouseWriteStrategy<PayloadMap[TableName]>,
   ): {
-    retryItems: ClickhouseWriterQueueItem<T>[];
-    requeueItems: ClickhouseWriterQueueItem<T>[];
+    retryItems: ClickhouseWriterQueueItem<PayloadMap[T]>[];
+    requeueItems: ClickhouseWriterQueueItem<PayloadMap[T]>[];
   } {
     // If batch size is 1, fallback to truncation to prevent infinite loops
     if (queueItems.length === 1) {
-      const truncatedRecord = this.truncateOversizedRecord(
-        tableName,
-        queueItems[0].data,
-      );
-      logger.warn(
-        `String length error with single record for ${tableName}, falling back to truncation`,
+      const record = queueItems[0].data;
+      const truncatedRecord = truncate(tableName, record);
+      this.logger.warn(
+        `${this.logPrefix}String length error with single record for ${tableName}, falling back to truncation`,
         {
-          recordId: queueItems[0].data.id,
+          recordId: strategy.droppedId(record).id,
         },
       );
       return {
-        retryItems: [{ ...queueItems[0], data: truncatedRecord }],
+        retryItems: [
+          {
+            ...queueItems[0],
+            data: truncatedRecord,
+          },
+        ],
         requeueItems: [],
       };
     }
@@ -221,159 +278,11 @@ export class ClickhouseWriter {
     const retryItems = queueItems.slice(0, splitPoint);
     const requeueItems = queueItems.slice(splitPoint);
 
-    logger.info(
-      `Splitting batch for ${tableName} due to string length error. Retrying ${retryItems.length}, requeueing ${requeueItems.length}`,
+    this.logger.info(
+      `${this.logPrefix}Splitting batch for ${tableName} due to string length error. Retrying ${retryItems.length}, requeueing ${requeueItems.length}`,
     );
 
     return { retryItems, requeueItems };
-  }
-
-  private truncateOversizedRecord<T extends TableName>(
-    tableName: T,
-    record: RecordInsertType<T>,
-  ): RecordInsertType<T> {
-    const maxFieldSize = 1024 * 1024; // 1MB per field as safety margin
-    const truncationMessage = "[TRUNCATED: Field exceeded size limit]";
-
-    // Helper function to safely truncate string fields
-    const truncateField = (value: string | null | undefined): string | null => {
-      if (!value) return value || null;
-      if (value.length > maxFieldSize) {
-        return (
-          // Keep the first 500KB and append a truncation message
-          value.substring(0, 500 * 1024) + truncationMessage
-        );
-      }
-      return value;
-    };
-
-    // Truncate input field if present
-    if (
-      "input" in record &&
-      record.input &&
-      record.input.length > maxFieldSize
-    ) {
-      record.input = truncateField(record.input);
-      logger.info(
-        `Truncated oversized input field for record ${record.id} of type ${tableName}`,
-        {
-          projectId: record.project_id,
-        },
-      );
-    }
-
-    // Truncate output field if present
-    if (
-      "output" in record &&
-      record.output &&
-      record.output.length > maxFieldSize
-    ) {
-      record.output = truncateField(record.output);
-      logger.info(
-        `Truncated oversized output field for record ${record.id} of type ${tableName}`,
-        {
-          projectId: record.project_id,
-        },
-      );
-    }
-
-    // Truncate metadata field if present
-    if ("metadata" in record && record.metadata) {
-      const metadata = record.metadata;
-      const truncatedMetadata: Record<string, string> = {};
-      for (const [key, value] of Object.entries(metadata)) {
-        if (value && value.length > maxFieldSize) {
-          truncatedMetadata[key] = truncateField(value) || "";
-          logger.info(
-            `Truncated oversized metadata for record ${record.id} of type ${tableName} and key ${key}`,
-            {
-              projectId: record.project_id,
-            },
-          );
-        } else {
-          truncatedMetadata[key] = value;
-        }
-      }
-      record.metadata = truncatedMetadata;
-    }
-
-    return record;
-  }
-
-  private static clampDecimal64Value(value: number): [number, boolean] {
-    if (!Number.isFinite(value)) return [0, true];
-    if (new Decimal(value).abs().gte(DECIMAL_64_12_LIMIT)) {
-      return [value >= 0 ? DECIMAL_64_12_MAX_NUM : DECIMAL_64_12_MIN_NUM, true];
-    }
-    return [value, false];
-  }
-
-  private clampDecimal64Map(
-    map: Record<string, number> | undefined,
-    context: { recordId: string; projectId: string; fieldName: string },
-  ): Record<string, number> | undefined {
-    if (!map) return map;
-
-    let result: Record<string, number> | undefined;
-    for (const [key, value] of Object.entries(map)) {
-      const [cv, wasClamped] = ClickhouseWriter.clampDecimal64Value(value);
-      if (wasClamped) {
-        result ??= { ...map };
-        result[key] = cv;
-      }
-    }
-    if (!result) return map;
-
-    logger.warn("Clamped Decimal64(12) overflow in cost map", {
-      projectId: context.projectId,
-      recordId: context.recordId,
-      fieldName: context.fieldName,
-    });
-    recordIncrement("langfuse.clickhouse_writer.decimal64_clamped");
-    return result;
-  }
-
-  private clampDecimal64Fields<T extends TableName>(
-    tableName: T,
-    record: RecordInsertType<T>,
-  ): RecordInsertType<T> {
-    const r = record as Record<string, unknown>;
-    const ctx = {
-      recordId: r.id as string,
-      projectId: r.project_id as string,
-    };
-
-    switch (tableName) {
-      case TableName.Observations:
-      case TableName.ObservationsBatchStaging:
-      case TableName.EventsFull: {
-        r.provided_cost_details = this.clampDecimal64Map(
-          r.provided_cost_details as Record<string, number> | undefined,
-          { ...ctx, fieldName: "provided_cost_details" },
-        );
-        r.cost_details = this.clampDecimal64Map(
-          r.cost_details as Record<string, number> | undefined,
-          { ...ctx, fieldName: "cost_details" },
-        );
-        if (r.total_cost != null && typeof r.total_cost === "number") {
-          const [cv, wasClamped] = ClickhouseWriter.clampDecimal64Value(
-            r.total_cost,
-          );
-          if (wasClamped) {
-            r.total_cost = cv;
-            logger.warn("Clamped Decimal64(12) overflow in total_cost", {
-              projectId: ctx.projectId,
-              recordId: ctx.recordId,
-              fieldName: "total_cost",
-            });
-            recordIncrement("langfuse.clickhouse_writer.decimal64_clamped");
-          }
-        }
-        break;
-      }
-    }
-
-    return record;
   }
 
   private async flush<T extends TableName>(tableName: T, fullQueue = false) {
@@ -384,11 +293,14 @@ export class ClickhouseWriter {
       0,
       fullQueue ? entityQueue.length : this.batchSize,
     );
+    const writeStrategy = this.strategyFactory.create();
+    const { prepare, truncate } = writeStrategy;
 
     // Log wait time
     queueItems.forEach((item) => {
       const waitTime = Date.now() - item.createdAt;
       recordHistogram("langfuse.queue.clickhouse_writer.wait_time", waitTime, {
+        format: this.strategyFactory.format,
         unit: "milliseconds",
       });
       recordDistribution(
@@ -397,6 +309,7 @@ export class ClickhouseWriter {
         {
           entity_type: tableName,
           type: "wait",
+          format: this.strategyFactory.format,
           unit: "milliseconds",
         },
       );
@@ -413,9 +326,11 @@ export class ClickhouseWriter {
       const processingStartTime = Date.now();
 
       let recordsToWrite = queueItems.map((item) => item.data);
-      recordsToWrite = recordsToWrite.map((r) =>
-        this.clampDecimal64Fields(tableName, r),
-      );
+      if (prepare) {
+        recordsToWrite = recordsToWrite.map((record) =>
+          prepare(tableName, record),
+        );
+      }
       let hasBeenTruncated = false;
 
       await backOff(
@@ -423,6 +338,7 @@ export class ClickhouseWriter {
           this.writeToClickhouse({
             table: tableName,
             records: recordsToWrite,
+            strategy: writeStrategy,
           }),
         {
           numOfAttempts: env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS,
@@ -432,8 +348,8 @@ export class ClickhouseWriter {
             const isStringLengthError = this.isStringLengthError(error);
 
             if (isRetryable) {
-              logger.warn(
-                `ClickHouse Writer failed with retryable error for ${tableName} (attempt ${attemptNumber}/${env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS}): ${error.message}`,
+              this.logger.warn(
+                `${this.logPrefix}ClickHouse Writer failed with retryable error for ${tableName} (attempt ${attemptNumber}/${env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS}): ${error.message}`,
                 {
                   error: error.message,
                   attemptNumber,
@@ -444,9 +360,9 @@ export class ClickhouseWriter {
                 "retry.error": error.message,
               });
               return true;
-            } else if (isStringLengthError) {
-              logger.warn(
-                `ClickHouse Writer failed with string length error for ${tableName} (attempt ${attemptNumber}/${env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS}): Splitting batch and retrying`,
+            } else if (isStringLengthError && truncate) {
+              this.logger.warn(
+                `${this.logPrefix}ClickHouse Writer failed with string length error for ${tableName} (attempt ${attemptNumber}/${env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS}): Splitting batch and retrying`,
                 {
                   error: error.message,
                   attemptNumber,
@@ -457,6 +373,8 @@ export class ClickhouseWriter {
               const { retryItems, requeueItems } = this.handleStringLengthError(
                 tableName,
                 queueItems,
+                truncate,
+                writeStrategy,
               );
 
               // Update records to write with only the retry items
@@ -475,9 +393,9 @@ export class ClickhouseWriter {
                 "split.requeue_count": requeueItems.length,
               });
               return true;
-            } else if (isSizeError && !hasBeenTruncated) {
-              logger.warn(
-                `ClickHouse Writer failed with size error for ${tableName} (attempt ${attemptNumber}/${env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS}): Truncating oversized records and retrying`,
+            } else if (isSizeError && truncate && !hasBeenTruncated) {
+              this.logger.warn(
+                `${this.logPrefix}ClickHouse Writer failed with size error for ${tableName} (attempt ${attemptNumber}/${env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS}): Truncating oversized records and retrying`,
                 {
                   error: error.message,
                   attemptNumber,
@@ -486,7 +404,7 @@ export class ClickhouseWriter {
 
               // Truncate oversized records
               recordsToWrite = recordsToWrite.map((record) =>
-                this.truncateOversizedRecord(tableName, record),
+                truncate(tableName, record),
               );
               hasBeenTruncated = true;
 
@@ -498,8 +416,8 @@ export class ClickhouseWriter {
               return true;
             }
 
-            logger.error(
-              `ClickHouse query failed with non-retryable error: ${error.message}`,
+            this.logger.error(
+              `${this.logPrefix}ClickHouse query failed with non-retryable error: ${error.message}`,
               {
                 error: error.message,
               },
@@ -519,6 +437,7 @@ export class ClickhouseWriter {
         "langfuse.queue.clickhouse_writer.processing_time",
         processingTime,
         {
+          format: this.strategyFactory.format,
           unit: "milliseconds",
         },
       );
@@ -528,24 +447,29 @@ export class ClickhouseWriter {
         {
           entity_type: tableName,
           type: "processing",
+          format: this.strategyFactory.format,
           unit: "milliseconds",
         },
       );
 
-      logger.debug(
-        `Flushed ${queueItems.length} records to Clickhouse ${tableName}. New queue length: ${entityQueue.length}`,
+      this.logger.debug(
+        `${this.logPrefix}Flushed ${queueItems.length} records to Clickhouse ${tableName}. New queue length: ${entityQueue.length}`,
       );
 
       recordGauge(
         "ingestion_clickhouse_insert_queue_length",
         entityQueue.length,
         {
+          format: this.strategyFactory.format,
           unit: "records",
           entityType: tableName,
         },
       );
     } catch (err) {
-      logger.error(`ClickhouseWriter.flush ${tableName}`, err);
+      this.logger.error(
+        `${this.logPrefix}ClickhouseWriter.flush ${tableName}`,
+        err,
+      );
 
       // Re-add the records to the queue with incremented attempts
       let droppedCount = 0;
@@ -557,7 +481,9 @@ export class ClickhouseWriter {
           });
         } else {
           // TODO - Add to a dead letter queue in Redis rather than dropping
-          recordIncrement("langfuse.queue.clickhouse_writer.error");
+          recordIncrement("langfuse.queue.clickhouse_writer.error", 1, {
+            format: this.strategyFactory.format,
+          });
           droppedCount++;
         }
       });
@@ -566,32 +492,28 @@ export class ClickhouseWriter {
         recordIncrement(
           "langfuse.queue.clickhouse_writer.rows_dropped",
           droppedCount,
-          { entity_type: tableName },
+          { entity_type: tableName, format: this.strategyFactory.format },
         );
 
         const droppedIds = queueItems
           .filter((item) => item.attempts >= this.maxAttempts)
-          .map((item) => {
-            const r = item.data as Record<string, unknown>;
-            return {
-              project_id: r.project_id,
-              trace_id: r.trace_id ?? r.id,
-              id: r.id,
-            };
-          });
+          .map((item) => writeStrategy.droppedId(item.data));
 
-        logger.error(
-          `ClickhouseWriter: Max attempts reached, dropped ${droppedCount} ${tableName} record(s)`,
+        this.logger.error(
+          `${this.logPrefix}ClickhouseWriter: Max attempts reached, dropped ${droppedCount} ${tableName} record(s)`,
           { droppedIds },
         );
       }
     }
   }
 
-  public addToQueue<T extends TableName>(
-    tableName: T,
-    data: RecordInsertType<T>,
-  ) {
+  public addToQueue<T extends TableName>(tableName: T, data: PayloadMap[T]) {
+    if (this.allowedTable && tableName !== this.allowedTable) {
+      throw new Error(
+        `Native ClickHouse writer only accepts ${this.allowedTable}, got ${tableName}`,
+      );
+    }
+
     const entityQueue = this.queue[tableName];
     entityQueue.push({
       createdAt: Date.now(),
@@ -600,25 +522,30 @@ export class ClickhouseWriter {
     });
 
     if (entityQueue.length >= this.batchSize) {
-      logger.debug(`Queue is full. Flushing ${tableName}...`);
+      this.logger.debug(
+        `${this.logPrefix}Queue is full. Flushing ${tableName}...`,
+      );
 
       this.trackActiveFlush(this.flush(tableName)).catch((err) => {
-        logger.error("ClickhouseWriter.addToQueue flush", err);
+        this.logger.error(
+          `${this.logPrefix}ClickhouseWriter.addToQueue flush`,
+          err,
+        );
       });
     }
   }
 
   private async writeToClickhouse<T extends TableName>(params: {
     table: T;
-    records: RecordInsertType<T>[];
+    records: PayloadMap[T][];
+    strategy: ClickhouseWriteStrategy<PayloadMap[TableName]>;
   }): Promise<void> {
     const startTime = Date.now();
 
-    await (ClickhouseWriter.client ?? clickhouseClient())
-      .insert({
+    await params.strategy
+      .write(this.client ?? clickhouseClient(), {
         table: params.table,
-        format: "JSONEachRow",
-        values: params.records,
+        records: params.records,
         clickhouse_settings: {
           log_comment: buildClickHouseLogComment({
             surface: "worker",
@@ -628,54 +555,37 @@ export class ClickhouseWriter {
         },
       })
       .catch((err) => {
-        logger.error(`ClickhouseWriter.writeToClickhouse ${err}`);
-
+        this.logger.error(
+          `${this.logPrefix}ClickhouseWriter.writeToClickhouse ${err}`,
+        );
         throw err;
       });
 
-    logger.debug(
-      `ClickhouseWriter.writeToClickhouse: ${Date.now() - startTime} ms`,
+    this.logger.debug(
+      `${this.logPrefix}ClickhouseWriter.writeToClickhouse: ${Date.now() - startTime} ms`,
     );
-
-    recordGauge("ingestion_clickhouse_insert", params.records.length);
+    recordGauge("ingestion_clickhouse_insert", params.records.length, {
+      format: this.strategyFactory.format,
+    });
   }
 }
 
-export enum TableName {
-  Traces = "traces",
-  TracesNull = "traces_null",
-  Scores = "scores",
-  Observations = "observations",
-  ObservationsBatchStaging = "observations_batch_staging",
-  BlobStorageFileLog = "blob_storage_file_log",
-  DatasetRunItems = "dataset_run_items_rmt",
-  EventsFull = "events_full", // Primary write target - MV auto-populates events_core
-}
+type WriterPayloadMap = { [T in TableName]: object };
 
-type RecordInsertType<T extends TableName> = T extends TableName.Scores
-  ? ScoreRecordInsertType
-  : T extends TableName.Observations
-    ? ObservationRecordInsertType
-    : T extends TableName.ObservationsBatchStaging
-      ? ObservationBatchStagingRecordInsertType
-      : T extends TableName.Traces
-        ? TraceRecordInsertType
-        : T extends TableName.TracesNull
-          ? TraceNullRecordInsertType
-          : T extends TableName.BlobStorageFileLog
-            ? BlobStorageFileLogInsertType
-            : T extends TableName.DatasetRunItems
-              ? DatasetRunItemRecordInsertType
-              : T extends TableName.EventsFull
-                ? EventRecordInsertType
-                : never;
-
-type ClickhouseQueue = {
-  [T in TableName]: ClickhouseWriterQueueItem<T>[];
+type JsonWriterPayloadMap = {
+  [T in TableName]: RecordInsertType<T>;
 };
 
-type ClickhouseWriterQueueItem<T extends TableName> = {
+type NativeWriterPayloadMap = {
+  [T in TableName]: T extends TableName.EventsFull ? PreparedEvent : never;
+};
+
+type ClickhouseQueue<PayloadMap extends WriterPayloadMap> = {
+  [T in TableName]: ClickhouseWriterQueueItem<PayloadMap[T]>[];
+};
+
+type ClickhouseWriterQueueItem<Payload> = {
   createdAt: number;
   attempts: number;
-  data: RecordInsertType<T>;
+  data: Payload;
 };
