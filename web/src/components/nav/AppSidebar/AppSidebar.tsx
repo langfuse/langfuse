@@ -24,7 +24,6 @@ import {
   ArrowUp,
   ArrowUp10,
   BadgeCheck,
-  ChevronsUpDown,
   ChevronDownIcon,
   ExternalLink,
   Grid2X2,
@@ -212,7 +211,7 @@ export function AppSidebar({
           data-testid={APP_SHELL_CHROME_ROW_TEST_ID}
           className={cn(
             APP_SHELL_CHROME_ROW_CLASS,
-            "min-w-0 gap-2 px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+            "min-w-0 gap-2 pr-3 pl-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
           )}
         >
           <Link href="/" className="flex items-center">
@@ -292,7 +291,7 @@ function MobileNavSwitcher({
                   >
                     {organization.name}
                   </span>
-                  <ChevronDownIcon className="ml-auto h-4 w-4 shrink-0" />
+                  <ChevronDownIcon className="ml-auto size-3.5 shrink-0" />
                 </SidebarMenuButton>
               )}
             </OrganizationDropdownMenu>
@@ -321,7 +320,7 @@ function MobileNavSwitcher({
                     >
                       {project.name}
                     </span>
-                    <ChevronDownIcon className="ml-auto h-4 w-4 shrink-0" />
+                    <ChevronDownIcon className="ml-auto size-3.5 shrink-0" />
                   </SidebarMenuButton>
                 )}
               </ProjectDropdownMenu>
@@ -478,7 +477,7 @@ function NavUser({
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar
-                size="lg"
+                size="md"
                 shape="rounded"
                 src={user.avatar}
                 displayName={user.name}
@@ -491,7 +490,6 @@ function NavUser({
                   {user.email}
                 </span>
               </div>
-              <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -503,7 +501,7 @@ function NavUser({
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar
-                  size="lg"
+                  size="md"
                   shape="rounded"
                   src={user.avatar}
                   displayName={user.name}
@@ -595,7 +593,7 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
         <Button
           variant="ghost"
           size="xs"
-          className="h-5 max-w-full min-w-0 translate-y-0.5 py-0 text-[0.625rem] leading-none"
+          className="text-muted-foreground h-5 max-w-full min-w-0 translate-y-px py-0 text-[0.625rem] leading-none"
         >
           <span className="truncate" title={versionText}>
             {versionText}
