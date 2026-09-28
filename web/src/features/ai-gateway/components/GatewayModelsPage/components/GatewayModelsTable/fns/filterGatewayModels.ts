@@ -1,15 +1,7 @@
 import type { FilterState } from "@langfuse/shared";
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import type { aggregateModels } from "@/src/features/ai-gateway/components/GatewayModelsPage/aggregateModels";
 
-export type GatewayModelRow = {
-  id: string;
-  availableVia: Array<{
-    connectionId: string;
-    connectionName: string;
-    provider: GatewayProvider;
-  }>;
-  apiFormats: string[];
-};
+export type GatewayModelRow = ReturnType<typeof aggregateModels>[number];
 
 function getModelFilterValues(model: GatewayModelRow, column: string) {
   switch (column) {

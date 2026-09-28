@@ -4,10 +4,12 @@ import type { RouterOutputs } from "@/src/utils/api";
 type Connection = RouterOutputs["aiGateway"]["listConnections"]["data"][number];
 type RefreshResult = RouterOutputs["aiGateway"]["refreshModels"][number];
 
-const providerFormats: Record<GatewayProvider, string[]> = {
+const providerFormats = {
   OPENAI: ["OpenAI Responses", "OpenAI Chat Completions"],
   ANTHROPIC: ["Anthropic Messages"],
-};
+} as const satisfies Record<GatewayProvider, readonly string[]>;
+
+export type ApiFormat = (typeof providerFormats)[GatewayProvider][number];
 
 type ModelRow = {
   id: string;
@@ -16,7 +18,7 @@ type ModelRow = {
     connectionName: string;
     provider: GatewayProvider;
   }>;
-  apiFormats: string[];
+  apiFormats: ApiFormat[];
 };
 
 export function aggregateModels(

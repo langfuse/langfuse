@@ -44,7 +44,7 @@ type GetBadge<TData extends RowData, TItem, TVariant extends BadgeVariant> = (
     | LucideIcon
     | React.ElementType<{ className?: string; "aria-hidden"?: boolean }>;
   ariaLabel?: string;
-} & (TItem extends string ? { key?: string } : { key: string });
+} & ([TItem] extends [string] ? { key?: string } : { key: string });
 
 type BadgeListTableColumnOptions<
   TData extends RowData,
@@ -57,7 +57,7 @@ type BadgeListTableColumnOptions<
       }
     | ({
         range?: "neutral";
-      } & (TItem extends string
+      } & ([TItem] extends [string]
         ? { getBadge?: GetBadge<TData, TItem, NeutralBadgeVariant> }
         : { getBadge: GetBadge<TData, TItem, NeutralBadgeVariant> }))
     | {

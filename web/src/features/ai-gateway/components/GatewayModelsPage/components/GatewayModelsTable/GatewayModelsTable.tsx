@@ -12,6 +12,7 @@ import { createBadgeListTableColumn } from "@/src/components/design-system/table
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import { gatewayModelsFilterConfig } from "@/src/features/ai-gateway/constants/modelsFilterConfig";
+import type { ApiFormat } from "@/src/features/ai-gateway/components/GatewayModelsPage/aggregateModels";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import type { GatewayModelRow } from "./fns/filterGatewayModels";
@@ -37,12 +38,12 @@ const columns: LangfuseColumnDef<GatewayModelRow>[] = [
       ariaLabel: `${connection.connectionName}, ${providerLabels[connection.provider]}`,
     }),
   }),
-  createBadgeListTableColumn<GatewayModelRow>({
+  createBadgeListTableColumn<GatewayModelRow, ApiFormat>({
     accessorKey: "apiFormats",
     header: "API formats",
     size: 280,
     getBadge: (format) => ({
-      value: getApiFormatLabel(format),
+      value: apiFormatLabels[format],
       variant: "secondary",
     }),
   }),
@@ -75,9 +76,8 @@ const providerIcons = {
   ANTHROPIC: SiAnthropic,
 } satisfies Record<GatewayProvider, typeof SiOpenai>;
 
-function getApiFormatLabel(format: string) {
-  if (format === "Anthropic Messages") return "Messages";
-  if (format === "OpenAI Chat Completions") return "Completions";
-  if (format === "OpenAI Responses") return "Responses";
-  return format;
-}
+const apiFormatLabels = {
+  "Anthropic Messages": "Messages",
+  "OpenAI Chat Completions": "Completions",
+  "OpenAI Responses": "Responses",
+} satisfies Record<ApiFormat, string>;
