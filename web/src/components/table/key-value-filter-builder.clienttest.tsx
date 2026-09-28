@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import type { FilterState } from "@langfuse/shared";
 import { applyKeyedFilterEntries } from "@/src/features/filters/lib/sidebar-filter-actions";
-import { KeyValueFilterBuilder } from "./key-value-filter-builder";
+import { KeyValueFilterBuilder } from "./KeyValueFilterBuilder";
 
 const noop = () => {};
 

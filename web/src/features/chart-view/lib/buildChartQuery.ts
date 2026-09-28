@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { type FilterState, type QueryType } from "@langfuse/shared";
 import {
   type DataPoint,
@@ -118,19 +117,27 @@ export function rowsToDataPoints(
       }
     }
 
-    const dim = hasBreakdown
-      ? dimensionValue(row[dimension.field as string])
-      : isNumber
-        ? undefined
-        : metric.label;
+    const dim = (() => {
+      if (hasBreakdown) {
+        return dimensionValue(row[dimension.field as string]);
+      }
+      if (isNumber) {
+        return undefined;
+      }
+      return metric.label;
+    })();
     // Preserve an explicit null on a time series as a GAP — never coerce it to
     // 0 (the DataPoint contract, chart-props.ts: "null means measured nothing").
     // Categorical/number charts still floor a missing value.
-    const metricValue = Array.isArray(value)
-      ? value
-      : isTimeSeries && value == null
-        ? null
-        : Number(value ?? 0);
+    const metricValue = (() => {
+      if (Array.isArray(value)) {
+        return value;
+      }
+      if (isTimeSeries && value == null) {
+        return null;
+      }
+      return Number(value ?? 0);
+    })();
     return { time_dimension, dimension: dim, metric: metricValue };
   });
 }

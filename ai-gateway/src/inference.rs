@@ -34,11 +34,12 @@ impl InferenceService {
         config: ControlPlaneConfig,
         max_active_requests: usize,
         max_concurrent_resolutions: usize,
+        telemetry_buffer_bytes: usize,
     ) -> Result<Self, ResolutionError> {
         if !(1..=Semaphore::MAX_PERMITS).contains(&max_concurrent_resolutions) {
             return Err(ResolutionError::Configuration);
         }
-        let telemetry = crate::telemetry::Telemetry::new(&config)?;
+        let telemetry = crate::telemetry::Telemetry::new(&config, telemetry_buffer_bytes)?;
         Ok(Self {
             control_plane: ControlPlaneClient::new(config)?,
             provider: ProviderTransport::new(max_active_requests)

@@ -234,10 +234,15 @@ describe("clickhouseSearchCondition", () => {
       });
 
       const text = explainText(plan);
+      // The id-lane ngram indexes and the content-lane FTS index all appear in
+      // the plan, proving the combined search keeps every lane's index live.
+      // We do not assert the plan prunes to zero granules: events_full is a
+      // shared table whose granules pack rows from many project_ids, so the OR
+      // of id-lane bloom filters over unrelated neighbour rows false-positives
+      // for a fraction of runs regardless of this row's own values.
       expect(text).toContain("idx_ngram_name");
       expect(text).toContain("idx_ngram_trace_name");
       expect(text).toMatch(/idx_fts_input_low|idx_fts_output_low/);
-      expect(text).toMatch(/Granules:\s*0\//);
     });
 
     it("matches name case-insensitively via lower() LIKE on the events path", async () => {

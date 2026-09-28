@@ -8,6 +8,8 @@
 @plugin "tailwindcss-animate";
 
 @custom-variant dark (&:where(.dark, .dark *));
+/* Session metrics bar is open above a stacked annotation column. */
+@custom-variant session-review-stack (&:is([data-trace-review-open][data-review-orientation=vertical] *));
 
 /* App font tokens. The typeface is deliberately DEFERRED: the app ships the
    system stacks while the token system (families here, weight roles below,
@@ -336,7 +338,7 @@
     --tertiary-foreground: 222.2 47.4% 11.2%;
 
     --accent: 210 40% 96.1%;
-    --accent-foreground: 220 8.9% 46.1%;
+    --accent-foreground: 217 33% 17%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
@@ -446,14 +448,14 @@
     --find-match-selected-background: 60 100% 50%;
     --find-match-selected-foreground: 0 0% 0%;
 
-    --chart-1: 239 84% 58%;
-    --chart-2: 188 94% 43%;
-    --chart-3: 240 4% 46%;
-    --chart-4: 271 91% 65%;
-    --chart-5: 48 96% 47%;
-    --chart-6: 0 84% 60%;
-    --chart-7: 84 81% 44%;
-    --chart-8: 330 81% 60%;
+    --chart-1: 239 84% 66%;
+    --chart-2: 188 94% 30%;
+    --chart-3: 240 4% 48%;
+    --chart-4: 271 91% 61%;
+    --chart-5: 48 96% 29%;
+    --chart-6: 0 84% 50%;
+    --chart-7: 84 81% 28%;
+    --chart-8: 330 81% 49%;
     --chart-grid: var(--muted-gray);
     --color-1: oklch(66.2% 0.225 25.9);
     --color-2: oklch(60.4% 0.26 302);
@@ -536,7 +538,7 @@
     /* One clear step above --popover (12%) — focus:bg-accent is the only
        focus cue in menus/selects/⌘K, and 14.3% was a near-invisible ~1.13:1. */
     --accent: 0 0% 18%;
-    --accent-foreground: 0 0% 91%;
+    --accent-foreground: 0 0% 70%;
 
     --destructive: 0 78.7% 63.1%;
     --destructive-foreground: 0 0% 100%;
@@ -640,14 +642,14 @@
     --find-match-selected-background: 60 100% 50%;
     --find-match-selected-foreground: 0 0% 0%;
 
-    --chart-1: 239 84% 58%;
-    --chart-2: 188 94% 43%;
-    --chart-3: 240 4% 46%;
-    --chart-4: 271 91% 65%;
-    --chart-5: 48 96% 47%;
-    --chart-6: 0 84% 60%;
-    --chart-7: 84 81% 44%;
-    --chart-8: 330 81% 60%;
+    --chart-1: 239 96% 69%;
+    --chart-2: 188 94% 30%;
+    --chart-3: 240 4% 48%;
+    --chart-4: 271 91% 61%;
+    --chart-5: 48 96% 29%;
+    --chart-6: 0 84% 50%;
+    --chart-7: 84 81% 28%;
+    --chart-8: 330 81% 49%;
     --chart-grid: var(--muted-gray);
     --color-1: oklch(66.2% 0.225 25.9);
     --color-2: oklch(60.4% 0.26 302);

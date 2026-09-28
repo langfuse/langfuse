@@ -11,6 +11,7 @@ import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { AnnotationPanelContent } from "./AnnotationPanelContent";
 import { useTraceReviewPanelOptional } from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 
 export type AnnotateDrawerControllerProps<Target extends ScoreTarget> = {
   children: (control: {
@@ -22,7 +23,7 @@ export type AnnotateDrawerControllerProps<Target extends ScoreTarget> = {
 
 type AnnotateDrawerState = AnnotationPanelData;
 
-type AnnotateDrawerPayload<Target extends ScoreTarget> =
+export type AnnotateDrawerPayload<Target extends ScoreTarget> =
   Target extends Extract<ScoreTarget, { type: "trace" }>
     ? Omit<AnnotateDrawerState, "scoreTarget" | "scores"> & {
         scoreTarget: Target;
@@ -39,6 +40,7 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
 }: AnnotateDrawerControllerProps<Target>) {
   const capture = usePostHogClientCapture();
   const reviewPanel = useTraceReviewPanelOptional();
+  const isMobile = useIsMobile();
   const triggerRef = useRef<HTMLElement | null>(null);
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -82,7 +84,8 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
               document.activeElement instanceof HTMLElement
                 ? document.activeElement
                 : null;
-            if (reviewPanel) {
+            // A phone uses the bottom sheet, whose height follows the form.
+            if (reviewPanel && !isMobile) {
               reviewPanel
                 .getState()
                 .actions.rememberTrigger(triggerRef.current);
