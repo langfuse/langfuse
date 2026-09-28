@@ -86,7 +86,7 @@ function getKeyboardKeyLabel(key: KeyboardKey, isMac: boolean) {
 }
 
 const keyboardShortcutVariants = cva(
-  "pointer-events-none inline-flex items-center justify-center gap-1 rounded-sm font-sans leading-none font-normal select-none",
+  "pointer-events-none inline-flex items-center justify-center gap-1 rounded-sm font-mono leading-none font-normal select-none",
   {
     variants: {
       variant: {
@@ -128,9 +128,16 @@ export function KeyboardShortcut({
       className={keyboardShortcutVariants({ variant, size })}
       title={title}
     >
-      {keys.map((key, index) => (
-        <span key={index}>{getKeyboardKeyLabel(key, isMac)}</span>
-      ))}
+      {keys.map((key, index) => {
+        const label = getKeyboardKeyLabel(key, isMac);
+        // Modifier and arrow glyphs draw small in the mono face; scale them up.
+        const isSymbol = /^[^\p{L}\p{N}]$/u.test(label);
+        return (
+          <span key={index} className={isSymbol ? "text-[1.25em]" : undefined}>
+            {label}
+          </span>
+        );
+      })}
     </kbd>
   );
 }
