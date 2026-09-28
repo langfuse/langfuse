@@ -105,7 +105,9 @@ function toWebRel(p) {
     process.exit(1);
   }
   // `web/src/...` pasted while already inside web/ — there is no web/web
-  if (rel.startsWith("web/") && !existsSync(abs("web"))) return rel.slice(4);
+  if (rel.startsWith("web/") && !existsSync(abs("web"))) {
+    return rel.slice(4);
+  }
   return rel;
 }
 /** @type {(rel: string) => string} */
@@ -132,8 +134,11 @@ function walkFiles(absDir) {
   const out = [];
   for (const e of readdirSync(absDir, { withFileTypes: true })) {
     const p = `${absDir}/${e.name}`;
-    if (e.isDirectory()) out.push(...walkFiles(p));
-    else out.push(p);
+    if (e.isDirectory()) {
+      out.push(...walkFiles(p));
+    } else {
+      out.push(p);
+    }
   }
   return out;
 }
@@ -171,7 +176,9 @@ if (renameTo && isDirOnDisk(/** @type {string} */ (fromArgs[0]))) {
 const plan = new Map();
 /** @type {(from: string, to: string, sibling: boolean) => void} */
 function addMove(from, to, sibling) {
-  if (plan.has(from)) return;
+  if (plan.has(from)) {
+    return;
+  }
   plan.set(from, { from, to, isDir: isDirOnDisk(from), sibling });
 }
 /**
@@ -182,16 +189,23 @@ function addMove(from, to, sibling) {
  */
 /** @type {(dir: string, stem: string, entry: string) => boolean} */
 function isSiblingOf(dir, stem, entry) {
-  if (!entry.startsWith(`${stem}.`)) return false;
+  if (!entry.startsWith(`${stem}.`)) {
+    return false;
+  }
   const segments = entry.slice(stem.length + 1).split(".");
   segments.pop(); // the extension
-  if (!segments.some((s) => SIBLING_TAGS.includes(s))) return false;
+  if (!segments.some((s) => SIBLING_TAGS.includes(s))) {
+    return false;
+  }
   let subject = stem;
   for (const segment of segments) {
-    if (SIBLING_TAGS.includes(segment)) break;
+    if (SIBLING_TAGS.includes(segment)) {
+      break;
+    }
     subject += `.${segment}`;
-    if (SOURCE_EXT.some((e) => existsSync(abs(join(dir, subject + e)))))
+    if (SOURCE_EXT.some((e) => existsSync(abs(join(dir, subject + e))))) {
       return false;
+    }
   }
   return true;
 }
@@ -203,7 +217,9 @@ for (const from of fromArgs) {
     process.exit(1);
   }
   addMove(from, to, false);
-  if (!withSiblings || isDirOnDisk(from) || !existsSync(abs(from))) continue;
+  if (!withSiblings || isDirOnDisk(from) || !existsSync(abs(from))) {
+    continue;
+  }
   const dir = parentDir(from);
   const base = baseName(from);
   const stem = stemOf(base);
@@ -212,18 +228,25 @@ for (const from of fromArgs) {
   const newStem = stemOf(newBase);
   /** @type {(entry: string) => string} */
   const renamed = (entry) => newStem + entry.slice(stem.length);
-  for (const entry of readdirSync(abs(dir)))
-    if (isSiblingOf(dir, stem, entry))
+  for (const entry of readdirSync(abs(dir))) {
+    if (isSiblingOf(dir, stem, entry)) {
       addMove(join(dir, entry), join(toDir, renamed(entry)), true);
-  if (isDirOnDisk(join(dir, "__tests__")))
-    // the subject a `__tests__/` entry belongs to still lives in `dir`
-    for (const entry of readdirSync(abs(join(dir, "__tests__"))))
-      if (isSiblingOf(dir, stem, entry))
+    }
+  }
+  if (
+    isDirOnDisk(join(dir, "__tests__"))
+  ) // the subject a `__tests__/` entry belongs to still lives in `dir`
+  {
+    for (const entry of readdirSync(abs(join(dir, "__tests__")))) {
+      if (isSiblingOf(dir, stem, entry)) {
         addMove(
           join(dir, "__tests__", entry),
           join(toDir, "__tests__", renamed(entry)),
           true,
         );
+      }
+    }
+  }
 }
 
 /** @type {(m: Move) => boolean} */
@@ -237,7 +260,9 @@ const isCaseOnly = (m) =>
  */
 /** @type {(m: Move) => boolean} */
 const isSelfCaseRename = (m) => {
-  if (!isCaseOnly(m)) return false;
+  if (!isCaseOnly(m)) {
+    return false;
+  }
   try {
     const from = statSync(abs(m.from));
     const to = statSync(abs(m.to));
@@ -258,20 +283,24 @@ for (const m of plan.values()) {
   // two sources with one basename would both target the same path; git mv
   // refuses the second, and a rename fallback would silently clobber the first
   const already = claimed.get(m.to);
-  if (already)
+  if (already) {
     bail(
       `${red("two sources, one destination:")} ${already} and ${m.from} both want ${m.to}`,
     );
+  }
   claimed.set(m.to, m.from);
-  if (m.isDir && (toDir === m.from || toDir.startsWith(`${m.from}/`)))
+  if (m.isDir && (toDir === m.from || toDir.startsWith(`${m.from}/`))) {
     bail(
       `${red("destination is inside the source:")} ${toDir} is under ${m.from}`,
     );
-  for (const other of plan.values())
-    if (other !== m && other.isDir && m.from.startsWith(`${other.from}/`))
+  }
+  for (const other of plan.values()) {
+    if (other !== m && other.isDir && m.from.startsWith(`${other.from}/`)) {
       bail(
         `${red("nested source:")} ${m.from} is already inside ${other.from}`,
       );
+    }
+  }
 }
 
 // --- idempotence + conflicts --------------------------------------------------
@@ -281,8 +310,9 @@ const pending = [];
 const done = [];
 for (const m of plan.values()) {
   if (!existsSync(abs(m.from))) {
-    if (existsSync(abs(m.to))) done.push(m);
-    else {
+    if (existsSync(abs(m.to))) {
+      done.push(m);
+    } else {
       console.error(`${red("not found:")} ${m.from}`);
       process.exit(1);
     }
@@ -307,10 +337,11 @@ if (!pending.length) {
   );
   process.exit(0);
 }
-if (done.length)
+if (done.length) {
   console.log(
     dim(`${done.length} of ${plan.size} already at ${toDir} — moving the rest`),
   );
+}
 
 console.log(
   bold(renameTo ? `structure:move → ${renameTo}` : `structure:move → ${toDir}`),
@@ -400,18 +431,28 @@ const lsHost = {
     hasCaseOnly || ts.sys.useCaseSensitiveFileNames,
   fileExists: (f) => {
     const p = norm(f);
-    if (removed.has(p)) return false;
+    if (removed.has(p)) {
+      return false;
+    }
     return overlay.has(p) || ts.sys.fileExists(p);
   },
   readFile: (f, encoding) => {
     const p = norm(f);
-    if (removed.has(p)) return undefined;
+    if (removed.has(p)) {
+      return undefined;
+    }
     return overlay.has(p) ? overlay.get(p) : ts.sys.readFile(p, encoding);
   },
   directoryExists: (d) => {
     const p = norm(d);
-    if (ts.sys.directoryExists(p)) return true;
-    for (const f of overlay.keys()) if (f.startsWith(`${p}/`)) return true;
+    if (ts.sys.directoryExists(p)) {
+      return true;
+    }
+    for (const f of overlay.keys()) {
+      if (f.startsWith(`${p}/`)) {
+        return true;
+      }
+    }
     return false;
   },
   getDirectories: (d) => ts.sys.getDirectories(norm(d)),
@@ -421,13 +462,15 @@ const lsHost = {
       .readDirectory(dir, extensions, exclude, include, depth)
       .map(norm)
       .filter((p) => !removed.has(p));
-    for (const p of overlay.keys())
+    for (const p of overlay.keys()) {
       if (
         p.startsWith(`${dir}/`) &&
         !found.includes(p) &&
         (!extensions || extensions.some((e) => p.endsWith(e)))
-      )
+      ) {
         found.push(p);
+      }
+    }
     return found;
   },
   realpath: ts.sys.realpath,
@@ -460,7 +503,9 @@ for (const m of pending) {
     fileRenames.set(src, dest);
     oldPaths.set(dest, src);
     const text = ts.sys.readFile(src);
-    if (text !== undefined) movedOriginal.set(dest, text);
+    if (text !== undefined) {
+      movedOriginal.set(dest, text);
+    }
   }
 }
 /** @type {(dest: string) => string} */
@@ -469,11 +514,12 @@ const oldPathOf = (dest) => oldPaths.get(dest) ?? dest;
 /** @type {(text: string, changes: readonly TextChange[]) => string} */
 function applyChanges(text, changes) {
   let out = text;
-  for (const c of [...changes].sort((a, b) => b.span.start - a.span.start))
+  for (const c of [...changes].sort((a, b) => b.span.start - a.span.start)) {
     out =
       out.slice(0, c.span.start) +
       c.newText +
       out.slice(c.span.start + c.span.length);
+  }
   return out;
 }
 
@@ -497,21 +543,29 @@ for (const m of pending) {
   )) {
     const target = norm(fc.fileName);
     const before = currentText(target);
-    if (before === undefined || !isSource(target)) continue;
+    if (before === undefined || !isSource(target)) {
+      continue;
+    }
     setText(target, applyChanges(before, fc.textChanges));
     // a moved file already relocated by an earlier move in this batch is named
     // by its new path here — either way it is not an importer
-    if (!fileRenames.has(target) && !movedOriginal.has(target))
+    if (!fileRenames.has(target) && !movedOriginal.has(target)) {
       touched.add(target);
+    }
   }
   // reflect the new layout so the next move in the batch sees it
-  for (const [src, dest] of fileRenames)
+  for (const [src, dest] of fileRenames) {
     if (src === oldAbs || src.startsWith(`${oldAbs}/`)) {
       const text = currentText(src);
-      if (text !== undefined) setText(dest, text);
+      if (text !== undefined) {
+        setText(dest, text);
+      }
       dropFile(src);
-      if (scriptFileNames.delete(src)) scriptFileNames.add(dest);
+      if (scriptFileNames.delete(src)) {
+        scriptFileNames.add(dest);
+      }
     }
+  }
 }
 
 // --- postcondition: move ≠ edit ---------------------------------------------
@@ -536,22 +590,23 @@ function moduleSpecifiers(fileName, text) {
       (ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) &&
       n.moduleSpecifier &&
       ts.isStringLiteralLike(n.moduleSpecifier)
-    )
+    ) {
       nodes.push(n.moduleSpecifier);
-    else if (
+    } else if (
       ts.isImportTypeNode(n) &&
       ts.isLiteralTypeNode(n.argument) &&
       ts.isStringLiteralLike(n.argument.literal)
-    )
+    ) {
       nodes.push(n.argument.literal);
-    else if (
+    } else if (
       ts.isCallExpression(n) &&
       (n.expression.kind === ts.SyntaxKind.ImportKeyword ||
         (ts.isIdentifier(n.expression) && n.expression.text === "require")) &&
       n.arguments[0] &&
       ts.isStringLiteralLike(n.arguments[0])
-    )
+    ) {
       nodes.push(n.arguments[0]);
+    }
     ts.forEachChild(n, visit);
   };
   visit(sf);
@@ -590,7 +645,9 @@ const followed = new Map();
 const stranded = new Map();
 for (const [dest, original] of movedOriginal) {
   const now = currentText(dest) ?? "";
-  if (now === original) continue;
+  if (now === original) {
+    continue;
+  }
   const before = moduleSpecifiers(dest, original);
   const after = moduleSpecifiers(dest, now);
   if (
@@ -601,7 +658,9 @@ for (const [dest, original] of movedOriginal) {
     continue;
   }
   for (const [i, spec] of after.specifiers.entries()) {
-    if (spec === before.specifiers[i]) continue;
+    if (spec === before.specifiers[i]) {
+      continue;
+    }
     const resolved = ts.resolveModuleName(
       spec,
       dest,
@@ -625,7 +684,9 @@ if (stranded.size) {
   );
   for (const [dest, rewrites] of stranded) {
     console.error(`\n  ${relative(webRoot, oldPathOf(dest))}`);
-    for (const r of rewrites) console.error(`    ${r}`);
+    for (const r of rewrites) {
+      console.error(`    ${r}`);
+    }
   }
   console.error(
     "\nThose point at something left behind. Move it too, or do this one by hand.",
@@ -641,25 +702,32 @@ for (const f of importerFiles) {
   console.log(
     dryRun ? `  ${relative(webRoot, f)}` : dim(`  ${relative(webRoot, f)}`),
   );
-  if (!dryRun) continue;
+  if (!dryRun) {
+    continue;
+  }
   const was = moduleSpecifiers(f, ts.sys.readFile(f) ?? "").specifiers;
   for (const [i, spec] of moduleSpecifiers(
     f,
     currentText(f) ?? "",
-  ).specifiers.entries())
-    if (was[i] !== spec)
+  ).specifiers.entries()) {
+    if (was[i] !== spec) {
       console.log(`    ${red(was[i] ?? "")} → ${green(spec)}`);
+    }
+  }
 }
 if (followed.size) {
   const n = [...followed.values()].reduce((a, r) => a + r.length, 0);
   console.log(
     `${followed.size} moved file${followed.size === 1 ? "" : "s"} respelling ${n} alias self-reference${n === 1 ? "" : "s"} into the subtree ${dim("(they encode the old path)")}`,
   );
-  if (dryRun)
+  if (dryRun) {
     for (const [dest, rewrites] of followed) {
       console.log(`  ${relative(webRoot, oldPathOf(dest))}`);
-      for (const r of rewrites) console.log(dim(`    ${r}`));
+      for (const r of rewrites) {
+        console.log(dim(`    ${r}`));
+      }
     }
+  }
 }
 
 /** @type {(cmd: string, cmdArgs: string[]) => string} */
@@ -679,7 +747,9 @@ if (importerFiles.length) {
         `${dirty.length} file${dirty.length === 1 ? "" : "s"} to rewrite already ha${dirty.length === 1 ? "s" : "ve"} uncommitted changes:`,
       ),
     );
-    for (const line of dirty) console.log(`  ${line}`);
+    for (const line of dirty) {
+      console.log(`  ${line}`);
+    }
   }
 }
 
@@ -694,7 +764,9 @@ if (dryRun) {
 // that rather than a reset — including when the apply itself dies halfway.
 /** @type {(moves: Move[]) => void} */
 function printRevert(moves) {
-  if (!moves.length) return;
+  if (!moves.length) {
+    return;
+  }
   console.log();
   console.log(dim("revert:"));
   // a renamed file's inverse is a rename, not a move into its old directory —
@@ -709,8 +781,9 @@ function printRevert(moves) {
     const parent = parentDir(m.from) || ".";
     byParent.set(parent, [...(byParent.get(parent) ?? []), m.to]);
   }
-  for (const [parent, tos] of byParent)
+  for (const [parent, tos] of byParent) {
     console.log(dim(`  pnpm structure:move ${tos.join(" ")} ${parent}`));
+  }
 }
 
 /** @type {Move[]} */
@@ -724,7 +797,9 @@ try {
       // git mv also refuses an untracked source; a plain rename is equivalent
       // there, but only ever onto a destination that does not exist — rename(2)
       // would overwrite one silently.
-      if (existsSync(abs(m.to)) && !isSelfCaseRename(m)) throw err;
+      if (existsSync(abs(m.to)) && !isSelfCaseRename(m)) {
+        throw err;
+      }
       renameSync(abs(m.from), abs(m.to));
       git("add", ["--", m.to]);
     }
@@ -744,9 +819,13 @@ try {
     }
   }
   const rewritten = [...new Set([...importerFiles, ...followed.keys()])];
-  for (const f of rewritten) writeFileSync(f, currentText(f) ?? "", "utf8");
-  if (rewritten.length)
-    // a specifier gets longer or shorter, so prettier may want to re-wrap the line
+  for (const f of rewritten) {
+    writeFileSync(f, currentText(f) ?? "", "utf8");
+  }
+  if (
+    rewritten.length
+  ) // a specifier gets longer or shorter, so prettier may want to re-wrap the line
+  {
     execFileSync(
       "pnpm",
       [
@@ -759,15 +838,17 @@ try {
       ],
       { cwd: webRoot, stdio: "inherit" },
     );
+  }
   // A moved file's respelled self-reference IS staged: `git mv` already put its
   // pre-edit bytes in the index, so leaving it out would stage a rename whose
   // content imports a path this same move deleted. Importer rewrites stay
   // unstaged — those files can carry unrelated work that is not ours to commit.
-  if (followed.size)
+  if (followed.size) {
     git("add", [
       "--",
       ...[...followed.keys()].map((f) => relative(webRoot, f)),
     ]);
+  }
 } catch (err) {
   console.error(
     red(`\napply failed: ${err instanceof Error ? err.message : String(err)}`),
@@ -815,9 +896,12 @@ if (dangling.length) {
       `${dangling.length} reference${dangling.length === 1 ? "" : "s"} to the old path survive as strings — tsc cannot see these:`,
     ),
   );
-  for (const line of dangling.slice(0, HIT_LIMIT)) console.log(`  ${line}`);
-  if (dangling.length > HIT_LIMIT)
+  for (const line of dangling.slice(0, HIT_LIMIT)) {
+    console.log(`  ${line}`);
+  }
+  if (dangling.length > HIT_LIMIT) {
     console.log(dim(`  … ${dangling.length - HIT_LIMIT} more`));
+  }
   console.log(dim("Fix them by hand (vi.mock paths, worker URLs, docs)."));
 } else {
   console.log(dim("no string references to the old path survive."));
@@ -826,7 +910,9 @@ if (dangling.length) {
 printRevert(pending);
 
 // --- verify ------------------------------------------------------------------
-if (!verify) process.exit(0);
+if (!verify) {
+  process.exit(0);
+}
 console.log();
 console.log(bold("tsc --noEmit"));
 try {

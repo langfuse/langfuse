@@ -153,7 +153,9 @@ const LazyTraceRowInner = (props: LazyTraceRowProps) => {
   const internalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!internalRef.current || shouldLoad) return;
+    if (!internalRef.current || shouldLoad) {
+      return;
+    }
     return observe(internalRef.current, () => markTraceLoaded(props.trace.id));
   }, [markTraceLoaded, shouldLoad, props.trace.id]);
 

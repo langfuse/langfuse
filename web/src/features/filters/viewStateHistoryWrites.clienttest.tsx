@@ -303,7 +303,9 @@ describe("view-state URL writes and browser history (LFE-10715)", () => {
 
       // Session detail restores a matching frontend preset after URL stripping.
       useEffect(() => {
-        if (viewControllers.isLoading || viewControllers.selectedViewId) return;
+        if (viewControllers.isLoading || viewControllers.selectedViewId) {
+          return;
+        }
         recoverPreset();
         viewControllers.handleSetViewId(presetId, { updateType: "replaceIn" });
       }, [viewControllers]);

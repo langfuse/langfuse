@@ -69,9 +69,13 @@ type Organization = {
 };
 
 function deriveOrganizationFromProject(user: SessionUser, projectId?: string) {
-  if (!projectId || !Array.isArray(user.organizations)) return undefined;
+  if (!projectId || !Array.isArray(user.organizations)) {
+    return undefined;
+  }
   for (const org of user.organizations) {
-    if (org.projects?.some((p) => p.id === projectId)) return org;
+    if (org.projects?.some((p) => p.id === projectId)) {
+      return org;
+    }
   }
   return undefined;
 }
@@ -270,12 +274,16 @@ function getFullName(user: {
 }): string {
   const { name, email } = user ?? {};
 
-  if (name?.trim()) return name;
+  if (name?.trim()) {
+    return name;
+  }
 
   if (email) {
     const emailUserName = email.split("@")[0];
 
-    if (emailUserName) return emailUserName;
+    if (emailUserName) {
+      return emailUserName;
+    }
   }
 
   return user?.id.slice(0, 8) ?? "Anonymous";

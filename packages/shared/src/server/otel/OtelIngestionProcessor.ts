@@ -65,7 +65,9 @@ const OBSERVATION_LEVEL_ALIASES: Record<string, ObservationLevelType> = {
 function parseObservationLevel(
   value: unknown,
 ): ObservationLevelType | undefined {
-  if (typeof value !== "string") return undefined;
+  if (typeof value !== "string") {
+    return undefined;
+  }
   return OBSERVATION_LEVEL_ALIASES[value.trim().toUpperCase()];
 }
 
@@ -117,7 +119,9 @@ type ReconstructedAttributeDropReason =
   | "reconstruction_path_depth_exceeded";
 
 const getOtelArrayIndex = (segment: string): number | undefined => {
-  if (!CANONICAL_ARRAY_INDEX.test(segment)) return undefined;
+  if (!CANONICAL_ARRAY_INDEX.test(segment)) {
+    return undefined;
+  }
   const index = Number(segment);
   return Number.isSafeInteger(index) ? index : undefined;
 };
@@ -145,7 +149,9 @@ class ArraySlotBudget {
     for (let index = 0; index < pathParts.length; index++) {
       const segment = pathParts[index];
       const arrayIndex = getOtelArrayIndex(segment);
-      if (arrayIndex === undefined) continue;
+      if (arrayIndex === undefined) {
+        continue;
+      }
 
       const arrayPath = pathParts.slice(0, index).join(".");
       const previousLength =
@@ -157,7 +163,9 @@ class ArraySlotBudget {
       }
     }
 
-    if (this.usedSlots + additionalSlots > this.maxSlots) return false;
+    if (this.usedSlots + additionalSlots > this.maxSlots) {
+      return false;
+    }
 
     this.usedSlots += additionalSlots;
     pendingLengths.forEach((length, path) =>
@@ -768,7 +776,9 @@ export class OtelIngestionProcessor {
 
           // Process all events normally first
           const allEvents = resourceSpans.flatMap((resourceSpan) => {
-            if (!resourceSpan) return [];
+            if (!resourceSpan) {
+              return [];
+            }
             return this.processResourceSpan(resourceSpan);
           });
 
@@ -822,13 +832,17 @@ export class OtelIngestionProcessor {
   private filterRedundantShallowTraces(
     events: IngestionEventType[],
   ): IngestionEventType[] {
-    if (events.length === 0) return events;
+    if (events.length === 0) {
+      return events;
+    }
 
     // Fast path: if no trace-create events, return as-is
     const hasTraceEvents = events.some(
       (event) => event.type === "trace-create",
     );
-    if (!hasTraceEvents) return events;
+    if (!hasTraceEvents) {
+      return events;
+    }
 
     // Track trace states by traceId - using simpler structure for better performance
     const traceStates = new Map<string, TraceState>();
@@ -866,7 +880,9 @@ export class OtelIngestionProcessor {
     }
 
     // Early return if no filtering needed
-    if (eventIdsToExclude.size === 0) return events;
+    if (eventIdsToExclude.size === 0) {
+      return events;
+    }
 
     // Filter out redundant shallow traces
     return events.filter((event) => !eventIdsToExclude.has(event.id));
@@ -1166,7 +1182,9 @@ export class OtelIngestionProcessor {
       attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] ??
       attributes?.["langfuse.public"];
 
-    if (value == null) return;
+    if (value == null) {
+      return;
+    }
     return value === true || value === "true";
   }
 
@@ -1410,7 +1428,9 @@ export class OtelIngestionProcessor {
     context: { spanId: string; traceId: string; source: string },
   ): Record<string, unknown> | null {
     const raw = attributes[key];
-    if (!raw) return null;
+    if (!raw) {
+      return null;
+    }
 
     const logContext = {
       spanId: context.spanId,
@@ -1476,7 +1496,9 @@ export class OtelIngestionProcessor {
     context: { spanId: string; traceId: string; eventBytes: number },
   ): void {
     const maxBytes = env.LANGFUSE_OTEL_MAX_SPAN_BYTES;
-    if (context.eventBytes <= maxBytes) return;
+    if (context.eventBytes <= maxBytes) {
+      return;
+    }
 
     const fieldThreshold = 1_000_000; // 1MB
     const largeFields: Record<string, number> = {};
@@ -1630,7 +1652,9 @@ export class OtelIngestionProcessor {
         segments.length >
         OtelIngestionProcessor.MAX_OTEL_RECONSTRUCTED_PATH_DEPTH
       ) {
-        if (recordLimitDrop) recordDrop("reconstruction_path_depth_exceeded");
+        if (recordLimitDrop) {
+          recordDrop("reconstruction_path_depth_exceeded");
+        }
         return undefined;
       }
 
@@ -1666,7 +1690,9 @@ export class OtelIngestionProcessor {
 
     const inputKeys = Object.keys(input);
     const useArray = inputKeys.some((inputKey) => {
-      if (!inputKey.startsWith(prefixWithDot)) return false;
+      if (!inputKey.startsWith(prefixWithDot)) {
+        return false;
+      }
       const path = parsePath(inputKey.slice(prefixWithDot.length), false);
       if (path === undefined || !rootArraySlotBudget.tryReserve(path)) {
         return false;
@@ -1680,7 +1706,9 @@ export class OtelIngestionProcessor {
       container: ReconstructedContainer,
       key: string,
     ): boolean => {
-      if (!Array.isArray(container)) return true;
+      if (!Array.isArray(container)) {
+        return true;
+      }
       const index = getOtelArrayIndex(key);
       return (
         index !== undefined &&
@@ -1710,10 +1738,14 @@ export class OtelIngestionProcessor {
       let current = root;
       for (let index = 0; index < path.length - 1; index++) {
         const key = path[index];
-        if (!isWritableKey(current, key)) return false;
+        if (!isWritableKey(current, key)) {
+          return false;
+        }
 
         if (!Object.hasOwn(current, key)) {
-          if (!commit) return true;
+          if (!commit) {
+            return true;
+          }
           const child: ReconstructedContainer =
             getOtelArrayIndex(path[index + 1]) !== undefined
               ? []
@@ -1735,7 +1767,9 @@ export class OtelIngestionProcessor {
         current = next as ReconstructedContainer;
       }
       const finalKey = path[path.length - 1];
-      if (!isWritableKey(current, finalKey)) return false;
+      if (!isWritableKey(current, finalKey)) {
+        return false;
+      }
       if (Object.hasOwn(current, finalKey)) {
         const existing = Reflect.get(current, finalKey);
         if (
@@ -1746,16 +1780,24 @@ export class OtelIngestionProcessor {
           return false;
         }
       }
-      if (commit) defineOwn(current, finalKey, value);
+      if (commit) {
+        defineOwn(current, finalKey, value);
+      }
       return true;
     };
 
     for (const inputKey of inputKeys) {
-      if (!inputKey.startsWith(prefixWithDot)) continue;
+      if (!inputKey.startsWith(prefixWithDot)) {
+        continue;
+      }
       const path = parsePath(inputKey.slice(prefixWithDot.length), true);
-      if (!path) continue;
+      if (!path) {
+        continue;
+      }
       const value = input[inputKey];
-      if (!applyPath(result, path, value, false)) continue;
+      if (!applyPath(result, path, value, false)) {
+        continue;
+      }
       if (!arraySlotBudget.tryReserve(path)) {
         recordDrop("reconstruction_budget_exceeded");
         continue;
@@ -1773,7 +1815,9 @@ export class OtelIngestionProcessor {
     reason: ReconstructedAttributeDropReason,
     droppedAttributeCount: number,
   ): void {
-    if (droppedAttributeCount === 0) return;
+    if (droppedAttributeCount === 0) {
+      return;
+    }
 
     recordIncrement(
       OtelIngestionProcessor.OTEL_ARRAY_ATTRIBUTE_DROPPED_METRIC,
@@ -2397,12 +2441,16 @@ export class OtelIngestionProcessor {
   ): unknown {
     try {
       const messages = typeof input === "string" ? JSON.parse(input) : input;
-      if (!Array.isArray(messages)) return input;
+      if (!Array.isArray(messages)) {
+        return input;
+      }
 
       const hasSystemMessage = messages.some(
         (msg: Record<string, unknown>) => msg?.role === "system",
       );
-      if (hasSystemMessage) return input;
+      if (hasSystemMessage) {
+        return input;
+      }
 
       let content: string;
       try {
@@ -2724,7 +2772,9 @@ export class OtelIngestionProcessor {
       };
     }
 
-    if (explicitModelParameters) return explicitModelParameters;
+    if (explicitModelParameters) {
+      return explicitModelParameters;
+    }
 
     if (attributes["llm.invocation_parameters"]) {
       try {
@@ -2769,7 +2819,7 @@ export class OtelIngestionProcessor {
 
   private sanitizeModelParams<T>(params: T): Record<string, string> | T {
     // Model params in Langfuse must be key value pairs where value is string
-    if (typeof params === "object" && params != null)
+    if (typeof params === "object" && params != null) {
       return Object.fromEntries(
         Object.entries(params).map((e) => [
           e[0],
@@ -2778,6 +2828,7 @@ export class OtelIngestionProcessor {
             : JSON.stringify(e[1]),
         ]),
       );
+    }
 
     return params;
   }
@@ -2840,7 +2891,9 @@ export class OtelIngestionProcessor {
       LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS,
       context,
     );
-    if (fromAttribute !== null) return fromAttribute;
+    if (fromAttribute !== null) {
+      return fromAttribute;
+    }
 
     // Genkit
     if (instrumentationScopeName === "genkit-tracer") {
@@ -2856,10 +2909,18 @@ export class OtelIngestionProcessor {
         } = usage;
 
         const usageDetails: Record<string, number> = {};
-        if (input) usageDetails.input = input;
-        if (output) usageDetails.output = Math.max(output - (thoughts ?? 0), 0);
-        if (total) usageDetails.total = total;
-        if (thoughts) usageDetails.output_reasoning = thoughts;
+        if (input) {
+          usageDetails.input = input;
+        }
+        if (output) {
+          usageDetails.output = Math.max(output - (thoughts ?? 0), 0);
+        }
+        if (total) {
+          usageDetails.total = total;
+        }
+        if (thoughts) {
+          usageDetails.output_reasoning = thoughts;
+        }
 
         return usageDetails;
       }
@@ -3032,7 +3093,9 @@ export class OtelIngestionProcessor {
 
     if (instrumentationScopeName === "pydantic-ai") {
       const usageDetails = this.extractGenericGenAiUsageDetails(attributes);
-      if (Object.keys(usageDetails).length > 0) return usageDetails;
+      if (Object.keys(usageDetails).length > 0) {
+        return usageDetails;
+      }
     }
 
     if (
@@ -3080,7 +3143,9 @@ export class OtelIngestionProcessor {
         key.startsWith("llm.token_count."),
     );
 
-    if (usageDetails.length === 0) return {};
+    if (usageDetails.length === 0) {
+      return {};
+    }
 
     const rawUsageDetails = usageDetails.reduce(
       (acc: Record<string, number>, key) => {
@@ -3223,7 +3288,9 @@ export class OtelIngestionProcessor {
       LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS,
       context,
     );
-    if (fromAttribute !== null) return fromAttribute;
+    if (fromAttribute !== null) {
+      return fromAttribute;
+    }
 
     const genAiUsageCost = attributes["gen_ai.usage.cost"];
     if (genAiUsageCost != null && genAiUsageCost !== "") {
@@ -3247,12 +3314,16 @@ export class OtelIngestionProcessor {
         LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
       ] as any;
 
-      if (isValidDateString(value)) return value;
+      if (isValidDateString(value)) {
+        return value;
+      }
 
       // Older SDKs have double stringified timestamps that need JSON parsing
       // "\"2025-10-01T08:45:26.112648Z\""
       const parsed = JSON.parse(value);
-      if (isValidDateString(parsed)) return parsed;
+      if (isValidDateString(parsed)) {
+        return parsed;
+      }
     } catch {
       // Fallthrough
     }
@@ -3592,7 +3663,9 @@ export class OtelIngestionProcessor {
    * not a free-form label; "v1" or "latest" cannot resolve to one, so we drop them.
    */
   private parseExperimentItemVersion(value: unknown): string | undefined {
-    if (value == null || value === "") return undefined;
+    if (value == null || value === "") {
+      return undefined;
+    }
     const stringValue = String(value);
     if (isValidDateString(stringValue)) {
       return convertDateToClickhouseDateTime(new Date(stringValue));
@@ -3615,7 +3688,9 @@ export class OtelIngestionProcessor {
       attributes["langfuse.prompt.version"] ??
       this.parseLangfusePromptFromAISDK(attributes)?.version;
 
-    if (typeof raw === "number") return Number.isInteger(raw) ? raw : null;
+    if (typeof raw === "number") {
+      return Number.isInteger(raw) ? raw : null;
+    }
     if (typeof raw === "string" && /^\d+$/.test(raw.trim())) {
       return Number(raw);
     }
@@ -3627,7 +3702,9 @@ export class OtelIngestionProcessor {
   ): { name: string; version: number } | undefined {
     const aiSDKPrompt = attributes["ai.telemetry.metadata.langfusePrompt"];
 
-    if (!aiSDKPrompt) return;
+    if (!aiSDKPrompt) {
+      return;
+    }
 
     try {
       const parsed = JSON.parse(aiSDKPrompt as string);
@@ -3643,7 +3720,9 @@ export class OtelIngestionProcessor {
    * or `undefined` if invalid.
    */
   private parseJsonPayload = (payload: unknown): any => {
-    if (payload && typeof payload === "object") return payload;
+    if (payload && typeof payload === "object") {
+      return payload;
+    }
     if (typeof payload === "string") {
       try {
         return JSON.parse(payload);

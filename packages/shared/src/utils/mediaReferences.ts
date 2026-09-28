@@ -15,7 +15,9 @@ export function findMediaReferences(value: unknown) {
     return reference ? [reference] : [];
   }
 
-  if (typeof value !== "object" || value === null) return [];
+  if (typeof value !== "object" || value === null) {
+    return [];
+  }
 
   // The @string() type selector needs no filter expression, so script
   // evaluation can stay disabled. MediaReferenceStringSchema decides which

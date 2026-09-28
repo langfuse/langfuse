@@ -28,21 +28,24 @@ export const mediaRouter = createTRPCRouter({
         },
       });
 
-      if (!media)
+      if (!media) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Media asset not found",
         });
-      if (!media.uploadHttpStatus)
+      }
+      if (!media.uploadHttpStatus) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Media not yet uploaded",
         });
-      if (!(media.uploadHttpStatus === 200 || media.uploadHttpStatus === 201))
+      }
+      if (!(media.uploadHttpStatus === 200 || media.uploadHttpStatus === 201)) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: `Media upload failed`,
         });
+      }
 
       const mediaStorageClient = getMediaStorageServiceClient(media.bucketName);
       const ttlSeconds = env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS;

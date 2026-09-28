@@ -41,7 +41,9 @@ export const TestEmptyCaret = meta.story({
       const scroller = editor?.querySelector(".cm-scroller");
       expect(cursor).not.toBeNull();
       expect(scroller).not.toBeNull();
-      if (!cursor || !scroller) return;
+      if (!cursor || !scroller) {
+        return;
+      }
       const caretBounds = cursor.getBoundingClientRect();
       const scrollBounds = scroller.getBoundingClientRect();
       expect(caretBounds.left).toBeGreaterThanOrEqual(scrollBounds.left);

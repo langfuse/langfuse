@@ -87,7 +87,9 @@ export function HomeDashboardSelect({
       options={options}
       value={value}
       onValueChange={(id) => {
-        if (typeof id !== "string" || id === value) return;
+        if (typeof id !== "string" || id === value) {
+          return;
+        }
         onValueChange(id);
       }}
       placeholder={currentDashboardName}

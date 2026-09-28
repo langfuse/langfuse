@@ -129,14 +129,19 @@ function computeNumericRange(
   defaultMin: number,
   defaultMax: number,
 ): [number, number] | null {
-  if (conditions.length === 0) return [defaultMin, defaultMax];
+  if (conditions.length === 0) {
+    return [defaultMin, defaultMax];
+  }
   // The range editor writes exactly one inclusive lower and upper bound.
   // Other shapes must retain their operators and every separate condition.
-  if (conditions.length !== 2) return null;
+  if (conditions.length !== 2) {
+    return null;
+  }
   const minFilter = conditions.find((filter) => filter.operator === ">=");
   const maxFilter = conditions.find((filter) => filter.operator === "<=");
-  if (!minFilter || !maxFilter || minFilter.value > maxFilter.value)
+  if (!minFilter || !maxFilter || minFilter.value > maxFilter.value) {
     return null;
+  }
   return [minFilter.value, maxFilter.value];
 }
 
@@ -353,7 +358,9 @@ const resolveKeyScoreLevels = (
       (level): level is "observation" | "trace" =>
         level === "observation" || level === "trace",
     );
-    if (valid.length > 0) out[name] = valid;
+    if (valid.length > 0) {
+      out[name] = valid;
+    }
   }
   return out;
 };
@@ -389,7 +396,9 @@ const resolveKeyDetails = (
     | Record<string, string[]>
     | undefined,
 ): Record<string, string> | undefined => {
-  if (!Array.isArray(availableKeys)) return undefined;
+  if (!Array.isArray(availableKeys)) {
+    return undefined;
+  }
   const out: Record<string, string> = {};
   for (const option of availableKeys) {
     if (typeof option !== "string" && option.type !== undefined) {
@@ -409,11 +418,15 @@ const resolveKeyedValueOptions = (
   keyOptions: string[] | undefined,
   options: FacetOptions,
 ): Record<string, string[]> | undefined => {
-  if (keyOptions === undefined) return undefined;
+  if (keyOptions === undefined) {
+    return undefined;
+  }
   const out: Record<string, string[]> = {};
   for (const key of keyOptions) {
     const values = options[`${column}.${key}`];
-    if (!Array.isArray(values) || values.length === 0) continue;
+    if (!Array.isArray(values) || values.length === 0) {
+      continue;
+    }
     out[key] = values.map((v) => (typeof v === "string" ? v : v.value));
   }
   return Object.keys(out).length > 0 ? out : undefined;
@@ -426,7 +439,9 @@ const mergeAvailableValuesWithActiveFilters = (
   const merged: Record<string, string[]> = { ...availableValues };
 
   for (const filter of activeFilters) {
-    if (!filter.key) continue;
+    if (!filter.key) {
+      continue;
+    }
     merged[filter.key] = mergeUniqueStrings(merged[filter.key], filter.value);
   }
 
@@ -694,7 +709,9 @@ export function useSidebarFilterStateCore(
   const explicitFilterState = useMemo(() => {
     const defaultFilters = hookOptions.defaultExplicitFilterState ?? [];
     const merged = (() => {
-      if (defaultFilters.length === 0) return persistedExplicitFilterState;
+      if (defaultFilters.length === 0) {
+        return persistedExplicitFilterState;
+      }
       const explicitlyOwnedColumns = new Set(
         persistedExplicitFilterState.map((filter) => filter.column),
       );
@@ -908,7 +925,9 @@ export function useSidebarFilterStateCore(
     ) {
       return;
     }
-    if (pendingFiltersQuery === null) return;
+    if (pendingFiltersQuery === null) {
+      return;
+    }
 
     const normalizedUrlFiltersQuery = urlFiltersQuery ?? "";
     // An oversized pending query is intentionally never written to the URL;
@@ -937,7 +956,9 @@ export function useSidebarFilterStateCore(
       return;
     }
 
-    if (pendingFiltersQuery !== null) return;
+    if (pendingFiltersQuery !== null) {
+      return;
+    }
 
     if (typeof urlFiltersQuery === "string") {
       // Canonicalization also evicts an oversized query that arrived via the
@@ -984,11 +1005,21 @@ export function useSidebarFilterStateCore(
 
   // Mirror explicit URL filter state into session fallback storage.
   useEffect(() => {
-    if (stateLocationType !== "urlAndSessionStorage") return;
-    if (pendingFiltersQuery !== null) return;
-    if (typeof urlFiltersQuery !== "string") return;
-    if (!urlFiltersQuery) return;
-    if (urlFiltersQuery === storedFiltersQuery) return;
+    if (stateLocationType !== "urlAndSessionStorage") {
+      return;
+    }
+    if (pendingFiltersQuery !== null) {
+      return;
+    }
+    if (typeof urlFiltersQuery !== "string") {
+      return;
+    }
+    if (!urlFiltersQuery) {
+      return;
+    }
+    if (urlFiltersQuery === storedFiltersQuery) {
+      return;
+    }
 
     // Keep session fallback aligned to explicit URL links without clearing
     // previously saved state when URL has no `filter` parameter.
@@ -1108,7 +1139,9 @@ export function useSidebarFilterPresentation(
       prev?: FilterState,
     ) => {
       const colFilters = next.filter((f) => f.column === column);
-      if (colFilters.length === 0) return;
+      if (colFilters.length === 0) {
+        return;
+      }
       const identity = (f: FilterState[number]): string =>
         `${"key" in f ? f.key : ""}\u0000${f.operator}\u0000${JSON.stringify(
           "value" in f ? f.value : null,
@@ -1190,7 +1223,9 @@ export function useSidebarFilterPresentation(
         column,
         value,
       );
-      if (!selection) return;
+      if (!selection) {
+        return;
+      }
       updateFilter(column, selection.values, selection.operator);
     },
     [actionContext, filterState, updateFilter],
@@ -1237,7 +1272,9 @@ export function useSidebarFilterPresentation(
   const updateOperator = useCallback(
     (column: string, newOperator: "any of" | "all of" | "none of") => {
       const change = deriveOperatorChange(actionContext, filterState, column);
-      if (!change) return;
+      if (!change) {
+        return;
+      }
       applyOperatorChange(column, change.values, newOperator);
       emitOperatorToggled(
         column,
@@ -1291,7 +1328,9 @@ export function useSidebarFilterPresentation(
       value: string,
     ) => {
       const next = addTextFilterEntry(filterState, column, operator, value);
-      if (next === null) return; // blank input
+      if (next === null) {
+        return;
+      } // blank input
       setFilterState(next);
       emitFilterApplied("sidebar", column, next);
     },
@@ -1356,8 +1395,12 @@ export function useSidebarFilterPresentation(
       // shows a skeleton iff its own column is still in flight. This avoids the
       // coarse-flag false positive where a never-enumerated facet (metadata,
       // whose options are always undefined) would skeleton on every refetch.
-      if (loadingColumns) return loadingColumns.has(facetColumn);
-      if (!loading) return false;
+      if (loadingColumns) {
+        return loadingColumns.has(facetColumn);
+      }
+      if (!loading) {
+        return false;
+      }
       // Only show loading if the filter depends on options and options are not yet available
       // Filters that use options: categorical, keyValue, numericKeyValue, stringKeyValue
       // Filters that don't use options: numeric (uses facet.min/max), string (static), boolean (static)
@@ -1419,7 +1462,9 @@ export function useSidebarFilterPresentation(
               updateNumericFilter(facet.column, value, facet.min, facet.max),
             onRemoveCondition: (index: number) => {
               const condition = conditions[index];
-              if (!condition) return;
+              if (!condition) {
+                return;
+              }
               const filterIndex = filterState.indexOf(condition);
               setFilterState(filterState.filter((_, i) => i !== filterIndex));
               emitFacetCleared(facet.column, 1);
@@ -1760,13 +1805,21 @@ export function useSidebarFilterPresentation(
                 // Inverted: trueLabel count comes from "false", falseLabel count comes from "true"
                 const falseCount = processedCounts.get("false") ?? 0;
                 const trueCount = processedCounts.get("true") ?? 0;
-                if (falseCount > 0) counts.set(trueLabel, falseCount);
-                if (trueCount > 0) counts.set(falseLabel, trueCount);
+                if (falseCount > 0) {
+                  counts.set(trueLabel, falseCount);
+                }
+                if (trueCount > 0) {
+                  counts.set(falseLabel, trueCount);
+                }
               } else {
                 const trueCount = processedCounts.get("true") ?? 0;
                 const falseCount = processedCounts.get("false") ?? 0;
-                if (trueCount > 0) counts.set(trueLabel, trueCount);
-                if (falseCount > 0) counts.set(falseLabel, falseCount);
+                if (trueCount > 0) {
+                  counts.set(trueLabel, trueCount);
+                }
+                if (falseCount > 0) {
+                  counts.set(falseLabel, falseCount);
+                }
               }
             }
           }

@@ -18,7 +18,9 @@ export function toCompactVerbosityChatML(io: unknown): {
   data: string | null;
 } {
   try {
-    if (!io) return { success: false, data: null };
+    if (!io) {
+      return { success: false, data: null };
+    }
 
     // Case 1: Direct array
     if (Array.isArray(io)) {

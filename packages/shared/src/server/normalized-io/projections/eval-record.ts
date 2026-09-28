@@ -64,13 +64,17 @@ export function toEvalRecord(
     // Calls only ever come from the output side: a tool-call part on an
     // input-tagged message is history from an earlier turn, not something
     // this observation newly called
-    if (message.source !== "output") continue;
+    if (message.source !== "output") {
+      continue;
+    }
 
     // Parallel-call slot within the message (chat-completions `index`
     // semantics: tool_calls[i].index === i in assembled payloads).
     let callIndex = 0;
     for (const part of message.parts) {
-      if (part.type !== "tool-call") continue;
+      if (part.type !== "tool-call") {
+        continue;
+      }
 
       toolCalls.push({
         id: part.toolCallId ?? "",

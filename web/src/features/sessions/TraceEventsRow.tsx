@@ -143,9 +143,13 @@ const ObservationHeader = ({
 // Opens the session-detail "View" drawer by activating its trigger — the empty
 // notice's action routes through the one shared View control (no per-card state).
 const openSessionViewMenu = () => {
-  if (typeof document === "undefined") return;
+  if (typeof document === "undefined") {
+    return;
+  }
   const trigger = document.getElementById(SESSION_DETAIL_VIEW_TRIGGER_ID);
-  if (trigger instanceof HTMLElement) trigger.click();
+  if (trigger instanceof HTMLElement) {
+    trigger.click();
+  }
 };
 
 /**
@@ -495,7 +499,9 @@ const LazyTraceEventsRowInner = (props: LazyTraceEventsRowProps) => {
   const internalRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    if (!internalRef.current || shouldLoad) return;
+    if (!internalRef.current || shouldLoad) {
+      return;
+    }
     return observe(internalRef.current, () => setShouldLoad(true));
   }, [shouldLoad]);
 

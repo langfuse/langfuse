@@ -44,7 +44,9 @@ export const getRowHeightTailwindClass = (
   rowHeight?: RowHeight,
   customHeights?: CustomHeights,
 ) => {
-  if (!rowHeight) return undefined;
+  if (!rowHeight) {
+    return undefined;
+  }
   return customHeights?.[rowHeight] || defaultHeights[rowHeight];
 };
 

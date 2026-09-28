@@ -115,7 +115,9 @@ describe("compileLangfuseMediaMessages", () => {
     });
     const parallelResolveMedia = vi.fn(
       async ({ mediaId }: { mediaId: string }) => {
-        if (mediaId === "image-1") await firstResolution;
+        if (mediaId === "image-1") {
+          await firstResolution;
+        }
         return {
           url: `https://signed.example/${mediaId}`,
           mediaType: mediaId === "image-1" ? "image/jpeg" : "image/png",

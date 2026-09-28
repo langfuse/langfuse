@@ -48,7 +48,9 @@ export function DismissController({
     isHydrated &&
     (!dismissedItem || Date.now() - dismissedItem.dismissedAt > ttlMs);
 
-  if (!isVisible) return null;
+  if (!isVisible) {
+    return null;
+  }
 
   return children({
     onDismiss: () => {

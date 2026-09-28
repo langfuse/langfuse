@@ -26,7 +26,9 @@ export const TheCountStaysInsideTheIconsBox = meta.story({
     const badge = canvasElement.querySelector<HTMLElement>(
       "[data-testid='comment-count']",
     );
-    if (!badge) throw new Error("no capped count badge");
+    if (!badge) {
+      throw new Error("no capped count badge");
+    }
     const icon = badge.parentElement!;
     const box = icon.getBoundingClientRect();
     const drawn = badge.getBoundingClientRect();

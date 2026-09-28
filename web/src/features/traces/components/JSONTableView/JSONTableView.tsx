@@ -85,7 +85,9 @@ export function JSONTableView<T>({
   const estimateSize = useCallback(
     (index: number) => {
       const item = items[index];
-      if (!item) return collapsedRowHeight;
+      if (!item) {
+        return collapsedRowHeight;
+      }
       const key = getItemKey(item);
       return expandedKeys.has(key) ? expandedRowHeight : collapsedRowHeight;
     },
@@ -107,14 +109,18 @@ export function JSONTableView<T>({
 
   // Track topmost visible item for sticky header (virtualized mode)
   const virtualizedTopmostIndex = useMemo(() => {
-    if (!virtualized) return 0;
+    if (!virtualized) {
+      return 0;
+    }
     const virtualItems = rowVirtualizer.getVirtualItems();
     return virtualItems[0]?.index ?? 0;
   }, [virtualized, rowVirtualizer]);
 
   // Track scroll position for non-virtualized sticky header
   useEffect(() => {
-    if (virtualized || !scrollContainerRef.current) return;
+    if (virtualized || !scrollContainerRef.current) {
+      return;
+    }
 
     const container = scrollContainerRef.current;
     const handleScroll = () => {
@@ -143,7 +149,9 @@ export function JSONTableView<T>({
 
   // Notify about visible items changes (for viewport-based prefetching)
   useEffect(() => {
-    if (!virtualized || !onVisibleItemsChange) return;
+    if (!virtualized || !onVisibleItemsChange) {
+      return;
+    }
 
     const virtualItems = rowVirtualizer.getVirtualItems();
     const visibleItems = virtualItems
@@ -187,7 +195,9 @@ export function JSONTableView<T>({
           >
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
               const item = items[virtualRow.index];
-              if (!item) return null;
+              if (!item) {
+                return null;
+              }
 
               const key = getItemKey(item);
               const isExpanded = expandedKeys.has(key);

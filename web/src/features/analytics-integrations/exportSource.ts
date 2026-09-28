@@ -81,9 +81,13 @@ export function getExportSourceOptions(
   ctx: ExportSourceContext,
 ): SelectableExportSourceOption[] {
   return getAvailableExportSources(ctx).flatMap(({ source, blockedReason }) => {
-    if (blockedReason && source !== persisted) return [];
+    if (blockedReason && source !== persisted) {
+      return [];
+    }
     const option = EXPORT_SOURCE_OPTIONS.find((o) => o.value === source);
-    if (!option) return [];
+    if (!option) {
+      return [];
+    }
     return [{ ...option, unavailable: blockedReason !== undefined }];
   });
 }

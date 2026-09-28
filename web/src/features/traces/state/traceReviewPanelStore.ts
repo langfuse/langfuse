@@ -86,7 +86,9 @@ export function createTraceReviewPanelStore({
           });
           return;
         }
-        if (current?.hasDraft && !confirmDiscard()) return;
+        if (current?.hasDraft && !confirmDiscard()) {
+          return;
+        }
         set({
           active: "comments",
           comments: createCommentsSession(target, onCommentChange),
@@ -105,7 +107,9 @@ export function createTraceReviewPanelStore({
         const current = get().annotation;
         if (current?.key === key) {
           annotationFormRef.current?.refresh(data);
-          if (get().active === "annotate") annotationFormRef.current?.focus();
+          if (get().active === "annotate") {
+            annotationFormRef.current?.focus();
+          }
         }
         set({
           active: "annotate",
@@ -116,25 +120,33 @@ export function createTraceReviewPanelStore({
         trigger = element;
       },
       close() {
-        if (get().active === null) return;
+        if (get().active === null) {
+          return;
+        }
         set({ active: null });
-        if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+        if (trigger?.isConnected) {
+          trigger.focus({ preventScroll: true });
+        }
       },
       setCommentsDraft(key, hasDraft) {
         const current = get().comments;
-        if (current?.key !== key || current.hasDraft === hasDraft) return;
+        if (current?.key !== key || current.hasDraft === hasDraft) {
+          return;
+        }
         set({ comments: { ...current, hasDraft } });
       },
       setCommentsMentionsOpen(key, mentionsOpen) {
         const current = get().comments;
-        if (current?.key !== key || current.mentionsOpen === mentionsOpen)
+        if (current?.key !== key || current.mentionsOpen === mentionsOpen) {
           return;
+        }
         set({ comments: { ...current, mentionsOpen } });
       },
       consumeCommentsSelection(key) {
         const current = get().comments;
-        if (current?.key !== key || current.target.type !== "inline-comment")
+        if (current?.key !== key || current.target.type !== "inline-comment") {
           return;
+        }
         const { objectId, objectType, objectStartTime } = current.target;
         set({
           comments: {

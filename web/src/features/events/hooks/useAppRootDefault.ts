@@ -125,7 +125,9 @@ export function useAppRootDefault(params: {
       nextFilters: FilterState;
       origin: AppRootFilterChangeOrigin;
     }) => {
-      if (!enabled) return;
+      if (!enabled) {
+        return;
+      }
 
       const preferenceToPersist = getAppRootSuppressionToPersist({
         ...change,
@@ -191,13 +193,17 @@ export function useApplyAppRootFallback(params: {
       dateRange,
       now: Date.now(),
     });
-    if (!decision.shouldRemoveFilter) return;
+    if (!decision.shouldRemoveFilter) {
+      return;
+    }
 
     setFilterState(decision.nextFilters, {
       updateType: "replaceIn",
       origin: "system",
     });
-    if (decision.shouldInvalidateSdkVersion) removeSdkVersionCache();
+    if (decision.shouldInvalidateSdkVersion) {
+      removeSdkVersionCache();
+    }
   }, [
     additionalRowsFound,
     dateRange,

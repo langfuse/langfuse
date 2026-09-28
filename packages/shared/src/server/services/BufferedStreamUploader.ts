@@ -108,7 +108,9 @@ export class BufferedStreamUploader {
       await this.params.strategy.initialize();
 
       for await (const chunk of stream) {
-        if (this.errors.hasError()) break;
+        if (this.errors.hasError()) {
+          break;
+        }
 
         const buf = Buffer.isBuffer(chunk)
           ? chunk
@@ -242,7 +244,9 @@ export class BufferedStreamUploader {
       await Promise.race(this.inFlightUploads.values());
     }
 
-    if (this.errors.hasError()) return;
+    if (this.errors.hasError()) {
+      return;
+    }
 
     this.scheduleUpload(partData, this.partNumber);
   }

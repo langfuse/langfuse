@@ -145,7 +145,9 @@ export function buildViewAsTableHint(
   result: TableFilterHrefResult,
 ): ViewAsTableHint | null {
   const count = result.notApplicable.size + result.droppedForLength;
-  if (count === 0) return null;
+  if (count === 0) {
+    return null;
+  }
 
   const reasons = Array.from(result.notApplicable.values());
   if (result.droppedForLength > 0) {

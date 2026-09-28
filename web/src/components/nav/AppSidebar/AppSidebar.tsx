@@ -198,7 +198,9 @@ export function AppSidebar({
         if (notificationState.dismissedIds.includes(notification.id)) {
           return false;
         }
-        if (!notification.createdAt) return true;
+        if (!notification.createdAt) {
+          return true;
+        }
 
         const createdAt = new Date(notification.createdAt).getTime();
         return Date.now() <= createdAt + (notification.ttlMs ?? TWO_WEEKS_MS);
@@ -582,10 +584,18 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
     selfHostedPlanLabel ? ` ${selfHostedPlanLabel.short}` : ""
   }`;
   const color = React.useMemo(() => {
-    if (!update) return undefined;
-    if (update.updateType === "major") return "text-dark-red";
-    if (update.updateType === "minor") return "text-dark-yellow";
-    if (update.updateType === "patch") return undefined;
+    if (!update) {
+      return undefined;
+    }
+    if (update.updateType === "major") {
+      return "text-dark-red";
+    }
+    if (update.updateType === "minor") {
+      return "text-dark-yellow";
+    }
+    if (update.updateType === "patch") {
+      return undefined;
+    }
     return assertUnreachable(update.updateType);
   }, [update]);
 

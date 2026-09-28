@@ -7,7 +7,9 @@ export function ioredisRequestHook(
   span: Span,
   { cmdName, cmdArgs }: { cmdName: string; cmdArgs: unknown[] },
 ): void {
-  if (!Array.isArray(cmdArgs) || cmdArgs.length === 0) return;
+  if (!Array.isArray(cmdArgs) || cmdArgs.length === 0) {
+    return;
+  }
   const cmd = cmdName.toUpperCase();
   if (cmd === "AUTH" || cmd === "HELLO") {
     span.setAttribute("redis.full_command", `${cmdName} [REDACTED]`);

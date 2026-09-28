@@ -68,7 +68,9 @@ function runOtelIngestionWorkerAdmissionShadow(
     res.off("close", stopTracking);
   }
   function recordProcessingDuration() {
-    if (completed) return;
+    if (completed) {
+      return;
+    }
     completed = true;
     stopTracking();
     const processingDurationMs = Math.max(

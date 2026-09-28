@@ -78,7 +78,9 @@ export function resolveScoreType(
   level: "observation" | "trace",
   name: string,
 ): "numeric" | "categorical" | "boolean" | "both" | "unknown" {
-  if (ctx === undefined) return "unknown";
+  if (ctx === undefined) {
+    return "unknown";
+  }
   const numeric =
     level === "trace" ? ctx.traceNumericScoreNames : ctx.numericScoreNames;
   const categorical =
@@ -91,10 +93,18 @@ export function resolveScoreType(
   const isCat = categorical?.has(name) ?? false;
   const isBool = boolean?.has(name) ?? false;
   const typeCount = Number(isNum) + Number(isCat) + Number(isBool);
-  if (typeCount > 1) return "both";
-  if (isNum) return "numeric";
-  if (isCat) return "categorical";
-  if (isBool) return "boolean";
+  if (typeCount > 1) {
+    return "both";
+  }
+  if (isNum) {
+    return "numeric";
+  }
+  if (isCat) {
+    return "categorical";
+  }
+  if (isBool) {
+    return "boolean";
+  }
   return "unknown";
 }
 
@@ -113,17 +123,23 @@ function isObservedBooleanScore(
  * collapses to one any-of filter node. Null otherwise.
  */
 function collapseSameFieldOr(node: ASTNode): FilterNode | null {
-  if (node.kind !== "or") return null;
+  if (node.kind !== "or") {
+    return null;
+  }
   const filters = node.children.filter(
     (c): c is FilterNode => c.kind === "filter",
   );
-  if (filters.length !== node.children.length || filters.length < 2)
+  if (filters.length !== node.children.length || filters.length < 2) {
     return null;
+  }
   const first = filters[0]!;
-  if (first.op !== "=" || first.values.length !== 1) return null;
+  if (first.op !== "=" || first.values.length !== 1) {
+    return null;
+  }
   for (const f of filters) {
-    if (f.key !== first.key || f.op !== "=" || f.values.length !== 1)
+    if (f.key !== first.key || f.op !== "=" || f.values.length !== 1) {
       return null;
+    }
   }
   return {
     kind: "filter",
@@ -203,8 +219,12 @@ export function astToFilterState(
  */
 function lowerDefaultTextField(ctx: LowerContext): boolean {
   const field = ctx.registry.defaultTextField;
-  if (ctx.registry.allowFreeText || field === null) return false;
-  if (ctx.searchTerms.length === 0) return false;
+  if (ctx.registry.allowFreeText || field === null) {
+    return false;
+  }
+  if (ctx.searchTerms.length === 0) {
+    return false;
+  }
   lowerFilterNode(
     {
       kind: "filter",
@@ -270,7 +290,9 @@ function lowerTopLevel(
         return;
       }
       // Nested parenthesized AND groups flatten into the top-level chain.
-      for (const c of node.children) lowerTopLevel(c, false, ctx);
+      for (const c of node.children) {
+        lowerTopLevel(c, false, ctx);
+      }
       return;
     }
     case "or": {
@@ -302,7 +324,9 @@ function lowerFilterNode(
     ref?.type === "searchScope" ||
     (ref?.type === "pseudo" && ref.id === "in")
   ) {
-    if (node.values.length === 0) return;
+    if (node.values.length === 0) {
+      return;
+    }
     const issue =
       operatorIssue(ref, node.op, node.valueOp ?? "or") ??
       (negated ? negationIssue(ref, node.op, node.valueOp ?? "or") : null);
@@ -621,7 +645,9 @@ function lowerNumber(
   errors: string[],
 ): void {
   const numbers = parseNumbers(node, field.id, errors);
-  if (numbers === null) return;
+  if (numbers === null) {
+    return;
+  }
 
   if (node.op === "=" || node.op === "exact") {
     // negationIssue blocks negated equality (needs < OR >) before this point.
@@ -787,7 +813,9 @@ function lowerScores(
 
   const lowerNumeric = (): void => {
     const numbers = parseNumbers(node, path, errors);
-    if (numbers === null) return;
+    if (numbers === null) {
+      return;
+    }
     if (node.op === "=" || node.op === "exact") {
       if (negated) {
         errors.push(

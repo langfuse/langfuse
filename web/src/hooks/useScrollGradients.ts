@@ -19,7 +19,9 @@ export function useScrollGradients<TElement extends HTMLElement>(
     setElement(element);
   }, []);
   const recompute = useCallback(() => {
-    if (!element || !enabled) return;
+    if (!element || !enabled) {
+      return;
+    }
 
     const maxScrollTop = element.scrollHeight - element.clientHeight;
     const nextTop =
@@ -38,7 +40,9 @@ export function useScrollGradients<TElement extends HTMLElement>(
   }, [element, enabled]);
 
   useEffect(() => {
-    if (!element || !enabled) return;
+    if (!element || !enabled) {
+      return;
+    }
 
     const update = () => recompute();
     update();

@@ -50,7 +50,9 @@ export default function RenameOrganization() {
   });
 
   function onSubmit(values: z.infer<typeof projectNameSchema>) {
-    if (!organization || !hasAccess) return;
+    if (!organization || !hasAccess) {
+      return;
+    }
     capture("organization_settings:rename_form_submit");
     renameOrganization
       .mutateAsync({

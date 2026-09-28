@@ -74,14 +74,18 @@ export const getLegacyApiUsageSummaries = async ({
 }: {
   projectIds: string[];
 }): Promise<LegacyApiUsageSummaryByProjectResultRow[]> => {
-  if (projectIds.length === 0) return [];
+  if (projectIds.length === 0) {
+    return [];
+  }
 
   const nowMs = Date.now();
   const cachedBlobs = await readLegacyApiUsageCache(projectIds);
   const rows: LegacyApiUsageSummaryByProjectResultRow[] = [];
   projectIds.forEach((projectId, index) => {
     const blob = cachedBlobs[index];
-    if (!blob) return;
+    if (!blob) {
+      return;
+    }
     rows.push(
       ...trimLegacyApiUsageRows(blob.rows, nowMs).map((row) => ({
         projectId,

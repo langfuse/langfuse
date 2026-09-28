@@ -150,7 +150,9 @@ export function ProjectNotificationChannels({
       <Dialog
         open={Boolean(webhookSecret)}
         onOpenChange={(open) => {
-          if (!open) actions.dismissWebhookSecret();
+          if (!open) {
+            actions.dismissWebhookSecret();
+          }
         }}
       >
         <DialogContent className="max-w-4xl">

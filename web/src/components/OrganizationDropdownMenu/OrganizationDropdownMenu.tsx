@@ -30,8 +30,12 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
             .sort((a, b) => {
               const isDemoA = env.NEXT_PUBLIC_DEMO_ORG_ID === a.id;
               const isDemoB = env.NEXT_PUBLIC_DEMO_ORG_ID === b.id;
-              if (isDemoA) return 1;
-              if (isDemoB) return -1;
+              if (isDemoA) {
+                return 1;
+              }
+              if (isDemoB) {
+                return -1;
+              }
               return 0;
             })
             .flatMap((organization) => [

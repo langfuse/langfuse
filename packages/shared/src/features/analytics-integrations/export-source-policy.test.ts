@@ -82,7 +82,9 @@ describe("validateExportSource matrix", () => {
       cloud(PROJECT_POST),
     );
     expect(res).toMatchObject({ ok: false });
-    if (!res.ok) expect(res.message).toContain("Cloud projects");
+    if (!res.ok) {
+      expect(res.message).toContain("Cloud projects");
+    }
   });
 
   it("legacy on Cloud: integration cutoff — new row (null) and >= cutoff blocked, pre-cutoff row grandfathered", () => {
@@ -96,8 +98,9 @@ describe("validateExportSource matrix", () => {
     expect(reasonOf("TRACES_OBSERVATIONS", cloud(ROW_AT))).toBe("cloud-cutoff");
     expect(reasonOf("TRACES_OBSERVATIONS", cloud(null))).toBe("cloud-cutoff");
     const res = validateExportSource("TRACES_OBSERVATIONS", cloud(null));
-    if (!res.ok)
+    if (!res.ok) {
       expect(res.message).toContain("integrations created on or after");
+    }
   });
 
   it("omitted context fields skip their check", () => {
@@ -146,7 +149,9 @@ describe("validateExportSource matrix", () => {
     ).toBe("cloud-cutoff");
     // Operator-facing message names the env var.
     const res = validateExportSource("TRACES_OBSERVATIONS", eventsOnly);
-    if (!res.ok) expect(res.message).toContain("events_only");
+    if (!res.ok) {
+      expect(res.message).toContain("events_only");
+    }
   });
 
   it("legacy on dual/legacy write modes: unaffected", () => {
@@ -415,7 +420,9 @@ describe("per-family exporter cutoff", () => {
       }),
     );
     expect(res.ok).toBe(false);
-    if (res.ok) return;
+    if (res.ok) {
+      return;
+    }
     expect(res.message).toContain(
       LEGACY_ANALYTICS_EXPORTER_CUTOFF.toISOString(),
     );
@@ -487,7 +494,9 @@ describe("defaultExportSource", () => {
         // Write mode `legacy` on Cloud cannot serve enriched and cannot use
         // legacy either, so no source is selectable; the default is then a
         // misconfiguration signal rather than a usable value.
-        if (mode === "legacy" && isCloud) continue;
+        if (mode === "legacy" && isCloud) {
+          continue;
+        }
         const c = ctx({
           isCloud,
           enrichedAvailable: areEnrichedWritesActive(mode),

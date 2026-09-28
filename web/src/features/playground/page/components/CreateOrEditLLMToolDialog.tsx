@@ -119,7 +119,9 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
   }
 
   async function handleDelete() {
-    if (!existingLlmTool) return;
+    if (!existingLlmTool) {
+      return;
+    }
 
     await deleteLlmTool.mutateAsync({
       id: existingLlmTool.id,

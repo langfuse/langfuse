@@ -178,7 +178,9 @@ export async function assertEvaluatorConfigurationValid(params: {
       outputDefinition: params.definition.outputDefinition,
     },
   });
-  if (error) throw new EvaluatorModelConfigurationError(error);
+  if (error) {
+    throw new EvaluatorModelConfigurationError(error);
+  }
 }
 
 export async function getDecisionModelConfigurationError(params: {
@@ -219,5 +221,7 @@ async function assertDecisionModelDefinitionValid(params: {
   });
 
   const error = await getDecisionModelConfigurationError(params);
-  if (error) throw new EvaluatorModelConfigurationError(error);
+  if (error) {
+    throw new EvaluatorModelConfigurationError(error);
+  }
 }

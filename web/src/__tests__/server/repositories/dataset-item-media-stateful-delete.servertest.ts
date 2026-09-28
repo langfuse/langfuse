@@ -60,7 +60,9 @@ describe("Dataset item media stateful delete", () => {
       datasetId,
       input: { image: media.referenceString },
     });
-    if (!result.success) throw new Error(result.message);
+    if (!result.success) {
+      throw new Error(result.message);
+    }
 
     const itemId = result.datasetItem.id;
     await deleteDatasetItem({ projectId, datasetItemId: itemId });

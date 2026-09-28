@@ -64,7 +64,9 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
     attempts = 5,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
     const base = await super.validate(args, attempts);
-    if (!base.valid) return base;
+    if (!base.valid) {
+      return base;
+    }
     return this.assertReplicasConverged(attempts);
   }
 
@@ -411,7 +413,9 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
     });
     const partStillActive =
       result.length > 0 && parseInt(result[0].count, 10) > 0;
-    if (partStillActive) return null;
+    if (partStillActive) {
+      return null;
+    }
 
     return (
       `Part ${todo.partId} no longer active after processing — its rows are in a ` +
@@ -430,7 +434,9 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
     state: ChunkedBackfillState<PartChunkTodo>,
   ): Promise<void> {
     const completedTodos = state.todos.filter((t) => t.status === "completed");
-    if (completedTodos.length === 0) return;
+    if (completedTodos.length === 0) {
+      return;
+    }
 
     logger.info(
       `${this.logPrefix} Running final verification for ${completedTodos.length} completed parts...`,

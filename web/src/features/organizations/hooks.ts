@@ -40,8 +40,12 @@ const useOrganization = (organizationId: string | null) => {
     },
   );
 
-  if (fromSession) return fromSession;
-  if (isAdmin) return adminFallback.data ?? null;
+  if (fromSession) {
+    return fromSession;
+  }
+  if (isAdmin) {
+    return adminFallback.data ?? null;
+  }
   return null;
 };
 

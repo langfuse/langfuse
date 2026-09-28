@@ -227,18 +227,20 @@ export async function updatePublicDashboard(params: {
       params.input.description ?? dashboard.description,
     );
   }
-  if (definition !== undefined)
+  if (definition !== undefined) {
     dashboard = await DashboardService.updateDashboardDefinition(
       dashboard.id,
       params.projectId,
       definition,
     );
-  if (params.input.filters !== undefined)
+  }
+  if (params.input.filters !== undefined) {
     dashboard = await DashboardService.updateDashboardFilters(
       dashboard.id,
       params.projectId,
       params.input.filters,
     );
+  }
   const result = toApiDashboard(dashboard);
   await auditLog({
     action: "update",
@@ -328,8 +330,9 @@ export async function addPublicDashboardPlacement(params: {
   };
   if (
     current.definition.widgets.some((existing) => existing.id === placement.id)
-  )
+  ) {
     throw new LangfuseConflictError(`Placement ${placement.id} already exists`);
+  }
   const internalPlacement = toInternalPlacement(placement);
   // Existing placements were validated when they were added; only the new
   // placement's reference needs checking.
@@ -360,10 +363,11 @@ export async function updatePublicDashboardPlacement(params: {
   const existing = current.definition.widgets.find(
     (placement) => placement.id === params.placementId,
   );
-  if (!existing)
+  if (!existing) {
     throw new LangfuseNotFoundError(
       `Placement ${params.placementId} not found`,
     );
+  }
   // Pure move/resize: the placement's content is immutable, so no reference
   // re-validation is needed.
   const updated: InternalPlacement = {
@@ -398,10 +402,11 @@ export async function deletePublicDashboardPlacement(params: {
     !current.definition.widgets.some(
       (placement) => placement.id === params.placementId,
     )
-  )
+  ) {
     throw new LangfuseNotFoundError(
       `Placement ${params.placementId} not found`,
     );
+  }
   await writeDashboardDefinition({
     projectId: params.projectId,
     current,

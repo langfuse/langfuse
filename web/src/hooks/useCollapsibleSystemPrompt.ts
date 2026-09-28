@@ -18,7 +18,9 @@ let inMemoryPreference: boolean | null = null;
 function readCollapsePreference(): boolean {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored !== null) return stored !== "false";
+    if (stored !== null) {
+      return stored !== "false";
+    }
     // Migration: the legacy key stored `false` when a user explicitly
     // expanded a system prompt. Write the choice through to the new key so
     // it survives removing the legacy fallback; the write happens at most
@@ -35,11 +37,14 @@ function readCollapsePreference(): boolean {
 
 function subscribeToCollapsePreference(onChange: () => void): () => void {
   const handleStorage = (e: StorageEvent) => {
-    if (e.key === STORAGE_KEY) onChange();
+    if (e.key === STORAGE_KEY) {
+      onChange();
+    }
   };
   const handleCustomEvent = (e: Event) => {
-    if ((e as CustomEvent<{ key: string }>).detail?.key === STORAGE_KEY)
+    if ((e as CustomEvent<{ key: string }>).detail?.key === STORAGE_KEY) {
       onChange();
+    }
   };
   window.addEventListener("storage", handleStorage);
   window.addEventListener("localStorageChange", handleCustomEvent);

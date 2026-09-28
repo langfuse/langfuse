@@ -45,8 +45,12 @@ const isUntouchedDefault = (order: string[]): boolean => {
 export const resetStaleDefaultColumnOrder = (
   order: string[],
 ): string[] | null => {
-  if (!order.includes(ALWAYS_PRESENT_ID)) return null; // defer: no columns yet
-  if (!isUntouchedDefault(order)) return order; // his own order, not ours
+  if (!order.includes(ALWAYS_PRESENT_ID)) {
+    return null;
+  } // defer: no columns yet
+  if (!isUntouchedDefault(order)) {
+    return order;
+  } // his own order, not ours
 
   // Dropping the stored order makes `useColumnOrder` rebuild it from the
   // table's current column definitions, so the new default lives in exactly one

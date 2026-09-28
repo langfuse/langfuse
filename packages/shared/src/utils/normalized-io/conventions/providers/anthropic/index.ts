@@ -81,7 +81,9 @@ function filePartFromAnthropicSource(
       : source.type === "file" && fileId
         ? { kind: "reference", id: fileId }
         : undefined;
-  if (!content) return null;
+  if (!content) {
+    return null;
+  }
 
   return compact<FilePart>({
     type: "file",
@@ -97,7 +99,9 @@ const normalizeAnthropicImage: PartHandler = (value) => {
   // Anthropic image blocks carry a `source`; source-less `image` parts on
   // the same type name belong to the AI SDK dialect and fall through.
   const source = asRecord(value.source);
-  if (!source) return unmatched;
+  if (!source) {
+    return unmatched;
+  }
   const part = filePartFromAnthropicSource(source, {
     fallbackMediaType: "image/*",
   });
@@ -128,7 +132,9 @@ const normalizeAnthropicMcpToolCall: PartHandler = (value) =>
   );
 
 const normalizeAnthropicThinking: PartHandler = (value) => {
-  if (value.thinking === null || value.thinking === undefined) return unmatched;
+  if (value.thinking === null || value.thinking === undefined) {
+    return unmatched;
+  }
   return claimed(
     reasoningPart(value.thinking, optionalString(value.signature)),
   );
@@ -154,7 +160,9 @@ const normalizeAnthropicDocument: PartHandler = (value) => {
         }),
       })
     : null;
-  if (part) return claimed(part);
+  if (part) {
+    return claimed(part);
+  }
 
   // Text and structured-content documents are semantic content, but do not
   // have a file reference that a renderer can resolve.
@@ -167,7 +175,9 @@ const normalizeAnthropicDocument: PartHandler = (value) => {
 
 const normalizeAnthropicContainerUpload: PartHandler = (value) => {
   const fileId = optionalString(value.file_id);
-  if (!fileId) return unmatched;
+  if (!fileId) {
+    return unmatched;
+  }
   // Opaque reference: no media-type signal (README assumption 11).
   return claimed({ type: "file", content: { kind: "reference", id: fileId } });
 };
@@ -209,7 +219,9 @@ function anthropicSystemMessage(
   root: Record<string, unknown>,
   kind: "input" | "output",
 ): MessageSource | undefined {
-  if (kind !== "input" || !("system" in root)) return undefined;
+  if (kind !== "input" || !("system" in root)) {
+    return undefined;
+  }
   return {
     kind: "single",
     value: { content: recordKeyAsParsed(root, "system") },
@@ -229,7 +241,9 @@ export const anthropicProvider = {
   citationKeys: ANTHROPIC_CITATION_KEYS,
   // Anthropic tool declarations: { name, description, input_schema }.
   tryNormalizeToolDefinition: (value: Record<string, unknown>) => {
-    if (value.input_schema === undefined) return unmatched;
+    if (value.input_schema === undefined) {
+      return unmatched;
+    }
     const definition = toolDefinition({
       name: value.name,
       description: value.description,

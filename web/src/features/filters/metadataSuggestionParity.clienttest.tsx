@@ -55,7 +55,9 @@ function MetadataFacetHarness() {
   const facet = queryFilter.filters.find(
     (f): f is StringKeyValueUIFilter => f.column === "metadata",
   );
-  if (!facet) throw new Error("metadata facet missing");
+  if (!facet) {
+    throw new Error("metadata facet missing");
+  }
 
   return (
     <KeyValueFilterBuilder

@@ -72,9 +72,15 @@ class BillingService {
 
   /** Returns true if a Price is metered (classic `usage_type` or flexible `recurring.meter`). */
   private isMetered(price: Stripe.Price | undefined): boolean {
-    if (!price) return false;
-    if (price.recurring?.usage_type === "metered") return true;
-    if ((price.recurring as any)?.meter) return true;
+    if (!price) {
+      return false;
+    }
+    if (price.recurring?.usage_type === "metered") {
+      return true;
+    }
+    if ((price.recurring as any)?.meter) {
+      return true;
+    }
     return false;
   }
 
@@ -794,21 +800,23 @@ class BillingService {
 
         const { parsedOrg } = await this.getParsedOrg(orgId);
 
-        if (parsedOrg.cloudConfig?.plan)
+        if (parsedOrg.cloudConfig?.plan) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message:
               "Cannot change plan for orgs that have a manually set plan",
           });
+        }
 
         const stripeSubscriptionId =
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
 
-        if (!stripeSubscriptionId)
+        if (!stripeSubscriptionId) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "Organization does not have an active subscription",
           });
+        }
 
         span.setAttributes({
           "stripe.subscription_id": stripeSubscriptionId,
@@ -953,11 +961,12 @@ class BillingService {
         const subscriptionProductItem = subscription.items.data.find(
           (i) => i.price.recurring?.usage_type !== "metered",
         );
-        if (!subscriptionProductItem)
+        if (!subscriptionProductItem) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "Current subscription does not contain a plan item",
           });
+        }
 
         const currentSubscriptionProductId =
           typeof subscriptionProductItem.price.product === "string"
@@ -1185,11 +1194,12 @@ class BillingService {
 
         const subscriptionId =
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
-        if (!subscriptionId)
+        if (!subscriptionId) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "No active subscription to cancel",
           });
+        }
 
         // Set span attributes for context
         span.setAttributes({
@@ -1283,11 +1293,12 @@ class BillingService {
 
         const subscriptionId =
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
-        if (!subscriptionId)
+        if (!subscriptionId) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "No active subscription to reactivate",
           });
+        }
 
         span.setAttributes({
           "stripe.subscription_id": subscriptionId,
@@ -1494,11 +1505,12 @@ class BillingService {
 
         const subscriptionId =
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
-        if (!subscriptionId)
+        if (!subscriptionId) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "No active subscription found",
           });
+        }
 
         span.setAttributes({
           "stripe.subscription_id": subscriptionId,
@@ -1836,7 +1848,9 @@ class BillingService {
               },
             );
             const totalUsage = usageInvoiceLines.reduce((acc, line) => {
-              if (line.quantity) return acc + line.quantity;
+              if (line.quantity) {
+                return acc + line.quantity;
+              }
               return acc;
             }, 0);
 
@@ -1917,11 +1931,12 @@ class BillingService {
 
         const subscriptionId =
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
-        if (!subscriptionId)
+        if (!subscriptionId) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "Organization does not have an active subscription",
           });
+        }
 
         span.setAttributes({
           "stripe.subscription_id": subscriptionId,
@@ -1954,9 +1969,13 @@ class BillingService {
 
         // Avoid adding duplicate promotion codes
         const alreadyApplied = (subscription.discounts || []).some((d) => {
-          if (!isExpandedOrNullable(d)) return false;
+          if (!isExpandedOrNullable(d)) {
+            return false;
+          }
           const pc = d.promotion_code;
-          if (!isExpandedOrNullable(pc) || pc === null) return false;
+          if (!isExpandedOrNullable(pc) || pc === null) {
+            return false;
+          }
           // match by id or code
           return (
             (typeof pc === "string" && pc === promo.id) ||
@@ -1971,7 +1990,9 @@ class BillingService {
         // Preserve existing discounts similar to schedule update logic
         const existingDiscounts = (subscription.discounts || [])
           .map((discount) => {
-            if (!isExpandedOrNullable(discount)) return undefined;
+            if (!isExpandedOrNullable(discount)) {
+              return undefined;
+            }
 
             const coupon = discount.coupon;
             const promotionCode = discount.promotion_code;

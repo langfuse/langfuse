@@ -154,7 +154,9 @@ const applyExperimentItemCursor = (
   cursor?: ExperimentCursor,
 ) =>
   builder.when(Boolean(cursor), (b) => {
-    if (!cursor) return b;
+    if (!cursor) {
+      return b;
+    }
 
     return b.whereRaw(
       "e.start_time <= {lastTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id, e.experiment_id) < ({lastTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String}, {lastExperimentId: String})",
@@ -178,7 +180,9 @@ const applyExperimentSummaryCursor = (
   cursor?: ExperimentCursor,
 ) =>
   builder.when(Boolean(cursor), (b) => {
-    if (!cursor) return b;
+    if (!cursor) {
+      return b;
+    }
 
     return b
       .whereRaw(
@@ -344,7 +348,9 @@ export async function queryExperimentSummariesForPublicApi(
 ) {
   const rows = await queryExperimentSummaryRowsForPublicApi(params);
 
-  if (!params.includeScores || rows.length === 0) return rows;
+  if (!params.includeScores || rows.length === 0) {
+    return rows;
+  }
 
   const scoreTimestampBounds = scoreTimestampBoundsFromRows(
     rows,
@@ -465,7 +471,9 @@ export async function queryExperimentItemsForPublicApi(
 ) {
   const rows = await queryExperimentItemRowsForPublicApi(params);
 
-  if (!params.includeScores || rows.length === 0) return rows;
+  if (!params.includeScores || rows.length === 0) {
+    return rows;
+  }
 
   const scoreTimestampBounds = scoreTimestampBoundsFromRows(
     rows,

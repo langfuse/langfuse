@@ -58,13 +58,19 @@ const getHeaderValue = (
   headers: IngestionHeaderMap | undefined,
   name: string,
 ): string => {
-  if (!headers) return "";
+  if (!headers) {
+    return "";
+  }
 
   const directValue = headers[name];
-  if (typeof directValue === "string") return directValue;
+  if (typeof directValue === "string") {
+    return directValue;
+  }
 
   const underscoreValue = headers[name.replaceAll("-", "_")];
-  if (typeof underscoreValue === "string") return underscoreValue;
+  if (typeof underscoreValue === "string") {
+    return underscoreValue;
+  }
 
   const normalizedName = name.toLowerCase().replaceAll("_", "-");
   const matchedValue = Object.entries(headers).find(
@@ -72,7 +78,9 @@ const getHeaderValue = (
       typeof value === "string" &&
       headerName.toLowerCase().replaceAll("_", "-") === normalizedName,
   )?.[1];
-  if (typeof matchedValue === "string") return matchedValue;
+  if (typeof matchedValue === "string") {
+    return matchedValue;
+  }
 
   return "";
 };
@@ -197,9 +205,15 @@ export const classifyIngestionSdkAttribution = (params: {
   const missingVersion =
     !sdkVersion || sdkVersion === UNKNOWN_INGESTION_SDK_VALUE;
 
-  if (missingName && missingVersion) return "missing_name_and_version";
-  if (missingName) return "missing_name";
-  if (missingVersion) return "missing_version";
+  if (missingName && missingVersion) {
+    return "missing_name_and_version";
+  }
+  if (missingName) {
+    return "missing_name";
+  }
+  if (missingVersion) {
+    return "missing_version";
+  }
   return "attributed";
 };
 

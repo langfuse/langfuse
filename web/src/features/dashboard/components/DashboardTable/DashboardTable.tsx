@@ -50,7 +50,9 @@ export function DashboardTable({
         enableSorting: true,
         size: 200,
         getCell: (name, { row }) => {
-          if (!name) return undefined;
+          if (!name) {
+            return undefined;
+          }
 
           return {
             type: "link",

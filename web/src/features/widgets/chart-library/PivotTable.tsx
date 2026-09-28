@@ -312,7 +312,9 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   // Handle sort click events - simple cycling
   const handleSort = useCallback(
     (column: string) => {
-      if (!onSortChange) return;
+      if (!onSortChange) {
+        return;
+      }
       const nextSort = getNextSortState(
         config?.defaultSort || null,
         sortState || null,

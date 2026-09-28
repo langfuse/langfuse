@@ -186,11 +186,15 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     )
       .then((result) => {
         clearTimeout(slowTimer); // a landed layout is not a slow one
-        if (!cancelled) setLayout(result);
+        if (!cancelled) {
+          setLayout(result);
+        }
       })
       .catch((error) => {
         clearTimeout(slowTimer);
-        if (cancelled) return; // superseded — the rejection IS the cancellation
+        if (cancelled) {
+          return;
+        } // superseded — the rejection IS the cancellation
         // Stack overflow is converted to `tooLarge` inside runGraphLayout.
         // If a wrapper still rejects with that signature, treat it as the
         // same expected "cannot lay out" state — do not page Sentry.
@@ -216,7 +220,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   // Track container size.
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el) {
+      return;
+    }
     const observer = new ResizeObserver(() => {
       setSize({ width: el.clientWidth, height: el.clientHeight });
     });
@@ -229,7 +235,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   // ZERO React renders (compact/fitted bail on unchanged values).
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el) {
+      return;
+    }
     const selection = select(el);
     const zoomBehavior = createZoom<HTMLDivElement, unknown>()
       .scaleExtent([SCALE_MIN, SCALE_MAX])
@@ -237,7 +245,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
         const { x, y, k } = event.transform;
         // sourceEvent is set only for real gestures (drag/wheel/pinch) — they
         // become the override; programmatic fits keep deriving.
-        if (event.sourceEvent) overrideRef.current = { x, y, k };
+        if (event.sourceEvent) {
+          overrideRef.current = { x, y, k };
+        }
         transformRef.current = { x, y, k };
         const world = worldRef.current;
         if (world) {
@@ -267,7 +277,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   // extent is infinite).
   useEffect(() => {
     const zoomBehavior = zoomRef.current;
-    if (!zoomBehavior || !layout) return;
+    if (!zoomBehavior || !layout) {
+      return;
+    }
     zoomBehavior.translateExtent([
       [-layout.width, -layout.height],
       [layout.width * 2, layout.height * 2],
@@ -279,7 +291,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   const applyTransform = useCallback((next: Transform) => {
     const selection = selectionRef.current;
     const zoomBehavior = zoomRef.current;
-    if (!selection || !zoomBehavior) return;
+    if (!selection || !zoomBehavior) {
+      return;
+    }
     zoomBehavior.transform(
       selection,
       zoomIdentity.translate(next.x, next.y).scale(next.k),
@@ -292,8 +306,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       layout.width === 0 ||
       layout.height === 0 ||
       size.width === 0
-    )
+    ) {
       return null;
+    }
     // Clamp within d3-zoom's scaleExtent — below SCALE_MIN, applyTransform
     // would write a scale d3 then snaps back on the first gesture (a jump).
     const k = Math.max(
@@ -317,9 +332,13 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   // strand a stale frame). With an override (user gesture) the view is the
   // user's — untouched until Fit or a graph change clears it.
   useEffect(() => {
-    if (overrideRef.current) return;
+    if (overrideRef.current) {
+      return;
+    }
     const fit = computeFit();
-    if (fit) applyTransform(fit);
+    if (fit) {
+      applyTransform(fit);
+    }
   }, [computeFit, applyTransform]);
 
   const handleSelect = useCallback(
@@ -345,7 +364,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   const zoomBy = (factor: number) => {
     const selection = selectionRef.current;
     const zoomBehavior = zoomRef.current;
-    if (!selection || !zoomBehavior) return;
+    if (!selection || !zoomBehavior) {
+      return;
+    }
     zoomBehavior.scaleBy(selection, factor);
     // Toolbar zoom is a user decision — it becomes the override (scaleBy goes
     // through d3 without a sourceEvent, so record it explicitly).
@@ -358,7 +379,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   const handleFit = () => {
     overrideRef.current = null;
     const fit = computeFit();
-    if (fit) applyTransform(fit);
+    if (fit) {
+      applyTransform(fit);
+    }
   };
 
   if (!graph.nodes.length) {
@@ -532,7 +555,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           </svg>
           {layout.nodes.map((node) => {
             const meta = nodeMeta.get(node.id);
-            if (!meta) return null;
+            if (!meta) {
+              return null;
+            }
             return (
               <GraphNode
                 key={node.id}

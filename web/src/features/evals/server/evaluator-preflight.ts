@@ -64,7 +64,9 @@ export async function getEvaluatorDefinitionConfigurationError(params: {
   projectId: string;
   template: EvaluatorPreflightDefinition;
 }): Promise<string | null> {
-  if (params.template.type === EvalTemplateType.CODE) return null;
+  if (params.template.type === EvalTemplateType.CODE) {
+    return null;
+  }
 
   const prepared = await prepareEvaluatorDefinition(params);
   return prepared.valid ? null : prepared.error;
@@ -74,10 +76,14 @@ export async function getEvaluatorDefinitionPreflightError(params: {
   projectId: string;
   template: EvaluatorPreflightDefinition;
 }): Promise<string | null> {
-  if (params.template.type === EvalTemplateType.CODE) return null;
+  if (params.template.type === EvalTemplateType.CODE) {
+    return null;
+  }
 
   const prepared = await prepareEvaluatorDefinition(params);
-  if (!prepared.valid) return prepared.error;
+  if (!prepared.valid) {
+    return prepared.error;
+  }
 
   // Some test environments run a built app against seeded local data. In
   // those cases we still want to validate model selection and schema

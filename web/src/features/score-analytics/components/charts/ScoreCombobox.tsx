@@ -35,7 +35,9 @@ export function ScoreCombobox({
 }: ScoreComboboxProps) {
   // 1. Filter options by dataType
   const filteredOptions = useMemo(() => {
-    if (!filterByDataType) return options;
+    if (!filterByDataType) {
+      return options;
+    }
 
     return options.filter((opt) => {
       if (Array.isArray(filterByDataType)) {
@@ -49,7 +51,9 @@ export function ScoreCombobox({
   const groupedOptions: ComboboxOptionGroup<string>[] = useMemo(() => {
     const grouped = filteredOptions.reduce(
       (acc, opt) => {
-        if (!acc[opt.dataType]) acc[opt.dataType] = [];
+        if (!acc[opt.dataType]) {
+          acc[opt.dataType] = [];
+        }
         acc[opt.dataType].push(opt);
         return acc;
       },

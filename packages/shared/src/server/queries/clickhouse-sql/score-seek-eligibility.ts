@@ -43,15 +43,21 @@ const SEEK_ELIGIBLE_FIELDS = new Set([
  * that also carries a prunable `trace_id = …`.
  */
 export const isSeekEligibleFilter = (filter: Filter): boolean => {
-  if (filter.clickhouseTable !== "scores") return false;
-  if (!SEEK_ELIGIBLE_FIELDS.has(filter.field)) return false;
+  if (filter.clickhouseTable !== "scores") {
+    return false;
+  }
+  if (!SEEK_ELIGIBLE_FIELDS.has(filter.field)) {
+    return false;
+  }
 
   if (filter instanceof StringFilter && filter.operator === "=") {
     return !(filter.emptyEqualsNull && filter.value === "");
   }
 
   if (filter instanceof StringOptionsFilter && filter.operator === "any of") {
-    if (filter.values.length === 0) return false;
+    if (filter.values.length === 0) {
+      return false;
+    }
     return !(filter.emptyEqualsNull && filter.values.includes(""));
   }
 

@@ -77,7 +77,9 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
         onChange={(event) => onChange(event.currentTarget.value)}
         onBlur={() => onBlur?.(value)}
         onKeyDown={(event) => {
-          if (event.key === "Enter") onSubmit(value);
+          if (event.key === "Enter") {
+            onSubmit(value);
+          }
         }}
         className="placeholder:text-foreground-tertiary disabled:bg-muted/50 min-w-0 flex-1 appearance-none border-0 bg-transparent py-1 pr-2 pl-0 text-sm shadow-none outline-hidden focus:border-0 focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-search-cancel-button]:cursor-pointer"
       />

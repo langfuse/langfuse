@@ -76,7 +76,9 @@ const MAX_CAUSE_DEPTH = 10; // guard against cyclic `cause`
 function* errorCauseChain(error: unknown): Generator<object> {
   let current: unknown = error;
   for (let depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
-    if (!current || typeof current !== "object") return;
+    if (!current || typeof current !== "object") {
+      return;
+    }
     yield current;
     current = (current as { cause?: unknown }).cause;
   }
@@ -88,13 +90,19 @@ function* errorCauseChain(error: unknown): Generator<object> {
 function extractHttpStatus(err: object): number | undefined {
   const metaStatus = (err as { $metadata?: { httpStatusCode?: unknown } })
     .$metadata?.httpStatusCode;
-  if (typeof metaStatus === "number") return metaStatus;
+  if (typeof metaStatus === "number") {
+    return metaStatus;
+  }
 
   const statusCode = (err as { statusCode?: unknown }).statusCode;
-  if (typeof statusCode === "number") return statusCode;
+  if (typeof statusCode === "number") {
+    return statusCode;
+  }
 
   const numericCode = (err as { code?: unknown }).code;
-  if (typeof numericCode === "number") return numericCode;
+  if (typeof numericCode === "number") {
+    return numericCode;
+  }
 
   return undefined;
 }
@@ -110,7 +118,9 @@ function extractErrorCodes(err: object): string[] {
 
 function extractGcsReasons(err: object): string[] {
   const errors = (err as { errors?: unknown }).errors;
-  if (!Array.isArray(errors)) return [];
+  if (!Array.isArray(errors)) {
+    return [];
+  }
   return errors
     .map((e) =>
       e &&
@@ -133,9 +143,15 @@ function classifyOutboundUrlFault(
     return undefined;
   }
   const code = (err as { code?: unknown }).code;
-  if (typeof code !== "string") return undefined;
-  if (SSRF_BLOCKED_OUTBOUND_URL_CODES.has(code)) return "ssrf_blocked_endpoint";
-  if (INVALID_URL_OUTBOUND_URL_CODES.has(code)) return "invalid_endpoint_url";
+  if (typeof code !== "string") {
+    return undefined;
+  }
+  if (SSRF_BLOCKED_OUTBOUND_URL_CODES.has(code)) {
+    return "ssrf_blocked_endpoint";
+  }
+  if (INVALID_URL_OUTBOUND_URL_CODES.has(code)) {
+    return "invalid_endpoint_url";
+  }
   return undefined;
 }
 
@@ -143,16 +159,23 @@ function classifyCustomerFaultLink(
   err: object,
 ): CustomerFaultReason | undefined {
   const outbound = classifyOutboundUrlFault(err);
-  if (outbound) return outbound;
+  if (outbound) {
+    return outbound;
+  }
 
   const codes = extractErrorCodes(err);
-  if (codes.some((c) => CREDENTIAL_FAULT_CODES.has(c))) return "credentials";
-  if (codes.some((c) => BUCKET_FAULT_CODES.has(c)))
+  if (codes.some((c) => CREDENTIAL_FAULT_CODES.has(c))) {
+    return "credentials";
+  }
+  if (codes.some((c) => BUCKET_FAULT_CODES.has(c))) {
     return "bucket_or_container";
+  }
 
   // 401 = credentials rejected: unambiguous, so it trips without a code. A bare
   // 403/404 does not (e.g. clock-skew RequestTimeTooSkewed is a 403).
-  if (extractHttpStatus(err) === 401) return "credentials";
+  if (extractHttpStatus(err) === 401) {
+    return "credentials";
+  }
   if (extractGcsReasons(err).some((r) => CUSTOMER_FAULT_GCS_REASONS.has(r))) {
     return "credentials";
   }
@@ -168,7 +191,9 @@ export function classifyCustomerFault(
 ): CustomerFaultReason | undefined {
   for (const link of errorCauseChain(error)) {
     const reason = classifyCustomerFaultLink(link);
-    if (reason) return reason;
+    if (reason) {
+      return reason;
+    }
   }
   return undefined;
 }

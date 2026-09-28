@@ -87,12 +87,20 @@ export function Heatmap({
   // Calculate adaptive thinning for division point labels
   // Show every nth label based on number of bins
   const labelStep = useMemo(() => {
-    if (!isDivisionPointMode) return 1;
+    if (!isDivisionPointMode) {
+      return 1;
+    }
 
     // Adaptive thinning based on number of bins
-    if (rows >= 20 || cols >= 20) return 4; // Show every 4th label for very dense grids
-    if (rows >= 15 || cols >= 15) return 3; // Show every 3rd label
-    if (rows >= 10 || cols >= 10) return 2; // Show every 2nd label
+    if (rows >= 20 || cols >= 20) {
+      return 4;
+    } // Show every 4th label for very dense grids
+    if (rows >= 15 || cols >= 15) {
+      return 3;
+    } // Show every 3rd label
+    if (rows >= 10 || cols >= 10) {
+      return 2;
+    } // Show every 2nd label
     return 1; // Show all labels for smaller grids
   }, [isDivisionPointMode, rows, cols]);
 
@@ -105,8 +113,12 @@ export function Heatmap({
   // Determine max label lengths based on grid dimensions
   const maxYLabelLength = 8; // Y-axis allows up to 8 characters
   const maxXLabelLength = useMemo(() => {
-    if (cols < 4) return 12; // Fewer columns, more space per label
-    if (cols < 8) return 10; // Medium number of columns
+    if (cols < 4) {
+      return 12;
+    } // Fewer columns, more space per label
+    if (cols < 8) {
+      return 10;
+    } // Medium number of columns
     return 6; // Many columns, less space per label
   }, [cols]);
 

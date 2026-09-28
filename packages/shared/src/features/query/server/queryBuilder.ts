@@ -861,7 +861,9 @@ export class QueryBuilder {
     appliedDimensions: AppliedDimensionType[],
   ): string {
     const pairs = appliedDimensions.filter((d) => d.pairExpand);
-    if (pairs.length === 0) return "";
+    if (pairs.length === 0) {
+      return "";
+    }
     // Multiple pairExpand dimensions would produce separate ARRAY JOIN clauses
     // which ClickHouse executes as a cartesian product — almost certainly wrong.
     if (pairs.length > 1) {
@@ -886,7 +888,9 @@ export class QueryBuilder {
     filterList: FilterList,
     parameters: Record<string, unknown>,
   ) {
-    if (filterList.length() === 0) return "";
+    if (filterList.length() === 0) {
+      return "";
+    }
 
     // Use the FilterList's apply method to get the query and parameters
     const { query, params } = filterList.apply();
@@ -1284,7 +1288,9 @@ export class QueryBuilder {
    */
   private buildLimitClause(): string {
     const rowLimit = this.chartConfig?.row_limit;
-    if (!rowLimit) return "";
+    if (!rowLimit) {
+      return "";
+    }
     return `LIMIT ${rowLimit}`;
   }
 

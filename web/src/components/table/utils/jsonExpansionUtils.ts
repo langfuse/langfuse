@@ -58,9 +58,15 @@ export interface JsonTableRow {
 }
 
 function getValueType(value: unknown): JsonTableRow["type"] {
-  if (value === null) return "null";
-  if (value === undefined) return "undefined";
-  if (Array.isArray(value)) return "array";
+  if (value === null) {
+    return "null";
+  }
+  if (value === undefined) {
+    return "undefined";
+  }
+  if (Array.isArray(value)) {
+    return "array";
+  }
   return typeof value as JsonTableRow["type"];
 }
 
@@ -83,8 +89,12 @@ function isPrimitiveJsonValue(value: unknown): boolean {
  * by default so the preview is not duplicated as child rows.
  */
 export function arrayFitsInSingleRowPreview(value: unknown): boolean {
-  if (!Array.isArray(value) || value.length === 0) return false;
-  if (value.length > SMALL_ARRAY_THRESHOLD) return false;
+  if (!Array.isArray(value) || value.length === 0) {
+    return false;
+  }
+  if (value.length > SMALL_ARRAY_THRESHOLD) {
+    return false;
+  }
   return value.every(isPrimitiveJsonValue);
 }
 
@@ -140,7 +150,9 @@ function findOptimalExpansionLevel(
     for (const row of rows) {
       // Short primitive lists stay collapsed; don't spend the row budget on
       // children the user will not see by default.
-      if (valueFitsInSingleRowPreview(row.value)) continue;
+      if (valueFitsInSingleRowPreview(row.value)) {
+        continue;
+      }
 
       if (row.hasChildren && row.rawChildData) {
         if (typeof row.rawChildData !== "object" || row.rawChildData === null) {
@@ -184,7 +196,9 @@ export function getSmartExpansionState(
   maxRows: number,
 ): Record<string, boolean> {
   const optimalLevel = findOptimalExpansionLevel(data, maxRows);
-  if (optimalLevel <= 0) return {};
+  if (optimalLevel <= 0) {
+    return {};
+  }
 
   const smartExpanded: Record<string, boolean> = {};
 

@@ -630,8 +630,9 @@ describe("Topics transcript renderer", () => {
       ...withoutIds.threads[0]!.currentTurn.messages,
     ]) {
       for (const part of message.parts) {
-        if (part.type === "tool-call" || part.type === "tool-result")
+        if (part.type === "tool-call" || part.type === "tool-result") {
           part.toolCallId = null;
+        }
       }
     }
     const withoutIdsText = renderTranscript(

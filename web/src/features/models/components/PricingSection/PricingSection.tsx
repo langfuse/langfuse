@@ -66,14 +66,18 @@ export function PricingSection({ form }: PricingSectionProps) {
       form.getValues("usageTypes").map((row) => row.name.trim()),
     );
     const missing = names.filter((name) => !existing.has(name));
-    if (missing.length > 0) addUsageTypes(missing);
+    if (missing.length > 0) {
+      addUsageTypes(missing);
+    }
   };
 
   const addTier = () => {
     const existing = form.getValues("pricingTiers");
     const takenNames = new Set(existing.map((tier) => tier.name.trim()));
     let suffix = 1;
-    while (takenNames.has(`Custom Tier ${suffix}`)) suffix++;
+    while (takenNames.has(`Custom Tier ${suffix}`)) {
+      suffix++;
+    }
 
     tiers.append({
       name: `Custom Tier ${suffix}`,

@@ -302,12 +302,18 @@ function querySuggestionOptions(
   observed: ObservedOptions | undefined,
   registry: FieldRegistry,
 ): CompletionOption[] {
-  if (observed === undefined) return [];
+  if (observed === undefined) {
+    return [];
+  }
   const out: CompletionOption[] = [];
   for (const fieldId of SUGGESTION_FIELDS) {
-    if (registry.resolveField(fieldId) === null) continue;
+    if (registry.resolveField(fieldId) === null) {
+      continue;
+    }
     const top = observed[fieldId]?.[0];
-    if (top === undefined) continue;
+    if (top === undefined) {
+      continue;
+    }
     const insert = `${fieldId}:${serializeValue(top.value)}`;
     out.push({
       id: `suggest:${insert}`,
@@ -354,8 +360,9 @@ function matchingFilterOptions(
   span: { from: number; to: number },
   registry: FieldRegistry,
 ): CompletionOption[] {
-  if (observed === undefined || typed.length < MIN_VALUE_MATCH_LENGTH)
+  if (observed === undefined || typed.length < MIN_VALUE_MATCH_LENGTH) {
     return [];
+  }
   const q = typed.toLowerCase();
   const ranked: Array<{
     rank: number;
@@ -384,7 +391,9 @@ function matchingFilterOptions(
         }
         return null;
       })();
-      if (rank === null) continue;
+      if (rank === null) {
+        continue;
+      }
       const insert = `${f.id}:${serializeValue(o.value)}`;
       ranked.push({
         rank,
@@ -415,7 +424,9 @@ function valueOptions(
   all: CompletionOption[],
   typed: string,
 ): CompletionOption[] {
-  if (typed.length === 0) return all;
+  if (typed.length === 0) {
+    return all;
+  }
   const exactIndex = all.findIndex(
     (o) => o.kind === "value" && o.value === typed,
   );
@@ -460,7 +471,9 @@ function presenceOptions(
   negated: boolean,
   rankedFields: CompletionOption[],
 ): CompletionOption[] {
-  if (keyPart.length < 2) return [];
+  if (keyPart.length < 2) {
+    return [];
+  }
   const exact = registry.resolveField(keyPart);
   const candidate =
     exact?.type === "field"
@@ -473,8 +486,12 @@ function presenceOptions(
           const ref = id === null ? null : registry.resolveField(id);
           return ref?.type === "field" ? ref.field : null;
         })();
-  if (candidate === null || candidate === undefined) return [];
-  if (candidate.nullable !== true) return [];
+  if (candidate === null || candidate === undefined) {
+    return [];
+  }
+  if (candidate.nullable !== true) {
+    return [];
+  }
   // The typed term already carries a `-`; insert only `has:` so the surviving
   // dash yields `-has:` (a second dash would splice `--has:`). Label/detail
   // must match that outcome — not the positive copy.
@@ -515,14 +532,20 @@ function queryPresetSections(
   const seenIds = new Set<string>();
   let remaining = MAX_PRESETS_SHOWN;
   return presetSections.flatMap((presetSection) => {
-    if (remaining === 0) return [];
+    if (remaining === 0) {
+      return [];
+    }
     const options: CompletionOption[] = [];
     for (const option of presetSection.options) {
-      if (option.query === current || seenIds.has(option.id)) continue;
+      if (option.query === current || seenIds.has(option.id)) {
+        continue;
+      }
       seenIds.add(option.id);
       options.push({ ...option, kind: "preset" });
       remaining--;
-      if (remaining === 0) break;
+      if (remaining === 0) {
+        break;
+      }
     }
     return section(presetSection.title, options);
   });
@@ -629,7 +652,9 @@ function matchOperatorOptions(
   // would reject them on the next derive), so only "contains" — and, on a
   // textSearch field, the distinct "exact" (-> does-not-equal / none-of) — are
   // offered; never drafts that can't commit.
-  if (negated) return allowNegatedExact ? [contains, exact] : [contains];
+  if (negated) {
+    return allowNegatedExact ? [contains, exact] : [contains];
+  }
   return [
     contains,
     {
@@ -677,9 +702,15 @@ function pathKindOf(
 ): { kind: PathKind; typedKey: string } | null {
   const lower = keyPart.toLowerCase();
   for (const kind of PATH_PREFIXES) {
-    if (kind.canonical === "metadata." && !registry.metadata) continue;
-    if (kind.canonical === "scores." && !registry.scores) continue;
-    if (kind.canonical === "traceScores." && !registry.traceScores) continue;
+    if (kind.canonical === "metadata." && !registry.metadata) {
+      continue;
+    }
+    if (kind.canonical === "scores." && !registry.scores) {
+      continue;
+    }
+    if (kind.canonical === "traceScores." && !registry.traceScores) {
+      continue;
+    }
     if (lower.startsWith(kind.prefix)) {
       return { kind, typedKey: keyPart.slice(kind.prefix.length) };
     }
@@ -735,8 +766,9 @@ function keyPathOptions(
       ? SCORE_COLUMNS.trace.boolean
       : SCORE_COLUMNS.observation.boolean;
   const seen = new Map<string, string>();
-  for (const o of observedValues(observed, numericColumn))
+  for (const o of observedValues(observed, numericColumn)) {
     seen.set(o.value, "numeric score");
+  }
   for (const o of observedValues(observed, categoricalColumn)) {
     seen.set(
       o.value,
@@ -760,7 +792,9 @@ function keyPathOptions(
   const levelsOf = (
     name: string,
   ): readonly ("observation" | "trace")[] | undefined => {
-    if (kind.level === "trace") return ["trace"];
+    if (kind.level === "trace") {
+      return ["trace"];
+    }
     const levels = [
       ...observedValues(observed, `score_name_levels_numeric.${name}`),
       ...observedValues(observed, `score_name_levels_categorical.${name}`),
@@ -836,7 +870,9 @@ function valueStageSections(input: ValueStageInput): {
     (observed === undefined || !(column in observed));
 
   // An operator prefix was already typed: the rest is free-form entry.
-  if (valuePrefix.length > 0) return null;
+  if (valuePrefix.length > 0) {
+    return null;
+  }
 
   switch (ref.type) {
     case "searchScope":
@@ -850,7 +886,9 @@ function valueStageSections(input: ValueStageInput): {
           }
         : null;
     case "pseudo": {
-      if (ref.id === "in") return null;
+      if (ref.id === "in") {
+        return null;
+      }
       const all = registry.nullableFields().map((f) => ({
         id: `value:${f.id}`,
         kind: "value" as const,
@@ -865,7 +903,9 @@ function valueStageSections(input: ValueStageInput): {
     }
 
     case "metadata": {
-      if (observed === undefined) return { sections: [], loading: true };
+      if (observed === undefined) {
+        return { sections: [], loading: true };
+      }
       const all = observedValues(observed, `metadata.${ref.key}`).map((o) => ({
         id: `value:${o.value}`,
         kind: "value" as const,
@@ -875,7 +915,9 @@ function valueStageSections(input: ValueStageInput): {
       }));
       const values = valueOptions(all, typed);
       const ops = typed.length > 0 ? matchOperatorOptions(typed, negated) : [];
-      if (values.length + ops.length === 0) return null;
+      if (values.length + ops.length === 0) {
+        return null;
+      }
       return {
         sections: [
           ...section(SECTION_VALUES, values),
@@ -968,7 +1010,9 @@ function valueStageSections(input: ValueStageInput): {
           ),
         );
       }
-      if (sections.length === 0) return null;
+      if (sections.length === 0) {
+        return null;
+      }
       return { sections, loading: false };
     }
 
@@ -995,7 +1039,9 @@ function valueStageSections(input: ValueStageInput): {
         };
       }
       if (f.kind === "number") {
-        if (typed.length > 0) return null; // free numeric entry
+        if (typed.length > 0) {
+          return null;
+        } // free numeric entry
         const example = NUMERIC_EXAMPLE[f.id] ?? "10";
         return {
           sections: section(
@@ -1006,7 +1052,9 @@ function valueStageSections(input: ValueStageInput): {
         };
       }
       if (f.kind === "datetime") {
-        if (typed.length > 0) return null;
+        if (typed.length > 0) {
+          return null;
+        }
         return {
           sections: section(SECTION_COMPARE_OPS, datetimeOperatorOptions(f.id)),
           loading: false,
@@ -1018,7 +1066,9 @@ function valueStageSections(input: ValueStageInput): {
       if (f.syncMode === "textSearch" && !f.suggestObservedValues) {
         // No enumerable values. Once a value is typed, offer glob/exact
         // refinements that wrap it (bare value already means contains).
-        if (typed.length === 0) return null;
+        if (typed.length === 0) {
+          return null;
+        }
         // input:/output: are full-text scopes too, so also offer switching the
         // whole token to the other scope. NOT when negated: tokenSpan covers the
         // leading `-`, so the rewrite would drop it and flip the filter to its
@@ -1053,7 +1103,9 @@ function valueStageSections(input: ValueStageInput): {
       if (isOptionColumn && columnPending(f.id)) {
         return { sections: [], loading: true, requestColumns: [f.id] };
       }
-      if (observed === undefined) return { sections: [], loading: true };
+      if (observed === undefined) {
+        return { sections: [], loading: true };
+      }
       const all = observedValues(observed, f.id).map((o) => ({
         id: `value:${o.value}`,
         kind: "value" as const,
@@ -1073,7 +1125,9 @@ function valueStageSections(input: ValueStageInput): {
         typed.length > 0 && f.syncMode !== "arrayOption"
           ? matchOperatorOptions(typed, negated, f.syncMode === "textSearch")
           : [];
-      if (values.length + ops.length === 0) return null;
+      if (values.length + ops.length === 0) {
+        return null;
+      }
       return {
         sections: [
           ...section(SECTION_VALUES, values),
@@ -1103,10 +1157,14 @@ function groupedValueSegment(
   relValuePos: number,
   valueStart: number,
 ): { from: number; to: number; typed: string; completeGroup: boolean } | null {
-  if (!valuePart.startsWith("(") || relValuePos <= 0) return null;
+  if (!valuePart.startsWith("(") || relValuePos <= 0) {
+    return null;
+  }
   const close = indexOfOutsideQuotes(valuePart, ")");
   const groupEnd = close === -1 ? valuePart.length : close;
-  if (relValuePos > groupEnd) return null;
+  if (relValuePos > groupEnd) {
+    return null;
+  }
 
   const inner = valuePart.slice(1, groupEnd);
   const innerCaret = Math.max(0, Math.min(relValuePos - 1, inner.length));
@@ -1114,8 +1172,9 @@ function groupedValueSegment(
   let toInner = inner.length;
 
   for (const token of lexTokens(inner)) {
-    if (token.type !== "term" || (token.raw !== "OR" && token.raw !== "AND"))
+    if (token.type !== "term" || (token.raw !== "OR" && token.raw !== "AND")) {
       continue;
+    }
     if (token.span.to <= innerCaret) {
       fromInner = token.span.to;
       continue;
@@ -1126,8 +1185,12 @@ function groupedValueSegment(
     }
   }
 
-  while (fromInner < toInner && /\s/.test(inner[fromInner]!)) fromInner++;
-  while (toInner > fromInner && /\s/.test(inner[toInner - 1]!)) toInner--;
+  while (fromInner < toInner && /\s/.test(inner[fromInner]!)) {
+    fromInner++;
+  }
+  while (toInner > fromInner && /\s/.test(inner[toInner - 1]!)) {
+    toInner--;
+  }
 
   return {
     from: valueStart + 1 + fromInner,
@@ -1182,7 +1245,9 @@ function freeTextRun(
   const idx = terms.findIndex(
     (t) => caret >= t.span.from && caret <= t.span.to,
   );
-  if (idx === -1 || !isFreeText(terms[idx]!.raw)) return null;
+  if (idx === -1 || !isFreeText(terms[idx]!.raw)) {
+    return null;
+  }
   // Expand over adjacent free-text terms separated only by whitespace (a paren
   // or any other token between two words breaks the run).
   let lo = idx;
@@ -1192,14 +1257,16 @@ function freeTextRun(
     lo > 0 &&
     isFreeText(terms[lo - 1]!.raw) &&
     gapIsBlank(terms[lo - 1]!.span.to, terms[lo]!.span.from)
-  )
+  ) {
     lo--;
+  }
   while (
     hi < terms.length - 1 &&
     isFreeText(terms[hi + 1]!.raw) &&
     gapIsBlank(terms[hi]!.span.to, terms[hi + 1]!.span.from)
-  )
+  ) {
     hi++;
+  }
   const from = terms[lo]!.span.from;
   const to = terms[hi]!.span.to;
   // `text` is the LOGICAL phrase: each term unquoted and joined by single
@@ -1276,7 +1343,9 @@ function scopeSwitchOptions(
         registry.resolveField(d.scope)?.type === "searchScope"),
   );
   const alternatives = defs.filter((d) => d.scope !== current);
-  if (alternatives.length === 0) return [];
+  if (alternatives.length === 0) {
+    return [];
+  }
   const ordered = opts?.keepCurrentFirst
     ? [...defs.filter((d) => d.scope === current), ...alternatives]
     : alternatives;
@@ -1394,7 +1463,9 @@ export function planInputCompletions(
           sections: [],
         };
       }
-      if (options.length === 0) return null;
+      if (options.length === 0) {
+        return null;
+      }
       return {
         stage: "field",
         from: bodyStart,
@@ -1465,7 +1536,9 @@ export function planInputCompletions(
       run !== null && !registry.allowFreeText && registry.defaultTextField
         ? (() => {
             const ref = registry.resolveField(registry.defaultTextField);
-            if (ref?.type !== "field") return [];
+            if (ref?.type !== "field") {
+              return [];
+            }
             const insert = `${ref.field.id}:${serializeValue(run.text)}`;
             return [
               {
@@ -1518,8 +1591,9 @@ export function planInputCompletions(
         searchScopes.length +
         presence.length ===
       0
-    )
+    ) {
       return null;
+    }
     return {
       stage: "field",
       from: bodyStart,
@@ -1554,7 +1628,9 @@ export function planInputCompletions(
   // Value stage: complete the comma segment under the caret.
   const keyRaw = tokenBody.slice(0, colon);
   const ref = registry.resolveField(keyRaw);
-  if (ref === null) return null;
+  if (ref === null) {
+    return null;
+  }
 
   const valuePart = tokenBody.slice(colon + 1);
   const relValuePos = relPos - colon - 1;
@@ -1613,7 +1689,9 @@ export function planInputCompletions(
     negated,
     registry,
   });
-  if (staged === null) return null;
+  if (staged === null) {
+    return null;
+  }
   if (staged.loading) {
     return {
       stage: "value",
@@ -1738,6 +1816,8 @@ export function applyPick(
 export function flattenOptions(
   plan: CompletionPlan | null,
 ): CompletionOption[] {
-  if (plan === null) return [];
+  if (plan === null) {
+    return [];
+  }
   return plan.sections.flatMap((s) => s.options);
 }

@@ -24,13 +24,18 @@ export function getSubtreeDurationOverflowMs(
   ownDurationMs: number | undefined | null,
   subtreeWallClockDurationMs: number | undefined | null,
 ): number | null {
-  if (subtreeWallClockDurationMs == null) return null;
+  if (subtreeWallClockDurationMs == null) {
+    return null;
+  }
   const own = ownDurationMs ?? 0;
-  if (subtreeWallClockDurationMs <= own) return null;
+  if (subtreeWallClockDurationMs <= own) {
+    return null;
+  }
   if (
     formatIntervalSeconds(subtreeWallClockDurationMs / 1000) ===
     formatIntervalSeconds(own / 1000)
-  )
+  ) {
     return null;
+  }
   return subtreeWallClockDurationMs;
 }

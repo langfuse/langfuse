@@ -583,9 +583,12 @@ export const experimentsRouter = createTRPCRouter({
         traceNames: string[],
       ): Record<string, ("observation" | "trace")[]> => {
         const out: Record<string, ("observation" | "trace")[]> = {};
-        for (const name of observationNames)
+        for (const name of observationNames) {
           (out[name] ??= []).push("observation");
-        for (const name of traceNames) (out[name] ??= []).push("trace");
+        }
+        for (const name of traceNames) {
+          (out[name] ??= []).push("trace");
+        }
         return out;
       };
 
@@ -709,7 +712,9 @@ export const experimentsRouter = createTRPCRouter({
         Array<(typeof validatedObservationScores)[number]>
       >();
       for (const score of validatedObservationScores) {
-        if (!score.observationId) continue;
+        if (!score.observationId) {
+          continue;
+        }
         const existingScores = scoresByObservationId.get(score.observationId);
         if (existingScores) {
           existingScores.push(score);
@@ -723,7 +728,9 @@ export const experimentsRouter = createTRPCRouter({
         Array<(typeof validatedTraceScores)[number]>
       >();
       for (const score of validatedTraceScores) {
-        if (!score.traceId) continue;
+        if (!score.traceId) {
+          continue;
+        }
         const existingScores = scoresByTraceId.get(score.traceId);
         if (existingScores) {
           existingScores.push(score);

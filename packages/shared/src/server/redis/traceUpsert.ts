@@ -21,7 +21,9 @@ export class TraceUpsertQueue {
   static getShardIndexFromShardName(
     shardName: string | undefined,
   ): number | null {
-    if (!shardName) return null;
+    if (!shardName) {
+      return null;
+    }
 
     // Extract shard index from shard name
     const shardIndex =
@@ -29,7 +31,9 @@ export class TraceUpsertQueue {
         ? 0
         : parseInt(shardName.replace(`${QueueName.TraceUpsert}-`, ""), 10);
 
-    if (isNaN(shardIndex)) return null;
+    if (isNaN(shardIndex)) {
+      return null;
+    }
     return shardIndex;
   }
 

@@ -117,7 +117,9 @@ export const queueItemRouter = createTRPCRouter({
       });
 
       // Expected behavior, non-error case: if user has seen item in given session, prior to it being deleted, we return null
-      if (!item) return null;
+      if (!item) {
+        return null;
+      }
       let lockedByUser: { name: string | null } | null = null;
 
       if (isItemLocked(item)) {

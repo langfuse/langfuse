@@ -67,7 +67,9 @@ export function CommentOverlayHost({
   const actions = store.getState().actions;
   const target = overlay.target;
   const clearCommentUrl = () => {
-    if (router.query.comments !== "open") return;
+    if (router.query.comments !== "open") {
+      return;
+    }
     const { comments, commentObjectType, commentObjectId, ...rest } =
       router.query;
     router.replace({ pathname: router.pathname, query: rest }, undefined, {
@@ -79,8 +81,9 @@ export function CommentOverlayHost({
       actions.close(overlay, () =>
         window.confirm("Discard your unsent comment?"),
       )
-    )
+    ) {
       clearCommentUrl();
+    }
   };
   const guardProps = {
     onDraftChange: (hasDraft: boolean) =>
@@ -92,7 +95,9 @@ export function CommentOverlayHost({
     <Dialog
       open={overlay.isOpen}
       onOpenChange={(open) => {
-        if (!open) close();
+        if (!open) {
+          close();
+        }
       }}
     >
       <DialogContent
@@ -115,7 +120,9 @@ export function CommentOverlayHost({
             }
             {...guardProps}
             onCommentCreated={async () => {
-              if (actions.close(overlay)) clearCommentUrl();
+              if (actions.close(overlay)) {
+                clearCommentUrl();
+              }
               await refreshCommentQueries({
                 utils,
                 target: { projectId, ...target },
@@ -131,7 +138,9 @@ export function CommentOverlayHost({
       open={overlay.isOpen}
       blockTextSelection={false}
       onOpenChange={(open) => {
-        if (!open) close();
+        if (!open) {
+          close();
+        }
       }}
     >
       <CommentDrawerContent

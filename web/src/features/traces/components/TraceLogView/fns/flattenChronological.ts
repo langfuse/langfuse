@@ -6,7 +6,9 @@ import type { FlatLogItem } from "@/src/features/traces/components/TraceLogView/
  * Used internally by both flattening functions.
  */
 function collectObservations(roots: TreeNode[]): TreeNode[] {
-  if (roots.length === 0) return [];
+  if (roots.length === 0) {
+    return [];
+  }
 
   const observations: TreeNode[] = [];
   const stack: TreeNode[] = [...roots];

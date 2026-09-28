@@ -106,7 +106,9 @@ export function canonicalizeExplicitEnvironmentFilters(params: {
   const { explicitFilters, config } = params;
   const { managedEnvironmentColumn, hiddenEnvironments } = config;
 
-  if (hiddenEnvironments.length === 0) return explicitFilters;
+  if (hiddenEnvironments.length === 0) {
+    return explicitFilters;
+  }
 
   const managedColumnFilters = explicitFilters.filter(
     (filter) => filter.column === managedEnvironmentColumn,
@@ -131,7 +133,9 @@ export function canonicalizeExplicitEnvironmentFilters(params: {
   }
 
   return explicitFilters.flatMap((filter) => {
-    if (filter !== envFilter) return [filter];
+    if (filter !== envFilter) {
+      return [filter];
+    }
     return canonical === null ? [] : [canonical];
   });
 }
@@ -143,7 +147,9 @@ export function toSearchBarEnvironmentFilters(params: {
   const { explicitFilters, config } = params;
   const { managedEnvironmentColumn, hiddenEnvironments } = config;
 
-  if (hiddenEnvironments.length === 0) return explicitFilters;
+  if (hiddenEnvironments.length === 0) {
+    return explicitFilters;
+  }
 
   const managedColumnFilters = explicitFilters.filter(
     (filter) => filter.column === managedEnvironmentColumn,
@@ -171,8 +177,12 @@ export function toSearchBarEnvironmentFilters(params: {
   }
 
   return explicitFilters.flatMap((filter) => {
-    if (filter !== envFilter) return [filter];
-    if (extras.length === 0) return [];
+    if (filter !== envFilter) {
+      return [filter];
+    }
+    if (extras.length === 0) {
+      return [];
+    }
     return [{ ...envFilter, value: extras }];
   });
 }
@@ -184,13 +194,17 @@ export function buildImplicitEnvironmentFilter(params: {
   const { explicitFilters, config } = params;
   const { managedEnvironmentColumn, hiddenEnvironments } = config;
 
-  if (hiddenEnvironments.length === 0) return [];
+  if (hiddenEnvironments.length === 0) {
+    return [];
+  }
 
   const hasExplicitEnvironmentFilter = explicitFilters.some(
     (filter) => filter.column === managedEnvironmentColumn,
   );
 
-  if (hasExplicitEnvironmentFilter) return [];
+  if (hasExplicitEnvironmentFilter) {
+    return [];
+  }
 
   return [
     {

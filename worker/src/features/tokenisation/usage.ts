@@ -140,7 +140,9 @@ function openAiChatTokenCount(params: {
   config: z.infer<typeof OpenAiChatTokenConfig>;
 }) {
   const model = params.config.tokenizerModel;
-  if (!isTiktokenModel(model)) return undefined;
+  if (!isTiktokenModel(model)) {
+    return undefined;
+  }
 
   let numTokens = 0;
   params.messages.forEach((message) => {
@@ -164,7 +166,9 @@ function openAiChatTokenCount(params: {
         ].some((k) => k === key)
       ) {
         const tokens = getTokensByModel(model, value);
-        if (tokens) numTokens += tokens;
+        if (tokens) {
+          numTokens += tokens;
+        }
       }
       if (key === "name") {
         numTokens += params.config.tokensPerName;

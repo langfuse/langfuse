@@ -51,7 +51,9 @@ export function AddTracesToAnnotationQueueDialogController({
         reason: `You don't have permission to add ${objectLabel} to annotation queues.`,
       };
   const openDialog = () => {
-    if (!hasQueueAccess) return;
+    if (!hasQueueAccess) {
+      return;
+    }
     setNewQueueId(undefined);
     setOpen(true);
   };

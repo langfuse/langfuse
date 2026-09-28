@@ -52,7 +52,9 @@ export function getScoreConfigSelection({
         : [],
     )
     .filter((option) => {
-      if (seenConfigs.has(option.value)) return false;
+      if (seenConfigs.has(option.value)) {
+        return false;
+      }
       seenConfigs.add(option.value);
       return true;
     })
@@ -64,8 +66,9 @@ export function getScoreConfigSelection({
       !option ||
       option.disabled ||
       controlledFields.some((field) => field.configId === configId)
-    )
+    ) {
       return;
+    }
     const field = {
       targetKey: option.targetKey,
       id: null,
@@ -81,11 +84,12 @@ export function getScoreConfigSelection({
     );
     insert(nextIndex < 0 ? controlledFields.length : nextIndex, field);
     const target = targets.find((target) => target.key === option.targetKey)!;
-    if (!target.configControl.selectedConfigIds.includes(configId))
+    if (!target.configControl.selectedConfigIds.includes(configId)) {
       target.configControl.setSelectedConfigIds([
         ...target.configControl.selectedConfigIds,
         configId,
       ]);
+    }
   };
 
   const removeEmptyField = (key: string) => {
@@ -99,8 +103,9 @@ export function getScoreConfigSelection({
       isPresent(field.value) ||
       field.stringValue ||
       field.comment
-    )
+    ) {
       return;
+    }
     const owner = targets.find((target) => target.key === field.targetKey);
     const config = owner?.configControl.configs.find(
       (config) => config.id === field.configId,
@@ -109,28 +114,33 @@ export function getScoreConfigSelection({
       !owner?.configControl.allowManualSelection ||
       !config ||
       config.isArchived
-    )
+    ) {
       return;
+    }
     remove(index);
     const remainingFields = controlledFields.filter(
       (_, fieldIndex) => fieldIndex !== index,
     );
     for (const target of targets) {
-      if (!target.configControl.allowManualSelection) continue;
+      if (!target.configControl.allowManualSelection) {
+        continue;
+      }
       if (
         remainingFields.some(
           (remaining) =>
             remaining.configId === field.configId &&
             remaining.targetKey === target.key,
         )
-      )
+      ) {
         continue;
-      if (target.configControl.selectedConfigIds.includes(field.configId))
+      }
+      if (target.configControl.selectedConfigIds.includes(field.configId)) {
         target.configControl.setSelectedConfigIds(
           target.configControl.selectedConfigIds.filter(
             (id) => id !== field.configId,
           ),
         );
+      }
     }
   };
 

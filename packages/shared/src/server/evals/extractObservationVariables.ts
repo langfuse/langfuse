@@ -37,7 +37,9 @@ export function extractObservationVariables(
   const parsedFields = new Map<string, unknown>();
   for (const mapping of variableMapping) {
     const fieldId = mapping.selectedColumnId;
-    if (parsedFields.has(fieldId)) continue;
+    if (parsedFields.has(fieldId)) {
+      continue;
+    }
 
     const internal = columns.find((col) => col.id === fieldId)?.internal;
     if (internal && observation[internal] !== undefined) {

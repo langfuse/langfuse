@@ -107,7 +107,9 @@ export class GatewayProviderService {
       organizationId: params.organizationId,
       id: params.id,
     });
-    if (!existing) throw new LangfuseNotFoundError("Gateway connection");
+    if (!existing) {
+      throw new LangfuseNotFoundError("Gateway connection");
+    }
     if (
       existing.status === "ERROR" &&
       params.status === "ENABLED" &&

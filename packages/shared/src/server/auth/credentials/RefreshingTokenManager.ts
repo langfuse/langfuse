@@ -57,8 +57,12 @@ export class RefreshingTokenManager {
   }
 
   private scheduleRefresh(token: ManagedAccessToken): void {
-    if (this.stopped) return;
-    if (this.timer) clearTimeout(this.timer);
+    if (this.stopped) {
+      return;
+    }
+    if (this.timer) {
+      clearTimeout(this.timer);
+    }
 
     const remainingMs = token.expiresOnTimestamp - Date.now();
     const delay = Math.max(
@@ -73,7 +77,9 @@ export class RefreshingTokenManager {
   }
 
   private async refreshFromTimer(): Promise<void> {
-    if (this.stopped) return;
+    if (this.stopped) {
+      return;
+    }
     try {
       const token = await this.provider.fetchToken();
       this.notify(token);
@@ -83,7 +89,9 @@ export class RefreshingTokenManager {
         `Failed to refresh ${this.provider.name} credentials, retrying in ${RETRY_DELAY_MS}ms`,
         error,
       );
-      if (this.stopped) return;
+      if (this.stopped) {
+        return;
+      }
       this.timer = setTimeout(() => {
         this.refreshFromTimer();
       }, RETRY_DELAY_MS);

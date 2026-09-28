@@ -8,8 +8,12 @@
 export function parseTraceTimestampFromQuery(
   timestamp: string | string[] | undefined,
 ): Date | undefined {
-  if (Array.isArray(timestamp)) return undefined;
-  if (!timestamp) return undefined;
+  if (Array.isArray(timestamp)) {
+    return undefined;
+  }
+  if (!timestamp) {
+    return undefined;
+  }
 
   try {
     const date = new Date(decodeURIComponent(timestamp));

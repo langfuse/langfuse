@@ -133,7 +133,9 @@ describe("Ingestion Pipeline", () => {
         let redisValue: string | null | undefined = null;
         for (const k of redisKeys ?? []) {
           const v = await redis?.get(k);
-          if (!v) continue;
+          if (!v) {
+            continue;
+          }
           try {
             if (JSON.parse(v).projectId === projectId) {
               redisValue = v;

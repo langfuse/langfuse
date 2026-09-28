@@ -96,10 +96,14 @@ function lowerSelect(
   cteNames: Set<string>,
 ): ClickHouseSelectQueryNode {
   const from = singlePhysicalFrom(node, cteNames);
-  if (!from) return node;
+  if (!from) {
+    return node;
+  }
 
   const spec = DEDUP_SPECS[from.tableName];
-  if (!spec || spec.strategy === "none") return node;
+  if (!spec || spec.strategy === "none") {
+    return node;
+  }
 
   if (spec.strategy === "final") {
     throw new QueryCompileError(
@@ -114,8 +118,12 @@ function lowerSelect(
   }
 
   const shape = classifyShape(node);
-  if (shape === "skip") return node;
-  if (shape === "aggregate") return wrapPhysicalFrom(node, from, spec);
+  if (shape === "skip") {
+    return node;
+  }
+  if (shape === "aggregate") {
+    return wrapPhysicalFrom(node, from, spec);
+  }
   return attachRowDedup(node, from, spec);
 }
 
@@ -123,19 +131,29 @@ function singlePhysicalFrom(
   node: SelectQueryNode,
   cteNames: Set<string>,
 ): PhysicalFrom | undefined {
-  if (node.joins?.length) return undefined;
+  if (node.joins?.length) {
+    return undefined;
+  }
   const froms = node.from?.froms ?? [];
-  if (froms.length !== 1) return undefined;
+  if (froms.length !== 1) {
+    return undefined;
+  }
   const described = describeFrom(froms[0]);
-  if (!described) return undefined;
-  if (cteNames.has(described.tableName)) return undefined;
+  if (!described) {
+    return undefined;
+  }
+  if (cteNames.has(described.tableName)) {
+    return undefined;
+  }
   return described;
 }
 
 function describeFrom(node: OperationNode): PhysicalFrom | undefined {
   if (AliasNode.is(node)) {
     const inner = describeFrom(node.node);
-    if (!inner) return undefined;
+    if (!inner) {
+      return undefined;
+    }
     const alias = IdentifierNode.is(node.alias) ? node.alias.name : undefined;
     return { ...inner, alias, fromItem: node };
   }
@@ -151,7 +169,9 @@ function describeFrom(node: OperationNode): PhysicalFrom | undefined {
 type QueryShape = "row" | "aggregate" | "skip";
 
 function classifyShape(node: SelectQueryNode): QueryShape {
-  if (isExistence(node)) return "skip";
+  if (isExistence(node)) {
+    return "skip";
+  }
   if (
     isDistinctOnly(node) ||
     node.groupBy ||
@@ -162,7 +182,9 @@ function classifyShape(node: SelectQueryNode): QueryShape {
   }
   // Scalar max/min/argMax without GROUP BY already collapse versions;
   // attaching ORDER BY / LIMIT BY after the aggregate is illegal SQL.
-  if (hasAnyAggregate(node)) return "skip";
+  if (hasAnyAggregate(node)) {
+    return "skip";
+  }
   return "row";
 }
 
@@ -176,12 +198,20 @@ function isDistinctOnly(node: SelectQueryNode): boolean {
 }
 
 function isExistence(node: SelectQueryNode): boolean {
-  if (!isLimitOne(node) || node.groupBy) return false;
+  if (!isLimitOne(node) || node.groupBy) {
+    return false;
+  }
   const selections = node.selections ?? [];
-  if (selections.length !== 1) return false;
+  if (selections.length !== 1) {
+    return false;
+  }
   const expr = unwrapSelection(selections[0]);
-  if (!expr) return false;
-  if (ValueNode.is(expr) && expr.value === 1) return true;
+  if (!expr) {
+    return false;
+  }
+  if (ValueNode.is(expr) && expr.value === 1) {
+    return true;
+  }
   return AggregateFunctionNode.is(expr) && isCountFunc(expr.func);
 }
 
@@ -193,7 +223,9 @@ function isLimitOne(node: SelectQueryNode): boolean {
 function hasWrappingAggregate(node: SelectQueryNode): boolean {
   let found = false;
   walk(node.selections, (child) => {
-    if (!AggregateFunctionNode.is(child)) return;
+    if (!AggregateFunctionNode.is(child)) {
+      return;
+    }
     if (child.over || DOUBLE_COUNT_AGGREGATES.has(child.func.toLowerCase())) {
       found = true;
     }
@@ -204,7 +236,9 @@ function hasWrappingAggregate(node: SelectQueryNode): boolean {
 function hasAnyAggregate(node: SelectQueryNode): boolean {
   let found = false;
   walk(node.selections, (child) => {
-    if (AggregateFunctionNode.is(child)) found = true;
+    if (AggregateFunctionNode.is(child)) {
+      found = true;
+    }
   });
   return found;
 }
@@ -214,9 +248,13 @@ function isCountFunc(func: string): boolean {
 }
 
 function unwrapSelection(selection: OperationNode): OperationNode | undefined {
-  if (!SelectionNode.is(selection)) return undefined;
+  if (!SelectionNode.is(selection)) {
+    return undefined;
+  }
   const inner = selection.selection;
-  if (AliasNode.is(inner)) return inner.node;
+  if (AliasNode.is(inner)) {
+    return inner.node;
+  }
   return inner;
 }
 
@@ -263,7 +301,9 @@ function ensureVersionOrder(
   from: PhysicalFrom,
   spec: LimitBySpec,
 ): ClickHouseSelectQueryNode {
-  if (orderByHasColumn(node.orderBy, spec.version)) return node;
+  if (orderByHasColumn(node.orderBy, spec.version)) {
+    return node;
+  }
   return QueryNode.cloneWithOrderByItems(node, [
     versionOrderItem(from, spec),
   ]) as ClickHouseSelectQueryNode;
@@ -311,7 +351,9 @@ function hasLeadingVersionDesc(
 
 function isDescending(item: OrderByItemNode): boolean {
   const direction = item.direction;
-  if (!direction || !RawNode.is(direction)) return false;
+  if (!direction || !RawNode.is(direction)) {
+    return false;
+  }
   return direction.sqlFragments.join("").trim().toLowerCase() === "desc";
 }
 
@@ -319,12 +361,16 @@ function orderByHasColumn(
   orderBy: OrderByNode | undefined,
   column: string,
 ): boolean {
-  if (!orderBy) return false;
+  if (!orderBy) {
+    return false;
+  }
   return orderBy.items.some((item) => columnNameOf(item.orderBy) === column);
 }
 
 function columnNameOf(node: OperationNode): string | undefined {
-  if (ColumnNode.is(node)) return node.column.name;
+  if (ColumnNode.is(node)) {
+    return node.column.name;
+  }
   if (ReferenceNode.is(node) && ColumnNode.is(node.column)) {
     return node.column.column.name;
   }
@@ -332,7 +378,9 @@ function columnNameOf(node: OperationNode): string | undefined {
 }
 
 function walk(value: unknown, visit: (node: OperationNode) => void): void {
-  if (!value || typeof value !== "object") return;
+  if (!value || typeof value !== "object") {
+    return;
+  }
   if (
     "kind" in value &&
     typeof (value as { kind: unknown }).kind === "string"
@@ -341,11 +389,15 @@ function walk(value: unknown, visit: (node: OperationNode) => void): void {
     visit(node);
     // Nested selects have their own shape; do not attribute their
     // aggregates to the outer query.
-    if (SelectQueryNode.is(node)) return;
+    if (SelectQueryNode.is(node)) {
+      return;
+    }
   }
   for (const child of Object.values(value)) {
     if (Array.isArray(child)) {
-      for (const item of child) walk(item, visit);
+      for (const item of child) {
+        walk(item, visit);
+      }
     } else {
       walk(child, visit);
     }

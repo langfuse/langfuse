@@ -412,7 +412,9 @@ export const safeMultiDel = async (
   redis: Redis | Cluster | null,
   keys: string[],
 ): Promise<void> => {
-  if (!redis || keys.length === 0) return;
+  if (!redis || keys.length === 0) {
+    return;
+  }
 
   if (env.REDIS_CLUSTER_ENABLED === "true") {
     // In cluster mode, delete keys in separate commands to avoid CROSSSLOT errors
@@ -431,7 +433,9 @@ export const safeMultiGet = async (
   redis: Redis | Cluster | null,
   keys: string[],
 ): Promise<(string | null)[]> => {
-  if (!redis || keys.length === 0) return [];
+  if (!redis || keys.length === 0) {
+    return [];
+  }
 
   if (env.REDIS_CLUSTER_ENABLED === "true") {
     return Promise.all(keys.map(async (key: string) => redis.get(key)));
@@ -483,7 +487,9 @@ export const scanKeys = async (
   redis: Redis | Cluster | null,
   pattern: string,
 ): Promise<string[]> => {
-  if (!redis) return [];
+  if (!redis) {
+    return [];
+  }
 
   const collectedKeys = new Set<string>();
   const keyPrefix = getRedisKeyPrefix(redis);
@@ -520,4 +526,6 @@ declare global {
 
 export const redis = globalThis.redis ?? createRedisClient();
 
-if (env.NODE_ENV !== "production") globalThis.redis = redis;
+if (env.NODE_ENV !== "production") {
+  globalThis.redis = redis;
+}

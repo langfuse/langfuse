@@ -90,7 +90,9 @@ export function DeleteEvalTemplateDialog({
   const handleOpenChange = (nextOpen: boolean) => {
     // Reset the type-to-confirm input on close so the confirmation must be
     // re-typed each time.
-    if (!nextOpen) setConfirmationInput("");
+    if (!nextOpen) {
+      setConfirmationInput("");
+    }
     onOpenChange(nextOpen);
   };
 

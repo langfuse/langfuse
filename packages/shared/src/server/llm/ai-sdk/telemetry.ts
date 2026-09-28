@@ -242,7 +242,9 @@ export function createAiSdkTelemetryCapture(params: {
   let flushed = false;
 
   const setRootOutput = (output: unknown): void => {
-    if (flushed || output === undefined) return;
+    if (flushed || output === undefined) {
+      return;
+    }
     const serializedOutput = stringifyValue(output);
 
     rootSpan.setAttribute(
@@ -252,17 +254,23 @@ export function createAiSdkTelemetryCapture(params: {
   };
 
   const setRootError = (error: unknown): void => {
-    if (flushed) return;
+    if (flushed) {
+      return;
+    }
     rootSpan.setAttribute("error.type", getErrorType(error));
     rootSpan.setStatus({
       code: SpanStatusCode.ERROR,
       message: error instanceof Error ? error.message : String(error),
     });
-    if (error instanceof Error) rootSpan.recordException(error);
+    if (error instanceof Error) {
+      rootSpan.recordException(error);
+    }
   };
 
   const flush = async (): Promise<void> => {
-    if (flushed) return;
+    if (flushed) {
+      return;
+    }
     flushed = true;
 
     try {
@@ -286,7 +294,9 @@ export function createAiSdkTelemetryCapture(params: {
           },
         );
       }
-      if (matchingSpans.length === 0) return;
+      if (matchingSpans.length === 0) {
+        return;
+      }
 
       await publishInternalOtelSpans({
         spans: matchingSpans,
@@ -345,7 +355,9 @@ function createGenerationSpanTelemetry(params: {
           message: error instanceof Error ? error.message : String(error),
         });
 
-        if (error instanceof Error) span.recordException(error);
+        if (error instanceof Error) {
+          span.recordException(error);
+        }
       }
       span.end();
     }
@@ -393,7 +405,9 @@ function createGenerationSpanTelemetry(params: {
     onLanguageModelCallEnd(event) {
       const span = openSpans.get(event.callId);
 
-      if (!span) return;
+      if (!span) {
+        return;
+      }
 
       openSpans.delete(event.callId);
 
@@ -427,7 +441,9 @@ function createGenerationSpanTelemetry(params: {
     // nested instrumentation parents correctly.
     executeLanguageModelCall({ callId, execute }) {
       const span = openSpans.get(callId);
-      if (!span) return execute();
+      if (!span) {
+        return execute();
+      }
 
       return context.with(trace.setSpan(context.active(), span), execute);
     },

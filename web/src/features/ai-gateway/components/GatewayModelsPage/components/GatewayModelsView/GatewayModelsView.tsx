@@ -350,17 +350,25 @@ export function GatewayModelsView({
 }
 
 function GatewayProviderIcon({ provider }: { provider: GatewayProvider }) {
-  if (provider === "OPENAI")
+  if (provider === "OPENAI") {
     return <SiOpenai className="size-3" aria-hidden="true" />;
-  if (provider === "ANTHROPIC")
+  }
+  if (provider === "ANTHROPIC") {
     return <SiAnthropic className="size-3" aria-hidden="true" />;
+  }
   return <Route className="size-3" aria-hidden="true" />;
 }
 
 function getApiFormatLabel(format: string) {
-  if (format === "Anthropic Messages") return "Messages";
-  if (format === "OpenAI Chat Completions") return "Completions";
-  if (format === "OpenAI Responses") return "Responses";
+  if (format === "Anthropic Messages") {
+    return "Messages";
+  }
+  if (format === "OpenAI Chat Completions") {
+    return "Completions";
+  }
+  if (format === "OpenAI Responses") {
+    return "Responses";
+  }
   return format;
 }
 
@@ -379,10 +387,14 @@ function getEmptyMessage({
   hasSynced: boolean;
   hasActiveFilters: boolean;
 }) {
-  if (hasActiveFilters)
+  if (hasActiveFilters) {
     return "No models match the current search and filters.";
-  if (!hasProviders)
+  }
+  if (!hasProviders) {
     return "Add a provider credential before discovering models.";
-  if (hasSynced) return "No models were returned by the configured providers.";
+  }
+  if (hasSynced) {
+    return "No models were returned by the configured providers.";
+  }
   return "Sync models to discover what is currently available.";
 }

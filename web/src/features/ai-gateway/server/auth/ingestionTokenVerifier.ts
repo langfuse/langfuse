@@ -44,7 +44,9 @@ function configuredPublicKey(input: {
   keyIdVariable: string;
   publicKeyVariable: string;
 }) {
-  if (!input.keyId && !input.publicKey) return [];
+  if (!input.keyId && !input.publicKey) {
+    return [];
+  }
   if (!input.keyId || !input.publicKey) {
     throw new Error(
       `${input.keyIdVariable} and ${input.publicKeyVariable} must be set together`,
@@ -87,12 +89,18 @@ export async function verifyGatewayIngestionAuthorization(
   const [scheme, token, ...additionalParts] = (authorization ?? "")
     .trim()
     .split(/\s+/);
-  if (scheme !== "Bearer" || !token || additionalParts.length > 0) return null;
-  if (token.split(".").length !== 3) return null;
+  if (scheme !== "Bearer" || !token || additionalParts.length > 0) {
+    return null;
+  }
+  if (token.split(".").length !== 3) {
+    return null;
+  }
 
   // On a deployment without gateway signing keys this path is inert: fall
   // through so the regular API-key verifier still gets to see the header.
-  if (!gatewayIngestionTokenVerifier) return null;
+  if (!gatewayIngestionTokenVerifier) {
+    return null;
+  }
 
   const serviceKeys = [
     ...(env.LANGFUSE_AI_GATEWAY_SERVICE_KEY

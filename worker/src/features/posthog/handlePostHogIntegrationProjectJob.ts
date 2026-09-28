@@ -74,7 +74,9 @@ const sleep = (ms: number) =>
     : Promise.resolve();
 
 const throwIfPostHogSendError = (config: PostHogExecutionConfig) => {
-  if (config.sendError) throw config.sendError;
+  if (config.sendError) {
+    throw config.sendError;
+  }
 };
 
 const flushPostHog = async (

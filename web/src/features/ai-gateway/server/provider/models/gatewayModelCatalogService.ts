@@ -124,7 +124,9 @@ export class GatewayModelCatalogService {
   }
 
   async clearModelCache(organizationId: string, connectionId: string) {
-    if (!this.redis) return;
+    if (!this.redis) {
+      return;
+    }
     try {
       await this.redis.del(this.modelCacheKey(organizationId, connectionId));
     } catch {
@@ -177,7 +179,9 @@ export class GatewayModelCatalogService {
       organizationId: params.organizationId,
       id: params.connectionId,
     });
-    if (!connection) throw new LangfuseNotFoundError("Gateway connection");
+    if (!connection) {
+      throw new LangfuseNotFoundError("Gateway connection");
+    }
 
     if (params.forceRefresh) {
       await this.clearModelCache(params.organizationId, params.connectionId);
@@ -248,12 +252,16 @@ export class GatewayModelCatalogService {
     organizationId: string,
     connectionId: string,
   ): Promise<GatewayModelCatalogEntry[] | null> {
-    if (!this.redis) return null;
+    if (!this.redis) {
+      return null;
+    }
     try {
       const cached = await this.redis.get(
         this.modelCacheKey(organizationId, connectionId),
       );
-      if (!cached) return null;
+      if (!cached) {
+        return null;
+      }
       const parsed: unknown = JSON.parse(cached);
       return isGatewayModelCatalog(parsed) ? parsed : null;
     } catch {
@@ -266,7 +274,9 @@ export class GatewayModelCatalogService {
     connectionId: string,
     models: GatewayModelCatalogEntry[],
   ) {
-    if (!this.redis) return;
+    if (!this.redis) {
+      return;
+    }
     try {
       await this.redis.setex(
         this.modelCacheKey(organizationId, connectionId),

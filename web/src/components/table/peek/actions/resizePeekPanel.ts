@@ -41,7 +41,9 @@ export function beginPeekResize(
   onWidthCommit?: (fraction: number) => void,
 ): () => void {
   // Only primary-button drags; the keyboard path handles the rest.
-  if (event.button !== 0) return () => {};
+  if (event.button !== 0) {
+    return () => {};
+  }
   event.preventDefault();
 
   const onPointerMove = (move: PointerEvent) => {
@@ -98,7 +100,9 @@ export function beginPeekResize(
   store.getState().actions.setResizing(true);
   // Seed the draft to the current width so pressing the handle is a no-op until
   // the pointer actually moves.
-  if (startExpanded) store.getState().actions.setDraftExpanded();
+  if (startExpanded) {
+    store.getState().actions.setDraftExpanded();
+  }
 
   return teardown;
 }

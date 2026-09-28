@@ -60,7 +60,9 @@ export function useJsonTheme(userTheme?: PartialJSONTheme): JSONTheme {
       resolvedTheme === "dark" ? defaultDarkTheme : defaultLightTheme;
 
     // Merge with user overrides
-    if (!userTheme) return baseTheme;
+    if (!userTheme) {
+      return baseTheme;
+    }
 
     return {
       ...baseTheme,

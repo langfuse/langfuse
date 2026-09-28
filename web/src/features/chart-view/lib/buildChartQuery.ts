@@ -74,9 +74,15 @@ export function buildChartQuery({
 
 /** Stringify a raw dimension cell the way the widget charts do. */
 const dimensionValue = (raw: unknown): string => {
-  if (raw === null || raw === undefined || raw === "") return "n/a";
-  if (typeof raw === "string") return raw;
-  if (Array.isArray(raw)) return raw.join(", ");
+  if (raw === null || raw === undefined || raw === "") {
+    return "n/a";
+  }
+  if (typeof raw === "string") {
+    return raw;
+  }
+  if (Array.isArray(raw)) {
+    return raw.join(", ");
+  }
   return String(raw);
 };
 

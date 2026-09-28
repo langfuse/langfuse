@@ -78,7 +78,9 @@ export function UpsertScoreConfigDialogContent({
   async function handleSubmit(values: CreateConfig | UpdateConfig) {
     const error = validateScoreConfigUpsertFormInput(values);
     setFormError(error);
-    if (error) return;
+    if (error) {
+      return;
+    }
 
     try {
       await onSubmit(values);

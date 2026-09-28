@@ -117,11 +117,12 @@ function validateEntityDimension(
     dimension.explodeArray ||
     dimension.pairExpand ||
     dimension.aggregationFunction
-  )
+  ) {
     return {
       valid: false,
       reason: `Invalid entity dimension: ${field}. Entity dimensions must be scalar view dimensions.`,
     };
+  }
 
   if (
     dimension.highCardinality &&

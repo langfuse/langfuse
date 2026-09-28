@@ -42,11 +42,15 @@ export function createAppSettledGate(delayMs = APP_SETTLE_DELAY_MS) {
   // subscription (the app's first client mount); it is idempotent across the
   // StrictMode subscribe/unsubscribe/subscribe cycle and across remounts.
   const startTimer = () => {
-    if (timerStarted || settled) return;
+    if (timerStarted || settled) {
+      return;
+    }
     timerStarted = true;
     setTimeout(() => {
       settled = true;
-      for (const listener of listeners) listener();
+      for (const listener of listeners) {
+        listener();
+      }
     }, delayMs);
   };
 

@@ -80,9 +80,13 @@ import { applyObservationFieldOverflow } from "../../features/observation-field-
  * Returns undefined if the value is nullish or not a valid UInt16 integer.
  */
 function parseUInt16(value: string | null | undefined): number | undefined {
-  if (value == null) return undefined;
+  if (value == null) {
+    return undefined;
+  }
   const num = parseInt(value, 10);
-  if (!Number.isInteger(num) || num < 0 || num > 65535) return undefined;
+  if (!Number.isInteger(num) || num < 0 || num > 65535) {
+    return undefined;
+  }
   return num;
 }
 
@@ -113,8 +117,12 @@ export type EventInput = InternalTraceEventInput;
 function parseEventModelParameters(
   value: EventInput["modelParameters"],
 ): string | object | number | boolean | null {
-  if (!value) return {};
-  if (typeof value !== "string") return value;
+  if (!value) {
+    return {};
+  }
+  if (typeof value !== "string") {
+    return value;
+  }
 
   try {
     return JSON.parse(value) as string | object | number | boolean | null;
@@ -521,7 +529,9 @@ export class IngestionService {
     datasetRunItemEventList: DatasetRunItemEventType[];
   }) {
     const { projectId, entityId, datasetRunItemEventList } = params;
-    if (datasetRunItemEventList.length === 0) return;
+    if (datasetRunItemEventList.length === 0) {
+      return;
+    }
 
     const finalDatasetRunItemRecords: DatasetRunItemRecordInsertType[] = (
       await Promise.all(
@@ -554,7 +564,9 @@ export class IngestionService {
               }),
             ]);
 
-            if (!runData || !itemData) return [];
+            if (!runData || !itemData) {
+              return [];
+            }
 
             const timestamp = toClickhouseDateTime(event.body.createdAt);
 
@@ -620,7 +632,9 @@ export class IngestionService {
       scoreEventList,
       attribution,
     } = params;
-    if (scoreEventList.length === 0) return;
+    if (scoreEventList.length === 0) {
+      return;
+    }
 
     // Re-sending a score with the same id and timestamp is the documented way
     // to overwrite it, so ties must keep arrival order for the later one to
@@ -799,7 +813,9 @@ export class IngestionService {
       createEventTraceRecord,
       attribution,
     } = params;
-    if (traceEventList.length === 0) return;
+    if (traceEventList.length === 0) {
+      return;
+    }
 
     const timeSortedEvents =
       IngestionService.toTimeSortedEventList(traceEventList);
@@ -950,7 +966,9 @@ export class IngestionService {
       writeToStagingTables,
       attribution,
     } = params;
-    if (observationEventList.length === 0) return;
+    if (observationEventList.length === 0) {
+      return;
+    }
 
     const timeSortedEvents =
       IngestionService.toTimeSortedEventList(observationEventList);
@@ -1252,19 +1270,25 @@ export class IngestionService {
       .sort((a, b) => {
         const aTimestamp = new Date(a.event.timestamp).getTime();
         const bTimestamp = new Date(b.event.timestamp).getTime();
-        if (aTimestamp !== bTimestamp) return aTimestamp - bTimestamp;
+        if (aTimestamp !== bTimestamp) {
+          return aTimestamp - bTimestamp;
+        }
 
         const aIsCreate = a.event.type.includes("create");
         const bIsCreate = b.event.type.includes("create");
         // Creates sort before updates, so an update at the same timestamp wins.
-        if (aIsCreate !== bIsCreate) return aIsCreate ? -1 : 1;
+        if (aIsCreate !== bIsCreate) {
+          return aIsCreate ? -1 : 1;
+        }
 
         // Tied creates: the first-arriving one wins. OTel emits a root span's
         // trace-create and a child span's trace-create carrying explicit
         // update_current_trace() values at the same span start time; the child
         // arrives first and its explicit fields must beat the root's derived
         // ones. Placing the earlier arrival last makes it win the merge.
-        if (aIsCreate) return b.index - a.index;
+        if (aIsCreate) {
+          return b.index - a.index;
+        }
 
         // Tied updates: the last-arriving one wins.
         return a.index - b.index;
@@ -1281,7 +1305,9 @@ export class IngestionService {
       .reverse()
       .find(this.hasPromptInformation);
 
-    if (!lastObservationWithPromptInfo) return null;
+    if (!lastObservationWithPromptInfo) {
+      return null;
+    }
 
     const { promptName, promptVersion: version } =
       lastObservationWithPromptInfo.body;
@@ -1549,9 +1575,15 @@ export class IngestionService {
 
         const usage_details: Record<string, number> = {};
 
-        if (newInputCount != null) usage_details.input = newInputCount;
-        if (newOutputCount != null) usage_details.output = newOutputCount;
-        if (newTotalCount != null) usage_details.total = newTotalCount;
+        if (newInputCount != null) {
+          usage_details.input = newInputCount;
+        }
+        if (newOutputCount != null) {
+          usage_details.output = newOutputCount;
+        }
+        if (newTotalCount != null) {
+          usage_details.total = newTotalCount;
+        }
 
         return { usage_details, provided_usage_details: providedUsageDetails };
       } catch (error) {
@@ -1623,7 +1655,9 @@ export class IngestionService {
       rawProvidedUsageDetails,
     );
     const providedTotal = providedUsageDetails.total;
-    if (providedTotal == null) return;
+    if (providedTotal == null) {
+      return;
+    }
 
     const bucketSum = Object.entries(providedUsageDetails)
       .filter(([key]) => key !== "total")
@@ -1632,7 +1666,9 @@ export class IngestionService {
       1,
       providedTotal * IngestionService.USAGE_TOTAL_MISMATCH_TOLERANCE,
     );
-    if (bucketSum <= providedTotal + tolerance) return;
+    if (bucketSum <= providedTotal + tolerance) {
+      return;
+    }
 
     recordIncrement("langfuse.ingestion.usage_details.total_mismatch", 1, {
       write_path: writePath,
@@ -1845,7 +1881,9 @@ export class IngestionService {
 
         const result = await queryResult.json();
 
-        if (result.length === 0) return null;
+        if (result.length === 0) {
+          return null;
+        }
 
         switch (table) {
           case TableName.Traces:
@@ -1981,10 +2019,15 @@ export class IngestionService {
 
       let provided_usage_details: Record<string, number> = {};
 
-      if (newInputCount != null) provided_usage_details.input = newInputCount;
-      if (newOutputCount != null)
+      if (newInputCount != null) {
+        provided_usage_details.input = newInputCount;
+      }
+      if (newOutputCount != null) {
         provided_usage_details.output = newOutputCount;
-      if (newTotalCount != null) provided_usage_details.total = newTotalCount;
+      }
+      if (newTotalCount != null) {
+        provided_usage_details.total = newTotalCount;
+      }
 
       provided_usage_details = {
         ...provided_usage_details,
@@ -2002,9 +2045,15 @@ export class IngestionService {
       if ("usage" in obs.body) {
         const { inputCost, outputCost, totalCost } = obs.body.usage ?? {};
 
-        if (inputCost != null) provided_cost_details.input = inputCost;
-        if (outputCost != null) provided_cost_details.output = outputCost;
-        if (totalCost != null) provided_cost_details.total = totalCost;
+        if (inputCost != null) {
+          provided_cost_details.input = inputCost;
+        }
+        if (outputCost != null) {
+          provided_cost_details.output = outputCost;
+        }
+        if (totalCost != null) {
+          provided_cost_details.total = totalCost;
+        }
       }
 
       provided_cost_details = {
@@ -2076,7 +2125,9 @@ export class IngestionService {
   private stringify(
     obj: string | object | number | boolean | undefined | null,
   ): string | undefined {
-    if (obj == null) return; // return undefined on undefined or null
+    if (obj == null) {
+      return;
+    } // return undefined on undefined or null
 
     return typeof obj === "string" ? obj : JSON.stringify(obj);
   }

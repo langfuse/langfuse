@@ -18,8 +18,12 @@ const columns = [
     accessorFn: (row) => row.name,
     header: "Link",
     getCell: (name, { row }) => {
-      if (row.original.isLinkLoading) return { type: "loading" };
-      if (!name) return undefined;
+      if (row.original.isLinkLoading) {
+        return { type: "loading" };
+      }
+      if (!name) {
+        return undefined;
+      }
 
       return {
         type: "link",

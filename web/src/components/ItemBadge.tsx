@@ -108,7 +108,9 @@ export function ItemTypeIcon({
 export function renderFilterIcon(value: string): React.ReactNode {
   const type = value as LangfuseItemType;
   const Icon = iconMap[type];
-  if (!Icon) return null;
+  if (!Icon) {
+    return null;
+  }
   return (
     <Icon className={cn("h-3.5 w-3.5 shrink-0", iconVariants({ type }))} />
   );

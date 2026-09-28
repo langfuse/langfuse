@@ -9,7 +9,9 @@ let hasLegacyEventsTable = false;
 
 const maybeIt = (name: string, testFn: () => Promise<void>): void => {
   isEventsTableV2Enabled(name, async () => {
-    if (!hasLegacyEventsTable) return;
+    if (!hasLegacyEventsTable) {
+      return;
+    }
     await testFn();
   });
 };

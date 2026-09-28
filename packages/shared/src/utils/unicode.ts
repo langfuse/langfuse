@@ -28,7 +28,9 @@ export function decodeUnicodeEscapesOnly(
   input: string,
   greedy = false,
 ): string {
-  if (input.indexOf("\\") === -1) return input;
+  if (input.indexOf("\\") === -1) {
+    return input;
+  }
 
   const n = input.length;
   const out: string[] = [];
@@ -36,9 +38,15 @@ export function decodeUnicodeEscapesOnly(
   let lastEmit = 0;
 
   const hex = (cc: number): number => {
-    if (cc >= 48 && cc <= 57) return cc - 48; // 0-9
-    if (cc >= 65 && cc <= 70) return cc - 55; // A-F
-    if (cc >= 97 && cc <= 102) return cc - 87; // a-f
+    if (cc >= 48 && cc <= 57) {
+      return cc - 48;
+    } // 0-9
+    if (cc >= 65 && cc <= 70) {
+      return cc - 55;
+    } // A-F
+    if (cc >= 97 && cc <= 102) {
+      return cc - 87;
+    } // a-f
     return -1;
   };
 
@@ -60,14 +68,26 @@ export function decodeUnicodeEscapesOnly(
     high: number,
     maxLen: number,
   ): { decoded: string; consumed: number } | null => {
-    if (high < HIGH_SURROGATE_START || high > HIGH_SURROGATE_END) return null;
-    if (pos + 6 > maxLen) return null;
-    if (str.charCodeAt(pos) !== BACKSLASH) return null;
-    if (str.charCodeAt(pos + 1) !== U_CHAR) return null;
+    if (high < HIGH_SURROGATE_START || high > HIGH_SURROGATE_END) {
+      return null;
+    }
+    if (pos + 6 > maxLen) {
+      return null;
+    }
+    if (str.charCodeAt(pos) !== BACKSLASH) {
+      return null;
+    }
+    if (str.charCodeAt(pos + 1) !== U_CHAR) {
+      return null;
+    }
 
     const low = parseHex4(str, pos + 2);
-    if (low === -1) return null;
-    if (low < LOW_SURROGATE_START || low > LOW_SURROGATE_END) return null;
+    if (low === -1) {
+      return null;
+    }
+    if (low < LOW_SURROGATE_START || low > LOW_SURROGATE_END) {
+      return null;
+    }
 
     const cp =
       ((high - HIGH_SURROGATE_START) << 10) +
@@ -86,14 +106,18 @@ export function decodeUnicodeEscapesOnly(
 
       // count backslashes before 'u'
       let j = i + 1;
-      while (j < n && input.charCodeAt(j) === BACKSLASH) j++;
+      while (j < n && input.charCodeAt(j) === BACKSLASH) {
+        j++;
+      }
 
       // look for 'u' after backslashes
       if (j < n && input.charCodeAt(j) === U_CHAR && j + 5 <= n) {
         const codeUnit = parseHex4(input, j + 1);
         if (codeUnit !== -1) {
           // Emit everything up to the backslash run
-          if (lastEmit < i) out.push(input.slice(lastEmit, i));
+          if (lastEmit < i) {
+            out.push(input.slice(lastEmit, i));
+          }
 
           // surrogate pair decoding (greedy: skip backslashes before low surrogate)
           if (
@@ -102,7 +126,9 @@ export function decodeUnicodeEscapesOnly(
           ) {
             // In greedy mode, the low surrogate may be preceded by extra backslashes
             let k = j + 5;
-            while (k < n && input.charCodeAt(k) === BACKSLASH) k++;
+            while (k < n && input.charCodeAt(k) === BACKSLASH) {
+              k++;
+            }
             if (k < n && input.charCodeAt(k) === U_CHAR && k + 5 <= n) {
               const low = parseHex4(input, k + 1);
               if (low >= LOW_SURROGATE_START && low <= LOW_SURROGATE_END) {
@@ -146,7 +172,9 @@ export function decodeUnicodeEscapesOnly(
       i = j;
     }
 
-    if (lastEmit < n) out.push(input.slice(lastEmit));
+    if (lastEmit < n) {
+      out.push(input.slice(lastEmit));
+    }
     return out.join("");
   }
 
@@ -160,15 +188,21 @@ export function decodeUnicodeEscapesOnly(
 
     // count backslashes in run
     let j = i + 1;
-    while (j < n && input.charCodeAt(j) === BACKSLASH) j++;
+    while (j < n && input.charCodeAt(j) === BACKSLASH) {
+      j++;
+    }
     const run = j - i;
 
     // only consider backslash if directly followed by 'u'
     if (j < n && input.charCodeAt(j) === U_CHAR) {
       // Emit preceding literal and collapse paired backslashes
-      if (lastEmit < i) out.push(input.slice(lastEmit, i));
+      if (lastEmit < i) {
+        out.push(input.slice(lastEmit, i));
+      }
       const pairs = run >> 1;
-      if (pairs) out.push("\\".repeat(pairs));
+      if (pairs) {
+        out.push("\\".repeat(pairs));
+      }
 
       if ((run & 1) === 0) {
         // Even run: the 'u' is not escaped -> leave it untouched
@@ -231,6 +265,8 @@ export function decodeUnicodeEscapesOnly(
     i = j;
   }
 
-  if (lastEmit < n) out.push(input.slice(lastEmit));
+  if (lastEmit < n) {
+    out.push(input.slice(lastEmit));
+  }
   return out.join("");
 }

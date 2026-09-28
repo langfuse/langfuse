@@ -95,7 +95,9 @@ export const CommentEditor = forwardRef<
       },
       replaceRange: (from, to, text) => {
         const view = editorRef.current?.view;
-        if (!view || disabled) return;
+        if (!view || disabled) {
+          return;
+        }
         view.dispatch({
           changes: { from, to, insert: text },
           selection: { anchor: from + text.length },

@@ -27,7 +27,9 @@ function useDebouncedContainerWidth(delayMs: number) {
 
   useEffect(() => {
     const element = containerRef.current;
-    if (!element) return;
+    if (!element) {
+      return;
+    }
 
     setWidth(element.getBoundingClientRect().width);
 
@@ -125,7 +127,9 @@ export function DashboardGrid({
   const handleContentHeightChange = useCallback(
     (placementId: string, height: number) => {
       setContentHeights((current) => {
-        if (current[placementId] === height) return current;
+        if (current[placementId] === height) {
+          return current;
+        }
         return { ...current, [placementId]: height };
       });
     },
@@ -170,15 +174,21 @@ export function DashboardGrid({
   const handleLayoutChange = (newLayout: any[]) => {
     // Safety checks: prevent layout changes on small screens and when editing is disabled
     // This prevents unintended saves during responsive transitions or on mobile devices
-    if (!canEdit || isSmallScreen) return;
+    if (!canEdit || isSmallScreen) {
+      return;
+    }
 
     // Additional safety: ensure the layout change is meaningful
-    if (!newLayout || newLayout.length === 0) return;
+    if (!newLayout || newLayout.length === 0) {
+      return;
+    }
 
     // Update widget positions based on the new layout
     const updatedWidgets = widgets.map((w) => {
       const layoutItem = newLayout.find((item) => item.i === w.id);
-      if (!layoutItem) return w;
+      if (!layoutItem) {
+        return w;
+      }
 
       return {
         ...w,

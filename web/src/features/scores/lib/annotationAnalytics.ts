@@ -58,7 +58,9 @@ export type AnnotationEventMap = {
 export function getAnnotationTargetType(
   target: ScoreTarget,
 ): AnnotationAnalyticsContext["targetType"] {
-  if (target.type === "session") return "session";
+  if (target.type === "session") {
+    return "session";
+  }
   return target.observationId ? "observation" : "trace";
 }
 
@@ -114,8 +116,9 @@ export function createAnnotationAnalytics(
   let abandoned = false;
 
   const abandon = () => {
-    if (!closed || pending || saved || abandoned || openedAt === undefined)
+    if (!closed || pending || saved || abandoned || openedAt === undefined) {
       return;
+    }
     abandoned = true;
     capture("score:form_abandoned", {
       ...metadata,
@@ -129,7 +132,9 @@ export function createAnnotationAnalytics(
       clearTimeout(closeTimer);
       closed = false;
       closedAt = undefined;
-      if (openedAt !== undefined) return;
+      if (openedAt !== undefined) {
+        return;
+      }
       openedAt = Date.now();
       capture(
         initialFields.some((field) => field.id)
@@ -144,7 +149,9 @@ export function createAnnotationAnalytics(
         "dataType" | "value" | "stringValue"
       >[],
     ) {
-      if (fields) fieldCounts = counts(fields);
+      if (fields) {
+        fieldCounts = counts(fields);
+      }
       closedAt = Date.now();
       // React effect replay must not look like a reviewer closing the form.
       closeTimer = setTimeout(() => {
@@ -161,17 +168,24 @@ export function createAnnotationAnalytics(
       const previous = values.get(field.configId);
       const isValueSave = kind === "create" || kind === "update";
       const changed = (baseline: AnnotationScoreFormData | undefined) => {
-        if (kind === "delete") return Boolean(baseline?.id);
-        if (!isValueSave)
+        if (kind === "delete") {
+          return Boolean(baseline?.id);
+        }
+        if (!isValueSave) {
           return (baseline?.comment ?? null) !== (field.comment ?? null);
-        if (!baseline) return true;
+        }
+        if (!baseline) {
+          return true;
+        }
         return field.dataType === "TEXT"
           ? baseline.stringValue !== field.stringValue
           : baseline.value !== field.value ||
               baseline.stringValue !== field.stringValue;
       };
       const valueChanged = changed(previous);
-      if (!valueChanged && !pendingValues.get(field.configId)?.length) return;
+      if (!valueChanged && !pendingValues.get(field.configId)?.length) {
+        return;
+      }
 
       const next = { ...field };
       const operation = { field: next, sequence: ++sequence };
@@ -216,12 +230,17 @@ export function createAnnotationAnalytics(
           latest.sequence > (confirmedSequence.get(field.configId) ?? 0)
             ? latest.field
             : confirmed.get(field.configId);
-        if (current) values.set(field.configId, current);
-        else values.delete(field.configId);
+        if (current) {
+          values.set(field.configId, current);
+        } else {
+          values.delete(field.configId);
+        }
       };
       return {
         success() {
-          if (settled) return;
+          if (settled) {
+            return;
+          }
           settled = true;
           const savedChange = changed(confirmed.get(field.configId));
           settle(true);
@@ -231,7 +250,9 @@ export function createAnnotationAnalytics(
           }
         },
         failure() {
-          if (settled) return;
+          if (settled) {
+            return;
+          }
           settled = true;
           settle(false);
           abandon();

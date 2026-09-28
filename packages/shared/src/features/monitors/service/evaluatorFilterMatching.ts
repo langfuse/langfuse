@@ -35,7 +35,9 @@ export const findMonitorIdsLinkedToEvaluators = async (
     limit?: number;
   },
 ): Promise<string[]> => {
-  if (params.evaluatorIds.length === 0) return [];
+  if (params.evaluatorIds.length === 0) {
+    return [];
+  }
 
   const selectedEvaluators = Prisma.join(
     params.evaluatorIds.map((id) => Prisma.sql`(${id})`),

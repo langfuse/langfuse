@@ -100,7 +100,9 @@ export function ResizableSplitLayout({
   });
 
   useLayoutEffect(() => {
-    if (!keepSecondaryMounted) return;
+    if (!keepSecondaryMounted) {
+      return;
+    }
 
     // The panel ref outlives the group's registry entry. After a desktop↔mobile
     // swap or unmount, isCollapsed / expand / collapse / resize throw
@@ -133,9 +135,13 @@ export function ResizableSplitLayout({
   // collapsed state back whenever it disagrees with the controlled `open`.
   const handleSecondaryResizeCallback = useCallback(() => {
     const panel = secondaryPanelRef.current;
-    if (!panel || !onOpenChange) return;
+    if (!panel || !onOpenChange) {
+      return;
+    }
     const panelOpen = withMountedPanel(panel, (p) => !p.isCollapsed(), open);
-    if (panelOpen !== open) onOpenChange(panelOpen);
+    if (panelOpen !== open) {
+      onOpenChange(panelOpen);
+    }
   }, [secondaryPanelRef, onOpenChange, open]);
   const handleSecondaryResize =
     hasCollapsedRail && onOpenChange

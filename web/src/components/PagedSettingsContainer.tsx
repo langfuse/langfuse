@@ -48,9 +48,12 @@ export const PagedSettingsContainer = ({
 
   const onChange = (newSlug: string) => {
     const pathSegments = router.asPath.split("/");
-    if (pathSegments[pathSegments.length - 1] !== "settings")
+    if (pathSegments[pathSegments.length - 1] !== "settings") {
       pathSegments.pop();
-    if (newSlug !== "index") pathSegments.push(newSlug);
+    }
+    if (newSlug !== "index") {
+      pathSegments.push(newSlug);
+    }
     router.push(pathSegments.join("/"));
   };
 
@@ -72,8 +75,11 @@ export const PagedSettingsContainer = ({
           <Select
             onValueChange={(slug) => {
               const page = availablePages.find((p) => p.slug === slug);
-              if (page && "href" in page) router.push(page.href);
-              else onChange(slug);
+              if (page && "href" in page) {
+                router.push(page.href);
+              } else {
+                onChange(slug);
+              }
             }}
             value={currentPage.slug}
           >

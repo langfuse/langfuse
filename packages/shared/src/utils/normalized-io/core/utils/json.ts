@@ -24,13 +24,21 @@ export function ownLookup<T>(
 }
 
 export function toJsonValue(value: unknown): JsonValue {
-  if (value === null) return null;
-  if (typeof value === "string" || typeof value === "boolean") return value;
+  if (value === null) {
+    return null;
+  }
+  if (typeof value === "string" || typeof value === "boolean") {
+    return value;
+  }
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : String(value);
   }
-  if (typeof value === "bigint") return value.toString();
-  if (Array.isArray(value)) return value.map(toJsonValue);
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+  if (Array.isArray(value)) {
+    return value.map(toJsonValue);
+  }
   if (isRecord(value)) {
     return Object.fromEntries(
       Object.entries(value).map(([key, nestedValue]) => [
@@ -55,7 +63,9 @@ export function nullableString(value: unknown): string | null {
 
 /** Parse one JSON-string boundary. Nested values are parsed only by their owner. */
 export function parseIfString(value: unknown): unknown {
-  if (typeof value !== "string") return value;
+  if (typeof value !== "string") {
+    return value;
+  }
 
   try {
     return JSON.parse(value);
@@ -100,7 +110,9 @@ export function remainingProviderMetadata(
 
   for (const record of records) {
     for (const [key, value] of Object.entries(record)) {
-      if (!consumedKeys.has(key)) remaining[key] = value;
+      if (!consumedKeys.has(key)) {
+        remaining[key] = value;
+      }
     }
   }
 
@@ -142,7 +154,9 @@ export function recordKeyAsParsed(
 
   const nested = asRecord(unparsedKeys[key]);
   const [nestedKey, ...rest] = nestedPath;
-  if (!nested || !(nestedKey in nested)) return undefined;
+  if (!nested || !(nestedKey in nested)) {
+    return undefined;
+  }
   const nestedCopy = { ...nested };
   const value = recordKeyAsParsed(nestedCopy, nestedKey, ...rest);
   if (Object.keys(nestedCopy).length === 0) {

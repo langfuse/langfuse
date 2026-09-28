@@ -39,9 +39,13 @@ export function useTextSelection({
 
   const handleSelectionChange = useCallback(() => {
     const container = containerRef.current;
-    if (!enabled || !container || !context) return;
+    if (!enabled || !container || !context) {
+      return;
+    }
 
-    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
 
     debounceRef.current = setTimeout(() => {
       const selection = window.getSelection();
@@ -86,11 +90,15 @@ export function useTextSelection({
   }, [enabled, containerRef, dataField, context]);
 
   useEffect(() => {
-    if (!enabled || !context) return;
+    if (!enabled || !context) {
+      return;
+    }
     document.addEventListener("selectionchange", handleSelectionChange);
     return () => {
       document.removeEventListener("selectionchange", handleSelectionChange);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
     };
   }, [enabled, handleSelectionChange, context]);
 

@@ -55,10 +55,14 @@ function isHttpClientIntegrationEvent(event: ErrorEvent): boolean {
  * of that same failure across thousands of browsers.
  */
 export function isNoisyHttpClientPollEvent(event: ErrorEvent): boolean {
-  if (!isHttpClientIntegrationEvent(event)) return false;
+  if (!isHttpClientIntegrationEvent(event)) {
+    return false;
+  }
 
   const requestUrl = event.request?.url;
-  if (typeof requestUrl !== "string") return false;
+  if (typeof requestUrl !== "string") {
+    return false;
+  }
 
   // Reduce to a path so origin/query string don't affect matching. Fall back to
   // the raw string if the URL cannot be parsed (httpClient URLs are absolute, so
@@ -125,9 +129,13 @@ function readHttpClientStatus(event: ErrorEvent): number | undefined {
     event.exception?.values?.[0]?.value ??
     event.message ??
     event.logentry?.message;
-  if (typeof text !== "string") return undefined;
+  if (typeof text !== "string") {
+    return undefined;
+  }
   const match = HTTP_CLIENT_STATUS_MESSAGE.exec(text.trim());
-  if (!match) return undefined;
+  if (!match) {
+    return undefined;
+  }
   return Number(match[1]);
 }
 
@@ -171,14 +179,18 @@ function isHttpClientAppOwnedRequestUrl(requestUrl: string): boolean {
 }
 
 export function isNoisyHttpClientGatewayEvent(event: ErrorEvent): boolean {
-  if (!isHttpClientIntegrationEvent(event)) return false;
+  if (!isHttpClientIntegrationEvent(event)) {
+    return false;
+  }
   const status = readHttpClientStatus(event);
   if (status === undefined || !HTTP_CLIENT_GATEWAY_STATUSES.has(status)) {
     return false;
   }
 
   const requestUrl = event.request?.url;
-  if (typeof requestUrl !== "string") return false;
+  if (typeof requestUrl !== "string") {
+    return false;
+  }
 
   return isHttpClientAppOwnedRequestUrl(requestUrl);
 }
@@ -230,7 +242,9 @@ const DYNAMIC_IMPORT_FAILURE_MARKER =
  */
 function isBrowserExtensionDynamicImportFailure(text: string): boolean {
   const markerIndex = text.indexOf(DYNAMIC_IMPORT_FAILURE_MARKER);
-  if (markerIndex === -1) return false;
+  if (markerIndex === -1) {
+    return false;
+  }
   const failedModule = text
     .slice(markerIndex + DYNAMIC_IMPORT_FAILURE_MARKER.length)
     .trimStart();
@@ -411,7 +425,9 @@ function isSafariAddMoreClickMessage(value: string): boolean {
  */
 function hasFirstPartyChunkFrame(event: ErrorEvent): boolean {
   const frames = event.exception?.values?.[0]?.stacktrace?.frames;
-  if (!frames || frames.length === 0) return false;
+  if (!frames || frames.length === 0) {
+    return false;
+  }
   return frames.some(
     (frame) =>
       typeof frame?.filename === "string" && frame.filename.includes("/_next/"),
@@ -536,7 +552,9 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     const core = coreMessage(messageText);
 
     // --- A. Transport / connectivity (whole-message match after unwrapping) ---
-    if (TRANSPORT_FAILURE_MESSAGES.includes(core)) return true;
+    if (TRANSPORT_FAILURE_MESSAGES.includes(core)) {
+      return true;
+    }
 
     // --- A + B + C. Unambiguous framework/vendor/transport prefixes (incl.
     // NextAuth, PostHog, non-JSON Response.json(), and the Next.js `_error.js`
@@ -767,7 +785,9 @@ function isGlobalHandlerUnsupportedMediaResourceEvent(
   exceptionValue: string,
   mechanismType: string | undefined,
 ): boolean {
-  if (exceptionType !== "NotSupportedError") return false;
+  if (exceptionType !== "NotSupportedError") {
+    return false;
+  }
   if (
     typeof mechanismType !== "string" ||
     !mechanismType.startsWith("auto.browser.global_handlers")
@@ -817,20 +837,26 @@ const FAILED_TO_LOAD_SCRIPT_MARKER = "Failed to load script:";
  */
 export function isStaleChunkParseErrorEvent(event: ErrorEvent): boolean {
   const exception = event.exception?.values?.[0];
-  if (exception?.type !== "SyntaxError") return false;
+  if (exception?.type !== "SyntaxError") {
+    return false;
+  }
   if (exception.mechanism?.type !== "auto.browser.global_handlers.onerror") {
     return false;
   }
 
   const frames = exception.stacktrace?.frames;
-  if (!frames || frames.length !== 1) return false;
+  if (!frames || frames.length !== 1) {
+    return false;
+  }
 
   const frame = frames[0];
   // Parse errors carry no function name — the SDK synthesizes the frame with
   // its UNKNOWN_FUNCTION placeholder `"?"` on the wire (`beforeSend` runs
   // BEFORE server-side normalization turns that into `null`). A real function
   // name means runtime code threw.
-  if (frame?.function && frame.function !== "?") return false;
+  if (frame?.function && frame.function !== "?") {
+    return false;
+  }
 
   return (
     typeof frame?.filename === "string" &&
@@ -856,7 +882,9 @@ export function isStaleChunkParseErrorEvent(event: ErrorEvent): boolean {
  */
 export function isStaleChunkLoadErrorEvent(event: ErrorEvent): boolean {
   const text = eventText(event);
-  if (!text.includes(NEXT_STATIC_CHUNK_PATH)) return false;
+  if (!text.includes(NEXT_STATIC_CHUNK_PATH)) {
+    return false;
+  }
   return (
     text.includes(FAILED_TO_LOAD_SCRIPT_MARKER) ||
     text.includes(DYNAMIC_IMPORT_FAILURE_MARKER)
@@ -919,20 +947,26 @@ function isOpaqueOrSdkFrame(filename: string): boolean {
  */
 export function isPosthogRecorderInternalEvent(event: ErrorEvent): boolean {
   const frames = event.exception?.values?.[0]?.stacktrace?.frames;
-  if (!frames || frames.length === 0) return false;
+  if (!frames || frames.length === 0) {
+    return false;
+  }
 
   let sawRecorderFrame = false;
   for (const frame of frames) {
     const filename = frame?.filename;
     // A frame with no filename has no attribution — treat like <anonymous>.
-    if (typeof filename !== "string" || filename.length === 0) continue;
+    if (typeof filename !== "string" || filename.length === 0) {
+      continue;
+    }
     // Strip query/fragment (older `?v=` layout) before matching the filename.
     const path = filename.split(/[?#]/)[0];
     if (isPosthogRecorderFilename(path)) {
       sawRecorderFrame = true;
       continue;
     }
-    if (isOpaqueOrSdkFrame(filename)) continue;
+    if (isOpaqueOrSdkFrame(filename)) {
+      continue;
+    }
     // Any other frame (app chunk, other vendor) → not recorder-internal.
     return false;
   }
@@ -985,21 +1019,29 @@ export function isKitesurfInternalEvent(event: ErrorEvent): boolean {
   }
 
   const frames = event.exception?.values?.[0]?.stacktrace?.frames;
-  if (!frames || frames.length === 0) return false;
+  if (!frames || frames.length === 0) {
+    return false;
+  }
 
   let sawKitesurfVendorFrame = false;
   for (const stackFrame of frames) {
     const filename = stackFrame?.filename;
-    if (typeof filename !== "string" || filename.length === 0) continue;
+    if (typeof filename !== "string" || filename.length === 0) {
+      continue;
+    }
     const path = filename.split(/[?#]/)[0];
     if (isKitesurfVendorFilename(path)) {
       sawKitesurfVendorFrame = true;
       continue;
     }
-    if (isOpaqueOrSdkFrame(filename)) continue;
+    if (isOpaqueOrSdkFrame(filename)) {
+      continue;
+    }
     // Bare `page.js` is Kitesurf's controller only when a vendor script is
     // also on the stack. An all-`page.js` stack is kept.
-    if (isKitesurfPageControllerFilename(path)) continue;
+    if (isKitesurfPageControllerFilename(path)) {
+      continue;
+    }
     return false;
   }
   return sawKitesurfVendorFrame;

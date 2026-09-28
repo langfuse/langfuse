@@ -81,7 +81,9 @@ export const DatasetItemFields = ({
 
   // Create dataset array for validation hook
   const datasets = useMemo(() => {
-    if (!dataset) return [];
+    if (!dataset) {
+      return [];
+    }
     return [dataset];
   }, [dataset]);
 

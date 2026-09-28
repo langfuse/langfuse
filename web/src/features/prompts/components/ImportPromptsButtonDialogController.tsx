@@ -62,7 +62,9 @@ const ImportPromptsDialogContent: React.FC<{
 
   const handleFiles = (files: File[]) => {
     const file = files[0];
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
     setState({ step: "idle" });
 
@@ -70,7 +72,9 @@ const ImportPromptsDialogContent: React.FC<{
     reader.onload = (event) => {
       try {
         const text = event.target?.result;
-        if (typeof text !== "string") throw new Error("Failed to read file.");
+        if (typeof text !== "string") {
+          throw new Error("Failed to read file.");
+        }
         const raw = JSON.parse(text) as unknown;
         const items = validateImportPayload(raw);
         setState({ step: "parsed", file, items });
@@ -86,7 +90,9 @@ const ImportPromptsDialogContent: React.FC<{
   };
 
   const handleImport = async () => {
-    if (state.step !== "parsed") return;
+    if (state.step !== "parsed") {
+      return;
+    }
     capture("prompts:bulk_import_submit", { count: state.items.length });
     const parsedState = state;
     setState({ ...parsedState, importError: undefined });
@@ -241,13 +247,17 @@ export function ImportPromptsButtonDialogController({
     : { reason: "You don't have permission to import prompts." };
 
   const openDialog = () => {
-    if (!hasAccess) return;
+    if (!hasAccess) {
+      return;
+    }
 
     setOpen(true);
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && importMutation.isPending) return;
+    if (!nextOpen && importMutation.isPending) {
+      return;
+    }
 
     setOpen(nextOpen);
   };

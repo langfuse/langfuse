@@ -44,12 +44,18 @@ export function ScoreDistributionCategoricalChart({
       grouped.set(item.score1Category, values);
     }
     const keys = [...stacks].filter((key) => key !== "__unmatched__").sort();
-    if (stacks.has("__unmatched__")) keys.push("__unmatched__");
+    if (stacks.has("__unmatched__")) {
+      keys.push("__unmatched__");
+    }
     return {
       data: [...grouped]
         .sort(([a], [b]) => {
-          if (a === "__unmatched__") return 1;
-          if (b === "__unmatched__") return -1;
+          if (a === "__unmatched__") {
+            return 1;
+          }
+          if (b === "__unmatched__") {
+            return -1;
+          }
           return a.localeCompare(b);
         })
         .map(([key, values]) => ({

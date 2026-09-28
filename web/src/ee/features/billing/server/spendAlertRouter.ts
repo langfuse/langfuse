@@ -114,8 +114,12 @@ export const spendAlertRouter = createTRPCRouter({
       }
 
       const updateData: { title?: string; threshold?: number } = {};
-      if (input.title !== undefined) updateData.title = input.title;
-      if (input.threshold !== undefined) updateData.threshold = input.threshold;
+      if (input.title !== undefined) {
+        updateData.title = input.title;
+      }
+      if (input.threshold !== undefined) {
+        updateData.threshold = input.threshold;
+      }
 
       const updatedAlert = await ctx.prisma.cloudSpendAlert.update({
         where: { id: input.id },

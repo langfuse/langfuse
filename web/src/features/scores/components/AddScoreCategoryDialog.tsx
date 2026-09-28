@@ -62,7 +62,9 @@ export function AddScoreCategoryDialog({
   });
 
   const handleConfirm = () => {
-    if (validationError) return;
+    if (validationError) {
+      return;
+    }
     appendCategory.mutate({
       projectId,
       id: config.id,
@@ -74,13 +76,17 @@ export function AddScoreCategoryDialog({
     <Dialog
       open={isActive}
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (!open) {
+          onClose();
+        }
       }}
     >
       <DialogContent
         closeOnInteractionOutside
         onCloseAutoFocus={(event) => {
-          if (!isActive) event.preventDefault();
+          if (!isActive) {
+            event.preventDefault();
+          }
         }}
       >
         <DialogHeader variant="action">

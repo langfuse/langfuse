@@ -154,7 +154,9 @@ function toLegacyManagedTemplate(template: LegacyManagedTemplate) {
 
 function toLegacyEvaluatorTemplate(evaluator: StableEvaluator) {
   const version = evaluator.versions[0];
-  if (!version) return null;
+  if (!version) {
+    return null;
+  }
 
   return {
     id: version.id,
@@ -249,16 +251,22 @@ function definitionFromEvaluator(
   variableMapping: LlmEvaluatorVariableMapping,
 ): EvaluatorDefinition | null {
   const version = evaluator.versions[0];
-  if (!version) return null;
+  if (!version) {
+    return null;
+  }
   if (evaluator.type === EvalTemplateType.CODE) {
-    if (!version.sourceCode || !version.sourceCodeLanguage) return null;
+    if (!version.sourceCode || !version.sourceCodeLanguage) {
+      return null;
+    }
     return {
       type: EvalTemplateType.CODE,
       sourceCode: version.sourceCode,
       sourceCodeLanguage: version.sourceCodeLanguage,
     };
   }
-  if (!version.outputDefinition) return null;
+  if (!version.outputDefinition) {
+    return null;
+  }
   const definition = toEvaluatorDefinition(evaluator.type, version);
   return definition.type === EvalTemplateType.LLM_AS_JUDGE
     ? { ...definition, variableMapping }
@@ -392,7 +400,9 @@ async function findReusableEvaluatorId(params: {
     where: { id: templateId, evaluator: { projectId } },
     include: { evaluator: { include: { versions: latestVersion } } },
   });
-  if (!version) return null;
+  if (!version) {
+    return null;
+  }
 
   const { evaluator } = version;
   if (evaluator.name !== scoreName || evaluator.type !== definition.type) {
@@ -410,7 +420,9 @@ function isRunnableTemplate(template: {
   type: EvalTemplateType;
   sourceCodeLanguage: EvalTemplateSourceCodeLanguage | null;
 }) {
-  if (template.type !== EvalTemplateType.CODE) return true;
+  if (template.type !== EvalTemplateType.CODE) {
+    return true;
+  }
 
   return (
     template.sourceCodeLanguage !== null &&
@@ -447,7 +459,9 @@ function findManagedOriginal(
   catalog: ManagedCatalogEntry[],
 ) {
   const definition = definitionFromEvaluator(evaluator, null);
-  if (!definition) return null;
+  if (!definition) {
+    return null;
+  }
 
   return (
     catalog.find(
@@ -494,7 +508,9 @@ async function clearEvaluatorBlock(params: {
       where: { id: params.assignmentId, projectId: params.projectId },
       select: { evaluatorId: true },
     });
-  if (!assignment) return;
+  if (!assignment) {
+    return;
+  }
 
   await params.tx.evaluator.updateMany({
     where: { id: assignment.evaluatorId, projectId: params.projectId },
@@ -522,7 +538,9 @@ async function applyScoreNameChange(params: {
       _count: { select: { assignments: true } },
     },
   });
-  if (!evaluator || evaluator.name === scoreName) return;
+  if (!evaluator || evaluator.name === scoreName) {
+    return;
+  }
 
   if (evaluator._count.assignments <= 1) {
     await tx.evaluator.update({
@@ -760,7 +778,9 @@ export class LegacyEvalCompatibilityService {
       where: { id: ruleId, projectId },
       include: ruleInclude,
     });
-    if (!rule || rule.assignments.length > 1) return null;
+    if (!rule || rule.assignments.length > 1) {
+      return null;
+    }
     if (
       rule.assignments.length === 0 &&
       !isLegacyEvalTarget(rule.targetObject)
@@ -819,7 +839,9 @@ export class LegacyEvalCompatibilityService {
       ? runnableManagedCatalog()
       : [];
     return evaluators.flatMap((evaluator) => {
-      if (catalog.length && findManagedOriginal(evaluator, catalog)) return [];
+      if (catalog.length && findManagedOriginal(evaluator, catalog)) {
+        return [];
+      }
       const template = toLegacyEvaluatorTemplate(evaluator);
       return template && isRunnableTemplate(template) ? [template] : [];
     });
@@ -942,7 +964,9 @@ export class LegacyEvalCompatibilityService {
       const template = legacyManagedTemplates().find(
         (candidate) => candidate.key === key,
       );
-      if (!template) return null;
+      if (!template) {
+        return null;
+      }
       const legacyTemplate = toLegacyManagedTemplate(template);
       return isRunnableTemplate(legacyTemplate) ? legacyTemplate : null;
     }
@@ -950,7 +974,9 @@ export class LegacyEvalCompatibilityService {
       where: { id: templateId, evaluator: { projectId } },
       include: { evaluator: true },
     });
-    if (!version) return null;
+    if (!version) {
+      return null;
+    }
     const template = toLegacyEvaluatorTemplate({
       ...version.evaluator,
       versions: [version],
@@ -983,10 +1009,14 @@ export class LegacyEvalCompatibilityService {
       },
       include: { evaluator: { include: { versions: latestVersion } } },
     });
-    if (!version) return null;
+    if (!version) {
+      return null;
+    }
 
     const currentVersion = version.evaluator.versions[0];
-    if (!currentVersion) return null;
+    if (!currentVersion) {
+      return null;
+    }
 
     let variableMapping = params.variableMapping as LlmEvaluatorVariableMapping;
     if (currentVersion.id !== version.id) {
@@ -1037,7 +1067,9 @@ export class LegacyEvalCompatibilityService {
           targetObject: params.targetObject,
           variableMapping: params.variableMapping,
         });
-    if (!params.reuseEvaluatorFromRuleId && !definition) return null;
+    if (!params.reuseEvaluatorFromRuleId && !definition) {
+      return null;
+    }
 
     return this.prisma.$transaction(async (tx) => {
       let evaluatorId: string;
@@ -1061,12 +1093,16 @@ export class LegacyEvalCompatibilityService {
             },
           },
         });
-        if (sourceRule?.assignments.length !== 1) return null;
+        if (sourceRule?.assignments.length !== 1) {
+          return null;
+        }
         const sourceAssignment = sourceRule.assignments[0]!;
         evaluatorId = sourceAssignment.evaluatorId;
         sourceAssignmentId = sourceAssignment.id;
       } else {
-        if (!definition) return null;
+        if (!definition) {
+          return null;
+        }
         const reusableEvaluatorId = await findReusableEvaluatorId({
           tx,
           projectId: params.projectId,
@@ -1158,7 +1194,9 @@ export class LegacyEvalCompatibilityService {
           },
           select: { evaluatorId: true },
         });
-        if (!source) throw new LangfuseNotFoundError("Evaluator not found");
+        if (!source) {
+          throw new LangfuseNotFoundError("Evaluator not found");
+        }
 
         // Serialize concurrent version creation: the next version number is
         // read here and written below, and the pair is unique.
@@ -1358,7 +1396,9 @@ export class LegacyEvalCompatibilityService {
         },
         include: { assignments: true },
       });
-      if (!rule || rule.assignments.length !== 1) return null;
+      if (!rule || rule.assignments.length !== 1) {
+        return null;
+      }
       const assignment = rule.assignments[0];
       if (params.data.scoreName !== undefined) {
         await applyScoreNameChange({
@@ -1411,7 +1451,9 @@ export class LegacyEvalCompatibilityService {
         },
       });
     });
-    if (!updated) throw new LangfuseNotFoundError("Evaluation rule not found");
+    if (!updated) {
+      throw new LangfuseNotFoundError("Evaluation rule not found");
+    }
     const config = await this.getConfig(params.projectId, params.ruleId);
     if (!config) {
       throw new LangfuseNotFoundError("Evaluation rule not found after update");
@@ -1429,7 +1471,9 @@ export class LegacyEvalCompatibilityService {
     ruleIds: string[];
     status: JobConfigState;
   }) {
-    if (params.ruleIds.length === 0) return 0;
+    if (params.ruleIds.length === 0) {
+      return 0;
+    }
 
     return this.prisma.$transaction(async (tx) => {
       const { count } = await tx.evaluationRule.updateMany({
@@ -1473,7 +1517,9 @@ export class LegacyEvalCompatibilityService {
       },
       select: { id: true },
     });
-    if (!rule) return false;
+    if (!rule) {
+      return false;
+    }
 
     // Executions carry no foreign key, so they have to be removed explicitly
     // or they keep showing up in the eval log of a deleted evaluator. Batched
@@ -1496,7 +1542,9 @@ export class LegacyEvalCompatibilityService {
       where: { id: templateId, evaluator: { projectId } },
       select: { evaluatorId: true },
     });
-    if (!version) return [];
+    if (!version) {
+      return [];
+    }
     const rules = await this.prisma.evaluationRule.findMany({
       where: {
         projectId,
@@ -1520,7 +1568,9 @@ export class LegacyEvalCompatibilityService {
         where: { id: templateId, evaluator: { projectId } },
         select: { evaluatorId: true },
       });
-      if (!version) throw new LangfuseNotFoundError("Evaluator not found");
+      if (!version) {
+        throw new LangfuseNotFoundError("Evaluator not found");
+      }
 
       // Lock the evaluator so a rule cannot be assigned to it between the
       // usage check and the delete.

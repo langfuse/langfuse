@@ -108,7 +108,9 @@ export class InAppAgentIntegrityRunner extends PeriodicExclusiveRunner {
     >();
 
     for (const run of candidates) {
-      if (!classifyStaleRun(run, now)) continue;
+      if (!classifyStaleRun(run, now)) {
+        continue;
+      }
       staleConversations.set(`${run.projectId}:${run.conversationId}`, {
         projectId: run.projectId,
         conversationId: run.conversationId,
@@ -131,7 +133,9 @@ export class InAppAgentIntegrityRunner extends PeriodicExclusiveRunner {
           reconciledIds.add(run.runId);
         }
 
-        if (reconciled.length === 0) continue;
+        if (reconciled.length === 0) {
+          continue;
+        }
 
         await cleanupTerminalRunMcpApiKeys({
           prisma,
@@ -175,7 +179,9 @@ export class InAppAgentIntegrityRunner extends PeriodicExclusiveRunner {
     );
     for (const run of candidates) {
       const stale = classifyStaleRun(run, now);
-      if (!stale || reconciledIds.has(run.id)) continue;
+      if (!stale || reconciledIds.has(run.id)) {
+        continue;
+      }
       findings.set(stale.errorCode, (findings.get(stale.errorCode) ?? 0) + 1);
     }
 

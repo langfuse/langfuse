@@ -21,13 +21,17 @@ export const parseVersionString = (
   rawVersion: string,
 ): ParsedVersion | null => {
   const match = rawVersion.trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:[.+-].+)?$/);
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
 
   const major = Number(match[1]);
   const minor = Number(match[2]);
   const patch = Number(match[3]);
 
-  if (![major, minor, patch].every(Number.isSafeInteger)) return null;
+  if (![major, minor, patch].every(Number.isSafeInteger)) {
+    return null;
+  }
 
   return {
     raw: rawVersion,
@@ -44,8 +48,12 @@ export const compareParsedVersions = (
   right: VersionTupleComparable,
 ): number => {
   for (let i = 0; i < left.tuple.length; i++) {
-    if (left.tuple[i] > right.tuple[i]) return 1;
-    if (left.tuple[i] < right.tuple[i]) return -1;
+    if (left.tuple[i] > right.tuple[i]) {
+      return 1;
+    }
+    if (left.tuple[i] < right.tuple[i]) {
+      return -1;
+    }
   }
 
   return 0;
@@ -81,18 +89,22 @@ export const compareVersions = (
     return "patch";
   }
 
-  if (latestParsed.major > currentParsed.major) return "major";
+  if (latestParsed.major > currentParsed.major) {
+    return "major";
+  }
   if (
     latestParsed.major === currentParsed.major &&
     latestParsed.minor > currentParsed.minor
-  )
+  ) {
     return "minor";
+  }
   if (
     latestParsed.major === currentParsed.major &&
     latestParsed.minor === currentParsed.minor &&
     latestParsed.patch > currentParsed.patch
-  )
+  ) {
     return "patch";
+  }
 
   return null;
 };

@@ -124,7 +124,9 @@ describe("Dataset Items Repository - Versioning Tests", () => {
         validateOpts: {},
       });
 
-      if (!result.success) throw new Error("Failed to create item");
+      if (!result.success) {
+        throw new Error("Failed to create item");
+      }
 
       const history = await getDatasetItemVersionHistory({
         projectId,
@@ -781,7 +783,9 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       });
 
       expect(result.success).toBe(true);
-      if (!result.success) return;
+      if (!result.success) {
+        return;
+      }
 
       const item = await getDatasetItemById({
         projectId,
@@ -813,7 +817,9 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       });
 
       expect(result1.success && result2.success).toBe(true);
-      if (!result1.success || !result2.success) return;
+      if (!result1.success || !result2.success) {
+        return;
+      }
 
       const item1 = await getDatasetItemById({
         projectId,
@@ -1171,7 +1177,9 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       });
 
       expect(result.success).toBe(true);
-      if (!result.success) return;
+      if (!result.success) {
+        return;
+      }
 
       const versions = await listDatasetVersions({ projectId, datasetId });
       expect(versions.length).toBe(1);
@@ -1203,7 +1211,9 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       });
 
       expect(result1.success && result2.success).toBe(true);
-      if (!result1.success || !result2.success) return;
+      if (!result1.success || !result2.success) {
+        return;
+      }
 
       // All items should have unique IDs
       const allIds = [

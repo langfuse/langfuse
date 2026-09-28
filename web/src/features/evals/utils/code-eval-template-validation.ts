@@ -810,7 +810,9 @@ function getTypeScriptDiagnostics({
       fallbackOffset: evaluatePosition,
     });
 
-    if (sourceStart === null) return [];
+    if (sourceStart === null) {
+      return [];
+    }
 
     return [
       {
@@ -859,10 +861,14 @@ function mapValidationOffsetToSourceOffset({
   sourceLength: number;
   fallbackOffset: number;
 }) {
-  if (offset < contractOffset) return null;
+  if (offset < contractOffset) {
+    return null;
+  }
 
   const sourceOffset = offset - contractOffset - 1;
-  if (sourceOffset >= 0 && sourceOffset <= sourceLength) return sourceOffset;
+  if (sourceOffset >= 0 && sourceOffset <= sourceLength) {
+    return sourceOffset;
+  }
 
   return fallbackOffset;
 }
@@ -1019,7 +1025,9 @@ function collectPythonContractDiagnostics(
   source: string,
   diagnostics: CodeEvalDiagnostic[],
 ) {
-  if (source.trim().length === 0) return;
+  if (source.trim().length === 0) {
+    return;
+  }
 
   if (
     hasPythonEvaluateFunction(source) &&
@@ -1056,7 +1064,9 @@ function hasPythonEvaluateFunction(source: string) {
 
 function findPythonEvaluatePosition(source: string) {
   const match = source.match(/(?:^|\n)(\s*(?:async\s+)?def\s+)(evaluate)\s*\(/);
-  if (!match || match.index === undefined) return undefined;
+  if (!match || match.index === undefined) {
+    return undefined;
+  }
 
   return match.index + match[0].indexOf("evaluate");
 }

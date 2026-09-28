@@ -73,7 +73,9 @@ export function estimateMarkdownNestingDepth(content: string): number {
       if (char === ">") {
         lineDepth++;
         const depth = lineDepth + Math.floor(leadingWhitespace / 2);
-        if (depth > maxDepth) maxDepth = depth;
+        if (depth > maxDepth) {
+          maxDepth = depth;
+        }
         inLeadingMarkers = true;
         continue;
       }
@@ -84,7 +86,9 @@ export function estimateMarkdownNestingDepth(content: string): number {
       if (isListBullet(char) && followedByWs) {
         lineDepth++;
         const depth = lineDepth + Math.floor(leadingWhitespace / 2);
-        if (depth > maxDepth) maxDepth = depth;
+        if (depth > maxDepth) {
+          maxDepth = depth;
+        }
         inLeadingMarkers = true;
         continue;
       }
@@ -93,7 +97,9 @@ export function estimateMarkdownNestingDepth(content: string): number {
       // to inline scanning of the rest of the line.
       if (inLeadingMarkers) {
         const depth = lineDepth + Math.floor(leadingWhitespace / 2);
-        if (depth > maxDepth) maxDepth = depth;
+        if (depth > maxDepth) {
+          maxDepth = depth;
+        }
       }
       atLineStart = false;
       inLeadingMarkers = false;
@@ -107,7 +113,9 @@ export function estimateMarkdownNestingDepth(content: string): number {
         runChar = char;
         runLength = 1;
       }
-      if (runLength > maxDepth) maxDepth = runLength;
+      if (runLength > maxDepth) {
+        maxDepth = runLength;
+      }
     } else {
       runChar = "";
       runLength = 0;

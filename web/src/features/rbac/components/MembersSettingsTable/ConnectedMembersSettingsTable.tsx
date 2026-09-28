@@ -126,7 +126,9 @@ export function ConnectedMembersSettingsTable({
 
   const deleteMember = api.members.deleteMembership.useMutation({
     onSuccess: (data) => {
-      if (data.userId === session.data?.user?.id) session.update();
+      if (data.userId === session.data?.user?.id) {
+        session.update();
+      }
       utils.members.invalidate();
     },
   });
@@ -134,7 +136,9 @@ export function ConnectedMembersSettingsTable({
   const updateOrgRole = api.members.updateOrgMembership.useMutation({
     onSuccess: (data) => {
       utils.members.invalidate();
-      if (data.userId === session.data?.user?.id) session.update();
+      if (data.userId === session.data?.user?.id) {
+        session.update();
+      }
       showSuccessToast({
         title: "Saved",
         description: "Organization role updated successfully",
@@ -146,7 +150,9 @@ export function ConnectedMembersSettingsTable({
   const updateProjectRole = api.members.updateProjectRole.useMutation({
     onSuccess: (data) => {
       utils.members.invalidate();
-      if (data.userId === session.data?.user?.id) session.update();
+      if (data.userId === session.data?.user?.id) {
+        session.update();
+      }
       showSuccessToast({
         title: "Saved",
         description: "Project role updated successfully",
@@ -156,9 +162,12 @@ export function ConnectedMembersSettingsTable({
   });
 
   const tableData = useMemo<AsyncTableData<MembersSettingsTableRow[]>>(() => {
-    if (members.isPending) return { status: "loading" };
-    if (members.isError)
+    if (members.isPending) {
+      return { status: "loading" };
+    }
+    if (members.isError) {
       return { status: "error", error: members.error.message };
+    }
 
     if (project) {
       return {
@@ -263,7 +272,9 @@ export function ConnectedMembersSettingsTable({
             );
           }}
           onUpdateProjectRole={(member, projectRole) => {
-            if (!project) return;
+            if (!project) {
+              return;
+            }
             if (
               member.meta.userId === session.data?.user?.id &&
               !confirm(

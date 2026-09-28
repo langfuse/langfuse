@@ -78,7 +78,9 @@ export function useGlobalDateRange<T extends string>({
       // baseline for subsequent clean navigations — unless this surface is
       // page-local (an authoring/preview picker), which never persists.
       setQueryParams({ dateRange: encoded });
-      if (persistAsDefault && projectId) setProjectDefault(projectId, encoded);
+      if (persistAsDefault && projectId) {
+        setProjectDefault(projectId, encoded);
+      }
     },
     [persistAsDefault, projectId, setProjectDefault, setQueryParams],
   );

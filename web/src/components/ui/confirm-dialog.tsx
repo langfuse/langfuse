@@ -117,7 +117,9 @@ export function ConfirmDialog({
   // mid fade-out. Render-phase ref write is deliberate: an effect would run
   // only after the first closed render, too late to prevent the flicker.
   const lastOpenContent = React.useRef(content);
-  if (open) lastOpenContent.current = content;
+  if (open) {
+    lastOpenContent.current = content;
+  }
 
   return (
     <Dialog
@@ -125,7 +127,9 @@ export function ConfirmDialog({
       // Ignore close requests (Esc / X / outside click / Cancel) while the
       // action is in flight, so a confirm can't be dismissed mid-mutation.
       onOpenChange={(next) => {
-        if (loading && !next) return;
+        if (loading && !next) {
+          return;
+        }
         onOpenChange(next);
       }}
     >

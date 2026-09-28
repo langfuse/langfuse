@@ -86,7 +86,9 @@ export function ResetPasswordPage({
   });
 
   useEffect(() => {
-    if (intent !== "setup" || initialEmail) return;
+    if (intent !== "setup" || initialEmail) {
+      return;
+    }
 
     const storedEmail = sessionStorage.getItem(
       PASSWORD_SETUP_EMAIL_STORAGE_KEY,
@@ -152,7 +154,7 @@ export function ResetPasswordPage({
     }
   }
 
-  if (!passwordResetAvailable)
+  if (!passwordResetAvailable) {
     return (
       <ErrorPage
         title="Not available"
@@ -163,6 +165,7 @@ export function ResetPasswordPage({
         }}
       />
     );
+  }
 
   const title = isSetMode ? "Set your password" : "Reset your password";
   const pageTitle = isSetMode ? "Set password" : "Reset password";

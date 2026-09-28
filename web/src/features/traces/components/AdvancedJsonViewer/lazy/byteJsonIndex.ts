@@ -282,7 +282,9 @@ class JsByteScanner implements ByteScanner {
         i += 2;
         continue;
       }
-      if (c === DQUOTE) return i + 1;
+      if (c === DQUOTE) {
+        return i + 1;
+      }
       i++;
     }
     return n; // unterminated (malformed / truncated input)
@@ -311,7 +313,9 @@ class JsByteScanner implements ByteScanner {
       if (c === BRACE_CLOSE || c === BRACKET_CLOSE) {
         depth--;
         i++;
-        if (depth === 0) return i;
+        if (depth === 0) {
+          return i;
+        }
         continue;
       }
       i++;
@@ -462,7 +466,9 @@ interface NodeRecord {
 function significantDigitCount(text: string): number {
   let s = text.replace(/^[+-]/, "");
   const eIdx = s.search(/[eE]/);
-  if (eIdx >= 0) s = s.slice(0, eIdx);
+  if (eIdx >= 0) {
+    s = s.slice(0, eIdx);
+  }
   s = s.replace(".", "");
   s = s.replace(/^0+/, ""); // leading zeros are not significant
   s = s.replace(/0+$/, ""); // trailing zeros do not add precision pressure
@@ -483,7 +489,9 @@ export function parseNumberPreservePrecision(text: string): {
   const t = text.trim();
   if (/^-?\d+$/.test(t)) {
     const n = Number(t);
-    if (Number.isSafeInteger(n)) return { value: n, lossy: false };
+    if (Number.isSafeInteger(n)) {
+      return { value: n, lossy: false };
+    }
     return { value: BigInt(t), lossy: true };
   }
   const n = Number(t);
@@ -534,8 +542,11 @@ export class ByteJsonIndexEngine {
       let e = bytes.length;
       while (e > start) {
         const c = bytes[e - 1];
-        if (c === SPACE || c === TAB || c === LF || c === CR) e--;
-        else break;
+        if (c === SPACE || c === TAB || c === LF || c === CR) {
+          e--;
+        } else {
+          break;
+        }
       }
       valueEnd = e;
     } else {
@@ -640,7 +651,9 @@ export class ByteJsonIndexEngine {
   // -- internals -----------------------------------------------------------
 
   private ensureChildTable(node: NodeRecord): ChildTable {
-    if (node.childTable) return node.childTable;
+    if (node.childTable) {
+      return node.childTable;
+    }
     // KNOWN LIMITATION (LFE-11082 follow-up): this scans the WHOLE container to
     // build the offset table on the first `childrenPage`, so a container with
     // millions of immediate children costs O(all children) up front even to
@@ -666,7 +679,9 @@ export class ByteJsonIndexEngine {
     i: number,
   ): number {
     const existing = table.ids.get(i);
-    if (existing !== undefined) return existing;
+    if (existing !== undefined) {
+      return existing;
+    }
     const id = this.pushNode({
       parentId: parent.id,
       key: table.keys ? table.keys[i] : null,
@@ -687,7 +702,9 @@ export class ByteJsonIndexEngine {
 
   private mustNode(nodeId: number): NodeRecord {
     const node = this.nodes[nodeId];
-    if (!node) throw new Error(`Unknown nodeId: ${nodeId}`);
+    if (!node) {
+      throw new Error(`Unknown nodeId: ${nodeId}`);
+    }
     return node;
   }
 
@@ -703,9 +720,15 @@ export class ByteJsonIndexEngine {
       preview,
       truncatedPreview: truncated,
     };
-    if (node.key !== null) d.key = node.key;
-    if (node.index !== null) d.index = node.index;
-    if (node.childTable) d.childCount = node.childTable.count;
+    if (node.key !== null) {
+      d.key = node.key;
+    }
+    if (node.index !== null) {
+      d.index = node.index;
+    }
+    if (node.childTable) {
+      d.childCount = node.childTable.count;
+    }
     return d;
   }
 
@@ -740,7 +763,9 @@ export class ByteJsonIndexEngine {
     text = text.replace(/\s+/g, " ").trim();
     const bytesTruncated = total > sliceEnd - node.valueStart;
     const truncated = bytesTruncated || text.length > PREVIEW_CHAR_CAP;
-    if (text.length > PREVIEW_CHAR_CAP) text = text.slice(0, PREVIEW_CHAR_CAP);
+    if (text.length > PREVIEW_CHAR_CAP) {
+      text = text.slice(0, PREVIEW_CHAR_CAP);
+    }
     return { preview: text, truncated };
   }
 }

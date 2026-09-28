@@ -86,7 +86,9 @@ export const formatTokenCounts = (
   totalUsage?: number | null,
   showLabels = false,
 ): string => {
-  if (!inputUsage && !outputUsage && !totalUsage) return "";
+  if (!inputUsage && !outputUsage && !totalUsage) {
+    return "";
+  }
 
   return showLabels
     ? `${numberFormatter(inputUsage ?? 0, 0)} prompt → ${numberFormatter(outputUsage ?? 0, 0)} completion (∑ ${numberFormatter(totalUsage ?? 0, 0)})`

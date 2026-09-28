@@ -20,7 +20,9 @@ const MAX_QUERY_LENGTH = 2048;
 
 function nodeSpan(node: ASTNode, textLength: number): Span {
   if (node.kind === "and" || node.kind === "or") {
-    if (node.parenSpan) return node.parenSpan;
+    if (node.parenSpan) {
+      return node.parenSpan;
+    }
     const first = node.children[0];
     const last = node.children[node.children.length - 1];
     if (first && last) {
@@ -50,7 +52,9 @@ function hasFilterWarnings(
   switch (node.kind) {
     case "filter": {
       const ref = registry.resolveField(node.key);
-      if (ref === null || ref.type !== "pseudo" || ref.id !== "has") return;
+      if (ref === null || ref.type !== "pseudo" || ref.id !== "has") {
+        return;
+      }
       for (const v of node.values) {
         const target = registry.resolveField(v);
         if (
@@ -78,8 +82,9 @@ function hasFilterWarnings(
       return;
     case "and":
     case "or":
-      for (const c of node.children)
+      for (const c of node.children) {
         hasFilterWarnings(c, textLength, out, negated, registry);
+      }
       return;
   }
 }
@@ -115,7 +120,9 @@ function collectStandaloneTextNodes(node: ASTNode, out: TextNode[]): void {
         // standalone token — skip it.
         const glued =
           kids[i - 1]?.kind === "text" || kids[i + 1]?.kind === "text";
-        if (!glued) out.push(c);
+        if (!glued) {
+          out.push(c);
+        }
       }
       return;
     }
@@ -149,8 +156,12 @@ function incompleteFieldTokenDiagnostics(
   const texts: TextNode[] = [];
   collectStandaloneTextNodes(ast, texts);
   for (const node of texts) {
-    if (node.quoted || node.span === undefined) continue;
-    if (registry.resolveField(node.value) === null) continue;
+    if (node.quoted || node.span === undefined) {
+      continue;
+    }
+    if (registry.resolveField(node.value) === null) {
+      continue;
+    }
     out.push({
       from: node.span.from,
       to: node.span.to,
@@ -176,17 +187,22 @@ function labeledOptionValueDiagnostics(
     }
     return;
   }
-  if (node.kind !== "filter") return;
+  if (node.kind !== "filter") {
+    return;
+  }
 
   const ref = registry.resolveField(node.key);
   if (
     ref?.type !== "field" ||
     ref.field.filterValueByDisplayValue === undefined
-  )
+  ) {
     return;
+  }
 
   for (const value of node.values) {
-    if (ref.field.filterValueByDisplayValue.has(value)) continue;
+    if (ref.field.filterValueByDisplayValue.has(value)) {
+      continue;
+    }
     const span = nodeSpan(node, textLength);
     out.push({
       from: span.from,
@@ -204,7 +220,9 @@ export function semanticDiagnostics(
   registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): Diagnostic[] {
   const out: Diagnostic[] = [];
-  if (ast === null) return out;
+  if (ast === null) {
+    return out;
+  }
 
   // A standalone bare field-name word (no operator/value) is an incomplete
   // filter, not free text — checked over the WHOLE tree (not per top-level
@@ -247,7 +265,9 @@ export function semanticDiagnostics(
     for (const message of errors) {
       // A compatibility scope uses a phrase elsewhere in the query. Keep its
       // precise error span only when the complete query confirms the error.
-      if (isCompatibilityScope && !wholeQueryErrors.includes(message)) continue;
+      if (isCompatibilityScope && !wholeQueryErrors.includes(message)) {
+        continue;
+      }
       out.push({ from: span.from, to: span.to, severity: "error", message });
     }
     hasFilterWarnings(node, textLength, out, false, registry);
@@ -290,7 +310,9 @@ function dedupeMergedDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
         k.from < d.to &&
         d.from < k.to,
     );
-    if (!dup) kept.push(d);
+    if (!dup) {
+      kept.push(d);
+    }
   }
   return kept;
 }

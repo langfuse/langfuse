@@ -7,7 +7,9 @@ export function getRuleNavigationAction({
   targetObject: string;
   enabled: boolean;
 }) {
-  if (!isLegacyEvalTarget(targetObject)) return "edit";
+  if (!isLegacyEvalTarget(targetObject)) {
+    return "edit";
+  }
   return enabled ? "remap" : "peek";
 }
 

@@ -49,8 +49,11 @@ export function VariableMappingEditorContainer({
   );
   const lastCompletedSample = useRef(resolvedSample);
 
-  if (!state.selectedObservationId) lastCompletedSample.current = null;
-  else if (resolvedSample) lastCompletedSample.current = resolvedSample;
+  if (!state.selectedObservationId) {
+    lastCompletedSample.current = null;
+  } else if (resolvedSample) {
+    lastCompletedSample.current = resolvedSample;
+  }
 
   const displayedSample = resolvedSample ?? lastCompletedSample.current;
 

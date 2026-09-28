@@ -208,8 +208,9 @@ async function testLlmEvaluator(params: {
     params.definition.model ?? undefined,
     params.definition.modelParams ?? undefined,
   );
-  if (!modelConfig.valid)
+  if (!modelConfig.valid) {
     return { success: false as const, error: modelConfig.error };
+  }
 
   const executionTraceId = createW3CTraceId();
   let interpolatedPrompt: string | undefined;
@@ -307,7 +308,9 @@ async function calculateTestRunCost({
 }) {
   const { pricingTiers } = await findModel({ projectId, model });
   const pricing = matchPricingTier(pricingTiers, usage);
-  if (!pricing) return null;
+  if (!pricing) {
+    return null;
+  }
 
   const costs = Object.fromEntries(
     Object.entries(usage).flatMap(([usageType, units]) => {
@@ -315,7 +318,9 @@ async function calculateTestRunCost({
       return price ? [[usageType, price.mul(units).toNumber()]] : [];
     }),
   );
-  if (costs.total !== undefined) return costs.total;
+  if (costs.total !== undefined) {
+    return costs.total;
+  }
   const itemizedCosts = Object.entries(costs).filter(
     ([usageType]) => usageType !== "total",
   );

@@ -57,7 +57,9 @@ const tagTokenClaims = (span: Span, accessToken: string): void => {
     "chb.auth.token_format",
     segments.length === 3 ? "jwt" : "opaque",
   );
-  if (segments.length !== 3) return;
+  if (segments.length !== 3) {
+    return;
+  }
 
   try {
     const claims = JSON.parse(
@@ -96,8 +98,12 @@ export class ChbAccessTokenProvider {
 
   async getToken(): Promise<string> {
     const cached = this.cached;
-    if (cached && cached.expiresAtMs > Date.now()) return cached.token;
-    if (this.inFlight) return this.inFlight;
+    if (cached && cached.expiresAtMs > Date.now()) {
+      return cached.token;
+    }
+    if (this.inFlight) {
+      return this.inFlight;
+    }
 
     this.inFlight = this.mintToken().finally(() => {
       this.inFlight = null;

@@ -88,8 +88,11 @@ export function EvaluatorGalleryDialog({
   const handleExpandedChange = (key: string, expanded: boolean) => {
     setExpandedSections((current) => {
       const next = new Set(current);
-      if (expanded) next.add(key);
-      else next.delete(key);
+      if (expanded) {
+        next.add(key);
+      } else {
+        next.delete(key);
+      }
       return next;
     });
   };

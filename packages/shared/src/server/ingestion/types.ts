@@ -72,7 +72,9 @@ const CostDetails = z
   .record(z.string(), z.unknown())
   .nullish()
   .transform((val) => {
-    if (!val) return val;
+    if (!val) {
+      return val;
+    }
 
     const result: Record<string, number> = {};
 
@@ -87,7 +89,9 @@ const CostDetails = z
   .nullish();
 
 const RawUsageDetails = z.record(z.string(), z.unknown()).transform((val) => {
-  if (!val) return;
+  if (!val) {
+    return;
+  }
 
   const result: Record<string, number> = {};
 
@@ -119,7 +123,9 @@ const OpenAICompletionUsageSchema = z
   })
   .strict()
   .transform((v) => {
-    if (!v) return;
+    if (!v) {
+      return;
+    }
 
     const {
       prompt_tokens,
@@ -174,7 +180,9 @@ const OpenAIResponseUsageSchema = z
   })
   .strict()
   .transform((v) => {
-    if (!v) return;
+    if (!v) {
+      return;
+    }
 
     const {
       input_tokens,
@@ -494,8 +502,12 @@ const createAllIngestionSchemas = ({
     promptVersion: z.number().int().nullish(),
   }).refine((value) => {
     // ensure that either promptName and promptVersion are set, or none
-    if (!value.promptName && !value.promptVersion) return true;
-    if (value.promptName && value.promptVersion) return true;
+    if (!value.promptName && !value.promptVersion) {
+      return true;
+    }
+    if (value.promptName && value.promptVersion) {
+      return true;
+    }
     return false;
   });
 
@@ -523,8 +535,12 @@ const createAllIngestionSchemas = ({
     promptVersion: z.number().int().nullish(),
   }).refine((value) => {
     // ensure that either promptName and promptVersion are set, or none
-    if (!value.promptName && !value.promptVersion) return true;
-    if (value.promptName && value.promptVersion) return true;
+    if (!value.promptName && !value.promptVersion) {
+      return true;
+    }
+    if (value.promptName && value.promptVersion) {
+      return true;
+    }
     return false;
   });
 

@@ -51,7 +51,9 @@ export function createUserTableColumn<
     renderCell: (value, context) => {
       if (!getUser && (value === null || value === undefined)) {
         const placeholder = nullValue ?? emptyValue;
-        if (!placeholder) return null;
+        if (!placeholder) {
+          return null;
+        }
         return (
           <span className="block w-full truncate" title={placeholder}>
             {placeholder}
@@ -68,14 +70,18 @@ export function createUserTableColumn<
 
       if (!cell) {
         const placeholder = nullValue ?? emptyValue;
-        if (!placeholder) return null;
+        if (!placeholder) {
+          return null;
+        }
         return (
           <span className="block w-full truncate" title={placeholder}>
             {placeholder}
           </span>
         );
       }
-      if (cell.type === "loading") return loadingCell;
+      if (cell.type === "loading") {
+        return loadingCell;
+      }
 
       return (
         <UserTableCell

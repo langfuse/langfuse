@@ -47,8 +47,9 @@ function legacyVerdict(decision: LegacyDecision): {
   code: number;
   accessLevel: string;
 } {
-  if ("absent" in decision)
+  if ("absent" in decision) {
     return { verdict: "absent", code: 0, accessLevel: "unknown" };
+  }
   return decision.success
     ? { verdict: "allow", code: 200, accessLevel: decision.scope.accessLevel }
     : {
@@ -60,8 +61,12 @@ function legacyVerdict(decision: LegacyDecision): {
 
 /** classify names the disagreement: legacy without a gate is `net_new`, agreement is `match`, else which path is stricter. */
 function classify(legacyVerdict: Verdict, newVerdict: Verdict): ParityResult {
-  if (legacyVerdict === "absent") return "net_new";
-  if (legacyVerdict === newVerdict) return "match";
+  if (legacyVerdict === "absent") {
+    return "net_new";
+  }
+  if (legacyVerdict === newVerdict) {
+    return "match";
+  }
   return newVerdict === "deny" ? "new_denies" : "new_allows";
 }
 

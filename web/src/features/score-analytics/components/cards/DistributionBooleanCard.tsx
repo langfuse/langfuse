@@ -101,7 +101,9 @@ export function DistributionBooleanCard() {
 
   // Build color mapping for boolean charts
   const chartColors = useMemo(() => {
-    if (!data) return colorMappings;
+    if (!data) {
+      return colorMappings;
+    }
 
     // For individual tabs, use solid colors like numeric charts
     if (activeTab === "score1") {

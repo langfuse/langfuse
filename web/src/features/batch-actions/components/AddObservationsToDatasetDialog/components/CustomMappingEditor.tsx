@@ -110,7 +110,9 @@ export function CustomMappingEditor({
 
     // Keep at least one entry (unless it's an empty schema-derived optional)
     const remainingEntries = entries.filter((e) => e.id !== id);
-    if (remainingEntries.length < 1) return;
+    if (remainingEntries.length < 1) {
+      return;
+    }
 
     onChange({
       ...config,
@@ -137,7 +139,9 @@ export function CustomMappingEditor({
   };
 
   const getSourceData = (sourceField: SourceField) => {
-    if (!observationData) return null;
+    if (!observationData) {
+      return null;
+    }
     return observationData[sourceField];
   };
 

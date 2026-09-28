@@ -188,7 +188,9 @@ export function applySelection(
   const other = current.filter((f) => f.column !== column);
 
   const facet = ctx.facets.find((f) => f.column === column);
-  if (!facet) return current;
+  if (!facet) {
+    return current;
+  }
 
   const colDef = ctx.columnDefinitions.find(
     (c) => c.id === column || c.name === column,
@@ -201,7 +203,9 @@ export function applySelection(
     const falseLabel = facet.falseLabel ?? "False";
     const invert = facet.invertValue ?? false;
 
-    if (values.length === 0 || values.length === 2) return other;
+    if (values.length === 0 || values.length === 2) {
+      return other;
+    }
     if (values.includes(trueLabel)) {
       return [
         ...other,
@@ -233,7 +237,9 @@ export function applySelection(
   }
 
   // Handle categorical facets
-  if (!(column in ctx.options)) return current;
+  if (!(column in ctx.options)) {
+    return current;
+  }
   const availableValues = toValueList(ctx.options[column]);
 
   // For nested structures (keyValue filters), skip this logic
@@ -410,16 +416,22 @@ export function buildOnlySelection(
   value: string,
 ): { values: string[]; operator?: CheckboxOperator } | null {
   const facet = ctx.facets.find((f) => f.column === column);
-  if (!facet) return null;
+  if (!facet) {
+    return null;
+  }
 
   // Boolean facets take the plain single-value path (no operator).
   if (facet.type === "boolean") {
     return { values: [value] };
   }
 
-  if (!(column in ctx.options)) return null;
+  if (!(column in ctx.options)) {
+    return null;
+  }
   // Only applies for array-type options (not nested objects)
-  if (toValueList(ctx.options[column]) === null) return null;
+  if (toValueList(ctx.options[column]) === null) {
+    return null;
+  }
 
   const columnType = ctx.columnDefinitions.find(
     (columnDefinition) => columnDefinition.id === column,
@@ -483,7 +495,9 @@ export function applyNumericRange(
   value: [number, number] | null,
 ): FilterState {
   const withoutNumeric = current.filter((f) => f.column !== column);
-  if (value === null) return withoutNumeric;
+  if (value === null) {
+    return withoutNumeric;
+  }
 
   return [
     ...withoutNumeric,
@@ -509,7 +523,9 @@ export function applyStringContains(
   value: string,
 ): FilterState {
   const withoutString = current.filter((f) => f.column !== column);
-  if (value.trim() === "") return withoutString;
+  if (value.trim() === "") {
+    return withoutString;
+  }
   return [
     ...withoutString,
     {
@@ -532,7 +548,9 @@ export function addTextFilterEntry(
   operator: TextFilterOperator,
   value: string,
 ): FilterState | null {
-  if (!value.trim()) return null;
+  if (!value.trim()) {
+    return null;
+  }
 
   const withoutCheckboxFilters = current.filter(
     (f) =>

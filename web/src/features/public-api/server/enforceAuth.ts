@@ -47,7 +47,9 @@ export async function enforceAuth({
     allowInAppAgentKey: allowInAppAgentKey,
     isAdminApiKeyAuthAllowed: isAdminApiKeyAuthAllowed,
   });
-  if (!auth.success) return auth;
+  if (!auth.success) {
+    return auth;
+  }
 
   const { context } = auth;
   switch (context.principal.kind) {
@@ -69,13 +71,19 @@ async function enforceAdminAuthz(
   action: ApiAction,
 ): Promise<EnforceAuthResult> {
   const projectId = getHeaderProjectId(req);
-  if (!projectId) return forbiddenError(`Missing '${projectIdHeader}' header`);
+  if (!projectId) {
+    return forbiddenError(`Missing '${projectIdHeader}' header`);
+  }
 
   const org = await lookupProjectOrgId(projectId);
-  if (!org.success) return org;
+  if (!org.success) {
+    return org;
+  }
 
   const decision = authorizeAction(context, action, { projectId });
-  if (!decision.success) return decision;
+  if (!decision.success) {
+    return decision;
+  }
 
   return access(context, org.orgId, projectId);
 }
@@ -87,10 +95,14 @@ function enforceOrgAuthz(
   action: ApiAction,
 ): EnforceAuthResult {
   const org = getOrgId(context, req);
-  if (!org.success) return org;
+  if (!org.success) {
+    return org;
+  }
 
   const decision = authorizeAction(context, action, { orgId: org.orgId });
-  if (!decision.success) return decision;
+  if (!decision.success) {
+    return decision;
+  }
 
   return access(context, org.orgId);
 }
@@ -102,7 +114,9 @@ function enforceProjectAuthz(
   action: ApiAction,
 ): EnforceAuthResult {
   const project = getProjectId(context, req);
-  if (!project.success) return project;
+  if (!project.success) {
+    return project;
+  }
 
   if (!ownsProject(context.principal, project.projectId)) {
     return notFoundError("Project not found or you don't have access to it");
@@ -111,10 +125,14 @@ function enforceProjectAuthz(
   const decision = authorizeAction(context, action, {
     projectId: project.projectId,
   });
-  if (!decision.success) return decision;
+  if (!decision.success) {
+    return decision;
+  }
 
   const orgId = getBoundOrgId(context);
-  if (!orgId) return internalServerError(`Missing bound org on api-key`);
+  if (!orgId) {
+    return internalServerError(`Missing bound org on api-key`);
+  }
 
   return access(context, orgId, project.projectId);
 }
@@ -125,7 +143,9 @@ function authorizeAction(
   action: ApiAction,
   resource: Resource,
 ): Decision {
-  if (action === __dangerouslySkipAuthz) return { success: true };
+  if (action === __dangerouslySkipAuthz) {
+    return { success: true };
+  }
   return authorize(context, action, resource);
 }
 
@@ -183,13 +203,17 @@ const ownsProject = (principal: Principal, projectId: string) =>
 
 /** getBoundOrgId returns the org an api key is bound to. */
 function getBoundOrgId(context: AuthorizationContext): string | undefined {
-  if (context.principal.kind !== "apiKey") return undefined;
+  if (context.principal.kind !== "apiKey") {
+    return undefined;
+  }
   return context.principal.boundResource.orgId;
 }
 
 /** getBoundProjectId returns the project an api key is bound to, when it is project-scoped. */
 function getBoundProjectId(context: AuthorizationContext): string | undefined {
-  if (context.principal.kind !== "apiKey") return undefined;
+  if (context.principal.kind !== "apiKey") {
+    return undefined;
+  }
   return context.principal.boundResource.projectId;
 }
 
@@ -219,8 +243,12 @@ const getHeaderValue = (
 function equal(os: (string | undefined)[]): boolean {
   let prev: string | undefined;
   for (const o of os) {
-    if (prev && o && prev !== o) return false;
-    if (o) prev = o;
+    if (prev && o && prev !== o) {
+      return false;
+    }
+    if (o) {
+      prev = o;
+    }
   }
   return true;
 }

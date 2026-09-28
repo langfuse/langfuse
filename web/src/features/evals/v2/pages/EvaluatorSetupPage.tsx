@@ -90,7 +90,9 @@ export function applyEvaluatorSuggestion(
   suggestion: string | null,
   setSuggestion: (suggestion: string) => void,
 ) {
-  if (!suggestion) return false;
+  if (!suggestion) {
+    return false;
+  }
   setSuggestion(suggestion);
   return true;
 }
@@ -368,7 +370,9 @@ export function EvaluatorSetupPage(
   const testEvaluator = api.evalsV2.test.useMutation({
     onSuccess: (result) => {
       setTestResult(result);
-      if ("executionTraceId" in result) setHasCompletedTestCall(true);
+      if ("executionTraceId" in result) {
+        setHasCompletedTestCall(true);
+      }
       setLastTestRunCostUsd(
         "estimatedCostUsd" in result &&
           typeof result.estimatedCostUsd === "number"
@@ -400,7 +404,9 @@ export function EvaluatorSetupPage(
   };
 
   const generateNameSuggestion = async () => {
-    if (!nameAIAssistanceAvailable) return null;
+    if (!nameAIAssistanceAvailable) {
+      return null;
+    }
     return suggestName.mutateAsync({
       projectId,
       definition: getSuggestionDefinition(),
@@ -408,7 +414,9 @@ export function EvaluatorSetupPage(
   };
 
   const generateDescriptionSuggestion = async () => {
-    if (!nameAIAssistanceAvailable) return null;
+    if (!nameAIAssistanceAvailable) {
+      return null;
+    }
     return suggestDescription.mutateAsync({
       projectId,
       definition: getSuggestionDefinition(),
@@ -430,7 +438,9 @@ export function EvaluatorSetupPage(
         );
       }
     } catch (error) {
-      if (!showFailureToast) throw error;
+      if (!showFailureToast) {
+        throw error;
+      }
       showErrorToast(
         "Couldn't generate an evaluator name",
         "Please enter a name manually.",
@@ -445,7 +455,9 @@ export function EvaluatorSetupPage(
         description,
         evaluatorSetupStore.getState().actions.setDescription,
       );
-      if (applied) return;
+      if (applied) {
+        return;
+      }
     } catch {
       // The field-specific message below is more actionable than the request error.
     }
@@ -475,12 +487,17 @@ export function EvaluatorSetupPage(
   };
   const requestClose = () => {
     const currentSnapshot = getCurrentSnapshot();
-    if (currentSnapshot !== initialSnapshot.current) setDiscardOpen(true);
-    else close().catch(trpcErrorToast);
+    if (currentSnapshot !== initialSnapshot.current) {
+      setDiscardOpen(true);
+    } else {
+      close().catch(trpcErrorToast);
+    }
   };
 
   const save = async () => {
-    if (saveInFlightRef.current || hasCreatedRef.current) return;
+    if (saveInFlightRef.current || hasCreatedRef.current) {
+      return;
+    }
     saveInFlightRef.current = true;
     setSaveInFlight(true);
     try {
@@ -529,7 +546,9 @@ export function EvaluatorSetupPage(
         }
       }
       const { definition } = prepareEvaluatorDraft(state);
-      if (!definition) return;
+      if (!definition) {
+        return;
+      }
       const { name, description } = metadata;
 
       if (props.mode === "edit") {
@@ -633,7 +652,9 @@ export function EvaluatorSetupPage(
   };
 
   const discardConflictingChanges = async () => {
-    if (!initialEvaluator) return;
+    if (!initialEvaluator) {
+      return;
+    }
     setVersionConflictOpen(false);
     await utils.evalsV2.get.invalidate({
       projectId,
@@ -650,7 +671,9 @@ export function EvaluatorSetupPage(
     const state = evaluatorSetupStore.getState();
     const { definition } = prepareEvaluatorDraft(state);
     const selectedObservation = state.selectedObservation;
-    if (!definition || !selectedObservation?.traceId) return;
+    if (!definition || !selectedObservation?.traceId) {
+      return;
+    }
     capture("evaluators:test", {
       evaluatorType: state.type,
       isEditing: Boolean(initialEvaluator),
@@ -952,7 +975,9 @@ export function EvaluatorSetupPage(
           nextModel={projectDefaultModel.update.pendingModel}
           loading={projectDefaultModel.update.isPending}
           onOpenChange={(open) => {
-            if (!open) projectDefaultModel.update.dismissConfirmation();
+            if (!open) {
+              projectDefaultModel.update.dismissConfirmation();
+            }
           }}
           onConfirm={projectDefaultModel.update.confirmUpdate}
         />

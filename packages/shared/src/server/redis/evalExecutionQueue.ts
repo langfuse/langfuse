@@ -21,7 +21,9 @@ export class EvalExecutionQueue {
   static getShardIndexFromShardName(
     shardName: string | undefined,
   ): number | null {
-    if (!shardName) return null;
+    if (!shardName) {
+      return null;
+    }
 
     const shardIndex =
       shardName === QueueName.EvaluationExecution
@@ -31,7 +33,9 @@ export class EvalExecutionQueue {
             10,
           );
 
-    if (isNaN(shardIndex)) return null;
+    if (isNaN(shardIndex)) {
+      return null;
+    }
     return shardIndex;
   }
 
@@ -101,7 +105,9 @@ export class SecondaryEvalExecutionQueue {
   static getShardIndexFromShardName(
     shardName: string | undefined,
   ): number | null {
-    if (!shardName) return null;
+    if (!shardName) {
+      return null;
+    }
 
     const shardIndex =
       shardName === QueueName.EvaluationExecutionSecondaryQueue
@@ -114,7 +120,9 @@ export class SecondaryEvalExecutionQueue {
             10,
           );
 
-    if (isNaN(shardIndex)) return null;
+    if (isNaN(shardIndex)) {
+      return null;
+    }
     return shardIndex;
   }
 

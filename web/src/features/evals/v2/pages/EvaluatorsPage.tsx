@@ -444,7 +444,9 @@ export default function EvaluatorsPage() {
           if (costs.isPending && hasExecutionReadAccess) {
             return { type: "loading" };
           }
-          if (value === null || value === undefined) return undefined;
+          if (value === null || value === undefined) {
+            return undefined;
+          }
 
           return value;
         },
@@ -632,7 +634,9 @@ export default function EvaluatorsPage() {
                   const connection = projectDefaultModel.connections.find(
                     ({ provider }) => provider === model.provider,
                   );
-                  if (!connection) return;
+                  if (!connection) {
+                    return;
+                  }
                   projectDefaultModel.update.requestUpdate({
                     ...model,
                     adapter: connection.adapter,
@@ -800,8 +804,11 @@ export default function EvaluatorsPage() {
         selectionStore={selectionStore}
         totalCount={evaluators.data?.totalItems ?? null}
         onDeleteSelection={({ selectAll, selectedIds }) => {
-          if (selectAll) setDeleteAll(true);
-          else setDeleteIds(selectedIds);
+          if (selectAll) {
+            setDeleteAll(true);
+          } else {
+            setDeleteIds(selectedIds);
+          }
         }}
       />
       <EvaluatorBulkDeleteDialog
@@ -848,7 +855,9 @@ export default function EvaluatorsPage() {
           nextModel={projectDefaultModel.update.pendingModel}
           loading={projectDefaultModel.update.isPending}
           onOpenChange={(open) => {
-            if (!open) projectDefaultModel.update.dismissConfirmation();
+            if (!open) {
+              projectDefaultModel.update.dismissConfirmation();
+            }
           }}
           onConfirm={projectDefaultModel.update.confirmUpdate}
         />

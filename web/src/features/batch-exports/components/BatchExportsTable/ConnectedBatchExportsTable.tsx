@@ -56,7 +56,9 @@ export function ConnectedBatchExportsTable({
     [downloadBatchExport, projectId],
   );
   const tableData = useMemo<AsyncTableData<BatchExportRow[]>>(() => {
-    if (batchExports.isPending) return { status: "loading" };
+    if (batchExports.isPending) {
+      return { status: "loading" };
+    }
     if (batchExports.isError) {
       return { status: "error", error: batchExports.error.message };
     }

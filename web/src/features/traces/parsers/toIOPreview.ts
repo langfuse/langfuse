@@ -20,11 +20,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function toMediaReference(file: FilePart): string | undefined {
-  if (file.content.kind !== "reference") return undefined;
+  if (file.content.kind !== "reference") {
+    return undefined;
+  }
 
   const source = file.providerMetadata?.source;
   const mediaType = file.mediaType;
-  if (typeof source !== "string" || !mediaType) return undefined;
+  if (typeof source !== "string" || !mediaType) {
+    return undefined;
+  }
 
   return `${MEDIA_REFERENCE_PREFIX}type=${mediaType}|id=${file.content.id}|source=${source}@@@`;
 }
@@ -258,7 +262,9 @@ export function toIOPreview(io: NormalizedIO): ChatMLParserResult {
         const entry = part.toolCallId
           ? callEntryById.get(part.toolCallId)
           : undefined;
-        if (!entry || entry.response !== null) return true;
+        if (!entry || entry.response !== null) {
+          return true;
+        }
         entry.response = {
           output: part.output,
           ...(part.isError !== undefined ? { isError: part.isError } : {}),

@@ -27,7 +27,9 @@ describe("planCommit", () => {
   it("lowers a valid draft to filters + search + canonical text", () => {
     const r = planCommit("  level:ERROR timeout  ");
     expect(r.status).toBe("committed");
-    if (r.status !== "committed") return;
+    if (r.status !== "committed") {
+      return;
+    }
     expect(r.filters).toEqual([
       {
         type: "stringOptions",
@@ -46,7 +48,9 @@ describe("planCommit", () => {
   it("applies the default searchType (ids+names+input+output)", () => {
     const r = planCommit("level:ERROR");
     expect(r.status).toBe("committed");
-    if (r.status !== "committed") return;
+    if (r.status !== "committed") {
+      return;
+    }
     expect(r.searchType).toEqual(["id", "content"]);
     expect(r.searchQuery).toBeNull();
   });
@@ -54,7 +58,9 @@ describe("planCommit", () => {
   it("treats an empty draft as a committed empty query", () => {
     const r = planCommit("   ");
     expect(r.status).toBe("committed");
-    if (r.status !== "committed") return;
+    if (r.status !== "committed") {
+      return;
+    }
     expect(r.filters).toEqual([]);
     expect(r.searchQuery).toBeNull();
     expect(r.canonical).toBe("");
@@ -65,7 +71,9 @@ describe("planCommit", () => {
       "-environment:*langfuse-* -environment:sdk-experiment -has:experimentId",
     );
     expect(r.status).toBe("committed");
-    if (r.status !== "committed") return;
+    if (r.status !== "committed") {
+      return;
+    }
     expect(r.filters).toEqual(experimentAndEvalExclusions);
     expect(r.searchQuery).toBeNull();
     expect(r.canonical).toBe(
@@ -76,7 +84,9 @@ describe("planCommit", () => {
   it("returns invalid with diagnostics for unrepresentable queries", () => {
     const r = planCommit("level:ERROR OR env:dev");
     expect(r.status).toBe("invalid");
-    if (r.status !== "invalid") return;
+    if (r.status !== "invalid") {
+      return;
+    }
     expect(r.diagnostics.length).toBeGreaterThan(0);
   });
 

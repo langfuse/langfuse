@@ -47,7 +47,9 @@ export function ConnectedMembershipInvitesSettingsTable({
   const tableData = useMemo<
     AsyncTableData<MembershipInvitesSettingsTableRow[]>
   >(() => {
-    if (query.isPending) return { status: "loading" };
+    if (query.isPending) {
+      return { status: "loading" };
+    }
     if (query.isError) {
       return {
         status: "error",

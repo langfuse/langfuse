@@ -110,10 +110,14 @@ export function PresetDashboardWidget({
       : undefined;
 
   useEffect(() => {
-    if (!onHeightChange) return;
+    if (!onHeightChange) {
+      return;
+    }
 
     const element = contentRef.current;
-    if (!element) return;
+    if (!element) {
+      return;
+    }
 
     const reportHeight = () => {
       onHeightChange(

@@ -141,8 +141,9 @@ export const BlobStorageIntegrationContainer = ({
             confirm(
               "Are you sure you want to run the blob storage export now? This will export all data since the last sync.",
             )
-          )
+          ) {
             mutRunNow.mutate({ projectId });
+          }
         }}
       >
         Run Now
@@ -156,8 +157,9 @@ export const BlobStorageIntegrationContainer = ({
             confirm(
               "Are you sure you want to reset the Blob Storage integration for this project?",
             )
-          )
+          ) {
             mutDelete.mutate({ projectId });
+          }
         }}
       >
         Reset

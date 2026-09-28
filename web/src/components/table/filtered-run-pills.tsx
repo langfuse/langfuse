@@ -70,7 +70,9 @@ export function FilteredRunPills({
 
   // Create a map of run ID to run name for quick lookup
   const runIdToName = useMemo(() => {
-    if (!runs) return new Map<string, string>();
+    if (!runs) {
+      return new Map<string, string>();
+    }
     return new Map(runs.map((run) => [run.id, run.name]));
   }, [runs]);
 

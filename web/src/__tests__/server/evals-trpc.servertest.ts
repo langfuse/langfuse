@@ -390,7 +390,9 @@ describe("legacy evaluator compatibility service", () => {
     const managed = service
       .listManagedTemplates()
       .find(({ type }) => type === EvalTemplateType.LLM_AS_JUDGE);
-    if (!managed) throw new Error("no managed LLM template in the catalog");
+    if (!managed) {
+      throw new Error("no managed LLM template in the catalog");
+    }
     const projectCopy = await prisma.evaluator.create({
       data: {
         projectId: project.id,
@@ -1090,7 +1092,9 @@ describe("legacy evaluator compatibility service", () => {
     const managed = service
       .listManagedTemplates()
       .find(({ type }) => type === EvalTemplateType.LLM_AS_JUDGE);
-    if (!managed) throw new Error("no managed LLM template in the catalog");
+    if (!managed) {
+      throw new Error("no managed LLM template in the catalog");
+    }
     const copy = await prisma.evaluator.create({
       data: {
         projectId: project.id,
@@ -1141,7 +1145,9 @@ describe("legacy evaluator compatibility service", () => {
     const managed = service
       .listManagedTemplates()
       .find(({ type }) => type === EvalTemplateType.LLM_AS_JUDGE);
-    if (!managed) throw new Error("no managed LLM template in the catalog");
+    if (!managed) {
+      throw new Error("no managed LLM template in the catalog");
+    }
 
     const rule = await service.createConfig({
       projectId: project.id,

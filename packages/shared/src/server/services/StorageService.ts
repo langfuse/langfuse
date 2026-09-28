@@ -235,9 +235,15 @@ function createSecureAzureBlobRequestPolicyFactory(
 }
 
 async function storageBodyToBytes(body: unknown): Promise<Uint8Array> {
-  if (!body) return new Uint8Array();
-  if (body instanceof Uint8Array) return body;
-  if (body instanceof ArrayBuffer) return new Uint8Array(body);
+  if (!body) {
+    return new Uint8Array();
+  }
+  if (body instanceof Uint8Array) {
+    return body;
+  }
+  if (body instanceof ArrayBuffer) {
+    return new Uint8Array(body);
+  }
 
   const candidate = body as {
     transformToByteArray?: () => Promise<Uint8Array>;
@@ -265,7 +271,9 @@ async function storageBodyToBytes(body: unknown): Promise<Uint8Array> {
     const reader = candidate.getReader();
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
       chunks.push(value);
     }
   } else {
@@ -601,7 +609,9 @@ class AzureBlobStorageService implements StorageService {
     try {
       await this.createContainerIfNotExists();
       const response = await this.client.getBlobClient(path).download();
-      if (!response.readableStreamBody) throw Error("No stream body available");
+      if (!response.readableStreamBody) {
+        throw Error("No stream body available");
+      }
       return storageBodyToBytes(response.readableStreamBody);
     } catch (err) {
       logger.error(
@@ -1437,20 +1447,27 @@ class OCIObjectStorageService implements StorageService {
     });
 
     const regionId = params.region?.trim();
-    if (regionId) this.client.region = common.Region.fromRegionId(regionId);
+    if (regionId) {
+      this.client.region = common.Region.fromRegionId(regionId);
+    }
     const endpoint = params.endpoint?.trim();
-    if (endpoint) this.client.endpoint = endpoint;
+    if (endpoint) {
+      this.client.endpoint = endpoint;
+    }
   }
 
   private async ensureClient() {
     await this.clientInit;
-    if (!this.client)
+    if (!this.client) {
       throw new Error("OCI ObjectStorage client failed to initialize");
+    }
     return this.client;
   }
 
   private async ensureNamespace(): Promise<string> {
-    if (this.namespaceName) return this.namespaceName;
+    if (this.namespaceName) {
+      return this.namespaceName;
+    }
     const client = await this.ensureClient();
     const nsResp = await client.getNamespace({});
     this.namespaceName = nsResp.value ?? "";
@@ -1469,13 +1486,21 @@ class OCIObjectStorageService implements StorageService {
   private async streamToString(
     readable: any, // could be many shapes, so use `any`
   ): Promise<string> {
-    if (!readable) return "";
+    if (!readable) {
+      return "";
+    }
 
     // Helper: convert many chunk shapes to Buffer
     const toBuffer = (chunk: any): Buffer => {
-      if (Buffer.isBuffer(chunk)) return chunk;
-      if (typeof chunk === "string") return Buffer.from(chunk, "utf8");
-      if (chunk instanceof ArrayBuffer) return Buffer.from(chunk);
+      if (Buffer.isBuffer(chunk)) {
+        return chunk;
+      }
+      if (typeof chunk === "string") {
+        return Buffer.from(chunk, "utf8");
+      }
+      if (chunk instanceof ArrayBuffer) {
+        return Buffer.from(chunk);
+      }
       // TypedArray / DataView
       if (ArrayBuffer.isView(chunk)) {
         return Buffer.from(
@@ -1517,14 +1542,18 @@ class OCIObjectStorageService implements StorageService {
       try {
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            break;
+          }
           chunks.push(toBuffer(value));
         }
         return Buffer.concat(chunks).toString("utf8");
       } finally {
         // safe to close reader if available
         try {
-          if (reader.releaseLock) reader.releaseLock();
+          if (reader.releaseLock) {
+            reader.releaseLock();
+          }
         } catch (_err) {
           // intentionally ignore releaseLock errors
         }
@@ -1532,11 +1561,15 @@ class OCIObjectStorageService implements StorageService {
     }
 
     // 3) Buffer / Uint8Array / ArrayBuffer direct
-    if (Buffer.isBuffer(readable)) return readable.toString("utf8");
-    if (readable instanceof Uint8Array)
+    if (Buffer.isBuffer(readable)) {
+      return readable.toString("utf8");
+    }
+    if (readable instanceof Uint8Array) {
       return Buffer.from(readable).toString("utf8");
-    if (readable instanceof ArrayBuffer)
+    }
+    if (readable instanceof ArrayBuffer) {
       return Buffer.from(readable).toString("utf8");
+    }
 
     // 4) Blob (browser)
     if (typeof Blob !== "undefined" && readable instanceof Blob) {

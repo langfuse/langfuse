@@ -22,7 +22,9 @@ export async function submitDatasetItems({
   onSuccess: () => void;
   onError: (message: string | null) => void;
 }) {
-  if (owner.pending) return;
+  if (owner.pending) {
+    return;
+  }
   owner.pending = true;
   onPendingChange(true);
   onError(null);
@@ -51,5 +53,7 @@ export async function submitDatasetItems({
     owner.pending = false;
     onPendingChange(false);
   }
-  if (succeeded) onSuccess();
+  if (succeeded) {
+    onSuccess();
+  }
 }

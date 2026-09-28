@@ -26,7 +26,9 @@ export const StripeCustomerPortalButton = ({
     const reset = () => setLoading(false);
     const onPageShow = () => setLoading(false); // fires on bfcache restore
     const onVisibility = () => {
-      if (document.visibilityState === "visible") setLoading(false);
+      if (document.visibilityState === "visible") {
+        setLoading(false);
+      }
     };
 
     window.addEventListener("focus", reset);
@@ -51,11 +53,15 @@ export const StripeCustomerPortalButton = ({
   );
 
   const onClick = async () => {
-    if (!orgId) return;
+    if (!orgId) {
+      return;
+    }
     try {
       setLoading(true);
       const { data, error } = await portalQuery.refetch();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       if (data) {
         window.location.href = data;
       } else {

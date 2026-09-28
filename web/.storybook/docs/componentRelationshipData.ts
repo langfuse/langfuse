@@ -19,7 +19,9 @@ const STATIC_IMPORT_PATTERN =
 function normalizePath(path: string) {
   const segments: string[] = [];
   for (const segment of path.split("/")) {
-    if (segment === "" || segment === ".") continue;
+    if (segment === "" || segment === ".") {
+      continue;
+    }
     if (segment === "..") {
       segments.pop();
       continue;
@@ -32,29 +34,41 @@ function normalizePath(path: string) {
 function relativeDesignSystemPath(path: string) {
   const normalized = `/${normalizePath(path)}`;
   const markerIndex = normalized.indexOf(DESIGN_SYSTEM_PATH);
-  if (markerIndex === -1) return null;
+  if (markerIndex === -1) {
+    return null;
+  }
   return normalized.slice(markerIndex + DESIGN_SYSTEM_PATH.length);
 }
 
 function componentId(path: string) {
   const [area, ...segments] = path.split("/");
-  if (!area) return null;
-  if (/^[A-Z]/.test(area)) return area;
+  if (!area) {
+    return null;
+  }
+  if (/^[A-Z]/.test(area)) {
+    return area;
+  }
   const group = `${area.charAt(0).toUpperCase()}${area.slice(1)}`;
   const subject =
     segments.find((segment) => /^[A-Z]/.test(segment)) ?? segments.at(-1);
-  if (!subject) return group;
+  if (!subject) {
+    return group;
+  }
   return `${group} / ${subject.replace(SOURCE_FILE_PATTERN, "")}`;
 }
 
 function nodeGroup(path: string) {
   const area = path.split("/")[0];
-  if (!area || /^[A-Z]/.test(area)) return null;
+  if (!area || /^[A-Z]/.test(area)) {
+    return null;
+  }
   return `${area.charAt(0).toUpperCase()}${area.slice(1)}`;
 }
 
 function nodeKind(path: string) {
-  if (path.startsWith("internal/")) return "internal" as const;
+  if (path.startsWith("internal/")) {
+    return "internal" as const;
+  }
   if (path.startsWith("factories/") || path.startsWith("table/columns/")) {
     return "function" as const;
   }
@@ -65,12 +79,18 @@ function resolveImport(importer: string, specifier: string) {
   if (specifier.startsWith(DESIGN_SYSTEM_ALIAS)) {
     return specifier.slice(DESIGN_SYSTEM_ALIAS.length);
   }
-  if (!specifier.startsWith(".")) return null;
+  if (!specifier.startsWith(".")) {
+    return null;
+  }
   const segments = importer.split("/").slice(0, -1);
   for (const segment of specifier.split("/")) {
-    if (segment === "" || segment === ".") continue;
+    if (segment === "" || segment === ".") {
+      continue;
+    }
     if (segment === "..") {
-      if (segments.length === 0) return null;
+      if (segments.length === 0) {
+        return null;
+      }
       segments.pop();
       continue;
     }
@@ -114,10 +134,17 @@ export function buildComponentRelationshipGraph(
   for (const sourceModule of modules) {
     for (const match of sourceModule.source.matchAll(STATIC_IMPORT_PATTERN)) {
       const importedPath = resolveImport(sourceModule.path, match[1]);
-      if (importedPath === null) continue;
-      const target = componentId(importedPath);
-      if (target === null || target === sourceModule.id || !nodeIds.has(target))
+      if (importedPath === null) {
         continue;
+      }
+      const target = componentId(importedPath);
+      if (
+        target === null ||
+        target === sourceModule.id ||
+        !nodeIds.has(target)
+      ) {
+        continue;
+      }
       edgePairs.add(JSON.stringify([sourceModule.id, target]));
     }
   }

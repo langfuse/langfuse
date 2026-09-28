@@ -13,7 +13,9 @@ import { ReactionPicker } from "../ReactionPicker";
 import { CommentCard } from "./CommentCard";
 
 function humanizeJsonPath(path: string): string {
-  if (path === "$") return "(root)";
+  if (path === "$") {
+    return "(root)";
+  }
   return path
     .replace(/^\$\.?/, "")
     .replace(/\[(\d+)\]/g, ".$1")
@@ -73,7 +75,9 @@ export function CommentConversation({
   // Keep the DOM scroll position on the linked comment or the latest conversation.
   useEffect(() => {
     const container = commentsContainerRef.current;
-    if (!comments || !container) return;
+    if (!comments || !container) {
+      return;
+    }
     const frame = requestAnimationFrame(() => {
       if (highlightedCommentId) {
         document
@@ -88,13 +92,16 @@ export function CommentConversation({
   }, [comments, highlightedCommentId, commentsContainerRef]);
 
   useEffect(() => {
-    if (!isDrawerOpen) return;
+    if (!isDrawerOpen) {
+      return;
+    }
     function focusSearch(event: KeyboardEvent) {
       if (
         event.target instanceof HTMLElement &&
         event.target.closest("input, textarea, [contenteditable=true]")
-      )
+      ) {
         return;
+      }
       if ((event.metaKey || event.ctrlKey) && event.key === "f") {
         event.preventDefault();
         searchInputRef.current?.focus();
@@ -199,13 +206,14 @@ export function CommentConversation({
                         window.confirm(
                           "Are you sure you want to delete this comment?",
                         )
-                      )
+                      ) {
                         deleteComment.mutate({
                           commentId: comment.id,
                           projectId,
                           objectId,
                           objectType,
                         });
+                      }
                     }}
                   >
                     <Trash className="size-3.5" />
@@ -218,10 +226,15 @@ export function CommentConversation({
                     projectId={projectId}
                     commentId={comment.id}
                     onReactionToggle={(emoji, hasReacted) => {
-                      if (!hasWriteAccess) return;
+                      if (!hasWriteAccess) {
+                        return;
+                      }
                       const input = { projectId, commentId: comment.id, emoji };
-                      if (hasReacted) removeReaction.mutate(input);
-                      else addReaction.mutate(input);
+                      if (hasReacted) {
+                        removeReaction.mutate(input);
+                      } else {
+                        addReaction.mutate(input);
+                      }
                     }}
                   />
                   {hasWriteAccess && (

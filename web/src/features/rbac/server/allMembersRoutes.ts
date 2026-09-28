@@ -45,7 +45,9 @@ function roleFilter(
   roles: Role[],
   projectId: string | undefined,
 ): Prisma.OrganizationMembershipWhereInput {
-  if (!projectId) return { role: { in: roles } };
+  if (!projectId) {
+    return { role: { in: roles } };
+  }
   return {
     OR: [
       { ProjectMemberships: { some: { projectId, role: { in: roles } } } },
@@ -64,7 +66,9 @@ async function getMembers(
     | (z.infer<typeof projectLevelMemberQuery> & { orgId: string }),
   showAllOrgMembers = true,
 ) {
-  if (!query.orgId) throw Error("Org ID required to get members");
+  if (!query.orgId) {
+    throw Error("Org ID required to get members");
+  }
 
   const projectId = "projectId" in query ? query.projectId : undefined;
   const conditions: Prisma.OrganizationMembershipWhereInput[] = [];

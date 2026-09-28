@@ -62,8 +62,12 @@ const authOptions: NextAuthOptions = {
   callbacks: {
     redirect({ url, baseUrl }) {
       try {
-        if (url.startsWith("/")) return `${baseUrl}${url}`;
-        if (new URL(url).origin === baseUrl) return url;
+        if (url.startsWith("/")) {
+          return `${baseUrl}${url}`;
+        }
+        if (new URL(url).origin === baseUrl) {
+          return url;
+        }
       } catch {
         // Match the application callback that safely handles malformed POST
         // body callbackUrl values. Query and cookie validation happens before

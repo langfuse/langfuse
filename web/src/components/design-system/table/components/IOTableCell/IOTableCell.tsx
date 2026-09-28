@@ -78,7 +78,9 @@ function renderStringWithMediaReferences(
   // chip. Drop a quote pair that directly encloses a chip; the escaped-quote
   // check leaves a literal \" in user text alone.
   segments.forEach((segment, index) => {
-    if (segment.type !== "media") return;
+    if (segment.type !== "media") {
+      return;
+    }
     const prev = segments[index - 1];
     const next = segments[index + 1];
     if (
@@ -252,7 +254,9 @@ export const IOTableCell = memo(function IOTableCell({
       closeDelay={100}
       open={isExpandOpen}
       onOpenChange={(open) => {
-        if (open && isPointerOverMediaTagRef.current) return;
+        if (open && isPointerOverMediaTagRef.current) {
+          return;
+        }
         setIsExpandOpen(open);
       }}
     >
@@ -264,7 +268,9 @@ export const IOTableCell = memo(function IOTableCell({
               (event.target as Element).closest("[data-media-tag]"),
             );
             isPointerOverMediaTagRef.current = overMediaTag;
-            if (overMediaTag) setIsExpandOpen(false);
+            if (overMediaTag) {
+              setIsExpandOpen(false);
+            }
           }}
         >
           {content}

@@ -146,13 +146,17 @@ FormDescription.displayName = "FormDescription";
  * next to per-item FormMessages, so item errors are not rendered twice.
  */
 function hasArrayLevelFieldError(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
+  if (!error || typeof error !== "object") {
+    return false;
+  }
   const record = error as Record<string, unknown>;
   if (typeof record.message === "string" && record.message.length > 0) {
     return true;
   }
   const root = record.root;
-  if (!root || typeof root !== "object") return false;
+  if (!root || typeof root !== "object") {
+    return false;
+  }
   const rootMessage = (root as { message?: unknown }).message;
   return typeof rootMessage === "string" && rootMessage.length > 0;
 }
@@ -163,7 +167,9 @@ function hasArrayLevelFieldError(error: unknown): boolean {
  * render nothing even though the field was invalid.
  */
 function getFieldErrorMessage(error: unknown): string | undefined {
-  if (!error || typeof error !== "object") return undefined;
+  if (!error || typeof error !== "object") {
+    return undefined;
+  }
   const record = error as Record<string, unknown>;
   if (typeof record.message === "string" && record.message.length > 0) {
     return record.message;
@@ -171,15 +177,23 @@ function getFieldErrorMessage(error: unknown): string | undefined {
   const root = record.root;
   if (root && typeof root === "object") {
     const rootMessage = getFieldErrorMessage(root);
-    if (rootMessage) return rootMessage;
+    if (rootMessage) {
+      return rootMessage;
+    }
   }
   for (const key of Object.keys(record)) {
     // `ref` is RHF metadata. `type` is metadata when it is a string, but a
     // nested object when a union/discriminated path is named `type`.
-    if (key === "ref" || key === "message" || key === "root") continue;
-    if (key === "type" && typeof record[key] !== "object") continue;
+    if (key === "ref" || key === "message" || key === "root") {
+      continue;
+    }
+    if (key === "type" && typeof record[key] !== "object") {
+      continue;
+    }
     const found = getFieldErrorMessage(record[key]);
-    if (found) return found;
+    if (found) {
+      return found;
+    }
   }
   return undefined;
 }

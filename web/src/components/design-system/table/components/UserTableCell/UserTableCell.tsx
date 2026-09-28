@@ -32,7 +32,9 @@ export function UserTableCell({
       avatarSize?: never;
     }) {
   if (variant === "loading") {
-    if (presentation === "text") return <Skeleton className="h-4 w-1/2" />;
+    if (presentation === "text") {
+      return <Skeleton className="h-4 w-1/2" />;
+    }
 
     return (
       <div className="flex w-full min-w-0 items-center space-x-2">

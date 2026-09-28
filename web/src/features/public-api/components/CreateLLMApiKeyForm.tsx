@@ -135,7 +135,9 @@ const createFormSchema = (params: {
       ),
     })
     .superRefine((data, ctx) => {
-      if (data.adapter !== LLMAdapter.Bedrock) return;
+      if (data.adapter !== LLMAdapter.Bedrock) {
+        return;
+      }
 
       const hasRegion = hasText(data.awsRegion);
       const hasAccessKeyId = hasText(data.awsAccessKeyId);
@@ -223,10 +225,14 @@ const createFormSchema = (params: {
     // Vertex AI validation - service account key or ADC sentinel value required
     .refine(
       (data) => {
-        if (data.adapter !== LLMAdapter.VertexAI) return true;
+        if (data.adapter !== LLMAdapter.VertexAI) {
+          return true;
+        }
 
         // In update mode, credentials are optional (existing ones are preserved)
-        if (params.mode === "update") return true;
+        if (params.mode === "update") {
+          return true;
+        }
 
         // secretKey is required (either JSON key or VERTEXAI_USE_DEFAULT_CREDENTIALS sentinel)
         return !!data.secretKey;
@@ -251,7 +257,9 @@ const createFormSchema = (params: {
     )
     .refine(
       (data) => {
-        if (data.adapter !== LLMAdapter.Azure) return true;
+        if (data.adapter !== LLMAdapter.Azure) {
+          return true;
+        }
         return data.baseURL && data.baseURL.trim() !== "";
       },
       {
@@ -545,12 +553,16 @@ export function CreateLLMApiKeyForm({
 
   // Disable provider and adapter fields in update mode
   const isFieldDisabled = (fieldName: string) => {
-    if (mode !== "update") return false;
+    if (mode !== "update") {
+      return false;
+    }
     return ["provider", "adapter"].includes(fieldName);
   };
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!projectId) return console.error("No project ID found.");
+    if (!projectId) {
+      return console.error("No project ID found.");
+    }
 
     if (mode === "create") {
       if (
@@ -674,7 +686,9 @@ export function CreateLLMApiKeyForm({
           ? await mutTestLLMApiKey.mutateAsync(newLlmApiKey)
           : await mutTestUpdateLLMApiKey.mutateAsync(newLlmApiKey);
 
-      if (!testResult.success) throw new Error(testResult.error);
+      if (!testResult.success) {
+        throw new Error(testResult.error);
+      }
     } catch (error) {
       form.setError("root", {
         type: "manual",

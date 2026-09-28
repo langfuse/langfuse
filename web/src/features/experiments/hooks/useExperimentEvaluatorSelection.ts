@@ -24,21 +24,27 @@ export const getExistingEvaluators = (
 
   for (const jobConfig of jobConfigs ?? []) {
     const parsedFilter = singleFilterList.safeParse(jobConfig.filter);
-    if (!parsedFilter.success) continue;
+    if (!parsedFilter.success) {
+      continue;
+    }
     const matchesDataset =
       parsedFilter.data.length === 0 ||
       parsedFilter.data.some(
         ({ type, value }) =>
           type === "stringOptions" && value.includes(datasetId),
       );
-    if (!matchesDataset || !jobConfig.evalTemplate) continue;
+    if (!matchesDataset || !jobConfig.evalTemplate) {
+      continue;
+    }
 
     const familyKey = getEvalTemplateFamilyKey(jobConfig.evalTemplate);
     const isActive = isEvalRuleExecutable({
       status: jobConfig.status,
       blockedAt: jobConfig.blockedAt,
     });
-    if (result[familyKey]?.isActive && !isActive) continue;
+    if (result[familyKey]?.isActive && !isActive) {
+      continue;
+    }
 
     result[familyKey] = {
       evalTemplateId: jobConfig.evalTemplate.id,

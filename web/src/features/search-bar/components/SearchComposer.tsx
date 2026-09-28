@@ -113,12 +113,18 @@ function rawOffsetForLogicalOffset(
   text: string,
   logicalOffset: number,
 ): number {
-  if (logicalOffset <= 0) return 0;
+  if (logicalOffset <= 0) {
+    return 0;
+  }
   let logical = 0;
   for (let raw = 0; raw < text.length; raw++) {
-    if (text[raw] === WORD_JOINER) continue;
+    if (text[raw] === WORD_JOINER) {
+      continue;
+    }
     logical++;
-    if (logical === logicalOffset) return raw + 1;
+    if (logical === logicalOffset) {
+      return raw + 1;
+    }
   }
   return text.length;
 }
@@ -195,7 +201,9 @@ function setSelectionRange(
   const anchor = domPositionForLogicalOffset(root, from);
   const focus = from === to ? anchor : domPositionForLogicalOffset(root, to);
   const selection = window.getSelection();
-  if (selection === null) return;
+  if (selection === null) {
+    return;
+  }
   const range = document.createRange();
   range.setStart(anchor.node, anchor.offset);
   range.setEnd(focus.node, focus.offset);
@@ -224,28 +232,42 @@ function isSearchWordChar(char: string): boolean {
 
 function previousSearchWordBoundary(text: string, offset: number): number {
   let i = Math.max(0, Math.min(offset, text.length));
-  while (i > 0 && /\s/.test(text[i - 1]!)) i--;
+  while (i > 0 && /\s/.test(text[i - 1]!)) {
+    i--;
+  }
   if (i > 0 && isSearchWordChar(text[i - 1]!)) {
-    while (i > 0 && isSearchWordChar(text[i - 1]!)) i--;
-  } else {
-    while (i > 0 && !/\s/.test(text[i - 1]!) && !isSearchWordChar(text[i - 1]!))
+    while (i > 0 && isSearchWordChar(text[i - 1]!)) {
       i--;
+    }
+  } else {
+    while (
+      i > 0 &&
+      !/\s/.test(text[i - 1]!) &&
+      !isSearchWordChar(text[i - 1]!)
+    ) {
+      i--;
+    }
   }
   return i;
 }
 
 function nextSearchWordBoundary(text: string, offset: number): number {
   let i = Math.max(0, Math.min(offset, text.length));
-  while (i < text.length && /\s/.test(text[i]!)) i++;
+  while (i < text.length && /\s/.test(text[i]!)) {
+    i++;
+  }
   if (i < text.length && isSearchWordChar(text[i]!)) {
-    while (i < text.length && isSearchWordChar(text[i]!)) i++;
+    while (i < text.length && isSearchWordChar(text[i]!)) {
+      i++;
+    }
   } else {
     while (
       i < text.length &&
       !/\s/.test(text[i]!) &&
       !isSearchWordChar(text[i]!)
-    )
+    ) {
       i++;
+    }
   }
   return i;
 }
@@ -257,7 +279,9 @@ function deletionRange(
 ): { from: number; to: number } | null {
   const start = Math.min(selection.start, selection.end);
   const end = Math.max(selection.start, selection.end);
-  if (start !== end) return { from: start, to: end };
+  if (start !== end) {
+    return { from: start, to: end };
+  }
 
   switch (inputType) {
     case "deleteContentBackward":
@@ -292,19 +316,27 @@ function isPastTextEnd(root: HTMLElement, x: number, y: number): boolean {
     const text = node.textContent ?? "";
     let lastVisible = -1;
     for (let i = 0; i < text.length; i++) {
-      if (text[i] !== WORD_JOINER) lastVisible = i;
+      if (text[i] !== WORD_JOINER) {
+        lastVisible = i;
+      }
     }
     if (lastVisible >= 0) {
       const range = document.createRange();
       range.setStart(node, lastVisible);
       range.setEnd(node, lastVisible + 1);
       const rect = range.getBoundingClientRect();
-      if (rect.width > 0 || rect.height > 0) lastRect = rect;
+      if (rect.width > 0 || rect.height > 0) {
+        lastRect = rect;
+      }
     }
     node = walker.nextNode();
   }
-  if (lastRect === null) return true;
-  if (y > lastRect.bottom + 2) return true;
+  if (lastRect === null) {
+    return true;
+  }
+  if (y > lastRect.bottom + 2) {
+    return true;
+  }
   return y >= lastRect.top - 2 && x > lastRect.right + 2;
 }
 
@@ -432,7 +464,9 @@ export function SearchComposer({
   // joined column list so it fires once per distinct need, not every keystroke.
   const requestColumnsKey = plan?.requestColumns?.join(",") ?? "";
   React.useEffect(() => {
-    if (!onRequestColumns || requestColumnsKey.length === 0) return;
+    if (!onRequestColumns || requestColumnsKey.length === 0) {
+      return;
+    }
     onRequestColumns(requestColumnsKey.split(","));
   }, [requestColumnsKey, onRequestColumns]);
 
@@ -498,7 +532,9 @@ export function SearchComposer({
                   end: draftRef.current.length,
                 };
           stacks.undo.push({ text: draftRef.current, selection });
-          if (stacks.undo.length > 100) stacks.undo.shift();
+          if (stacks.undo.length > 100) {
+            stacks.undo.shift();
+          }
         }
         stacks.redo = [];
         stacks.coalesce = history === "coalesce" ? "typing" : null;
@@ -519,7 +555,9 @@ export function SearchComposer({
   // hydration must NOT be captured — otherwise Cmd+Z reverts to the empty
   // initial draft and the blur-commit wipes the applied filters.
   React.useEffect(() => {
-    if (draft === lastDraftRef.current) return;
+    if (draft === lastDraftRef.current) {
+      return;
+    }
     if (hasInteractedRef.current) {
       const stacks = historyRef.current;
       const previous = lastDraftRef.current;
@@ -527,7 +565,9 @@ export function SearchComposer({
         text: previous,
         selection: { start: previous.length, end: previous.length },
       });
-      if (stacks.undo.length > 100) stacks.undo.shift();
+      if (stacks.undo.length > 100) {
+        stacks.undo.shift();
+      }
       stacks.redo = [];
       stacks.coalesce = null;
     }
@@ -537,7 +577,9 @@ export function SearchComposer({
   const undo = React.useCallback(() => {
     const stacks = historyRef.current;
     const entry = stacks.undo.pop();
-    if (entry === undefined) return;
+    if (entry === undefined) {
+      return;
+    }
     const root = rootRef.current;
     const selection =
       root !== null && document.activeElement === root
@@ -556,7 +598,9 @@ export function SearchComposer({
   const redo = React.useCallback(() => {
     const stacks = historyRef.current;
     const entry = stacks.redo.pop();
-    if (entry === undefined) return;
+    if (entry === undefined) {
+      return;
+    }
     const root = rootRef.current;
     const selection =
       root !== null && document.activeElement === root
@@ -587,8 +631,12 @@ export function SearchComposer({
   React.useLayoutEffect(() => {
     const root = rootRef.current;
     const pending = pendingSelectionRef.current;
-    if (root === null || pending === null) return;
-    if (document.activeElement !== root) return;
+    if (root === null || pending === null) {
+      return;
+    }
+    if (document.activeElement !== root) {
+      return;
+    }
     pendingSelectionRef.current = null;
     setSelectionRange(root, pending.start, pending.end);
     setSelectionSnapshot(pending);
@@ -600,7 +648,9 @@ export function SearchComposer({
   React.useEffect(() => {
     const onSelectionChange = () => {
       const root = rootRef.current;
-      if (root === null || document.activeElement !== root) return;
+      if (root === null || document.activeElement !== root) {
+        return;
+      }
       const next = selectionOffsets(root);
       setSelectionSnapshot((prev) =>
         prev.start === next.start && prev.end === next.end ? prev : next,
@@ -616,11 +666,15 @@ export function SearchComposer({
   // so IMEs keep their composing run.
   const syncFromDom = React.useCallback(() => {
     const root = rootRef.current;
-    if (root === null) return;
+    if (root === null) {
+      return;
+    }
     const next = textFromRoot(root);
     const caretNow = selectionOffsets(root).end;
     const stripped = stripUnmanagedRootChildren(root);
-    if (next === draftRef.current && !stripped) return;
+    if (next === draftRef.current && !stripped) {
+      return;
+    }
     setTokensGeneration((generation) => generation + 1);
     if (next === draftRef.current) {
       pendingSelectionRef.current = { start: caretNow, end: caretNow };
@@ -633,7 +687,9 @@ export function SearchComposer({
   const applyTextInsert = React.useCallback(
     (insert: string) => {
       const root = rootRef.current;
-      if (root === null) return;
+      if (root === null) {
+        return;
+      }
       const offsets = selectionOffsets(root);
       const from = Math.min(offsets.start, offsets.end);
       const to = Math.max(offsets.start, offsets.end);
@@ -655,7 +711,9 @@ export function SearchComposer({
 
   const applyTextDeletion = React.useCallback(
     (range: { from: number; to: number }) => {
-      if (range.from === range.to) return;
+      if (range.from === range.to) {
+        return;
+      }
       setDraftWithSelection(
         replaceRange(draftRef.current, range.from, range.to, ""),
         range.from,
@@ -669,10 +727,14 @@ export function SearchComposer({
   // narrow: it intercepts mutations only, never selection or caret movement.
   React.useLayoutEffect(() => {
     const root = rootRef.current;
-    if (root === null) return;
+    if (root === null) {
+      return;
+    }
     const onBeforeInput = (event: Event) => {
       const native = event as InputEvent;
-      if (native.isComposing) return;
+      if (native.isComposing) {
+        return;
+      }
       const type = native.inputType;
 
       if (type === "insertText" || type === "insertReplacementText") {
@@ -692,8 +754,11 @@ export function SearchComposer({
       }
       if (type === "historyUndo" || type === "historyRedo") {
         event.preventDefault(); // the DOM is a projection; native undo would desync it
-        if (type === "historyUndo") undoRef.current();
-        else redoRef.current();
+        if (type === "historyUndo") {
+          undoRef.current();
+        } else {
+          redoRef.current();
+        }
         return;
       }
       if (type.startsWith("delete")) {
@@ -709,7 +774,9 @@ export function SearchComposer({
           (type === "deleteWordBackward" || type === "deleteWordForward")
         ) {
           const range = deletionRange(current, selection, type);
-          if (range !== null) applyTextDeletion(range);
+          if (range !== null) {
+            applyTextDeletion(range);
+          }
           return;
         }
         const targets = native.getTargetRanges?.() ?? [];
@@ -739,7 +806,9 @@ export function SearchComposer({
           }
         }
         const range = deletionRange(current, selection, type);
-        if (range !== null) applyTextDeletion(range);
+        if (range !== null) {
+          applyTextDeletion(range);
+        }
         return;
       }
     };
@@ -763,7 +832,9 @@ export function SearchComposer({
         if (stripUnmanagedRootChildren(root)) {
           setTokensGeneration((generation) => generation + 1);
         }
-        if (text !== storeApi.getState().draft) actions.setDraft(text);
+        if (text !== storeApi.getState().draft) {
+          actions.setDraft(text);
+        }
       }
       // The container validates, lowers, and writes the filter state; on failure
       // it reveals the invalid draft and returns null. On success it returns the
@@ -772,7 +843,9 @@ export function SearchComposer({
       const committedText = commitToFilterState(
         advanceToTrailingSpace ? "enter" : "blur",
       );
-      if (committedText === null) return;
+      if (committedText === null) {
+        return;
+      }
       setHighlightedOptionId(null);
       // Close the undo-coalesce window at the commit boundary, mirroring undo()/
       // redo()/the external-draft sync. Otherwise a post-commit keystroke keeps
@@ -827,13 +900,17 @@ export function SearchComposer({
   // (the `commit` path above) or blur. writeDraft ran synchronously, so the
   // freshly-set draftValid is current here.
   const commitStructuredEdit = React.useCallback(() => {
-    if (storeApi.getState().draftValid) commitToFilterState("pick");
+    if (storeApi.getState().draftValid) {
+      commitToFilterState("pick");
+    }
   }, [storeApi, commitToFilterState]);
 
   const pickOption = React.useCallback(
     (option: CompletionOption) => {
       const currentPlan = planRef.current;
-      if (currentPlan === null) return;
+      if (currentPlan === null) {
+        return;
+      }
       if (option.kind === "recent" || option.kind === "preset") {
         // Complete-query picks replace the full draft and land in the RESTING
         // trailing-space form like every other commit landing.
@@ -848,9 +925,12 @@ export function SearchComposer({
             "pick",
             option.kind === "preset" ? { replaceHidden: true } : undefined,
           );
-          if (option.kind === "preset" && committed !== null)
+          if (option.kind === "preset" && committed !== null) {
             onQueryPresetPick?.(option.id);
-        } else state.actions.revealInvalid();
+          }
+        } else {
+          state.actions.revealInvalid();
+        }
         setAutocompleteOpen(false);
         return;
       }
@@ -903,15 +983,20 @@ export function SearchComposer({
   );
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
-    if (event.nativeEvent.isComposing) return;
+    if (event.nativeEvent.isComposing) {
+      return;
+    }
 
     if (
       (event.metaKey || event.ctrlKey) &&
       (event.key === "z" || event.key === "Z")
     ) {
       event.preventDefault();
-      if (event.shiftKey) redo();
-      else undo();
+      if (event.shiftKey) {
+        redo();
+      } else {
+        undo();
+      }
       return;
     }
     if ((event.metaKey || event.ctrlKey) && event.key === "y") {
@@ -935,7 +1020,9 @@ export function SearchComposer({
       !event.metaKey
     ) {
       const root = rootRef.current;
-      if (root === null) return;
+      if (root === null) {
+        return;
+      }
       event.preventDefault();
       const selection = window.getSelection();
       const offsets = selectionOffsets(root);
@@ -1009,9 +1096,13 @@ export function SearchComposer({
       !event.metaKey
     ) {
       const root = rootRef.current;
-      if (root === null) return;
+      if (root === null) {
+        return;
+      }
       const { start, end } = selectionOffsets(root);
-      if (start !== end) return; // let native collapse a selection
+      if (start !== end) {
+        return;
+      } // let native collapse a selection
       let target =
         event.key === "ArrowLeft"
           ? Math.max(0, end - 1)
@@ -1035,7 +1126,9 @@ export function SearchComposer({
       ) {
         target += 1;
       }
-      if (target === end) return; // at an edge — native no-op
+      if (target === end) {
+        return;
+      } // at an edge — native no-op
       event.preventDefault();
       setSelectionRange(root, target, target);
       return;
@@ -1089,7 +1182,9 @@ export function SearchComposer({
         setAutocompleteOpen(true);
         return;
       }
-      if (ids.length === 0) return;
+      if (ids.length === 0) {
+        return;
+      }
       const current = highlightedRef.current;
       const idx = current === null ? -1 : ids.indexOf(current);
       const delta = event.key === "ArrowDown" ? 1 : -1;
@@ -1108,9 +1203,13 @@ export function SearchComposer({
 
   const onCopy = (event: React.ClipboardEvent<HTMLElement>) => {
     const root = rootRef.current;
-    if (root === null) return;
+    if (root === null) {
+      return;
+    }
     const { start, end } = selectionOffsets(root);
-    if (start === end) return;
+    if (start === end) {
+      return;
+    }
     event.preventDefault();
     event.clipboardData.setData(
       "text/plain",
@@ -1120,9 +1219,13 @@ export function SearchComposer({
 
   const onCut = (event: React.ClipboardEvent<HTMLElement>) => {
     const root = rootRef.current;
-    if (root === null) return;
+    if (root === null) {
+      return;
+    }
     const { start, end } = selectionOffsets(root);
-    if (start === end) return;
+    if (start === end) {
+      return;
+    }
     event.preventDefault();
     const from = Math.min(start, end);
     const to = Math.max(start, end);
@@ -1167,12 +1270,17 @@ export function SearchComposer({
   // A collapsed click opens caret-contextual suggestions; a click past the
   // end of the text means "start a new entry".
   const onRootClick = (event: React.MouseEvent<HTMLElement>) => {
-    if (event.target instanceof Element && event.target.closest("button"))
+    if (event.target instanceof Element && event.target.closest("button")) {
       return;
+    }
     const root = rootRef.current;
-    if (root === null) return;
+    if (root === null) {
+      return;
+    }
     const { start, end } = selectionOffsets(root);
-    if (start !== end) return; // drag selection — selection is for editing, not suggesting
+    if (start !== end) {
+      return;
+    } // drag selection — selection is for editing, not suggesting
     const pastEnd =
       draft.length > 0 && isPastTextEnd(root, event.clientX, event.clientY);
     if (pastEnd) {
@@ -1218,7 +1326,9 @@ export function SearchComposer({
         event.clientX > rect.right + 1
       ) {
         let next = end;
-        while (next < draft.length && /\s/.test(draft[next]!)) next++;
+        while (next < draft.length && /\s/.test(draft[next]!)) {
+          next++;
+        }
         setSelectionRange(root, next, next);
         setSelectionSnapshot({ start: next, end: next });
       }
@@ -1229,7 +1339,9 @@ export function SearchComposer({
 
   const onRootMouseOver = (event: React.MouseEvent<HTMLElement>) => {
     const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest("[data-overlay-remove]")) return; // keep the X alive under the pointer
+    if (target?.closest("[data-overlay-remove]")) {
+      return;
+    } // keep the X alive under the pointer
     const token = target?.closest("[data-segment-id]");
     setHoveredTokenId(token?.getAttribute("data-segment-id") ?? null);
   };
@@ -1347,7 +1459,9 @@ export function SearchComposer({
     const root = rootRef.current;
     const container = containerRef.current;
     const rectsOf = (id: string | null): DOMRectList | null => {
-      if (root === null || id === null) return null;
+      if (root === null || id === null) {
+        return null;
+      }
       const el = root.querySelector(`[data-segment-id="${CSS.escape(id)}"]`);
       return el === null ? null : el.getClientRects();
     };
@@ -1386,9 +1500,13 @@ export function SearchComposer({
   // and move the token. Observe the composer surface so the absolutely-
   // positioned X re-anchors to its token instead of leaving a stale ghost X.
   React.useEffect(() => {
-    if (removeTargetIdActual === null && tooltipTargetId === null) return;
+    if (removeTargetIdActual === null && tooltipTargetId === null) {
+      return;
+    }
     const container = containerRef.current;
-    if (container === null || typeof ResizeObserver === "undefined") return;
+    if (container === null || typeof ResizeObserver === "undefined") {
+      return;
+    }
     const observer = new ResizeObserver(() => measurePositions());
     observer.observe(container);
     return () => observer.disconnect();
@@ -1477,7 +1595,9 @@ export function SearchComposer({
             "ph-no-capture caret-[hsl(var(--foreground))] outline-none",
           )}
           onInput={(event) => {
-            if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
+            if (!(event.nativeEvent as InputEvent).isComposing) {
+              syncFromDom();
+            }
           }}
           onCompositionEnd={syncFromDom}
           // Disable drag-and-drop: an intra-bar drag fires deleteByDrag (which

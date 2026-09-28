@@ -67,7 +67,9 @@ export function getVisibleProductModules(
  * Invalid values are filtered out.
  */
 function parseModulesList(input: string): ProductModule[] {
-  if (!input || !input.trim()) return [];
+  if (!input || !input.trim()) {
+    return [];
+  }
 
   return input
     .toLowerCase()

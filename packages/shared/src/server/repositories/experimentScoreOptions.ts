@@ -58,9 +58,12 @@ export const toAgnosticScoreFilterOptions = (
     pick: (options: ProcessedScoreFilterOptions) => string[],
   ): ScoreNameLevels => {
     const out: ScoreNameLevels = {};
-    for (const name of pick(observation))
+    for (const name of pick(observation)) {
       (out[name] ??= []).push("observation");
-    for (const name of pick(trace)) (out[name] ??= []).push("trace");
+    }
+    for (const name of pick(trace)) {
+      (out[name] ??= []).push("trace");
+    }
     return out;
   };
 
@@ -70,7 +73,9 @@ export const toAgnosticScoreFilterOptions = (
     ...trace.categorical,
   ]) {
     const set = mergedCategorical.get(label) ?? new Set<string>();
-    for (const value of values) set.add(value);
+    for (const value of values) {
+      set.add(value);
+    }
     mergedCategorical.set(label, set);
   }
 

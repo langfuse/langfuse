@@ -27,7 +27,9 @@ function buildChartConfig(data: DataPoint[], metricLabel: string) {
   }
   // Reserved key the bar/pie primitives colour through `--color-metric`; only
   // add it if no real series already claimed the "metric" key above.
-  if (config.metric === undefined) config.metric = { label: metricLabel };
+  if (config.metric === undefined) {
+    config.metric = { label: metricLabel };
+  }
   return config;
 }
 

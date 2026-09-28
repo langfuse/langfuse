@@ -57,7 +57,9 @@ const memoryRedis = vi.hoisted(() => {
     del: async (...keys: string[]) => {
       let removed = 0;
       for (const key of keys) {
-        if (store.delete(key)) removed += 1;
+        if (store.delete(key)) {
+          removed += 1;
+        }
       }
       return removed;
     },
@@ -67,7 +69,9 @@ const memoryRedis = vi.hoisted(() => {
         store.delete(key);
         return -2;
       }
-      if (entry!.expiresAtMs == null) return -1;
+      if (entry!.expiresAtMs == null) {
+        return -1;
+      }
       return Math.max(0, Math.ceil((entry!.expiresAtMs - nowMs()) / 1000));
     },
     scan: async (
@@ -82,7 +86,9 @@ const memoryRedis = vi.hoisted(() => {
         pattern.endsWith("*") ? key.startsWith(prefix) : key === pattern,
       );
       // Single-page scan: first call returns all keys, next cursor is "0".
-      if (cursor !== "0") return ["0", [] as string[]];
+      if (cursor !== "0") {
+        return ["0", [] as string[]];
+      }
       return ["0", keys];
     },
     __store: store,
@@ -185,9 +191,15 @@ const sharedServerMock = vi.hoisted(() => ({
     const missingName = !sdkName || sdkName === "unknown";
     const missingVersion = !sdkVersion || sdkVersion === "unknown";
 
-    if (missingName && missingVersion) return "missing_name_and_version";
-    if (missingName) return "missing_name";
-    if (missingVersion) return "missing_version";
+    if (missingName && missingVersion) {
+      return "missing_name_and_version";
+    }
+    if (missingName) {
+      return "missing_name";
+    }
+    if (missingVersion) {
+      return "missing_version";
+    }
     return "attributed";
   },
 }));
@@ -530,7 +542,9 @@ const seedRedisCache = async (
 ) => {
   await clearV4CacheKeys();
   redisAvailability.available = true;
-  if (Object.keys(initialEntries).length === 0) return;
+  if (Object.keys(initialEntries).length === 0) {
+    return;
+  }
   await Promise.all(
     Object.entries(initialEntries).map(([key, value]) =>
       memoryRedis.setex(key, ttlSeconds, value),
@@ -1894,7 +1908,9 @@ describe("v4TransitionRouter", () => {
         lastSeen: "2026-06-25T00:15:00Z",
       });
       mockedQueryClickhouse.mockImplementation(async (args) => {
-        if (!args.query.includes("FROM events_core")) return [];
+        if (!args.query.includes("FROM events_core")) {
+          return [];
+        }
         return (args.params?.toTimestamp as string) === HOT_START_CLICKHOUSE
           ? [historicalRow]
           : [gapRow];
@@ -2228,7 +2244,9 @@ describe("v4TransitionRouter", () => {
       it("on cold cache, runs history+gap queries, writes back, and derives the SDK flag", async () => {
         await seedRedisCache();
         mockedQueryClickhouse.mockImplementation(async (args) => {
-          if (!args.query.includes("FROM events_core")) return [];
+          if (!args.query.includes("FROM events_core")) {
+            return [];
+          }
           return (args.params?.toTimestamp as string) === HOT_START_CLICKHOUSE
             ? [
                 mockSdkUsageRow({
@@ -2278,7 +2296,9 @@ describe("v4TransitionRouter", () => {
           [legacyApiUsageCacheKey]: legacyApiBlob([]),
         });
         mockedQueryClickhouse.mockImplementation(async (args) => {
-          if (!args.query.includes("FROM events_core")) return [];
+          if (!args.query.includes("FROM events_core")) {
+            return [];
+          }
           return [];
         });
         const caller = createCaller(mockPrismaForActions({ evalCount: 2 }));
@@ -2429,7 +2449,9 @@ describe("v4TransitionRouter", () => {
         // Default beforeEach leaves the cache gated off (status proxy → "end").
         redisAvailability.available = false;
         mockedQueryClickhouse.mockImplementation(async (args) => {
-          if (!args.query.includes("FROM events_core")) return [];
+          if (!args.query.includes("FROM events_core")) {
+            return [];
+          }
           return [
             mockSdkUsageRow({
               projectId,

@@ -43,13 +43,17 @@ const TestEvaluatorInput = TestEvaluatorInputBase.superRefine((input, ctx) => {
     return;
   }
 
-  if (!hasDraftDefinition) return;
+  if (!hasDraftDefinition) {
+    return;
+  }
 
   const parsedDraft = McpEvaluatorInput.safeParse({
     ...input,
     name: "Evaluator test",
   });
-  if (parsedDraft.success) return;
+  if (parsedDraft.success) {
+    return;
+  }
 
   for (const issue of parsedDraft.error.issues) {
     ctx.addIssue({

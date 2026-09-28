@@ -7,7 +7,9 @@ import {
 export default function AnnotationQueueItemsPage() {
   const route = useReadyRouteParams(["projectId", "queueId"]);
 
-  if (!route.ready) return <RouteParamsPendingFallback />;
+  if (!route.ready) {
+    return <RouteParamsPendingFallback />;
+  }
 
   return (
     <QueueItems

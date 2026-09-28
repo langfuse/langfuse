@@ -395,7 +395,9 @@ export async function deleteRule(params: {
   const result = await params.prisma.evaluationRule.deleteMany({
     where: { id: params.ruleId, projectId: params.projectId },
   });
-  if (result.count === 0) return false;
+  if (result.count === 0) {
+    return false;
+  }
 
   // Executions carry no foreign key to the rule, so they have to go explicitly
   // or they keep showing up in the eval log of a deleted rule.
@@ -522,7 +524,9 @@ export async function countRulesForEvaluators(params: {
   projectId: string;
   evaluatorIds: string[];
 }) {
-  if (params.evaluatorIds.length === 0) return {};
+  if (params.evaluatorIds.length === 0) {
+    return {};
+  }
 
   const counts = await params.prisma.evaluationRuleEvaluatorAssignment.groupBy({
     by: ["evaluatorId"],

@@ -10,7 +10,9 @@ export const makeUsageTypeKeys = (
   let candidate = existing.length;
   while (keys.length < count) {
     const key = `u${candidate++}`;
-    if (!used.has(key)) keys.push(key);
+    if (!used.has(key)) {
+      keys.push(key);
+    }
   }
   return keys;
 };

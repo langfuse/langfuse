@@ -364,7 +364,9 @@ async function writeCodeEvalTraceSafely(params: {
   writeTrace?: InternalTraceWriter;
   trace: InternalTraceWriteInput;
 }) {
-  if (!params.writeTrace) return;
+  if (!params.writeTrace) {
+    return;
+  }
 
   try {
     await params.writeTrace(params.trace);

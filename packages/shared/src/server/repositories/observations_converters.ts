@@ -36,7 +36,9 @@ export const createModelCache = (projectId: string) => {
   const getModel = async (
     internalModelId: string | null | undefined,
   ): Promise<ModelWithPrice | null> => {
-    if (!internalModelId) return null;
+    if (!internalModelId) {
+      return null;
+    }
 
     if (modelCache.has(internalModelId)) {
       return modelCache.get(internalModelId) ?? null;
@@ -72,7 +74,9 @@ export const createModelCache = (projectId: string) => {
 export function convertNumericRecord(
   record: Record<string, number> | null | undefined,
 ): Record<string, number> {
-  if (!record) return {};
+  if (!record) {
+    return {};
+  }
   const result: Record<string, number> = {};
   for (const key in record) {
     if (Object.prototype.hasOwnProperty.call(record, key)) {
@@ -95,11 +99,21 @@ function ensureObservationCoreFields(
 ): ObservationCoreFields {
   const missingFields: string[] = [];
 
-  if (record.id === undefined) missingFields.push("id");
-  if (record.trace_id === undefined) missingFields.push("trace_id");
-  if (record.start_time === undefined) missingFields.push("start_time");
-  if (record.project_id === undefined) missingFields.push("project_id");
-  if (record.type === undefined) missingFields.push("type");
+  if (record.id === undefined) {
+    missingFields.push("id");
+  }
+  if (record.trace_id === undefined) {
+    missingFields.push("trace_id");
+  }
+  if (record.start_time === undefined) {
+    missingFields.push("start_time");
+  }
+  if (record.project_id === undefined) {
+    missingFields.push("project_id");
+  }
+  if (record.type === undefined) {
+    missingFields.push("type");
+  }
 
   if (missingFields.length > 0) {
     const errorMessage = `Missing required ObservationCoreFields: ${missingFields.join(", ")}${record.id ? ` (record: ${record.id})` : ""}`;

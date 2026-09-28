@@ -194,7 +194,9 @@ export const isV4LegacyApiHeartbeatFresh = (
   heartbeatIso: string | null | undefined,
   nowMs: number,
 ): boolean => {
-  if (!heartbeatIso) return false;
+  if (!heartbeatIso) {
+    return false;
+  }
   const heartbeatMs = Date.parse(heartbeatIso);
   return (
     Number.isFinite(heartbeatMs) &&
@@ -286,7 +288,9 @@ export const mergeV4LegacyApiCallers = (
   if (maxCallers === null) {
     return otherCaller ? [...sorted, otherCaller] : sorted;
   }
-  if (!otherCaller && sorted.length <= maxCallers) return sorted;
+  if (!otherCaller && sorted.length <= maxCallers) {
+    return sorted;
+  }
 
   const kept = sorted.slice(0, maxCallers - 1);
   const overflow = sorted.slice(maxCallers - 1);
@@ -352,7 +356,9 @@ export const aggregateV4LegacyApiHourBuckets = (
       rowsByProjectAndEntrypoint.set(row.projectId, rowsByEntrypoint);
     }
     for (const row of bucket.experimentPostRows) {
-      if (row.count <= 0) continue;
+      if (row.count <= 0) {
+        continue;
+      }
       const existingLastSeen = experimentPostLastSeenByProjectId.get(
         row.projectId,
       );

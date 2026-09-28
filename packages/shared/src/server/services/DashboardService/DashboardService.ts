@@ -67,7 +67,9 @@ const validateDashboardWidgetQuery = (
 
   for (const metric of input.metrics) {
     const measure = declaration.measures[metric.measure];
-    if (!measure) continue;
+    if (!measure) {
+      continue;
+    }
     const validAggregations = getValidAggregationsForMeasureType(measure.type);
     if (!validAggregations.some((aggregation) => aggregation === metric.agg)) {
       throw new InvalidRequestError(

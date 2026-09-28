@@ -6,7 +6,9 @@ export function getNumberFromMap(
   mapOrRecord: Map<any, any> | Record<string, number> | undefined,
   key: any,
 ): number | undefined {
-  if (!mapOrRecord) return undefined;
+  if (!mapOrRecord) {
+    return undefined;
+  }
   if (mapOrRecord instanceof Map) {
     return mapOrRecord.get(key) as number | undefined;
   }
@@ -21,7 +23,9 @@ export function getNumberFromMap(
 export function castToNumberMap(
   mapOrRecord: Map<unknown, unknown> | Record<string, unknown> | undefined,
 ): Map<string, number> | undefined {
-  if (!mapOrRecord) return undefined;
+  if (!mapOrRecord) {
+    return undefined;
+  }
   if (mapOrRecord instanceof Map) {
     return mapOrRecord as Map<string, number>;
   }

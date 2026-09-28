@@ -71,16 +71,23 @@ function recordContentAndStructureCounts(
       ["history", thread.conversationHistory],
       ["current_turn", thread.currentTurn.messages],
     ] as const) {
-      if (section === "history") historyMessages += messages.length;
-      else currentTurnMessages += messages.length;
+      if (section === "history") {
+        historyMessages += messages.length;
+      } else {
+        currentTurnMessages += messages.length;
+      }
       for (const message of messages) {
         for (const part of message.parts) {
-          if (section === "history") historyParts++;
-          else {
+          if (section === "history") {
+            historyParts++;
+          } else {
             currentTurnParts++;
-            if (part.type === "tool-call") currentTurnToolCalls++;
-            if (message.role === "tool" || part.type === "tool-result")
+            if (part.type === "tool-call") {
+              currentTurnToolCalls++;
+            }
+            if (message.role === "tool" || part.type === "tool-result") {
               currentTurnToolResults++;
+            }
           }
           // Use the same serialized-part basis for numerator and denominator;
           // exclude message wrappers and observation provenance from both.
@@ -186,7 +193,9 @@ function recordTopicsRendering(
       messageCharacters ? stats.historyCharacters / messageCharacters : 0,
     );
     for (const block of transcriptBlockTypes) {
-      if (stats.blockCharacters[block].raw === 0) continue;
+      if (stats.blockCharacters[block].raw === 0) {
+        continue;
+      }
       for (const stage of ["raw", "clipped"] as const) {
         const characters = stats.blockCharacters[block][stage];
         recordDistribution(
@@ -366,11 +375,12 @@ export function recordTraceBatchTranscript(
       "langfuse.trace_batch.transcript_json_characters",
       transcriptJsonCharacters,
     );
-    if (span.isRecording())
+    if (span.isRecording()) {
       span.setAttribute(
         "langfuse.trace_batch.transcript_characters",
         transcriptJsonCharacters,
       );
+    }
 
     const genericText = recordGenericRendering(
       transcript,
@@ -395,7 +405,9 @@ export function recordTraceBatchTranscript(
     );
 
     if (transcript === null) {
-      for (const metric of TOKEN_METRICS) recordTokens(span, metric, 0);
+      for (const metric of TOKEN_METRICS) {
+        recordTokens(span, metric, 0);
+      }
     }
 
     // Text estimates run sequentially while the next trace streams.

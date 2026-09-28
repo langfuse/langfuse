@@ -56,13 +56,17 @@ export function useStableVirtualRowMeasurement({
   latestIsScrollingRef.current = isScrolling;
 
   const cancelFrame = useCallback(() => {
-    if (frameRef.current === null) return;
+    if (frameRef.current === null) {
+      return;
+    }
     cancelAnimationFrame(frameRef.current);
     frameRef.current = null;
   }, []);
 
   const cancelTimer = useCallback(() => {
-    if (timerRef.current === null) return;
+    if (timerRef.current === null) {
+      return;
+    }
     clearTimeout(timerRef.current);
     timerRef.current = null;
   }, []);
@@ -74,7 +78,9 @@ export function useStableVirtualRowMeasurement({
 
   const resizeCommittedHeight = useCallback(
     (height: number | null) => {
-      if (height === null) return;
+      if (height === null) {
+        return;
+      }
       virtualizer.resizeItem(latestIndexRef.current, height);
     },
     [virtualizer],
@@ -125,7 +131,9 @@ export function useStableVirtualRowMeasurement({
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
 
-      if (latestIsScrollingRef.current) return;
+      if (latestIsScrollingRef.current) {
+        return;
+      }
 
       commitPendingHeight();
     }, STABLE_VIRTUAL_ROW_MEASUREMENT_CONFIG.scrollIdleMs);
@@ -148,7 +156,9 @@ export function useStableVirtualRowMeasurement({
       nodeRef.current = node;
       cancelScheduledWork();
 
-      if (!node || typeof ResizeObserver === "undefined") return;
+      if (!node || typeof ResizeObserver === "undefined") {
+        return;
+      }
 
       observerRef.current = new ResizeObserver((entries) => {
         const entry = entries[0];

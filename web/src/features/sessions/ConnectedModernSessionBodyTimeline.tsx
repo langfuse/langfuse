@@ -119,7 +119,9 @@ export function ConnectedModernSessionBodyTimeline({
     );
     for (const traceId of visibleTraceIds) {
       const traceIndex = traceIndexById.get(traceId);
-      if (traceIndex === undefined) continue;
+      if (traceIndex === undefined) {
+        continue;
+      }
       highestChunkIndex = Math.max(
         highestChunkIndex,
         Math.floor(traceIndex / SIDEBAR_TRACE_CHUNK_SIZE),
@@ -209,8 +211,9 @@ export function ConnectedModernSessionBodyTimeline({
       if (observationIds?.has(observation.id)) {
         continue;
       }
-      if (observationIds) observationIds.add(observation.id);
-      else {
+      if (observationIds) {
+        observationIds.add(observation.id);
+      } else {
         observationIdsByTraceId.set(
           observation.traceId,
           new Set([observation.id]),
@@ -226,10 +229,14 @@ export function ConnectedModernSessionBodyTimeline({
         type: observation.type,
         latency: observation.latency,
       };
-      if (observations) observations.push(row);
-      else observationsByTraceId.set(observation.traceId, [row]);
-      if (timelineObservations) timelineObservations.push(observation);
-      else {
+      if (observations) {
+        observations.push(row);
+      } else {
+        observationsByTraceId.set(observation.traceId, [row]);
+      }
+      if (timelineObservations) {
+        timelineObservations.push(observation);
+      } else {
         timelineObservationsByTraceId.set(observation.traceId, [observation]);
       }
     }
@@ -263,7 +270,9 @@ export function ConnectedModernSessionBodyTimeline({
     const mayHaveMoreObservations = Boolean(
       lastRelevantQuery?.isPending || lastRelevantQuery?.data?.hasMore,
     );
-    if (mayHaveMoreObservations) incompleteTimelineTraceIds.add(trace.id);
+    if (mayHaveMoreObservations) {
+      incompleteTimelineTraceIds.add(trace.id);
+    }
     const observations = (() => {
       if (isPending && !hasLoadedObservations) {
         return undefined;
@@ -319,7 +328,9 @@ export function ConnectedModernSessionBodyTimeline({
         if (!query?.data?.hasMore || query.isFetching || !descriptor) {
           continue;
         }
-        if (next === current) next = { ...current };
+        if (next === current) {
+          next = { ...current };
+        }
         next[key] = Math.max(current[key] ?? 1, descriptor.page + 1);
       }
       return next;
@@ -328,7 +339,9 @@ export function ConnectedModernSessionBodyTimeline({
   const autoLoadMoreObservations = useEffectEvent(loadMoreObservations);
 
   useEffect(() => {
-    if (!hasMoreObservations || isLoadingMoreObservations) return;
+    if (!hasMoreObservations || isLoadingMoreObservations) {
+      return;
+    }
     autoLoadMoreObservations();
   }, [hasMoreObservations, isLoadingMoreObservations]);
 
@@ -369,8 +382,11 @@ export function ConnectedModernSessionBodyTimeline({
   const toggleTraceExpanded = (traceId: string) => {
     setCollapsedTraceIds((current) => {
       const next = new Set(current);
-      if (next.has(traceId)) next.delete(traceId);
-      else next.add(traceId);
+      if (next.has(traceId)) {
+        next.delete(traceId);
+      } else {
+        next.add(traceId);
+      }
       return next;
     });
   };

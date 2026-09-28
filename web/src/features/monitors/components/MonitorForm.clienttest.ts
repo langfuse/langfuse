@@ -25,7 +25,9 @@ describe("createDefaults", () => {
     const defaults = createDefaults("project-1");
     const result = CreateMonitorSchema.safeParse(defaults);
     expect(result.success).toBe(false);
-    if (result.success) return;
+    if (result.success) {
+      return;
+    }
 
     const paths = result.error.issues.map((i) => i.path.join("."));
     expect(paths).toContain("name");
@@ -46,7 +48,9 @@ describe("createDefaults", () => {
       alertThreshold: 5,
     });
     expect(result.success).toBe(false);
-    if (result.success) return;
+    if (result.success) {
+      return;
+    }
     const issue = result.error.issues.find(
       (i) => i.path.join(".") === "triggerIds",
     );

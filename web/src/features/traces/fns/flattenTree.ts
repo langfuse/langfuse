@@ -26,7 +26,9 @@ export interface FlatNode<T> {
 export function flattenTree<
   T extends { id: string; children: T[]; startTime?: Date },
 >(roots: T[], collapsedNodes: Set<string>): FlatNode<T>[] {
-  if (roots.length === 0) return [];
+  if (roots.length === 0) {
+    return [];
+  }
 
   const flatList: FlatNode<T>[] = [];
 

@@ -28,7 +28,9 @@ type ToolCallEntry = NonNullable<
 /** Tool outputs are frequently JSON serialized as a string; show the
  * structure when it parses, the raw string otherwise. */
 function parseIfJsonString(value: unknown): unknown {
-  if (typeof value !== "string") return value;
+  if (typeof value !== "string") {
+    return value;
+  }
   try {
     return JSON.parse(value);
   } catch {

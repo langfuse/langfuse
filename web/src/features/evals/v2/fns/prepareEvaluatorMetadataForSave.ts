@@ -26,8 +26,12 @@ export async function prepareEvaluatorMetadataForSave({
   const name = existingName || generatedName;
   const description = existingDescription || generatedDescription;
 
-  if (!name) return null;
-  if (needsName && generatedName) setName(generatedName);
+  if (!name) {
+    return null;
+  }
+  if (needsName && generatedName) {
+    setName(generatedName);
+  }
   if (needsDescription && generatedDescription) {
     setDescription(generatedDescription);
   }

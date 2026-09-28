@@ -20,7 +20,9 @@ export function normalizeFinishReason(
     responseMetadata?.stop_reason; // langchain
 
   const value = optionalString(raw);
-  if (!value) return undefined;
+  if (!value) {
+    return undefined;
+  }
 
   // Lookups are lowercased (Gemini reports uppercase values). Registry order
   // must never matter: overlapping vocabulary across providers maps to the

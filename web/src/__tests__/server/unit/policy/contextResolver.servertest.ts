@@ -47,7 +47,9 @@ const contextFor = async (
   row: OrganizationWithProjects | null = orgRow(),
 ): Promise<AuthorizationContext> => {
   const resolved = await resolverFor(row).resolve(params);
-  if (!resolved.success) throw resolved.error;
+  if (!resolved.success) {
+    throw resolved.error;
+  }
   return resolved.context;
 };
 

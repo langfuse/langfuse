@@ -959,7 +959,9 @@ describe("/api/public/traces API Endpoint", () => {
 
       const trace = traces.body.data.find((t) => t.id === traceId);
       expect(trace).toBeTruthy();
-      if (!trace) return;
+      if (!trace) {
+        return;
+      }
 
       // All fields should be present by default
       expect(trace.input).toEqual({ prompt: "test" });
@@ -1016,7 +1018,9 @@ describe("/api/public/traces API Endpoint", () => {
 
       const trace = traces.body.data.find((t) => t.id === traceId);
       expect(trace).toBeTruthy();
-      if (!trace) return;
+      if (!trace) {
+        return;
+      }
 
       // Core fields should be present
       expect(trace.id).toBe(traceId);
@@ -1060,7 +1064,9 @@ describe("/api/public/traces API Endpoint", () => {
 
       const trace = traces.body.data.find((t) => t.id === traceId);
       expect(trace).toBeTruthy();
-      if (!trace) return;
+      if (!trace) {
+        return;
+      }
 
       // Core and IO fields should be present
       expect(trace.id).toBe(traceId);
@@ -1106,7 +1112,9 @@ describe("/api/public/traces API Endpoint", () => {
 
       const trace = traces.body.data.find((t) => t.id === traceId);
       expect(trace).toBeTruthy();
-      if (!trace) return;
+      if (!trace) {
+        return;
+      }
 
       // Core fields and scores should be present
       expect(trace.id).toBe(traceId);
@@ -1152,7 +1160,9 @@ describe("/api/public/traces API Endpoint", () => {
 
       const trace = traces.body.data.find((t) => t.id === traceId);
       expect(trace).toBeTruthy();
-      if (!trace) return;
+      if (!trace) {
+        return;
+      }
 
       // Core fields and observations should be present
       expect(trace.id).toBe(traceId);
@@ -1199,7 +1209,9 @@ describe("/api/public/traces API Endpoint", () => {
 
       const trace = traces.body.data.find((t) => t.id === traceId);
       expect(trace).toBeTruthy();
-      if (!trace) return;
+      if (!trace) {
+        return;
+      }
 
       // Core fields and metrics should be present
       expect(trace.id).toBe(traceId);
@@ -1252,7 +1264,9 @@ describe("/api/public/traces API Endpoint", () => {
 
       const trace = traces.body.data.find((t) => t.id === traceId);
       expect(trace).toBeTruthy();
-      if (!trace) return;
+      if (!trace) {
+        return;
+      }
 
       // All fields should be present
       expect(trace.input).toEqual({ prompt: "test" });
@@ -1272,7 +1286,9 @@ describe("/api/public/traces API Endpoint", () => {
         : "with traces table";
       const basePath = "/api/public/traces";
       const buildUrl = (params: string) => {
-        if (!params) return basePath;
+        if (!params) {
+          return basePath;
+        }
         const prefix = useEventsTable
           ? `${basePath}?useEventsTable=true&`
           : `${basePath}?`;
@@ -2097,7 +2113,9 @@ describe("/api/public/traces API Endpoint", () => {
         : "with traces table";
       const basePath = "/api/public/traces";
       const buildUrl = (params: string) => {
-        if (!params) return basePath;
+        if (!params) {
+          return basePath;
+        }
         const prefix = useEventsTable
           ? `${basePath}?useEventsTable=true&`
           : `${basePath}?`;
@@ -2163,7 +2181,9 @@ describe("/api/public/traces API Endpoint", () => {
 
           const trace = traces.body.data.find((t) => t.id === traceId);
           expect(trace).toBeTruthy();
-          if (!trace) return;
+          if (!trace) {
+            return;
+          }
 
           // Core fields
           expect(trace.name).toBe("test-trace-fields");
@@ -2636,7 +2656,9 @@ describe("/api/public/traces API Endpoint", () => {
 
       const trace = response.body.data.find((t) => t.id === traceId);
       expect(trace).toBeTruthy();
-      if (!trace) return;
+      if (!trace) {
+        return;
+      }
 
       // With core only, IO/scores/observations/metrics should be defaults
       expect(trace.input).toBeNull();
@@ -2671,7 +2693,9 @@ describe("/api/public/traces API Endpoint", () => {
 
       const trace = response.body.data.find((t) => t.id === traceId);
       expect(trace).toBeTruthy();
-      if (!trace) return;
+      if (!trace) {
+        return;
+      }
 
       // Explicit fields=core,io should override the env default of core-only
       expect(trace.input).toEqual({ prompt: "test" });

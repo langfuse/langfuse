@@ -69,7 +69,9 @@ export default function EditWidgetPage() {
 
   // Handle update widget
   const handleUpdateWidget = (widgetFormData: WidgetSavePayload) => {
-    if (!widgetId) return;
+    if (!widgetId) {
+      return;
+    }
 
     updateWidgetMutation.mutate({
       projectId,

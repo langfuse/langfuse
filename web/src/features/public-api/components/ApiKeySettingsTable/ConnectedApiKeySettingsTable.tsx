@@ -43,7 +43,9 @@ export function ConnectedApiKeySettingsTable({
     onSuccess: () => utils.organizationApiKeys.invalidate(),
   });
   const tableData = useMemo<AsyncTableData<ApiKeySettingsTableRow[]>>(() => {
-    if (apiKeys.isLoading) return { status: "loading" };
+    if (apiKeys.isLoading) {
+      return { status: "loading" };
+    }
     if (apiKeys.isError) {
       return { status: "error", error: "Failed to load API keys" };
     }

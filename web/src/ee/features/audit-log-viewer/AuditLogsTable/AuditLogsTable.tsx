@@ -20,7 +20,9 @@ import { type RouterOutputs } from "@/src/utils/api";
 export type AuditLogRow = RouterOutputs["auditLogs"]["all"]["data"][number];
 
 function formatAuditLogValue(value: string | null) {
-  if (value === null) return "(none)";
+  if (value === null) {
+    return "(none)";
+  }
 
   try {
     return JSON.stringify(JSON.parse(value), null, 2);

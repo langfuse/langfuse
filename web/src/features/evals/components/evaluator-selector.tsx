@@ -44,7 +44,9 @@ const CodeTemplateLanguageIcon = ({
     return null;
   })();
 
-  if (!language) return null;
+  if (!language) {
+    return null;
+  }
 
   const { Icon } = language;
 
@@ -132,8 +134,12 @@ export function EvaluatorSelector({
       .filter((template) => !template.projectId && matchesSearch(template))
       .sort((templateA, templateB) => {
         // No partner comes before partner
-        if (!templateA.partner && templateB.partner) return -1;
-        if (templateA.partner && !templateB.partner) return 1;
+        if (!templateA.partner && templateB.partner) {
+          return -1;
+        }
+        if (templateA.partner && !templateB.partner) {
+          return 1;
+        }
 
         return templateA.name.localeCompare(templateB.name);
       }),

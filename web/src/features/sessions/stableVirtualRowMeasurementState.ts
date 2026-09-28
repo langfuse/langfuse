@@ -48,7 +48,9 @@ export function createStableVirtualRowMeasurementState(
     now = Date.now(),
   ): number | null => {
     const roundedHeight = Math.ceil(rawHeight);
-    if (roundedHeight <= 0) return null;
+    if (roundedHeight <= 0) {
+      return null;
+    }
 
     if (
       state.frozenMinHeight !== null &&

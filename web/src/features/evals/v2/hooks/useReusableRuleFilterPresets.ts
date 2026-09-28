@@ -28,7 +28,9 @@ function projectRuleFilterToRegistry(
 ): FilterState {
   return filter.map((condition) => {
     const source = RULE_FIELD_REGISTRY.resolveField(condition.column);
-    if (source?.type !== "field") return condition;
+    if (source?.type !== "field") {
+      return condition;
+    }
     const target = registry.resolveField(source.field.id);
     return target?.type === "field"
       ? { ...condition, column: target.field.id }

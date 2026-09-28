@@ -86,8 +86,9 @@ export const isSeverityAllowedForPlan = (
   severity: string,
   plan?: string,
 ): boolean => {
-  if (severity === SEVERITY_1 || severity === SEVERITY_2)
+  if (severity === SEVERITY_1 || severity === SEVERITY_2) {
     return isEnterpriseSupportPlan(plan);
+  }
   return true; // Severity 3 is always available
 };
 

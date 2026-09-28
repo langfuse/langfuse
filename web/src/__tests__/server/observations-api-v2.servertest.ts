@@ -1499,7 +1499,9 @@ describe("/api/public/v2/observations API Endpoint", () => {
         expect(response.status).toBe(200);
         const obs = response.body.data.find((o: any) => o.id === sharedObsId);
         expect(obs).toBeDefined();
-        if (!obs) return; // narrow type; expect above already fails the test
+        if (!obs) {
+          return;
+        } // narrow type; expect above already fails the test
 
         // Core fields always present
         for (const field of CORE_FIELDS) {

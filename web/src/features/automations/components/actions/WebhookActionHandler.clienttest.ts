@@ -16,7 +16,9 @@ const formData = {
 
 const apiVersionFor = (eventSource?: TriggerEventSource) => {
   const config = handler.buildActionConfig(formData, eventSource);
-  if (config.type !== "WEBHOOK") throw new Error("expected webhook config");
+  if (config.type !== "WEBHOOK") {
+    throw new Error("expected webhook config");
+  }
   return config.apiVersion;
 };
 

@@ -252,7 +252,9 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       const next = prev.reduce<PromptVariable[]>((acc, v) => {
         const isUsed = variables.includes(v.name);
 
-        if (!isUsed && !v.value) return acc;
+        if (!isUsed && !v.value) {
+          return acc;
+        }
 
         acc.push({ ...v, isUsed: isUsed });
 
@@ -409,7 +411,9 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
 
           setOutput(displayContent);
           setOutputToolCalls(completion.tool_calls);
-          if (completion.reasoning) setOutputReasoning(completion.reasoning);
+          if (completion.reasoning) {
+            setOutputReasoning(completion.reasoning);
+          }
 
           response = JSON.stringify(completion, null, 2);
         } else if (structuredOutputSchema) {
@@ -442,7 +446,9 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
             );
             response = result.content;
             setOutput(result.content);
-            if (result.reasoning) setOutputReasoning(result.reasoning);
+            if (result.reasoning) {
+              setOutputReasoning(result.reasoning);
+            }
           }
         }
 
@@ -567,7 +573,9 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   // This ensures that user changes are persisted across refreshes and navigation
   useEffect(() => {
     // Only save after cache has been loaded to avoid overwriting with initial state
-    if (!cacheLoaded) return;
+    if (!cacheLoaded) {
+      return;
+    }
 
     // Don't save empty initial state to avoid overwriting valid cache
     // Save if we have messages - provider selection is optional
@@ -637,7 +645,9 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
           let streaming = defaultStreaming;
           try {
             const raw = localStorage.getItem(STREAMING_PREF_KEY);
-            if (raw !== null) streaming = JSON.parse(raw);
+            if (raw !== null) {
+              streaming = JSON.parse(raw);
+            }
           } catch {
             // malformed localStorage value — fall back to default
           }
@@ -776,7 +786,9 @@ async function getChatCompletionWithTools(
   tools: unknown[],
   streaming = false,
 ): Promise<ToolCallResponse & { reasoning?: string }> {
-  if (!projectId) throw Error("Project ID is not set");
+  if (!projectId) {
+    throw Error("Project ID is not set");
+  }
 
   const body = JSON.stringify({
     projectId,
@@ -802,11 +814,12 @@ async function getChatCompletionWithTools(
   }
 
   const parsed = ToolCallResponseSchema.safeParse(responseData);
-  if (!parsed.success)
+  if (!parsed.success) {
     throw Error(
       "Failed to parse tool call response client-side:\n" +
         JSON.stringify(responseData, null, 2),
     );
+  }
 
   return {
     ...parsed.data,
@@ -821,7 +834,9 @@ async function getChatCompletionWithStructuredOutput(
   structuredOutputSchema: PlaygroundSchema | null,
   streaming = false,
 ): Promise<string> {
-  if (!projectId) throw Error("Project ID is not set");
+  if (!projectId) {
+    throw Error("Project ID is not set");
+  }
 
   const body = JSON.stringify({
     projectId,
@@ -903,7 +918,9 @@ async function* getChatCompletionStream(
   try {
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
 
       const token = decoder.decode(value);
 

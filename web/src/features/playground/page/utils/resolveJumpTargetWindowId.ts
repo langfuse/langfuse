@@ -30,18 +30,24 @@ export const resolveJumpTargetWindowId = ({
   incomingMessages,
   getCachedMessages,
 }: ResolveJumpTargetWindowIdArgs): string => {
-  if (!openWindowIds.includes(stableWindowId)) return stableWindowId;
+  if (!openWindowIds.includes(stableWindowId)) {
+    return stableWindowId;
+  }
 
   const incomingFingerprint = getMessagesFingerprint(incomingMessages);
   const holdsIncomingMessages = (windowId: string): boolean => {
     const cachedMessages = getCachedMessages(windowId);
     // Open but empty, so nothing to lose either.
-    if (!cachedMessages) return true;
+    if (!cachedMessages) {
+      return true;
+    }
 
     return getMessagesFingerprint(cachedMessages) === incomingFingerprint;
   };
 
-  if (holdsIncomingMessages(stableWindowId)) return stableWindowId;
+  if (holdsIncomingMessages(stableWindowId)) {
+    return stableWindowId;
+  }
 
   const reusableSiblingId = openWindowIds.find(
     (windowId) =>

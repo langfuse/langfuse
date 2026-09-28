@@ -12,7 +12,9 @@ import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
  * O(1) — never materializes the full multi-MB string.
  */
 function codePointSafeSlice(value: string, maxChars: number): string {
-  if (value.length <= maxChars) return value;
+  if (value.length <= maxChars) {
+    return value;
+  }
   const lastUnit = value.charCodeAt(maxChars - 1);
   const isHighSurrogate = lastUnit >= 0xd800 && lastUnit <= 0xdbff;
   return value.slice(0, isHighSurrogate ? maxChars - 1 : maxChars);

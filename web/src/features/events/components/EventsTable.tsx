@@ -460,7 +460,9 @@ export default function ObservationsEventsTable({
   }, [utils]);
 
   useEffect(() => {
-    if (!refreshInterval) return;
+    if (!refreshInterval) {
+      return;
+    }
     const id = setInterval(handleRefresh, refreshInterval);
     return () => clearInterval(id);
   }, [refreshInterval, handleRefresh]);
@@ -828,7 +830,9 @@ export default function ObservationsEventsTable({
   // search-bar mode.
   const previewViewInSearchBar = useCallback(
     (state: TableViewPresetState | null) => {
-      if (!searchBarMode) return;
+      if (!searchBarMode) {
+        return;
+      }
       const { actions } = searchBarStore.getState();
       if (state) {
         actions.setPreview(
@@ -993,7 +997,9 @@ export default function ObservationsEventsTable({
   // guessing (e.g. `type:chat`). Reuses already-loaded data; only when the bar
   // is active.
   const aiDataContext = useMemo(() => {
-    if (!searchBarMode) return undefined;
+    if (!searchBarMode) {
+      return undefined;
+    }
     // totalCount is only computed on "select all"; use the loaded/visible row
     // count for the empty-vs-nonempty signal instead.
     return buildAiContext({
@@ -1085,7 +1091,9 @@ export default function ObservationsEventsTable({
     // refetch drained the visible-page selection to []: the batch path
     // deletes by query server-side and ignores traceIds. Only an id-based
     // delete with nothing resolvable is a no-op.
-    if (!selectAll && selectedTraceIds.length === 0) return;
+    if (!selectAll && selectedTraceIds.length === 0) {
+      return;
+    }
 
     await traceDeleteMutation.mutateAsync({
       projectId,
@@ -1445,10 +1453,15 @@ export default function ObservationsEventsTable({
         createNumberTableColumn<EventsTableRow>({
           accessorFn: (row) => {
             const { latency, usage } = row;
-            if (latency === undefined) return undefined;
-            if (usage.outputUsage === 0 && usage.totalUsage === 0)
+            if (latency === undefined) {
               return undefined;
-            if (!usage.outputUsage || !latency) return undefined;
+            }
+            if (usage.outputUsage === 0 && usage.totalUsage === 0) {
+              return undefined;
+            }
+            if (!usage.outputUsage || !latency) {
+              return undefined;
+            }
 
             return Number((usage.outputUsage / latency).toFixed(1));
           },
@@ -1717,7 +1730,9 @@ export default function ObservationsEventsTable({
   };
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
-    if (hideControls) return undefined;
+    if (hideControls) {
+      return undefined;
+    }
     return {
       itemType: "TRACE",
       detailNavigationKey: detailPageListKeys.events,

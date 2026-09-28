@@ -33,7 +33,9 @@ export function HorizontalBarChart({
     .nice(4);
   const rightTick = scale.domain()[1] ?? 1;
   const ticks = scale.ticks(4);
-  if (ticks.at(-1) !== rightTick) ticks.push(rightTick);
+  if (ticks.at(-1) !== rightTick) {
+    ticks.push(rightTick);
+  }
   const firstColor = data[0]?.color ?? color;
   const hasDistinctColors = data.some(
     (datum) => (datum.color ?? color) !== firstColor,
@@ -72,7 +74,9 @@ export function HorizontalBarChart({
           plotWidth - (valueFormatter(rightTick).length * CHARACTER_WIDTH) / 2;
         let previousTickEnd = -Infinity;
         const visibleTicks = ticks.filter((tick, index) => {
-          if (tick === rightTick) return true;
+          if (tick === rightTick) {
+            return true;
+          }
           const labelWidth = valueFormatter(tick).length * CHARACTER_WIDTH;
           const tickLeft =
             index === 0 ? 0 : scale(tick) * plotWidth - labelWidth / 2;
@@ -153,8 +157,9 @@ export function HorizontalBarChart({
                       labelRoom / CHARACTER_WIDTH,
                     );
                     let visibleLabel = datum.label;
-                    if (maxCharacters < 1) visibleLabel = "";
-                    else if (datum.label.length > maxCharacters) {
+                    if (maxCharacters < 1) {
+                      visibleLabel = "";
+                    } else if (datum.label.length > maxCharacters) {
                       visibleLabel = `${datum.label.slice(0, Math.max(0, maxCharacters - 1))}…`;
                     }
                     const labelX = left + barWidth + 8;
@@ -184,7 +189,9 @@ export function HorizontalBarChart({
                       <g
                         key={`${datum.label}-${index}`}
                         ref={(row) => {
-                          if (!row) return;
+                          if (!row) {
+                            return;
+                          }
                           const label =
                             row.querySelector<SVGTextElement>(
                               "[data-row-label]",
@@ -197,7 +204,9 @@ export function HorizontalBarChart({
                             row.querySelector<SVGLineElement>(
                               "[data-leader-line]",
                             );
-                          if (!label || !value || !leader) return;
+                          if (!label || !value || !leader) {
+                            return;
+                          }
                           const labelBounds = label.getBBox();
                           const valueBounds = value.getBBox();
                           const start = Math.max(

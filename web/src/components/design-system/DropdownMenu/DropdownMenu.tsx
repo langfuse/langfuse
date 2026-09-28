@@ -223,14 +223,18 @@ function DropdownMenuNode({
     nodeId,
     open: isOpen,
     onOpenChange: (open) => {
-      if (disabled) return;
+      if (disabled) {
+        return;
+      }
       if (!open) {
         closeMenu();
         return;
       }
 
       setIsOpen(true);
-      if (open) tree?.events.emit("menuopen", { nodeId, parentId });
+      if (open) {
+        tree?.events.emit("menuopen", { nodeId, parentId });
+      }
     },
     placement,
     middleware: [offset(4), flip(), shift({ padding: 8, crossAxis: true })],
@@ -262,19 +266,32 @@ function DropdownMenuNode({
   );
   const visibleItems = React.useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
-    if (!search || !normalizedQuery) return items;
+    if (!search || !normalizedQuery) {
+      return items;
+    }
     const hasDefaultMatch = items.some((item) => {
-      if (item.type === "separator" || item.type === "loading") return false;
-      if (item.searchBehavior && item.searchBehavior !== "default")
+      if (item.type === "separator" || item.type === "loading") {
         return false;
+      }
+      if (item.searchBehavior && item.searchBehavior !== "default") {
+        return false;
+      }
       return item.title.toLocaleLowerCase().includes(normalizedQuery);
     });
 
     return items.filter((item) => {
-      if (item.type === "separator") return false;
-      if (item.type === "loading") return true;
-      if (item.searchBehavior === "hide") return false;
-      if (item.searchBehavior === "always-show") return true;
+      if (item.type === "separator") {
+        return false;
+      }
+      if (item.type === "loading") {
+        return true;
+      }
+      if (item.searchBehavior === "hide") {
+        return false;
+      }
+      if (item.searchBehavior === "always-show") {
+        return true;
+      }
       if (item.searchBehavior === "show-when-no-results") {
         return !hasDefaultMatch;
       }
@@ -472,7 +489,9 @@ function DropdownMenuNode({
                     const ItemIcon = item.icon;
                     labelsRef.current[index] = item.title;
                     const handleCheckedChange = (checked: boolean) => {
-                      if (item.disabled) return;
+                      if (item.disabled) {
+                        return;
+                      }
                       if (item.closeOnCheckedChange) {
                         tree?.events.emit("click");
                       }
@@ -498,9 +517,12 @@ function DropdownMenuNode({
                             handleCheckedChange(!item.checked);
                           },
                           onKeyDown: (event) => {
-                            if (item.disabled) return;
-                            if (event.key !== "Enter" && event.key !== " ")
+                            if (item.disabled) {
                               return;
+                            }
+                            if (event.key !== "Enter" && event.key !== " ") {
+                              return;
+                            }
                             event.preventDefault();
                             handleCheckedChange(!item.checked);
                           },
@@ -541,7 +563,9 @@ function DropdownMenuNode({
                     const secondaryAction = item.secondaryAction;
                     const interactionProps = {
                       onMouseEnter: () => {
-                        if (!item.disabled) setActiveIndex(index);
+                        if (!item.disabled) {
+                          setActiveIndex(index);
+                        }
                       },
                       onMouseLeave: () => setActiveIndex(null),
                     };
@@ -605,18 +629,27 @@ function DropdownMenuNode({
                       className={menuItemVariants({ variant: item.variant })}
                       {...getItemProps({
                         onClick: (event) => {
-                          if (item.disabled) return;
-                          if (event.target !== event.currentTarget) return;
+                          if (item.disabled) {
+                            return;
+                          }
+                          if (event.target !== event.currentTarget) {
+                            return;
+                          }
                           event.preventDefault();
                           event.currentTarget
                             .querySelector<HTMLElement>("[data-primary-action]")
                             ?.click();
                         },
                         onKeyDown: (event) => {
-                          if (item.disabled) return;
-                          if (event.target !== event.currentTarget) return;
-                          if (event.key !== "Enter" && event.key !== " ")
+                          if (item.disabled) {
                             return;
+                          }
+                          if (event.target !== event.currentTarget) {
+                            return;
+                          }
+                          if (event.key !== "Enter" && event.key !== " ") {
+                            return;
+                          }
                           event.preventDefault();
                           event.currentTarget
                             .querySelector<HTMLElement>("[data-primary-action]")
@@ -646,7 +679,9 @@ function DropdownMenuNode({
                             item.onAfterNavigate?.();
                           }}
                           onAuxClick={(event) => {
-                            if (event.button === 1) item.onAfterNavigate?.();
+                            if (event.button === 1) {
+                              item.onAfterNavigate?.();
+                            }
                           }}
                         >
                           {ItemIcon ? (

@@ -45,7 +45,9 @@ function computeBinSize(
 // this, small ranges collapse edges to the same 2dp value and produce
 // degenerate labels like "[0.85, 0.85]".
 function labelPrecision(binSize: number): number {
-  if (!Number.isFinite(binSize) || binSize <= 0 || binSize >= 1) return 2;
+  if (!Number.isFinite(binSize) || binSize <= 0 || binSize >= 1) {
+    return 2;
+  }
   return Math.min(10, Math.max(2, -Math.floor(Math.log10(binSize)) + 1));
 }
 
@@ -55,8 +57,9 @@ export function createHistogramData(
   maxBins = 10,
 ) {
   const numericScoreValues = data.map((item) => item.value as number);
-  if (!Boolean(numericScoreValues.length))
+  if (!Boolean(numericScoreValues.length)) {
     return { chartData: [], chartLabels: [] };
+  }
 
   // Bin edges are derived from the RAW min/max, and values are assigned by their
   // RAW magnitude. Previously both were rounded to 2 decimals before binning,

@@ -122,7 +122,9 @@ export const EditDatasetItemDialog = ({
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!!!datasetItem) return;
+    if (!!!datasetItem) {
+      return;
+    }
     updateDatasetItemMutation.mutate({
       projectId: projectId,
       datasetId: datasetItem.datasetId,

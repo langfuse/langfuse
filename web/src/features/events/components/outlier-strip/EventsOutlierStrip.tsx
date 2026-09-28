@@ -223,7 +223,9 @@ export function EventsOutlierStrip({
             | { input?: { query?: QueryType } }
             | undefined
         )?.input?.query;
-        if (!prev || !prevInput?.timeDimension) return undefined;
+        if (!prev || !prevInput?.timeDimension) {
+          return undefined;
+        }
         return canReuseOutlierPlaceholder(
           { granularity: prevInput.timeDimension.granularity },
           { granularity: granularity.granularity },
@@ -247,7 +249,9 @@ export function EventsOutlierStrip({
   const aggregationFor = (
     metric: OutlierStripMetricKey,
   ): OutlierStripAggKey => {
-    if (metric === "count") return "count";
+    if (metric === "count") {
+      return "count";
+    }
     return metric === "latency" ? settings.latencyAgg : settings.costAgg;
   };
   const aggregation = aggregationFor(mode);
@@ -299,7 +303,9 @@ export function EventsOutlierStrip({
   };
 
   const handleModeChange = (next: StripMode) => {
-    if (next === mode) return;
+    if (next === mode) {
+      return;
+    }
     capture("pulse:mode_switch", {
       mode: next,
       previousMode: mode,
@@ -312,7 +318,9 @@ export function EventsOutlierStrip({
     metric: OutlierStripMetricKey,
     agg: OutlierStripAggKey,
   ) => {
-    if (agg === aggregationFor(metric)) return;
+    if (agg === aggregationFor(metric)) {
+      return;
+    }
     capture("pulse:aggregation_switch", {
       metric,
       aggregation: agg,

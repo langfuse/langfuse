@@ -19,7 +19,9 @@ export const ViewModeToggle = React.memo(function ViewModeToggle({
       type="single"
       value={mode}
       onValueChange={(v) => {
-        if (v) onModeChange(v as ViewMode);
+        if (v) {
+          onModeChange(v as ViewMode);
+        }
       }}
       variant="outline"
       // Match the h-8 height of the sibling toolbar controls (preset chips, My

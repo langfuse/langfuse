@@ -101,7 +101,9 @@ export const stringObjectFilter = z.object({
 // input and persisted reads alike — so it never reaches the SQL layer as an
 // empty substring and never throws on parse.
 export const coerceLegacyEmptyMetadataFilters = (filters: unknown): unknown => {
-  if (!Array.isArray(filters)) return filters;
+  if (!Array.isArray(filters)) {
+    return filters;
+  }
   return filters.map((filter) => {
     if (
       filter &&

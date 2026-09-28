@@ -19,7 +19,9 @@ export function filtersMatch(left: FilterState, right: FilterState) {
 }
 
 export function fallbackRuleName(filter: FilterState) {
-  if (filter.length === 0) return "All observations";
+  if (filter.length === 0) {
+    return "All observations";
+  }
 
   return filter
     .map((condition) => {

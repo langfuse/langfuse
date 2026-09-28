@@ -33,7 +33,9 @@ export function CopyWidgetDialog({
       onOpenChange={(nextOpen) => {
         // Keep the dialog open while the copy is in flight (it navigates on
         // success).
-        if (!nextOpen && isPending) return;
+        if (!nextOpen && isPending) {
+          return;
+        }
         onOpenChange(nextOpen);
       }}
     >

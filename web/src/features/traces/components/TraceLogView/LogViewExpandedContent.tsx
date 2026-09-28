@@ -51,7 +51,9 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
 
   // Build JSON object with all observation properties
   const jsonData = useMemo(() => {
-    if (!data) return null;
+    if (!data) {
+      return null;
+    }
 
     // Filter out null/undefined values for cleaner display
     const result: Record<string, unknown> = {};

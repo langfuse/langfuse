@@ -22,7 +22,9 @@ interface TimePickerProps {
 
 export function TimePicker({ date, setDate, className }: TimePickerProps) {
   const getInitialPeriod = (date: Date | undefined): Period => {
-    if (!date) return "AM";
+    if (!date) {
+      return "AM";
+    }
     return date.getHours() >= 12 ? "PM" : "AM";
   };
   const [period, setPeriod] = React.useState<Period>(getInitialPeriod(date));

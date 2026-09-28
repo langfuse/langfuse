@@ -66,9 +66,14 @@ export function DropzoneController({
   });
 
   const openPicker = (directory: boolean) => {
-    if (isDisabled) return;
-    if (directory) zone.inputRef.current?.setAttribute("webkitdirectory", "");
-    else zone.inputRef.current?.removeAttribute("webkitdirectory");
+    if (isDisabled) {
+      return;
+    }
+    if (directory) {
+      zone.inputRef.current?.setAttribute("webkitdirectory", "");
+    } else {
+      zone.inputRef.current?.removeAttribute("webkitdirectory");
+    }
     zone.open();
   };
 
@@ -80,7 +85,9 @@ export function DropzoneController({
       zone.getInputProps({
         ...props,
         onChange: (event) => {
-          if (event.target.files?.length) onProcessingChange?.(true);
+          if (event.target.files?.length) {
+            onProcessingChange?.(true);
+          }
           props?.onChange?.(event);
         },
       }),
@@ -88,23 +95,28 @@ export function DropzoneController({
       zone.getRootProps({
         ...props,
         onDragEnter: (event) => {
-          if (event.dataTransfer.types.includes("Files")) setIsDragActive(true);
+          if (event.dataTransfer.types.includes("Files")) {
+            setIsDragActive(true);
+          }
           props?.onDragEnter?.(event);
         },
         // Disabled dropzones must still suppress the browser's file navigation.
         onDragOverCapture: (event) => {
-          if (event.dataTransfer.types.includes("Files"))
+          if (event.dataTransfer.types.includes("Files")) {
             event.preventDefault();
+          }
         },
         onDropCapture: (event) => {
           setIsDragActive(false);
-          if (event.dataTransfer.types.includes("Files"))
+          if (event.dataTransfer.types.includes("Files")) {
             event.preventDefault();
+          }
         },
         onDrop: (event) => {
           event.preventDefault();
-          if (event.dataTransfer.types.includes("Files"))
+          if (event.dataTransfer.types.includes("Files")) {
             onProcessingChange?.(true);
+          }
           props?.onDrop?.(event);
         },
       }),

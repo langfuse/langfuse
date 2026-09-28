@@ -12,8 +12,11 @@ export async function resolveTxtFresh(fqdn: string): Promise<string[][]> {
   resolver.setServers([...PUBLIC_DNS_SERVERS]);
   return await new Promise<string[][]>((resolve, reject) => {
     resolver.resolveTxt(fqdn, (err, records) => {
-      if (err) reject(err);
-      else resolve(records);
+      if (err) {
+        reject(err);
+      } else {
+        resolve(records);
+      }
     });
   });
 }

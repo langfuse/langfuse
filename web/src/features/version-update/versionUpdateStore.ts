@@ -105,7 +105,9 @@ export function createVersionUpdateStore(
   const readTimestamp = (key: string): number | null => {
     try {
       const raw = getStorage()?.getItem(key);
-      if (!raw) return null;
+      if (!raw) {
+        return null;
+      }
       const parsed = Number(raw);
       return Number.isFinite(parsed) ? parsed : null;
     } catch {
@@ -188,14 +190,20 @@ export function createVersionUpdateStore(
     // already on screen is never hidden by them.
     const next =
       computeEligible() && (snapshot || (isStaleEnough() && !isSuppressed()));
-    if (next === snapshot) return;
+    if (next === snapshot) {
+      return;
+    }
     snapshot = next;
-    for (const listener of listeners) listener();
+    for (const listener of listeners) {
+      listener();
+    }
   };
 
   // Armed once, on the first new build id; ≤ 0 elapses synchronously.
   const startDebounce = () => {
-    if (debounceStarted) return;
+    if (debounceStarted) {
+      return;
+    }
     debounceStarted = true;
     if (debounceMs <= 0) {
       debounceElapsed = true;
@@ -228,7 +236,9 @@ export function createVersionUpdateStore(
       ) {
         seenDifferingBuildIds.add(observedBuildId);
         updateAvailable = true;
-        if (staleSince === null) staleSince = resolveStaleSince();
+        if (staleSince === null) {
+          staleSince = resolveStaleSince();
+        }
         // A never-seen build is a fresh appearance: undo dismiss, re-arm analytics.
         dismissed = false;
         shownReported = false;
@@ -249,7 +259,9 @@ export function createVersionUpdateStore(
       emitChange();
     },
     markShownReported() {
-      if (shownReported) return false;
+      if (shownReported) {
+        return false;
+      }
       shownReported = true;
       writeTimestamp(VERSION_UPDATE_LAST_SHOWN_AT_KEY, now()); // arm the throttle
       return true;

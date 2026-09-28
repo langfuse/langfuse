@@ -116,8 +116,9 @@ function AreaChartDemo({
     x: Date;
     values: { api: number | null; worker: number | null };
   }[] = data;
-  if (scenario === "gaps") chartData = gaps;
-  else if (scenario === "negative") {
+  if (scenario === "gaps") {
+    chartData = gaps;
+  } else if (scenario === "negative") {
     chartData = data.map((datum, index) => ({
       ...datum,
       values: { api: index * 3 - 18, worker: 12 - index * 2 },
@@ -166,7 +167,9 @@ export const TooltipBelowChart = meta.story({
     const hoverArea = canvasElement.querySelector<SVGRectElement>(
       'rect[fill="transparent"]',
     );
-    if (!hoverArea) throw new Error("Chart hover area not found");
+    if (!hoverArea) {
+      throw new Error("Chart hover area not found");
+    }
     fireEvent.pointerMove(hoverArea, {
       clientX: hoverArea.getBoundingClientRect().left + 4,
       clientY: hoverArea.getBoundingClientRect().top + 40,
@@ -189,9 +192,13 @@ export const SingleValueAnchor = meta.story({
     const hoverArea = canvasElement.querySelector<SVGRectElement>(
       'rect[fill="transparent"]',
     );
-    if (!hoverArea) throw new Error("Missing hover area");
+    if (!hoverArea) {
+      throw new Error("Missing hover area");
+    }
     const chartBounds = hoverArea.ownerSVGElement?.getBoundingClientRect();
-    if (!chartBounds) throw new Error("Chart bounds missing");
+    if (!chartBounds) {
+      throw new Error("Chart bounds missing");
+    }
     const clientX = hoverArea.getBoundingClientRect().left + 4;
     fireEvent.pointerMove(hoverArea, {
       clientX,
@@ -224,7 +231,9 @@ export const Intermittent = meta.story({
     const hoverArea = canvasElement.querySelectorAll<SVGRectElement>(
       'rect[fill="transparent"]',
     )[1];
-    if (!hoverArea) throw new Error("Missing hover area for data gap");
+    if (!hoverArea) {
+      throw new Error("Missing hover area for data gap");
+    }
     await userEvent.hover(hoverArea);
     const tooltip = within(document.body).getByRole("tooltip");
     await expect(tooltip).toHaveTextContent("No data available");
@@ -280,7 +289,9 @@ export const MixedBuckets = meta.story({
     const line = canvasElement.querySelector<HTMLElement>(
       '[data-chart="line"]',
     );
-    if (!area || !line) throw new Error("Charts not found");
+    if (!area || !line) {
+      throw new Error("Charts not found");
+    }
     for (const chart of [area, line]) {
       await expect(
         within(chart).getByRole("graphics-symbol", { name: /Unknown.*7/ }),
@@ -293,7 +304,9 @@ export const MixedBuckets = meta.story({
       name: /Sep 1, 2026.*12/,
     });
     const hoverArea = datePoint.parentElement?.querySelector("rect");
-    if (!hoverArea) throw new Error("Hover area not found");
+    if (!hoverArea) {
+      throw new Error("Hover area not found");
+    }
     await userEvent.hover(hoverArea);
     await expect(
       line.querySelector('line[stroke-dasharray="3 3"]'),
@@ -328,7 +341,9 @@ export const OverlappingAreas = meta.story({
     const hoverArea = canvasElement.querySelector<SVGRectElement>(
       'rect[fill="transparent"]',
     );
-    if (!hoverArea) throw new Error("Hover area not found");
+    if (!hoverArea) {
+      throw new Error("Hover area not found");
+    }
     await userEvent.hover(hoverArea);
     await expect(stops[0]).toHaveAttribute(
       "stop-color",
@@ -356,7 +371,9 @@ export const StackedAreas = meta.story({
     const workerPoint = canvas.getAllByRole("graphics-symbol", {
       name: /Worker/,
     })[0];
-    if (!apiPoint || !workerPoint) throw new Error("Data points not found");
+    if (!apiPoint || !workerPoint) {
+      throw new Error("Data points not found");
+    }
     await expect(Number(workerPoint.getAttribute("cy"))).toBeLessThan(
       Number(apiPoint.getAttribute("cy")),
     );
@@ -403,11 +420,15 @@ export const StackedAreasStableTicks = meta.story({
     const hoverArea = canvasElement.querySelectorAll<SVGRectElement>(
       'rect[fill="transparent"]',
     )[1];
-    if (!hoverArea) throw new Error("Second hover area not found");
+    if (!hoverArea) {
+      throw new Error("Second hover area not found");
+    }
     await userEvent.hover(hoverArea);
     const after = getLabels();
     for (const [label, x] of after) {
-      if (label === "Sep 2") continue;
+      if (label === "Sep 2") {
+        continue;
+      }
       await expect(before.get(label)).toBe(x);
     }
     await expect(after.length).toBeLessThanOrEqual(before.size + 1);

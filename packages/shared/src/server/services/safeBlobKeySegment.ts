@@ -16,12 +16,16 @@ const FORBIDDEN_CHAR_GLOBAL = /[\x00-\x1f/\\]/g;
 
 function sliceUtf8Bytes(input: string, maxBytes: number): string {
   const buf = Buffer.from(input, "utf8");
-  if (buf.length <= maxBytes) return input;
+  if (buf.length <= maxBytes) {
+    return input;
+  }
   // Walk back from maxBytes to the last UTF-8 codepoint boundary so we never
   // truncate inside a multi-byte sequence.
   let end = maxBytes;
   // skip continuation bytes (0x80–0xBF)
-  while (end > 0 && (buf[end] & 0xc0) === 0x80) end--;
+  while (end > 0 && (buf[end] & 0xc0) === 0x80) {
+    end--;
+  }
   return buf.subarray(0, end).toString("utf8");
 }
 
@@ -50,7 +54,9 @@ export function safeBlobKeySegment(
 ): string {
   const overBudget = Buffer.byteLength(segment, "utf8") > maxBytes;
   const hasForbidden = FORBIDDEN_CHAR.test(segment);
-  if (!overBudget && !hasForbidden) return segment;
+  if (!overBudget && !hasForbidden) {
+    return segment;
+  }
 
   // Any sanitization at all → append a hash suffix derived from the original
   // bytes. This keeps the mapping injective: two segments that differ only

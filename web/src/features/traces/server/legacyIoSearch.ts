@@ -44,10 +44,18 @@ export const sanitizeLegacyTracingSearch = ({
     searchType: searchType ?? undefined,
   };
 
-  if (!isLegacyTracingIoSearchDisabled()) return normalizedSearch;
-  if (!hasSearchQuery(searchQuery)) return normalizedSearch;
-  if (!hasLegacyTracingIoSearch(searchType)) return normalizedSearch;
-  if (!isLegacyTracingTableName(tableName)) return normalizedSearch;
+  if (!isLegacyTracingIoSearchDisabled()) {
+    return normalizedSearch;
+  }
+  if (!hasSearchQuery(searchQuery)) {
+    return normalizedSearch;
+  }
+  if (!hasLegacyTracingIoSearch(searchType)) {
+    return normalizedSearch;
+  }
+  if (!isLegacyTracingTableName(tableName)) {
+    return normalizedSearch;
+  }
 
   const sanitizedSearchType =
     searchType?.filter((type) => !LEGACY_IO_SEARCH_TYPES.has(type)) ?? [];
@@ -72,11 +80,21 @@ export const assertLegacyTracingIoSearchCanCreateBatchJob = ({
   // paths ignore the flag and still run the legacy full-text IO scan.
   useEventsTable?: boolean;
 }) => {
-  if (useEventsTable) return;
-  if (!isLegacyTracingIoSearchDisabled()) return;
-  if (!hasSearchQuery(searchQuery)) return;
-  if (!hasLegacyTracingIoSearch(searchType)) return;
-  if (!isLegacyTracingTableName(tableName)) return;
+  if (useEventsTable) {
+    return;
+  }
+  if (!isLegacyTracingIoSearchDisabled()) {
+    return;
+  }
+  if (!hasSearchQuery(searchQuery)) {
+    return;
+  }
+  if (!hasLegacyTracingIoSearch(searchType)) {
+    return;
+  }
+  if (!isLegacyTracingTableName(tableName)) {
+    return;
+  }
 
   throw new TRPCError({
     code: "BAD_REQUEST",

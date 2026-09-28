@@ -4117,7 +4117,9 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
 });
 
 const isPrompt = (x: unknown): x is Prompt => {
-  if (typeof x !== "object" || x === null) return false;
+  if (typeof x !== "object" || x === null) {
+    return false;
+  }
   const prompt = x as Prompt;
   return (
     typeof prompt.id === "string" &&

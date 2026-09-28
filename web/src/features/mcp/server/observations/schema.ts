@@ -145,7 +145,9 @@ export const ObservationFieldsSchema = z
   .array(z.string())
   .optional()
   .superRefine((fields, ctx) => {
-    if (!fields) return;
+    if (!fields) {
+      return;
+    }
 
     if (fields.length === 0) {
       ctx.addIssue({
@@ -203,9 +205,12 @@ export type { ObservationMcpFilterColumn };
 export const getProjectionFields = (
   fields: string[] | undefined,
 ): ObservationMcpField[] => {
-  if (!fields) return [...OBSERVATION_MCP_DEFAULT_FIELDS];
-  if (fields.length === 1 && fields[0] === "*")
+  if (!fields) {
+    return [...OBSERVATION_MCP_DEFAULT_FIELDS];
+  }
+  if (fields.length === 1 && fields[0] === "*") {
     return [...OBSERVATION_MCP_FIELDS];
+  }
   return fields.filter(isObservationMcpField);
 };
 
@@ -243,6 +248,8 @@ export const getMetadataExpansionForProjection = (
   fields: ObservationMcpField[],
   expandMetadataKeys: string[] | undefined,
 ): string[] | undefined => {
-  if (!fields.includes("metadata")) return undefined;
+  if (!fields.includes("metadata")) {
+    return undefined;
+  }
   return expandMetadataKeys;
 };

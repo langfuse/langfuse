@@ -155,8 +155,9 @@ export function SkillEditor({
       createDisabledReason ||
       isCheckingName ||
       (!createNew && (hasNameChanged || !store.getState().dirty))
-    )
+    ) {
       return false;
+    }
     setIsSaving(true);
     try {
       const created = await createSkillVersionFromDraft({
@@ -227,7 +228,9 @@ export function SkillEditor({
   };
 
   const saveTags = async (tags: string[]): Promise<boolean> => {
-    if (baseVersion === null) return false;
+    if (baseVersion === null) {
+      return false;
+    }
     try {
       await saveSkillTags({
         projectId,
@@ -259,7 +262,9 @@ export function SkillEditor({
   };
 
   const download = async () => {
-    if (baseVersion === null) return;
+    if (baseVersion === null) {
+      return;
+    }
     setIsDownloading(true);
     try {
       const result = await downloadSkillVersion({
@@ -396,7 +401,9 @@ export function SkillEditor({
             (!createNew && (hasNameChanged || !dirty))
           }
           onConfirm={async () => {
-            if (await save(createNew)) closeDialog();
+            if (await save(createNew)) {
+              closeDialog();
+            }
           }}
         />
       )}

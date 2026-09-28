@@ -155,7 +155,9 @@ describe("declared search scopes", () => {
       scopedRegistry,
     );
     expect(committed.status).toBe("committed");
-    if (committed.status !== "committed") return;
+    if (committed.status !== "committed") {
+      return;
+    }
     const projected = filterStateToQueryText(
       [],
       committed,

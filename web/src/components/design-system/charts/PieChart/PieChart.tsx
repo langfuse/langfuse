@@ -74,7 +74,9 @@ function PieChartContent({
   );
   const chartSlices = useMemo(() => {
     const validData: PieChartSliceDatum[] = data.flatMap((datum, index) => {
-      if (!Number.isFinite(datum.value) || datum.value <= 0) return [];
+      if (!Number.isFinite(datum.value) || datum.value <= 0) {
+        return [];
+      }
 
       return [{ ...datum, id: `datum-${index}`, details: undefined }];
     });
@@ -111,8 +113,12 @@ function PieChartContent({
 
     return pie<(typeof chartData)[number]>()
       .value((datum) => {
-        if (slicesNeedingMinimumAngle.includes(datum)) return MIN_SLICE_ANGLE;
-        if (flexibleValue === 0) return (2 * Math.PI) / chartData.length;
+        if (slicesNeedingMinimumAngle.includes(datum)) {
+          return MIN_SLICE_ANGLE;
+        }
+        if (flexibleValue === 0) {
+          return (2 * Math.PI) / chartData.length;
+        }
         return (datum.value / flexibleValue) * flexibleAngle;
       })
       .sort(null)
@@ -126,7 +132,9 @@ function PieChartContent({
           .innerRadius(INNER_RADIUS)
           .outerRadius(ACTIVE_OUTER_RADIUS)
           .cornerRadius(1)(slice);
-        if (!path || !activePath) return [];
+        if (!path || !activePath) {
+          return [];
+        }
 
         return [
           {
@@ -141,10 +149,18 @@ function PieChartContent({
   }, [data, totalValue]);
 
   const centerLabelSize = useMemo(() => {
-    if (availableSize >= 420) return "2xlarge";
-    if (availableSize >= 320) return "xlarge";
-    if (availableSize >= 240) return "large";
-    if (availableSize >= 160) return "medium";
+    if (availableSize >= 420) {
+      return "2xlarge";
+    }
+    if (availableSize >= 320) {
+      return "xlarge";
+    }
+    if (availableSize >= 240) {
+      return "large";
+    }
+    if (availableSize >= 160) {
+      return "medium";
+    }
     return "small";
   }, [availableSize]);
 

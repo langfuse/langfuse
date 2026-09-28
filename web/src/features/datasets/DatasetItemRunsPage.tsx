@@ -11,7 +11,9 @@ import {
 
 export default function DatasetItemRunsPage() {
   const route = useReadyRouteParams(["projectId", "datasetId", "itemId"]);
-  if (!route.ready) return <RouteParamsPendingFallback />;
+  if (!route.ready) {
+    return <RouteParamsPendingFallback />;
+  }
   return (
     <DatasetItemRuns
       projectId={route.params.projectId}
@@ -37,7 +39,9 @@ function DatasetItemRuns({
   // the item detail (the Experiments tab is also hidden for them).
   const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
   useEffect(() => {
-    if (isInitializing || !isExperimentsBetaActive || !projectId) return;
+    if (isInitializing || !isExperimentsBetaActive || !projectId) {
+      return;
+    }
     router.replace(
       `/project/${projectId}/datasets/${datasetId}/items/${encodeURIComponent(itemId)}`,
     );
@@ -50,7 +54,9 @@ function DatasetItemRuns({
     router,
   ]);
 
-  if (isExperimentsBetaActive) return <RouteParamsPendingFallback />;
+  if (isExperimentsBetaActive) {
+    return <RouteParamsPendingFallback />;
+  }
 
   return (
     <DatasetItemDetailPage

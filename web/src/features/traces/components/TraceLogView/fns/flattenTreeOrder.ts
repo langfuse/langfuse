@@ -11,7 +11,9 @@ import type { FlatLogItem } from "@/src/features/traces/components/TraceLogView/
  * @returns Flat list of observations in DFS order with tree metadata
  */
 export function flattenTreeOrder(roots: TreeNode[]): FlatLogItem[] {
-  if (roots.length === 0) return [];
+  if (roots.length === 0) {
+    return [];
+  }
 
   const flatList: FlatLogItem[] = [];
 

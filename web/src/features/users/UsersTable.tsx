@@ -389,7 +389,9 @@ export function UsersTable({
       },
       size: 150,
       getCell: (value) => {
-        if (typeof value !== "string") return undefined;
+        if (typeof value !== "string") {
+          return undefined;
+        }
 
         return {
           type: "link",

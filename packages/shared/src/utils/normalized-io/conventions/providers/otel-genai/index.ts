@@ -79,12 +79,18 @@ function unwrapOtelGenaiChoiceEvent(
   fallbackRole: "user" | "assistant",
   ctx: MessageEnvelopeContext,
 ): ConventionResult<NormalizedMessage> {
-  if (ctx.isMessageLike(value)) return unmatched;
+  if (ctx.isMessageLike(value)) {
+    return unmatched;
+  }
   const nestedMessage = asRecord(value.message);
-  if (!nestedMessage) return unmatched;
+  if (!nestedMessage) {
+    return unmatched;
+  }
 
   const message = ctx.normalizeMessage(nestedMessage, fallbackRole);
-  if (!message) return dropped;
+  if (!message) {
+    return dropped;
+  }
 
   const finishReason = ctx.normalizeFinishReason(value) ?? message.finishReason;
   return claimed(compact({ ...message, finishReason }));
@@ -99,7 +105,9 @@ function otelGenaiToolDefinitionSources(
   carrier: ToolDefinitionCarrier,
 ): ToolDefinitionSource[] {
   const attributes = carrier.metadataAttributes;
-  if (!attributes) return [];
+  if (!attributes) {
+    return [];
+  }
 
   const sources: ToolDefinitionSource[] = [];
 

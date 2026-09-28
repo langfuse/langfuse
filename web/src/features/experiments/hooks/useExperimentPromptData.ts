@@ -34,7 +34,9 @@ export function useExperimentPromptData({
 
   const expectedColumns = useMemo(() => {
     const prompt = promptMeta.data?.find((p) => p.id === promptId);
-    if (!prompt) return [];
+    if (!prompt) {
+      return [];
+    }
 
     const extractedVariables = extractVariables(
       prompt.type === PromptType.Text
@@ -100,7 +102,9 @@ const getPromptModelConfig = (
 ): ExperimentPromptModelConfig | null => {
   const parsedConfig = PromptConfigSchema.safeParse(config);
 
-  if (!parsedConfig.success) return null;
+  if (!parsedConfig.success) {
+    return null;
+  }
 
   const { provider, model } = parsedConfig.data;
   return {

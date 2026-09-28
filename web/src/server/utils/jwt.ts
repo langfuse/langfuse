@@ -167,12 +167,16 @@ function verifyEs256Jwt<TClaims extends JwtRegisteredClaims>(input: {
   now?: Date;
 }): TClaims {
   const parts = input.token.split(".");
-  if (parts.length !== 3) throw new Error("Invalid JWT");
+  if (parts.length !== 3) {
+    throw new Error("Invalid JWT");
+  }
   const [encodedHeader, encodedPayload, encodedSignature] = parts;
 
   const header = Es256JwtHeaderSchema.parse(decodeJson(encodedHeader));
   const key = input.publicKeys.find((candidate) => candidate.id === header.kid);
-  if (!key) throw new Error("Unknown JWT signing key");
+  if (!key) {
+    throw new Error("Unknown JWT signing key");
+  }
 
   const validSignature = verify(
     "sha256",
@@ -180,7 +184,9 @@ function verifyEs256Jwt<TClaims extends JwtRegisteredClaims>(input: {
     { key: key.publicKey, dsaEncoding: "ieee-p1363" },
     Buffer.from(encodedSignature, "base64url"),
   );
-  if (!validSignature) throw new Error("Invalid JWT signature");
+  if (!validSignature) {
+    throw new Error("Invalid JWT signature");
+  }
 
   const decodedClaims = decodeJson(encodedPayload);
   const registeredClaims = JwtRegisteredClaimsSchema.parse(decodedClaims);

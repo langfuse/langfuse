@@ -102,7 +102,9 @@ function RangeCalendarHarness({
       defaultMonth={new Date(2026, 5, 1)}
       selected={range}
       onSelect={(_, triggerDay) => {
-        if (!triggerDay) return;
+        if (!triggerDay) {
+          return;
+        }
         const next = nextRangeForDayClick(range, triggerDay);
         setRange(next);
         if (next.from && next.to) {

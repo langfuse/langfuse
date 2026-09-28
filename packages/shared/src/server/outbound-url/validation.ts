@@ -145,7 +145,9 @@ export async function validateOutboundUrlHost({
       logContext,
     });
 
-    if (shouldSkipDnsCheckForLiteralIps) return;
+    if (shouldSkipDnsCheckForLiteralIps) {
+      return;
+    }
   }
 
   // DNS-resolution failure is treated as a hard validation error: silently

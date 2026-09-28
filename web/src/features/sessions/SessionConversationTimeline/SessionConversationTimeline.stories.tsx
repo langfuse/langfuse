@@ -2060,7 +2060,9 @@ export const FilteredEmpty = meta.story({
     await userEvent.click(
       canvas.getByRole("button", { name: "Clear filters" }),
     );
-    if (args.emptyState.type !== "filtered-empty") throw new globalThis.Error();
+    if (args.emptyState.type !== "filtered-empty") {
+      throw new globalThis.Error();
+    }
     await expect(args.emptyState.onClearFilters).toHaveBeenCalledOnce();
   },
 });

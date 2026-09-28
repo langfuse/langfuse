@@ -34,7 +34,9 @@ export const AnnotationQueuesItem = ({
     },
   );
 
-  if (!hasAccess) return <SupportOrUpgradePage />;
+  if (!hasAccess) {
+    return <SupportOrUpgradePage />;
+  }
 
   return (
     <Page

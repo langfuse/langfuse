@@ -73,7 +73,9 @@ const useSlackChannels = (projectId: string) => {
 
   const channelsData = useMemo(() => {
     const pages = channelsPages?.pages ?? [];
-    if (pages.length === 0) return null;
+    if (pages.length === 0) {
+      return null;
+    }
 
     return {
       channels: pages.flatMap((page) => page.channels),
@@ -88,7 +90,9 @@ const useSlackChannels = (projectId: string) => {
 
   // useInfiniteQuery stores page state, but next pages are only loaded when requested.
   useEffect(() => {
-    if (error || !hasNextPage || isFetchingNextPage) return;
+    if (error || !hasNextPage || isFetchingNextPage) {
+      return;
+    }
 
     // Query failures are classified + captured by the QueryCache seam; only
     // report non-tRPC failures of the fetch dispatch itself.
@@ -162,7 +166,9 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
 
   // Filter and search channels
   const filteredChannels = useMemo(() => {
-    if (!channelsData?.channels) return [];
+    if (!channelsData?.channels) {
+      return [];
+    }
 
     let channels = channelsData.channels;
 
@@ -202,7 +208,9 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
 
   // Get selected channel info — fall back to the prop for manual entries
   const selectedChannel = useMemo(() => {
-    if (!selectedChannelId) return null;
+    if (!selectedChannelId) {
+      return null;
+    }
     const fromList = channelsData?.channels?.find(
       (channel) => channel.id === selectedChannelId,
     );
@@ -220,7 +228,9 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
 
   const handleSelectByName = useCallback(() => {
     const name = searchValue.trim().replace(/^#/, "");
-    if (!name) return;
+    if (!name) {
+      return;
+    }
     selectAndClose({
       id: `#${name}`,
       name,

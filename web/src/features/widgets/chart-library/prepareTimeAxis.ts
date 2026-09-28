@@ -63,7 +63,9 @@ const TEMPORAL_TICK_RIGHT_PADDING_PX = 16;
  * dropping the tail preserves what tells ticks apart; the tooltip has the full
  * name. Short labels pass through untouched. */
 function truncateCategoryLabel(label: string): string {
-  if (label.length <= MAX_CATEGORY_LABEL_CHARS) return label;
+  if (label.length <= MAX_CATEGORY_LABEL_CHARS) {
+    return label;
+  }
   return `${label.slice(0, MAX_CATEGORY_LABEL_CHARS - 1)}…`;
 }
 
@@ -82,14 +84,20 @@ function truncateCategoryLabel(label: string): string {
  * `looksLikeIso` guard. (LFE-10549)
  */
 export function parseChartTimestamp(raw: unknown): Date | null {
-  if (raw == null) return null;
+  if (raw == null) {
+    return null;
+  }
   if (typeof raw === "number") {
     const d = new Date(raw);
     return Number.isNaN(d.getTime()) ? null : d;
   }
-  if (typeof raw !== "string") return null;
+  if (typeof raw !== "string") {
+    return null;
+  }
   const s = raw.trim();
-  if (s === "") return null;
+  if (s === "") {
+    return null;
+  }
 
   const match = s.match(
     /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/,
@@ -118,14 +126,20 @@ export function parseChartTimestamp(raw: unknown): Date | null {
 
 /** Median spacing between sorted buckets — the inferred bucket size in ms. */
 function inferBucketMs(timestamps: number[]): number {
-  if (timestamps.length < 2) return 0;
+  if (timestamps.length < 2) {
+    return 0;
+  }
   const sorted = [...timestamps].sort((a, b) => a - b);
   const diffs: number[] = [];
   for (let i = 1; i < sorted.length; i++) {
     const diff = sorted[i] - sorted[i - 1];
-    if (diff > 0) diffs.push(diff);
+    if (diff > 0) {
+      diffs.push(diff);
+    }
   }
-  if (diffs.length === 0) return 0;
+  if (diffs.length === 0) {
+    return 0;
+  }
   diffs.sort((a, b) => a - b);
   return diffs[Math.floor(diffs.length / 2)];
 }
@@ -204,7 +218,9 @@ export function prepareTimeAxis(
   const timestamps: number[] = [];
   for (const value of rawValues) {
     const date = parseChartTimestamp(value);
-    if (date) timestamps.push(date.getTime());
+    if (date) {
+      timestamps.push(date.getTime());
+    }
   }
 
   const target = Math.max(2, maxTicks);
@@ -312,7 +328,9 @@ export function prepareTimeAxis(
 
   const formatTick = (raw: unknown): string => {
     const date = parseChartTimestamp(raw);
-    if (!date) return typeof raw === "string" ? raw : "";
+    if (!date) {
+      return typeof raw === "string" ? raw : "";
+    }
     if (mode === "time") {
       return date.toLocaleTimeString("en-US", {
         hour: "numeric",
@@ -340,7 +358,9 @@ export function prepareTimeAxis(
   // show an identical "Jun 28, 2026" and you couldn't tell 1 AM from 11 PM.
   const formatTooltip = (raw: unknown): string => {
     const date = parseChartTimestamp(raw);
-    if (!date) return typeof raw === "string" ? raw : "";
+    if (!date) {
+      return typeof raw === "string" ? raw : "";
+    }
     return date.toLocaleString("en-US", {
       ...(calendarTimeZone ? { timeZone: calendarTimeZone } : {}),
       month: "short",

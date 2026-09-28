@@ -368,8 +368,9 @@ describe("unified annotation targets", () => {
   it.each(["picker", "row menu", "category"])(
     "hides an open %s portal while annotation is inactive",
     async (control) => {
-      if (control === "picker")
+      if (control === "picker") {
         configs.push({ ...defaultConfig, id: "accuracy", name: "Accuracy" });
+      }
       if (control === "category") {
         configs.push({
           ...defaultConfig,
@@ -1066,7 +1067,9 @@ describe("unified annotation targets", () => {
       ).toHaveTextContent("Saving");
       await act(async () => {
         first.reject(new Error("Could not write observation"));
-        if (!retryWhilePending) second.resolve({});
+        if (!retryWhilePending) {
+          second.resolve({});
+        }
       });
       await waitFor(() =>
         expect(
@@ -1083,7 +1086,9 @@ describe("unified annotation targets", () => {
       fireEvent.keyDown(observationRow, { key: "1" });
       await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(3));
       expect(mocks.update).not.toHaveBeenCalled();
-      if (retryWhilePending) await act(async () => second.resolve({}));
+      if (retryWhilePending) {
+        await act(async () => second.resolve({}));
+      }
       await waitFor(() =>
         expect(
           screen.getByRole("status", { name: "Score save status" }),

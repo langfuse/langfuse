@@ -9,8 +9,9 @@ export function buildModelParameters(
     !modelParameters ||
     typeof modelParameters !== "object" ||
     Array.isArray(modelParameters)
-  )
+  ) {
     return null;
+  }
   const entries = Object.entries(modelParameters).filter(
     ([, value]) => value !== null && value !== undefined,
   );

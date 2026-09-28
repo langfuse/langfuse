@@ -235,7 +235,9 @@ describe("Public API experiments repository", () => {
         spanningExperimentId,
       ]);
       const firstRow = firstPage[0];
-      if (!firstRow) throw new Error("expected first page row");
+      if (!firstRow) {
+        throw new Error("expected first page row");
+      }
 
       // The cursor must anchor on the spanning experiment's LATEST event;
       // anchoring on its earliest would drop the in-between experiment.
@@ -561,7 +563,9 @@ describe("Public API experiments repository", () => {
 
       expect(firstPage).toHaveLength(1);
       const firstRow = firstPage[0];
-      if (!firstRow) throw new Error("expected first page row");
+      if (!firstRow) {
+        throw new Error("expected first page row");
+      }
       const firstExperimentId = firstRow.experiment_id;
       const secondExperimentId = experimentIds.find(
         (id) => id !== firstExperimentId,
@@ -629,7 +633,9 @@ describe("Public API experiments repository", () => {
       ]);
 
       const firstRow = firstPage[0];
-      if (!firstRow) throw new Error("expected first page row");
+      if (!firstRow) {
+        throw new Error("expected first page row");
+      }
 
       const secondPage = await queryExperimentSummariesForPublicApi({
         projectId,
@@ -839,7 +845,9 @@ describe("Public API experiments repository", () => {
 
       expect(firstPage).toHaveLength(1);
       const firstRow = firstPage[0];
-      if (!firstRow) throw new Error("expected first experiment item row");
+      if (!firstRow) {
+        throw new Error("expected first experiment item row");
+      }
 
       const secondPage = await queryExperimentItemsForPublicApi({
         projectId,

@@ -34,7 +34,9 @@ export function Stepper({
 
   const toggle = () => {
     const nextOpen = !expanded;
-    if (open === undefined) setInternalOpen(nextOpen);
+    if (open === undefined) {
+      setInternalOpen(nextOpen);
+    }
     onOpenChange?.(nextOpen);
   };
 

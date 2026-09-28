@@ -87,7 +87,9 @@ export function createDatasetsTableStore(): DatasetsTableStore {
 
     const setSelectAll = (updater: BooleanUpdater) => {
       const nextSelectAll = resolveUpdater(updater, get().selectAll);
-      if (nextSelectAll === get().selectAll) return;
+      if (nextSelectAll === get().selectAll) {
+        return;
+      }
 
       set({ selectAll: nextSelectAll });
     };

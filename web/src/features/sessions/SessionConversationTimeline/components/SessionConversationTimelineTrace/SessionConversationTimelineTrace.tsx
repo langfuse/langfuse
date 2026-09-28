@@ -227,7 +227,9 @@ function getNestedObservationSummary(
     }
 
     const observationKey = `${item.observation.traceId ?? ""}:${item.observation.id}`;
-    if (seenObservationIds.has(observationKey)) continue;
+    if (seenObservationIds.has(observationKey)) {
+      continue;
+    }
 
     seenObservationIds.add(observationKey);
     const type = item.observation.type ?? "EVENT";
@@ -242,9 +244,15 @@ function getNestedObservationSummary(
     .sort(([left], [right]) => {
       const leftIndex = NESTED_OBSERVATION_TYPE_ORDER.indexOf(left);
       const rightIndex = NESTED_OBSERVATION_TYPE_ORDER.indexOf(right);
-      if (leftIndex !== -1 && rightIndex !== -1) return leftIndex - rightIndex;
-      if (leftIndex !== -1) return -1;
-      if (rightIndex !== -1) return 1;
+      if (leftIndex !== -1 && rightIndex !== -1) {
+        return leftIndex - rightIndex;
+      }
+      if (leftIndex !== -1) {
+        return -1;
+      }
+      if (rightIndex !== -1) {
+        return 1;
+      }
       return left.localeCompare(right);
     })
     .map(([type, count]) => {
@@ -262,13 +270,19 @@ function getNestedObservationSummary(
         }
         return `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`;
       })();
-      if (names.length === count) return `tools: ${namesSummary}`;
+      if (names.length === count) {
+        return `tools: ${namesSummary}`;
+      }
 
       return `${count} tool${count === 1 ? "" : "s"}${namesSummary ? ` using ${namesSummary}` : ""}`;
     });
 
-  if (labels.length < 2) return labels[0] ?? "nested observations";
-  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  if (labels.length < 2) {
+    return labels[0] ?? "nested observations";
+  }
+  if (labels.length === 2) {
+    return `${labels[0]} and ${labels[1]}`;
+  }
   return `${labels.slice(0, -1).join(", ")}, and ${labels.at(-1)}`;
 }
 
@@ -720,14 +734,18 @@ function LoadedSessionConversationTimeline({
           ancestorObservationIds,
           nestedObservationCounts,
         }) => {
-          if (phase !== "start") return [];
+          if (phase !== "start") {
+            return [];
+          }
           if (
             Object.keys(nestedObservationCounts).length === 1 &&
             nestedObservationCounts.TOOL === 1
           ) {
             return [];
           }
-          if (ancestorObservationIds.length > 0) return [observation.id];
+          if (ancestorObservationIds.length > 0) {
+            return [observation.id];
+          }
           if (
             hasPreviewValue(observation.input) ||
             hasPreviewValue(observation.output)
@@ -757,8 +775,11 @@ function LoadedSessionConversationTimeline({
     for (const item of observations) {
       for (const ancestorId of item.ancestorObservationIds) {
         const nestedObservations = observationsByAncestorId.get(ancestorId);
-        if (nestedObservations) nestedObservations.push(item);
-        else observationsByAncestorId.set(ancestorId, [item]);
+        if (nestedObservations) {
+          nestedObservations.push(item);
+        } else {
+          observationsByAncestorId.set(ancestorId, [item]);
+        }
       }
     }
 
@@ -794,12 +815,18 @@ function LoadedSessionConversationTimeline({
     ) {
       return false;
     }
-    if (item.type === "tool") return true;
+    if (item.type === "tool") {
+      return true;
+    }
     if (item.observation.type === "TOOL" && item.phase === "start") {
       return Object.keys(item.nestedObservationCounts).length > 0;
     }
-    if (item.phase !== "end") return true;
-    if (item.processedMessages.messages.length > 0) return true;
+    if (item.phase !== "end") {
+      return true;
+    }
+    if (item.processedMessages.messages.length > 0) {
+      return true;
+    }
     return Boolean(
       item.observation.outputTruncated &&
       hasPreviewValue(item.observation.output),
@@ -908,8 +935,11 @@ function LoadedSessionConversationTimeline({
                   onExpandedChange={(isExpanded) =>
                     setExpandedToolObservationIds((current) => {
                       const next = new Set(current);
-                      if (isExpanded) next.add(itemId);
-                      else next.delete(itemId);
+                      if (isExpanded) {
+                        next.add(itemId);
+                      } else {
+                        next.delete(itemId);
+                      }
                       return next;
                     })
                   }
@@ -931,8 +961,11 @@ function LoadedSessionConversationTimeline({
                   onToolExpandedChange={(isExpanded) =>
                     setExpandedToolObservationIds((current) => {
                       const next = new Set(current);
-                      if (isExpanded) next.add(itemId);
-                      else next.delete(itemId);
+                      if (isExpanded) {
+                        next.add(itemId);
+                      } else {
+                        next.delete(itemId);
+                      }
                       return next;
                     })
                   }
@@ -989,7 +1022,9 @@ function LoadedSessionConversationTimeline({
                         const observationIds = new Set(current.observationIds);
                         if (isCollapsed) {
                           observationIds.delete(observation.id);
-                        } else observationIds.add(observation.id);
+                        } else {
+                          observationIds.add(observation.id);
+                        }
                         return { ...current, observationIds };
                       });
                     }}

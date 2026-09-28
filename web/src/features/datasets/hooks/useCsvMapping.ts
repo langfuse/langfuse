@@ -58,7 +58,9 @@ export function useCsvMapping({
 
   // Initialize defaults for freeform mode
   useEffect(() => {
-    if (!preview) return;
+    if (!preview) {
+      return;
+    }
 
     const isInitialized =
       (isFreeformField(mapping.input) && mapping.input.columns.length > 0) ||

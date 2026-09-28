@@ -31,7 +31,9 @@ export function splitPath(path: string): (string | number)[] {
  */
 export function getParentPath(path: string): string | null {
   const parts = splitPath(path);
-  if (parts.length <= 1) return null;
+  if (parts.length <= 1) {
+    return null;
+  }
   return joinPath(parts.slice(0, -1));
 }
 
@@ -43,7 +45,9 @@ export function isAncestorPath(
   ancestorPath: string,
   descendantPath: string,
 ): boolean {
-  if (ancestorPath === descendantPath) return false;
+  if (ancestorPath === descendantPath) {
+    return false;
+  }
   return (
     descendantPath.startsWith(ancestorPath + ".") ||
     descendantPath === ancestorPath
@@ -74,8 +78,12 @@ export function getAncestorPaths(path: string): string[] {
  * @example pathArrayToJsonPath(['root', 'key-with-dash']) => "$['key-with-dash']"
  */
 export function pathArrayToJsonPath(pathArray: (string | number)[]): string {
-  if (pathArray.length === 0) return "$";
-  if (pathArray.length === 1) return "$"; // Root only
+  if (pathArray.length === 0) {
+    return "$";
+  }
+  if (pathArray.length === 1) {
+    return "$";
+  } // Root only
 
   // Skip the root key (first element)
   const parts = pathArray.slice(1);

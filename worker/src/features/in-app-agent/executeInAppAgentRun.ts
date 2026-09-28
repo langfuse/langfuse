@@ -174,7 +174,9 @@ export async function executeInAppAgentRun(params: {
   // onFinish cleans up before the stream errors, then the outer catch
   // runs after drainStream rejects and may call this again.
   const cleanupMcpApiKey = (): Promise<void> => {
-    if (!mcpApiKey) return Promise.resolve();
+    if (!mcpApiKey) {
+      return Promise.resolve();
+    }
     const keyId = mcpApiKey.id;
     mcpApiKeyCleanup ??= (async () => {
       await deleteInAppAgentMcpApiKey({ projectId, apiKeyId: keyId });
@@ -403,7 +405,9 @@ export async function executeInAppAgentRun(params: {
     // ---- Heartbeat: lease renewal out, cancel signal back, one query. ----
     let heartbeatInFlight = false;
     heartbeatTimer = setInterval(() => {
-      if (heartbeatInFlight || abortController.signal.aborted) return;
+      if (heartbeatInFlight || abortController.signal.aborted) {
+        return;
+      }
       heartbeatInFlight = true;
       heartbeatClaimedRun({ prisma, projectId, runId })
         .then((result) => {
@@ -657,7 +661,9 @@ export async function executeInAppAgentRun(params: {
       traceException(error);
     }
   } finally {
-    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+    }
     activeRunAborts.delete(abortController);
   }
 }
@@ -677,7 +683,9 @@ async function resolveUserProjectAccess(params: {
     select: { id: true, email: true, admin: true, v4BetaEnabled: true },
   });
 
-  if (!user) return null;
+  if (!user) {
+    return null;
+  }
 
   if (user.admin) {
     return {
@@ -691,7 +699,9 @@ async function resolveUserProjectAccess(params: {
     where: { userId: params.userId, orgId: params.orgId },
   });
 
-  if (!orgMembership) return null;
+  if (!orgMembership) {
+    return null;
+  }
 
   const projectMembership = await prisma.projectMembership.findFirst({
     where: {
@@ -703,7 +713,9 @@ async function resolveUserProjectAccess(params: {
 
   const projectRole = projectMembership?.role ?? orgMembership.role;
 
-  if (projectRole === Role.NONE) return null;
+  if (projectRole === Role.NONE) {
+    return null;
+  }
 
   return {
     projectRole,
@@ -742,7 +754,9 @@ function findPersistedApprovalRequest(
   // Zero-trust: the decision mutation stores only IDs; tool name and args are
   // read back from the interrupt event the parent run persisted.
   for (const { event, runId } of events) {
-    if (runId !== request.parentRunId) continue;
+    if (runId !== request.parentRunId) {
+      continue;
+    }
 
     const approvalRequest = parseInAppAgentInterruptEvent(event);
 
@@ -827,6 +841,8 @@ async function drainStream(stream: {
   // the loop to completion and the onEvent callbacks persist everything.
   for (;;) {
     const { done } = await reader.read();
-    if (done) return;
+    if (done) {
+      return;
+    }
   }
 }

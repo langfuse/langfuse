@@ -822,7 +822,9 @@ describe("/api/public/prompts API Endpoint", () => {
 type PromptWithIsActive = Prompt & { isActive: boolean };
 
 const isPrompt = (x: unknown): x is PromptWithIsActive => {
-  if (typeof x !== "object" || x === null) return false;
+  if (typeof x !== "object" || x === null) {
+    return false;
+  }
   const prompt = x as PromptWithIsActive;
   return (
     typeof prompt.id === "string" &&

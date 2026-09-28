@@ -356,7 +356,9 @@ export function DataTableControls({
       searchedSurfacesRef.current.delete(surface);
       return;
     }
-    if (searchedSurfacesRef.current.has(surface)) return;
+    if (searchedSurfacesRef.current.has(surface)) {
+      return;
+    }
     searchedSurfacesRef.current.add(surface);
     capture("filters:facet_search", {
       tableName,
@@ -390,7 +392,9 @@ export function DataTableControls({
   const prevActiveColumnsRef = useRef(activeColumnsKey);
   useEffect(() => {
     const prevKey = prevActiveColumnsRef.current;
-    if (prevKey === activeColumnsKey) return;
+    if (prevKey === activeColumnsKey) {
+      return;
+    }
     prevActiveColumnsRef.current = activeColumnsKey;
     const prev = new Set(prevKey.split(",").filter(Boolean));
     const current = new Set(activeColumnsKey.split(",").filter(Boolean));
@@ -418,7 +422,9 @@ export function DataTableControls({
     }
 
     const changed = [...became, ...ceased];
-    if (changed.length !== 1) return;
+    if (changed.length !== 1) {
+      return;
+    }
     // A name search may be hiding the target; display:none has no box, so this
     // simply does nothing rather than scrolling to an invisible row.
     const facetElement = scrollRootRef.current?.querySelector(
@@ -742,7 +748,9 @@ export function DataTableControls({
             // this handler, so they do not double-count as facet toggles.
             const added = next.filter((column) => !prev.includes(column));
             const removed = prev.filter((column) => !next.includes(column));
-            if (added.length + removed.length !== 1) return;
+            if (added.length + removed.length !== 1) {
+              return;
+            }
             capture("filters:facet_toggled", {
               tableName,
               column: added[0] ?? removed[0],
@@ -1627,7 +1635,9 @@ export function CategoricalFacet({
   const [prevHasTextFilters, setPrevHasTextFilters] = useState(hasTextFilters);
   if (hasTextFilters !== prevHasTextFilters) {
     setPrevHasTextFilters(hasTextFilters);
-    if (hasTextFilters) setFilterMode("text");
+    if (hasTextFilters) {
+      setFilterMode("text");
+    }
   }
 
   // Switching modes is NON-destructive: the other mode's applied filters stay
@@ -2129,7 +2139,9 @@ function NumericFacet({
       return;
     }
     const newMin = parseFloat(inputValue);
-    if (isNaN(newMin)) return;
+    if (isNaN(newMin)) {
+      return;
+    }
     const newValue: [number, number] = [newMin, localValue[1]];
     updateWithDebounce(newValue);
   };
@@ -2143,7 +2155,9 @@ function NumericFacet({
       return;
     }
     const newMax = parseFloat(inputValue);
-    if (isNaN(newMax)) return;
+    if (isNaN(newMax)) {
+      return;
+    }
     const newValue: [number, number] = [localValue[0], newMax];
     updateWithDebounce(newValue);
   };

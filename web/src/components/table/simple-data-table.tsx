@@ -171,12 +171,18 @@ export function SimpleDataTable<TData extends object>({
                   selectedRowId === row.id && "bg-muted",
                 )}
                 onClick={(event) => {
-                  if (shouldIgnoreRowClickTarget(event.target)) return;
+                  if (shouldIgnoreRowClickTarget(event.target)) {
+                    return;
+                  }
                   onRowClick?.(row.original);
                 }}
                 onKeyDown={(event) => {
-                  if (event.key !== "Enter" && event.key !== " ") return;
-                  if (shouldIgnoreRowClickTarget(event.target)) return;
+                  if (event.key !== "Enter" && event.key !== " ") {
+                    return;
+                  }
+                  if (shouldIgnoreRowClickTarget(event.target)) {
+                    return;
+                  }
 
                   event.preventDefault();
                   onRowClick?.(row.original);

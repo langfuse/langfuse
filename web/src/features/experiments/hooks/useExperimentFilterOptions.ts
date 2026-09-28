@@ -73,16 +73,18 @@ export function useExperimentFilterOptions({
   // not.
   const datasetIdByName = useMemo(() => {
     const map = new Map<string, string>();
-    for (const dataset of datasets.data ?? [])
+    for (const dataset of datasets.data ?? []) {
       map.set(dataset.name, dataset.id);
+    }
     return map;
   }, [datasets.data]);
 
   /** Rows carry the dataset id; the table renders its name. */
   const datasetNameById = useMemo(() => {
     const map = new Map<string, string>();
-    for (const dataset of datasets.data ?? [])
+    for (const dataset of datasets.data ?? []) {
       map.set(dataset.id, dataset.name);
+    }
     return map;
   }, [datasets.data]);
 

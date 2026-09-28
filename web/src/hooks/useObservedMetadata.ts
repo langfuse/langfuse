@@ -61,10 +61,14 @@ export function useObservedMetadataRecorder({
 }): void {
   const recordPaths = useObservedMetadataStore((s) => s.actions.recordPaths);
   useEffect(() => {
-    if (rows === undefined || rows.length === 0) return;
+    if (rows === undefined || rows.length === 0) {
+      return;
+    }
     const collected = collectMetadataPathTypes(
       rows.slice(0, METADATA_SAMPLE_ROWS).map((r) => r.metadata),
     );
-    if (collected.size > 0) recordPaths(projectId, collected);
+    if (collected.size > 0) {
+      recordPaths(projectId, collected);
+    }
   }, [rows, projectId, recordPaths]);
 }

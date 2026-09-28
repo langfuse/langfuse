@@ -23,12 +23,13 @@ export const getPromptByName = async (
 ): Promise<Prompt | null> => {
   const { promptName, projectId, version, label, resolve = true } = params;
 
-  if (version && label)
+  if (version && label) {
     throw new InvalidRequestError("Cannot specify both version and label");
+  }
 
   const promptService = new PromptService(prisma, redis, recordIncrement);
 
-  if (version)
+  if (version) {
     return promptService.getPrompt({
       projectId,
       promptName,
@@ -36,8 +37,9 @@ export const getPromptByName = async (
       label: undefined,
       resolve,
     });
+  }
 
-  if (label)
+  if (label) {
     return promptService.getPrompt({
       projectId,
       promptName,
@@ -45,6 +47,7 @@ export const getPromptByName = async (
       version: undefined,
       resolve,
     });
+  }
 
   return promptService.getPrompt({
     projectId,

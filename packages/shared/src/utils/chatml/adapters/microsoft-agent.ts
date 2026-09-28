@@ -51,11 +51,17 @@ function hasPydanticAiMessageMarkers(data: unknown): boolean {
   })();
 
   return messages.some((msg) => {
-    if (!isRecord(msg)) return false;
-    if (!Array.isArray(msg.parts)) return false;
+    if (!isRecord(msg)) {
+      return false;
+    }
+    if (!Array.isArray(msg.parts)) {
+      return false;
+    }
 
     return msg.parts.some((part) => {
-      if (!isRecord(part)) return false;
+      if (!isRecord(part)) {
+        return false;
+      }
 
       return (
         part.type === "thinking" ||
@@ -81,7 +87,9 @@ function extractFromParts(parts: unknown[]): {
   let toolCallId: string | undefined;
 
   for (const part of parts) {
-    if (!part || typeof part !== "object") continue;
+    if (!part || typeof part !== "object") {
+      continue;
+    }
 
     const p = part as Record<string, unknown>;
 
@@ -147,7 +155,9 @@ function extractToolDefinitions(tools: unknown): Array<{
   description?: string;
   parameters?: Record<string, unknown>;
 }> {
-  if (!Array.isArray(tools)) return [];
+  if (!Array.isArray(tools)) {
+    return [];
+  }
 
   const definitions: Array<{
     name: string;
@@ -156,7 +166,9 @@ function extractToolDefinitions(tools: unknown): Array<{
   }> = [];
 
   for (const tool of tools) {
-    if (!tool || typeof tool !== "object") continue;
+    if (!tool || typeof tool !== "object") {
+      continue;
+    }
     const t = tool as Record<string, unknown>;
 
     // Handle OpenAI-style tool definitions: {type: "function", function: {name, description, parameters}}
@@ -187,7 +199,9 @@ function extractToolDefinitions(tools: unknown): Array<{
 
 // Normalize a single Microsoft Agent message to our ChatML format
 function normalizeMicrosoftAgentMessage(msg: unknown): Record<string, unknown> {
-  if (!msg || typeof msg !== "object") return {};
+  if (!msg || typeof msg !== "object") {
+    return {};
+  }
 
   const message = msg as Record<string, unknown>;
   const normalized = { ...message };
@@ -239,7 +253,9 @@ function normalizeMessages(data: unknown[]): unknown[] {
 }
 
 function preprocessData(data: unknown, ctx: NormalizerContext): unknown {
-  if (!data) return data;
+  if (!data) {
+    return data;
+  }
 
   if (Array.isArray(data)) {
     const normalized = normalizeMessages(data);
@@ -298,23 +314,32 @@ export const microsoftAgentAdapter: ProviderAdapter = {
     const meta = parseMetadata(ctx.metadata);
 
     // HINTS: Fast checks for explicit Microsoft Agent Framework indicators
-    if (ctx.framework === "microsoft-agent") return true;
+    if (ctx.framework === "microsoft-agent") {
+      return true;
+    }
 
     const scopeName = getNestedProperty(meta, "scope", "name");
-    if (scopeName === "agent_framework") return true;
+    if (scopeName === "agent_framework") {
+      return true;
+    }
     if (
       typeof scopeName === "string" &&
       scopeName.includes("Microsoft.Extensions.AI")
-    )
+    ) {
       return true;
-    if (scopeName === "pydantic-ai") return false;
+    }
+    if (scopeName === "pydantic-ai") {
+      return false;
+    }
 
     const providerName = getNestedProperty(
       meta,
       "attributes",
       "gen_ai.provider.name",
     );
-    if (providerName === "microsoft.agent_framework") return true;
+    if (providerName === "microsoft.agent_framework") {
+      return true;
+    }
 
     if (
       hasPydanticAiMessageMarkers(ctx.metadata) ||
@@ -324,12 +349,17 @@ export const microsoftAgentAdapter: ProviderAdapter = {
     }
 
     // STRUCTURAL: Schema-based detection on metadata
-    if (MicrosoftAgentMessagesSchema.safeParse(ctx.metadata).success)
+    if (MicrosoftAgentMessagesSchema.safeParse(ctx.metadata).success) {
       return true;
+    }
 
     // Schema-based detection on data (slower, do last)
-    if (MicrosoftAgentMessagesSchema.safeParse(ctx.data).success) return true;
-    if (MicrosoftAgentMessageSchema.safeParse(ctx.data).success) return true;
+    if (MicrosoftAgentMessagesSchema.safeParse(ctx.data).success) {
+      return true;
+    }
+    if (MicrosoftAgentMessageSchema.safeParse(ctx.data).success) {
+      return true;
+    }
 
     return false;
   },

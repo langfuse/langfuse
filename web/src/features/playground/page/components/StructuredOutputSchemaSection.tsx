@@ -259,7 +259,9 @@ export const StructuredOutputSchemaSection = ({
   };
 
   const openAttachedSchema = () => {
-    if (!structuredOutputSchema) return;
+    if (!structuredOutputSchema) {
+      return;
+    }
 
     onOpenSchemaDialog({
       existingLlmSchema: structuredOutputSchema.existingLlmSchema,

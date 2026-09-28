@@ -88,7 +88,9 @@ export class ClickhouseWriter<
     );
 
     this.intervalId = setInterval(() => {
-      if (this.isIntervalFlushInProgress) return;
+      if (this.isIntervalFlushInProgress) {
+        return;
+      }
 
       this.isIntervalFlushInProgress = true;
 
@@ -150,7 +152,9 @@ export class ClickhouseWriter<
   }
 
   private isRetryableError(error: unknown): boolean {
-    if (!error || typeof error !== "object") return false;
+    if (!error || typeof error !== "object") {
+      return false;
+    }
 
     const errorMessage = (error as Error).message?.toLowerCase() || "";
 
@@ -164,7 +168,9 @@ export class ClickhouseWriter<
   }
 
   private isSizeError(error: unknown): boolean {
-    if (!error || typeof error !== "object") return false;
+    if (!error || typeof error !== "object") {
+      return false;
+    }
 
     const errorMessage = (error as Error).message?.toLowerCase() || "";
 
@@ -177,7 +183,9 @@ export class ClickhouseWriter<
   }
 
   private isStringLengthError(error: unknown): boolean {
-    if (!error || typeof error !== "object") return false;
+    if (!error || typeof error !== "object") {
+      return false;
+    }
 
     const errorMessage = (error as Error).message?.toLowerCase() || "";
 
@@ -235,7 +243,9 @@ export class ClickhouseWriter<
 
   private async flush<T extends TableName>(tableName: T, fullQueue = false) {
     const entityQueue = this.queue[tableName];
-    if (entityQueue.length === 0) return;
+    if (entityQueue.length === 0) {
+      return;
+    }
 
     let queueItems = entityQueue.splice(
       0,

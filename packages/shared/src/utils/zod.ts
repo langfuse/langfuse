@@ -74,7 +74,9 @@ export const optionalCommaSeparatedStringArray = z
   .string()
   .nullish()
   .transform((value) => {
-    if (!value) return undefined;
+    if (!value) {
+      return undefined;
+    }
 
     const values = splitCommaSeparatedQueryParam(value);
     return values.length > 0 ? values : undefined;
@@ -88,7 +90,9 @@ export const optionalJsonParam = <T extends z.ZodType>(
     .string()
     .optional()
     .transform((str) => {
-      if (!str) return undefined;
+      if (!str) {
+        return undefined;
+      }
       try {
         return JSON.parse(str);
       } catch {
@@ -123,8 +127,12 @@ export function commaSeparatedEnumArray<
       : arraySchema.default(defaultValue);
 
   return z.preprocess((value) => {
-    if (value === null || value === undefined || value === "") return undefined;
-    if (typeof value !== "string") return value;
+    if (value === null || value === undefined || value === "") {
+      return undefined;
+    }
+    if (typeof value !== "string") {
+      return value;
+    }
 
     const items = splitCommaSeparatedQueryParam(value);
 

@@ -35,7 +35,9 @@ const withTimeout = async <T>(promise: Promise<T>, ms: number): Promise<T> => {
       }),
     ]);
   } finally {
-    if (timer) clearTimeout(timer);
+    if (timer) {
+      clearTimeout(timer);
+    }
   }
 };
 

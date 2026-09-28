@@ -111,9 +111,13 @@ export function ConnectedModernSessionBodyLegacy({
   const activeChunkIndices = new Set<number>();
   if (!searchQuery) {
     for (const traceId of visibleTraceIds) {
-      if (!expandedTraceIds.has(traceId)) continue;
+      if (!expandedTraceIds.has(traceId)) {
+        continue;
+      }
       const traceIndex = traceIndexById.get(traceId);
-      if (traceIndex === undefined) continue;
+      if (traceIndex === undefined) {
+        continue;
+      }
       activeChunkIndices.add(Math.floor(traceIndex / SIDEBAR_TRACE_CHUNK_SIZE));
     }
   }
@@ -192,8 +196,9 @@ export function ConnectedModernSessionBodyLegacy({
       if (observationIds?.has(observation.id)) {
         continue;
       }
-      if (observationIds) observationIds.add(observation.id);
-      else {
+      if (observationIds) {
+        observationIds.add(observation.id);
+      } else {
         observationIdsByTraceId.set(
           observation.traceId,
           new Set([observation.id]),
@@ -206,8 +211,11 @@ export function ConnectedModernSessionBodyLegacy({
         type: observation.type,
         latency: observation.latency,
       };
-      if (observations) observations.push(row);
-      else observationsByTraceId.set(observation.traceId, [row]);
+      if (observations) {
+        observations.push(row);
+      } else {
+        observationsByTraceId.set(observation.traceId, [row]);
+      }
     }
   }
 
@@ -293,7 +301,9 @@ export function ConnectedModernSessionBodyLegacy({
         if (!query?.data?.hasMore || query.isFetching || !descriptor) {
           continue;
         }
-        if (next === current) next = { ...current };
+        if (next === current) {
+          next = { ...current };
+        }
         next[key] = Math.max(current[key] ?? 1, descriptor.page + 1);
       }
       return next;
@@ -320,8 +330,11 @@ export function ConnectedModernSessionBodyLegacy({
   const toggleTraceExpanded = (traceId: string) => {
     setCollapsedTraceIds((current) => {
       const next = new Set(current);
-      if (next.has(traceId)) next.delete(traceId);
-      else next.add(traceId);
+      if (next.has(traceId)) {
+        next.delete(traceId);
+      } else {
+        next.add(traceId);
+      }
       return next;
     });
   };
@@ -350,10 +363,14 @@ export function ConnectedModernSessionBodyLegacy({
     observationScrollCleanupRef.current?.();
     observationScrollCleanupRef.current = null;
     selectTrace(index);
-    if (!observationId) return;
+    if (!observationId) {
+      return;
+    }
 
     const feed = feedRef.current;
-    if (!feed) return;
+    if (!feed) {
+      return;
+    }
 
     const scrollToObservation = () => {
       const observation = Array.from(
@@ -361,7 +378,9 @@ export function ConnectedModernSessionBodyLegacy({
       ).find(
         (element) => element.dataset.sessionObservationId === observationId,
       );
-      if (!observation) return false;
+      if (!observation) {
+        return false;
+      }
 
       const top =
         feed.scrollTop +
@@ -372,7 +391,9 @@ export function ConnectedModernSessionBodyLegacy({
       return true;
     };
 
-    if (scrollToObservation()) return;
+    if (scrollToObservation()) {
+      return;
+    }
 
     let timeout: number;
     const cleanup = () => {
@@ -380,7 +401,9 @@ export function ConnectedModernSessionBodyLegacy({
       window.clearTimeout(timeout);
     };
     const observer = new MutationObserver(() => {
-      if (!scrollToObservation()) return;
+      if (!scrollToObservation()) {
+        return;
+      }
       cleanup();
       if (observationScrollCleanupRef.current === cleanup) {
         observationScrollCleanupRef.current = null;
@@ -438,7 +461,9 @@ export function ConnectedModernSessionBodyLegacy({
           >
             {virtualItems.map((virtualItem) => {
               const trace = traces[virtualItem.index];
-              if (!trace) return null;
+              if (!trace) {
+                return null;
+              }
 
               return (
                 <SessionVirtualizedRow

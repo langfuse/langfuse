@@ -68,9 +68,15 @@ type MediaKind = "image" | "audio" | "video" | "file";
 
 function getMediaKind(contentType: string): MediaKind {
   const top = contentType.split("/")[0]?.toLowerCase();
-  if (top === "image") return "image";
-  if (top === "audio") return "audio";
-  if (top === "video") return "video";
+  if (top === "image") {
+    return "image";
+  }
+  if (top === "audio") {
+    return "audio";
+  }
+  if (top === "video") {
+    return "video";
+  }
   return "file";
 }
 
@@ -240,7 +246,9 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
 
     const setOpen = React.useCallback(
       (nextOpen: boolean) => {
-        if (!isControlled) setUncontrolledOpen(nextOpen);
+        if (!isControlled) {
+          setUncontrolledOpen(nextOpen);
+        }
         onOpenChange?.(nextOpen);
       },
       [isControlled, onOpenChange],

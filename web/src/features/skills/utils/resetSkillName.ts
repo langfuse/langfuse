@@ -2,7 +2,9 @@ import { isMap, isNode, parseDocument } from "yaml";
 
 export function resetSkillName(markdown: string, name: string): string {
   const match = /^(---\r?\n)([\s\S]*?)(\r?\n---(?:\r?\n|$))/.exec(markdown);
-  if (!match) return `---\nname: ${name}\n---\n${markdown}`;
+  if (!match) {
+    return `---\nname: ${name}\n---\n${markdown}`;
+  }
 
   const frontmatter = match[2]!;
   const document = parseDocument(frontmatter);

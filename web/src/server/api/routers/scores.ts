@@ -344,7 +344,9 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      if (input.traceIds.length === 0) return [];
+      if (input.traceIds.length === 0) {
+        return [];
+      }
       const rows = await getTraceMetadataByIdsFromEvents({
         projectId: input.projectId,
         traceIds: input.traceIds,
@@ -394,10 +396,16 @@ export const scoresRouter = createTRPCRouter({
               operator: tf.operator as ">=" | ">",
               value: tf.value,
             };
-            if (!tightest) return candidate;
+            if (!tightest) {
+              return candidate;
+            }
             const diff = candidate.value.getTime() - tightest.value.getTime();
-            if (diff > 0) return candidate;
-            if (diff === 0 && candidate.operator === ">") return candidate;
+            if (diff > 0) {
+              return candidate;
+            }
+            if (diff === 0 && candidate.operator === ">") {
+              return candidate;
+            }
             return tightest;
           },
           undefined,
@@ -410,10 +418,16 @@ export const scoresRouter = createTRPCRouter({
               operator: tf.operator as "<=" | "<",
               value: tf.value,
             };
-            if (!tightest) return candidate;
+            if (!tightest) {
+              return candidate;
+            }
             const diff = candidate.value.getTime() - tightest.value.getTime();
-            if (diff < 0) return candidate;
-            if (diff === 0 && candidate.operator === "<") return candidate;
+            if (diff < 0) {
+              return candidate;
+            }
+            if (diff === 0 && candidate.operator === "<") {
+              return candidate;
+            }
             return tightest;
           },
           undefined,

@@ -108,14 +108,18 @@ export const parseClickHouseVersion = (
   const match = rawVersion
     .trim()
     .match(/^v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?(?:[.+-].+)?$/);
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
 
   const major = Number(match[1]);
   const minor = Number(match[2]);
   const patch = Number(match[3]);
   const build = Number(match[4] ?? 0);
 
-  if (![major, minor, patch, build].every(Number.isSafeInteger)) return null;
+  if (![major, minor, patch, build].every(Number.isSafeInteger)) {
+    return null;
+  }
 
   return {
     raw: rawVersion,
@@ -130,7 +134,9 @@ export const parseClickHouseVersion = (
 const parsedVersionBoundCache = new Map<string, ClickHouseVersion>();
 const parseVersionBound = (version: string): ClickHouseVersion => {
   const cached = parsedVersionBoundCache.get(version);
-  if (cached) return cached;
+  if (cached) {
+    return cached;
+  }
 
   const parsed = parseClickHouseVersion(version);
   if (!parsed) {
@@ -149,7 +155,9 @@ export const isClickHouseVersionInBand = (
 ): boolean => {
   const parsedVersion =
     typeof version === "string" ? parseClickHouseVersion(version) : version;
-  if (!parsedVersion) return false;
+  if (!parsedVersion) {
+    return false;
+  }
 
   const min = parseVersionBound(band.minInclusive);
   if (compareParsedVersions(parsedVersion, min) < 0) {
@@ -189,7 +197,9 @@ export const resolveClickHouseJsonBadUnicodeEscapeMode = ({
     configuredMode ??
     (applicationVersion.startsWith("v4.") ? "no_throw" : "auto");
 
-  if (mode !== "auto") return mode;
+  if (mode !== "auto") {
+    return mode;
+  }
 
   return version &&
     isClickHouseVersionInBand(version, {
@@ -251,7 +261,9 @@ export const getClickHouseCompatibilitySettings = (): ClickHouseSettings =>
     .settings;
 
 export const initializeClickhouseCompatibility = async (): Promise<void> => {
-  if (initializationPromise) return initializationPromise;
+  if (initializationPromise) {
+    return initializationPromise;
+  }
 
   initializationPromise = (async () => {
     try {

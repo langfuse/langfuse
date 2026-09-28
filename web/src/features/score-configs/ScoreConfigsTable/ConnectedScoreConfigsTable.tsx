@@ -39,9 +39,12 @@ export function ConnectedScoreConfigsTable({
   );
 
   const tableData = useMemo<AsyncTableData<ScoreConfigTableRow[]>>(() => {
-    if (configs.isPending) return { status: "loading" };
-    if (configs.isError)
+    if (configs.isPending) {
+      return { status: "loading" };
+    }
+    if (configs.isError) {
       return { status: "error", error: configs.error.message };
+    }
 
     return {
       status: "success",

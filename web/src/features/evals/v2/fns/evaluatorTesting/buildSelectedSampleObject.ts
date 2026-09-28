@@ -10,7 +10,9 @@ export function buildSelectedSampleObject<
   observation: TObservation | null;
   eventDetails: TEventDetails | null | undefined;
 }) {
-  if (!observation || !eventDetails) return null;
+  if (!observation || !eventDetails) {
+    return null;
+  }
 
   return {
     ...observation,

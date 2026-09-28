@@ -59,12 +59,16 @@ export function assembleTranscript(
   for (const observation of orderedObservations.filter(isRelevantObservation)) {
     const normalizationStart = onTimings ? performance.now() : 0;
     const [input, output] = normalize(observation);
-    if (onTimings) normalizationMs += performance.now() - normalizationStart;
+    if (onTimings) {
+      normalizationMs += performance.now() - normalizationStart;
+    }
     if (observation.type === "TOOL") {
       toolCalls.attachToolOutput(observation, output);
       continue;
     }
-    if (input.length === 0 && output.length === 0) continue;
+    if (input.length === 0 && output.length === 0) {
+      continue;
+    }
 
     // Registered responses do not participate in thread selection.
     let state = findThread(states, input);

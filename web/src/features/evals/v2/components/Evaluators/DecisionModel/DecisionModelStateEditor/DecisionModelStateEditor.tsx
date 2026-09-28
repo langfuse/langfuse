@@ -31,17 +31,23 @@ function buildStatePreview(
   fields: DecisionModelStateField[],
   sourceObject: Record<string, unknown> | null,
 ): Record<string, unknown> | null {
-  if (!sourceObject) return null;
+  if (!sourceObject) {
+    return null;
+  }
   const state: Record<string, unknown> = {};
   for (const field of fields) {
     const columnId = field.fieldState.selectedColumnId;
-    if (!columnId) continue;
+    if (!columnId) {
+      continue;
+    }
     const { value } = extractVariableMappingValue(
       sourceObject,
       columnId,
       field.fieldState.jsonSelector ?? undefined,
     );
-    if (value === null || value === undefined || value === "") continue;
+    if (value === null || value === undefined || value === "") {
+      continue;
+    }
     state[field.key] = deepParseJsonIterative(value) ?? value;
   }
   return state;

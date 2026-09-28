@@ -124,7 +124,9 @@ const resultsUnderModes = async (params: ShadowAuthParams) => {
 };
 
 const scopeOf = (result: ShadowResult): Record<string, unknown> => {
-  if (!result.success) throw new Error(`denied with ${result.error.httpCode}`);
+  if (!result.success) {
+    throw new Error(`denied with ${result.error.httpCode}`);
+  }
   return result.scope;
 };
 
@@ -158,7 +160,9 @@ const contextFor = async (
   const authn = await authenticator.authenticate({
     headers: { authorization },
   });
-  if (!authn.success) throw new Error("authentication failed");
+  if (!authn.success) {
+    throw new Error("authentication failed");
+  }
   return authn.context;
 };
 

@@ -101,7 +101,9 @@ export function ConnectedAuditLogsTable(props: AuditLogsTableProps) {
       : undefined;
 
   const data = useMemo<AsyncTableData<AuditLogRow[]>>(() => {
-    if (auditLogs.isPending) return { status: "loading" };
+    if (auditLogs.isPending) {
+      return { status: "loading" };
+    }
     if (auditLogs.isError) {
       return { status: "error", error: auditLogs.error.message };
     }

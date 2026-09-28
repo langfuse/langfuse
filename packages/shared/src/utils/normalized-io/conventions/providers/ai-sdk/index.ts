@@ -59,7 +59,9 @@ function aiSdkFilePart(
 ): FilePart | null {
   const tagged = asRecord(payload);
   const candidate = optionalString(tagged?.data ?? tagged?.url ?? payload);
-  if (!candidate) return null;
+  if (!candidate) {
+    return null;
+  }
 
   const reference = parseMediaReference(candidate);
   if (reference) {
@@ -90,7 +92,9 @@ const normalizeAiSdkImage: PartHandler = (value) => {
   // Legacy AI SDK image parts carry the payload directly under `image`/
   // `data`; source-wrapped `image` blocks on the same type name belong to
   // the Anthropic dialect and fall through.
-  if (asRecord(value.source)) return unmatched;
+  if (asRecord(value.source)) {
+    return unmatched;
+  }
   const part = aiSdkFilePart(value.image ?? value.data, {
     mediaType: optionalString(value.mediaType),
     fallbackMediaType: "image/*",
@@ -102,7 +106,9 @@ const normalizeAiSdkFile: PartHandler = (value) => {
   // AI SDK file parts carry a flat `data`/`url` payload; `file`-wrapped
   // blocks on the same type name belong to the OpenAI chat dialect and fall
   // through.
-  if (asRecord(value.file)) return unmatched;
+  if (asRecord(value.file)) {
+    return unmatched;
+  }
   const part = aiSdkFilePart(value.data ?? value.url, {
     mediaType: optionalString(value.mediaType),
     filename: optionalString(value.filename),
@@ -183,7 +189,9 @@ function aiSdkToolDefinitionSources(
   carrier: ToolDefinitionCarrier,
 ): ToolDefinitionSource[] {
   const tools = carrier.metadataAttributes?.["ai.prompt.tools"];
-  if (tools === undefined) return [];
+  if (tools === undefined) {
+    return [];
+  }
 
   return [
     {
@@ -197,7 +205,9 @@ function aiSdkToolDefinitionSources(
 export const aiSdkProvider = {
   name: "ai-sdk",
   claimMessages: (root, kind): MessageSource[] => {
-    if (kind !== "input" || root.messages !== undefined) return [];
+    if (kind !== "input" || root.messages !== undefined) {
+      return [];
+    }
     const prompt = root.prompt;
     if (typeof prompt === "string") {
       recordKeyAsParsed(root, "prompt");
@@ -215,7 +225,9 @@ export const aiSdkProvider = {
   finishReasonTypeByRaw: AI_SDK_FINISH_REASON_TYPE_BY_RAW,
   // AI SDK / MCP tool declarations: { name?, description, inputSchema }.
   tryNormalizeToolDefinition: (value: Record<string, unknown>) => {
-    if (value.inputSchema === undefined) return unmatched;
+    if (value.inputSchema === undefined) {
+      return unmatched;
+    }
     const definition = toolDefinition({
       name: value.name,
       description: value.description,

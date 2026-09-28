@@ -34,7 +34,9 @@ export function createSessionDetailStore({
     sessionId: initialSessionId,
     actions: {
       markTraceLoaded: (traceId: string) => {
-        if (get().loadedTraceIds[traceId]) return;
+        if (get().loadedTraceIds[traceId]) {
+          return;
+        }
 
         set((state) => ({
           loadedTraceIds: {
@@ -44,19 +46,27 @@ export function createSessionDetailStore({
         }));
       },
       setShowCorrections: (showCorrections: boolean) => {
-        if (showCorrections === get().showCorrections) return;
+        if (showCorrections === get().showCorrections) {
+          return;
+        }
         set({ showCorrections });
       },
       setShowInlineToolCalls: (showInlineToolCalls: boolean) => {
-        if (showInlineToolCalls === get().showInlineToolCalls) return;
+        if (showInlineToolCalls === get().showInlineToolCalls) {
+          return;
+        }
         set({ showInlineToolCalls });
       },
       setShowSystemPrompt: (showSystemPrompt: boolean) => {
-        if (showSystemPrompt === get().showSystemPrompt) return;
+        if (showSystemPrompt === get().showSystemPrompt) {
+          return;
+        }
         set({ showSystemPrompt });
       },
       resetForSession: (sessionId: string) => {
-        if (sessionId === get().sessionId) return;
+        if (sessionId === get().sessionId) {
+          return;
+        }
         set({
           loadedTraceIds: {},
           showInlineToolCalls: false,

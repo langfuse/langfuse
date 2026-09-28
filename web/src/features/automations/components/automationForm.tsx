@@ -75,7 +75,9 @@ const promptEventActionDefaults: string[] = ["created", "updated", "deleted"];
 
 /** projectNotificationName derives the auto-generated channel name from the destination — the name field is hidden for this source. */
 const projectNotificationName = (data: FormValues): string => {
-  if (data.actionType === "SLACK") return `Slack #${data.slack.channelName}`;
+  if (data.actionType === "SLACK") {
+    return `Slack #${data.slack.channelName}`;
+  }
   if (data.actionType === "WEBHOOK") {
     try {
       return `Webhook ${new URL(data.webhook.url).hostname}`;
@@ -97,7 +99,9 @@ export type CreateAutomationPrefill = {
 
 /** isSameOriginRedirect resolves a candidate URL against the current Next-rendered origin and accepts it only if the resulting origin still matches; falls back to path-only validation during SSR where `window` is absent. */
 const isSameOriginRedirect = (url: string): boolean => {
-  if (url.startsWith("//")) return false;
+  if (url.startsWith("//")) {
+    return false;
+  }
   if (typeof window === "undefined") {
     // Without window we cannot resolve absolute URLs; trust relative paths only.
     return url.startsWith("/") && !url.includes("\\");
@@ -127,12 +131,16 @@ const createAutomationPrefillSchema = z.object({
 export const parseCreateAutomationPrefill = (
   raw: string | null | undefined,
 ): CreateAutomationPrefill => {
-  if (!raw) return {};
+  if (!raw) {
+    return {};
+  }
   try {
     const padded = raw.replace(/-/g, "+").replace(/_/g, "/");
     const binary = atob(padded);
     const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
     const decoded = new TextDecoder().decode(bytes);
     const result = createAutomationPrefillSchema.safeParse(JSON.parse(decoded));
     return result.success ? (result.data as CreateAutomationPrefill) : {};
@@ -147,8 +155,9 @@ const serializeCreateAutomationPrefill = (
 ): string => {
   const bytes = new TextEncoder().encode(JSON.stringify(prefill));
   let binary = "";
-  for (let i = 0; i < bytes.length; i++)
+  for (let i = 0; i < bytes.length; i++) {
     binary += String.fromCharCode(bytes[i]);
+  }
   return btoa(binary)
     .replace(/\+/g, "-")
     .replace(/\//g, "_")

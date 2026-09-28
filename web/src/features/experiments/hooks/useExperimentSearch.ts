@@ -24,7 +24,9 @@ export function useExperimentSearch({ projectId }: UseExperimentSearchProps) {
   // the way the dataset filter does on the experiments table.
   const filteredExperimentNames = useMemo(() => {
     const needle = debouncedSearchQuery.trim().toLowerCase();
-    if (!needle) return experimentNames;
+    if (!needle) {
+      return experimentNames;
+    }
 
     return experimentNames.filter(
       (experiment) =>

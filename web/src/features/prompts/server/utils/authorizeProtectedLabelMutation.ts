@@ -141,7 +141,9 @@ export async function authorizeProtectedLabelMutation(params: {
     resource: { projectId: params.context.projectId },
     accessLevel: params.context.accessLevel,
   });
-  if (!decision.success) throw decision.error;
+  if (!decision.success) {
+    throw decision.error;
+  }
 
   await assertInAppAgentMayMutateProtectedLabels({
     prisma: params.prisma,

@@ -54,7 +54,9 @@ const listEvaluators = async (
 
   do {
     const query = new URLSearchParams({ limit: "100" });
-    if (cursor) query.set("cursor", cursor);
+    if (cursor) {
+      query.set("cursor", cursor);
+    }
     const response = await request(
       ctx,
       `/api/public/v2/evaluators?${query.toString()}`,
@@ -108,7 +110,9 @@ const run = async (
   const existing = await listEvaluators(ctx);
   const retainedNames = new Set<string>();
   const toDelete = existing.filter((evaluator) => {
-    if (!evaluator.name.startsWith(namePrefix)) return false;
+    if (!evaluator.name.startsWith(namePrefix)) {
+      return false;
+    }
     if (
       !expectedNameSet.has(evaluator.name) ||
       retainedNames.has(evaluator.name)

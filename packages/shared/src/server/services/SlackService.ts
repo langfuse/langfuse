@@ -446,7 +446,9 @@ export class SlackService {
   ): Promise<SlackChannel | null> {
     try {
       const result = await client.conversations.info({ channel: channelId });
-      if (!result.ok || !result.channel) return null;
+      if (!result.ok || !result.channel) {
+        return null;
+      }
       return {
         id: result.channel.id!,
         name: result.channel.name!,

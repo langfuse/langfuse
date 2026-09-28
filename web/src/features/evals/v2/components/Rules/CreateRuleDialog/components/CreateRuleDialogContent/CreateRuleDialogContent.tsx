@@ -83,7 +83,9 @@ export function CreateRuleDialogContent({
   });
 
   const requestNameSuggestion = async () => {
-    if (!nameAIAssistanceAvailable) return null;
+    if (!nameAIAssistanceAvailable) {
+      return null;
+    }
     hasRequestedName.current = true;
     const state = ruleSetupStore.getState();
     const suggested = await suggestName.mutateAsync({
@@ -92,7 +94,9 @@ export function CreateRuleDialogContent({
       sampling: state.sampling,
     });
     const name = suggested?.trim() || null;
-    if (name) state.actions.setName(name);
+    if (name) {
+      state.actions.setName(name);
+    }
     return name;
   };
   const createRule = api.evalsV2.rules.create.useMutation({
@@ -146,7 +150,9 @@ export function CreateRuleDialogContent({
       generateName: nameAIAssistanceAvailable ? requestNameSuggestion : null,
       setName: draft.actions.setName,
     });
-    if (!name) return;
+    if (!name) {
+      return;
+    }
     await create();
   };
 

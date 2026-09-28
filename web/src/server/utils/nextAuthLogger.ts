@@ -26,9 +26,15 @@ const serializeError = (error: Error): Record<string, unknown> => ({
 });
 
 function serializeValue(value: unknown): unknown {
-  if (value instanceof Error) return serializeError(value);
-  if (typeof value === "string") return truncate(value);
-  if (value === null || typeof value !== "object") return value;
+  if (value instanceof Error) {
+    return serializeError(value);
+  }
+  if (typeof value === "string") {
+    return truncate(value);
+  }
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
   try {
     return truncate(JSON.stringify(value));
   } catch {
@@ -39,7 +45,9 @@ function serializeValue(value: unknown): unknown {
 export const serializeNextAuthMetadata = (
   metadata: unknown,
 ): Record<string, unknown> => {
-  if (metadata instanceof Error) return { error: serializeError(metadata) };
+  if (metadata instanceof Error) {
+    return { error: serializeError(metadata) };
+  }
   if (metadata && typeof metadata === "object") {
     return Object.fromEntries(
       Object.entries(metadata as Record<string, unknown>).map(

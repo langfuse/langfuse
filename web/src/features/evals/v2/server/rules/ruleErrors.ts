@@ -69,7 +69,9 @@ export async function assertActiveRuleLimitNotExceeded(params: {
   projectId: string;
   additionalActiveRules: number;
 }) {
-  if (params.additionalActiveRules <= 0) return;
+  if (params.additionalActiveRules <= 0) {
+    return;
+  }
   const activeCount = await countActiveEvaluationRules(params);
   if (
     activeCount + params.additionalActiveRules >

@@ -44,11 +44,17 @@ export const BillingDiscountView = ({
         <span className="mr-1">Discounts:</span>
         {discounts.map((d) => {
           const labelParts: string[] = [];
-          if (d.code) labelParts.push(d.code);
-          else if (d.name) labelParts.push(d.name);
+          if (d.code) {
+            labelParts.push(d.code);
+          } else if (d.name) {
+            labelParts.push(d.name);
+          }
 
-          if (d.kind === "percent") labelParts.push(`${d.value}% off`);
-          else labelParts.push(`${formatAmount(d.value, d.currency)} off`);
+          if (d.kind === "percent") {
+            labelParts.push(`${d.value}% off`);
+          } else {
+            labelParts.push(`${formatAmount(d.value, d.currency)} off`);
+          }
 
           return (
             <Badge key={d.id} variant="secondary" className="font-normal">

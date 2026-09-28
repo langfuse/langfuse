@@ -32,10 +32,16 @@ export function handleStaleChunkScriptError(
   hasObservedVersionMismatch: () => boolean = () =>
     versionUpdateStore.hasObservedVersionMismatch(),
 ): void {
-  if (!isStaleNextScriptElement(event.target)) return;
-  if (!hasObservedVersionMismatch()) return;
+  if (!isStaleNextScriptElement(event.target)) {
+    return;
+  }
+  if (!hasObservedVersionMismatch()) {
+    return;
+  }
   try {
-    if (sessionStorage.getItem(STALE_CHUNK_RELOAD_SESSION_KEY)) return;
+    if (sessionStorage.getItem(STALE_CHUNK_RELOAD_SESSION_KEY)) {
+      return;
+    }
     sessionStorage.setItem(STALE_CHUNK_RELOAD_SESSION_KEY, "1");
   } catch {
     return;
@@ -44,7 +50,9 @@ export function handleStaleChunkScriptError(
 }
 
 export function installStaleChunkReloadListener(): void {
-  if (typeof window === "undefined" || installed) return;
+  if (typeof window === "undefined" || installed) {
+    return;
+  }
   installed = true;
   window.addEventListener("error", handleStaleChunkScriptError, true);
 }

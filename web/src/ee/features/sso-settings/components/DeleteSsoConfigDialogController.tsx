@@ -36,7 +36,9 @@ export function DeleteSsoConfigDialogController({
       variant="destructive"
       loading={deleteMutation.isPending}
       onConfirm={async () => {
-        if (!selectedDomain) return;
+        if (!selectedDomain) {
+          return;
+        }
         await deleteMutation.mutateAsync({ orgId, domain: selectedDomain });
       }}
     >

@@ -445,7 +445,9 @@ describe("/api/public/observations API Endpoint", () => {
             expect(obsResult.projectId).toBe(
               "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
             );
-            if (prop === "userId") return;
+            if (prop === "userId") {
+              return;
+            }
             expect((obsResult as any)[prop]).toBe(value);
           },
         );

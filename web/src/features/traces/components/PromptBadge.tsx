@@ -10,7 +10,9 @@ export const PromptBadge = (props: { promptId: string; projectId: string }) => {
     projectId: props.projectId,
   });
 
-  if (prompt.isLoading || !prompt.data) return null;
+  if (prompt.isLoading || !prompt.data) {
+    return null;
+  }
 
   const text = `Prompt: ${prompt.data.name} - v${prompt.data.version}`;
 

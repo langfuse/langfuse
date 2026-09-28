@@ -70,7 +70,9 @@ export class GatewayResolveCache {
   }
 
   async get(params: { fastHashedSecretKey: string; apiFormat: string }) {
-    if (!this.enabled) return null;
+    if (!this.enabled) {
+      return null;
+    }
 
     try {
       const cached = await this.redis!.get(
@@ -104,7 +106,9 @@ export class GatewayResolveCache {
     apiFormat: string;
     context: CachedResolveContext | typeof GATEWAY_RESOLVE_KEY_NON_EXISTENT;
   }) {
-    if (!this.enabled) return;
+    if (!this.enabled) {
+      return;
+    }
 
     const key = contextCacheKey(params.fastHashedSecretKey, params.apiFormat);
     const ttl = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS;
@@ -135,7 +139,9 @@ export class GatewayResolveCache {
    * routing priority, connection status, or the gateway config.
    */
   async invalidateOrganization(organizationId: string) {
-    if (!this.enabled) return;
+    if (!this.enabled) {
+      return;
+    }
 
     try {
       const index = organizationIndexKey(organizationId);
@@ -151,7 +157,9 @@ export class GatewayResolveCache {
 
   /** Drops the cached contexts for a single gateway API key, e.g. on revoke. */
   async invalidateApiKey(fastHashedSecretKey: string) {
-    if (!this.enabled) return;
+    if (!this.enabled) {
+      return;
+    }
 
     try {
       await Promise.all(

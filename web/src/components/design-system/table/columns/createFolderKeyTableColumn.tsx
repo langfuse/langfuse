@@ -34,7 +34,9 @@ export function createFolderKeyTableColumn<
     loadingCell: <Skeleton className="h-4 w-1/2" />,
     renderCell: (value, context) => {
       const cell = getCell(value, context);
-      if (!cell) return null;
+      if (!cell) {
+        return null;
+      }
 
       if (cell.type === "folder") {
         return (

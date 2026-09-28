@@ -85,32 +85,46 @@ function renderStringWithLinks(text: string): React.ReactNode {
 }
 
 function getValueType(value: unknown): JsonTableRow["type"] {
-  if (value === null) return "null";
-  if (value === undefined) return "undefined";
-  if (Array.isArray(value)) return "array";
+  if (value === null) {
+    return "null";
+  }
+  if (value === undefined) {
+    return "undefined";
+  }
+  if (Array.isArray(value)) {
+    return "array";
+  }
   return typeof value as JsonTableRow["type"];
 }
 
 function arrayPreviewText(arr: unknown[]): string {
-  if (arr.length === 0) return "empty list";
+  if (arr.length === 0) {
+    return "empty list";
+  }
 
   if (arr.length <= SMALL_ARRAY_THRESHOLD) {
     // Show inline values for small arrays
     const displayItems = arr
       .map((item) => {
         const itemType = getValueType(item);
-        if (itemType === "string") return JSON.stringify(item);
+        if (itemType === "string") {
+          return JSON.stringify(item);
+        }
         if (itemType === "object" && item !== null) {
           const obj = item as Record<string, unknown>;
           const keys = Object.keys(obj);
-          if (keys.length === 0) return "{}";
+          if (keys.length === 0) {
+            return "{}";
+          }
           if (keys.length <= SMALL_OBJECT_THRESHOLD) {
             const keyPreview = keys.map((k) => `"${k}": ...`).join(", ");
             return `{${keyPreview}}`;
           }
           return `{"${keys[0]}": ...}`;
         }
-        if (itemType === "array") return "...";
+        if (itemType === "array") {
+          return "...";
+        }
         return String(item);
       })
       .join(", ");
@@ -121,8 +135,12 @@ function arrayPreviewText(arr: unknown[]): string {
     .slice(0, ARRAY_PREVIEW_ITEMS)
     .map((item) => {
       const itemType = getValueType(item);
-      if (itemType === "string") return JSON.stringify(item);
-      if (itemType === "object" || itemType === "array") return "...";
+      if (itemType === "string") {
+        return JSON.stringify(item);
+      }
+      if (itemType === "object" || itemType === "array") {
+        return "...";
+      }
       return String(item);
     })
     .join(", ");
@@ -134,13 +152,19 @@ function renderPreview(text: string): JSX.Element {
 }
 
 function formatPreviewPrimitive(value: unknown): string {
-  if (typeof value === "string") return JSON.stringify(value);
-  if (value === null) return "null";
+  if (typeof value === "string") {
+    return JSON.stringify(value);
+  }
+  if (value === null) {
+    return "null";
+  }
   return String(value);
 }
 
 function formatShortObjectPreview(obj: Record<string, unknown>): string | null {
-  if (!objectFitsInSingleRowPreview(obj)) return null;
+  if (!objectFitsInSingleRowPreview(obj)) {
+    return null;
+  }
   const fields = Object.entries(obj).map(
     ([key, field]) =>
       `${JSON.stringify(key)}: ${formatPreviewPrimitive(field)}`,
@@ -150,7 +174,9 @@ function formatShortObjectPreview(obj: Record<string, unknown>): string | null {
 
 function objectPreviewText(obj: Record<string, unknown>): string {
   const keys = Object.keys(obj);
-  if (keys.length === 0) return "empty object";
+  if (keys.length === 0) {
+    return "empty object";
+  }
   return formatShortObjectPreview(obj) ?? `${keys.length} items`;
 }
 
@@ -185,8 +211,12 @@ export function getCopyValue(value: unknown): string {
   if (typeof value === "string") {
     return value; // Return string without quotes
   }
-  if (value === null) return "null";
-  if (value === undefined) return "undefined";
+  if (value === null) {
+    return "null";
+  }
+  if (value === undefined) {
+    return "undefined";
+  }
 
   try {
     return JSON.stringify(value, null, 2);

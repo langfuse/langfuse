@@ -23,7 +23,9 @@ export function RequestResetPasswordEmailButton({
   const isValidEmail = z.email().safeParse(email).success;
 
   const handleResetPassword = async () => {
-    if (!isValidEmail) return;
+    if (!isValidEmail) {
+      return;
+    }
     capture("auth:reset_password_email_requested");
     setIsLoading(true);
     setErrorMessage(null);

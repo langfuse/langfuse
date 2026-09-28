@@ -84,7 +84,9 @@ export function PromptSelectionDialog({
   );
 
   const handleConfirm = useCallback(() => {
-    if (!selectedTag) return;
+    if (!selectedTag) {
+      return;
+    }
     if (onSelect) {
       onSelect(selectedTag);
     } else {

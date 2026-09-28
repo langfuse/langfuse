@@ -4,7 +4,9 @@ export function dedupeObservations<Observation extends { id: string }>(
   const seenIds = new Set<string>();
 
   return observations.filter((observation) => {
-    if (seenIds.has(observation.id)) return false;
+    if (seenIds.has(observation.id)) {
+      return false;
+    }
     seenIds.add(observation.id);
     return true;
   });
@@ -17,7 +19,9 @@ export function dedupeObservationPages<Observation extends { id: string }>(
 
   return pages.map((page) =>
     page.filter((observation) => {
-      if (seenIds.has(observation.id)) return false;
+      if (seenIds.has(observation.id)) {
+        return false;
+      }
       seenIds.add(observation.id);
       return true;
     }),

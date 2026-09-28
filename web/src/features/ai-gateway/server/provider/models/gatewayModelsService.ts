@@ -59,9 +59,13 @@ export class GatewayModelsService {
 
     const modelsById = new Map<string, GatewayModelCatalogEntry>();
     for (const result of results) {
-      if (!result.success) continue;
+      if (!result.success) {
+        continue;
+      }
       for (const model of result.models) {
-        if (!modelsById.has(model.id)) modelsById.set(model.id, model);
+        if (!modelsById.has(model.id)) {
+          modelsById.set(model.id, model);
+        }
       }
     }
     return {

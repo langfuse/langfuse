@@ -70,8 +70,9 @@ export function prepareDatasetMapping(
     const errors: string[] = [];
     const warnings: string[] = [];
     const parsed = FieldMappingConfigSchema.safeParse(config);
-    if (!parsed.success)
+    if (!parsed.success) {
       errors.push(...parsed.error.issues.map((issue) => issue.message));
+    }
     const result = applyFieldMappingConfig({
       observation: observation ?? { input: null, output: null, metadata: null },
       config,
@@ -100,12 +101,13 @@ export function prepareDatasetMapping(
             data: result.value,
             schema: field.schema as Record<string, unknown>,
           });
-          if (!validation.isValid)
+          if (!validation.isValid) {
             errors.push(
               ...validation.errors.map(
                 (error) => `${error.path || "Value"}: ${error.message}`,
               ),
             );
+          }
         } catch {
           errors.push("The dataset schema could not be validated.");
         }

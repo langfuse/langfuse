@@ -17,8 +17,11 @@ function groupBy<TItem>(
   for (const item of items) {
     const key = toKey(item);
     const group = groups.get(key);
-    if (group) group.push(item);
-    else groups.set(key, [item]);
+    if (group) {
+      group.push(item);
+    } else {
+      groups.set(key, [item]);
+    }
   }
   return groups;
 }

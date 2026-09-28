@@ -59,11 +59,19 @@ export function adaptEventsToTraceFormat(params: {
 
   const latestTaggedEvent = events.reduce<EventsTraceObservation | null>(
     (latest, event) => {
-      if (event.traceTags.length === 0) return latest;
-      if (!latest) return event;
+      if (event.traceTags.length === 0) {
+        return latest;
+      }
+      if (!latest) {
+        return event;
+      }
 
-      if (event.updatedAt.getTime() > latest.updatedAt.getTime()) return event;
-      if (event.updatedAt.getTime() < latest.updatedAt.getTime()) return latest;
+      if (event.updatedAt.getTime() > latest.updatedAt.getTime()) {
+        return event;
+      }
+      if (event.updatedAt.getTime() < latest.updatedAt.getTime()) {
+        return latest;
+      }
 
       return event.createdAt.getTime() > latest.createdAt.getTime()
         ? event

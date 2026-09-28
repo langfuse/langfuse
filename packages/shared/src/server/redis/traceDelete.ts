@@ -10,7 +10,9 @@ export class TraceDeleteQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.TraceDelete]
   > | null {
-    if (TraceDeleteQueue.instance) return TraceDeleteQueue.instance;
+    if (TraceDeleteQueue.instance) {
+      return TraceDeleteQueue.instance;
+    }
 
     const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
       QueueName.TraceDelete,

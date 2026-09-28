@@ -103,7 +103,9 @@ export function MultiSelectKeyValues<
   }
 
   const filterOptions = (options: MultiSelectOptions[]) => {
-    if (!searchQuery.trim()) return options;
+    if (!searchQuery.trim()) {
+      return options;
+    }
     const searchLower = searchQuery.toLowerCase().trim();
 
     return options.filter((option) => {
@@ -252,7 +254,9 @@ export function MultiSelectKeyValues<
 
           {groupedOptions?.map((group) => {
             const filteredGroupOptions = filterOptions(group.options);
-            if (filteredGroupOptions.length === 0) return null;
+            if (filteredGroupOptions.length === 0) {
+              return null;
+            }
 
             return (
               <DropdownMenuSub key={group.label}>

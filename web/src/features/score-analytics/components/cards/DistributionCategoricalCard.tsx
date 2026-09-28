@@ -115,7 +115,9 @@ export function DistributionCategoricalCard() {
 
   // Select distribution data and categories based on active tab
   const chartData = useMemo(() => {
-    if (!data) return null;
+    if (!data) {
+      return null;
+    }
 
     const { distribution, metadata, statistics } = data;
     const { mode } = metadata;
@@ -188,7 +190,9 @@ export function DistributionCategoricalCard() {
 
   // Build color mapping for categorical charts
   const chartColors = useMemo(() => {
-    if (!data) return colorMappings;
+    if (!data) {
+      return colorMappings;
+    }
 
     const { distribution } = data;
 

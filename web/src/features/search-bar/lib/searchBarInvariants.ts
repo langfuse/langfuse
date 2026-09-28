@@ -103,7 +103,9 @@ function stable(value: unknown): string {
 
 /** Multiset equality of two filter lists, order-independent. */
 function sameFilters(a: FilterState, b: FilterState): boolean {
-  if (a.length !== b.length) return false;
+  if (a.length !== b.length) {
+    return false;
+  }
   const sortedA = a.map(stable).sort();
   const sortedB = b.map(stable).sort();
   return sortedA.every((s, i) => s === sortedB[i]);
@@ -145,13 +147,17 @@ function checkParity(
   ctx: ScoreTypeContext | undefined,
   registry: FieldRegistry,
 ): InvariantFailure | null {
-  if (!validateQuery(text, ctx, registry).valid) return null;
+  if (!validateQuery(text, ctx, registry).valid) {
+    return null;
+  }
   const errors = astToFilterState(
     parse(text, registry).ast,
     ctx,
     registry,
   ).errors;
-  if (errors.length === 0) return null;
+  if (errors.length === 0) {
+    return null;
+  }
   return {
     invariant: "INV-1 commit-gate parity",
     case: text,
@@ -165,9 +171,13 @@ function checkFilterStateRoundTrip(
   ctx: ScoreTypeContext | undefined,
   registry: FieldRegistry,
 ): InvariantFailure | null {
-  if (!validateQuery(text, ctx, registry).valid) return null;
+  if (!validateQuery(text, ctx, registry).valid) {
+    return null;
+  }
   const first = astToFilterState(parse(text, registry).ast, ctx, registry);
-  if (first.errors.length > 0 || first.filters.length === 0) return null;
+  if (first.errors.length > 0 || first.filters.length === 0) {
+    return null;
+  }
   const fs1 = first.filters;
   const forward = filterStateToQueryText(fs1, {}, registry);
   const fs2 = astToFilterState(
@@ -179,7 +189,9 @@ function checkFilterStateRoundTrip(
   const expected = fs1.filter(
     (f) => !forward.skippedFilters.some((s) => stable(s) === stable(f)),
   );
-  if (sameFilters(fs2, expected)) return null;
+  if (sameFilters(fs2, expected)) {
+    return null;
+  }
   return {
     invariant: "INV-2 FilterState round-trip",
     case: text,
@@ -198,7 +210,9 @@ function checkSerializeSymmetry(
   const res = parse(text, registry);
   const ast = res.ast;
   const ok = res.valid && ast?.kind === "text" && ast.value === value;
-  if (ok) return null;
+  if (ok) {
+    return null;
+  }
   return {
     invariant: "INV-3 serialize↔parse symmetry",
     case: JSON.stringify(value),
@@ -221,7 +235,9 @@ function checkDerivedTextValidity(
   registry: FieldRegistry,
 ): InvariantFailure | null {
   const derived = filterStateToQueryText(filters, {}, registry);
-  if (validateQuery(derived.text, undefined, registry).valid) return null;
+  if (validateQuery(derived.text, undefined, registry).valid) {
+    return null;
+  }
   return {
     invariant: "INV-4 derived text is parseable",
     case: stable(filters),
@@ -245,18 +261,26 @@ export function runSearchBarInvariants(
   for (const text of generateQueryCases(view)) {
     for (const ctx of contexts) {
       const parity = checkParity(text, ctx, view.registry);
-      if (parity) failures.push(parity);
+      if (parity) {
+        failures.push(parity);
+      }
       const roundTrip = checkFilterStateRoundTrip(text, ctx, view.registry);
-      if (roundTrip) failures.push(roundTrip);
+      if (roundTrip) {
+        failures.push(roundTrip);
+      }
     }
   }
   for (const filters of view.sidebarFilters ?? []) {
     const derived = checkDerivedTextValidity(filters, view.registry);
-    if (derived) failures.push(derived);
+    if (derived) {
+      failures.push(derived);
+    }
   }
   for (const value of view.freeTextValues) {
     const symmetry = checkSerializeSymmetry(value, view.registry);
-    if (symmetry) failures.push(symmetry);
+    if (symmetry) {
+      failures.push(symmetry);
+    }
   }
   return failures;
 }

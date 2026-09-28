@@ -55,10 +55,11 @@ export function SkillLabelsSelect({
   const isDemotingFromProduction =
     value.includes("production") && !pendingLabels.includes("production");
   let saveButtonCopy = "Save labels";
-  if (isPromotingToProduction)
+  if (isPromotingToProduction) {
     saveButtonCopy = "Save and promote to production";
-  else if (isDemotingFromProduction)
+  } else if (isDemotingFromProduction) {
     saveButtonCopy = "Save and remove from production";
+  }
 
   const toggleLabel = (label: string) => {
     setPendingLabels(
@@ -69,7 +70,9 @@ export function SkillLabelsSelect({
   };
 
   const createLabel = () => {
-    if (!canCreate) return;
+    if (!canCreate) {
+      return;
+    }
     setPendingLabels([...pendingLabels, normalizedSearch]);
     setSearch("");
   };
@@ -82,7 +85,9 @@ export function SkillLabelsSelect({
   };
 
   const saveLabels = async (closePopover: () => void) => {
-    if (await onSave(pendingLabels)) closePopover();
+    if (await onSave(pendingLabels)) {
+      closePopover();
+    }
   };
 
   return (
@@ -229,7 +234,9 @@ export function SkillTagsSelect({
     JSON.stringify([...value].sort());
 
   const createTag = () => {
-    if (!canCreate) return;
+    if (!canCreate) {
+      return;
+    }
     setPendingTags([...pendingTags, normalizedSearch]);
     setSearch("");
   };
@@ -242,7 +249,9 @@ export function SkillTagsSelect({
   };
 
   const saveTags = async (closePopover: () => void) => {
-    if (await onSave(pendingTags)) closePopover();
+    if (await onSave(pendingTags)) {
+      closePopover();
+    }
   };
 
   return (

@@ -80,7 +80,9 @@ export const getDimensionSummaries = (
   const summaries = new Map<string, number | null>();
 
   for (const item of data) {
-    if (!item.dimension) continue;
+    if (!item.dimension) {
+      continue;
+    }
 
     const existing = summaries.has(item.dimension)
       ? summaries.get(item.dimension)!

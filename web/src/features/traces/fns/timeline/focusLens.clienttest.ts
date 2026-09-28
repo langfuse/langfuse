@@ -31,7 +31,9 @@ describe("applyFocusLens", () => {
       expect(sum(lensed)).toBeCloseTo(total, 6);
       expect(lensed[focusIndex]!.height).toBeGreaterThan(total / rowCount);
       expect(lensed[0]!.y).toBe(0);
-      for (const row of lensed) expect(Number.isFinite(row.height)).toBe(true);
+      for (const row of lensed) {
+        expect(Number.isFinite(row.height)).toBe(true);
+      }
     }
   });
 

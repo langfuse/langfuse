@@ -490,7 +490,9 @@ function ViewModeSegment({
   );
 
   // A native title does not reliably surface on a segment this small.
-  if (!disabled || !title) return segment;
+  if (!disabled || !title) {
+    return segment;
+  }
   return (
     <Tooltip>
       <TooltipTrigger asChild>{segment}</TooltipTrigger>

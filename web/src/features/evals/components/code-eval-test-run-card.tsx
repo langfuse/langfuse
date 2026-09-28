@@ -135,7 +135,9 @@ export function CodeEvalTestRunCard({
               loading={testRunMutation.isPending}
               disabled={!observationId || isLoading}
               onClick={() => {
-                if (!observationId || !traceId) return;
+                if (!observationId || !traceId) {
+                  return;
+                }
 
                 testRunMutation.mutate({
                   projectId,

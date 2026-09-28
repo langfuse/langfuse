@@ -94,7 +94,9 @@ export const LogViewToolbar = memo(function LogViewToolbar({
   const [isCopied, setIsCopied] = useState(false);
 
   const handleCopyClick = () => {
-    if (isCopyOrDownloadLoading) return;
+    if (isCopyOrDownloadLoading) {
+      return;
+    }
 
     setIsCopied(true);
     onCopyJson?.();

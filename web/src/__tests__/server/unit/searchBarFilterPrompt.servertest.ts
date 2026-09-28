@@ -66,7 +66,9 @@ describe("buildFilterSystemPrompt", () => {
   const prompt = buildFilterSystemPrompt("Monday, 2026-06-15T00:00:00.000Z");
 
   it("lists every registry field id", () => {
-    for (const f of FIELDS) expect(prompt).toContain(f.id);
+    for (const f of FIELDS) {
+      expect(prompt).toContain(f.id);
+    }
   });
 
   it("anchors relative time to the current datetime", () => {

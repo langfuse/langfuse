@@ -28,7 +28,9 @@ export function JsonPathEditor({
   const [query, setQuery] = useState(initialPath);
   const trimmed = query.trim();
   const filtered = useMemo(() => {
-    if (!trimmed || trimmed === "$") return suggestions;
+    if (!trimmed || trimmed === "$") {
+      return suggestions;
+    }
     const lower = trimmed.toLowerCase();
     return suggestions.filter((path) => path.toLowerCase().includes(lower));
   }, [suggestions, trimmed]);
@@ -50,7 +52,9 @@ export function JsonPathEditor({
             value={query}
             onValueChange={setQuery}
             onKeyDown={(event) => {
-              if (event.key === "Escape") onCancel();
+              if (event.key === "Escape") {
+                onCancel();
+              }
             }}
           />
         </div>

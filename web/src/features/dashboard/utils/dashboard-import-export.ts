@@ -102,7 +102,9 @@ export function isPasteablePlacementPayload(
   text: string,
   params: { isV4: boolean },
 ): boolean {
-  if (parsePastedWidget(text, params).status === "widget") return true;
+  if (parsePastedWidget(text, params).status === "widget") {
+    return true;
+  }
   return parsePastedPreset(text).status === "preset";
 }
 

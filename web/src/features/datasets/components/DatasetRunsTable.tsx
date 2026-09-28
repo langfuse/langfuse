@@ -373,7 +373,9 @@ function DatasetRunsTableInternal(
       isFixedPosition: true,
       isPinnedLeft: true,
       getCell: (name, { row }) => {
-        if (!name) return undefined;
+        if (!name) {
+          return undefined;
+        }
         return {
           type: "link",
           props: {
@@ -390,7 +392,9 @@ function DatasetRunsTableInternal(
       enableHiding: true,
       defaultHidden: true,
       getCell: (id) => {
-        if (!id) return undefined;
+        if (!id) {
+          return undefined;
+        }
         return {
           type: "link",
           props: {
@@ -551,7 +555,9 @@ function DatasetRunsTableInternal(
           className="h-full"
           onLayoutChanged={(layout) => {
             const charts = layout["dataset-charts"];
-            if (charts != null) setChartsPanelSize(charts);
+            if (charts != null) {
+              setChartsPanelSize(charts);
+            }
           }}
         >
           <ResizablePanel
@@ -800,7 +806,9 @@ export function DatasetRunsTable(props: DatasetRunsTableProps) {
       variant="destructive"
       loading={deleteDatasetRun.isPending}
       onConfirm={async () => {
-        if (!datasetRunIdToDelete) return;
+        if (!datasetRunIdToDelete) {
+          return;
+        }
 
         capture("dataset_run:delete_form_submit");
         await deleteDatasetRun.mutateAsync({

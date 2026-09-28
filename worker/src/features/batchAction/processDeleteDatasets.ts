@@ -13,7 +13,9 @@ export async function processDeleteDatasets(
     datasetIds,
   });
 
-  if (datasetsToDelete.length === 0) return;
+  if (datasetsToDelete.length === 0) {
+    return;
+  }
 
   await deleteDatasetsByIds({
     projectId,

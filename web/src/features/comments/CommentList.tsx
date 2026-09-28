@@ -65,15 +65,18 @@ function CommentThread({
     { enabled: hasReadAccess && session.status === "authenticated" },
   );
   const utils = api.useUtils();
-  if (!hasReadAccess || session.status !== "authenticated") return <></>;
-  if (comments.isPending)
+  if (!hasReadAccess || session.status !== "authenticated") {
+    return <></>;
+  }
+  if (comments.isPending) {
     return (
       <div className="flex justify-center p-6">
         <Spinner size="sm" />
         <span className="sr-only">Loading comments</span>
       </div>
     );
-  if (comments.isError && comments.data === undefined)
+  }
+  if (comments.isError && comments.data === undefined) {
     return (
       <div className="flex flex-col items-start gap-3 p-4">
         <p className="text-muted-foreground text-sm">
@@ -84,6 +87,7 @@ function CommentThread({
         </Button>
       </div>
     );
+  }
   const refresh = () =>
     refreshCommentQueries({
       utils,

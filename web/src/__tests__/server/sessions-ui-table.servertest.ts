@@ -176,7 +176,9 @@ async function seedSessionData(
   observations?: ObservationRecordInsertType[],
 ) {
   await createTracesCh(traces);
-  if (observations?.length) await createObservationsCh(observations);
+  if (observations?.length) {
+    await createObservationsCh(observations);
+  }
 
   if (isEventsPath) {
     const events = buildMatchingEvents(traces, observations ?? []);

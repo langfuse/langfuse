@@ -33,8 +33,12 @@ function NumberTableColumnStory({
       formatter: (value, { row }) =>
         `${numberFormatter(value, fractionDigits, fractionDigits)}${row.original.suffix ?? ""}`,
       getValue: (value, { row }) => {
-        if (row.original.isNumberLoading) return { type: "loading" };
-        if (value === null || value === undefined) return undefined;
+        if (row.original.isNumberLoading) {
+          return { type: "loading" };
+        }
+        if (value === null || value === undefined) {
+          return undefined;
+        }
 
         return value;
       },

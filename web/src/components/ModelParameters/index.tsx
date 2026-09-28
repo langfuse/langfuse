@@ -95,7 +95,9 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
     }
   }, [setModelSettingsUsed, modelParams]);
 
-  if (!projectId) return null;
+  if (!projectId) {
+    return null;
+  }
 
   if (availableProviders.length === 0) {
     return (
@@ -552,8 +554,9 @@ const ModelParamsSlider = ({
         max={max}
         step={step}
         onValueChange={(value) => {
-          if (value[0] !== undefined)
+          if (value[0] !== undefined) {
             updateModelParam(modelParamsKey, value[0]);
+          }
         }}
         value={[value]}
       />
@@ -708,7 +711,9 @@ function AddLlmConnectionSelectAction({ onOpen }: { onOpen: () => void }) {
     scope: "llmApiKeys:create",
   });
 
-  if (!hasAccess) return null;
+  if (!hasAccess) {
+    return null;
+  }
 
   return (
     <>

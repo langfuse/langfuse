@@ -5,7 +5,9 @@ export function evaluatorToEvaluatorSetupDraft(
   evaluator: RouterOutputs["evalsV2"]["get"],
 ): EvaluatorSetupDraft | null {
   const latest = evaluator.versions[0];
-  if (!latest) return null;
+  if (!latest) {
+    return null;
+  }
 
   const definition =
     evaluator.type === "LLM_AS_JUDGE"

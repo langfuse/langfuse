@@ -330,7 +330,9 @@ const run = async (
       event_ts: Date.now(),
     });
     traces.push(trace);
-    if (withV4) events.push(traceToEvent(trace));
+    if (withV4) {
+      events.push(traceToEvent(trace));
+    }
     return { trace, timestamp };
   };
   const newObservation = (
@@ -355,7 +357,9 @@ const run = async (
     });
     observations.push(observation);
     const parent = traces.find((t) => t.id === traceId);
-    if (withV4 && parent) events.push(observationToEvent(observation, parent));
+    if (withV4 && parent) {
+      events.push(observationToEvent(observation, parent));
+    }
     return observation;
   };
 
@@ -371,7 +375,9 @@ const run = async (
     queueId: string;
   }) => {
     const def = CONFIG_DEFS.find((d) => d.key === args.key);
-    if (!def) return;
+    if (!def) {
+      return;
+    }
     scores.push(
       createTraceScore({
         id: `${args.traceId}-ann-${args.key}`,
@@ -592,11 +598,18 @@ const run = async (
   ctx.log(
     `writing ${CONFIG_DEFS.length} score configs, 2 queues, ${items.length} items, ${traces.length} traces, ${observations.length} observations, ${scores.length} scores${withV4 ? `, ${events.length} events` : ""}`,
   );
-  for (const batch of chunk(traces, 1000)) await createTracesCh(batch);
-  for (const batch of chunk(observations, 1000))
+  for (const batch of chunk(traces, 1000)) {
+    await createTracesCh(batch);
+  }
+  for (const batch of chunk(observations, 1000)) {
     await createObservationsCh(batch);
-  for (const batch of chunk(scores, 1000)) await createScoresCh(batch);
-  for (const batch of chunk(events, 500)) await createEventsCh(batch);
+  }
+  for (const batch of chunk(scores, 1000)) {
+    await createScoresCh(batch);
+  }
+  for (const batch of chunk(events, 500)) {
+    await createEventsCh(batch);
+  }
 
   // --- 6. Readback verification -------------------------------------------
   const traceIds = traces.map((t) => t.id);

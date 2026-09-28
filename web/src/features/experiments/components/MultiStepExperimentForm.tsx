@@ -343,7 +343,9 @@ export const MultiStepExperimentForm = ({
     }
 
     const selectedDataset = datasets.data?.find((d) => d.id === datasetId);
-    if (!selectedDataset) return;
+    if (!selectedDataset) {
+      return;
+    }
 
     const defaultName = generateDefaultExperimentName(
       selectedPromptName,
@@ -432,7 +434,9 @@ export const MultiStepExperimentForm = ({
     });
 
   const handleStepChange = (stepId: string) => {
-    if (!canNavigateToStep(stepId)) return;
+    if (!canNavigateToStep(stepId)) {
+      return;
+    }
 
     if (stepId === "review") {
       setHasAttemptedReview(true);

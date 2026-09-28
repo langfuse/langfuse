@@ -150,10 +150,12 @@ export const processEventBatch = async (
     "langfuse.project.id",
     authCheck.scope.projectId ?? "",
   );
-  if (authCheck.scope.orgId)
+  if (authCheck.scope.orgId) {
     currentSpan?.setAttribute("langfuse.org.id", authCheck.scope.orgId);
-  if (authCheck.scope.plan)
+  }
+  if (authCheck.scope.plan) {
     currentSpan?.setAttribute("langfuse.org.plan", authCheck.scope.plan);
+  }
 
   /**************
    * VALIDATION *

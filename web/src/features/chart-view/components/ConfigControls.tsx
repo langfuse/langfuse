@@ -156,7 +156,9 @@ export const ChartTypePicker = React.memo(function ChartTypePicker({
       type="single"
       value={value}
       onValueChange={(v) => {
-        if (v) onChange(v as DashboardWidgetChartType);
+        if (v) {
+          onChange(v as DashboardWidgetChartType);
+        }
       }}
       variant="outline"
       className={cn(showLabels ? "grid grid-cols-3 gap-1" : "gap-0.5")}
@@ -180,7 +182,9 @@ export const ChartTypePicker = React.memo(function ChartTypePicker({
           </ToggleGroupItem>
         );
 
-        if (showLabels) return item;
+        if (showLabels) {
+          return item;
+        }
         return (
           <Tooltip key={ct.value}>
             <TooltipTrigger asChild>{item}</TooltipTrigger>

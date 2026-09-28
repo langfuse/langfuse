@@ -51,7 +51,9 @@ async function probeSession(
 ): Promise<"signed-in" | "signed-out" | "unreachable"> {
   try {
     const response = await fetch(`${basePath}/session`);
-    if (!response.ok) return "unreachable";
+    if (!response.ok) {
+      return "unreachable";
+    }
     const body = (await response.json()) as Record<string, unknown> | null;
     return body && Object.keys(body).length > 0 ? "signed-in" : "signed-out";
   } catch {
@@ -83,7 +85,9 @@ export function ResilientSessionProvider({
   const [attempt, setAttempt] = useState(0);
   const [serverSaysSignedOut, setServerSaysSignedOut] = useState(false);
   const lastKnownSession = useRef<Session | null>(null);
-  if (session.data) lastKnownSession.current = session.data;
+  if (session.data) {
+    lastKnownSession.current = session.data;
+  }
 
   const knownSession = lastKnownSession.current;
   const isRechecking =
@@ -93,11 +97,17 @@ export function ResilientSessionProvider({
 
   useEffect(() => {
     if (session.status === "authenticated") {
-      if (attempt > 0) setAttempt(0);
-      if (serverSaysSignedOut) setServerSaysSignedOut(false);
+      if (attempt > 0) {
+        setAttempt(0);
+      }
+      if (serverSaysSignedOut) {
+        setServerSaysSignedOut(false);
+      }
       return;
     }
-    if (!isRechecking) return;
+    if (!isRechecking) {
+      return;
+    }
 
     let cancelled = false;
     // Recovering flips the status, which re-runs this effect and cancels the
@@ -105,9 +115,14 @@ export function ResilientSessionProvider({
     refetchSessionInProvider();
     const timer = setTimeout(async () => {
       const verdict = await probeSession(basePath);
-      if (cancelled) return;
-      if (verdict === "signed-out") setServerSaysSignedOut(true);
-      else setAttempt((count) => count + 1);
+      if (cancelled) {
+        return;
+      }
+      if (verdict === "signed-out") {
+        setServerSaysSignedOut(true);
+      } else {
+        setAttempt((count) => count + 1);
+      }
     }, recheckDelay(attempt));
 
     return () => {
@@ -117,7 +132,9 @@ export function ResilientSessionProvider({
   }, [session.status, attempt, isRechecking, serverSaysSignedOut, basePath]);
 
   const value = useMemo<SessionContextValue>(() => {
-    if (!isRechecking || !knownSession) return session;
+    if (!isRechecking || !knownSession) {
+      return session;
+    }
     return {
       data: knownSession,
       status: "authenticated",
@@ -125,7 +142,9 @@ export function ResilientSessionProvider({
       // through here would drop the call. Callers use it to re-read the
       // session, which is what a re-check does anyway.
       update: async (data) => {
-        if (data !== undefined) return session.update(data);
+        if (data !== undefined) {
+          return session.update(data);
+        }
         refetchSessionInProvider();
         return null;
       },

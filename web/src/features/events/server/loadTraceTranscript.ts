@@ -41,7 +41,9 @@ export async function loadTraceTranscript(trace: {
   // them out beats rendering them as empty turns. `cutoff` tells the caller.
   const observations = structure.observations.flatMap((o) => {
     const withContent = contentById.get(o.id);
-    if (withContent) return [withContent];
+    if (withContent) {
+      return [withContent];
+    }
     return TRANSCRIPT_OBSERVATION_TYPES.has(o.type) ? [] : [o];
   });
   return {

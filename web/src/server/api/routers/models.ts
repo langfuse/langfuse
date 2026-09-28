@@ -202,7 +202,9 @@ export const modelRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const { projectId, modelIds } = input;
 
-      if (modelIds.length === 0) return {};
+      if (modelIds.length === 0) {
+        return {};
+      }
 
       const lastUsedQuery = `
         SELECT
@@ -222,7 +224,9 @@ export const modelRouter = createTRPCRouter({
         }),
       );
 
-      if (!result.success) return {};
+      if (!result.success) {
+        return {};
+      }
 
       return result.data.reduce(
         (acc, { modelId, lastUsed }) => {

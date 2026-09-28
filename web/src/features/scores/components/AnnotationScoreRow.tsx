@@ -210,16 +210,20 @@ export function AnnotationScoreRow({
         row.contains(next) &&
         next.closest("[data-score-actions]")) ||
         row.querySelector('[data-score-actions][data-state="open"]'));
-    if (!ownActions) return false;
+    if (!ownActions) {
+      return false;
+    }
     deferredInput.current = event.currentTarget;
     return true;
   };
   const commitDeferredScore = () => {
     const input = deferredInput.current;
     deferredInput.current = null;
-    if (input instanceof HTMLInputElement)
+    if (input instanceof HTMLInputElement) {
       actions.saveNumeric(fieldKey, target, input);
-    else if (input) actions.saveText(fieldKey, target);
+    } else if (input) {
+      actions.saveText(fieldKey, target);
+    }
   };
   return (
     <Form {...form} formState={fieldState}>
@@ -304,7 +308,9 @@ export function AnnotationScoreRow({
               </PopoverTrigger>
               <PopoverContent
                 onCloseAutoFocus={(event) => {
-                  if (!isActive) event.preventDefault();
+                  if (!isActive) {
+                    event.preventDefault();
+                  }
                 }}
               >
                 <FormField
@@ -361,8 +367,9 @@ export function AnnotationScoreRow({
                         placeholder="Enter free form text..."
                         onBlur={(event) => {
                           field.onBlur();
-                          if (!isMovingToScoreActions(event))
+                          if (!isMovingToScoreActions(event)) {
                             actions.saveText(fieldKey, target);
+                          }
                         }}
                       />
                     </FormControl>
@@ -407,12 +414,13 @@ export function AnnotationScoreRow({
                         disabled={config.isArchived}
                         onBlur={(event) => {
                           field.onBlur();
-                          if (!isMovingToScoreActions(event))
+                          if (!isMovingToScoreActions(event)) {
                             actions.saveNumeric(
                               fieldKey,
                               target,
                               event.currentTarget,
                             );
+                          }
                         }}
                       />
                     </FormControl>
@@ -468,7 +476,9 @@ export function AnnotationScoreRow({
                 const nextFocus = focusFieldKey.current;
                 focusFieldKey.current = fieldKey;
                 commitDeferredScore();
-                if (!isActive) return;
+                if (!isActive) {
+                  return;
+                }
                 const nextRow = formRootRef.current?.querySelector<HTMLElement>(
                   `[data-score-row="${actions.indexOf(nextFocus)}"]`,
                 );
@@ -509,8 +519,11 @@ export function AnnotationScoreRow({
                                   fieldKey,
                                   destination,
                                 );
-                                if (nextKey) focusFieldKey.current = nextKey;
-                                else deferredInput.current = input;
+                                if (nextKey) {
+                                  focusFieldKey.current = nextKey;
+                                } else {
+                                  deferredInput.current = input;
+                                }
                               }}
                             >
                               Score {destination.label.toLowerCase()} instead
@@ -530,7 +543,9 @@ export function AnnotationScoreRow({
                                 fieldKey,
                                 destination,
                               );
-                              if (nextKey) focusFieldKey.current = nextKey;
+                              if (nextKey) {
+                                focusFieldKey.current = nextKey;
+                              }
                             }}
                           >
                             Also score {destination.label.toLowerCase()}
@@ -577,8 +592,9 @@ export function AnnotationScoreRow({
                     size="icon-xs"
                     data-score-actions
                     onBlur={(event) => {
-                      if (event.currentTarget.dataset.state !== "open")
+                      if (event.currentTarget.dataset.state !== "open") {
                         commitDeferredScore();
+                      }
                     }}
                     aria-label={`Score actions for ${score.name}${showTarget ? ` (${target.label})` : ""}`}
                     title="Score actions"

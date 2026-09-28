@@ -28,7 +28,9 @@ export function addDatasetNameObservedOptions(
   observed: ObservedOptions | undefined,
   datasets: DatasetFilterOption[],
 ): ObservedOptions | undefined {
-  if (observed === undefined) return undefined;
+  if (observed === undefined) {
+    return undefined;
+  }
   return {
     ...observed,
     [DATASET_NAME_COLUMN]: datasets.map((dataset) => ({

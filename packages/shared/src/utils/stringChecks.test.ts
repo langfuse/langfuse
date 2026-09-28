@@ -11,7 +11,9 @@ function hasLoneSurrogate(s: string): boolean {
     const c = s.charCodeAt(i);
     if (c >= 0xd800 && c <= 0xdbff) {
       const next = s.charCodeAt(i + 1);
-      if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
+      if (!(next >= 0xdc00 && next <= 0xdfff)) {
+        return true;
+      }
       i++;
     } else if (c >= 0xdc00 && c <= 0xdfff) {
       return true;

@@ -520,7 +520,9 @@ export default function SessionsTable({
       size: 200,
       isFixedPosition: true,
       getCell: (value) => {
-        if (!value || typeof value !== "string") return undefined;
+        if (!value || typeof value !== "string") {
+          return undefined;
+        }
 
         return {
           type: "link",
@@ -546,8 +548,12 @@ export default function SessionsTable({
       enableHiding: true,
       formatter: (value) => formatIntervalSeconds(value),
       getValue: (value) => {
-        if (!sessionMetrics.isSuccess) return { type: "loading" };
-        if (!value) return undefined;
+        if (!sessionMetrics.isSuccess) {
+          return { type: "loading" };
+        }
+        if (!value) {
+          return undefined;
+        }
 
         return value;
       },
@@ -577,8 +583,12 @@ export default function SessionsTable({
       size: 200,
       enableHiding: true,
       getCell: (userIds) => {
-        if (!sessionMetrics.isSuccess) return { type: "loading" };
-        if (!userIds?.length) return undefined;
+        if (!sessionMetrics.isSuccess) {
+          return { type: "loading" };
+        }
+        if (!userIds?.length) {
+          return undefined;
+        }
 
         return userIds.map((userId) => ({
           path: `/project/${projectId}/users/${encodeURIComponent(userId)}`,
@@ -597,8 +607,12 @@ export default function SessionsTable({
       enableSorting: true,
       formatter: (value) => numberFormatter(value, 0),
       getValue: (value) => {
-        if (!sessionMetrics.isSuccess) return { type: "loading" };
-        if (!value) return undefined;
+        if (!sessionMetrics.isSuccess) {
+          return { type: "loading" };
+        }
+        if (!value) {
+          return undefined;
+        }
 
         return value;
       },
@@ -613,8 +627,12 @@ export default function SessionsTable({
       enableSorting: true,
       formatter: (value) => usdFormatter(value),
       getValue: (value) => {
-        if (!sessionMetrics.isSuccess) return { type: "loading" };
-        if (!value) return undefined;
+        if (!sessionMetrics.isSuccess) {
+          return { type: "loading" };
+        }
+        if (!value) {
+          return undefined;
+        }
 
         return value;
       },
@@ -629,8 +647,12 @@ export default function SessionsTable({
       defaultHidden: true,
       formatter: (value) => usdFormatter(value),
       getValue: (value) => {
-        if (!sessionMetrics.isSuccess) return { type: "loading" };
-        if (!value) return undefined;
+        if (!sessionMetrics.isSuccess) {
+          return { type: "loading" };
+        }
+        if (!value) {
+          return undefined;
+        }
 
         return value;
       },
@@ -644,8 +666,12 @@ export default function SessionsTable({
       enableSorting: true,
       formatter: (value) => usdFormatter(value),
       getValue: (value) => {
-        if (!sessionMetrics.isSuccess) return { type: "loading" };
-        if (!value) return undefined;
+        if (!sessionMetrics.isSuccess) {
+          return { type: "loading" };
+        }
+        if (!value) {
+          return undefined;
+        }
 
         return value;
       },
@@ -659,8 +685,12 @@ export default function SessionsTable({
       enableSorting: true,
       formatter: (value) => numberFormatter(value, 0),
       getValue: (value) => {
-        if (!sessionMetrics.isSuccess) return { type: "loading" };
-        if (!value) return undefined;
+        if (!sessionMetrics.isSuccess) {
+          return { type: "loading" };
+        }
+        if (!value) {
+          return undefined;
+        }
 
         return value;
       },
@@ -674,8 +704,12 @@ export default function SessionsTable({
       enableSorting: true,
       formatter: (value) => numberFormatter(value, 0),
       getValue: (value) => {
-        if (!sessionMetrics.isSuccess) return { type: "loading" };
-        if (!value) return undefined;
+        if (!sessionMetrics.isSuccess) {
+          return { type: "loading" };
+        }
+        if (!value) {
+          return undefined;
+        }
 
         return value;
       },
@@ -689,8 +723,12 @@ export default function SessionsTable({
       enableSorting: true,
       formatter: (value) => numberFormatter(value, 0),
       getValue: (value) => {
-        if (!sessionMetrics.isSuccess) return { type: "loading" };
-        if (!value) return undefined;
+        if (!sessionMetrics.isSuccess) {
+          return { type: "loading" };
+        }
+        if (!value) {
+          return undefined;
+        }
 
         return value;
       },
@@ -703,7 +741,9 @@ export default function SessionsTable({
       enableHiding: true,
       enableSorting: true,
       getCell: (_value, { row }) => {
-        if (!sessionMetrics.isSuccess) return { type: "loading" };
+        if (!sessionMetrics.isSuccess) {
+          return { type: "loading" };
+        }
 
         return {
           type: "usage",

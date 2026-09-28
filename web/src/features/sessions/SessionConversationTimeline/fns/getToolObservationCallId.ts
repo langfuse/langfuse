@@ -7,7 +7,9 @@ export type ToolObservation = {
 };
 
 export function getToolObservationCallId(observation: ToolObservation) {
-  if (observation.metadataTruncated) return null;
+  if (observation.metadataTruncated) {
+    return null;
+  }
 
   let metadataValue: unknown = observation.metadata;
   if (typeof metadataValue === "string") {

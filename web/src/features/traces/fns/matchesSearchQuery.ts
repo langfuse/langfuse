@@ -29,7 +29,9 @@ export function matchesSearchQuery(
   const needle = query.trim().toLowerCase();
   // An empty query is not a match-everything — it is no search at all, and the
   // callers decide what to show instead.
-  if (!needle) return false;
+  if (!needle) {
+    return false;
+  }
   return (
     node.type.toLowerCase().includes(needle) ||
     node.name.toLowerCase().includes(needle) ||

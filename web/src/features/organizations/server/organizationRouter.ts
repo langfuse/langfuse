@@ -180,11 +180,12 @@ export const organizationsRouter = createTRPCRouter({
   create: authenticatedProcedure
     .input(organizationFormSchema)
     .mutation(async ({ input, ctx }) => {
-      if (!ctx.session.user.canCreateOrganizations)
+      if (!ctx.session.user.canCreateOrganizations) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "You do not have permission to create organizations",
         });
+      }
 
       const organization = await ctx.prisma.$transaction(async (tx) => {
         const organizationCountBeforeCreate =

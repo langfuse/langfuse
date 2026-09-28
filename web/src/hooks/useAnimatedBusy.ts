@@ -41,7 +41,9 @@ export function useAnimatedBusy(
       return;
     }
 
-    if (startedAt.current === null) return;
+    if (startedAt.current === null) {
+      return;
+    }
 
     const stop = () => {
       startedAt.current = null;

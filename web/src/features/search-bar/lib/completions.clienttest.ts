@@ -86,8 +86,9 @@ describe("planInputCompletions", () => {
       '"refund policy"',
       'content:"refund policy"',
     ]);
-    for (const option of rewrites)
+    for (const option of rewrites) {
       expect(validateQuery(option.label, undefined, registry).valid).toBe(true);
+    }
     expect(
       optionsFor('content:"refund policy"').some(
         (option) => option.kind === "pattern" && option.id === "scope:default",

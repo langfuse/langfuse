@@ -46,7 +46,9 @@ export function useAuthGuard(
   // Check if path is publishable (can be accessed without authentication)
   const isPublishable = PATH_CONSTANTS.publishable.some((path) => {
     // Case 1: Exact match (e.g., pathname === "/auth/reset-password")
-    if (pathname === path) return true;
+    if (pathname === path) {
+      return true;
+    }
 
     // Case 2: Prefix match for dynamic routes
     // Example: path = "/project/[projectId]/traces/[traceId]"

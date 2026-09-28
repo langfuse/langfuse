@@ -123,7 +123,9 @@ export function duplicateNameIndexes(
   const seen = new Set<string>();
   const duplicates: [number, string][] = [];
   entries.forEach((entry, index) => {
-    if (seen.has(entry.name)) duplicates.push([index, entry.name]);
+    if (seen.has(entry.name)) {
+      duplicates.push([index, entry.name]);
+    }
     seen.add(entry.name);
   });
   return duplicates;
@@ -214,7 +216,9 @@ export function validatePricingTiers(
     for (const condition of tier.conditions) {
       const pattern =
         "usageDetailPattern" in condition ? condition.usageDetailPattern : null;
-      if (pattern === null) continue;
+      if (pattern === null) {
+        continue;
+      }
 
       try {
         validateRegexPattern(pattern);
@@ -249,7 +253,9 @@ export function validatePricingTiers(
     const defaultKeys = Object.keys(defaultTierForKeys.prices).sort();
 
     for (const tier of tiers) {
-      if (tier.isDefault) continue;
+      if (tier.isDefault) {
+        continue;
+      }
 
       const tierKeys = Object.keys(tier.prices).sort();
 

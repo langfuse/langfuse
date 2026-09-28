@@ -76,7 +76,9 @@ export function computeSelectedValues(
     | { operator?: string; value?: unknown; type?: string }
     | undefined,
 ): string[] {
-  if (!filterEntry) return availableValues;
+  if (!filterEntry) {
+    return availableValues;
+  }
   const values = (filterEntry.value as string[]) ?? [];
   if (filterEntry.operator === "none of") {
     const excluded = new Set(values);
@@ -151,15 +153,21 @@ export function encodeFiltersGeneric(filters: FilterState): string {
  * Format: column;type;key;operator;value
  */
 export function decodeFiltersGeneric(query: string): FilterState {
-  if (!query.trim()) return [];
+  if (!query.trim()) {
+    return [];
+  }
 
   const decoded = decodeDelimitedArray(query, ",");
-  if (!decoded) return [];
+  if (!decoded) {
+    return [];
+  }
 
   const filters: FilterState = [];
 
   for (const filterString of decoded) {
-    if (!filterString) continue;
+    if (!filterString) {
+      continue;
+    }
 
     const [column, type, key, operator, encodedValue] = filterString.split(";");
 

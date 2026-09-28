@@ -57,7 +57,9 @@ export function SingleLineOverflowList<TItem>({
 
   useEffect(() => {
     const measurementRow = measurementRowRef.current;
-    if (!measurementRow) return;
+    if (!measurementRow) {
+      return;
+    }
 
     const measure = () => {
       const itemElements = Array.from(measurementRow.children) as HTMLElement[];
@@ -99,7 +101,9 @@ export function SingleLineOverflowList<TItem>({
     };
 
     measure();
-    if (typeof ResizeObserver === "undefined") return;
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
 
     const resizeObserver = new ResizeObserver(measure);
     resizeObserver.observe(measurementRow);

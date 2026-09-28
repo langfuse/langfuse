@@ -43,10 +43,13 @@ export function createExperimentMetricColumn<TData extends RowData>({
     renderCell: (value) => {
       // Rows render before their metrics, so without this the cell would first
       // claim the metric was not recorded and then correct itself.
-      if (metricsLoading) return loadingCell;
+      if (metricsLoading) {
+        return loadingCell;
+      }
 
-      if (!isRecorded(metric, value))
+      if (!isRecorded(metric, value)) {
         return <NotRecordedMetric metric={metric} />;
+      }
 
       return <span>{formatter(value)}</span>;
     },

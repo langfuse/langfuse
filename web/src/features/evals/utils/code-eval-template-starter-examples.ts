@@ -538,7 +538,9 @@ export function getCodeEvalSourceForEditor({
   sourceCode?: string | null;
   sourceCodeLanguage: CodeEvalSourceCodeLanguage;
 }) {
-  if (!sourceCode?.trim()) return getDefaultCodeEvalSource(sourceCodeLanguage);
+  if (!sourceCode?.trim()) {
+    return getDefaultCodeEvalSource(sourceCodeLanguage);
+  }
 
   return stripCodeEvalContract({ sourceCode, sourceCodeLanguage });
 }

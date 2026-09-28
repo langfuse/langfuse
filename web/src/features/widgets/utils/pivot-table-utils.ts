@@ -490,7 +490,9 @@ function detectAggregationType(metricName: string): string {
  * @returns The aggregated result
  */
 function applyAggregation(values: number[], aggregationType: string): number {
-  if (values.length === 0) return 0;
+  if (values.length === 0) {
+    return 0;
+  }
 
   switch (aggregationType) {
     case "count":

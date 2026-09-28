@@ -178,8 +178,11 @@ function useLineChartLegend(
 
   const toggleSeries = (seriesId: string) => {
     const next = new Set(hiddenSeriesIds);
-    if (next.has(seriesId)) next.delete(seriesId);
-    else next.add(seriesId);
+    if (next.has(seriesId)) {
+      next.delete(seriesId);
+    } else {
+      next.add(seriesId);
+    }
     setLegendState({ ...effectiveLegendState, hiddenSeriesIds: next });
   };
   const highlightSeries = (seriesId: string) => {
@@ -197,10 +200,15 @@ function useLineChartLegend(
   };
   const configuredSeries: ConfiguredLineChartSeries[] = series.flatMap(
     (item) => {
-      if (hiddenSeriesIds.has(item.id)) return [];
+      if (hiddenSeriesIds.has(item.id)) {
+        return [];
+      }
       let emphasis: ConfiguredLineChartSeries["emphasis"] = "dimmed";
-      if (highlightedSeriesId === undefined) emphasis = "default";
-      else if (highlightedSeriesId === item.id) emphasis = "emphasized";
+      if (highlightedSeriesId === undefined) {
+        emphasis = "default";
+      } else if (highlightedSeriesId === item.id) {
+        emphasis = "emphasized";
+      }
       return [
         {
           ...item,
@@ -251,11 +259,15 @@ const getThresholdRegions = (
   plotHeight: number,
 ) => {
   const epsilon = Math.max(plotHeight * 0.01, 2);
-  if (threshold.region === "above") return [[top, y - top]];
+  if (threshold.region === "above") {
+    return [[top, y - top]];
+  }
   if (threshold.region === "below") {
     return [[y, top + plotHeight - y]];
   }
-  if (threshold.region === "equal") return [[y - epsilon, epsilon * 2]];
+  if (threshold.region === "equal") {
+    return [[y - epsilon, epsilon * 2]];
+  }
   if (threshold.region === "not-equal") {
     return [
       [top, y - epsilon - top],
@@ -332,7 +344,9 @@ export function SeriesChartCore(
             let label = `Show only ${item.label}`;
             if (legend.interaction === "toggle") {
               label = hidden ? `Show ${item.label}` : `Hide ${item.label}`;
-            } else if (focused) label = "Show all series";
+            } else if (focused) {
+              label = "Show all series";
+            }
             return {
               id: item.id,
               label: item.label,
@@ -419,19 +433,26 @@ function LineChartContent(
     [props.data, props.xAxis.type],
   );
   const stackedValues = useMemo(() => {
-    if (!areaStacked) return [];
+    if (!areaStacked) {
+      return [];
+    }
     return data.map((datum) => {
       let positive = 0;
       let negative = 0;
       const offsets = new Map<string, { base: number; top: number }>();
       for (const item of series) {
         const value = datum.values[item.id];
-        if (typeof value !== "number" || !Number.isFinite(value)) continue;
+        if (typeof value !== "number" || !Number.isFinite(value)) {
+          continue;
+        }
         const base = value >= 0 ? positive : negative;
         const top = base + value;
         offsets.set(item.id, { base, top });
-        if (value >= 0) positive = top;
-        else negative = top;
+        if (value >= 0) {
+          positive = top;
+        } else {
+          negative = top;
+        }
       }
       return offsets;
     });
@@ -463,7 +484,9 @@ function LineChartContent(
     if (areaVariant) {
       min = Math.min(0, min);
       max = Math.max(0, max);
-    } else if (min < 0) max = Math.max(0, max);
+    } else if (min < 0) {
+      max = Math.max(0, max);
+    }
     return scaleLinear()
       .domain([min, max])
       .nice(maxYTicks)
@@ -583,7 +606,9 @@ function LineChartContent(
       ? [index]
       : [],
   );
-  if (data.length > 1) categoryTickIndices.push(data.length - 1);
+  if (data.length > 1) {
+    categoryTickIndices.push(data.length - 1);
+  }
   const xTicks =
     xAxis.type === "time"
       ? timeTickDates.map((value) => ({
@@ -666,13 +691,17 @@ function LineChartContent(
     index: number,
   ) => {
     const svg = event.currentTarget.ownerSVGElement;
-    if (!svg) return;
+    if (!svg) {
+      return;
+    }
     const pointerY = event.clientY - svg.getBoundingClientRect().top;
     let distance = Infinity;
     let nearest: string[] = [];
     for (const item of series) {
       const value = data[index]?.values[item.id];
-      if (typeof value !== "number") continue;
+      if (typeof value !== "number") {
+        continue;
+      }
       const nextDistance = Math.abs(
         yScale(stackedValues[index]?.get(item.id)?.top ?? value) - pointerY,
       );
@@ -690,7 +719,9 @@ function LineChartContent(
         ? nearest[0]
         : undefined;
     setHoveredSeriesId(nearestSeriesId);
-    if (!hasConfiguredEmphasis) onActiveSeriesChange(nearestSeriesId);
+    if (!hasConfiguredEmphasis) {
+      onActiveSeriesChange(nearestSeriesId);
+    }
   };
   const hasDistinctColors = series.some(
     (item) => item.color !== series[0]?.color,
@@ -870,7 +901,9 @@ function LineChartContent(
                 />
                 {seriesData.map((datum, index) => {
                   const value = datum.values.__current;
-                  if (typeof value !== "number") return null;
+                  if (typeof value !== "number") {
+                    return null;
+                  }
                   const previous = seriesData[index - 1]?.values.__current;
                   const next = seriesData[index + 1]?.values.__current;
                   const isolated = previous == null && next == null;
@@ -879,8 +912,9 @@ function LineChartContent(
                     active &&
                     (activeSeriesId === undefined ||
                       activeSeriesId === item.id);
-                  if (!showDataPointDots && !isolated && !activeForSeries)
+                  if (!showDataPointDots && !isolated && !activeForSeries) {
                     return null;
+                  }
                   return (
                     <circle
                       key={datum.key}
@@ -967,13 +1001,17 @@ function LineChartContent(
                     setHoveredIndex(index);
                     sync?.onActiveKeyChange(datum.key);
                     referenceProps.onPointerEnter(event);
-                    if (!areaVariant) findNearestSeries(event, index);
+                    if (!areaVariant) {
+                      findNearestSeries(event, index);
+                    }
                   }}
                   onPointerMove={(event) => {
                     setHoveredIndex(index);
                     sync?.onActiveKeyChange(datum.key);
                     referenceProps.onPointerMove(event);
-                    if (!areaVariant) findNearestSeries(event, index);
+                    if (!areaVariant) {
+                      findNearestSeries(event, index);
+                    }
                   }}
                   onPointerLeave={() => {
                     setHoveredIndex(undefined);
@@ -1010,15 +1048,17 @@ function LineChartContent(
                       onFocus={(event) => {
                         setHoveredIndex(index);
                         setHoveredSeriesId(item.id);
-                        if (!hasConfiguredEmphasis)
+                        if (!hasConfiguredEmphasis) {
                           onActiveSeriesChange(item.id);
+                        }
                         focusReferenceProps.onFocus(event);
                       }}
                       onBlur={() => {
                         setHoveredIndex(undefined);
                         setHoveredSeriesId(undefined);
-                        if (!hasConfiguredEmphasis)
+                        if (!hasConfiguredEmphasis) {
                           onActiveSeriesChange(undefined);
+                        }
                         focusReferenceProps.onBlur();
                       }}
                     />

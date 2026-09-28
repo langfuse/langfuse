@@ -36,7 +36,9 @@ describe("monitor search contract", () => {
       registry,
     );
     expect(result.status).toBe("committed");
-    if (result.status !== "committed") return;
+    if (result.status !== "committed") {
+      return;
+    }
     expect(ListMonitorFilterSchema.safeParse(result.filters).success).toBe(
       true,
     );

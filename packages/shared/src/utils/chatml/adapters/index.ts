@@ -24,7 +24,9 @@ function selectAdapter(ctx: NormalizerContext): ProviderAdapter {
   // Explicit override
   if (ctx.framework) {
     const adapter = adapters.find((a) => a.id === ctx.framework);
-    if (adapter) return adapter;
+    if (adapter) {
+      return adapter;
+    }
   }
 
   // First adapter that matches wins. Detection is best-effort: a throwing

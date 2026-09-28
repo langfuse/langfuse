@@ -229,7 +229,9 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
       .withPlugin(new TenancyInjectionPlugin(ctx))
       .toOperationNode();
     expect(isClickHouseSelectQueryNode(node)).toBe(true);
-    if (!isClickHouseSelectQueryNode(node)) return;
+    if (!isClickHouseSelectQueryNode(node)) {
+      return;
+    }
     expect(node.arrayJoins).toHaveLength(1);
     const arrayJoinNode = node.arrayJoins![0];
     expect(ArrayJoinNode.is(arrayJoinNode)).toBe(true);
@@ -264,7 +266,9 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
       .withPlugin(new TenancyInjectionPlugin(ctx))
       .toOperationNode();
     expect(isClickHouseSelectQueryNode(node)).toBe(true);
-    if (!isClickHouseSelectQueryNode(node)) return;
+    if (!isClickHouseSelectQueryNode(node)) {
+      return;
+    }
     expect(node.limitBy).toBeDefined();
     expect(LimitByNode.is(node.limitBy!)).toBe(true);
     expect(node.limitBy!.columns).toHaveLength(2);

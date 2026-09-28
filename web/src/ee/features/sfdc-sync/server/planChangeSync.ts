@@ -47,10 +47,14 @@ export async function syncOrgPlanChangeToSfdc(args: {
     return;
   }
   const planAfter = getOrganizationPlanServerSide(parsedUpdated.data);
-  if (planBefore === planAfter) return;
+  if (planBefore === planAfter) {
+    return;
+  }
 
   const sfdcPlan = toSfdcPlan(planAfter);
-  if (!sfdcPlan) return; // non-cloud plan — cannot happen on Cloud
+  if (!sfdcPlan) {
+    return;
+  } // non-cloud plan — cannot happen on Cloud
 
   await getSfdcService()?.upsertOrg({
     orgId: orgBeforeUpdate.id,

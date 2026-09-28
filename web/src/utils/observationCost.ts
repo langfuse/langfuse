@@ -17,7 +17,9 @@ export const MISSING_OBSERVATION_COST_PLACEHOLDER = "—";
 export function isObservationCostSupported(
   observationType: ObservationType | string | undefined,
 ): boolean {
-  if (observationType == null) return false;
+  if (observationType == null) {
+    return false;
+  }
   return isGenerationLike(observationType as ObservationType);
 }
 

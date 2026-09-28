@@ -103,11 +103,17 @@ export class QueueMetricsRunner extends PeriodicRunner {
 
     // Non-sharded queues: only poll queues with registered workers
     for (const queueName of Object.values(QueueName)) {
-      if (SHARDED_QUEUE_BASE_NAMES.has(queueName)) continue;
-      if (!registeredNames.has(queueName)) continue;
+      if (SHARDED_QUEUE_BASE_NAMES.has(queueName)) {
+        continue;
+      }
+      if (!registeredNames.has(queueName)) {
+        continue;
+      }
 
       const queue = resolveQueueInstance(queueName);
-      if (!queue) continue;
+      if (!queue) {
+        continue;
+      }
 
       const metricBase = convertQueueNameToMetricName(queueName);
 
@@ -152,13 +158,17 @@ export class QueueMetricsRunner extends PeriodicRunner {
       const shardNames = config
         .getShardNames()
         .filter((name) => registeredNames.has(name));
-      if (shardNames.length === 0) continue;
+      if (shardNames.length === 0) {
+        continue;
+      }
 
       const metricBase = convertQueueNameToMetricName(config.baseQueueName);
 
       const agePromises = shardNames.map((shardName) => {
         const queue = config.getInstance(shardName);
-        if (!queue) return Promise.resolve(null);
+        if (!queue) {
+          return Promise.resolve(null);
+        }
 
         return queue
           .getFailed(-1, -1)
@@ -190,7 +200,9 @@ export class QueueMetricsRunner extends PeriodicRunner {
               ages.push(result.value);
             }
           }
-          if (ages.length === 0) return;
+          if (ages.length === 0) {
+            return;
+          }
 
           recordGauge(metricBase + ".dlq_oldest_age", Math.max(...ages), {
             shard: "all",
@@ -201,7 +213,9 @@ export class QueueMetricsRunner extends PeriodicRunner {
 
       const shardPromises = shardNames.map((shardName) => {
         const queue = config.getInstance(shardName);
-        if (!queue) return Promise.resolve(null);
+        if (!queue) {
+          return Promise.resolve(null);
+        }
 
         return collectDepth(queue)
           .then((depths) => {
@@ -242,7 +256,9 @@ export class QueueMetricsRunner extends PeriodicRunner {
             }
           }
 
-          if (succeededCount === 0) return;
+          if (succeededCount === 0) {
+            return;
+          }
 
           if (succeededCount < results.length) {
             const scale = results.length / succeededCount;

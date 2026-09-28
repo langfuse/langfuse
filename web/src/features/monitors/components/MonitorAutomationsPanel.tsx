@@ -87,7 +87,9 @@ export const MonitorAutomationsPanel = ({
       const triggerId = automations?.find((a) => a.id === automationId)?.trigger
         .id;
       const selected = latestTriggerIds.current;
-      if (!triggerId || selected.includes(triggerId)) return;
+      if (!triggerId || selected.includes(triggerId)) {
+        return;
+      }
       onTriggerIdsChange([...selected, triggerId]);
     },
     [utils, projectId, onTriggerIdsChange],
@@ -219,7 +221,9 @@ const MonitorAutomationsListRow = ({
     onKeyDown={(e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        if (!isDisabled) onClick();
+        if (!isDisabled) {
+          onClick();
+        }
       }
     }}
     className={cn(
@@ -281,7 +285,9 @@ const AddAutomationDropdown = ({
   const closeDialog = (createdAutomationId?: string) => {
     setDraft(null);
     setCreatedSecret(null);
-    if (createdAutomationId) onAutomationCreated(createdAutomationId);
+    if (createdAutomationId) {
+      onAutomationCreated(createdAutomationId);
+    }
   };
 
   return (
@@ -322,7 +328,9 @@ const AddAutomationDropdown = ({
       <Dialog
         open={draft !== null}
         onOpenChange={(open) => {
-          if (!open) closeDialog(createdSecret?.automationId);
+          if (!open) {
+            closeDialog(createdSecret?.automationId);
+          }
         }}
       >
         <DialogContent

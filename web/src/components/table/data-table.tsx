@@ -730,7 +730,9 @@ function TableRefetchBar({ active }: { active: boolean }) {
   const [everActive, setEverActive] = useState(active);
   const [fadedOut, setFadedOut] = useState(false);
 
-  if (active && !everActive) setEverActive(true);
+  if (active && !everActive) {
+    setEverActive(true);
+  }
 
   const paused = !active && (!everActive || fadedOut);
 
@@ -743,7 +745,9 @@ function TableRefetchBar({ active }: { active: boolean }) {
     <div
       aria-hidden="true"
       onTransitionEnd={(event) => {
-        if (event.propertyName === "opacity" && !active) setFadedOut(true);
+        if (event.propertyName === "opacity" && !active) {
+          setFadedOut(true);
+        }
       }}
       className={cn(
         "animate-table-refetch-in absolute inset-x-0 top-0 h-0.5 overflow-hidden [transition:opacity_200ms_ease-out]",
@@ -768,8 +772,12 @@ function TableRefetchBar({ active }: { active: boolean }) {
 }
 
 function renderOrderingIndicator(orderBy?: OrderByState) {
-  if (!orderBy) return null;
-  if (orderBy.order === "ASC") return <span className="ml-1">▲</span>;
+  if (!orderBy) {
+    return null;
+  }
+  if (orderBy.order === "ASC") {
+    return <span className="ml-1">▲</span>;
+  }
   return (
     <span className="ml-1" title="Sort by this column">
       ▼
@@ -834,12 +842,16 @@ function TableRowComponent<TData>({
     <TableRow
       data-row-index={row.index}
       onClick={(e) => {
-        if (shouldIgnoreRowClickTarget(e.target)) return;
+        if (shouldIgnoreRowClickTarget(e.target)) {
+          return;
+        }
         onRowClick?.(row.original, e);
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
-          if (shouldIgnoreRowClickTarget(e.target)) return;
+          if (shouldIgnoreRowClickTarget(e.target)) {
+            return;
+          }
           onRowClick?.(row.original);
         }
       }}
@@ -1073,8 +1085,9 @@ function TableBodyComponent<TData>({
 //
 // See: https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance
 const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
-  if (!prev.tableSnapshot || !next.tableSnapshot)
+  if (!prev.tableSnapshot || !next.tableSnapshot) {
     return !prev.tableSnapshot && !next.tableSnapshot;
+  }
 
   // Compare actual data arrays from the AsyncTableData prop.
   // prev.table.options.data won't work — TanStack Table returns a stable mutable instance.
@@ -1082,28 +1095,47 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
     !prev.data.isLoading && !prev.data.isError ? prev.data.data : undefined;
   const nextDataArr =
     !next.data.isLoading && !next.data.isError ? next.data.data : undefined;
-  if (prevDataArr !== nextDataArr) return false;
-  if (prev.data.isLoading !== next.data.isLoading) return false;
-  if (prev.rowheighttw !== next.rowheighttw) return false;
-  if (prev.rowHeight !== next.rowHeight) return false;
-  if (prev.highlightAllRows !== next.highlightAllRows) return false;
-  if (prev.selectionStore !== next.selectionStore) return false;
-  if (prev.cellPadding !== next.cellPadding) return false;
+  if (prevDataArr !== nextDataArr) {
+    return false;
+  }
+  if (prev.data.isLoading !== next.data.isLoading) {
+    return false;
+  }
+  if (prev.rowheighttw !== next.rowheighttw) {
+    return false;
+  }
+  if (prev.rowHeight !== next.rowHeight) {
+    return false;
+  }
+  if (prev.highlightAllRows !== next.highlightAllRows) {
+    return false;
+  }
+  if (prev.selectionStore !== next.selectionStore) {
+    return false;
+  }
+  if (prev.cellPadding !== next.cellPadding) {
+    return false;
+  }
 
   // Then do more expensive deep equality checks
   if (
     !isEqual(prev.tableSnapshot.rowSelection, next.tableSnapshot.rowSelection)
-  )
+  ) {
     return false;
+  }
   if (
     !isEqual(
       prev.tableSnapshot.columnVisibility,
       next.tableSnapshot.columnVisibility,
     )
-  )
+  ) {
     return false;
-  if (!isEqual(prev.tableSnapshot.columnOrder, next.tableSnapshot.columnOrder))
+  }
+  if (
+    !isEqual(prev.tableSnapshot.columnOrder, next.tableSnapshot.columnOrder)
+  ) {
     return false;
+  }
 
   // If all checks pass, components are equal
   return true;

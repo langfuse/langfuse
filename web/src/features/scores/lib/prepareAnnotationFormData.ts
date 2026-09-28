@@ -20,8 +20,9 @@ export function prepareCombinedAnnotationTargets(
   const emptyFields = new Map<string, AnnotationScoreFormData>();
   for (const target of ordered) {
     for (const field of target.initialFormData) {
-      if (!field.id && !savedConfigIds.has(field.configId))
+      if (!field.id && !savedConfigIds.has(field.configId)) {
         emptyFields.set(field.configId, field);
+      }
     }
   }
   return ordered.map((target) => {
@@ -29,8 +30,9 @@ export function prepareCombinedAnnotationTargets(
     for (const [configId, field] of emptyFields) {
       if (
         !target.configControl.configs.some((config) => config.id === configId)
-      )
+      ) {
         continue;
+      }
       fields.push(field);
       emptyFields.delete(configId);
     }
@@ -66,9 +68,13 @@ export function prepareAnnotationFormData(
   );
   const scoredConfigs = new Set(fields.map((field) => field.configId));
   for (const configId of selectedConfigIds) {
-    if (scoredConfigs.has(configId)) continue;
+    if (scoredConfigs.has(configId)) {
+      continue;
+    }
     const config = configs.find((candidate) => candidate.id === configId);
-    if (!config) continue;
+    if (!config) {
+      continue;
+    }
     fields.push({
       id: null,
       configId,

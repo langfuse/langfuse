@@ -96,12 +96,20 @@ const CodeEvalScoreSchema = z.union([
     value: z
       .union([z.literal(0), z.literal(1), z.boolean(), z.string()])
       .transform((v, ctx): 0 | 1 => {
-        if (v === 0 || v === 1) return v;
-        if (typeof v === "boolean") return v ? 1 : 0;
+        if (v === 0 || v === 1) {
+          return v;
+        }
+        if (typeof v === "boolean") {
+          return v ? 1 : 0;
+        }
 
         const normalized = v.trim().toLowerCase();
-        if (normalized === "true" || normalized === "1") return 1;
-        if (normalized === "false" || normalized === "0") return 0;
+        if (normalized === "true" || normalized === "1") {
+          return 1;
+        }
+        if (normalized === "false" || normalized === "0") {
+          return 0;
+        }
 
         ctx.addIssue({
           code: "custom",

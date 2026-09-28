@@ -22,7 +22,9 @@ function pydanticAiToolDefinitionSources(
     carrier.metadataAttributes?.model_request_parameters,
   );
   const functionTools = modelRequestParameters?.function_tools;
-  if (functionTools === undefined) return [];
+  if (functionTools === undefined) {
+    return [];
+  }
 
   return [
     {
@@ -38,7 +40,9 @@ export const pydanticAiProvider = {
   // Pydantic AI tool declarations: { name, description,
   // parameters_json_schema }.
   tryNormalizeToolDefinition: (value: Record<string, unknown>) => {
-    if (value.parameters_json_schema === undefined) return unmatched;
+    if (value.parameters_json_schema === undefined) {
+      return unmatched;
+    }
     const definition = toolDefinition({
       name: value.name,
       description: value.description,

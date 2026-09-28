@@ -114,7 +114,9 @@ export default function RemapEvaluatorPage() {
   // Map old config to new config with modern target
   // Only copy scoreName - filters and variable mapping will be initialized fresh
   const mappedConfig: PartialConfig | null = useMemo(() => {
-    if (!oldConfig) return null;
+    if (!oldConfig) {
+      return null;
+    }
 
     return {
       projectId: oldConfig.projectId,
@@ -138,14 +140,18 @@ export default function RemapEvaluatorPage() {
   }, [oldConfig, isV4BetaEnabled]);
 
   const handleFormSuccess = async () => {
-    if (!oldConfig) return;
+    if (!oldConfig) {
+      return;
+    }
     await redirectAfterSave();
   };
 
   const handleUseAssistant = async () => {
     capture("v4_migration:migrate_evals_with_agent_clicked");
     const opened = openAssistant("v4_migration");
-    if (!opened) return;
+    if (!opened) {
+      return;
+    }
     await submit(upgradePlan.assistantPrompt, { newConversation: true });
   };
 

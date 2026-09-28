@@ -120,7 +120,9 @@ async function* chunk<T>(
       batch = [];
     }
   }
-  if (batch.length > 0) yield batch;
+  if (batch.length > 0) {
+    yield batch;
+  }
 }
 
 async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(

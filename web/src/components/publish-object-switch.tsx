@@ -62,7 +62,9 @@ export const PublishTraceSwitch = (props: {
         );
 
         utils.events.byTraceId.setData(eventsTraceQueryInput, (old) => {
-          if (!old) return old;
+          if (!old) {
+            return old;
+          }
 
           return {
             ...old,
@@ -215,7 +217,9 @@ const Base = (props: {
   };
 
   const handleOnClick = () => {
-    if (props.isLoading) return;
+    if (props.isLoading) {
+      return;
+    }
     setIsOpen(false);
     props.onChange(!props.isPublic);
   };
@@ -226,7 +230,9 @@ const Base = (props: {
         <Popover
           open={isOpen}
           onOpenChange={(open) => {
-            if (!props.isLoading) setIsOpen(open);
+            if (!props.isLoading) {
+              setIsOpen(open);
+            }
           }}
         >
           {(() => {
@@ -264,7 +270,9 @@ const Base = (props: {
                 </Button>
               </PopoverTrigger>
             );
-            if (!props.tooltip) return trigger;
+            if (!props.tooltip) {
+              return trigger;
+            }
             // Suppress the hover tooltip while the share popover is open.
             return (
               <Tooltip open={isOpen ? false : undefined}>

@@ -40,7 +40,9 @@ function makeFixtureBins(params: {
 
   const bins: ScoreOutlierBin[] = [];
   for (let t = fromMs; t < toMs; t += stepMs) {
-    if (params.sparse && rand() < 0.7) continue;
+    if (params.sparse && rand() < 0.7) {
+      continue;
+    }
     const count = Math.max(1, Math.round(rand() * 20));
     const avg = 0.5 + rand() * 0.4;
     bins.push({

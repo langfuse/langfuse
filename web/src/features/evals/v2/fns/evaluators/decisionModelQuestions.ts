@@ -15,7 +15,9 @@ import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 
 /** The editor authors plain text; persisted JSON entries are shown serialized. */
 function entryToText(entry: DecisionModelEntry | null | undefined): string {
-  if (entry == null) return "";
+  if (entry == null) {
+    return "";
+  }
   return typeof entry === "string" ? entry : JSON.stringify(entry);
 }
 
@@ -41,7 +43,9 @@ export function questionsToDrafts(
   questions: unknown,
 ): DecisionModelQuestionDraft[] {
   const parsed = DecisionModelQuestionsSchema.safeParse(questions);
-  if (!parsed.success) return [];
+  if (!parsed.success) {
+    return [];
+  }
   return parsed.data.map((question) => {
     const empty = createEmptyQuestion(question.type);
     const draft: DecisionModelQuestionDraft = {
@@ -83,7 +87,9 @@ export function getQuestionDraftErrors(
   const scoreNameCounts = new Map<string, number>();
   for (const draft of drafts) {
     const name = draft.scoreName.trim();
-    if (name) scoreNameCounts.set(name, (scoreNameCounts.get(name) ?? 0) + 1);
+    if (name) {
+      scoreNameCounts.set(name, (scoreNameCounts.get(name) ?? 0) + 1);
+    }
   }
 
   const errors: Record<string, DecisionModelQuestionDraftErrors> = {};
@@ -118,7 +124,9 @@ export function getQuestionDraftErrors(
         own.levels = "Every level needs a description.";
       }
     }
-    if (Object.keys(own).length > 0) errors[draft.id] = own;
+    if (Object.keys(own).length > 0) {
+      errors[draft.id] = own;
+    }
   }
   return errors;
 }

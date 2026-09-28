@@ -5,7 +5,9 @@ export function useTopBannerHeight() {
 
   useEffect(() => {
     const element = topBannerRef.current;
-    if (!element) return;
+    if (!element) {
+      return;
+    }
 
     const updateBannerHeight = () => {
       document.documentElement.style.setProperty(

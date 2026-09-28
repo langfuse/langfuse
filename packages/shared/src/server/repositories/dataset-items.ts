@@ -632,7 +632,9 @@ export async function createManyDatasetItems(props: {
   // 1. Group items by datasetId and add original index (preserves CSV row mapping)
   const itemsByDataset = props.items.reduce(
     (acc, item, index) => {
-      if (!acc[item.datasetId]) acc[item.datasetId] = [];
+      if (!acc[item.datasetId]) {
+        acc[item.datasetId] = [];
+      }
       acc[item.datasetId].push({
         ...item,
         originalIndex: index,
@@ -1589,7 +1591,9 @@ export async function getDatasetItemById<
           validFrom: "desc",
         },
       });
-      if (item?.isDeleted) return null;
+      if (item?.isDeleted) {
+        return null;
+      }
       return item ? toDomainType(item, includeIO) : null;
     },
     [Implementation.VERSIONED]: async () => {

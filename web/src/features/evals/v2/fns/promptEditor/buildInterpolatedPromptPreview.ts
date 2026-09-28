@@ -54,7 +54,9 @@ export function buildInterpolatedPromptPreview({
 
   for (const match of prompt.matchAll(MUSTACHE_REGEX)) {
     const variable = match[1];
-    if (!isValidVariableName(variable)) continue;
+    if (!isValidVariableName(variable)) {
+      continue;
+    }
 
     const start = match.index;
     if (start > cursor) {

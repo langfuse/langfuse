@@ -16,11 +16,15 @@ export function TextLink({
 }) {
   const Icon = icon;
   const handleClick = (event: React.MouseEvent) => {
-    if (!onClick) return;
+    if (!onClick) {
+      return;
+    }
     // Preserve native new-tab gestures when the link has a real destination.
     const isModifiedClick =
       event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0;
-    if (path && isModifiedClick) return;
+    if (path && isModifiedClick) {
+      return;
+    }
     event.preventDefault();
     onClick(event);
   };

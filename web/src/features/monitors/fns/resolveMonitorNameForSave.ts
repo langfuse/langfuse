@@ -11,8 +11,12 @@ export async function resolveMonitorNameForSave({
   generateName: () => Promise<string | null>;
 }): Promise<string | null> {
   const enteredName = name?.trim();
-  if (enteredName) return enteredName;
-  if (!aiAvailable) return fallbackName;
+  if (enteredName) {
+    return enteredName;
+  }
+  if (!aiAvailable) {
+    return fallbackName;
+  }
 
   const generatedName = (await generateName())?.trim();
   return generatedName || null;

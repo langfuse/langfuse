@@ -49,10 +49,14 @@ export class Verifier {
     secretKey: string,
   ): Promise<VerifyApiKeyResult> {
     const byPrivateKey = await this.verifyPrivateKey(secretKey);
-    if (byPrivateKey) return byPrivateKey;
+    if (byPrivateKey) {
+      return byPrivateKey;
+    }
 
     const bySlowHash = await this.backfillSlowHash(publicKey, secretKey);
-    if (bySlowHash) return bySlowHash;
+    if (bySlowHash) {
+      return bySlowHash;
+    }
 
     return unauthorizedError(invalidCredentials);
   }
@@ -60,13 +64,19 @@ export class Verifier {
   /** verifyBearer chains admin, then public (public key), then private (fast hash). */
   private async verifyBearer(token: string): Promise<VerifyApiKeyResult> {
     const admin = this.verifyAdminKey(token);
-    if (admin) return admin;
+    if (admin) {
+      return admin;
+    }
 
     const byPublicKey = await this.verifyPublicKey(token);
-    if (byPublicKey) return byPublicKey;
+    if (byPublicKey) {
+      return byPublicKey;
+    }
 
     const byPrivateKey = await this.verifyPrivateKey(token);
-    if (byPrivateKey) return byPrivateKey;
+    if (byPrivateKey) {
+      return byPrivateKey;
+    }
 
     return unauthorizedError(invalidCredentials);
   }
@@ -78,8 +88,12 @@ export class Verifier {
     const found = await this.apiKeyRepo.findByFastHash(
       createShaHash(secretKey, this.salt),
     );
-    if (!found.success) return found;
-    if (found.apiKey?.fastHashedSecretKey) return privateKey(found.apiKey);
+    if (!found.success) {
+      return found;
+    }
+    if (found.apiKey?.fastHashedSecretKey) {
+      return privateKey(found.apiKey);
+    }
     return null;
   }
 
@@ -89,8 +103,12 @@ export class Verifier {
     secretKey: string,
   ): Promise<VerifyApiKeyResult | null> {
     const found = await this.apiKeyRepo.findByPublicKey(publicKey);
-    if (!found.success) return found;
-    if (!found.apiKey) return null;
+    if (!found.success) {
+      return found;
+    }
+    if (!found.apiKey) {
+      return null;
+    }
 
     let valid: boolean;
     try {
@@ -98,7 +116,9 @@ export class Verifier {
     } catch (error) {
       return internalServerError(`slow verify failed: ${String(error)}`);
     }
-    if (!valid) return null;
+    if (!valid) {
+      return null;
+    }
 
     await this.apiKeyRepo.backfillFastHash(
       found.apiKey.id,
@@ -110,7 +130,9 @@ export class Verifier {
   /** verifyAdminKey resolves a token that timing-safe matches the admin key, or null; the key is ignored unless set and non-empty after trimming. */
   private verifyAdminKey(token: string): VerifyApiKeyResult | null {
     const adminApiKey = this.adminApiKey?.trim();
-    if (!adminApiKey) return null;
+    if (!adminApiKey) {
+      return null;
+    }
     try {
       if (
         crypto.timingSafeEqual(Buffer.from(token), Buffer.from(adminApiKey))
@@ -127,13 +149,21 @@ export class Verifier {
   private async verifyPublicKey(
     token: string,
   ): Promise<VerifyApiKeyResult | null> {
-    if (!token.startsWith(publicKeyPrefix)) return null;
+    if (!token.startsWith(publicKeyPrefix)) {
+      return null;
+    }
     const found = await this.apiKeyRepo.findByPublicKey(token);
-    if (!found.success) return found;
-    if (!found.apiKey) return null;
+    if (!found.success) {
+      return found;
+    }
+    if (!found.apiKey) {
+      return null;
+    }
     // Public-key (bearer) auth is project-scoped score ingest only; an org key
     // must authenticate with its secret over basic or private bearer.
-    if (found.apiKey.scope !== "PROJECT") return null;
+    if (found.apiKey.scope !== "PROJECT") {
+      return null;
+    }
     return { success: true, authorization: "publicKey", apiKey: found.apiKey };
   }
 }

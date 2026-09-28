@@ -40,8 +40,12 @@ import { isPrismaException } from "@/src/utils/exceptions";
 export async function shadowAuth(
   params: ShadowAuthParams,
 ): Promise<ShadowAuthResult> {
-  if (env.API_AUTH_MIGRATION === "enforce") return enforceOnly(params);
-  if (env.API_AUTH_MIGRATION === "shadow") return legacyWithShadow(params);
+  if (env.API_AUTH_MIGRATION === "enforce") {
+    return enforceOnly(params);
+  }
+  if (env.API_AUTH_MIGRATION === "shadow") {
+    return legacyWithShadow(params);
+  }
   return legacyOnly(params);
 }
 
@@ -58,7 +62,9 @@ async function legacyWithShadow(
   const newAuth = await runNewAuth(params);
   shadowAuthDiff(newAuth, legacyAuth, params.action);
   const result = legacyResult(legacyAuth);
-  if (result.success && newAuth.success) return { ...result, ctx: newAuth.ctx };
+  if (result.success && newAuth.success) {
+    return { ...result, ctx: newAuth.ctx };
+  }
   return result;
 }
 
@@ -129,7 +135,9 @@ async function runLegacyProjectAuth(
 
 /** legacyResult lifts a legacy decision into the seam's success or error value. */
 function legacyResult(legacy: LegacyDecision): ShadowAuthResult {
-  if (legacy.success) return { success: true, scope: legacy.scope };
+  if (legacy.success) {
+    return { success: true, scope: legacy.scope };
+  }
   return { success: false, error: legacy.error };
 }
 

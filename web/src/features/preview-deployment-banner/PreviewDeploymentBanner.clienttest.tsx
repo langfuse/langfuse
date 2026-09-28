@@ -11,7 +11,9 @@ vi.mock("@/src/env.mjs", () => ({ env: h.env }));
 
 describe("PreviewDeploymentBanner", () => {
   afterEach(() => {
-    for (const key of Object.keys(h.env)) delete h.env[key];
+    for (const key of Object.keys(h.env)) {
+      delete h.env[key];
+    }
   });
 
   it("links the PR and the author and shows the update time", () => {

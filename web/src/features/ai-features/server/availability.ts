@@ -35,7 +35,9 @@ export async function resolveLangfuseAiFeatureAvailability(params: {
       },
     },
   });
-  if (!project) return { available: false, reason: "project-not-found" };
+  if (!project) {
+    return { available: false, reason: "project-not-found" };
+  }
   if (!project.organization.aiFeaturesEnabled) {
     return { available: false, reason: "organization-disabled" };
   }
@@ -43,7 +45,9 @@ export async function resolveLangfuseAiFeatureAvailability(params: {
   // Same resolution as the Assistant and Ask AI: the small model, whichever
   // provider is configured.
   const modelConfig = getInAppAgentModelConfig();
-  if (!modelConfig) return { available: false, reason: "model-not-configured" };
+  if (!modelConfig) {
+    return { available: false, reason: "model-not-configured" };
+  }
 
   return {
     available: true,

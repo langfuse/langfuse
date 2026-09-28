@@ -27,7 +27,9 @@ export function StateKeyNameInput({
       onCancel();
       return;
     }
-    if (error) return;
+    if (error) {
+      return;
+    }
     onCommit(trimmed);
   };
 

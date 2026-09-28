@@ -5,11 +5,17 @@ import { cn } from "@/src/utils/tailwind";
 const NAVIGATION_PREFERENCE_KEY = "trace-review-navigation-collapsed";
 
 function readNavigationPreference(): boolean | null {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined") {
+    return null;
+  }
   try {
     const value = localStorage.getItem(NAVIGATION_PREFERENCE_KEY);
-    if (value === "true") return true;
-    if (value === "false") return false;
+    if (value === "true") {
+      return true;
+    }
+    if (value === "false") {
+      return false;
+    }
     return null;
   } catch {
     return null;
@@ -42,7 +48,9 @@ export function TraceReviewLayout({
 
   useLayoutEffect(() => {
     const root = rootRef.current;
-    if (!root) return;
+    if (!root) {
+      return;
+    }
     const sidebar = document.querySelector('[data-sidebar="sidebar"]');
     const measure = () => {
       const width = root.getBoundingClientRect().width;
@@ -62,7 +70,9 @@ export function TraceReviewLayout({
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(root);
-    if (sidebar) observer.observe(sidebar);
+    if (sidebar) {
+      observer.observe(sidebar);
+    }
     window.addEventListener("resize", measure);
     return () => {
       observer.disconnect();
@@ -89,7 +99,9 @@ export function TraceReviewLayout({
   useLayoutEffect(() => {
     let cancelled = false;
     queueMicrotask(() => {
-      if (cancelled) return;
+      if (cancelled) {
+        return;
+      }
       groupRef.current?.setLayout({
         workspace: open ? 60 : 100,
         review: open ? 40 : 0,

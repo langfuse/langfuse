@@ -31,15 +31,25 @@ export const getDashboardQuerySchedulerMaxConcurrent = (
   timeRange: TimeRange,
 ) => {
   const absoluteTimeRange = toAbsoluteTimeRange(timeRange);
-  if (!absoluteTimeRange) return 5;
+  if (!absoluteTimeRange) {
+    return 5;
+  }
 
   const durationMs =
     absoluteTimeRange.to.getTime() - absoluteTimeRange.from.getTime();
 
-  if (durationMs >= 90 * DAY_MS) return 2;
-  if (durationMs >= 30 * DAY_MS) return 4;
-  if (durationMs >= 7 * DAY_MS) return 6;
-  if (durationMs >= DAY_MS) return 6;
+  if (durationMs >= 90 * DAY_MS) {
+    return 2;
+  }
+  if (durationMs >= 30 * DAY_MS) {
+    return 4;
+  }
+  if (durationMs >= 7 * DAY_MS) {
+    return 6;
+  }
+  if (durationMs >= DAY_MS) {
+    return 6;
+  }
   return 9;
 };
 
@@ -76,10 +86,14 @@ export const getDashboardSchedulerResetKey = (params: {
   ].join("|");
 
 const parseIsoDateMs = (value: unknown): number | null => {
-  if (typeof value !== "string") return null;
+  if (typeof value !== "string") {
+    return null;
+  }
 
   const parsedMs = Date.parse(value);
-  if (Number.isNaN(parsedMs)) return null;
+  if (Number.isNaN(parsedMs)) {
+    return null;
+  }
 
   return parsedMs;
 };
@@ -110,7 +124,9 @@ export const useDashboardQueryScheduler = ({
   // Re-queue everything only when the key actually changes — never on mount.
   const previousResetKeyRef = useRef<string | undefined>(resetKey);
   useEffect(() => {
-    if (previousResetKeyRef.current === resetKey) return;
+    if (previousResetKeyRef.current === resetKey) {
+      return;
+    }
     previousResetKeyRef.current = resetKey;
     store.getState().actions.resetQueue();
   }, [resetKey, store]);
@@ -188,7 +204,9 @@ const getDashboardExecuteQueryDurationMs = (
   const fromMs = parseIsoDateMs(input.query?.fromTimestamp);
   const toMs = parseIsoDateMs(input.query?.toTimestamp);
 
-  if (fromMs === null || toMs === null) return null;
+  if (fromMs === null || toMs === null) {
+    return null;
+  }
   return Math.max(0, toMs - fromMs);
 };
 
@@ -245,9 +263,13 @@ const normalizeIsoTimestampByBucket = (
   value: unknown,
   bucketMs: number,
 ): unknown => {
-  if (typeof value !== "string") return value;
+  if (typeof value !== "string") {
+    return value;
+  }
   const parsedMs = Date.parse(value);
-  if (Number.isNaN(parsedMs)) return value;
+  if (Number.isNaN(parsedMs)) {
+    return value;
+  }
 
   const effectiveBucketMs = Math.max(1, Math.floor(bucketMs));
   const normalizedMs =
@@ -259,7 +281,9 @@ const normalizeDashboardExecuteQueryInputForCache = (
   input: DashboardExecuteQueryInput,
   bucketMs: number,
 ): DashboardExecuteQueryInput => {
-  if (!input.query) return input;
+  if (!input.query) {
+    return input;
+  }
 
   // Intentionally bucket from/to timestamps only for derived cache/restart keys.
   // The backend payload still uses the original timestamps.
@@ -383,9 +407,15 @@ export const useScheduledDashboardExecuteQuery = (
   // reason — success, error, stall timeout, or abort. Holding a slot on a
   // failed stream would freeze the whole dashboard at low concurrency.
   useEffect(() => {
-    if (!enabled || !canFetch) return;
-    if (activeResult.fetchStatus !== "idle") return;
-    if (activeResult.isPending) return;
+    if (!enabled || !canFetch) {
+      return;
+    }
+    if (activeResult.fetchStatus !== "idle") {
+      return;
+    }
+    if (activeResult.isPending) {
+      return;
+    }
 
     actions.markDone(queryId);
   }, [

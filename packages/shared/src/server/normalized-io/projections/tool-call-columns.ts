@@ -17,19 +17,25 @@ export function toToolColumns(io: NormalizedIO): ToolColumns {
   // input-tagged message is history from an earlier turn (already resolved),
   // not something this observation newly called
   for (const message of io.messages) {
-    if (message.source !== "output") continue;
+    if (message.source !== "output") {
+      continue;
+    }
 
     // Parallel-call slot within the message (chat-completions `index`
     // semantics: tool_calls[i].index === i in assembled payloads). Counted
     // before the invalid filter so emitted slots match the raw payload.
     let callIndex = 0;
     for (const part of message.parts) {
-      if (part.type !== "tool-call") continue;
+      if (part.type !== "tool-call") {
+        continue;
+      }
       const index = callIndex++;
       // Columns count executable calls only; attempts whose arguments could
       // not be parsed stay out — legacy parity, the legacy extractor never
       // saw unparsed calls.
-      if (part.invalid === true) continue;
+      if (part.invalid === true) {
+        continue;
+      }
 
       tool_call_names.push(part.toolName);
       tool_calls.push(

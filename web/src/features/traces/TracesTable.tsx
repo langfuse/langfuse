@@ -248,7 +248,9 @@ function TracesTableInternal({
   }, [invalidateTableQueries]);
 
   useEffect(() => {
-    if (!refreshInterval) return;
+    if (!refreshInterval) {
+      return;
+    }
     const id = setInterval(invalidateTableQueries, refreshInterval);
     return () => clearInterval(id);
   }, [refreshInterval, manualRefreshTrigger, invalidateTableQueries]);
@@ -852,7 +854,9 @@ function TracesTableInternal({
       enableSorting,
       enableHiding: true,
       getCell: (value, { row }) => {
-        if (isMetricPending(row.original.id)) return { type: "loading" };
+        if (isMetricPending(row.original.id)) {
+          return { type: "loading" };
+        }
         if (!value?.inputUsage && !value?.outputUsage && !value?.totalUsage) {
           return undefined;
         }
@@ -1149,7 +1153,9 @@ function TracesTableInternal({
           size: 100,
           formatter: (value) => usdFormatter(value),
           getValue: (value, { row }) => {
-            if (isMetricPending(row.original.id)) return { type: "loading" };
+            if (isMetricPending(row.original.id)) {
+              return { type: "loading" };
+            }
             return value ?? undefined;
           },
           defaultHidden: true,
@@ -1163,7 +1169,9 @@ function TracesTableInternal({
           size: 100,
           formatter: (value) => usdFormatter(value),
           getValue: (value, { row }) => {
-            if (isMetricPending(row.original.id)) return { type: "loading" };
+            if (isMetricPending(row.original.id)) {
+              return { type: "loading" };
+            }
             return value ?? undefined;
           },
           enableHiding: true,
@@ -1282,7 +1290,9 @@ function TracesTableInternal({
   });
 
   const peekConfig = useMemo(() => {
-    if (hideControls) return undefined;
+    if (hideControls) {
+      return undefined;
+    }
     return {
       itemType: "TRACE" as const,
       detailNavigationKey: detailPageListKeys.traces,
@@ -1686,7 +1696,9 @@ export default function TracesTable(props: TracesTableProps) {
       variant="destructive"
       loading={traceMutation.isPending}
       onConfirm={async () => {
-        if (!traceIdToDelete) return;
+        if (!traceIdToDelete) {
+          return;
+        }
 
         await traceMutation.mutateAsync({
           traceIds: [traceIdToDelete],

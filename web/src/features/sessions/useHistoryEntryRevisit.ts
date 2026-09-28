@@ -30,9 +30,13 @@ const STORAGE_KEY = "lf-visited-history-entries";
 const MAX_TRACKED_ENTRIES = 100;
 
 const readHistoryEntryKey = (): string | null => {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined") {
+    return null;
+  }
   const state: unknown = window.history.state;
-  if (typeof state !== "object" || state === null) return null;
+  if (typeof state !== "object" || state === null) {
+    return null;
+  }
   const key = (state as { key?: unknown }).key;
   return typeof key === "string" ? key : null;
 };
@@ -40,7 +44,9 @@ const readHistoryEntryKey = (): string | null => {
 const readVisitedKeys = (): string[] => {
   try {
     const raw = window.sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
+    if (!raw) {
+      return [];
+    }
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed)
       ? parsed.filter((key): key is string => typeof key === "string")
@@ -86,7 +92,9 @@ export function useHistoryEntryRevisit(scopeKey: string): boolean {
   const asPath = router.asPath;
   useEffect(() => {
     const entryKey = readHistoryEntryKey();
-    if (entryKey === null) return;
+    if (entryKey === null) {
+      return;
+    }
     return () => markHistoryEntryVisited(entryKey);
   }, [asPath]);
 

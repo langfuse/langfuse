@@ -134,7 +134,9 @@ export const getLegacyIntegrationSummaries = async ({
   prisma: V4TransitionPrisma;
   projectIds: string[];
 }) => {
-  if (projectIds.length === 0) return [];
+  if (projectIds.length === 0) {
+    return [];
+  }
 
   const [posthogIntegrations, mixpanelIntegrations, blobStorageIntegrations] =
     await Promise.all([
@@ -194,7 +196,9 @@ export const getTraceLevelEvalSummaries = async ({
   prisma: V4TransitionPrisma;
   projectIds: string[];
 }): Promise<TraceLevelEvalSummaryResultRow[]> => {
-  if (projectIds.length === 0) return [];
+  if (projectIds.length === 0) {
+    return [];
+  }
 
   const counts = await prisma.evaluationRule.groupBy({
     by: ["projectId"],

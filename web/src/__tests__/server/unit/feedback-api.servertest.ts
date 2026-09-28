@@ -69,7 +69,9 @@ const createRequest = (body: Record<string, unknown> | null) => {
     body: body ?? {},
   });
 
-  if (body === null) mocks.req.body = null;
+  if (body === null) {
+    mocks.req.body = null;
+  }
 
   return mocks;
 };

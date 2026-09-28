@@ -134,7 +134,9 @@ export function EvaluatorBackfillSettings({
               value={maxItems}
               onChange={(event) => {
                 const value = Number(event.target.value);
-                if (!Number.isFinite(value)) return;
+                if (!Number.isFinite(value)) {
+                  return;
+                }
                 onMaxItemsChange(
                   Math.min(maxAllowedItems, Math.max(1, Math.floor(value))),
                 );

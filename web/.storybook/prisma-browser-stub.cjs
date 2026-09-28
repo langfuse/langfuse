@@ -26,10 +26,10 @@ module.exports = new Proxy(
   {},
   {
     get: (_target, prop) => {
-      if (prop === "__esModule") return false;
-      if (prop === "default") return undefined;
-      if (prop === "PrismaClient") return PrismaClient;
-      if (typeof prop === "symbol") return undefined;
+      if (prop === "__esModule") {return false;}
+      if (prop === "default") {return undefined;}
+      if (prop === "PrismaClient") {return PrismaClient;}
+      if (typeof prop === "symbol") {return undefined;}
 
       return enumLike;
     },

@@ -82,7 +82,9 @@ export const BigNumber: React.FC<ChartProps> = ({
 
   useEffect(() => {
     const resizeObserver = new ResizeObserver(() => {
-      if (!containerRef.current || !textRef.current) return;
+      if (!containerRef.current || !textRef.current) {
+        return;
+      }
 
       const container = containerRef.current;
 

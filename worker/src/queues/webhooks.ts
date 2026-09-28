@@ -64,7 +64,9 @@ async function incrementAutomationFailure(args: {
   projectId: string;
   automationId: string;
 }): Promise<number> {
-  if (!redis) return 0;
+  if (!redis) {
+    return 0;
+  }
   const key = automationFailureKey(args.projectId, args.automationId);
   const results = await redis
     .multi()
@@ -79,7 +81,9 @@ async function resetAutomationFailures(args: {
   projectId: string;
   automationId: string;
 }): Promise<void> {
-  if (!redis) return;
+  if (!redis) {
+    return;
+  }
   await redis.del(automationFailureKey(args.projectId, args.automationId));
 }
 
@@ -489,7 +493,9 @@ async function executeWebhookAction({
   automation: Awaited<ReturnType<typeof getAutomationById>>;
   skipValidation?: boolean;
 }) {
-  if (!automation) return;
+  if (!automation) {
+    return;
+  }
 
   const { projectId, executionId } = input;
   const executionStart = new Date();
@@ -575,7 +581,9 @@ async function executeGitHubDispatchAction({
   automation: Awaited<ReturnType<typeof getAutomationById>>;
   skipValidation?: boolean;
 }) {
-  if (!automation) return;
+  if (!automation) {
+    return;
+  }
 
   const { projectId, executionId } = input;
   const executionStart = new Date();
@@ -714,7 +722,9 @@ async function executeSlackAction({
   input: WebhookInput;
   automation: Awaited<ReturnType<typeof getAutomationById>>;
 }) {
-  if (!automation) return;
+  if (!automation) {
+    return;
+  }
 
   const { projectId, executionId } = input;
   const executionStart = new Date();

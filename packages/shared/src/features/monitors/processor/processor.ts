@@ -69,7 +69,9 @@ export class MonitorProcessor {
         this.claimMonitors(event, now),
       );
       span.setAttribute("monitors", monitors.length);
-      if (monitors.length === 0) return;
+      if (monitors.length === 0) {
+        return;
+      }
 
       const [metrics, triggers] = await Promise.all([
         instrumentAsync({ name: "queryMetrics" }, () =>
@@ -116,7 +118,9 @@ export class MonitorProcessor {
     event: MonitorQueueEvent,
     now: Date,
   ): Promise<Monitor[]> {
-    if (event.monitors.length === 0) return [];
+    if (event.monitors.length === 0) {
+      return [];
+    }
     const prismaMonitors = await this.db.monitor.updateManyAndReturn({
       where: {
         id: { in: event.monitors.map((m) => m.monitorId) },
@@ -156,7 +160,9 @@ export class MonitorProcessor {
     for (const metric of validation.rejected) {
       metricMap[metricKey(metric)] = ErrorBadQuery;
     }
-    if (validation.accepted.length === 0) return metricMap;
+    if (validation.accepted.length === 0) {
+      return metricMap;
+    }
 
     try {
       const rows = await this.executeQuery(
@@ -212,7 +218,9 @@ export class MonitorProcessor {
     projectId: string;
     completions: MonitorCompletion[];
   }): Promise<void> {
-    if (args.completions.length === 0) return;
+    if (args.completions.length === 0) {
+      return;
+    }
     await this.db.$transaction([
       // tz-naive columns are read back as UTC by Prisma; pin the session so raw casts store UTC wall-clock
       this.db.$executeRawUnsafe(`SET LOCAL TIME ZONE 'UTC'`),
@@ -256,7 +264,9 @@ function dedupeMetrics(metrics: QueryType["metrics"]): QueryType["metrics"] {
   const seen = new Set<string>();
   return metrics.filter((m) => {
     const key = metricKey(m);
-    if (seen.has(key)) return false;
+    if (seen.has(key)) {
+      return false;
+    }
     seen.add(key);
     return true;
   });
@@ -283,8 +293,12 @@ function evaluationWindow(
 
 /** parseNumericValue coerces a ClickHouse cell to number | null, mapping missing or non-finite values to null. */
 function parseNumericValue(raw: unknown): number | null {
-  if (raw === null || raw === undefined) return null;
-  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+  if (typeof raw === "number") {
+    return Number.isFinite(raw) ? raw : null;
+  }
   const n = Number(raw);
   return Number.isFinite(n) ? n : null;
 }
@@ -357,10 +371,14 @@ function processMonitor(args: {
     now,
     publishedAt,
   });
-  if (!emit) return [completion, []];
+  if (!emit) {
+    return [completion, []];
+  }
 
   const automations = getAutomations({ monitor, completion, triggers });
-  if (automations.length === 0) return [completion, []];
+  if (automations.length === 0) {
+    return [completion, []];
+  }
 
   const alert = buildAlert({ prev: monitor, next: completion, runAt });
   return [completion, toMonitorWebhookInputs({ alert, automations, now })];
@@ -372,8 +390,12 @@ function getMetricValue(
   metric: Monitor["metric"],
 ): MetricValue {
   const value = metrics[metricKey(metric)];
-  if (value === ErrorBadQuery) return ErrorBadQuery;
-  if (metrics["count_count"] === 0) return null;
+  if (value === ErrorBadQuery) {
+    return ErrorBadQuery;
+  }
+  if (metrics["count_count"] === 0) {
+    return null;
+  }
   return value ?? null;
 }
 
@@ -432,7 +454,9 @@ export function buildPermalink(
   projectId: string,
   monitorId: string,
 ): string | undefined {
-  if (!env.NEXTAUTH_URL) return undefined;
+  if (!env.NEXTAUTH_URL) {
+    return undefined;
+  }
   const base = env.NEXTAUTH_URL.replace(/\/$/, "");
   return `${base}/project/${projectId}/alerts/${monitorId}`;
 }
@@ -462,7 +486,9 @@ export function buildDataWindowPermalink(
   toTimestamp: Date,
   filters: FilterState = [],
 ): string | undefined {
-  if (!env.NEXTAUTH_URL) return undefined;
+  if (!env.NEXTAUTH_URL) {
+    return undefined;
+  }
   const base = env.NEXTAUTH_URL.replace(/\/$/, "");
   const dateRange = `${fromTimestamp.getTime()}-${toTimestamp.getTime()}`;
   if (view === "observations") {

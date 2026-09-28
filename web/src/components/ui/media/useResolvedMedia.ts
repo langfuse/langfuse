@@ -34,13 +34,18 @@ export function useResolvedMedia(
     },
   );
 
-  if (!enabled || !projectId) return { status: "idle" };
-  if (query.isError) return { status: "error" };
-  if (query.data?.url)
+  if (!enabled || !projectId) {
+    return { status: "idle" };
+  }
+  if (query.isError) {
+    return { status: "error" };
+  }
+  if (query.data?.url) {
     return {
       status: "ready",
       url: query.data.url,
       contentLength: query.data.contentLength,
     };
+  }
   return { status: "loading" };
 }

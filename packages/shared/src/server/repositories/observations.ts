@@ -1593,7 +1593,9 @@ export const getObservationsGroupedByTraceId = async (
   traceIds: string[],
   timestamp?: Date,
 ): Promise<Map<string, ObservationTuple[]>> => {
-  if (traceIds.length === 0) return new Map();
+  if (traceIds.length === 0) {
+    return new Map();
+  }
 
   const query = `
     SELECT
@@ -2052,7 +2054,9 @@ const getEvaluatorCostMetricsByIds = async <
   evaluatorIds: string[],
   fields: TFields,
 ) => {
-  if (evaluatorIds.length === 0) return [];
+  if (evaluatorIds.length === 0) {
+    return [];
+  }
 
   const rows = await queryClickhouse<Record<string, string>>({
     query: `

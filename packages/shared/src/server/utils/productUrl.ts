@@ -108,7 +108,9 @@ export const buildScoreSubjectUrl = (
   projectId: string,
   subject: APIScoreV3["subject"],
 ): string | undefined => {
-  if (!subject) return undefined;
+  if (!subject) {
+    return undefined;
+  }
 
   switch (subject.kind) {
     case "trace":

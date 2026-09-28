@@ -73,7 +73,9 @@ function PageNumberInput({
       value={value}
       onChange={(event) => setValue(event.target.value)}
       onKeyDown={(event) => {
-        if (event.key !== "Enter") return;
+        if (event.key !== "Enter") {
+          return;
+        }
         event.preventDefault();
         submit(event.currentTarget.value);
       }}

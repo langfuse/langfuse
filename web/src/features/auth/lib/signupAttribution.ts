@@ -35,14 +35,17 @@ type RequestWithCookies = {
 };
 
 function sanitizeClickId(value: string | null | undefined): string | undefined {
-  if (!value) return undefined;
+  if (!value) {
+    return undefined;
+  }
   const trimmed = value.trim();
   if (
     trimmed.length === 0 ||
     trimmed.length > MAX_CLICK_ID_LENGTH ||
     !CLICK_ID_FORMAT.test(trimmed)
-  )
+  ) {
     return undefined;
+  }
   return trimmed;
 }
 
@@ -54,7 +57,9 @@ function getFirstTouchUrl(req: RequestWithCookies): URL | undefined {
   const posthogCookie = Object.entries(req.cookies).find(([name]) =>
     POSTHOG_COOKIE_NAME.test(name),
   )?.[1];
-  if (!posthogCookie) return undefined;
+  if (!posthogCookie) {
+    return undefined;
+  }
   try {
     const parsed: unknown = JSON.parse(posthogCookie);
     const initialUrl =
@@ -125,7 +130,9 @@ export function getAdClickIdsFromRequest(req: RequestWithCookies): AdClickIds {
       sanitizeClickId(req.cookies[`lf_${param}`]) ??
       sanitizeClickId(getPlatformCookieValue(req, param)) ??
       sanitizeClickId(firstTouchUrl?.searchParams.get(param));
-    if (value) clickIds[param] = value;
+    if (value) {
+      clickIds[param] = value;
+    }
   }
 
   return clickIds;

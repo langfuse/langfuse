@@ -65,8 +65,9 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
       const text = mapValue ? mapValue(value, context) : value;
 
       if (text === null || text === undefined) {
-        if (!trailingAction)
+        if (!trailingAction) {
           return nullValue ? <Text value={nullValue} /> : null;
+        }
         if (trailingAction.type === "copy-to-clipboard") {
           return nullValue ? <CopyableText value={nullValue} /> : null;
         }
@@ -79,7 +80,9 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
           />
         );
       }
-      if (typeof text !== "string") return loadingCell;
+      if (typeof text !== "string") {
+        return loadingCell;
+      }
 
       if (tooltip) {
         const content = tooltip(context);

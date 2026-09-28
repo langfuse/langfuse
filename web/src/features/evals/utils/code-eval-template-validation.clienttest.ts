@@ -21,7 +21,9 @@ vi.mock("@astral-sh/ruff-wasm-web", () => ({
   PositionEncoding: { Utf16: 1 },
   Workspace: class {
     check(contents: string) {
-      if (!contents.includes("missing_name")) return [];
+      if (!contents.includes("missing_name")) {
+        return [];
+      }
 
       return [
         {

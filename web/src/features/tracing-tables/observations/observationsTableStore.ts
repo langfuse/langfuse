@@ -58,7 +58,9 @@ export function createObservationsTableStore({
 
     const setSelectAll = (updater: BooleanUpdater) => {
       const nextSelectAll = resolveUpdater(updater, get().selectAll);
-      if (nextSelectAll === get().selectAll) return;
+      if (nextSelectAll === get().selectAll) {
+        return;
+      }
 
       set({ selectAll: nextSelectAll });
       onSelectAllChange(nextSelectAll);
@@ -80,7 +82,9 @@ export function createObservationsTableStore({
       }
 
       updateSelection(nextRowSelection, nextSelected ? get().selectAll : false);
-      if (!nextSelected) onSelectAllChange(false);
+      if (!nextSelected) {
+        onSelectAllChange(false);
+      }
     };
 
     return {

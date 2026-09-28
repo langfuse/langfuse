@@ -37,7 +37,9 @@ export function useDatasetRunsCompare(projectId: string, datasetId: string) {
     runId: string;
     runName: string;
   }) => {
-    if (!data) return;
+    if (!data) {
+      return;
+    }
     utils.datasets.baseRunDataByDatasetId.invalidate();
     setLocalRuns((prev) => [...prev, { key: data.runId, value: data.runName }]);
     setRunState({

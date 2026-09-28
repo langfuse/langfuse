@@ -151,10 +151,14 @@ class ToolRegistry {
     context: ServerContext,
   ): Promise<RegisteredTool | undefined> {
     const tool = this.tools.get(name);
-    if (!tool) return undefined;
+    if (!tool) {
+      return undefined;
+    }
 
     const feature = this.getFeatureForTool(name);
-    if (!feature) return undefined;
+    if (!feature) {
+      return undefined;
+    }
 
     if (feature.isEnabled && !(await feature.isEnabled(context))) {
       return undefined;

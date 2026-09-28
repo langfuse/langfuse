@@ -41,8 +41,12 @@ export const formatSessionPositionInTraceFilterValue = (
 ) => {
   const mode = getSessionPositionInTraceFilterMode(filter);
 
-  if (mode === "first") return "1st";
-  if (mode === "last") return "last";
+  if (mode === "first") {
+    return "1st";
+  }
+  if (mode === "last") {
+    return "last";
+  }
 
   const ordinal = typeof filter.value === "number" ? ` ${filter.value}` : "";
 

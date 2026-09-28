@@ -220,7 +220,9 @@ export const PromptDetail = ({
     runName: string;
   }) => {
     setIsCreateExperimentDialogOpen(false);
-    if (!data) return;
+    if (!data) {
+      return;
+    }
     utils.datasets.baseRunDataByDatasetId.invalidate();
     utils.datasets.runsByDatasetId.invalidate();
     showSuccessToast({
@@ -256,10 +258,16 @@ export const PromptDetail = ({
   const commentCounts = promptHistory.data?.commentCounts;
 
   const { pythonCode, jsCode } = useMemo(() => {
-    if (!prompt?.id) return { pythonCode: null, jsCode: null };
+    if (!prompt?.id) {
+      return { pythonCode: null, jsCode: null };
+    }
     const sortedLabels = [...prompt.labels].sort((a, b) => {
-      if (a === PRODUCTION_LABEL) return -1;
-      if (b === PRODUCTION_LABEL) return 1;
+      if (a === PRODUCTION_LABEL) {
+        return -1;
+      }
+      if (b === PRODUCTION_LABEL) {
+        return 1;
+      }
       return a.localeCompare(b);
     });
 

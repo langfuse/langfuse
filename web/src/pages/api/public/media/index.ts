@@ -25,7 +25,9 @@ export default withMiddlewares({
         );
       }
 
-      if (auth.scope.accessLevel !== "project") throw new ForbiddenError();
+      if (auth.scope.accessLevel !== "project") {
+        throw new ForbiddenError();
+      }
 
       const { projectId } = auth.scope;
       const {
@@ -38,10 +40,11 @@ export default withMiddlewares({
         field,
       } = body;
 
-      if (contentLength > env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH)
+      if (contentLength > env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH) {
         throw new InvalidRequestError(
           `File size must be less than ${env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH} bytes`,
         );
+      }
 
       return await instrumentAsync(
         { name: "media-create-upload-url" },

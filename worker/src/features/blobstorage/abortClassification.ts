@@ -76,10 +76,16 @@ export function errorChainText(error: unknown): string {
   while (current != null && !seen.has(current)) {
     seen.add(current);
     if (current instanceof Error) {
-      if (current.message) parts.push(current.message);
+      if (current.message) {
+        parts.push(current.message);
+      }
       const code = (current as NodeJS.ErrnoException).code;
-      if (code) parts.push(String(code));
-      if (current.name && current.name !== "Error") parts.push(current.name);
+      if (code) {
+        parts.push(String(code));
+      }
+      if (current.name && current.name !== "Error") {
+        parts.push(current.name);
+      }
       current = current.cause;
     } else {
       parts.push(String(current));
@@ -112,15 +118,22 @@ function classifyOne(rec: RecordedStageError): {
 
   // Only a generic teardown left: attribute by the observing stage, non-concrete.
   if (GENERIC_TEARDOWN_PATTERNS.some((p) => text.includes(p))) {
-    if (rec.stage === "ch-read") return { reason: "ch-error", concrete: false };
-    if (rec.stage === "upload")
+    if (rec.stage === "ch-read") {
+      return { reason: "ch-error", concrete: false };
+    }
+    if (rec.stage === "upload") {
       return { reason: "upload-error", concrete: false };
+    }
     return { reason: "unknown", concrete: false };
   }
 
   // Other real message (not a bare teardown): attribute by stage, concrete.
-  if (rec.stage === "ch-read") return { reason: "ch-error", concrete: true };
-  if (rec.stage === "upload") return { reason: "upload-error", concrete: true };
+  if (rec.stage === "ch-read") {
+    return { reason: "ch-error", concrete: true };
+  }
+  if (rec.stage === "upload") {
+    return { reason: "upload-error", concrete: true };
+  }
   return { reason: "unknown", concrete: false };
 }
 
@@ -134,7 +147,9 @@ export class BlobExportAbortTracker {
     error: unknown,
     now: number = performance.now(),
   ): void {
-    if (error == null) return;
+    if (error == null) {
+      return;
+    }
     this.records.push({ stage, error, at: now });
   }
 
@@ -147,7 +162,9 @@ export class BlobExportAbortTracker {
    * stage that failed first tore down the rest). Undefined if nothing recorded.
    */
   origin(): BlobExportAbortOrigin | undefined {
-    if (this.records.length === 0) return undefined;
+    if (this.records.length === 0) {
+      return undefined;
+    }
 
     const classified = this.records.map((rec) => ({
       rec,
@@ -155,7 +172,9 @@ export class BlobExportAbortTracker {
     }));
 
     classified.sort((a, b) => {
-      if (a.concrete !== b.concrete) return a.concrete ? -1 : 1;
+      if (a.concrete !== b.concrete) {
+        return a.concrete ? -1 : 1;
+      }
       return a.rec.at - b.rec.at;
     });
 

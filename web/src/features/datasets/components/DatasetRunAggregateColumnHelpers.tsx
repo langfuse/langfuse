@@ -204,15 +204,22 @@ export const constructDatasetRunAggregateColumns = ({
         if (
           isDataLoading ||
           (createdAt && createdAt.getTime() + 20000 > Date.now())
-        )
+        ) {
           return <Skeleton className="h-full min-h-0 w-full" />;
+        }
 
-        if (!Boolean(Object.keys(runData).length)) return null;
-        if (!runData.hasOwnProperty(id)) return null;
+        if (!Boolean(Object.keys(runData).length)) {
+          return null;
+        }
+        if (!runData.hasOwnProperty(id)) {
+          return null;
+        }
 
         const value: EnrichedDatasetRunItem | undefined = runData[id];
 
-        if (!value) return null;
+        if (!value) {
+          return null;
+        }
 
         return (
           <DatasetAggregateCellWithBaselineDetection

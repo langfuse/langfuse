@@ -82,7 +82,9 @@ export const getChunkWithFlattenedScores = <
 ) => {
   return chunk.map((row) => {
     const { scores, ...data } = row;
-    if (!scores) return { ...data, ...emptyScoreColumns };
+    if (!scores) {
+      return { ...data, ...emptyScoreColumns };
+    }
     const scoreColumns = Object.entries(scores).reduce<
       Record<string, string[] | number[] | null>
     >((acc, [key, value]) => {
@@ -692,7 +694,9 @@ export function prepareScoresForOutput(
         score.dataType === "NUMERIC" || score.dataType === "BOOLEAN"
           ? score.value
           : score.stringValue;
-      if (!isPresent(newValue)) return acc;
+      if (!isPresent(newValue)) {
+        return acc;
+      }
 
       if (!existingValues) {
         // First value determines the type

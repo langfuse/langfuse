@@ -74,10 +74,16 @@ function safeJsonParse(s: string): unknown {
 }
 
 function valueType(v: unknown): MetadataLeafType | null {
-  if (Array.isArray(v)) return "array";
+  if (Array.isArray(v)) {
+    return "array";
+  }
   const t = typeof v;
-  if (t === "string" || t === "number" || t === "boolean") return t;
-  if (t === "object" && v !== null) return "object";
+  if (t === "string" || t === "number" || t === "boolean") {
+    return t;
+  }
+  if (t === "object" && v !== null) {
+    return "object";
+  }
   return null;
 }
 
@@ -90,15 +96,21 @@ export function mergePathType(
   next: StoredPathType | null,
 ): StoredPathType {
   const observed = next ?? "";
-  if (prev === undefined || prev === "") return observed;
-  if (observed === "" || observed === prev) return prev;
+  if (prev === undefined || prev === "") {
+    return observed;
+  }
+  if (observed === "" || observed === prev) {
+    return prev;
+  }
   return "mixed";
 }
 
 /** Suggestible scalar value, stringified — or null when not suggestible. */
 function scalarValue(v: unknown): string | null {
   const t = typeof v;
-  if (t !== "string" && t !== "number" && t !== "boolean") return null;
+  if (t !== "string" && t !== "number" && t !== "boolean") {
+    return null;
+  }
   const s = String(v);
   return s.length > 0 && s.length <= MAX_VALUE_LENGTH ? s : null;
 }
@@ -114,18 +126,30 @@ export function collectMetadataPathTypes(
 ): Map<string, StoredKeyInfo> {
   const out = new Map<string, StoredKeyInfo>();
   for (const md of sampleMetadata) {
-    if (typeof md === "string" && md.length > MAX_METADATA_JSON_LENGTH)
+    if (typeof md === "string" && md.length > MAX_METADATA_JSON_LENGTH) {
       continue;
+    }
     const parsed = typeof md === "string" ? safeJsonParse(md) : md;
-    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
+    if (
+      parsed === null ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed)
+    ) {
       continue;
+    }
     for (const [key, v] of Object.entries(parsed as Record<string, unknown>)) {
       // Empty keys are unfilterable; "__proto__" keys would turn the store's
       // plain-object key map into a prototype write.
-      if (key.length === 0 || key === "__proto__") continue;
-      if (key.length > MAX_PATH_LENGTH) continue;
+      if (key.length === 0 || key === "__proto__") {
+        continue;
+      }
+      if (key.length > MAX_PATH_LENGTH) {
+        continue;
+      }
       const existing = out.get(key);
-      if (existing === undefined && out.size >= MAX_PATHS_PER_PROJECT) continue;
+      if (existing === undefined && out.size >= MAX_PATHS_PER_PROJECT) {
+        continue;
+      }
       const type = mergePathType(existing?.type, valueType(v));
       const value = scalarValue(v);
       let values = existing?.values;
@@ -156,7 +180,9 @@ export function observedMetadataOptions(
   paths: Record<string, StoredKeyInfo> | undefined,
 ): Record<string, MetadataSuggestion[]> {
   const entries = Object.entries(paths ?? {});
-  if (entries.length === 0) return {};
+  if (entries.length === 0) {
+    return {};
+  }
   const out: Record<string, MetadataSuggestion[]> = {
     metadata: [...entries]
       .sort(([a], [b]) => a.localeCompare(b))

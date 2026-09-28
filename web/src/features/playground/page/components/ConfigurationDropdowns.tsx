@@ -37,7 +37,9 @@ function usePopoverToDialog<T>() {
   };
 
   const handleDialogOpenChange = (open: boolean) => {
-    if (open) return;
+    if (open) {
+      return;
+    }
     setDialogOpen(false);
     setPopoverOpen(true);
   };

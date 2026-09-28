@@ -74,7 +74,9 @@ export function ModelSelector({
         }
         canSetProjectDefault={canSetProjectDefault}
         onSetProjectDefault={() => {
-          if (selectedConfig) onSetProjectDefault(selectedConfig);
+          if (selectedConfig) {
+            onSetProjectDefault(selectedConfig);
+          }
         }}
       >
         <PopoverTrigger asChild>

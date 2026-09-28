@@ -70,7 +70,9 @@ function markdownRawPlugin() {
     enforce: "pre",
     load(id) {
       const path = id.split("?", 1)[0];
-      if (!path?.endsWith(".md")) return null;
+      if (!path?.endsWith(".md")) {
+        return null;
+      }
 
       return `export default ${JSON.stringify(readFileSync(path, "utf8"))};`;
     },

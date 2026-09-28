@@ -21,7 +21,9 @@ export function RetryProviderButton({
         orgId: organizationId,
         id: connectionId,
       });
-      if (result.success) onModelsLoaded(result.models.length);
+      if (result.success) {
+        onModelsLoaded(result.models.length);
+      }
       await utils.aiGateway.listConnections.invalidate({
         orgId: organizationId,
       });

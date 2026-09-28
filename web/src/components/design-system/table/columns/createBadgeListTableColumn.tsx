@@ -69,7 +69,9 @@ export function createBadgeListTableColumn<TData extends RowData>({
     ...options,
     loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
     renderCell: (values, context) => {
-      if (!values?.length) return nullValue ?? null;
+      if (!values?.length) {
+        return nullValue ?? null;
+      }
 
       const badges = values.map((value, index) => ({
         key: String(index),

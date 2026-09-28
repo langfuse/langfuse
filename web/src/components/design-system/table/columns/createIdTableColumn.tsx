@@ -37,7 +37,9 @@ export function createIdTableColumn<TData extends RowData>(
 
       // Not routed through IdTableCell: a placeholder is not an id, so it must
       // not arrive with an id's affordances (monospace, click-to-copy).
-      if (!displayValue) return emptyValue === "" ? null : <EmptyValue />;
+      if (!displayValue) {
+        return emptyValue === "" ? null : <EmptyValue />;
+      }
       return <IdTableCell value={displayValue} />;
     },
   });

@@ -40,7 +40,9 @@ export function parseSSEBuffer(buffer: string): {
   const remaining = blocks.pop() ?? "";
 
   for (const block of blocks) {
-    if (!block.trim()) continue;
+    if (!block.trim()) {
+      continue;
+    }
 
     let type = "message";
     let data = "";
@@ -99,7 +101,9 @@ export async function fetchDashboardSSERows(
 ): Promise<Record<string, unknown>[]> {
   const controller = new AbortController();
   const onOuterAbort = () => controller.abort();
-  if (signal.aborted) controller.abort();
+  if (signal.aborted) {
+    controller.abort();
+  }
   signal.addEventListener("abort", onOuterAbort);
 
   let stalled = false;
@@ -129,9 +133,13 @@ export async function fetchDashboardSSERows(
       let message = `HTTP ${resp.status}`;
       try {
         const parsed = JSON.parse(body);
-        if (parsed.message) message = parsed.message;
+        if (parsed.message) {
+          message = parsed.message;
+        }
       } catch {
-        if (body) message = body;
+        if (body) {
+          message = body;
+        }
       }
       throw new Error(message);
     }
@@ -147,7 +155,9 @@ export async function fetchDashboardSSERows(
     let errorMessage = "";
 
     const handleEvent = (event: SSEEvent) => {
-      if (done) return;
+      if (done) {
+        return;
+      }
       if (event.type === "progress") {
         try {
           const p = JSON.parse(event.data);
@@ -185,7 +195,9 @@ export async function fetchDashboardSSERows(
 
     while (!done) {
       const { done: streamEnded, value } = await reader.read();
-      if (streamEnded) break;
+      if (streamEnded) {
+        break;
+      }
       armWatchdog();
 
       buffer += decoder.decode(value, { stream: true });

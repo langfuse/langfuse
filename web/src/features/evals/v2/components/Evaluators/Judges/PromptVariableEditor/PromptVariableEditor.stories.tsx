@@ -196,7 +196,9 @@ export const SearchPanel = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const editor = canvasElement.querySelector<HTMLElement>(".cm-content");
-    if (!editor) throw new Error("Prompt editor not found");
+    if (!editor) {
+      throw new Error("Prompt editor not found");
+    }
 
     await userEvent.click(editor);
     const isMac = /Mac|iPhone|iPad/.test(navigator.platform);

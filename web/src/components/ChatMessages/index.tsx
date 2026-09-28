@@ -87,11 +87,15 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
           behavior: "smooth",
           block: "nearest",
         });
-        if (!focus) return;
+        if (!focus) {
+          return;
+        }
         view.focus();
         // The dropdown menu can pull focus back for a frame after closing, so
         // keep retrying until the editor is the active element.
-        if (view.hasFocus) return;
+        if (view.hasFocus) {
+          return;
+        }
       }
 
       if (attempts++ < maxAttempts) {
@@ -107,7 +111,9 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
   // newly appended message into view too (LFE-6864). No-op outside the
   // playground (e.g. the New Prompt chat editor), where the context is absent.
   useEffect(() => {
-    if (!registerScrollToMessage) return;
+    if (!registerScrollToMessage) {
+      return;
+    }
     registerScrollToMessage(scrollToMessage);
     return () => {
       registerScrollToMessage(null);

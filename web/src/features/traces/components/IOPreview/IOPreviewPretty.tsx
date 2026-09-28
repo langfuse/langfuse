@@ -212,10 +212,18 @@ export function IOPreviewPretty({
     // Fast byte estimation without expensive JSON.stringify
     // Estimate: count string lengths + rough object overhead
     const estimateSize = (obj: unknown): number => {
-      if (obj === null || obj === undefined) return 4; // "null" or "undefined"
-      if (typeof obj === "string") return obj.length;
-      if (typeof obj === "number") return obj.toString().length;
-      if (typeof obj === "boolean") return obj ? 4 : 5; // "true" or "false"
+      if (obj === null || obj === undefined) {
+        return 4;
+      } // "null" or "undefined"
+      if (typeof obj === "string") {
+        return obj.length;
+      }
+      if (typeof obj === "number") {
+        return obj.toString().length;
+      }
+      if (typeof obj === "boolean") {
+        return obj ? 4 : 5;
+      } // "true" or "false"
 
       if (Array.isArray(obj)) {
         // Rough estimate: sum of elements + commas + brackets

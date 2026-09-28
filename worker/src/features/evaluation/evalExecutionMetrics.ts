@@ -64,7 +64,9 @@ export function getLlmEvalTerminalErrorOutcome(
   EvalExecutionTerminalOutcome,
   "platform_error" | "upstream_error" | "customer_error"
 > {
-  if (!classification) return "platform_error";
+  if (!classification) {
+    return "platform_error";
+  }
 
   if (
     classification.blockReason !== null ||
@@ -87,7 +89,9 @@ export function getLlmEvalTerminalErrorOutcome(
       : "upstream_error";
   }
 
-  if (classification.kind === "timeout") return "upstream_error";
+  if (classification.kind === "timeout") {
+    return "upstream_error";
+  }
 
   return "platform_error";
 }
@@ -95,7 +99,9 @@ export function getLlmEvalTerminalErrorOutcome(
 export function getCodeEvalTerminalErrorOutcome(
   error: unknown,
 ): Extract<EvalExecutionTerminalOutcome, "platform_error" | "customer_error"> {
-  if (!(error instanceof CodeEvalExecutionError)) return "platform_error";
+  if (!(error instanceof CodeEvalExecutionError)) {
+    return "platform_error";
+  }
 
   return CODE_EVAL_CUSTOMER_ERROR_CODES.has(error.code)
     ? "customer_error"

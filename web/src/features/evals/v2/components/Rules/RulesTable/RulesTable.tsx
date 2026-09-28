@@ -309,8 +309,12 @@ export function RulesTable({
         enableHiding: true,
         formatter: (value) => usdFormatter(value, 2, 4),
         getValue: (value) => {
-          if (costs.isPending) return { type: "loading" };
-          if (value === null || value === undefined) return undefined;
+          if (costs.isPending) {
+            return { type: "loading" };
+          }
+          if (value === null || value === undefined) {
+            return undefined;
+          }
 
           return value;
         },
@@ -696,7 +700,9 @@ export function RulesTable({
         <ConfirmDialog
           open={deleteIds.length > 0}
           onOpenChange={(open) => {
-            if (!open) setDeleteIds([]);
+            if (!open) {
+              setDeleteIds([]);
+            }
           }}
           title="Delete evaluation rules?"
           description={`This permanently deletes ${deleteIds.length} rule${deleteIds.length === 1 ? "" : "s"} and its evaluator assignments.`}

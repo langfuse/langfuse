@@ -46,9 +46,13 @@ export const encodeScoreComparisonFilter = (
 export const decodeScoreComparisonFilter = (
   encoded: string | null | undefined,
 ): ScoreComparisonFilter | null => {
-  if (!encoded) return null;
+  if (!encoded) {
+    return null;
+  }
   const parts = encoded.split(":");
-  if (parts.length !== 4) return null;
+  if (parts.length !== 4) {
+    return null;
+  }
   let level: string;
   let scoreKey: string;
   let operator: string;
@@ -60,9 +64,15 @@ export const decodeScoreComparisonFilter = (
     // A hand-edited or truncated URL can hold a malformed escape.
     return null;
   }
-  if (level !== "observation" && level !== "trace") return null;
-  if (!scoreKey || !comparisonExperimentId) return null;
-  if (!OPERATORS.includes(operator as ScoreComparisonOperator)) return null;
+  if (level !== "observation" && level !== "trace") {
+    return null;
+  }
+  if (!scoreKey || !comparisonExperimentId) {
+    return null;
+  }
+  if (!OPERATORS.includes(operator as ScoreComparisonOperator)) {
+    return null;
+  }
   return {
     level,
     scoreKey,
@@ -93,13 +103,18 @@ export const matchesScoreComparisonFilter = ({
   baseline: AggregatedScoreData | null | undefined;
   comparison: AggregatedScoreData | null | undefined;
 }): boolean => {
-  if (!baseline || !comparison) return false;
+  if (!baseline || !comparison) {
+    return false;
+  }
 
   if (dataType === "CATEGORICAL") {
     // No order, so only "differs" means anything on a categorical score.
-    if (operator !== "differs") return false;
-    if (baseline.type !== "CATEGORICAL" || comparison.type !== "CATEGORICAL")
+    if (operator !== "differs") {
       return false;
+    }
+    if (baseline.type !== "CATEGORICAL" || comparison.type !== "CATEGORICAL") {
+      return false;
+    }
     return (
       [...baseline.values].sort().join("|") !==
       [...comparison.values].sort().join("|")
@@ -108,9 +123,13 @@ export const matchesScoreComparisonFilter = ({
 
   const baselineValue = readOrderedScoreValue(baseline, dataType);
   const comparisonValue = readOrderedScoreValue(comparison, dataType);
-  if (baselineValue === null || comparisonValue === null) return false;
+  if (baselineValue === null || comparisonValue === null) {
+    return false;
+  }
 
-  if (operator === "differs") return baselineValue !== comparisonValue;
+  if (operator === "differs") {
+    return baselineValue !== comparisonValue;
+  }
   return operator === "lower"
     ? baselineValue < comparisonValue
     : baselineValue > comparisonValue;
@@ -167,8 +186,12 @@ export const rowPassesScoreComparisonFilters = ({
     filter: ScoreComparisonFilter,
   ) => ScoreColumnDataType | undefined;
 }): boolean => {
-  if (filters.length === 0) return true;
-  if (!baselineExperimentId) return true;
+  if (filters.length === 0) {
+    return true;
+  }
+  if (!baselineExperimentId) {
+    return true;
+  }
 
   const scoresOf = (experimentId: string, level: ScoreLevel) =>
     experiments.find(
@@ -177,15 +200,20 @@ export const rowPassesScoreComparisonFilters = ({
 
   return filters.every((filter) => {
     const dataType = dataTypeFor(filter);
-    if (!dataType) return true;
+    if (!dataType) {
+      return true;
+    }
     // The target was deselected, or is now the baseline it would be read
     // against — either way there is no second run left to compare with.
-    if (filter.comparisonExperimentId === baselineExperimentId) return true;
+    if (filter.comparisonExperimentId === baselineExperimentId) {
+      return true;
+    }
     if (
       comparableExperimentIds &&
       !comparableExperimentIds.includes(filter.comparisonExperimentId)
-    )
+    ) {
       return true;
+    }
     return matchesScoreComparisonFilter({
       operator: filter.operator,
       dataType,
@@ -207,9 +235,11 @@ export const describeEmptyScoreComparison = ({
   scoreName: string;
   comparisonName: string;
 }): string => {
-  if (operator === "differs")
+  if (operator === "differs") {
     return `No item on this page scored ${scoreName} differently from ${comparisonName}.`;
-  if (operator === "lower")
+  }
+  if (operator === "lower") {
     return `No regressions on this score — no item on this page scored lower on ${scoreName} than ${comparisonName}.`;
+  }
   return `No item on this page scored higher on ${scoreName} than ${comparisonName}.`;
 };

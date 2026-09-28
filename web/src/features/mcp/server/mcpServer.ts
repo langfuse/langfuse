@@ -151,7 +151,9 @@ function assertToolAuthorized(
     resource: { projectId: context.projectId },
     accessLevel: context.accessLevel,
   });
-  if (!decision.success) throw formatErrorForUser(decision.error);
+  if (!decision.success) {
+    throw formatErrorForUser(decision.error);
+  }
 }
 
 export const __test = { assertToolAuthorized };

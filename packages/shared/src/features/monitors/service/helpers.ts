@@ -43,7 +43,9 @@ const nullableOrderColumns: ReadonlySet<MonitorListOrderBy> = new Set([
 export const toPrismaOrderBy = (
   orderBy: ListMonitors["orderBy"],
 ): Prisma.MonitorOrderByWithRelationInput[] => {
-  if (!orderBy) return [{ severity: "desc" }, { id: "asc" }];
+  if (!orderBy) {
+    return [{ severity: "desc" }, { id: "asc" }];
+  }
   const sort = orderBy.order.toLowerCase() as Prisma.SortOrder;
   const isNullable = nullableOrderColumns.has(orderBy.column);
   return [
@@ -78,7 +80,9 @@ export const toPrismaWhere = (
       );
       continue;
     }
-    if (f.value.length === 0) continue;
+    if (f.value.length === 0) {
+      continue;
+    }
     and.push(
       f.operator === "any of"
         ? { [f.column]: { hasSome: f.value } }
@@ -126,14 +130,22 @@ export const sortFiltersCanonically = (
   filters: MonitorFilters,
 ): MonitorFilters =>
   filters.map(canonicalizeFilter).sort((a, b) => {
-    if (a.column !== b.column) return a.column < b.column ? -1 : 1;
-    if (a.operator !== b.operator) return a.operator < b.operator ? -1 : 1;
+    if (a.column !== b.column) {
+      return a.column < b.column ? -1 : 1;
+    }
+    if (a.operator !== b.operator) {
+      return a.operator < b.operator ? -1 : 1;
+    }
     const aKey = "key" in a ? String(a.key) : "";
     const bKey = "key" in b ? String(b.key) : "";
-    if (aKey !== bKey) return aKey < bKey ? -1 : 1;
+    if (aKey !== bKey) {
+      return aKey < bKey ? -1 : 1;
+    }
     const av = JSON.stringify(a.value);
     const bv = JSON.stringify(b.value);
-    if (av !== bv) return av < bv ? -1 : 1;
+    if (av !== bv) {
+      return av < bv ? -1 : 1;
+    }
     return 0;
   });
 
@@ -142,8 +154,12 @@ export const sortFiltersCanonically = (
  * window.
  */
 export const calculateCadence = (windowMillis: bigint): bigint => {
-  if (windowMillis >= WEEK) return 48n * HOUR;
-  if (windowMillis >= DAY) return 30n * MINUTE;
+  if (windowMillis >= WEEK) {
+    return 48n * HOUR;
+  }
+  if (windowMillis >= DAY) {
+    return 30n * MINUTE;
+  }
   return MINUTE; // default cadence
 };
 
@@ -230,17 +246,20 @@ export const updateStatusAndSeverity = (
   lastClaimedAt?: null;
   alertedAt?: null;
 } => {
-  if (!next) return {};
+  if (!next) {
+    return {};
+  }
   const fromActive = current === MonitorStatusSchema.enum.ACTIVE;
   const toActive = next === MonitorStatusSchema.enum.ACTIVE;
   const toPaused = fromActive && !toActive;
-  if (toPaused)
+  if (toPaused) {
     return {
       status: next,
       severity: PrismaMonitorSeverity.PAUSED,
       severityChangedAt: new Date(),
     };
-  if (!fromActive && toActive)
+  }
+  if (!fromActive && toActive) {
     return {
       status: next,
       severity: PrismaMonitorSeverity.UNKNOWN,
@@ -251,6 +270,7 @@ export const updateStatusAndSeverity = (
       lastClaimedAt: null,
       alertedAt: null,
     };
+  }
   // No Severity Change (eg ACTIVE -> ACTIVE, ERROR_* -> PAUSED)
   return { status: next };
 };
@@ -266,7 +286,9 @@ export const updateSchedulerProperties = (
   lastCompletedAt?: null;
   lastClaimedAt?: null;
 } => {
-  if (current === next) return {};
+  if (current === next) {
+    return {};
+  }
   return {
     schedulerBatchId: next,
     nextRunAt: null,

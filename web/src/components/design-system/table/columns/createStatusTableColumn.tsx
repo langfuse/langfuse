@@ -42,8 +42,12 @@ export function createStatusTableColumn<
     renderCell: (value, context) => {
       const status = getStatus(value, context);
 
-      if (status === undefined) return emptyValue ?? <EmptyValue />;
-      if (typeof status !== "string") return loadingCell;
+      if (status === undefined) {
+        return emptyValue ?? <EmptyValue />;
+      }
+      if (typeof status !== "string") {
+        return loadingCell;
+      }
 
       return <StatusBadge type={status} isLive={isLive} />;
     },

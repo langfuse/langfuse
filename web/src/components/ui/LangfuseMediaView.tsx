@@ -54,13 +54,14 @@ export const LangfuseMediaView = ({
   if (mediaReferenceString && typeof mediaReferenceString === "string") {
     const { success, data: parsedTag } =
       MediaReferenceStringSchema.safeParse(mediaReferenceString);
-    if (success)
+    if (success) {
       mediaData = {
         id: parsedTag.id,
         type: parsedTag.type as MediaContentType,
         referenceString: parsedTag.referenceString,
         source: parsedTag.source,
       };
+    }
   } else if (mediaReferenceString && typeof mediaReferenceString !== "string") {
     mediaData = {
       id: mediaReferenceString.id,
@@ -123,7 +124,9 @@ export const LangfuseMediaView = ({
 
   const mediaUrl = data?.url;
 
-  if (!mediaUrl) return null;
+  if (!mediaUrl) {
+    return null;
+  }
 
   if (variant === "icon" || variant === "preview") {
     const autoExpand =
@@ -175,7 +178,9 @@ function FileViewer({
   );
   const [compactImageWidth, setCompactImageWidth] = useState<string>();
 
-  if (!src) return null;
+  if (!src) {
+    return null;
+  }
 
   const fileName = src.split("/").pop()?.split("?")[0] || "";
   const openInNewTab = () => {
@@ -264,7 +269,9 @@ function FileViewer({
 }
 
 function AudioPlayer({ src }: { src?: string }) {
-  if (!src) return null;
+  if (!src) {
+    return null;
+  }
 
   return (
     <audio controls className="w-full" preload="metadata">
@@ -275,7 +282,9 @@ function AudioPlayer({ src }: { src?: string }) {
 }
 
 function VideoPlayer({ src }: { src?: string }) {
-  if (!src) return null;
+  if (!src) {
+    return null;
+  }
 
   return (
     <video controls className="w-full" preload="metadata" playsInline>

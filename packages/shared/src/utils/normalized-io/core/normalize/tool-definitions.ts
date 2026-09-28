@@ -86,11 +86,15 @@ function normalizeDefinitionItem(
   value: unknown,
   options: ToolDefinitionOptions,
 ): ToolDefinition | null {
-  if (!isRecord(value)) return null;
+  if (!isRecord(value)) {
+    return null;
+  }
 
   for (const provider of registeredProviders) {
     const result = provider.tryNormalizeToolDefinition?.(value);
-    if (result?.matched) return result.value;
+    if (result?.matched) {
+      return result.value;
+    }
   }
 
   return normalizeLooseToolDefinition(value, options);
@@ -112,14 +116,18 @@ export function parseToolDefinitionValue(
     };
   }
 
-  if (!isRecord(parsed)) return { definitions: [], fullyParsed: false };
+  if (!isRecord(parsed)) {
+    return { definitions: [], fullyParsed: false };
+  }
 
   const singleDefinition = normalizeDefinitionItem(parsed, options);
   if (singleDefinition) {
     return { definitions: [singleDefinition], fullyParsed: true };
   }
 
-  if (!options.allowToolMap) return { definitions: [], fullyParsed: false };
+  if (!options.allowToolMap) {
+    return { definitions: [], fullyParsed: false };
+  }
 
   // Some instrumentation exports definitions as a map keyed by tool name.
   const definitions: ToolDefinition[] = [];
@@ -132,8 +140,11 @@ export function parseToolDefinitionValue(
     }
 
     const normalized = normalizeDefinitionItem({ name, ...definition }, {});
-    if (normalized) definitions.push(normalized);
-    else fullyParsed = false;
+    if (normalized) {
+      definitions.push(normalized);
+    } else {
+      fullyParsed = false;
+    }
   }
   return { definitions, fullyParsed };
 }
@@ -155,7 +166,9 @@ export type ToolDefinitionFields = {
 export function toolDefinition(
   fields: ToolDefinitionFields,
 ): ToolDefinition | null {
-  if (typeof fields.name !== "string" || fields.name.length === 0) return null;
+  if (typeof fields.name !== "string" || fields.name.length === 0) {
+    return null;
+  }
 
   return compact<ToolDefinition>({
     name: fields.name,

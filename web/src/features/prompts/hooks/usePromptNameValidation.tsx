@@ -13,7 +13,9 @@ export const usePromptNameValidation = ({
   form,
 }: UsePromptNameValidationProps) => {
   useEffect(() => {
-    if (!currentName || !allPrompts) return;
+    if (!currentName || !allPrompts) {
+      return;
+    }
 
     const isNewPrompt = !allPrompts
       ?.map((prompt) => prompt.value)

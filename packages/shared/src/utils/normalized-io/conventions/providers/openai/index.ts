@@ -81,7 +81,9 @@ function normalizeBuiltInToolItem(
   value: Record<string, unknown>,
 ): ToolCallPart | null {
   const type = typeof value.type === "string" ? value.type : undefined;
-  if (!type) return null;
+  if (!type) {
+    return null;
+  }
 
   if (type === "mcp_call") {
     // MCP calls are real named calls that happen to be provider-executed;
@@ -144,7 +146,9 @@ const normalizeOpenAiCustomToolCall: PartHandler = (value) => {
 const normalizeOpenAiImageUrl: PartHandler = (value) => {
   const image = asRecord(value.image_url);
   const url = optionalString(image?.url);
-  if (!url) return unmatched;
+  if (!url) {
+    return unmatched;
+  }
   const detail = optionalString(image?.detail);
   const part = filePartFromUrl(url, {
     fallbackMediaType: "image/*",
@@ -164,7 +168,9 @@ const normalizeOpenAiInputImage: PartHandler = (value) => {
     );
   }
   const fileId = optionalString(value.file_id);
-  if (!fileId) return unmatched;
+  if (!fileId) {
+    return unmatched;
+  }
   return claimed(
     compact<FilePart>({
       type: "file",
@@ -178,9 +184,13 @@ const normalizeOpenAiInputImage: PartHandler = (value) => {
 const normalizeOpenAiInputAudio: PartHandler = (value) => {
   const audio = asRecord(value.input_audio);
   const data = optionalString(audio?.data);
-  if (!data) return unmatched;
+  if (!data) {
+    return unmatched;
+  }
   const reference = parseMediaReference(data);
-  if (reference) return claimed(filePartFromMediaReference(reference));
+  if (reference) {
+    return claimed(filePartFromMediaReference(reference));
+  }
   const format = optionalString(audio?.format);
   return claimed({
     type: "file",
@@ -213,7 +223,9 @@ function filePartFromFileFields(
       : fileId
         ? { kind: "reference", id: fileId }
         : undefined;
-  if (!content) return null;
+  if (!content) {
+    return null;
+  }
 
   return compact<FilePart>({ type: "file", filename, content });
 }
@@ -223,7 +235,9 @@ const normalizeOpenAiFile: PartHandler = (value) => {
   // `data`/`url` payloads on the same type name belong to the AI SDK
   // dialect and fall through.
   const file = asRecord(value.file);
-  if (!file) return unmatched;
+  if (!file) {
+    return unmatched;
+  }
   const part = filePartFromFileFields(file);
   return part ? claimed(part) : unmatched;
 };
@@ -279,7 +293,9 @@ function isReasoningTextArray(
   value: unknown,
   expectedType: "summary_text" | "reasoning_text",
 ): boolean {
-  if (!Array.isArray(value)) return false;
+  if (!Array.isArray(value)) {
+    return false;
+  }
 
   return value.every((entry) => {
     const part = asRecord(entry);
@@ -354,12 +370,16 @@ const OPENAI_PART_HANDLERS = {
 function normalizeAudioOutput(
   audio: Record<string, unknown> | undefined,
 ): FilePart | null {
-  if (!audio) return null;
+  if (!audio) {
+    return null;
+  }
 
   const { data, ...extras } = audio;
   const payload = optionalString(data);
   const reference = parseMediaReference(payload);
-  if (reference) return filePartFromMediaReference(reference, extras);
+  if (reference) {
+    return filePartFromMediaReference(reference, extras);
+  }
 
   if (payload) {
     return compact<FilePart>({
@@ -371,7 +391,9 @@ function normalizeAudioOutput(
   }
 
   const id = optionalString(audio.id);
-  if (!id) return null;
+  if (!id) {
+    return null;
+  }
   return compact<FilePart>({
     type: "file",
     mediaType: "audio/*",
@@ -394,10 +416,14 @@ function openAiCollectSiblingParts(
   const parts: NormalizedMessagePart[] = [];
 
   const refusal = optionalString(value.refusal);
-  if (refusal) parts.push({ type: "text", refusal: true, text: refusal });
+  if (refusal) {
+    parts.push({ type: "text", refusal: true, text: refusal });
+  }
 
   const audioPart = normalizeAudioOutput(asRecord(value.audio));
-  if (audioPart) parts.push(audioPart);
+  if (audioPart) {
+    parts.push(audioPart);
+  }
 
   if (value.type === "reasoning") {
     parts.push(...openAiReasoningParts(value, baseParts, context));
@@ -458,7 +484,9 @@ function openAiMessages(
 ): MessageSource[] {
   // Responses API uses `input` instead of Chat Completions' `messages`:
   if (kind === "input") {
-    if (!isResponsesRequest(root)) return [];
+    if (!isResponsesRequest(root)) {
+      return [];
+    }
     const input = recordKeyAsParsed(root, "input");
     return typeof input === "string" && typeof root.model === "string"
       ? [{ kind: "single", value: input, fallbackRole: "user" }]
@@ -470,7 +498,9 @@ function openAiMessages(
           },
         ];
   }
-  if (kind !== "output") return [];
+  if (kind !== "output") {
+    return [];
+  }
 
   const choices = parseArray(root.choices);
   if (choices) {

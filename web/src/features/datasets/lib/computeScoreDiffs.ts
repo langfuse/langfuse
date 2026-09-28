@@ -9,7 +9,9 @@ export function computeScoreDiffs(
   currentScores: ScoreAggregate,
   baselineScores: ScoreAggregate | null,
 ): Record<string, BaselineDiff> {
-  if (!baselineScores) return {};
+  if (!baselineScores) {
+    return {};
+  }
 
   const diffs: Record<string, BaselineDiff> = {};
 

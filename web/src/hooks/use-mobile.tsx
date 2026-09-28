@@ -13,13 +13,17 @@ const HANDHELD_QUERY = `${MOBILE_QUERY}, (pointer: coarse) and (max-height: ${MO
 function createMediaQueryStore(query: string) {
   return {
     subscribe(onStoreChange: () => void) {
-      if (typeof window === "undefined" || !window.matchMedia) return () => {};
+      if (typeof window === "undefined" || !window.matchMedia) {
+        return () => {};
+      }
       const mql = window.matchMedia(query);
       mql.addEventListener("change", onStoreChange);
       return () => mql.removeEventListener("change", onStoreChange);
     },
     getSnapshot() {
-      if (typeof window === "undefined" || !window.matchMedia) return false;
+      if (typeof window === "undefined" || !window.matchMedia) {
+        return false;
+      }
       return window.matchMedia(query).matches;
     },
   };

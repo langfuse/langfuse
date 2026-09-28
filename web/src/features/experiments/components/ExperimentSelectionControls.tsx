@@ -102,13 +102,19 @@ export function ExperimentSelectionControls({
   // the auto pick reports itself as `source: "auto"`.
   const hasReportedUrlSelection = useRef(false);
   useEffect(() => {
-    if (hasReportedUrlSelection.current) return;
+    if (hasReportedUrlSelection.current) {
+      return;
+    }
     // `c=` is not readable before the router is ready, and the dataset ids
     // `isSameDataset` needs are not known until the run list has loaded.
-    if (!router.isReady || isDatasetContextLoading) return;
+    if (!router.isReady || isDatasetContextLoading) {
+      return;
+    }
 
     hasReportedUrlSelection.current = true;
-    if (comparisonIds.length === 0) return;
+    if (comparisonIds.length === 0) {
+      return;
+    }
     captureComparisonChanged({ comparisonIds, source: "url" });
   }, [
     router.isReady,

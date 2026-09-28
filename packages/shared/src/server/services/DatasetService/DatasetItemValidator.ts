@@ -68,7 +68,9 @@ export class DatasetItemValidator {
    * Preserves common characters like newlines and tabs.
    */
   private cleanControlChars(data: string): string {
-    if (!data) return data;
+    if (!data) {
+      return data;
+    }
 
     // Remove control characters:
     // \u0000-\u0008: NULL through backspace
@@ -114,9 +116,15 @@ export class DatasetItemValidator {
     data: string | unknown | null | undefined,
     opts?: { sanitizeControlChars?: boolean },
   ): Prisma.InputJsonValue | null | undefined {
-    if (data === "") return null;
-    if (data === undefined) return undefined;
-    if (data === null) return null;
+    if (data === "") {
+      return null;
+    }
+    if (data === undefined) {
+      return undefined;
+    }
+    if (data === null) {
+      return null;
+    }
 
     try {
       // Handle both string (tRPC) and already-parsed values (Public API)

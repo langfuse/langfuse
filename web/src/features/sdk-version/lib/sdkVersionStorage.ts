@@ -16,11 +16,15 @@ export const persistProjectSdkVersionInfo = (
   sdkVersion: SdkVersionInfo,
   checkedAt: string,
 ) => {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined") {
+    return;
+  }
 
   const keys = sdkVersionStorageKeys(projectId);
   try {
-    if (window.localStorage.getItem(keys.checkedAt) === checkedAt) return;
+    if (window.localStorage.getItem(keys.checkedAt) === checkedAt) {
+      return;
+    }
 
     writeStorageValue(keys.language, sdkVersion.language);
     writeStorageValue(keys.version, sdkVersion.version);
@@ -35,7 +39,9 @@ export const persistProjectSdkVersionInfo = (
 };
 
 export const clearProjectSdkVersionInfo = (projectId: string) => {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined") {
+    return;
+  }
 
   const keys = sdkVersionStorageKeys(projectId);
   try {

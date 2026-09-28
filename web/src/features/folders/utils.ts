@@ -4,7 +4,9 @@
  * @param currentFolderPath - Name-based folder path
  */
 export const createBreadcrumbItems = (currentFolderPath: string) => {
-  if (!currentFolderPath) return [];
+  if (!currentFolderPath) {
+    return [];
+  }
 
   const segments = currentFolderPath.split("/");
 

@@ -26,7 +26,9 @@ import { parseMetadata, getNestedProperty, removeNullFields } from "../helpers";
 function parseEventContent(content: string): Record<string, unknown> | null {
   try {
     const parsed = JSON.parse(content);
-    if (!parsed || typeof parsed !== "object") return null;
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
 
     // Handle output format with nested message: {index, message: {...}, finish_reason}
     if ("message" in parsed && typeof parsed.message === "object") {
@@ -44,7 +46,9 @@ function parseEventContent(content: string): Record<string, unknown> | null {
  * Normalize role casing: "Assistant" -> "assistant"
  */
 function normalizeRole(role: unknown): string {
-  if (typeof role !== "string") return "assistant";
+  if (typeof role !== "string") {
+    return "assistant";
+  }
   return role.toLowerCase();
 }
 
@@ -52,7 +56,9 @@ function normalizeRole(role: unknown): string {
  * Normalize a single Semantic Kernel message
  */
 function normalizeMessage(msg: unknown): Record<string, unknown> {
-  if (!msg || typeof msg !== "object") return {};
+  if (!msg || typeof msg !== "object") {
+    return {};
+  }
 
   const message = msg as Record<string, unknown>;
 
@@ -97,7 +103,9 @@ function normalizeMessages(data: unknown[]): unknown[] {
 }
 
 function preprocessData(data: unknown, _ctx: NormalizerContext): unknown {
-  if (!data) return data;
+  if (!data) {
+    return data;
+  }
 
   // Array of messages (input format)
   if (Array.isArray(data)) {
@@ -135,7 +143,9 @@ export const semanticKernelAdapter: ProviderAdapter = {
 
   detect(ctx: NormalizerContext): boolean {
     // Explicit framework override
-    if (ctx.framework === "semantic-kernel") return true;
+    if (ctx.framework === "semantic-kernel") {
+      return true;
+    }
 
     // Detect by scope name (Microsoft.SemanticKernel.Diagnostics)
     // gen_ai.event.content is Semantic Kernel-specific, so we require scope name

@@ -143,7 +143,9 @@ function DatasetCompareLegacy() {
               }))}
               values={runs.filter((run) => runIds?.includes(run.key))}
               onValueChange={(values, changedValueId, selectedValueKeys) => {
-                if (values.length === 0) return;
+                if (values.length === 0) {
+                  return;
+                }
                 if (changedValueId) {
                   if (selectedValueKeys?.has(changedValueId)) {
                     capture("dataset_run:compare_run_added");
@@ -152,7 +154,9 @@ function DatasetCompareLegacy() {
                     });
                     setLocalRuns([]);
                   } else {
-                    if (!closeRunAnnotation(changedValueId)) return;
+                    if (!closeRunAnnotation(changedValueId)) {
+                      return;
+                    }
                     capture("dataset_run:compare_run_removed");
                     const newRunIds =
                       runIds?.filter((id) => id !== changedValueId) ?? [];
@@ -220,7 +224,9 @@ function DatasetCompareLegacy() {
 }
 
 function asArrayValue(value: string | string[] | undefined) {
-  if (!value) return [];
+  if (!value) {
+    return [];
+  }
   return Array.isArray(value) ? value : [value];
 }
 

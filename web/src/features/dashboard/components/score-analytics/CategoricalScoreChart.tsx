@@ -84,7 +84,9 @@ export function CategoricalScoreChart(props: {
   );
 
   const { chartData, chartLabels } = useMemo(() => {
-    if (!scores.data) return { chartData: [], chartLabels: [] };
+    if (!scores.data) {
+      return { chartData: [], chartLabels: [] };
+    }
 
     const adapter = new DashboardCategoricalScoreAdapter(
       scores.data.map((row) => ({

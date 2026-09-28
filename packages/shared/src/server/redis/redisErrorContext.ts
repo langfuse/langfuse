@@ -65,7 +65,9 @@ const describeError = (error: unknown): RedisErrorDetails => {
 };
 
 export const getLastNodeError = (error: unknown): unknown => {
-  if (typeof error !== "object" || error === null) return undefined;
+  if (typeof error !== "object" || error === null) {
+    return undefined;
+  }
   return (error as { lastNodeError?: unknown }).lastNodeError ?? undefined;
 };
 
@@ -92,14 +94,22 @@ const classifyRedisFailure = (error: unknown): RedisFailureMode => {
   if (code) {
     const byCode =
       CODE_FAILURE_MODES[code] ?? (code.startsWith("ERR_TLS_") ? "tls" : null);
-    if (byCode) return byCode;
+    if (byCode) {
+      return byCode;
+    }
   }
 
-  if (!message) return "unknown";
+  if (!message) {
+    return "unknown";
+  }
 
   // Redis replies carry their condition as an uppercase prefix on the message.
-  if (message.includes("CLUSTERDOWN")) return "cluster-down";
-  if (message.includes("READONLY")) return "readonly";
+  if (message.includes("CLUSTERDOWN")) {
+    return "cluster-down";
+  }
+  if (message.includes("READONLY")) {
+    return "readonly";
+  }
   if (
     message.includes("NOAUTH") ||
     message.includes("WRONGPASS") ||

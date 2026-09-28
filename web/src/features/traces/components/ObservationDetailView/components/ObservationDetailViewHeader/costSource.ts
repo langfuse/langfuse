@@ -7,7 +7,9 @@ export function resolveObservationCostSource({
   hasSubtreeMetrics: boolean;
   hasProvidedCostDetails: boolean;
 }): CostSource | undefined {
-  if (hasSubtreeMetrics) return undefined;
+  if (hasSubtreeMetrics) {
+    return undefined;
+  }
 
   return hasProvidedCostDetails ? "provided" : "calculated";
 }

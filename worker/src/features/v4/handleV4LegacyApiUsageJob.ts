@@ -110,9 +110,13 @@ const getQueryLogServices = (): PreferredClickhouseService[] => {
     ["EventsReadOnly", env.CLICKHOUSE_EVENTS_READ_ONLY_URL],
   ];
   for (const [service, url] of candidates) {
-    if (!url) continue;
+    if (!url) {
+      continue;
+    }
     const normalizedUrl = new URL(url).toString();
-    if (seenUrls.has(normalizedUrl)) continue;
+    if (seenUrls.has(normalizedUrl)) {
+      continue;
+    }
     seenUrls.add(normalizedUrl);
     services.push(service);
   }
@@ -523,7 +527,9 @@ const delInChunks = async (keys: string[]): Promise<void> => {
 const parseHourBucket = (
   rawBucket: string | null,
 ): V4LegacyApiHourBucket | null => {
-  if (!rawBucket) return null;
+  if (!rawBucket) {
+    return null;
+  }
   try {
     const parsed = v4LegacyApiHourBucketSchema.safeParse(JSON.parse(rawBucket));
     return parsed.success ? parsed.data : null;

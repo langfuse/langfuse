@@ -199,7 +199,9 @@ export function useEventsFilterOptions({
 
   const requestColumns = useCallback(
     (cols: readonly string[]) => {
-      if (!lazy) return;
+      if (!lazy) {
+        return;
+      }
       setLazyColumnSet((prev) => {
         let next: Set<EventFilterOptionColumn> | null = null;
         for (const col of cols) {
@@ -299,7 +301,9 @@ export function useEventsFilterOptions({
       const erroredColumns: string[] = [];
       results.forEach((r, i) => {
         const column = perColumnPlan[i]?.column;
-        if (column === undefined) return;
+        if (column === undefined) {
+          return;
+        }
         // Publish data first: a post-success refetch error keeps placeholderData,
         // so an already-loaded facet retains its values instead of blanking out —
         // symmetric with the (combine-free) eager query.
@@ -427,14 +431,18 @@ export function useEventsFilterOptions({
   const isEagerFetching = eagerQuery.isFetching;
   const bulkColumns = plan.bulk.columns;
   const loadingColumns = useMemo<ReadonlySet<string> | undefined>(() => {
-    if (!lazy) return undefined;
+    if (!lazy) {
+      return undefined;
+    }
     const pending = new Set<string>(lazyResult.pendingColumns);
     if (isEagerFetching) {
       const data = rawData as Record<string, unknown>;
       // Only the columns actually in the bulk query — the self-excluded ones
       // report through lazyResult.pendingColumns instead.
       for (const column of bulkColumns ?? []) {
-        if (data[column] === undefined) pending.add(column);
+        if (data[column] === undefined) {
+          pending.add(column);
+        }
       }
     }
     return pending;
@@ -450,8 +458,9 @@ export function useEventsFilterOptions({
   const erroredColumns = useMemo<ReadonlySet<string>>(() => {
     const errored = new Set<string>(lazyErroredColumns);
     if (isEagerError) {
-      for (const column of bulkColumns ?? EAGER_EVENT_FILTER_OPTION_COLUMNS)
+      for (const column of bulkColumns ?? EAGER_EVENT_FILTER_OPTION_COLUMNS) {
         errored.add(column);
+      }
     }
     return errored;
   }, [lazyErroredColumns, isEagerError, bulkColumns]);

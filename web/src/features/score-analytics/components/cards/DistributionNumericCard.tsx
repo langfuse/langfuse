@@ -38,7 +38,9 @@ export function DistributionNumericCard() {
   // Select appropriate bin labels based on active tab
   // Backend uses different binning strategies per tab, so we need different labels
   const selectedBinLabels = useMemo(() => {
-    if (!data?.distribution) return undefined;
+    if (!data?.distribution) {
+      return undefined;
+    }
 
     const { distribution, metadata } = data;
     const { mode } = metadata;

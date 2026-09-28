@@ -140,8 +140,12 @@ export function exceedsMainThreadBudget(request: GraphLayoutRequest): boolean {
 }
 
 function elkErrorMessage(error: unknown): string {
-  if (typeof error === "string") return error;
-  if (error instanceof Error) return error.message;
+  if (typeof error === "string") {
+    return error;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
   if (
     error &&
     typeof error === "object" &&
@@ -196,9 +200,13 @@ export function dedupeEdges(
   const seen = new Set<string>();
   const out: GraphCanvasData["edges"] = [];
   for (const edge of edges) {
-    if (edge.from === edge.to) continue; // self-loop
+    if (edge.from === edge.to) {
+      continue;
+    } // self-loop
     const key = JSON.stringify([edge.from, edge.to]);
-    if (seen.has(key)) continue;
+    if (seen.has(key)) {
+      continue;
+    }
     seen.add(key);
     out.push(edge);
   }
@@ -405,7 +413,9 @@ export async function runGraphLayout(
 
   const edges: PositionedEdge[] = (result.edges ?? []).flatMap((edge) => {
     const section = edge.sections?.[0];
-    if (!section) return [];
+    if (!section) {
+      return [];
+    }
     const points = [
       section.startPoint,
       ...(section.bendPoints ?? []),
@@ -449,6 +459,8 @@ export async function computeGraphLayout(
   direction: GraphLayoutDirection = "DOWN",
 ): Promise<GraphLayout> {
   const prepared = prepareGraphLayout(graph, nodeToObservationsMap, direction);
-  if (prepared.kind === "layout") return prepared.layout;
+  if (prepared.kind === "layout") {
+    return prepared.layout;
+  }
   return layoutGraphOnThisThread(prepared.request);
 }

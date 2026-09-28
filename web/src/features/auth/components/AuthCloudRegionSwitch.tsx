@@ -25,7 +25,9 @@ export function CloudRegionSwitch({
       selectedRegion={currentRegion}
       onValueChange={(value) => {
         const region = regions.find((region) => region.name === value);
-        if (!region) return;
+        if (!region) {
+          return;
+        }
         capture(
           "sign_in:cloud_region_switch",
           {

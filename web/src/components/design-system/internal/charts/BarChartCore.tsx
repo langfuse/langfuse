@@ -208,7 +208,9 @@ function SingleBarChart({
                       >
                         {data.map((datum, index) => {
                           const x = xScale(index);
-                          if (x === undefined) return null;
+                          if (x === undefined) {
+                            return null;
+                          }
                           const barColor = datum.color ?? color;
                           const y =
                             datum.value !== null && Number.isFinite(datum.value)
@@ -364,8 +366,11 @@ function MultiSeriesBarChart({
         .slice(0, Math.max(0, legend.maxVisibleSeries))
         .map((item) => item.id),
     );
-    for (const item of series)
-      if (!keep.has(item.id)) initialHidden.add(item.id);
+    for (const item of series) {
+      if (!keep.has(item.id)) {
+        initialHidden.add(item.id);
+      }
+    }
   }
   const seedKey = `${legend?.visibility ?? "hidden"}|${legend?.visibility !== "hidden" ? legend?.interaction : ""}|${legend?.visibility !== "hidden" && legend?.interaction === "toggle" ? (legend.maxVisibleSeries ?? "") : ""}|${JSON.stringify(series.map((item) => item.id).sort())}`;
   const [legendState, setLegendState] = useState({
@@ -384,8 +389,11 @@ function MultiSeriesBarChart({
   const { highlightedId, visibilityOverrides } = effectiveState;
   const hiddenIds = new Set(initialHidden);
   for (const [id, hidden] of visibilityOverrides) {
-    if (hidden) hiddenIds.add(id);
-    else hiddenIds.delete(id);
+    if (hidden) {
+      hiddenIds.add(id);
+    } else {
+      hiddenIds.delete(id);
+    }
   }
   const hiddenKey = series
     .map((item) => (hiddenIds.has(item.id) ? "1" : "0"))
@@ -405,9 +413,14 @@ function MultiSeriesBarChart({
         let negative = 0;
         for (const item of visibleSeries) {
           const value = datum.values[item.id];
-          if (typeof value !== "number" || !Number.isFinite(value)) continue;
-          if (value >= 0) positive += value;
-          else negative += value;
+          if (typeof value !== "number" || !Number.isFinite(value)) {
+            continue;
+          }
+          if (value >= 0) {
+            positive += value;
+          } else {
+            negative += value;
+          }
         }
         return { positive, negative };
       }),
@@ -596,7 +609,9 @@ function MultiSeriesBarChart({
                       >
                         {data.map((datum, index) => {
                           const left = x(index);
-                          if (left === undefined) return null;
+                          if (left === undefined) {
+                            return null;
+                          }
                           let positive = 0;
                           let negative = 0;
                           const items = visibleSeries.flatMap((item) => {
@@ -709,14 +724,18 @@ function MultiSeriesBarChart({
                                 if (
                                   typeof value !== "number" ||
                                   !Number.isFinite(value)
-                                )
+                                ) {
                                   return null;
+                                }
                                 let start = 0;
                                 if (layout === "stacked") {
                                   start = value >= 0 ? positive : negative;
                                 }
-                                if (value >= 0) positive += value;
-                                else negative += value;
+                                if (value >= 0) {
+                                  positive += value;
+                                } else {
+                                  negative += value;
+                                }
                                 const top =
                                   value === 0
                                     ? y(start) - 1
@@ -729,13 +748,14 @@ function MultiSeriesBarChart({
                                 if (
                                   highlightedId !== undefined &&
                                   item.id !== highlightedId
-                                )
+                                ) {
                                   colorStrength = 20;
-                                else if (
+                                } else if (
                                   tooltipIndex !== undefined &&
                                   tooltipIndex !== index
-                                )
+                                ) {
                                   colorStrength = 30;
+                                }
                                 const barWidth =
                                   layout === "grouped"
                                     ? x.bandwidth() /
@@ -867,9 +887,11 @@ function MultiSeriesBarChart({
             const hidden = hiddenIds.has(item.id);
             const focused = highlightedId === item.id;
             let label = `Show only ${item.label}`;
-            if (legend.interaction === "toggle")
+            if (legend.interaction === "toggle") {
               label = hidden ? `Show ${item.label}` : `Hide ${item.label}`;
-            else if (focused) label = "Show all series";
+            } else if (focused) {
+              label = "Show all series";
+            }
             const summary = summaries.get(item.id);
             return {
               id: item.id,

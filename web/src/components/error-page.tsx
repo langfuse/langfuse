@@ -85,11 +85,12 @@ export const ErrorPageWithSentry = ({
 }) => {
   useEffect(() => {
     // Capture the error with Sentry (breadcrumb only when expected)
-    if (window !== undefined)
+    if (window !== undefined) {
       reportError(
         new Error(`ErrorPageWithSentry rendered: ${title}, ${message}`),
         { area: "error-page", expected, extra: { title, message } },
       );
+    }
   }, [title, message, expected]);
 
   return (

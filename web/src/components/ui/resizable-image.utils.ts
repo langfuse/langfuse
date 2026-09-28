@@ -7,7 +7,9 @@ export const buildResizableImageSrc = ({
   width: number;
   quality?: number;
 }) => {
-  if (!width || !quality) return src;
+  if (!width || !quality) {
+    return src;
+  }
 
   const separator = src.includes("?") ? "&" : "?";
 

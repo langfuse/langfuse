@@ -50,7 +50,9 @@ export function RuleActiveSwitchCell({
       }
       aria-label={`${rule.enabled ? "Disable" : "Enable"} ${rule.name}`}
       onCheckedChange={(enabled) => {
-        if (!hasWriteAccess) return;
+        if (!hasWriteAccess) {
+          return;
+        }
         onStatusChange(enabled).catch(() => undefined);
       }}
     />

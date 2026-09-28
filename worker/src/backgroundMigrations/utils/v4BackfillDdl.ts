@@ -38,7 +38,9 @@ function clickhouseDdlTarget(): ClickhouseDdlTarget {
 export function onClusterClause(
   target: ClickhouseDdlTarget = clickhouseDdlTarget(),
 ): string {
-  if (!target.clusterEnabled) return "";
+  if (!target.clusterEnabled) {
+    return "";
+  }
   return `ON CLUSTER ${quoteClickhouseIdentifier(target.clusterName, "cluster")}`;
 }
 

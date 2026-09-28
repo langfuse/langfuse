@@ -75,7 +75,9 @@ export function CommentDrawerController({
       {children({
         disabled,
         openDrawer: (target) => {
-          if (disabled) return;
+          if (disabled) {
+            return;
+          }
           triggerRef.current =
             document.activeElement instanceof HTMLElement
               ? document.activeElement
@@ -118,8 +120,9 @@ export function CommentDrawerController({
                 if (
                   !store.getState().overlay?.isOpen &&
                   triggerRef.current?.isConnected
-                )
+                ) {
                   triggerRef.current.focus({ preventScroll: true });
+                }
               }}
             />
           )}

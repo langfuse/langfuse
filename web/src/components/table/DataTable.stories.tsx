@@ -841,7 +841,9 @@ function TracesTable({
   const [columnVisibility, setColumnVisibility] = useState(() => {
     const initial: Record<string, boolean> = {};
     for (const col of columns) {
-      if (col.defaultHidden && col.id) initial[col.id] = false;
+      if (col.defaultHidden && col.id) {
+        initial[col.id] = false;
+      }
     }
     return initial;
   });
@@ -1054,7 +1056,9 @@ function GroupedHeadersStory() {
   const [columnVisibility, setColumnVisibility] = useState(() => {
     const initial: Record<string, boolean> = {};
     for (const col of columns) {
-      if (col.defaultHidden && col.id) initial[col.id] = false;
+      if (col.defaultHidden && col.id) {
+        initial[col.id] = false;
+      }
     }
     return initial;
   });
@@ -1172,7 +1176,9 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
     enableSorting: true,
     size: 250,
     getCell: (name, { row }) => {
-      if (!name) return undefined;
+      if (!name) {
+        return undefined;
+      }
       const { type, fullPath } = row.original;
       if (type === "folder") {
         return { type: "folder", name, onClick: () => undefined };
@@ -1211,7 +1217,9 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
     enableSorting: true,
     size: 200,
     cell: ({ row }) => {
-      if (row.original.type === "folder") return null;
+      if (row.original.type === "folder") {
+        return null;
+      }
       const preparedDate = buildLocalIsoDatePresentation({
         date: row.original.createdAt,
       });
@@ -1227,7 +1235,9 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
     id: "numberOfObservations",
     size: 170,
     cell: ({ row }) => {
-      if (row.original.type === "folder") return null;
+      if (row.original.type === "folder") {
+        return null;
+      }
       const n = row.original.numberOfObservations;
       // Real cell shows a Skeleton h-3 w-1/2 while metrics load; here metrics
       // are "loaded", so it always renders the TextLink (0 still links).
@@ -1251,7 +1261,9 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
     size: 120,
     cell: ({ row }) => {
       // height h-6 to keep folder & prompt rows the same height (real table).
-      if (row.original.type === "folder") return <div className="h-6" />;
+      if (row.original.type === "folder") {
+        return <div className="h-6" />;
+      }
       const tags = row.original.tags ?? [];
       // Real Tags cell renders TagManager (no-access path) -> TagList inside a
       // `flex gap-x-1 gap-y-1` wrapper; reuse the same wrapper + TagList.
@@ -1495,7 +1507,9 @@ export const TestManualIOCellBackground = meta.story({
       (header) => header.textContent?.trim() === "Output",
     );
     const row = canvasElement.querySelector<HTMLTableRowElement>("tbody tr");
-    if (!row) throw new globalThis.Error("Row not found");
+    if (!row) {
+      throw new globalThis.Error("Row not found");
+    }
 
     await expect(row.cells[inputIndex]).toHaveClass("bg-muted/50");
     await expect(row.cells[outputIndex]).toHaveClass("bg-accent-light-green");

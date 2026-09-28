@@ -115,7 +115,9 @@ export const getContextualFeatureFlags = (
     organizationId,
   }: { projectId?: string; organizationId?: string } = {},
 ): Flags | undefined => {
-  if (!user) return undefined;
+  if (!user) {
+    return undefined;
+  }
 
   const organization = organizationId
     ? user.organizations.find((candidate) => candidate.id === organizationId)

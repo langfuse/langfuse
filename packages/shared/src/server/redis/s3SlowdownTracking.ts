@@ -14,12 +14,20 @@ function isSlowdownEnabled(): boolean {
  * Handles various error formats from AWS SDK and storage services.
  */
 export function isS3SlowDownError(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false;
+  if (!err || typeof err !== "object") {
+    return false;
+  }
 
   // Check for AWS SDK SlowDown error
-  if ("name" in err && err.name === "SlowDown") return true;
-  if ("Code" in err && err.Code === "SlowDown") return true;
-  if ("code" in err && err.code === "SlowDown") return true;
+  if ("name" in err && err.name === "SlowDown") {
+    return true;
+  }
+  if ("Code" in err && err.Code === "SlowDown") {
+    return true;
+  }
+  if ("code" in err && err.code === "SlowDown") {
+    return true;
+  }
 
   // Check message as fallback
   if ("message" in err && typeof err.message === "string") {
@@ -37,7 +45,9 @@ export function isS3SlowDownError(err: unknown): boolean {
  * Sets a Redis key with TTL to trigger secondary queue routing.
  */
 export async function markProjectS3Slowdown(projectId: string): Promise<void> {
-  if (!redis || !isSlowdownEnabled()) return;
+  if (!redis || !isSlowdownEnabled()) {
+    return;
+  }
 
   const ttlSeconds = env.LANGFUSE_S3_RATE_ERROR_SLOWDOWN_TTL_SECONDS;
 
@@ -61,7 +71,9 @@ export async function markProjectS3Slowdown(projectId: string): Promise<void> {
  * Returns false on error to fail open (don't redirect unnecessarily).
  */
 export async function hasS3SlowdownFlag(projectId: string): Promise<boolean> {
-  if (!redis || !isSlowdownEnabled()) return false;
+  if (!redis || !isSlowdownEnabled()) {
+    return false;
+  }
 
   try {
     const key = `${S3_SLOWDOWN_PREFIX}:${projectId}`;

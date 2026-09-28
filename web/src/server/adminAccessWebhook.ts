@@ -34,8 +34,12 @@ export const sendAdminAccessWebhook = async (params: {
   projectId?: string | null;
   orgId?: string | null;
 }) => {
-  if (!env.LANGFUSE_ADMIN_ACCESS_WEBHOOK) return;
-  if (!params.email) return;
+  if (!env.LANGFUSE_ADMIN_ACCESS_WEBHOOK) {
+    return;
+  }
+  if (!params.email) {
+    return;
+  }
 
   logger.info("Sending admin access webhook", {
     email: params.email,
@@ -51,7 +55,9 @@ export const sendAdminAccessWebhook = async (params: {
     region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? "self-hosted",
   };
 
-  if (shouldSkipDueToRecentDuplicate(payload)) return;
+  if (shouldSkipDueToRecentDuplicate(payload)) {
+    return;
+  }
 
   try {
     const response = await fetch(env.LANGFUSE_ADMIN_ACCESS_WEBHOOK, {

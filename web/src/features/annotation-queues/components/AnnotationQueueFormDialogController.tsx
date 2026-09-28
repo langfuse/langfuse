@@ -49,7 +49,9 @@ export function AnnotationQueueFormDialogController(
       };
 
   const openDialog = () => {
-    if (!hasQueueAccess) return;
+    if (!hasQueueAccess) {
+      return;
+    }
     setCreatedQueueId(undefined);
     setOpen(true);
   };

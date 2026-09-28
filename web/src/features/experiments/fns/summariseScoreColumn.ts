@@ -63,13 +63,23 @@ export const readOrderedScoreValue = (
   aggregate: AggregatedScoreData | null,
   dataType: ScoreColumnDataType,
 ): number | null => {
-  if (!aggregate) return null;
-  if (dataType === "CATEGORICAL") return null;
-  if (aggregate.type === "NUMERIC") return aggregate.average;
-  if (dataType !== "BOOLEAN") return null;
+  if (!aggregate) {
+    return null;
+  }
+  if (dataType === "CATEGORICAL") {
+    return null;
+  }
+  if (aggregate.type === "NUMERIC") {
+    return aggregate.average;
+  }
+  if (dataType !== "BOOLEAN") {
+    return null;
+  }
 
   const total = countValues(aggregate);
-  if (total === 0) return null;
+  if (total === 0) {
+    return null;
+  }
   const trueCount = aggregate.valueCounts
     .filter((entry) => BOOLEAN_TRUE_VALUES.has(entry.value))
     .reduce((sum, entry) => sum + entry.count, 0);
@@ -85,7 +95,9 @@ export const readOrderedScoreValue = (
 const singleCategoricalValue = (
   aggregate: AggregatedScoreData | null,
 ): string | null => {
-  if (!aggregate || aggregate.type !== "CATEGORICAL") return null;
+  if (!aggregate || aggregate.type !== "CATEGORICAL") {
+    return null;
+  }
   const distinct = new Set(aggregate.values);
   return distinct.size === 1 ? (aggregate.values[0] ?? null) : null;
 };
@@ -94,7 +106,9 @@ const aggregateAcrossItems = (
   aggregates: AggregatedScoreData[],
   dataType: ScoreColumnDataType,
 ): ScoreColumnAggregate | null => {
-  if (aggregates.length === 0) return null;
+  if (aggregates.length === 0) {
+    return null;
+  }
 
   if (dataType === "CATEGORICAL") {
     const counts = new Map<string, number>();
@@ -105,11 +119,15 @@ const aggregateAcrossItems = (
       // value scored by several annotators on one item out-count the items
       // themselves, and the header read "A 7/5".
       const value = singleCategoricalValue(aggregate);
-      if (value === null) continue;
+      if (value === null) {
+        continue;
+      }
       counts.set(value, (counts.get(value) ?? 0) + 1);
       counted += 1;
     }
-    if (counts.size === 0) return null;
+    if (counts.size === 0) {
+      return null;
+    }
     // Most frequent first, ties by value so the header is stable across fetches.
     const distribution = [...counts.entries()]
       .map(([value, count]) => ({ value, count }))
@@ -125,7 +143,9 @@ const aggregateAcrossItems = (
   const values = aggregates
     .map((aggregate) => readOrderedScoreValue(aggregate, dataType))
     .filter((value): value is number => value !== null);
-  if (values.length === 0) return null;
+  if (values.length === 0) {
+    return null;
+  }
 
   const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
   return dataType === "BOOLEAN"

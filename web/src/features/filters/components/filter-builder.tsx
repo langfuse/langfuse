@@ -141,7 +141,9 @@ export function PopoverFilterBuilder({
   useEffect(() => {
     // Only sync if filterState actually changed (reference comparison is fine here
     // since filterState comes from URL parsing which creates new arrays)
-    if (prevFilterStateRef.current === filterState) return;
+    if (prevFilterStateRef.current === filterState) {
+      return;
+    }
     prevFilterStateRef.current = filterState;
 
     _setWipFilterState((currentWip) => {
@@ -149,7 +151,9 @@ export function PopoverFilterBuilder({
         (f) => !singleFilter.safeParse(f).success,
       );
       // Don't sync if user is actively editing (has invalid WIP filters)
-      if (hasWipFilters) return currentWip;
+      if (hasWipFilters) {
+        return currentWip;
+      }
       // Synced from external state (saved view applied, URL nav, clear-all): the
       // commit bypasses the wrapped `setWipFilterState`, so re-baseline the
       // applied-count ref here too (LFE-10781). Otherwise a stale count makes the
@@ -241,7 +245,9 @@ export function PopoverFilterBuilder({
           aiFeaturesEnabled: organization?.aiFeaturesEnabled === true,
           isPending: createFilterMutation.isPending,
           generateFilters: async (prompt: string) => {
-            if (!projectId) return null;
+            if (!projectId) {
+              return null;
+            }
             const result = await createFilterMutation.mutateAsync({
               projectId,
               prompt,
@@ -261,7 +267,9 @@ export function PopoverFilterBuilder({
             capture("table:filter_builder_open");
           }
           // Create empty filter when opening popover
-          if (open && filterState.length === 0) addNewFilter();
+          if (open && filterState.length === 0) {
+            addNewFilter();
+          }
           // Discard all wip filters when closing popover
           if (!open) {
             // METADATA ONLY (LFE-10781): previously sent the full `filterState`,
@@ -492,7 +500,9 @@ export function InlineFilterBuilder({
   useEffect(() => {
     // Only sync if filterState actually changed (reference comparison is fine here
     // since filterState comes from parent state which creates new arrays on change)
-    if (prevFilterStateRef.current === filterState) return;
+    if (prevFilterStateRef.current === filterState) {
+      return;
+    }
     prevFilterStateRef.current = filterState;
 
     _setWipFilterState((currentWip) => {
@@ -918,7 +928,9 @@ function FilterBuilderForm({
         disabled={!filter.column || disabled || keyPending}
         onValueChange={(value) => {
           // protect against invalid empty operator values
-          if (value === "") return;
+          if (value === "") {
+            return;
+          }
           handleFilterChange(
             {
               ...filter,
@@ -1034,7 +1046,9 @@ function FilterBuilderForm({
         options={column?.type === filter.type ? column.options : []}
         isLoading={!!column && loadingOptionColumns.includes(column.id)}
         onOpenChange={(open) => {
-          if (open && column) onOptionsOpen?.(column.id);
+          if (open && column) {
+            onOptionsOpen?.(column.id);
+          }
         }}
         onValueChange={(value) => handleFilterChange({ ...filter, value }, i)}
         values={Array.isArray(filter.value) ? filter.value : []}
@@ -1213,7 +1227,9 @@ function FilterBuilderForm({
                 value={aiPrompt}
                 onChange={(e) => {
                   setAiPrompt(e.target.value);
-                  if (aiError) setAiError(null); // Clear error when user starts typing
+                  if (aiError) {
+                    setAiError(null);
+                  } // Clear error when user starts typing
                 }}
                 placeholder="Describe the filters you want to apply..."
                 className="min-h-[80px] min-w-112 resize-none"

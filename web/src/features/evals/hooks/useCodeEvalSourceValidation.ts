@@ -100,11 +100,15 @@ export function useCodeEvalSourceValidation({
     const timeout = setTimeout(() => {
       getCodeEvalValidationResult({ sourceCode, sourceCodeLanguage })
         .then((result) => {
-          if (!isActive) return;
+          if (!isActive) {
+            return;
+          }
           setValidationResult(result);
         })
         .finally(() => {
-          if (isActive) setIsPending(false);
+          if (isActive) {
+            setIsPending(false);
+          }
         });
     }, 300);
 

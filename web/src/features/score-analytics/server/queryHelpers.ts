@@ -25,14 +25,21 @@
  * ```
  */
 export function buildObjectTypeFilter(objectType: string): string {
-  if (objectType === "all") return "";
-  if (objectType === "trace")
+  if (objectType === "all") {
+    return "";
+  }
+  if (objectType === "trace") {
     return "AND trace_id IS NOT NULL AND observation_id IS NULL AND session_id IS NULL AND dataset_run_id IS NULL";
-  if (objectType === "observation") return "AND observation_id IS NOT NULL";
-  if (objectType === "session")
+  }
+  if (objectType === "observation") {
+    return "AND observation_id IS NOT NULL";
+  }
+  if (objectType === "session") {
     return "AND session_id IS NOT NULL AND observation_id IS NULL AND trace_id IS NULL AND dataset_run_id IS NULL";
-  if (objectType === "dataset_run")
+  }
+  if (objectType === "dataset_run") {
     return "AND dataset_run_id IS NOT NULL AND trace_id IS NULL AND observation_id IS NULL AND session_id IS NULL";
+  }
   return "";
 }
 

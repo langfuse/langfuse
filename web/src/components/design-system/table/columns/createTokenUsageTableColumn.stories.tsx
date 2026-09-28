@@ -34,8 +34,12 @@ function TokenUsageTableColumnStory({
       accessorFn: (row) => row.usage,
       header: "Tokens",
       getCell: (value, { row }) => {
-        if (row.original.isUsageLoading) return { type: "loading" };
-        if (!value) return undefined;
+        if (row.original.isUsageLoading) {
+          return { type: "loading" };
+        }
+        if (!value) {
+          return undefined;
+        }
         if (!value.inputUsage && !value.outputUsage && !value.totalUsage) {
           return undefined;
         }

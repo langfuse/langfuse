@@ -42,7 +42,9 @@ export function RuleFilterStep({
         selectedObservationId={selectedObservationId}
         onSelect={actions.setSelectedObservation}
         onOpenTrace={(observation) => {
-          if (!observation.traceId) return;
+          if (!observation.traceId) {
+            return;
+          }
           const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
           window.open(
             `${basePath}/project/${projectId}/traces/${observation.traceId}?observation=${observation.id}`,

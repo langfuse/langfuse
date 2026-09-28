@@ -73,7 +73,9 @@ describe("Dataset Item Media Associations", () => {
       expectedOutput: { references: [outputMedia.referenceString] },
       metadata: metadataMedia.referenceString,
     });
-    if (!result.success) throw new Error(result.message);
+    if (!result.success) {
+      throw new Error(result.message);
+    }
     const itemId = result.datasetItem.id;
 
     const rows = await getItemMediaRows(itemId);
@@ -124,7 +126,9 @@ describe("Dataset Item Media Associations", () => {
       datasetId,
       input: { question: "what is the capital of France?" },
     });
-    if (!result.success) throw new Error(result.message);
+    if (!result.success) {
+      throw new Error(result.message);
+    }
 
     await expect(getItemMediaRows(result.datasetItem.id)).resolves.toEqual([]);
   });
@@ -285,7 +289,9 @@ describe("Dataset Item Media Associations", () => {
         { datasetId, expectedOutput: [secondMedia.referenceString] },
       ],
     });
-    if (!result.success) throw new Error("bulk create failed");
+    if (!result.success) {
+      throw new Error("bulk create failed");
+    }
     const [first, second, third] = result.datasetItems;
 
     const firstRows = await getItemMediaRows(first.id);
@@ -328,7 +334,9 @@ describe("Dataset Item Media Associations", () => {
         },
       ],
     });
-    if (!result.success) throw new Error("expected partial success");
+    if (!result.success) {
+      throw new Error("expected partial success");
+    }
 
     expect(result.successCount).toBe(1);
     expect(result.failedCount).toBe(1);
@@ -495,7 +503,9 @@ describe("Dataset Item Media Associations", () => {
         datasetId,
         input: { image: referenceString },
       });
-      if (!result.success) throw new Error(result.message);
+      if (!result.success) {
+        throw new Error(result.message);
+      }
       return result.datasetItem.id;
     };
 

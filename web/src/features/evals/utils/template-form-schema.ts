@@ -23,7 +23,9 @@ export const templateFormSchema = z
       .string()
       .optional()
       .refine((val) => {
-        if (!val) return true;
+        if (!val) {
+          return true;
+        }
         const variables = extractVariables(val);
         const matches = variables.map((variable) => {
           // check regex here

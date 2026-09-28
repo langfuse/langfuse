@@ -44,7 +44,9 @@ export default function ExperimentsPage() {
   };
 
   useEffect(() => {
-    if (isInitializing || canAccessExperiments || !projectId) return;
+    if (isInitializing || canAccessExperiments || !projectId) {
+      return;
+    }
 
     router.replace(`/project/${projectId}/datasets`);
   }, [canAccessExperiments, isInitializing, projectId, router]);

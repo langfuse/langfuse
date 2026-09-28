@@ -890,7 +890,9 @@ describe("search bar invariants — sessions registry", () => {
 
   it("rewrites a bare word onto the session id and settles there", () => {
     const first = planCommit("refund", undefined, SESSIONS_FIELD_REGISTRY);
-    if (first.status !== "committed") throw new Error(first.status);
+    if (first.status !== "committed") {
+      throw new Error(first.status);
+    }
     expect(first).toMatchObject({
       status: "committed",
       searchQuery: null,
@@ -918,7 +920,9 @@ describe("search bar invariants — sessions registry", () => {
       SESSIONS_FIELD_REGISTRY,
     );
     expect(dangling.status).toBe("invalid");
-    if (dangling.status !== "invalid") throw new Error("expected invalid");
+    if (dangling.status !== "invalid") {
+      throw new Error("expected invalid");
+    }
     expect(
       dangling.diagnostics.some((d) =>
         /add a key after the dot/.test(d.message),
@@ -946,7 +950,9 @@ describe("search bar invariants — sessions registry", () => {
     // word it would AND `id contains test` with `id contains 123` — a query
     // matching neither what was typed nor what was offered.
     const multi = planCommit("test 123", undefined, SESSIONS_FIELD_REGISTRY);
-    if (multi.status !== "committed") throw new Error(multi.status);
+    if (multi.status !== "committed") {
+      throw new Error(multi.status);
+    }
     expect(multi.filters).toEqual([
       { column: "id", type: "string", operator: "contains", value: "test 123" },
     ]);
@@ -968,7 +974,9 @@ describe("search bar invariants — sessions registry", () => {
       undefined,
       SESSIONS_FIELD_REGISTRY,
     );
-    if (mixed.status !== "committed") throw new Error(mixed.status);
+    if (mixed.status !== "committed") {
+      throw new Error(mixed.status);
+    }
     expect(mixed.filters.filter((f) => f.column === "id")).toEqual([
       { column: "id", type: "string", operator: "contains", value: "test 123" },
     ]);

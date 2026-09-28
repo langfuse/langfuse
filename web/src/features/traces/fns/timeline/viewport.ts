@@ -50,8 +50,12 @@ export type RowPresentation =
 /** What a row can show follows from how tall it is, never the other way round. */
 export function presentationForRowHeight(rowHeight: number): RowPresentation {
   const height = Number.isFinite(rowHeight) ? rowHeight : 0;
-  if (height >= LABELLED_ROW_HEIGHT) return "labelled";
-  if (height >= 10) return "compact";
+  if (height >= LABELLED_ROW_HEIGHT) {
+    return "labelled";
+  }
+  if (height >= 10) {
+    return "compact";
+  }
   return "hairline";
 }
 
@@ -168,7 +172,9 @@ export function zoomViewport(
   },
 ): Viewport {
   const factor = finite(options.factor, 1);
-  if (factor <= 0) return clampViewport(viewport, limits);
+  if (factor <= 0) {
+    return clampViewport(viewport, limits);
+  }
 
   const axes = options.axes ?? "both";
   const zoomX = axes !== "y";
@@ -240,7 +246,9 @@ export function canExpandRowsToReadable(
   limits: ViewportLimits,
 ): boolean {
   const height = rowHeightOf(viewport, limits.boxHeight);
-  if (height >= LABELLED_ROW_HEIGHT) return false;
+  if (height >= LABELLED_ROW_HEIGHT) {
+    return false;
+  }
   const expanded = expandRowsToReadable(viewport, limits);
   return rowHeightOf(expanded, limits.boxHeight) > height + 0.05;
 }
@@ -419,7 +427,9 @@ export function anchorTimeToRows(
 
   for (let index = range.startIndex; index <= range.endIndex; index++) {
     const extent = extentOf(index);
-    if (!extent) continue;
+    if (!extent) {
+      continue;
+    }
     // Anything at all inside the window means there is something to look at.
     if (extent.endMs >= windowStart && extent.startMs <= windowEnd) {
       return viewport;
@@ -427,7 +437,9 @@ export function anchorTimeToRows(
     earliest = Math.min(earliest, extent.startMs);
     latest = Math.max(latest, extent.endMs);
   }
-  if (!Number.isFinite(earliest) || !Number.isFinite(latest)) return viewport;
+  if (!Number.isFinite(earliest) || !Number.isFinite(latest)) {
+    return viewport;
+  }
 
   const centre = (earliest + latest) / 2;
   return clampViewport(
@@ -464,8 +476,9 @@ export function revealViewport(
   const count = from.rows.count;
   const margin = Math.min(1, Math.max(count - 1, 0) / 2);
   let rowStart = from.rows.start;
-  if (rowIndex < rowStart + margin) rowStart = rowIndex - margin;
-  else if (rowIndex + 1 > rowStart + count - margin) {
+  if (rowIndex < rowStart + margin) {
+    rowStart = rowIndex - margin;
+  } else if (rowIndex + 1 > rowStart + count - margin) {
     rowStart = rowIndex + 1 + margin - count;
   }
 
@@ -473,9 +486,13 @@ export function revealViewport(
   const startMs = finite(target.startMs, 0);
   const endMs = Math.max(finite(target.endMs, startMs), startMs);
   let timeStart = from.time.start;
-  if (endMs - startMs >= duration) timeStart = (startMs + endMs - duration) / 2;
-  else if (startMs < timeStart) timeStart = startMs;
-  else if (endMs > timeStart + duration) timeStart = endMs - duration;
+  if (endMs - startMs >= duration) {
+    timeStart = (startMs + endMs - duration) / 2;
+  } else if (startMs < timeStart) {
+    timeStart = startMs;
+  } else if (endMs > timeStart + duration) {
+    timeStart = endMs - duration;
+  }
 
   return clampViewport(
     { time: { start: timeStart, duration }, rows: { start: rowStart, count } },
@@ -494,7 +511,9 @@ export function rowIndexAtOffset(
   rowHeight: number,
   rowCount: number,
 ): number | null {
-  if (!(rowHeight > 0)) return null;
+  if (!(rowHeight > 0)) {
+    return null;
+  }
   const index = Math.floor(
     finite(viewport.rows.start, 0) + finite(offsetY, -1) / rowHeight,
   );
@@ -516,7 +535,9 @@ export function visibleRowRange(
   overscan = 2,
 ): { startIndex: number; endIndex: number } {
   const total = Math.max(Math.floor(finite(rowCount, 0)), 0);
-  if (total === 0) return { startIndex: 0, endIndex: -1 };
+  if (total === 0) {
+    return { startIndex: 0, endIndex: -1 };
+  }
   const start = Math.max(
     Math.floor(finite(viewport.rows.start, 0)) - overscan,
     0,

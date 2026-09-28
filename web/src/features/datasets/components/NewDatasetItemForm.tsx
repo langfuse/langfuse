@@ -96,7 +96,9 @@ type DatasetWithSchema = {
 };
 
 const formatJsonValue = (value: Prisma.JsonValue | undefined): string => {
-  if (value === undefined) return "";
+  if (value === undefined) {
+    return "";
+  }
 
   if (typeof value === "string") {
     try {
@@ -145,9 +147,13 @@ async function fillEmptySchemaFields({
     schemaFields.map(async (field) => {
       const schema =
         field === "input" ? dataset.inputSchema : dataset.expectedOutputSchema;
-      if (!schema || !canFill(field)) return;
+      if (!schema || !canFill(field)) {
+        return;
+      }
       const example = await generateSchemaExample(schema);
-      if (example && canFill(field)) fill(field, example);
+      if (example && canFill(field)) {
+        fill(field, example);
+      }
     }),
   );
 }
@@ -205,7 +211,9 @@ export function NewDatasetItemForm(props: NewDatasetItemFormProps) {
       </div>
     );
   }
-  if (!initialValues.data) return <Skeleton className="h-72 w-full" />;
+  if (!initialValues.data) {
+    return <Skeleton className="h-72 w-full" />;
+  }
 
   return (
     <InitializedNewDatasetItemForm
@@ -261,7 +269,9 @@ function InitializedNewDatasetItemForm({
   const itemIdByDataset = useRef(new Map<string, string>());
   const getDatasetItemId = useCallback((datasetId: string) => {
     const existing = itemIdByDataset.current.get(datasetId);
-    if (existing) return existing;
+    if (existing) {
+      return existing;
+    }
     const id = safeRandomUUID();
     itemIdByDataset.current.set(datasetId, id);
     return id;
@@ -278,7 +288,9 @@ function InitializedNewDatasetItemForm({
 
   const uploadMedia = useCallback(
     async (file: File): Promise<string | null> => {
-      if (submissionOwner.current.pending) return null;
+      if (submissionOwner.current.pending) {
+        return null;
+      }
       if (!uploadDatasetId) {
         showErrorToast(
           "Select a dataset first",
@@ -294,8 +306,9 @@ function InitializedNewDatasetItemForm({
   const handleFileUpload =
     (editorRef: RefObject<ReactCodeMirrorRef | null>) => async (file: File) => {
       const referenceString = await uploadMedia(file);
-      if (referenceString)
+      if (referenceString) {
         insertMediaReferenceAtCursor(editorRef, referenceString);
+      }
     };
 
   // Shared across all three editors: drop/paste uploads the file and inserts
@@ -334,9 +347,13 @@ function InitializedNewDatasetItemForm({
 
   function selectDatasets(datasetIds: string[]) {
     const version = ++selectionVersion.current;
-    if (hasInitialValues || datasetIds.length !== 1) return;
+    if (hasInitialValues || datasetIds.length !== 1) {
+      return;
+    }
     const dataset = datasets.find(({ id }) => id === datasetIds[0]);
-    if (!dataset) return;
+    if (!dataset) {
+      return;
+    }
     return fillEmptySchemaFields({
       dataset,
       canFill: (field) =>
@@ -354,7 +371,9 @@ function InitializedNewDatasetItemForm({
     });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    if (submissionOwner.current.pending || pendingUploads.length) return;
+    if (submissionOwner.current.pending || pendingUploads.length) {
+      return;
+    }
     if (props.traceId) {
       capture("dataset_item:new_from_trace_form_submit", {
         object: props.observationId ? "observation" : "trace",
@@ -662,7 +681,9 @@ const FieldSchemaErrors = ({
   );
   const fieldErrors = validation.errors.filter((e) => e.field === field);
 
-  if (!validation.hasSchemas || fieldErrors.length === 0 || !show) return null;
+  if (!validation.hasSchemas || fieldErrors.length === 0 || !show) {
+    return null;
+  }
 
   return (
     <DatasetItemFieldSchemaErrors

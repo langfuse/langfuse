@@ -46,9 +46,13 @@ const MAX_LOGGED_PUBLIC_KEY_LENGTH = 64;
  */
 export function formatSubmittedPublicKeyForLog(value: string): string {
   let formatted: string;
-  if (value.startsWith("pk-lf-")) formatted = value;
-  else if (value.length < 12) formatted = "****";
-  else formatted = getDisplaySecretKey(value);
+  if (value.startsWith("pk-lf-")) {
+    formatted = value;
+  } else if (value.length < 12) {
+    formatted = "****";
+  } else {
+    formatted = getDisplaySecretKey(value);
+  }
 
   return JSON.stringify(
     formatted

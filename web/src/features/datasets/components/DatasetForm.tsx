@@ -75,7 +75,9 @@ type DatasetFormProps = CreateDatasetFormProps | UpdateDatasetFormProps;
 // Validation schema for JSON Schema strings
 const jsonSchemaStringValidator = z.string().refine(
   (value) => {
-    if (value === "") return true; // Empty is valid (means no schema)
+    if (value === "") {
+      return true;
+    } // Empty is valid (means no schema)
 
     try {
       const parsed = JSON.parse(value);
@@ -95,7 +97,9 @@ const formSchema = z.object({
   description: z.string(),
   metadata: z.string().refine(
     (value) => {
-      if (value === "") return true;
+      if (value === "") {
+        return true;
+      }
       try {
         JSON.parse(value);
 
@@ -182,7 +186,9 @@ export const DatasetForm = (props: DatasetFormProps) => {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (submissionPending.current) return;
+    if (submissionPending.current) {
+      return;
+    }
     submissionPending.current = true;
     setPending(true);
     props.onSubmittingChange?.(true);
@@ -230,7 +236,9 @@ export const DatasetForm = (props: DatasetFormProps) => {
             });
       if (result.success) {
         succeeded = true;
-        if (props.mode === "create") createdDataset = result.dataset;
+        if (props.mode === "create") {
+          createdDataset = result.dataset;
+        }
         utils.datasets.invalidate();
         form.reset();
       } else {
@@ -249,7 +257,9 @@ export const DatasetForm = (props: DatasetFormProps) => {
       props.onSubmittingChange?.(false);
     }
     if (succeeded) {
-      if (createdDataset) props.onCreateDatasetSuccess?.(createdDataset);
+      if (createdDataset) {
+        props.onCreateDatasetSuccess?.(createdDataset);
+      }
       props.onFormSuccess?.();
       if (createdDataset && props.redirectOnSuccess !== false) {
         router.push(

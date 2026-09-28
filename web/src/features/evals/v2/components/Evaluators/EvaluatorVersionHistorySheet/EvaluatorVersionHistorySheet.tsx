@@ -48,7 +48,9 @@ export function EvaluatorVersionHistorySheet({
   );
   const loadMoreSentinelRef = useCallback(
     (sentinel: HTMLDivElement | null) => {
-      if (!sentinel?.parentElement) return;
+      if (!sentinel?.parentElement) {
+        return;
+      }
 
       const scrollContainer = sentinel.parentElement;
       const observer = new IntersectionObserver(
@@ -73,7 +75,9 @@ export function EvaluatorVersionHistorySheet({
       open={open}
       modal={false}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen && versionToRestore) return;
+        if (!nextOpen && versionToRestore) {
+          return;
+        }
         onOpenChange(nextOpen);
       }}
     >
@@ -113,14 +117,18 @@ export function EvaluatorVersionHistorySheet({
       <ConfirmDialog
         open={versionToRestore !== null}
         onOpenChange={(open) => {
-          if (!open) setVersionToRestore(null);
+          if (!open) {
+            setVersionToRestore(null);
+          }
         }}
         title={`Restore version ${versionToRestore?.version}?`}
         description={`This will replace the current evaluator definition with version ${versionToRestore?.version}. It won't be saved until you click "Save changes".`}
         confirmLabel="Restore version"
         confirmVariant="default"
         onConfirm={() => {
-          if (!versionToRestore) return;
+          if (!versionToRestore) {
+            return;
+          }
           onRestoreVersion(versionToRestore);
           setVersionToRestore(null);
           onOpenChange(false);

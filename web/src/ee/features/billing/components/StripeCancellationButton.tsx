@@ -58,7 +58,9 @@ export const StripeCancellationButton = ({
       },
     });
 
-  if (!orgId) return null;
+  if (!orgId) {
+    return null;
+  }
 
   const onReactivate = async () => {
     try {

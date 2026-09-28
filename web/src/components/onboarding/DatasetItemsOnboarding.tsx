@@ -115,7 +115,9 @@ export const DatasetItemsOnboarding = ({
         <Dialog
           open={hasProjectAccess && isNewItemDialogOpen}
           onOpenChange={(open) => {
-            if (!submissionPending.current) setIsNewItemDialogOpen(open);
+            if (!submissionPending.current) {
+              setIsNewItemDialogOpen(open);
+            }
           }}
         >
           <DialogTrigger asChild disabled={!hasProjectAccess}>

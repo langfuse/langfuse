@@ -156,7 +156,9 @@ function parseCli(): Cli {
   // `pnpm --filter web sfdc:backfill -- --flags` forwards the `--` separator
   // verbatim; drop it or parseArgs treats every flag after it as a positional.
   const args = process.argv.slice(2);
-  if (args[0] === "--") args.shift();
+  if (args[0] === "--") {
+    args.shift();
+  }
   const { values } = parseArgs({
     args,
     options: {
@@ -175,28 +177,34 @@ function parseCli(): Cli {
   });
 
   const toInt = (v: string | undefined, fallback: number) => {
-    if (v === undefined) return fallback;
+    if (v === undefined) {
+      return fallback;
+    }
     const n = Number.parseInt(v, 10);
-    if (!Number.isFinite(n) || n < 0)
+    if (!Number.isFinite(n) || n < 0) {
       throw new Error(`Invalid numeric flag value: ${v}`);
+    }
     return n;
   };
 
-  if (values["org-id"] && values["org-id-csv"])
+  if (values["org-id"] && values["org-id-csv"]) {
     throw new Error("--org-id and --org-id-csv are mutually exclusive");
-  if (values["org-id"] && values["start-after"])
+  }
+  if (values["org-id"] && values["start-after"]) {
     throw new Error("--start-after makes no sense with a single --org-id");
+  }
 
   // Refuse to run without the demo-org exclusion: on Cloud every user holds
   // a VIEWER membership in the demo org (created at signup, never synced by
   // the live sync), so an unexcluded demo org would bridge every user to one
   // Account and flip every organic signup's lead source to "Invite".
-  if (!env.NEXT_PUBLIC_DEMO_ORG_ID)
+  if (!env.NEXT_PUBLIC_DEMO_ORG_ID) {
     throw new Error(
       "NEXT_PUBLIC_DEMO_ORG_ID is not set — refusing to run. Set it to the " +
         "region's demo org id (same value as the region's web deployment) so " +
         "the demo org is excluded from sync, lead sources, and the orphan sweep.",
     );
+  }
   const excludeOrgIds = new Set<string>(values["exclude-org"] as string[]);
   excludeOrgIds.add(env.NEXT_PUBLIC_DEMO_ORG_ID);
 
@@ -234,13 +242,21 @@ function readOrgIdCsv(flag: string, path: string): string[] {
   const seen = new Set<string>();
   for (const [index, line] of raw.split(/\r?\n/).entries()) {
     const value = line.split(",")[0].trim().replace(/^"|"$/g, "");
-    if (!value || value.startsWith("#")) continue;
-    if (index === 0 && /^(org_?id|id)$/i.test(value)) continue;
-    if (seen.has(value)) continue;
+    if (!value || value.startsWith("#")) {
+      continue;
+    }
+    if (index === 0 && /^(org_?id|id)$/i.test(value)) {
+      continue;
+    }
+    if (seen.has(value)) {
+      continue;
+    }
     seen.add(value);
     ids.push(value);
   }
-  if (ids.length === 0) throw new Error(`${flag}: no org ids found in ${path}`);
+  if (ids.length === 0) {
+    throw new Error(`${flag}: no org ids found in ${path}`);
+  }
   return ids;
 }
 
@@ -254,7 +270,9 @@ async function mapWithConcurrency<T>(
   const worker = async () => {
     while (true) {
       const i = cursor++;
-      if (i >= items.length) return;
+      if (i >= items.length) {
+        return;
+      }
       await fn(items[i], i);
     }
   };
@@ -340,10 +358,11 @@ async function main() {
       orderBy: { createdAt: "asc" },
       select: { role: true },
     });
-    if (firstMembership)
+    if (firstMembership) {
       return firstMembership.role === Role.OWNER
         ? "Langfuse Cloud Signup"
         : "Langfuse Cloud Invite";
+    }
     return "Langfuse Cloud Signup";
   };
 
@@ -358,7 +377,9 @@ async function main() {
     createdAt: Date;
   }): Promise<boolean> => {
     const existing = leadOutcome.get(user.id);
-    if (existing) return existing === "sent";
+    if (existing) {
+      return existing === "sent";
+    }
     const leadSource = await resolveLeadSource(user.id);
     sample("upsertUser", {
       userId: user.id,
@@ -401,7 +422,9 @@ async function main() {
         ...(cursorId ? { skip: 1, cursor: { id: cursorId } } : {}),
       });
       members.push(...page);
-      if (page.length < cli.batchSize) break;
+      if (page.length < cli.batchSize) {
+        break;
+      }
       cursorId = page[page.length - 1].id;
     }
     return members;
@@ -486,7 +509,9 @@ async function main() {
 
     // Stage 1: Leads — each member's Lead must exist before its bridge.
     await mapWithConcurrency(members, cli.concurrency, async (m) => {
-      if (!m.user.email) return; // excluded by the query; type-level guard
+      if (!m.user.email) {
+        return;
+      } // excluded by the query; type-level guard
       const firstEncounter = !leadOutcome.has(m.userId);
       const ok = await sendLead({
         id: m.userId,
@@ -494,9 +519,14 @@ async function main() {
         name: m.user.name,
         createdAt: m.user.createdAt,
       });
-      if (!firstEncounter) return;
-      if (ok) local.leadsSent++;
-      else local.leadsFailed++;
+      if (!firstEncounter) {
+        return;
+      }
+      if (ok) {
+        local.leadsSent++;
+      } else {
+        local.leadsFailed++;
+      }
     });
 
     // Stage 2: member bridges.
@@ -522,8 +552,11 @@ async function main() {
             role: m.role,
           })
         : true;
-      if (ok) local.bridgesSent++;
-      else local.bridgesFailed++;
+      if (ok) {
+        local.bridgesSent++;
+      } else {
+        local.bridgesFailed++;
+      }
     });
 
     counts.leadsSent += local.leadsSent;
@@ -560,10 +593,11 @@ async function main() {
       : readOrgIdCsv("--org-id-csv", cli.orgIdCsvPath!);
     if (cli.startAfter) {
       const index = targetIds.indexOf(cli.startAfter);
-      if (index === -1)
+      if (index === -1) {
         throw new Error(
           `--start-after: org id ${cli.startAfter} not found in --org-id-csv file`,
         );
+      }
       targetIds = targetIds.slice(index + 1);
     }
     logger.info(
@@ -580,7 +614,9 @@ async function main() {
       });
       const rowsById = new Map(rows.map((org) => [org.id, org]));
       for (const id of chunk) {
-        if (limitReached()) break;
+        if (limitReached()) {
+          break;
+        }
         const org = rowsById.get(id);
         if (!org) {
           counts.orgsNotFound++;
@@ -595,16 +631,22 @@ async function main() {
   } else {
     let cursorId = cli.startAfter;
     for (;;) {
-      if (limitReached()) break;
+      if (limitReached()) {
+        break;
+      }
       const orgs = await prisma.organization.findMany({
         orderBy: { id: "asc" },
         take: cli.batchSize,
         ...(cursorId ? { skip: 1, cursor: { id: cursorId } } : {}),
       });
-      if (orgs.length === 0) break;
+      if (orgs.length === 0) {
+        break;
+      }
       cursorId = orgs[orgs.length - 1].id;
       for (const org of orgs) {
-        if (limitReached()) break;
+        if (limitReached()) {
+          break;
+        }
         await processOrg(org);
       }
     }
@@ -616,7 +658,9 @@ async function main() {
     let cursorId: string | undefined;
     let processed = 0;
     for (;;) {
-      if (cli.limit !== undefined && processed >= cli.limit) break;
+      if (cli.limit !== undefined && processed >= cli.limit) {
+        break;
+      }
       const take = cli.limit
         ? Math.min(cli.batchSize, cli.limit - processed)
         : cli.batchSize;
@@ -632,12 +676,16 @@ async function main() {
         take,
         ...(cursorId ? { skip: 1, cursor: { id: cursorId } } : {}),
       });
-      if (users.length === 0) break;
+      if (users.length === 0) {
+        break;
+      }
       cursorId = users[users.length - 1].id;
       processed += users.length;
 
       await mapWithConcurrency(users, cli.concurrency, async (u) => {
-        if (!u.email) return;
+        if (!u.email) {
+          return;
+        }
         const firstEncounter = !leadOutcome.has(u.id);
         const ok = await sendLead({
           id: u.id,
@@ -645,9 +693,14 @@ async function main() {
           name: u.name,
           createdAt: u.createdAt,
         });
-        if (!firstEncounter) return;
-        if (ok) counts.orphanLeadsSent++;
-        else counts.orphanLeadsFailed++;
+        if (!firstEncounter) {
+          return;
+        }
+        if (ok) {
+          counts.orphanLeadsSent++;
+        } else {
+          counts.orphanLeadsFailed++;
+        }
       });
       logger.info(
         `[SFDC backfill] orphan-user sweep: ${counts.orphanLeadsSent} leads sent`,
@@ -672,11 +725,12 @@ async function main() {
         "re-run the full backfill (or grep the [SFDC] error lines) to retry them.",
     );
   }
-  if (!cli.execute)
+  if (!cli.execute) {
     logger.info(
       "[SFDC backfill] DRY-RUN complete — re-run with --execute to send. " +
         "Confirm Mulesoft Lead idempotency first.",
     );
+  }
 }
 
 if (require.main === module) {

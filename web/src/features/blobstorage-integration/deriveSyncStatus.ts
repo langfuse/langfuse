@@ -9,11 +9,17 @@ export function deriveSyncStatus(integration: {
   nextSyncAt: Date | null;
   runStartedAt: Date | null;
 }): BlobStorageSyncStatus {
-  if (!integration.enabled) return "disabled";
-  if (integration.lastError) return "error";
+  if (!integration.enabled) {
+    return "disabled";
+  }
+  if (integration.lastError) {
+    return "error";
+  }
   if (integration.runStartedAt) {
     const ageMs = Date.now() - integration.runStartedAt.getTime();
-    if (ageMs < MAX_RUN_AGE_MS) return "running";
+    if (ageMs < MAX_RUN_AGE_MS) {
+      return "running";
+    }
   }
 
   const now = new Date();
@@ -21,7 +27,9 @@ export function deriveSyncStatus(integration: {
     return "queued";
   }
 
-  if (!integration.lastSyncAt) return "idle";
+  if (!integration.lastSyncAt) {
+    return "idle";
+  }
 
   return "up_to_date";
 }

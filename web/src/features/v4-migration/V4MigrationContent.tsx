@@ -166,10 +166,11 @@ function Section({
       defaultOpen={defaultOpen}
       onOpenChange={(isOpen) => {
         // User expansions only — defaultOpen does not fire onOpenChange.
-        if (isOpen)
+        if (isOpen) {
           capture("v4_migration:section_expanded", {
             section: analyticsSection,
           });
+        }
       }}
     >
       <CollapsibleTrigger className="group flex w-full items-center gap-2.5 py-2.5 text-left">
@@ -300,7 +301,9 @@ function CodeBlockWithCopy({
   // after copying cannot fire a state update on an unmounted component.
   useEffect(
     () => () => {
-      if (copiedTimeout.current) clearTimeout(copiedTimeout.current);
+      if (copiedTimeout.current) {
+        clearTimeout(copiedTimeout.current);
+      }
     },
     [],
   );
@@ -324,7 +327,9 @@ function CodeBlockWithCopy({
           await copyTextToClipboard(text);
           onCopy?.();
           setCopied(true);
-          if (copiedTimeout.current) clearTimeout(copiedTimeout.current);
+          if (copiedTimeout.current) {
+            clearTimeout(copiedTimeout.current);
+          }
           copiedTimeout.current = setTimeout(() => setCopied(false), 2000);
         }}
         aria-label={copied ? "Copied" : copyLabel}
@@ -364,7 +369,9 @@ function SdkUsageSeriesRows({
   analyticsSection: string;
 }) {
   const capture = usePostHogClientCapture();
-  if (series.length === 0) return null;
+  if (series.length === 0) {
+    return null;
+  }
 
   return (
     <ul className="mt-2 flex flex-col gap-2">
@@ -471,7 +478,9 @@ export function V4MigrationSdkSection({
   projectId?: string;
 }) {
   const section = getSdkSectionState(sdk);
-  if (section.status === "latest" || section.status === "no_data") return null;
+  if (section.status === "latest" || section.status === "no_data") {
+    return null;
+  }
 
   const isTransient =
     section.status === "checking" || section.status === "error";
@@ -555,8 +564,9 @@ export function V4MigrationOtelSection({
     sdk.status === "checking" ||
     sdk.status === "error" ||
     section.delayedCount === 0
-  )
+  ) {
     return null;
+  }
 
   return (
     <Section
@@ -612,8 +622,9 @@ export function V4MigrationCustomInstrumentationSection({
     sdk.status === "checking" ||
     sdk.status === "error" ||
     section.series.length === 0
-  )
+  ) {
     return null;
+  }
 
   return (
     <Section
@@ -668,7 +679,9 @@ export function V4MigrationDetectedInstrumentationSection({
   projectId?: string;
 }) {
   const series = getDetectedInstrumentationSeries(sdk);
-  if (series.length === 0) return null;
+  if (series.length === 0) {
+    return null;
+  }
 
   return (
     <Section
@@ -1375,8 +1388,9 @@ export function V4MigrationAgentUpgradeSection({
       !hasApiKeyCreateAccess ||
       mutCreateProjectApiKey.isPending ||
       generatedKeysForProject
-    )
+    ) {
       return;
+    }
 
     capture("v4_migration:create_project_keys_clicked");
     mutCreateProjectApiKey
@@ -1530,7 +1544,9 @@ export function V4MigrationDetailsContent({
     migrationData.exports.status !== "loading";
   const checksLoadedCaptured = useRef(false);
   useEffect(() => {
-    if (checksLoadedCaptured.current || !checksSettled) return;
+    if (checksLoadedCaptured.current || !checksSettled) {
+      return;
+    }
     checksLoadedCaptured.current = true;
     const sdkSection = getSdkSectionState(migrationData.sdk);
     const otelSection = getOtelSectionState(migrationData.sdk);
@@ -1616,7 +1632,9 @@ export function V4MigrationDetailsContent({
   const handleManualEvalUpgrade = () => {
     setEvalMigrationDialogOpen(false);
     onNavigate?.();
-    if (evalsUrl) router.push(evalsUrl);
+    if (evalsUrl) {
+      router.push(evalsUrl);
+    }
   };
   const integrationsUrl =
     typeof projectId === "string"

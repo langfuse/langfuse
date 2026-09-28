@@ -67,7 +67,9 @@ type QueuePageProps = {
 export function AnnotationQueueItemPage(props: QueuePageProps) {
   const router = useRouter();
   const { status } = useSession();
-  if (!router.isReady) return <Skeleton className="h-full w-full" />;
+  if (!router.isReady) {
+    return <Skeleton className="h-full w-full" />;
+  }
   const singleItem = router.query.singleItem === "true";
   return (
     <AnnotationQueueRunLoader
@@ -154,7 +156,9 @@ function AnnotationQueueRunLoader({
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
-  if (bootstrap.isPending) return <Skeleton className="h-full w-full" />;
+  if (bootstrap.isPending) {
+    return <Skeleton className="h-full w-full" />;
+  }
   if (bootstrap.isError) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
@@ -238,13 +242,17 @@ function AnnotationQueueRunContent({
   >(null);
   const pulseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pulse = useCallback((which: "back" | "next" | "complete") => {
-    if (pulseTimeoutRef.current) clearTimeout(pulseTimeoutRef.current);
+    if (pulseTimeoutRef.current) {
+      clearTimeout(pulseTimeoutRef.current);
+    }
     setShortcutPulse(which);
     pulseTimeoutRef.current = setTimeout(() => setShortcutPulse(null), 160);
   }, []);
   useEffect(
     () => () => {
-      if (pulseTimeoutRef.current) clearTimeout(pulseTimeoutRef.current);
+      if (pulseTimeoutRef.current) {
+        clearTimeout(pulseTimeoutRef.current);
+      }
     },
     [],
   );
@@ -253,24 +261,34 @@ function AnnotationQueueRunContent({
   const [showShortcuts, setShowShortcuts] = useState(false);
 
   useEffect(() => {
-    if (isSingleItem) return; // single-item view has no queue navigation
+    if (isSingleItem) {
+      return;
+    } // single-item view has no queue navigation
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
-      if (!hasAccess) return;
+      if (event.defaultPrevented) {
+        return;
+      }
+      if (!hasAccess) {
+        return;
+      }
       // Mirror the Skeleton gate below, and also bail while a complete is in
       // flight: this listener stays attached while the current/next item is
       // loading, so a held or repeated key during the post-complete fetch must
       // not complete or skip an item the annotator hasn't actually seen yet
       // (e.g. a quick → between ⌘/Ctrl+Enter and onSuccess advancing would skip
       // the next item, which only flashed as a Skeleton).
-      if (objectData.isLoading || isTransitioning) return;
+      if (objectData.isLoading || isTransitioning) {
+        return;
+      }
 
       // Complete + next — the Cmd/Ctrl+Enter submit chord. Handled first and
       // *before* the typing guard so it works even while the annotator is in the
       // multi-line Feedback field (bare Enter there stays a newline). Defer to an
       // open drawer/dialog so it never steals that surface's own submit.
       if (isCompleteShortcut(event)) {
-        if (isOpenDialogPresent()) return;
+        if (isOpenDialogPresent()) {
+          return;
+        }
         if (isPending && !isTransitioning && !objectData.isError) {
           event.preventDefault();
           // An out-of-range numeric score is vetoed on blur (no mutation fires),
@@ -308,8 +326,9 @@ function AnnotationQueueRunContent({
           isTypingTarget(event.target) ||
           hasModifier(event) ||
           isOpenDialogPresent()
-        )
+        ) {
           return;
+        }
         event.preventDefault();
         setShowShortcuts(true);
         return;
@@ -318,18 +337,23 @@ function AnnotationQueueRunContent({
       // The remaining shortcuts are bare keys: bail if another listener already
       // handled the event, while typing, on a held modifier, when a focusable
       // control / roving-focus widget owns the key, or while a dialog is open.
-      if (isTypingTarget(event.target) || hasModifier(event)) return;
+      if (isTypingTarget(event.target) || hasModifier(event)) {
+        return;
+      }
       if (
         isInteractiveTarget(event.target) ||
         isInteractiveTarget(document.activeElement) ||
         isOpenDialogPresent()
-      )
+      ) {
         return;
+      }
 
       // Don't hijack Alt+←/→ — that's the browser's back/forward on
       // Windows/Linux/ChromeOS (hasModifier lets altKey through for AltGr-typed
       // printables, but arrow keys are never AltGr-produced).
-      if (event.altKey) return;
+      if (event.altKey) {
+        return;
+      }
 
       // Next item (skip — no completion).
       if (event.key === "ArrowRight") {

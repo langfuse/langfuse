@@ -23,7 +23,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /** `key: value` per field for objects, one line otherwise. */
 function fieldLines(value: unknown): string[] {
-  if (!isRecord(value)) return [clip(JSON.stringify(value) ?? "undefined")];
+  if (!isRecord(value)) {
+    return [clip(JSON.stringify(value) ?? "undefined")];
+  }
   return Object.entries(value).map(([key, field]) => {
     const rendered =
       typeof field === "string"
@@ -93,14 +95,18 @@ export function formatTranscript(
     const parts = options.hideReasoning
       ? message.parts.filter((part) => part.type !== "reasoning")
       : message.parts;
-    if (options.hideReasoning && parts.length === 0) return;
+    if (options.hideReasoning && parts.length === 0) {
+      return;
+    }
     const sender = message.senderName ? ` (${message.senderName})` : "";
     lines.push(
       "│",
       `│ ${ROLE_LABEL[message.role]}${sender} · ${origin} · ${message.source}`,
     );
     for (const part of parts) {
-      for (const line of partLines(part)) lines.push(`│   ${line}`);
+      for (const line of partLines(part)) {
+        lines.push(`│   ${line}`);
+      }
     }
   };
 
@@ -112,8 +118,9 @@ export function formatTranscript(
     );
     if (conversationHistory.length) {
       lines.push("│", "│ ── conversation history ──");
-      for (const message of conversationHistory)
+      for (const message of conversationHistory) {
         pushMessage(message, "history");
+      }
       lines.push("│", "│ ── current turn ──");
     }
     for (const message of currentTurn.messages) {

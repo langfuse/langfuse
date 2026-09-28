@@ -76,7 +76,9 @@ export const GetTracesV1Query = z.object({
     .string() // orderBy=timestamp.asc
     .nullish()
     .transform((v) => {
-      if (!v) return null;
+      if (!v) {
+        return null;
+      }
       const [column, order] = v.split(".");
       return { column, order: order?.toUpperCase() };
     })

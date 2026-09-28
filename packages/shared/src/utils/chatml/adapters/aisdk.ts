@@ -92,7 +92,9 @@ const AISDKRawToolCallArraySchema = z
 // normalize a single AI SDK v5 message to ChatML format
 // we don't want additional fields here to get clean rendering
 function normalizeMessage(msg: unknown): Record<string, unknown> {
-  if (!msg || typeof msg !== "object") return {};
+  if (!msg || typeof msg !== "object") {
+    return {};
+  }
 
   let working = msg as Record<string, unknown>;
 
@@ -134,7 +136,9 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
     } else {
       // Mixed content or tool-calls/tool-results: normalize each item
       normalized.content = normalized.content.map((item: unknown) => {
-        if (!item || typeof item !== "object") return item;
+        if (!item || typeof item !== "object") {
+          return item;
+        }
 
         const contentItem = item as Record<string, unknown>;
 
@@ -318,7 +322,9 @@ function splitToolResultMessages(messages: unknown[]): unknown[] {
 }
 
 function preprocessData(data: unknown, ctx?: NormalizerContext): unknown {
-  if (!data) return data;
+  if (!data) {
+    return data;
+  }
 
   // Extract tools from context metadata (observation.metadata.tools)
   let toolsFromContext: Array<Record<string, unknown>> | undefined;
@@ -414,7 +420,9 @@ export const aisdkAdapter: ProviderAdapter = {
     const meta = parseMetadata(ctx.metadata);
 
     // EXPLICIT: Framework hint
-    if (ctx.framework === "aisdk" || ctx.framework === "aisdk-v5") return true;
+    if (ctx.framework === "aisdk" || ctx.framework === "aisdk-v5") {
+      return true;
+    }
 
     // STRONG INDICATORS: AI SDK v5 telemetry markers
     if (meta && typeof meta === "object") {
@@ -424,10 +432,14 @@ export const aisdkAdapter: ProviderAdapter = {
         typeof meta.scope === "object"
       ) {
         const scope = meta.scope as Record<string, unknown>;
-        if (scope.name === "ai") return true;
+        if (scope.name === "ai") {
+          return true;
+        }
       }
 
-      if (meta["scope.name"] === "ai") return true;
+      if (meta["scope.name"] === "ai") {
+        return true;
+      }
 
       if ("attributes" in meta && typeof meta.attributes === "object") {
         const attrs = meta.attributes as Record<string, unknown> | null;
@@ -458,17 +470,30 @@ export const aisdkAdapter: ProviderAdapter = {
     }
 
     // STRUCTURAL: Schema-based detection (for edge cases without metadata)
-    if (AISDKToolCallMessageSchema.safeParse(ctx.metadata).success) return true;
-    if (AISDKToolResultMessageSchema.safeParse(ctx.metadata).success)
+    if (AISDKToolCallMessageSchema.safeParse(ctx.metadata).success) {
       return true;
-    if (AISDKMessagesArraySchema.safeParse(ctx.metadata).success) return true;
+    }
+    if (AISDKToolResultMessageSchema.safeParse(ctx.metadata).success) {
+      return true;
+    }
+    if (AISDKMessagesArraySchema.safeParse(ctx.metadata).success) {
+      return true;
+    }
 
-    if (AISDKToolCallMessageSchema.safeParse(ctx.data).success) return true;
-    if (AISDKToolResultMessageSchema.safeParse(ctx.data).success) return true;
-    if (AISDKMessagesArraySchema.safeParse(ctx.data).success) return true;
+    if (AISDKToolCallMessageSchema.safeParse(ctx.data).success) {
+      return true;
+    }
+    if (AISDKToolResultMessageSchema.safeParse(ctx.data).success) {
+      return true;
+    }
+    if (AISDKMessagesArraySchema.safeParse(ctx.data).success) {
+      return true;
+    }
 
     // Raw tool call array detection (OUTPUT format)
-    if (AISDKRawToolCallArraySchema.safeParse(ctx.data).success) return true;
+    if (AISDKRawToolCallArraySchema.safeParse(ctx.data).success) {
+      return true;
+    }
 
     return false;
   },

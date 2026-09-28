@@ -98,7 +98,9 @@ export default function ExperimentResultsPage() {
   const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
 
   useEffect(() => {
-    if (isInitializing || isExperimentsBetaActive || !projectId) return;
+    if (isInitializing || isExperimentsBetaActive || !projectId) {
+      return;
+    }
 
     router.replace(`/project/${projectId}/datasets`);
   }, [isExperimentsBetaActive, isInitializing, projectId, router]);

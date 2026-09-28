@@ -291,7 +291,9 @@ function ModernSessionSidebarStory(
         const traceMatches = (sidebarTrace.trace.name ?? "")
           .toLowerCase()
           .includes(normalizedSearch);
-        if (!traceMatches && matchingObservations?.length === 0) return [];
+        if (!traceMatches && matchingObservations?.length === 0) {
+          return [];
+        }
         return [{ ...sidebarTrace, observations: matchingObservations }];
       })
     : args.traces;
@@ -310,8 +312,11 @@ function ModernSessionSidebarStory(
         onToggleTraceExpanded={(traceId) => {
           setExpandedTraceIds((current) => {
             const next = new Set(current);
-            if (next.has(traceId)) next.delete(traceId);
-            else next.add(traceId);
+            if (next.has(traceId)) {
+              next.delete(traceId);
+            } else {
+              next.add(traceId);
+            }
             return next;
           });
           args.onToggleTraceExpanded(traceId);

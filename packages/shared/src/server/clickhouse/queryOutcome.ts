@@ -69,7 +69,9 @@ const OTHER_ROUTE_LABEL = "other";
  * values cannot contain spaces, so the method is folded in with an underscore.
  */
 export function clickHouseQueryOutcomeRouteLabel(route?: string): string {
-  if (!route) return OTHER_ROUTE_LABEL;
+  if (!route) {
+    return OTHER_ROUTE_LABEL;
+  }
 
   const collapsed = route.trim();
   const separatorIndex = collapsed.indexOf(" ");
@@ -128,7 +130,9 @@ const OTHER_TABLE_LABEL = "other" as const;
 
 export function clickHouseQueryTableLabel(query: string): ClickHouseQueryTable {
   for (const [label, pattern] of TABLE_LABEL_PATTERNS) {
-    if (pattern.test(query)) return label;
+    if (pattern.test(query)) {
+      return label;
+    }
   }
   return OTHER_TABLE_LABEL;
 }
@@ -207,7 +211,9 @@ const QUERY_SHAPE_PATTERNS: ReadonlyArray<[ClickHouseQueryShape, RegExp]> = [
 
 export function clickHouseQueryShape(query: string): ClickHouseQueryShape {
   for (const [shape, pattern] of QUERY_SHAPE_PATTERNS) {
-    if (pattern.test(query)) return shape;
+    if (pattern.test(query)) {
+      return shape;
+    }
   }
   return OTHER_SHAPE_LABEL;
 }

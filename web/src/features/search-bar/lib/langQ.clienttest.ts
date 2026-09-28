@@ -10,7 +10,9 @@ import { validateQuery } from "@/src/features/search-bar/lib/validate";
 
 /** Structural copy without spans, for deep-equal comparisons. */
 function strip(node: ASTNode | null): unknown {
-  if (node === null) return null;
+  if (node === null) {
+    return null;
+  }
   switch (node.kind) {
     case "filter":
       return {
@@ -275,7 +277,9 @@ describe("langQ parser", () => {
     const text = "timeout level:ERROR";
     const r = parse(text);
     expect(r.ast?.kind).toBe("and");
-    if (r.ast?.kind !== "and") return;
+    if (r.ast?.kind !== "and") {
+      return;
+    }
     const [t, f] = r.ast.children;
     expect(t?.kind === "text" && text.slice(t.span!.from, t.span!.to)).toBe(
       "timeout",

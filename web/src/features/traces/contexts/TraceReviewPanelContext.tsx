@@ -35,9 +35,10 @@ export function useTraceReviewPanelOptional() {
 
 export function useTraceReviewPanel() {
   const store = useTraceReviewPanelOptional();
-  if (!store)
+  if (!store) {
     throw new Error(
       "useTraceReviewPanel must be used within a TraceReviewPanelProvider",
     );
+  }
   return store;
 }

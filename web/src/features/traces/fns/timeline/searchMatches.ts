@@ -32,7 +32,9 @@ export function collapsedForSearch({
 }): ReadonlySet<string> {
   // Same reference when nothing has to open, so the row layout downstream keeps
   // its memo instead of rebuilding on every keystroke.
-  if (collapsed.size === 0 || matchedIds.size === 0) return collapsed;
+  if (collapsed.size === 0 || matchedIds.size === 0) {
+    return collapsed;
+  }
 
   // Collapsed rows standing between a hit and a row of its own. Walks the full
   // tree, not the rendered rows — the hits that need a row are exactly the ones
@@ -49,9 +51,13 @@ export function collapsedForSearch({
     // The whole chain opens: an inner collapsed row is no use while an outer one
     // still hides it.
     if (collapsedAncestors.length > 0 && matchedIds.has(node.id)) {
-      for (const id of collapsedAncestors) hiding.add(id);
+      for (const id of collapsedAncestors) {
+        hiding.add(id);
+      }
     }
-    if (node.children.length === 0) continue;
+    if (node.children.length === 0) {
+      continue;
+    }
     const below = collapsed.has(node.id)
       ? [...collapsedAncestors, node.id]
       : collapsedAncestors;
@@ -60,6 +66,8 @@ export function collapsedForSearch({
     }
   }
 
-  if (hiding.size === 0) return collapsed;
+  if (hiding.size === 0) {
+    return collapsed;
+  }
   return new Set([...collapsed].filter((id) => !hiding.has(id)));
 }

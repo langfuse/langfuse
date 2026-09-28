@@ -96,11 +96,14 @@ const staticProviders: Provider[] = [
       password: { label: "Password", type: "password" },
     },
     async authorize(credentials, _req) {
-      if (!credentials) throw new Error("No credentials");
-      if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true")
+      if (!credentials) {
+        throw new Error("No credentials");
+      }
+      if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true") {
         throw new Error(
           "Sign in with email and password is disabled for this instance. Please use SSO.",
         );
+      }
 
       const blockedDomains = getSSOBlockedDomains();
       const domain = credentials.email.split("@")[1]?.toLowerCase();
@@ -139,7 +142,9 @@ const staticProviders: Provider[] = [
         credentials.password,
         dbUser.password,
       );
-      if (!isValidPassword) throw new Error("Invalid credentials");
+      if (!isValidPassword) {
+        throw new Error("Invalid credentials");
+      }
 
       const userObj = {
         id: dbUser.id,
@@ -184,7 +189,7 @@ if (
   env.AUTH_CUSTOM_CLIENT_SECRET &&
   env.AUTH_CUSTOM_ISSUER &&
   env.AUTH_CUSTOM_NAME // name required by front-end, ignored here
-)
+) {
   staticProviders.push(
     CustomSSOProvider({
       clientId: env.AUTH_CUSTOM_CLIENT_ID,
@@ -209,8 +214,9 @@ if (
       ...(env.AUTH_CUSTOM_CHECKS ? { checks: env.AUTH_CUSTOM_CHECKS } : {}),
     }),
   );
+}
 
-if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
+if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET) {
   staticProviders.push(
     GoogleProvider({
       clientId: env.AUTH_GOOGLE_CLIENT_ID,
@@ -229,12 +235,13 @@ if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
       ...(env.AUTH_GOOGLE_CHECKS ? { checks: env.AUTH_GOOGLE_CHECKS } : {}),
     }),
   );
+}
 
 if (
   env.AUTH_OKTA_CLIENT_ID &&
   env.AUTH_OKTA_CLIENT_SECRET &&
   env.AUTH_OKTA_ISSUER
-)
+) {
   staticProviders.push(
     OktaProvider({
       clientId: env.AUTH_OKTA_CLIENT_ID,
@@ -254,6 +261,7 @@ if (
       ...(env.AUTH_OKTA_CHECKS ? { checks: env.AUTH_OKTA_CHECKS } : {}),
     }),
   );
+}
 
 if (
   env.AUTH_AUTHENTIK_CLIENT_ID &&
@@ -311,7 +319,7 @@ if (
   env.AUTH_ONELOGIN_CLIENT_ID &&
   env.AUTH_ONELOGIN_CLIENT_SECRET &&
   env.AUTH_ONELOGIN_ISSUER
-)
+) {
   staticProviders.push(
     OneLoginProvider({
       clientId: env.AUTH_ONELOGIN_CLIENT_ID,
@@ -331,12 +339,13 @@ if (
       ...(env.AUTH_ONELOGIN_CHECKS ? { checks: env.AUTH_ONELOGIN_CHECKS } : {}),
     }),
   );
+}
 
 if (
   env.AUTH_AUTH0_CLIENT_ID &&
   env.AUTH_AUTH0_CLIENT_SECRET &&
   env.AUTH_AUTH0_ISSUER
-)
+) {
   staticProviders.push(
     Auth0Provider({
       clientId: env.AUTH_AUTH0_CLIENT_ID,
@@ -356,6 +365,7 @@ if (
       ...(env.AUTH_AUTH0_CHECKS ? { checks: env.AUTH_AUTH0_CHECKS } : {}),
     }),
   );
+}
 
 // Langfuse Cloud only: "Sign in with ClickHouse Cloud"
 // Uses Auth0Provider with a custom provider ID so the callback URL becomes
@@ -365,7 +375,7 @@ if (
   env.AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET &&
   env.AUTH_CLICKHOUSE_CLOUD_ISSUER &&
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-)
+) {
   staticProviders.push(
     Auth0Provider({
       id: "clickhouse-cloud",
@@ -396,8 +406,9 @@ if (
         : {}),
     }),
   );
+}
 
-if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
+if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET) {
   staticProviders.push(
     GitHubProvider({
       clientId: env.AUTH_GITHUB_CLIENT_ID,
@@ -414,6 +425,7 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
       ...(env.AUTH_GITHUB_CHECKS ? { checks: env.AUTH_GITHUB_CHECKS } : {}),
     }),
   );
+}
 
 if (
   env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID &&
@@ -439,7 +451,7 @@ if (
   );
 }
 
-if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
+if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET) {
   staticProviders.push(
     GitLabProvider({
       clientId: env.AUTH_GITLAB_CLIENT_ID,
@@ -465,12 +477,13 @@ if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
       ...(env.AUTH_GITLAB_CHECKS ? { checks: env.AUTH_GITLAB_CHECKS } : {}),
     }),
   );
+}
 
 if (
   env.AUTH_AZURE_AD_CLIENT_ID &&
   env.AUTH_AZURE_AD_CLIENT_SECRET &&
   env.AUTH_AZURE_AD_TENANT_ID
-)
+) {
   staticProviders.push(
     AzureADProvider({
       clientId: env.AUTH_AZURE_AD_CLIENT_ID,
@@ -490,12 +503,13 @@ if (
       ...(env.AUTH_AZURE_AD_CHECKS ? { checks: env.AUTH_AZURE_AD_CHECKS } : {}),
     }),
   );
+}
 
 if (
   env.AUTH_COGNITO_CLIENT_ID &&
   env.AUTH_COGNITO_CLIENT_SECRET &&
   env.AUTH_COGNITO_ISSUER
-)
+) {
   staticProviders.push(
     CognitoProvider({
       clientId: env.AUTH_COGNITO_CLIENT_ID,
@@ -517,12 +531,13 @@ if (
         : { checks: "nonce" }),
     }),
   );
+}
 
 if (
   env.AUTH_KEYCLOAK_CLIENT_ID &&
   env.AUTH_KEYCLOAK_CLIENT_SECRET &&
   env.AUTH_KEYCLOAK_ISSUER
-)
+) {
   staticProviders.push(
     KeycloakProvider({
       clientId: env.AUTH_KEYCLOAK_CLIENT_ID,
@@ -546,12 +561,13 @@ if (
       ...(env.AUTH_KEYCLOAK_CHECKS ? { checks: env.AUTH_KEYCLOAK_CHECKS } : {}),
     }),
   );
+}
 
 if (
   env.AUTH_JUMPCLOUD_CLIENT_ID &&
   env.AUTH_JUMPCLOUD_CLIENT_SECRET &&
   env.AUTH_JUMPCLOUD_ISSUER
-)
+) {
   staticProviders.push(
     JumpCloudProvider({
       clientId: env.AUTH_JUMPCLOUD_CLIENT_ID,
@@ -576,8 +592,9 @@ if (
         : {}),
     }),
   );
+}
 
-if (env.AUTH_WORKOS_CLIENT_ID && env.AUTH_WORKOS_CLIENT_SECRET)
+if (env.AUTH_WORKOS_CLIENT_ID && env.AUTH_WORKOS_CLIENT_SECRET) {
   staticProviders.push(
     WorkOSProvider({
       clientId: env.AUTH_WORKOS_CLIENT_ID,
@@ -589,8 +606,9 @@ if (env.AUTH_WORKOS_CLIENT_ID && env.AUTH_WORKOS_CLIENT_SECRET)
       },
     }),
   );
+}
 
-if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET)
+if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET) {
   staticProviders.push(
     WordPressProvider({
       clientId: env.AUTH_WORDPRESS_CLIENT_ID,
@@ -611,6 +629,7 @@ if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET)
         : {}),
     }),
   );
+}
 
 // Extend Prisma Adapter
 const prismaAdapter = PrismaAdapter(prisma);
@@ -623,8 +642,9 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
 }): Adapter => ({
   ...prismaAdapter,
   async createUser(profile: Omit<AdapterUser, "id">) {
-    if (!prismaAdapter.createUser)
+    if (!prismaAdapter.createUser) {
       throw new Error("createUser not implemented");
+    }
     if (
       env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true" ||
       env.AUTH_DISABLE_SIGNUP === "true"
@@ -649,8 +669,9 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
   },
 
   async linkAccount(data: AdapterAccount) {
-    if (!prismaAdapter.linkAccount)
+    if (!prismaAdapter.linkAccount) {
       throw new Error("NextAuth: prismaAdapter.linkAccount not implemented");
+    }
 
     // Keycloak returns incompatible data with the nextjs-auth schema
     // (refresh_expires_in and not-before-policy in).
@@ -741,13 +762,19 @@ export async function getAuthOptions(signupAttribution?: {
       // keeps the default same-origin semantics while turning malformed input
       // into a safe redirect to baseUrl instead of a 500.
       redirect({ url, baseUrl }) {
-        if (!isValidCallbackUrl(url)) return baseUrl;
+        if (!isValidCallbackUrl(url)) {
+          return baseUrl;
+        }
 
         try {
           // Relative callback URLs are always safe to resolve against baseUrl.
-          if (url.startsWith("/")) return `${baseUrl}${url}`;
+          if (url.startsWith("/")) {
+            return `${baseUrl}${url}`;
+          }
           // Absolute URLs are only honored when same-origin.
-          if (new URL(url).origin === baseUrl) return url;
+          if (new URL(url).origin === baseUrl) {
+            return url;
+          }
         } catch {
           // Malformed callbackUrl (e.g. scanner payload) — fall through.
         }
@@ -1016,9 +1043,12 @@ export async function getAuthOptions(signupAttribution?: {
             const params = new URLSearchParams({
               reason: "sso_enforced_domain",
             });
-            if (email) params.set("email", email);
-            if (account?.provider)
+            if (email) {
+              params.set("email", email);
+            }
+            if (account?.provider) {
               params.set("attemptedProvider", account.provider);
+            }
             return `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/enterprise-sso-required?${params.toString()}`;
           }
 
@@ -1077,7 +1107,9 @@ export async function getAuthOptions(signupAttribution?: {
               const params = new URLSearchParams({
                 reason: "sso_enforced_domain",
               });
-              if (email) params.set("email", email);
+              if (email) {
+                params.set("email", email);
+              }
               params.set("attemptedProvider", "email");
               return `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/enterprise-sso-required?${params.toString()}`;
             }
@@ -1245,7 +1277,9 @@ export const getServerAuthSessionForRequest = async (request: Request) => {
 
   // Match getServerSession's App Router behavior. The explicit request/response
   // form above selects its Pages Router branch, which otherwise keeps expires.
-  if (!session) return session;
+  if (!session) {
+    return session;
+  }
 
   const { expires: _expires, ...sessionWithoutExpires } = session;
 
@@ -1259,7 +1293,9 @@ const sanitizeServerSessionCallbackUrl = (
   const callbackUrlCookieName = getCookieName("next-auth.callback-url");
   const callbackUrlCookie = req.cookies?.[callbackUrlCookieName];
 
-  if (!callbackUrlCookie || isValidCallbackUrl(callbackUrlCookie)) return;
+  if (!callbackUrlCookie || isValidCallbackUrl(callbackUrlCookie)) {
+    return;
+  }
 
   const { [callbackUrlCookieName]: _invalidCallbackUrl, ...sanitizedCookies } =
     req.cookies ?? {};

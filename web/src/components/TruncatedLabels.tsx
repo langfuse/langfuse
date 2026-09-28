@@ -26,12 +26,20 @@ export function TruncatedLabels({
   // Enhanced sorting: prioritize latest and production labels
   const sortedLabels = [...labels].sort((a, b) => {
     // Production label comes first
-    if (a === PRODUCTION_LABEL) return -1;
-    if (b === PRODUCTION_LABEL) return 1;
+    if (a === PRODUCTION_LABEL) {
+      return -1;
+    }
+    if (b === PRODUCTION_LABEL) {
+      return 1;
+    }
 
     // Latest label comes second
-    if (a === LATEST_PROMPT_LABEL) return -1;
-    if (b === LATEST_PROMPT_LABEL) return 1;
+    if (a === LATEST_PROMPT_LABEL) {
+      return -1;
+    }
+    if (b === LATEST_PROMPT_LABEL) {
+      return 1;
+    }
 
     // Then alphabetically
     return a.localeCompare(b);

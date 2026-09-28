@@ -135,7 +135,9 @@ export async function processOtelMedia(params: {
   for (const target of targets) {
     for (const field of ["input", "output", "metadata"] as const) {
       const originalValue = target.payload[field];
-      if (originalValue == null) continue;
+      if (originalValue == null) {
+        continue;
+      }
 
       const context: ProcessContext = {
         projectId,
@@ -294,27 +296,39 @@ function scanPythonBytesLiteral(
   for (let index = 2; index < end; index += 1) {
     let byte = value.charCodeAt(index);
     if (byte !== 92) {
-      if (byte < 32 || byte > 126 || byte === quote) return;
+      if (byte < 32 || byte > 126 || byte === quote) {
+        return;
+      }
     } else {
       index += 1;
-      if (index >= end) return;
+      if (index >= end) {
+        return;
+      }
 
       const escape = value.charCodeAt(index);
       if (escape === 120) {
-        if (index + 2 >= end) return;
+        if (index + 2 >= end) {
+          return;
+        }
         const high = hexValue(value.charCodeAt(index + 1));
         const low = hexValue(value.charCodeAt(index + 2));
-        if (high === undefined || low === undefined) return;
+        if (high === undefined || low === undefined) {
+          return;
+        }
         byte = high * 16 + low;
         index += 2;
       } else {
         const escapedByte = escapedByteValue(escape);
-        if (escapedByte === undefined) return;
+        if (escapedByte === undefined) {
+          return;
+        }
         byte = escapedByte;
       }
     }
 
-    if (output) output[offset] = byte;
+    if (output) {
+      output[offset] = byte;
+    }
     offset += 1;
   }
 
@@ -322,16 +336,30 @@ function scanPythonBytesLiteral(
 }
 
 function escapedByteValue(code: number): number | undefined {
-  if (code === 34 || code === 39 || code === 92) return code;
-  if (code === 110) return 10;
-  if (code === 114) return 13;
-  if (code === 116) return 9;
+  if (code === 34 || code === 39 || code === 92) {
+    return code;
+  }
+  if (code === 110) {
+    return 10;
+  }
+  if (code === 114) {
+    return 13;
+  }
+  if (code === 116) {
+    return 9;
+  }
 }
 
 function hexValue(code: number): number | undefined {
-  if (code >= 48 && code <= 57) return code - 48;
-  if (code >= 65 && code <= 70) return code - 55;
-  if (code >= 97 && code <= 102) return code - 87;
+  if (code >= 48 && code <= 57) {
+    return code - 48;
+  }
+  if (code >= 65 && code <= 70) {
+    return code - 55;
+  }
+  if (code >= 97 && code <= 102) {
+    return code - 87;
+  }
 }
 
 function recordDetectionCheck(

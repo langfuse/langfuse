@@ -16,7 +16,9 @@ const dedupeStrings = (values: string[]): string[] => [
 
 const getFilterDimensions = (filter: JobConfiguration["filter"]): string[] => {
   const parsedFilter = singleFilterList.safeParse(filter);
-  if (!parsedFilter.success) return [];
+  if (!parsedFilter.success) {
+    return [];
+  }
 
   return dedupeStrings(parsedFilter.data.map(({ column }) => column));
 };
@@ -31,7 +33,9 @@ const getVariableSourceFields = (
   ) {
     const parsedObservationMapping =
       observationVariableMappingList.safeParse(variableMappingJson);
-    if (!parsedObservationMapping.success) return [];
+    if (!parsedObservationMapping.success) {
+      return [];
+    }
 
     return dedupeStrings(
       parsedObservationMapping.data.map(
@@ -41,7 +45,9 @@ const getVariableSourceFields = (
   }
 
   const parsedTraceMapping = variableMappingList.safeParse(variableMappingJson);
-  if (!parsedTraceMapping.success) return [];
+  if (!parsedTraceMapping.success) {
+    return [];
+  }
 
   return dedupeStrings(
     parsedTraceMapping.data.map(

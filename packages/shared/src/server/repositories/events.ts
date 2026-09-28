@@ -565,7 +565,9 @@ export async function getObservationsWithModelDataFromEventsTable(
 
   const enriched = await enrichObservationsWithTraceFields(withModelData);
 
-  if (!opts.ioSizeCap) return enriched;
+  if (!opts.ioSizeCap) {
+    return enriched;
+  }
 
   // Zip the size fields back on BY ROW ORDER: both enrichers above are 1:1
   // order-preserving maps over the records (a documented contract on each).
@@ -1322,7 +1324,9 @@ export const getLastTraceTimestampsByProjectsFromEventsTable = async ({
 }: {
   projectIds: string[];
 }) => {
-  if (projectIds.length === 0) return [];
+  if (projectIds.length === 0) {
+    return [];
+  }
 
   const query = `
     SELECT
@@ -1745,7 +1749,9 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
     const excludeFromBase = new Set<string>(["core"]);
     if (useSplit) {
       excludeFromBase.add("io");
-      if (metadataFromIoCte) excludeFromBase.add("metadata");
+      if (metadataFromIoCte) {
+        excludeFromBase.add("metadata");
+      }
     }
     requestedFields
       .filter((fg) => !excludeFromBase.has(fg))
@@ -2963,7 +2969,9 @@ export const getObservationFullIOForSessionFromEventsTable = async (opts: {
   });
 
   const row = rows[0];
-  if (!row) return null;
+  if (!row) {
+    return null;
+  }
 
   return {
     id: row.id,
@@ -3487,7 +3495,9 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
   traceIds: string[];
   clickhouseConfigs?: ClickHouseClientConfigOptions;
 }) => {
-  if (props.traceIds.length === 0) return [];
+  if (props.traceIds.length === 0) {
+    return [];
+  }
 
   const builder = eventsTraceMetadata(props.projectId).whereRaw(
     "e.trace_id IN ({traceIds: Array(String)})",
@@ -3563,7 +3573,9 @@ const getCostMetricsByIdentifierIds = async <
   fields: TFields;
   identifier: "evaluator" | "rule";
 }) => {
-  if (params.identifierIds.length === 0) return [];
+  if (params.identifierIds.length === 0) {
+    return [];
+  }
 
   const traceCostsBuilder = traceCostsByIdentifier({
     projectId: params.projectId,
@@ -3696,7 +3708,9 @@ export const getRecentEvaluatorExecutionTraces = async (
   projectId: string,
   evaluatorIds: string[],
 ) => {
-  if (evaluatorIds.length === 0) return [];
+  if (evaluatorIds.length === 0) {
+    return [];
+  }
 
   const builder = new EventsAggQueryBuilder({
     projectId,
@@ -3741,7 +3755,9 @@ export const getRecentRuleExecutionTraces = async (
   projectId: string,
   ruleIds: string[],
 ) => {
-  if (ruleIds.length === 0) return [];
+  if (ruleIds.length === 0) {
+    return [];
+  }
 
   const builder = new EventsAggQueryBuilder({
     projectId,
@@ -3785,7 +3801,9 @@ export const getSessionMetricsFromEvents = async (props: {
   sessionIds: string[];
   queryFromTimestamp?: Date;
 }) => {
-  if (props.sessionIds.length === 0) return [];
+  if (props.sessionIds.length === 0) {
+    return [];
+  }
 
   const builder = eventsSessionsAggregation({
     projectId: props.projectId,

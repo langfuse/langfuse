@@ -228,7 +228,9 @@ export async function sendChbProjectEvent(params: {
  */
 async function resolveChbOrganizationId(orgId: string): Promise<string | null> {
   const org = await prisma.organization.findUnique({ where: { id: orgId } });
-  if (!org) return null;
+  if (!org) {
+    return null;
+  }
   return parseDbOrg(org).cloudConfig?.clickhouse?.organizationId ?? null;
 }
 
@@ -244,7 +246,9 @@ export function emitChbProjectEvent(params: {
 }): void {
   (async () => {
     const chbOrganizationId = await resolveChbOrganizationId(params.orgId);
-    if (!chbOrganizationId) return;
+    if (!chbOrganizationId) {
+      return;
+    }
 
     await sendChbProjectEvent({
       type: params.type,
@@ -299,7 +303,9 @@ export async function backfillChbProjectEvents(params: {
 
   try {
     const chbOrganizationId = await resolveChbOrganizationId(params.orgId);
-    if (!chbOrganizationId) return { sent, failed };
+    if (!chbOrganizationId) {
+      return { sent, failed };
+    }
 
     const eventBusArn = requireEventBusArn();
     const region = eventBusArn.split(":")[3];

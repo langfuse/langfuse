@@ -102,7 +102,9 @@ if (typeof evaluate !== "function") {
         retryable: false,
       });
     } finally {
-      if (timeoutId) clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
 
     return parseDispatchResult(result);
@@ -127,7 +129,9 @@ function formatError(error: unknown): string {
       // classes) tell the evaluator author what went wrong.
       return name && name !== "Error" ? `${name}: ${message}` : message;
     }
-    if (name) return name;
+    if (name) {
+      return name;
+    }
   }
 
   return String(error);

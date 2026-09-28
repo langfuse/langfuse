@@ -170,7 +170,9 @@ function findInCauseChain<T>(
 
   while (current !== null && current !== undefined && !visited.has(current)) {
     visited.add(current);
-    if (predicate(current)) return current;
+    if (predicate(current)) {
+      return current;
+    }
 
     current =
       typeof current === "object" && "cause" in current

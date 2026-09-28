@@ -93,9 +93,13 @@ export function shouldRenderMessageForContentMode(
   const shouldShowSystemPrompt =
     showSystemPrompt ?? contentMode !== "conversation";
 
-  if (message.role === "system" && !shouldShowSystemPrompt) return false;
+  if (message.role === "system" && !shouldShowSystemPrompt) {
+    return false;
+  }
 
-  if (contentMode === "all") return shouldRenderMessage(message);
+  if (contentMode === "all") {
+    return shouldRenderMessage(message);
+  }
 
   return (
     (message.role === "user" ||

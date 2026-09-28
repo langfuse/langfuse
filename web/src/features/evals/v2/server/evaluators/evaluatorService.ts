@@ -220,7 +220,9 @@ export class EvaluatorService {
       projectId,
       evaluatorId,
     });
-    if (!evaluator) throw new LangfuseNotFoundError("Evaluator not found");
+    if (!evaluator) {
+      throw new LangfuseNotFoundError("Evaluator not found");
+    }
     return normalizeEvaluatorPromptMessages(evaluator);
   }
 
@@ -264,7 +266,9 @@ export class EvaluatorService {
     const result = Object.fromEntries(
       params.evaluatorIds.map((evaluatorId) => [evaluatorId, []]),
     ) as Record<string, EvaluatorExecutionTrace[]>;
-    if (params.evaluatorIds.length === 0) return result;
+    if (params.evaluatorIds.length === 0) {
+      return result;
+    }
 
     const traces = await getRecentEvaluatorExecutionTraces(
       params.projectId,
@@ -492,13 +496,17 @@ export class EvaluatorService {
       projectId,
       evaluatorId,
     });
-    if (!evaluator) throw new LangfuseNotFoundError("Evaluator not found");
-    if (!evaluator.blockedAt)
+    if (!evaluator) {
+      throw new LangfuseNotFoundError("Evaluator not found");
+    }
+    if (!evaluator.blockedAt) {
       return normalizeEvaluatorPromptMessages(evaluator);
+    }
 
     const version = evaluator.versions[0];
-    if (!version)
+    if (!version) {
       throw new LangfuseNotFoundError("Evaluator version not found");
+    }
     const definition = toEvaluatorDefinition(evaluator.type, version);
     if (definition.type === EvalTemplateType.CODE) {
       throw new EvaluatorConfigurationError(
@@ -535,7 +543,9 @@ export class EvaluatorService {
           projectId,
           evaluatorId,
         });
-        if (!current) throw new LangfuseNotFoundError("Evaluator not found");
+        if (!current) {
+          throw new LangfuseNotFoundError("Evaluator not found");
+        }
         if (current.versions[0]?.id !== version.id) {
           throw new EvaluatorVersionConflictError();
         }
@@ -558,7 +568,9 @@ export class EvaluatorService {
         projectId,
         evaluatorId,
       });
-      if (!current) throw new LangfuseNotFoundError("Evaluator not found");
+      if (!current) {
+        throw new LangfuseNotFoundError("Evaluator not found");
+      }
       if (current.versions[0]?.id !== version.id) {
         throw new EvaluatorVersionConflictError();
       }
@@ -568,7 +580,9 @@ export class EvaluatorService {
         projectId,
         evaluatorId,
       });
-      if (!updated) throw new LangfuseNotFoundError("Evaluator not found");
+      if (!updated) {
+        throw new LangfuseNotFoundError("Evaluator not found");
+      }
       return updated;
     });
 
@@ -711,7 +725,9 @@ export class EvaluatorService {
       prisma: this.prisma,
       projectId: params.projectId,
     });
-    if (!availability.available) return null;
+    if (!availability.available) {
+      return null;
+    }
 
     try {
       const generated = await defaultDescriptionGenerator(
@@ -740,7 +756,9 @@ async function deleteEvaluator(params: {
   evaluatorId: string;
 }) {
   const deleted = await repository.deleteEvaluator(params);
-  if (!deleted) throw new LangfuseNotFoundError("Evaluator not found");
+  if (!deleted) {
+    throw new LangfuseNotFoundError("Evaluator not found");
+  }
 }
 
 async function patchEvaluator(params: {
@@ -757,7 +775,9 @@ async function patchEvaluator(params: {
     projectId: input.projectId,
     evaluatorId: input.evaluatorId,
   });
-  if (!current) throw new LangfuseNotFoundError("Evaluator not found");
+  if (!current) {
+    throw new LangfuseNotFoundError("Evaluator not found");
+  }
   if (input.definition && current.type !== input.definition.type) {
     throw new LangfuseConflictError("Evaluator type cannot be changed");
   }
@@ -774,7 +794,9 @@ async function patchEvaluator(params: {
 
   if (input.definition) {
     const latest = current.versions[0];
-    if (!latest) throw new LangfuseNotFoundError("Evaluator version not found");
+    if (!latest) {
+      throw new LangfuseNotFoundError("Evaluator version not found");
+    }
     const definitionChanged = !isDeepStrictEqual(
       toEvaluatorDefinition(current.type, latest),
       input.definition,
@@ -803,7 +825,9 @@ async function patchEvaluator(params: {
     projectId: input.projectId,
     evaluatorId: input.evaluatorId,
   });
-  if (!updated) throw new LangfuseNotFoundError("Evaluator not found");
+  if (!updated) {
+    throw new LangfuseNotFoundError("Evaluator not found");
+  }
   return updated;
 }
 
@@ -820,13 +844,17 @@ async function updateEvaluator(params: {
     projectId: input.projectId,
     evaluatorId: input.evaluatorId,
   });
-  if (!current) throw new LangfuseNotFoundError("Evaluator not found");
+  if (!current) {
+    throw new LangfuseNotFoundError("Evaluator not found");
+  }
   if (current.type !== input.definition.type) {
     throw new LangfuseConflictError("Evaluator type cannot be changed");
   }
 
   const latest = current.versions[0];
-  if (!latest) throw new LangfuseNotFoundError("Evaluator version not found");
+  if (!latest) {
+    throw new LangfuseNotFoundError("Evaluator version not found");
+  }
   const definitionChanged = !isDeepStrictEqual(
     toEvaluatorDefinition(current.type, latest),
     input.definition,
@@ -866,7 +894,9 @@ async function updateEvaluator(params: {
     projectId: input.projectId,
     evaluatorId: input.evaluatorId,
   });
-  if (!updated) throw new LangfuseNotFoundError("Evaluator not found");
+  if (!updated) {
+    throw new LangfuseNotFoundError("Evaluator not found");
+  }
   return updated;
 }
 
@@ -887,7 +917,9 @@ async function reconcileEvaluatorBlock(params: {
     });
     return;
   }
-  if (!params.existingBlockedAt) return;
+  if (!params.existingBlockedAt) {
+    return;
+  }
   if (
     !isEvaluatorBlockReasonRecoverableByDefinitionUpdate(
       params.existingBlockReason,
@@ -983,7 +1015,9 @@ function getSuggestionDefinitionText(params: SuggestEvaluatorTextParams) {
   if ("promptMessages" in params.definition) {
     return getLegacyEvaluatorPrompt(params.definition.promptMessages);
   }
-  if ("sourceCode" in params.definition) return params.definition.sourceCode;
+  if ("sourceCode" in params.definition) {
+    return params.definition.sourceCode;
+  }
   return params.definition.questions
     .map((question) =>
       typeof question.instructions === "string"

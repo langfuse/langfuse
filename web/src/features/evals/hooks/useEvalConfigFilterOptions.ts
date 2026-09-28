@@ -136,7 +136,9 @@ export function useEvalConfigFilterOptions({
   );
 
   const datasetFilterOptions = useMemo(() => {
-    if (!datasets.data) return undefined;
+    if (!datasets.data) {
+      return undefined;
+    }
     return {
       datasetId: datasets.data?.map((d) => ({
         value: d.id,

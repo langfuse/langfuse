@@ -10,7 +10,9 @@ import { cn } from "@/src/utils/tailwind";
 const DEFAULT_REVIEW_PANEL_WIDTH_PX = 380;
 
 function reviewPanelPercent(available: number, preferredPx: number) {
-  if (available <= 0) return 28;
+  if (available <= 0) {
+    return 28;
+  }
   const percent = (preferredPx / available) * 100;
   // The pixel minSize on the panel keeps a narrow desktop usable. This floor
   // only stops a huge monitor from rounding the preferred width down to nothing.
@@ -45,7 +47,9 @@ export function SessionReviewWorkspace({
   useLayoutEffect(() => {
     let cancelled = false;
     queueMicrotask(() => {
-      if (cancelled) return;
+      if (cancelled) {
+        return;
+      }
       const bounds = rootRef.current?.getBoundingClientRect();
       const headerHeight = vertical
         ? (leadingRef.current?.offsetHeight ?? 0)
@@ -66,11 +70,15 @@ export function SessionReviewWorkspace({
   }, [open, vertical, groupRef, rootRef]);
 
   useLayoutEffect(() => {
-    if (!active || !vertical) return;
+    if (!active || !vertical) {
+      return;
+    }
     const frame = requestAnimationFrame(() => {
       const root = rootRef.current;
       const review = reviewRef.current;
-      if (!root || !review) return;
+      if (!root || !review) {
+        return;
+      }
       const offset =
         review.getBoundingClientRect().top - root.getBoundingClientRect().top;
       const headerHeight = leadingRef.current?.offsetHeight ?? 0;

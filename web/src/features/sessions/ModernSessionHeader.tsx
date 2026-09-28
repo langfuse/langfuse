@@ -76,8 +76,12 @@ const compactTokenFormatter = (tokens: number) =>
 const scoreChipValue = (
   score: Pick<WithStringifiedMetadata<ScoreDomain>, "stringValue" | "value">,
 ) => {
-  if (score.stringValue) return score.stringValue;
-  if (score.value === null || score.value === undefined) return "—";
+  if (score.stringValue) {
+    return score.stringValue;
+  }
+  if (score.value === null || score.value === undefined) {
+    return "—";
+  }
   return Number.isInteger(score.value)
     ? String(score.value)
     : score.value.toFixed(2);
@@ -108,7 +112,9 @@ const resolveAgainstSource = (
   }
 
   const syntax = resolveMetadataJsonPath({}, path);
-  if (syntax.state === "invalid") return syntax;
+  if (syntax.state === "invalid") {
+    return syntax;
+  }
   return source;
 };
 
@@ -186,7 +192,9 @@ const MetadataJsonPathEditorContent = ({
 
   const handleSubmit = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!draftIsValid) return;
+    if (!draftIsValid) {
+      return;
+    }
     onSave(normalizedDraftPath);
     onClose();
   };
@@ -472,7 +480,9 @@ export function ModernSessionHeader({
           return (
             <Popover
               onOpenChange={(open) => {
-                if (open) return;
+                if (open) {
+                  return;
+                }
                 setSearch("");
                 setVisibleUserCount(SESSION_USERS_PER_PAGE);
               }}
@@ -516,7 +526,9 @@ export function ModernSessionHeader({
                         element.scrollTop -
                         element.clientHeight <=
                       16;
-                    if (!isAtBottom) return;
+                    if (!isAtBottom) {
+                      return;
+                    }
                     setVisibleUserCount((current) =>
                       Math.min(
                         current + SESSION_USERS_PER_PAGE,

@@ -314,7 +314,9 @@ describe("Authenticator consolidated context cache", () => {
 
     const first = await auth.authenticate(bearer(KNOWN_SECRET));
     expect(first.success).toBe(false);
-    if (!first.success) expect(first.error).toBeInstanceOf(InternalServerError);
+    if (!first.success) {
+      expect(first.error).toBeInstanceOf(InternalServerError);
+    }
     expect(redis.map.size).toBe(0);
 
     const verifySpy = vi.spyOn(failingVerifier, "verify");

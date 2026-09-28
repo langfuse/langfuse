@@ -35,7 +35,9 @@ const parseScoreChartId = (
   const match = chartId.match(
     /^(obs|trace|experiment)-score-(numeric|categorical):(.+)$/,
   );
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
   return {
     level: match[1] as ScoreLevel,
     dataType: match[2] as "numeric" | "categorical",
@@ -47,7 +49,9 @@ function getScoreNamesFromFilterOption(
   value: string[] | Record<string, string[]> | undefined,
   dataType: ScoreChartDataType,
 ): string[] {
-  if (!value) return [];
+  if (!value) {
+    return [];
+  }
   return dataType === "numeric"
     ? (value as string[])
     : Object.keys(value as Record<string, string[]>);
@@ -92,7 +96,9 @@ export function buildWidgetConfigFromId(chartId: string) {
 
   // Score charts - parse ID to get score name and level
   const parsed = parseScoreChartId(chartId);
-  if (!parsed) return null;
+  if (!parsed) {
+    return null;
+  }
 
   const { level, dataType, scoreName } = parsed;
 

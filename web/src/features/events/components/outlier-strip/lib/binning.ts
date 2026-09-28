@@ -105,7 +105,9 @@ export function pickChartGranularity(params: {
   );
 
   for (const entry of OUTLIER_STRIP_GRANULARITIES) {
-    if (Math.ceil(rangeSeconds / entry.stepSeconds) <= maxBars) return entry;
+    if (Math.ceil(rangeSeconds / entry.stepSeconds) <= maxBars) {
+      return entry;
+    }
   }
 
   return OUTLIER_STRIP_GRANULARITIES[OUTLIER_STRIP_GRANULARITIES.length - 1];
@@ -179,7 +181,9 @@ export const formatCompoundDuration = (ms: number): string => {
   // ("1h"), not denormalize — the recursion strictly promotes, so it ends.
   const rounded = Math.round(ms / sub.ms) * sub.ms;
   const larger = COMPOUND_DURATION_UNITS[index - 1];
-  if (larger && rounded >= larger.ms) return formatCompoundDuration(rounded);
+  if (larger && rounded >= larger.ms) {
+    return formatCompoundDuration(rounded);
+  }
   const primary = Math.floor(rounded / unit.ms);
   // Exact: `rounded` and unit.ms are both multiples of sub.ms.
   const rest = (rounded - primary * unit.ms) / sub.ms;
@@ -309,7 +313,9 @@ export const rowsToOutlierBins = (rows: OutlierQueryRow[]): OutlierStripBin[] =>
   rows.flatMap((row) => {
     const bucketStart = parseChartTimestamp(row.time_dimension);
     const count = Number(row.count_count ?? 0);
-    if (!bucketStart || count === 0) return [];
+    if (!bucketStart || count === 0) {
+      return [];
+    }
     const values: Record<string, number | null> = {};
     for (const def of Object.values(OUTLIER_STRIP_METRICS)) {
       for (const agg of def.aggregations) {
@@ -444,7 +450,9 @@ export function prepareOutlierSeries(params: {
     const bin = byBucketMs.get(bucketMs);
     const raw = bin ? (bin.values[column] ?? null) : null;
     const value = raw === null ? null : def.fromRaw(raw);
-    if (value !== null && value > maxValue) maxValue = value;
+    if (value !== null && value > maxValue) {
+      maxValue = value;
+    }
     dense.push({
       bucketStartMs: bucketMs,
       count: bin?.count ?? 0,
@@ -513,14 +521,18 @@ function* descendNiceValues(
   const ladderFloor = ladder?.length ? ladder[0] : Number.POSITIVE_INFINITY;
   if (ladder?.length) {
     for (let i = ladder.length - 1; i >= 0; i--) {
-      if (ladder[i] <= maxValue) yield ladder[i];
+      if (ladder[i] <= maxValue) {
+        yield ladder[i];
+      }
     }
   }
   const below125Start = Math.min(maxValue, ladderFloor);
   for (let exp = Math.ceil(Math.log10(below125Start)); ; exp--) {
     for (const mantissa of [5, 2, 1]) {
       const value = mantissa * 10 ** exp;
-      if (value <= maxValue && value < ladderFloor) yield value;
+      if (value <= maxValue && value < ladderFloor) {
+        yield value;
+      }
     }
   }
 }
@@ -565,10 +577,16 @@ export function prepareOutlierYTicks(params: {
   let lastOffsetPx = Number.POSITIVE_INFINITY;
   for (const value of descendNiceValues(maxValue, def.yTickLadder)) {
     const offsetPx = toOffsetPx(value);
-    if (offsetPx < Y_TICK_MIN_OFFSET_PX) break;
-    if (lastOffsetPx - offsetPx < Y_TICK_MIN_SPACING_PX) continue;
+    if (offsetPx < Y_TICK_MIN_OFFSET_PX) {
+      break;
+    }
+    if (lastOffsetPx - offsetPx < Y_TICK_MIN_SPACING_PX) {
+      continue;
+    }
     ticks.push({ value, label: def.format(value), offsetPx });
-    if (ticks.length >= Y_TICK_MAX_COUNT) break;
+    if (ticks.length >= Y_TICK_MAX_COUNT) {
+      break;
+    }
     lastOffsetPx = offsetPx;
   }
   return ticks;

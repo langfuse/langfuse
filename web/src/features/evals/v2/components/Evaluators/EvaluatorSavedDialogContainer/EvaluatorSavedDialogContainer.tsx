@@ -76,7 +76,9 @@ export function EvaluatorSavedDialogContainer({
     evaluator.hasCompletedTestCall ?? false,
   );
   const claimMissingCostTest = useCallback(() => {
-    if (hasRequestedMissingCostTest.current) return false;
+    if (hasRequestedMissingCostTest.current) {
+      return false;
+    }
     hasRequestedMissingCostTest.current = true;
     return true;
   }, []);
@@ -236,7 +238,9 @@ export function EvaluatorSavedDialogContainer({
         if (missingCostTestRequest.current) {
           await missingCostTestRequest.current;
         }
-        if (estimateRequestId.current !== requestId) return;
+        if (estimateRequestId.current !== requestId) {
+          return;
+        }
 
         const shouldRunMissingTest = claimMissingCostTest();
         let finishMissingCostTestRequest: (() => void) | undefined;
@@ -273,14 +277,20 @@ export function EvaluatorSavedDialogContainer({
           );
         } finally {
           finishMissingCostTestRequest?.();
-          if (shouldRunMissingTest) missingCostTestRequest.current = null;
+          if (shouldRunMissingTest) {
+            missingCostTestRequest.current = null;
+          }
         }
-        if (estimateRequestId.current !== requestId) return;
+        if (estimateRequestId.current !== requestId) {
+          return;
+        }
         if (shouldRunMissingTest && result?.matchingObservations === 0) {
           resetMissingCostTest();
         }
       } finally {
-        if (estimateRequestId.current === requestId) setIsEstimating(false);
+        if (estimateRequestId.current === requestId) {
+          setIsEstimating(false);
+        }
       }
     },
     [
@@ -295,7 +305,9 @@ export function EvaluatorSavedDialogContainer({
   );
 
   const requestInitialEstimate = () => {
-    if (initialEstimateRequested.current) return;
+    if (initialEstimateRequested.current) {
+      return;
+    }
     initialEstimateRequested.current = true;
     requestEstimate({
       filter: supportedRuleFilters,
@@ -309,7 +321,9 @@ export function EvaluatorSavedDialogContainer({
   };
 
   const completeCreateRuleHandoff = () => {
-    if (!createRuleHandoffPending.current) return;
+    if (!createRuleHandoffPending.current) {
+      return;
+    }
     createRuleHandoffPending.current = false;
     setDialogPhase("closed");
     window.requestAnimationFrame(() => setDialogPhase("create-rule"));
@@ -347,7 +361,9 @@ export function EvaluatorSavedDialogContainer({
 
     if (nextMode === "different-scope") {
       const selectMostUsedRule = (rules: Rule[]) => {
-        if (estimateRequestId.current !== modeChangeRequestId) return;
+        if (estimateRequestId.current !== modeChangeRequestId) {
+          return;
+        }
         const mostUsedRule = rules[0];
         if (mostUsedRule) {
           selectExistingRule(mostUsedRule);

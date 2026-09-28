@@ -82,7 +82,9 @@ export class ClickhouseExecExceptionTagTransform extends Transform {
 
     if (trailerStart !== -1) {
       // Bytes before the marker are clean file data; the rest is the trailer.
-      if (trailerStart > 0) this.push(buf.subarray(0, trailerStart));
+      if (trailerStart > 0) {
+        this.push(buf.subarray(0, trailerStart));
+      }
       this.trailerBuffer = Buffer.from(buf.subarray(trailerStart));
       callback();
       return;
@@ -118,7 +120,9 @@ export class ClickhouseExecExceptionTagTransform extends Transform {
       return;
     }
     // No error: flush the withheld tail so clean data is complete.
-    if (this.pendingTail.length > 0) this.push(this.pendingTail);
+    if (this.pendingTail.length > 0) {
+      this.push(this.pendingTail);
+    }
     callback();
   }
 }

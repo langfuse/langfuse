@@ -33,7 +33,9 @@ export function TraceDetailTabMenu({
           value={selectedTab}
           onValueChange={(value) => {
             const tab = tabs.find((tab) => tab === value);
-            if (tab) onSelect(tab);
+            if (tab) {
+              onSelect(tab);
+            }
           }}
         >
           {tabs.map((tab) => (

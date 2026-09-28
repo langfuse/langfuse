@@ -113,7 +113,9 @@ export const experimentsFieldRegistry = (
     ...overlay,
     searchExamples: SEARCH_EXAMPLES.filter((example) => {
       const separator = example.indexOf(":");
-      if (separator === -1) return true;
+      if (separator === -1) {
+        return true;
+      }
       return probe.resolveField(example.slice(0, separator)) !== null;
     }),
   });

@@ -56,7 +56,9 @@ export function ConnectedDashboardWidgetTable() {
       variant="destructive"
       loading={deleteWidget.isPending}
       onConfirm={async () => {
-        if (!projectId || !selectedWidget) return;
+        if (!projectId || !selectedWidget) {
+          return;
+        }
         await deleteWidget.mutateAsync({
           projectId,
           widgetId: selectedWidget.id,
@@ -94,7 +96,9 @@ function ConnectedDashboardWidgetTableContent({
 
   const fetchExportSource = useCallback(
     async (widgetId: string): Promise<WidgetExportSource> => {
-      if (!projectId) throw new Error("Project ID is missing");
+      if (!projectId) {
+        throw new Error("Project ID is missing");
+      }
 
       const widget = await utils.dashboardWidgets.get.fetch(
         { projectId, widgetId },
@@ -166,7 +170,9 @@ function ConnectedDashboardWidgetTableContent({
   const handleDuplicate = useCallback(
     async (widgetId: string) => {
       try {
-        if (!projectId) throw new Error("Project ID is missing");
+        if (!projectId) {
+          throw new Error("Project ID is missing");
+        }
 
         const exportSource = await fetchExportSource(widgetId);
         await createWidgetAsync({
@@ -222,13 +228,17 @@ function ConnectedDashboardWidgetTableContent({
   );
 
   useEffect(() => {
-    if (!widgets.data) return;
+    if (!widgets.data) {
+      return;
+    }
 
     const pageCount = Math.max(
       1,
       Math.ceil(widgets.data.totalCount / paginationState.pageSize),
     );
-    if (paginationState.pageIndex < pageCount) return;
+    if (paginationState.pageIndex < pageCount) {
+      return;
+    }
 
     setPaginationState({ ...paginationState, pageIndex: 0 });
   }, [paginationState, setPaginationState, widgets.data]);
@@ -249,7 +259,9 @@ function ConnectedDashboardWidgetTableContent({
     error: widgetError,
   } = widgets;
   const tableData = useMemo<AsyncTableData<WidgetTableRow[]>>(() => {
-    if (widgetStatus === "pending") return { status: "loading" };
+    if (widgetStatus === "pending") {
+      return { status: "loading" };
+    }
     if (widgetStatus === "error") {
       return { status: "error", error: widgetError.message };
     }

@@ -52,7 +52,9 @@ export const ArchiveScoreConfigDialogController = ({
       variant={selectedConfig?.isArchived ? "default" : "destructive"}
       loading={mutation.isPending}
       onConfirm={async () => {
-        if (!selectedConfig) return;
+        if (!selectedConfig) {
+          return;
+        }
 
         await mutation.mutateAsync({
           projectId,

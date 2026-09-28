@@ -121,8 +121,12 @@ export function isInsideStringOrComment(node: SyntaxNode) {
     ancestor;
     ancestor = ancestor.parent
   ) {
-    if (INTERPOLATION_NODES.has(ancestor.name)) return false;
-    if (STRING_AND_COMMENT_SYNTAX_NODES.has(ancestor.name)) return true;
+    if (INTERPOLATION_NODES.has(ancestor.name)) {
+      return false;
+    }
+    if (STRING_AND_COMMENT_SYNTAX_NODES.has(ancestor.name)) {
+      return true;
+    }
   }
   return false;
 }
@@ -150,14 +154,20 @@ function readMemberPath(
   if (node.name === "VariableName") {
     return [sliceNode(context, node)];
   }
-  if (node.name !== "MemberExpression") return null;
+  if (node.name !== "MemberExpression") {
+    return null;
+  }
 
   const object = node.firstChild;
   const operator = object?.nextSibling;
-  if (!object || !operator) return null;
+  if (!object || !operator) {
+    return null;
+  }
 
   const path = readMemberPath(object, context);
-  if (!path) return null;
+  if (!path) {
+    return null;
+  }
 
   if (
     operator.name === "[" ||
@@ -181,7 +191,9 @@ function resolveContractPath(
   path: string[],
   aliases: ReadonlyMap<string, string[]>,
 ) {
-  if (path[0] === "ctx") return path;
+  if (path[0] === "ctx") {
+    return path;
+  }
 
   const aliasPath = aliases.get(path[0] ?? "");
   return aliasPath ? [...aliasPath, ...path.slice(1)] : null;
@@ -194,7 +206,9 @@ function nodeKey(node: SyntaxNode) {
 function getCompletionScope(inner: SyntaxNode) {
   let top = inner;
   for (let node: SyntaxNode | null = inner; node; node = node.parent) {
-    if (SCOPE_NODES.has(node.name)) return node;
+    if (SCOPE_NODES.has(node.name)) {
+      return node;
+    }
     top = node;
   }
   return top;
@@ -252,7 +266,9 @@ function readDeclarationTargets(
     if (pendingSimple) {
       targets.push({ name: sliceNode(context, pendingSimple), value });
     }
-    for (const name of pendingPatternNames) targets.push({ name, value: null });
+    for (const name of pendingPatternNames) {
+      targets.push({ name, value: null });
+    }
     pendingSimple = null;
     pendingPatternNames = [];
   };
@@ -301,7 +317,9 @@ function readAssignmentTargets(
     // Operator not recognized (`x ??= …`): invalidate anything that looks
     // like a target rather than risking a stale alias.
     const names: string[] = [];
-    for (const part of sections[0]) collectTargetNames(part, context, names);
+    for (const part of sections[0]) {
+      collectTargetNames(part, context, names);
+    }
     return names.map((name) => ({ name, value: null }));
   }
 
@@ -320,8 +338,12 @@ function readAssignmentTargets(
       continue;
     }
     const names: string[] = [];
-    for (const part of section) collectTargetNames(part, context, names);
-    for (const name of names) targets.push({ name, value: null });
+    for (const part of section) {
+      collectTargetNames(part, context, names);
+    }
+    for (const name of names) {
+      targets.push({ name, value: null });
+    }
   }
   return targets;
 }
@@ -410,12 +432,18 @@ function getContractAliases(context: CompletionContext, inner: SyntaxNode) {
 
   for (let node: SyntaxNode | null = inner; node; node = node.parent) {
     cursorAncestors.add(nodeKey(node));
-    if (node.from === scope.from && node.to === scope.to) break;
+    if (node.from === scope.from && node.to === scope.to) {
+      break;
+    }
   }
 
   function visit(node: SyntaxNode) {
-    if (node.from >= context.pos) return;
-    if (node !== scope && NESTED_SCOPE_NODES.has(node.name)) return;
+    if (node.from >= context.pos) {
+      return;
+    }
+    if (node !== scope && NESTED_SCOPE_NODES.has(node.name)) {
+      return;
+    }
 
     // Bindings shadow for their whole statement (the cursor may sit inside
     // the loop body), so invalidate regardless of where the node ends.
@@ -434,8 +462,11 @@ function getContractAliases(context: CompletionContext, inner: SyntaxNode) {
             : null;
         const resolvedPath = path ? resolveContractPath(path, aliases) : null;
 
-        if (resolvedPath) aliases.set(target.name, resolvedPath);
-        else aliases.delete(target.name);
+        if (resolvedPath) {
+          aliases.set(target.name, resolvedPath);
+        } else {
+          aliases.delete(target.name);
+        }
       }
       // Keep descending: the assigned value can nest further assignments
       // (`cache[0] = x = {}` must still invalidate `x`).
@@ -471,7 +502,9 @@ function getSyntaxCompletionPath(
 
   const object = member?.firstChild;
   const path = object ? readMemberPath(object, context) : null;
-  if (!path) return null;
+  if (!path) {
+    return null;
+  }
 
   const resolvedPath = resolveContractPath(
     path,
@@ -501,10 +534,14 @@ function makePathCompletionHandler(
 ): CompletionHandler {
   return (context, inner) => {
     const resolved = getSyntaxCompletionPath(context, inner);
-    if (!resolved) return null;
+    if (!resolved) {
+      return null;
+    }
 
     const options = pathCompletions.get(resolved.path.join("."));
-    if (!options) return null;
+    if (!options) {
+      return null;
+    }
 
     return { from: context.pos - resolved.name.length, options, validFor };
   };
@@ -519,7 +556,9 @@ function getPythonConstructorParameterCompletion(
 
   if (inner.name === "VariableName" && inner.parent?.name === "ArgList") {
     const previous = inner.prevSibling;
-    if (previous?.name !== "(" && previous?.name !== ",") return null;
+    if (previous?.name !== "(" && previous?.name !== ",") {
+      return null;
+    }
     argumentList = inner.parent;
     name = sliceNameToCursor(context, inner);
   } else if (
@@ -536,11 +575,15 @@ function getPythonConstructorParameterCompletion(
 
   const call = argumentList?.parent;
   const callee = call?.name === "CallExpression" ? call.firstChild : null;
-  if (callee?.name !== "VariableName") return null;
+  if (callee?.name !== "VariableName") {
+    return null;
+  }
 
   const constructorName = sliceNode(context, callee);
   const parameters = PYTHON_CONSTRUCTOR_PARAMETERS.get(constructorName);
-  if (!parameters) return null;
+  if (!parameters) {
+    return null;
+  }
 
   const usedParameters = new Set<string>();
   for (let child = argumentList?.firstChild; child; child = child.nextSibling) {
@@ -549,7 +592,9 @@ function getPythonConstructorParameterCompletion(
       child.nextSibling?.name === "AssignOp"
     ) {
       // The keyword being edited stays available for its own completion.
-      if (child.from === inner.from && child.to === inner.to) continue;
+      if (child.from === inner.from && child.to === inner.to) {
+        continue;
+      }
       usedParameters.add(sliceNode(context, child));
     }
   }
@@ -571,7 +616,9 @@ function getPythonResultConstructorCompletion(
   context: CompletionContext,
   inner: SyntaxNode,
 ) {
-  if (inner.name !== "VariableName" || inner.from >= context.pos) return null;
+  if (inner.name !== "VariableName" || inner.from >= context.pos) {
+    return null;
+  }
 
   return {
     from: inner.from,
@@ -596,7 +643,9 @@ function getFunctionName(node: SyntaxNode, context: CompletionContext) {
   if (node.name !== "ArrowFunction" && node.name !== "FunctionExpression") {
     return null;
   }
-  if (node.parent?.name !== "VariableDeclaration") return null;
+  if (node.parent?.name !== "VariableDeclaration") {
+    return null;
+  }
   for (
     let sibling = node.prevSibling;
     sibling && sibling.name !== ",";
@@ -620,13 +669,17 @@ function getTypeScriptReturnTypeCompletion(
         annotation = node;
         break;
       }
-      if (SCOPE_NODES.has(node.name) || node.name === "ParamList") break;
+      if (SCOPE_NODES.has(node.name) || node.name === "ParamList") {
+        break;
+      }
     }
   } else if (inner.name === ":" && inner.parent?.name === "TypeAnnotation") {
     annotation = inner.parent;
   }
   const fn = annotation?.parent;
-  if (!fn || getFunctionName(fn, context) !== "evaluate") return null;
+  if (!fn || getFunctionName(fn, context) !== "evaluate") {
+    return null;
+  }
 
   const name =
     inner.name === "TypeName" ? sliceNameToCursor(context, inner) : "";
@@ -693,7 +746,9 @@ function isEvaluateReturnObject(
   if (container && SCOPE_NODES.has(container.name)) {
     return getFunctionName(container, context) === "evaluate";
   }
-  if (container?.name !== "ReturnStatement") return false;
+  if (container?.name !== "ReturnStatement") {
+    return false;
+  }
 
   for (let node = container.parent; node; node = node.parent) {
     if (SCOPE_NODES.has(node.name)) {
@@ -734,7 +789,9 @@ function getTypeScriptObjectPropertyCompletion(
   inner: SyntaxNode,
 ) {
   const current = getCurrentObjectProperty(context, inner);
-  if (!current) return null;
+  if (!current) {
+    return null;
+  }
 
   let properties: readonly { label: string; detail: string }[] | null = null;
   if (isEvaluateReturnObject(current.object, context)) {
@@ -742,7 +799,9 @@ function getTypeScriptObjectPropertyCompletion(
   } else if (isTypeScriptScoreObject(current.object, context)) {
     properties = TYPESCRIPT_CONTRACT.scoreProperties;
   }
-  if (!properties) return null;
+  if (!properties) {
+    return null;
+  }
 
   const usedProperties = new Set<string>();
   for (
@@ -758,7 +817,9 @@ function getTypeScriptObjectPropertyCompletion(
       continue;
     }
     const name = getPropertyName(property, context);
-    if (name) usedProperties.add(name);
+    if (name) {
+      usedProperties.add(name);
+    }
   }
 
   const options = properties
@@ -837,12 +898,18 @@ function getTypeScriptDataTypeValueCompletion(
     node !== property;
     node = node.parent
   ) {
-    if (!node || DATA_TYPE_IGNORED_SYNTAX_NODES.has(node.name)) return null;
+    if (!node || DATA_TYPE_IGNORED_SYNTAX_NODES.has(node.name)) {
+      return null;
+    }
   }
 
   let colon = property.firstChild;
-  while (colon && colon.name !== ":") colon = colon.nextSibling;
-  if (!colon || context.pos < colon.to) return null;
+  while (colon && colon.name !== ":") {
+    colon = colon.nextSibling;
+  }
+  if (!colon || context.pos < colon.to) {
+    return null;
+  }
 
   return getQuotedEnumValueCompletion(
     context,
@@ -858,14 +925,22 @@ function getPythonDataTypeValueCompletion(
 ) {
   let argument = inner;
   while (argument.parent?.name !== "ArgList") {
-    if (DATA_TYPE_IGNORED_SYNTAX_NODES.has(argument.name)) return null;
-    if (!argument.parent) return null;
+    if (DATA_TYPE_IGNORED_SYNTAX_NODES.has(argument.name)) {
+      return null;
+    }
+    if (!argument.parent) {
+      return null;
+    }
     argument = argument.parent;
   }
-  if (DATA_TYPE_IGNORED_SYNTAX_NODES.has(argument.name)) return null;
+  if (DATA_TYPE_IGNORED_SYNTAX_NODES.has(argument.name)) {
+    return null;
+  }
 
   const argumentList = argument.parent;
-  if (!argumentList) return null;
+  if (!argumentList) {
+    return null;
+  }
   const call = argumentList.parent;
   const callee = call?.name === "CallExpression" ? call.firstChild : null;
   if (
@@ -953,13 +1028,19 @@ export function getCodeEvalCompletionSource(
     const inner = syntaxTree(context.state).resolveInner(context.pos, -1);
 
     const dataTypeValue = config.dataTypeHandler(context, inner);
-    if (dataTypeValue) return dataTypeValue;
+    if (dataTypeValue) {
+      return dataTypeValue;
+    }
 
-    if (isInsideStringOrComment(inner)) return null;
+    if (isInsideStringOrComment(inner)) {
+      return null;
+    }
 
     for (const handler of config.handlers) {
       const result = handler(context, inner);
-      if (result) return result;
+      if (result) {
+        return result;
+      }
     }
     return null;
   };

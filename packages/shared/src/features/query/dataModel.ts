@@ -1727,7 +1727,9 @@ export function requiresV2(params: {
     viewDeclarations.v1[params.view as keyof (typeof viewDeclarations)["v1"]];
   const v2View =
     viewDeclarations.v2[params.view as keyof (typeof viewDeclarations)["v2"]];
-  if (!v1View || !v2View) return false;
+  if (!v1View || !v2View) {
+    return false;
+  }
 
   const v2OnlyDims = Object.keys(v2View.dimensions).filter(
     (k) => !(k in v1View.dimensions),
@@ -1770,7 +1772,9 @@ export function getResultUnit(
   aggregation: string | undefined,
   version: ViewVersion = "v1",
 ): string | undefined {
-  if (aggregation === "count" || aggregation === "uniq") return "integer";
+  if (aggregation === "count" || aggregation === "uniq") {
+    return "integer";
+  }
   return getMeasureUnit(viewName, measureName, version);
 }
 

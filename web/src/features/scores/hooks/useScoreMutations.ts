@@ -19,7 +19,9 @@ export function useScoreMutations() {
   // Create mutations with cache writes
   const createMutation = api.scores.createAnnotationScore.useMutation({
     onMutate: (variables) => {
-      if (!variables.id) return;
+      if (!variables.id) {
+        return;
+      }
       const scoreTarget = variables.scoreTarget;
 
       // Write to columns cache
@@ -52,7 +54,9 @@ export function useScoreMutations() {
       return { scoreId: variables.id! };
     },
     onError: (err, variables) => {
-      if (!variables.id) return;
+      if (!variables.id) {
+        return;
+      }
       // Rollback failed create from cache
       cacheRollbackSet(variables.id);
       showErrorToast("Failed to create score", err.message, "WARNING");

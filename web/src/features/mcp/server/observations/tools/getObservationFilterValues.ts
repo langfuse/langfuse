@@ -94,13 +94,19 @@ const normalizeFilterOptions = (
     if (typeof value === "string") {
       // ClickHouse returns boolean filter options as "true"/"false" strings.
       if (column === "isRootObservation" || column === "hasParentObservation") {
-        if (value === "true") return true;
-        if (value === "false") return false;
+        if (value === "true") {
+          return true;
+        }
+        if (value === "false") {
+          return false;
+        }
       }
       return value;
     }
 
-    if (typeof value === "boolean") return value;
+    if (typeof value === "boolean") {
+      return value;
+    }
 
     return null;
   };
@@ -108,11 +114,15 @@ const normalizeFilterOptions = (
   return values
     .map((value): FilterOption | null => {
       const normalizedPrimitive = normalizeValue(value);
-      if (normalizedPrimitive !== null) return { value: normalizedPrimitive };
+      if (normalizedPrimitive !== null) {
+        return { value: normalizedPrimitive };
+      }
 
       if (typeof value === "object" && value !== null && "value" in value) {
         const normalizedObjectValue = normalizeValue(value.value);
-        if (normalizedObjectValue === null) return null;
+        if (normalizedObjectValue === null) {
+          return null;
+        }
 
         return {
           value: normalizedObjectValue,
@@ -132,7 +142,9 @@ const normalizeFilterOptions = (
 const decodeObservationFilterValueCursor = (
   cursor: string | undefined,
 ): number => {
-  if (!cursor) return 0;
+  if (!cursor) {
+    return 0;
+  }
 
   try {
     const parsed = JSON.parse(Buffer.from(cursor, "base64").toString("utf-8"));

@@ -5,7 +5,9 @@ function readSessionStorageValue<T>(params: {
   fallback: T;
 }): T {
   const { storageKey, fallback } = params;
-  if (typeof window === "undefined") return fallback;
+  if (typeof window === "undefined") {
+    return fallback;
+  }
 
   try {
     const storedValue = sessionStorage.getItem(storageKey);
@@ -30,7 +32,9 @@ export function useKeyedSessionStorageState<T>(
   }));
 
   useEffect(() => {
-    if (state.key === storageKey) return;
+    if (state.key === storageKey) {
+      return;
+    }
 
     setState({
       key: storageKey,
@@ -42,8 +46,12 @@ export function useKeyedSessionStorageState<T>(
   }, [state.key, storageKey, initialValue]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (state.key !== storageKey) return;
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (state.key !== storageKey) {
+      return;
+    }
 
     try {
       sessionStorage.setItem(storageKey, JSON.stringify(state.value));

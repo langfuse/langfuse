@@ -663,7 +663,9 @@ async function reconcileConversationRunsInTransaction(params: {
 
   for (const run of candidates) {
     const failure = classifyStaleRun(run, now);
-    if (!failure) continue;
+    if (!failure) {
+      continue;
+    }
 
     const { count } = await tx.inAppAgentRun.updateMany({
       where: {
@@ -782,7 +784,9 @@ export async function cleanupTerminalRunMcpApiKeys(params: {
   let cleaned = 0;
 
   for (const run of staleKeyRuns) {
-    if (!run.mcpApiKeyId) continue;
+    if (!run.mcpApiKeyId) {
+      continue;
+    }
 
     try {
       try {

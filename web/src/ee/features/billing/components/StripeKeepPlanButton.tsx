@@ -42,7 +42,9 @@ export const StripeKeepPlanButton = ({
     },
   });
 
-  if (!orgId) return null;
+  if (!orgId) {
+    return null;
+  }
 
   return (
     <Dialog>

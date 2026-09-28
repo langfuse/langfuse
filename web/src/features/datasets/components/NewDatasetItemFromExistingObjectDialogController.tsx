@@ -63,11 +63,14 @@ export function NewDatasetItemFromExistingObjectDialogController(props: {
             output={normalizePrefillValue(state.output)}
             metadata={state.metadata}
             onPendingChange={(pending) => {
-              if (currentInstance.current === state.instance)
+              if (currentInstance.current === state.instance) {
                 submissionPending.current = pending;
+              }
             }}
             onFormSuccess={() => {
-              if (currentInstance.current === state.instance) closeDialog();
+              if (currentInstance.current === state.instance) {
+                closeDialog();
+              }
             }}
             className="h-full overflow-y-auto"
             currentDatasetId={state.fromDatasetId}
@@ -78,7 +81,9 @@ export function NewDatasetItemFromExistingObjectDialogController(props: {
       {({ openDialog }) =>
         props.children({
           openDialog: (payload) => {
-            if (submissionPending.current) return;
+            if (submissionPending.current) {
+              return;
+            }
             openDialog({ ...payload, instance: ++currentInstance.current });
           },
         })

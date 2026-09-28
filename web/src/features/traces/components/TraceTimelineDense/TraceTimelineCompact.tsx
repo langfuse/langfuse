@@ -51,7 +51,9 @@ export function TraceTimelineCompact() {
   // because a border or a scrollbar the math never saw is how a lane ends up
   // wider than the space available.
   const measureRef = useCallback((element: HTMLDivElement | null) => {
-    if (!element) return;
+    if (!element) {
+      return;
+    }
     const measure = () =>
       setBox((current) =>
         current?.width === element.clientWidth &&
@@ -70,7 +72,9 @@ export function TraceTimelineCompact() {
       // The map the tree already builds, rather than a walk per hovered row —
       // and hover changes once per row at 1px rows.
       const node = nodeMap.get(nodeId);
-      if (node) handleHover(node);
+      if (node) {
+        handleHover(node);
+      }
     },
     [nodeMap, handleHover],
   );
@@ -85,7 +89,9 @@ export function TraceTimelineCompact() {
   const metricsOf = useCallback(
     (nodeId: string): RowMetrics => {
       const node = nodeMap.get(nodeId);
-      if (!node?.totalCost || !showCostTokens) return {};
+      if (!node?.totalCost || !showCostTokens) {
+        return {};
+      }
       return { costText: usdFormatter(node.totalCost.toNumber()) };
     },
     [nodeMap, showCostTokens],

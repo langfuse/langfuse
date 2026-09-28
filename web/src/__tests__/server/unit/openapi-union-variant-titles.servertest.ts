@@ -68,12 +68,16 @@ function expectAllUnionVariantsNamed(value: unknown, path = "$"): void {
     );
     return;
   }
-  if (!value || typeof value !== "object") return;
+  if (!value || typeof value !== "object") {
+    return;
+  }
 
   const record = value as Record<string, unknown>;
   for (const unionKey of ["oneOf", "anyOf"] as const) {
     const union = record[unionKey];
-    if (!Array.isArray(union)) continue;
+    if (!Array.isArray(union)) {
+      continue;
+    }
 
     union.forEach((variant, index) => {
       const branch = variant as Record<string, unknown>;

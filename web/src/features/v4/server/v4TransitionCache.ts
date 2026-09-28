@@ -104,7 +104,9 @@ const readBlobs = async <T>(
     // Cluster-safe: project keys hash to different slots.
     const rawValues = await safeMultiGet(redis, keys);
     return rawValues.map((rawValue) => {
-      if (!rawValue) return null;
+      if (!rawValue) {
+        return null;
+      }
       try {
         const parsed = schema.safeParse(JSON.parse(rawValue));
         return parsed.success ? parsed.data : null;
@@ -121,7 +123,9 @@ const readBlobs = async <T>(
 const writeBlobs = async (
   entries: { key: string; ttlSeconds: number; value: unknown }[],
 ): Promise<void> => {
-  if (!isV4TransitionCacheAvailable() || entries.length === 0) return;
+  if (!isV4TransitionCacheAvailable() || entries.length === 0) {
+    return;
+  }
   try {
     await Promise.all(
       entries.map((entry) =>

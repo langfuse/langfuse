@@ -1003,7 +1003,9 @@ describe("MCP tool schema interoperability", () => {
     schema: unknown,
     path: string[] = [],
   ): { path: string; pattern: string }[] => {
-    if (typeof schema !== "object" || schema === null) return [];
+    if (typeof schema !== "object" || schema === null) {
+      return [];
+    }
 
     if (Array.isArray(schema)) {
       return schema.flatMap((item, index) =>

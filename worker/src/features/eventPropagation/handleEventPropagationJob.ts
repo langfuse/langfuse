@@ -43,7 +43,9 @@ export const updateLastRunStartedAt = async (): Promise<void> => {
 export const getLastRunStartedAt = async (): Promise<number | null> => {
   try {
     const value = await redis!.get(LAST_RUN_STARTED_AT_KEY);
-    if (value === null) return null;
+    if (value === null) {
+      return null;
+    }
     const parsed = Number(value);
     return Number.isNaN(parsed) ? null : parsed;
   } catch (error) {

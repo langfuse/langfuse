@@ -78,7 +78,9 @@ export const rowsToScoreOutlierBins = (
   rows.flatMap((row) => {
     const bucketStart = parseChartTimestamp(row.time_dimension);
     const count = Number(row.count_count ?? 0);
-    if (!bucketStart || count === 0) return [];
+    if (!bucketStart || count === 0) {
+      return [];
+    }
     const values: Record<string, number | null> = {};
     for (const def of Object.values(SCORE_OUTLIER_STRIP_METRICS)) {
       for (const agg of def.aggregations) {
@@ -110,7 +112,9 @@ export const mergeScoreOutlierRows = (
   }
 
   for (const row of valueRows) {
-    if (typeof row.time_dimension !== "string") continue;
+    if (typeof row.time_dimension !== "string") {
+      continue;
+    }
 
     // Count rows are the only source of truth for which buckets exist; a
     // value row with no matching count bucket is dropped, not invented.
@@ -203,7 +207,9 @@ export function prepareScoreOutlierSeries(params: {
     const bin = byBucketMs.get(bucketMs);
     const raw = bin ? (bin.values[column] ?? null) : null;
     const value = raw === null ? null : def.fromRaw(raw);
-    if (value !== null && value > maxValue) maxValue = value;
+    if (value !== null && value > maxValue) {
+      maxValue = value;
+    }
     dense.push({
       bucketStartMs: bucketMs,
       count: bin?.count ?? 0,
@@ -251,7 +257,9 @@ function* descendNiceScoreOutlierValues(maxValue: number): Generator<number> {
   for (let exp = Math.ceil(Math.log10(maxValue)); ; exp--) {
     for (const mantissa of [5, 2, 1]) {
       const value = mantissa * 10 ** exp;
-      if (value <= maxValue) yield value;
+      if (value <= maxValue) {
+        yield value;
+      }
     }
   }
 }
@@ -289,10 +297,16 @@ export function prepareScoreOutlierYTicks(params: {
   let lastOffsetPx = Number.POSITIVE_INFINITY;
   for (const value of descendNiceScoreOutlierValues(maxValue)) {
     const offsetPx = toOffsetPx(value);
-    if (offsetPx < Y_TICK_MIN_OFFSET_PX) break;
-    if (lastOffsetPx - offsetPx < Y_TICK_MIN_SPACING_PX) continue;
+    if (offsetPx < Y_TICK_MIN_OFFSET_PX) {
+      break;
+    }
+    if (lastOffsetPx - offsetPx < Y_TICK_MIN_SPACING_PX) {
+      continue;
+    }
     ticks.push({ value, label: def.format(value), offsetPx });
-    if (ticks.length >= Y_TICK_MAX_COUNT) break;
+    if (ticks.length >= Y_TICK_MAX_COUNT) {
+      break;
+    }
     lastOffsetPx = offsetPx;
   }
   return ticks;

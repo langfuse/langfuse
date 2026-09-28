@@ -87,7 +87,9 @@ export function useProjectDefaultModel({
   };
 
   const requestUpdate = (model: ProjectDefaultModelConfig) => {
-    if (isSameJudgeModel(defaultModel, model)) return;
+    if (isSameJudgeModel(defaultModel, model)) {
+      return;
+    }
 
     if (defaultModel) {
       setPendingModel(model);
@@ -123,7 +125,9 @@ export function useProjectDefaultModel({
         updateDefaultModel(model, defaultModel !== null),
       dismissConfirmation: () => setPendingModel(null),
       confirmUpdate: () => {
-        if (pendingModel) updateDefaultModel(pendingModel, true);
+        if (pendingModel) {
+          updateDefaultModel(pendingModel, true);
+        }
       },
     },
     openProviderSettings: () => {

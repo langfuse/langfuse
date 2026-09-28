@@ -11,7 +11,9 @@ export function useTableViewFilterChange() {
   const onExplicitFilterStateChange = useCallback<
     NonNullable<UseSidebarFilterStateOptions["onExplicitFilterStateChange"]>
   >((change) => {
-    if (change.origin !== "user") return;
+    if (change.origin !== "user") {
+      return;
+    }
     viewControllersRef.current?.handleUserStateChange(
       change.previousFilters,
       change.nextFilters,

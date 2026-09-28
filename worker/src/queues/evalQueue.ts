@@ -261,7 +261,9 @@ export const evalJobExecutorQueueProcessorBuilder = (
         },
       });
 
-      if (llmError || isUnrecoverableError(e)) return;
+      if (llmError || isUnrecoverableError(e)) {
+        return;
+      }
 
       traceException(e);
       logger.error(
@@ -383,7 +385,9 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         );
       }
 
-      if (isTerminalError) return;
+      if (isTerminalError) {
+        return;
+      }
 
       traceException(e);
       logger.error(

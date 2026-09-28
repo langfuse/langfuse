@@ -27,7 +27,9 @@ export function createDropdownTableColumn<
     loadingCell: <Skeleton className="h-8 w-8 shrink-0 rounded-md" />,
     renderCell: (value, context) => {
       const items = renderMenu(value, context);
-      if (!items) return null;
+      if (!items) {
+        return null;
+      }
 
       return (
         <div onClick={(event) => event.stopPropagation()}>

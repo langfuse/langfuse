@@ -17,7 +17,9 @@ export function metadataArraysToRecord(
   names: string[],
   values: string[],
 ): Record<string, string> | undefined {
-  if (names.length === 0) return undefined;
+  if (names.length === 0) {
+    return undefined;
+  }
 
   const record = new Map<string, string>();
   names.forEach((name, i) => {

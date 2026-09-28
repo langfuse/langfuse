@@ -20,7 +20,9 @@ import {
 
 export default function NewWidgetPage() {
   const route = useReadyRouteParams(["projectId"]);
-  if (!route.ready) return <RouteParamsPendingFallback />;
+  if (!route.ready) {
+    return <RouteParamsPendingFallback />;
+  }
   return <NewWidgetView projectId={route.params.projectId} />;
 }
 

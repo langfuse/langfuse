@@ -15,11 +15,15 @@ export function buildExperimentEvaluatorSampleObject(
         experimentItemMetadata: datasetItem.metadata,
       }
     : null;
-  if (!historicalSample) return datasetSample;
+  if (!historicalSample) {
+    return datasetSample;
+  }
 
   const mergedSample: Record<string, unknown> = { ...datasetSample };
   for (const [key, value] of Object.entries(historicalSample)) {
-    if (value !== null && value !== undefined) mergedSample[key] = value;
+    if (value !== null && value !== undefined) {
+      mergedSample[key] = value;
+    }
   }
   return mergedSample;
 }

@@ -925,7 +925,9 @@ const run = async (
     }
     for (const obs of allObservations) {
       const trace = obs.trace_id ? tracesById.get(obs.trace_id) : undefined;
-      if (trace) allEvents.push(observationToEvent(obs, trace));
+      if (trace) {
+        allEvents.push(observationToEvent(obs, trace));
+      }
     }
   }
 

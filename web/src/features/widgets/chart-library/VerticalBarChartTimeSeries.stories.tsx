@@ -92,14 +92,18 @@ export const TestLastDateFullyVisible = meta.story({
       expect(svg).toBeTruthy();
     });
     const svg = canvasElement.querySelector("svg");
-    if (!svg) throw new Error("chart svg not found");
+    if (!svg) {
+      throw new Error("chart svg not found");
+    }
     const svgBox = svg.getBoundingClientRect();
     const timeLabels = [...svg.querySelectorAll("text")].filter((el) =>
       /^[A-Z][a-z]{2} \d/.test(el.textContent ?? ""),
     );
     await expect(timeLabels.length).toBeGreaterThan(0);
     const lastLabel = timeLabels.at(-1);
-    if (!lastLabel) throw new Error("no date tick found");
+    if (!lastLabel) {
+      throw new Error("no date tick found");
+    }
     await expect(lastLabel.textContent).toMatch(/Aug 1[13]/);
     for (const label of timeLabels) {
       const box = label.getBoundingClientRect();

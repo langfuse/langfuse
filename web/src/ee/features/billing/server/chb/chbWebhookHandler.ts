@@ -104,14 +104,21 @@ function parseChbSignatureHeader(
 
   for (const part of header.split(",")) {
     const separator = part.indexOf("=");
-    if (separator === -1) continue;
+    if (separator === -1) {
+      continue;
+    }
     const key = part.slice(0, separator);
     const value = part.slice(separator + 1);
-    if (key === "t") timestamp = value;
-    else if (key === "v1") signatures.push(value);
+    if (key === "t") {
+      timestamp = value;
+    } else if (key === "v1") {
+      signatures.push(value);
+    }
   }
 
-  if (timestamp === undefined || signatures.length === 0) return null;
+  if (timestamp === undefined || signatures.length === 0) {
+    return null;
+  }
   return { timestamp, signatures };
 }
 

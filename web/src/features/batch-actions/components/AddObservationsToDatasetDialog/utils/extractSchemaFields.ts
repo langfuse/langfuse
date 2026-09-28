@@ -176,9 +176,13 @@ export function generateEntriesFromSchema(
   // 2. Top-level optional fields (no dot in path)
   // 3. Skip nested optional fields to avoid clutter
   const fieldsToInclude = schemaFields.filter((field) => {
-    if (field.required) return true;
+    if (field.required) {
+      return true;
+    }
     // Include top-level optional fields
-    if (!field.path.includes(".")) return true;
+    if (!field.path.includes(".")) {
+      return true;
+    }
     // Skip deeply nested optional fields
     return false;
   });

@@ -69,7 +69,9 @@ const filters = {
    * - User has specific feature flag
    */
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
-    if (route.featureFlag === undefined) return route;
+    if (route.featureFlag === undefined) {
+      return route;
+    }
 
     if (route.featureFlag === "internalFeatures") {
       return ctx.internalFeaturesEnabled ? route : null;
@@ -97,10 +99,14 @@ const filters = {
    * Cloud admins bypass this check
    */
   entitlements: (route: Route, ctx: NavigationFilterContext): Route | null => {
-    if (!route.entitlements || route.entitlements.length === 0) return route;
+    if (!route.entitlements || route.entitlements.length === 0) {
+      return route;
+    }
 
     // Cloud admins bypass entitlement checks
-    if (ctx.cloudAdmin) return route;
+    if (ctx.cloudAdmin) {
+      return route;
+    }
 
     // OR logic - user needs at least one entitlement
     const hasEntitlement = route.entitlements.some((ent) =>
@@ -116,10 +122,14 @@ const filters = {
    * Cloud admins bypass this check
    */
   projectRbac: (route: Route, ctx: NavigationFilterContext): Route | null => {
-    if (!route.projectRbacScopes || !ctx.routerProjectId) return route;
+    if (!route.projectRbacScopes || !ctx.routerProjectId) {
+      return route;
+    }
 
     // Cloud admins bypass RBAC checks
-    if (ctx.cloudAdmin) return route;
+    if (ctx.cloudAdmin) {
+      return route;
+    }
 
     // OR logic - user needs at least one scope
     const hasScope = route.projectRbacScopes.some((scope) =>
@@ -141,10 +151,14 @@ const filters = {
     route: Route,
     ctx: NavigationFilterContext,
   ): Route | null => {
-    if (!route.organizationRbacScope || !ctx.routerOrganizationId) return route;
+    if (!route.organizationRbacScope || !ctx.routerOrganizationId) {
+      return route;
+    }
 
     // Cloud admins bypass RBAC checks
-    if (ctx.cloudAdmin) return route;
+    if (ctx.cloudAdmin) {
+      return route;
+    }
 
     const hasScope = hasOrganizationAccess({
       session: ctx.session,
@@ -164,7 +178,9 @@ const filters = {
     ctx: NavigationFilterContext,
     organization: Organization,
   ): Route | null => {
-    if (!route.show) return route;
+    if (!route.show) {
+      return route;
+    }
     // Convert null to undefined for route.show compatibility
     return route.show({
       organization: organization ?? undefined,
@@ -206,7 +222,9 @@ function applyFiltersToRoute(
   let filtered: Route | null = route;
   for (const filter of filterChain) {
     filtered = filter(filtered, ctx);
-    if (!filtered) return null;
+    if (!filtered) {
+      return null;
+    }
   }
 
   // Process nested items recursively

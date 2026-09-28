@@ -55,7 +55,9 @@ describe("dataset item search contract", () => {
         searchQuery: "refund policy",
         searchType,
       });
-      if (first.status !== "committed") throw new Error(first.status);
+      if (first.status !== "committed") {
+        throw new Error(first.status);
+      }
 
       const projection = filterStateToQueryText(first.filters, first, registry);
       expect(projection.skippedFilters).toEqual([]);

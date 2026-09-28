@@ -1725,7 +1725,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // failure site rather than this rethrow line. rethrown.stack starts with
     // the original error's message, which won't match rethrown.message (the
     // full chain), but structured loggers record them as separate fields.
-    if (error instanceof Error) rethrown.stack = error.stack;
+    if (error instanceof Error) {
+      rethrown.stack = error.stack;
+    }
     throw rethrown;
   }
 };
@@ -1773,7 +1775,9 @@ async function recordTerminalExportError({
       where: { projectId, enabled: true },
       data: { enabled: false },
     });
-    if (count !== 1) return { kind: "lost-disable-race" };
+    if (count !== 1) {
+      return { kind: "lost-disable-race" };
+    }
 
     // Tag by reason so SSRF/abuse disables (ssrf_blocked_endpoint) can be
     // separated from customer misconfig, and a mass-disable regression is
@@ -1897,7 +1901,9 @@ async function notifyBlobStorageExportFailed(
 }
 
 function extractStorageErrorMessage(error: unknown): string {
-  if (!(error instanceof Error)) return String(error).slice(0, 1000);
+  if (!(error instanceof Error)) {
+    return String(error).slice(0, 1000);
+  }
 
   // handleStorageError wraps SDK errors via { cause: sdkError }
   // Unwrap to get the raw SDK message (S3/Azure/GCS)

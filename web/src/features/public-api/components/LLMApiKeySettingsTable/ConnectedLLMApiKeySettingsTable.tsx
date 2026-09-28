@@ -38,7 +38,9 @@ export function ConnectedLLMApiKeySettingsTable({
   });
 
   const tableData = useMemo<AsyncTableData<LLMApiKeySettingsTableRow[]>>(() => {
-    if (apiKeys.isLoading) return { status: "loading" };
+    if (apiKeys.isLoading) {
+      return { status: "loading" };
+    }
     if (apiKeys.isError) {
       return { status: "error", error: "Failed to load LLM connections" };
     }

@@ -359,7 +359,9 @@ export function buildFilterContextMessage(
 ): string | null {
   const refine = (currentQuery ?? "").trim();
   const data = (dataContext ?? "").trim();
-  if (refine.length === 0 && data.length === 0) return null;
+  if (refine.length === 0 && data.length === 0) {
+    return null;
+  }
 
   const refineSection =
     refine.length > 0

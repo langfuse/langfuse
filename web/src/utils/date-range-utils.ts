@@ -95,10 +95,14 @@ export const isDashboardDateRangeOptionAvailable = ({
   option: DashboardDateRangeAggregationOption;
   limitDays: number | false;
 }) => {
-  if (limitDays === false) return true;
+  if (limitDays === false) {
+    return true;
+  }
 
   const { minutes } = dashboardDateRangeAggregationSettings[option];
-  if (!minutes) return true; // Handle null minutes (like allTime)
+  if (!minutes) {
+    return true;
+  } // Handle null minutes (like allTime)
   return limitDays >= minutes / (24 * 60);
 };
 
@@ -117,12 +121,16 @@ const TABLE_DATE_RANGE_AGGREGATION_SETTINGS = new Map<
 export const getDateFromOption = (
   selectedTimeOption: SelectedTimeOption,
 ): Date | undefined => {
-  if (!selectedTimeOption) return undefined;
+  if (!selectedTimeOption) {
+    return undefined;
+  }
 
   const { filterSource, option } = selectedTimeOption;
   if (filterSource === "TABLE") {
     const setting = TABLE_DATE_RANGE_AGGREGATION_SETTINGS.get(option);
-    if (!setting) return undefined;
+    if (!setting) {
+      return undefined;
+    }
 
     return addMinutes(new Date(), -setting);
   } else if (filterSource === "DASHBOARD") {
@@ -131,7 +139,9 @@ export const getDateFromOption = (
         option as keyof typeof dashboardDateRangeAggregationSettings
       ];
 
-    if (!setting.minutes) return undefined; // Handle null minutes (like allTime)
+    if (!setting.minutes) {
+      return undefined;
+    } // Handle null minutes (like allTime)
     return addMinutes(new Date(), -setting.minutes);
   }
   return undefined;
@@ -152,7 +162,9 @@ export function getTimeRangeLabel(option: string): string {
 export const findClosestDashboardInterval = (
   dateRange: AbsoluteTimeRange,
 ): DashboardDateRangeAggregationOption | undefined => {
-  if (!dateRange.from || !dateRange.to) return undefined;
+  if (!dateRange.from || !dateRange.to) {
+    return undefined;
+  }
   const duration = dateRange.to.getTime() - dateRange.from.getTime();
 
   const diffs = DASHBOARD_AGGREGATION_OPTIONS.map((interval) => {

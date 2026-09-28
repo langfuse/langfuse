@@ -5,13 +5,17 @@ export const canApplyOutlierStripFilters = (
   filterState: FilterState,
   hasSearchQuery: boolean,
 ) => {
-  if (hasSearchQuery) return false;
+  if (hasSearchQuery) {
+    return false;
+  }
 
   return filterState.every((filter) => {
     if (filter.type === "datetime" && filter.column === "startTime") {
       return true;
     }
-    if (filter.type === "null") return false;
+    if (filter.type === "null") {
+      return false;
+    }
     return chartFilterExclusionReason(filter.column) === null;
   });
 };

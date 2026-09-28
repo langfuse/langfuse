@@ -76,7 +76,9 @@ export function createSkillEditorStore(
       resetName: () => {
         const state = get();
         const file = state.files["SKILL.md"];
-        if (!file || file.content === undefined) return;
+        if (!file || file.content === undefined) {
+          return;
+        }
         set({
           files: {
             ...state.files,
@@ -90,7 +92,9 @@ export function createSkillEditorStore(
         });
       },
       selectFile: (path) => {
-        if (get().files[path]) set({ activePath: path });
+        if (get().files[path]) {
+          set({ activePath: path });
+        }
       },
       updateActiveFile: (content) =>
         set((state) => ({
@@ -134,7 +138,9 @@ export function createSkillEditorStore(
         }
         const name = path.split("/").at(-1)!;
         const nextPath = targetFolder ? `${targetFolder}/${name}` : name;
-        if (nextPath === path) return true;
+        if (nextPath === path) {
+          return true;
+        }
         if (
           !SkillFilePathSchema.safeParse(nextPath).success ||
           hasFilePathConflict(nextPath, state.files, state.folders)
@@ -156,14 +162,18 @@ export function createSkillEditorStore(
           (targetFolder !== "" && !state.folders.includes(targetFolder)) ||
           targetFolder === path ||
           targetFolder.startsWith(`${path}/`)
-        )
+        ) {
           return false;
+        }
 
         const name = path.split("/").at(-1)!;
         const nextPath = targetFolder ? `${targetFolder}/${name}` : name;
-        if (nextPath === path) return true;
-        if (hasFilePathConflict(nextPath, state.files, state.folders))
+        if (nextPath === path) {
+          return true;
+        }
+        if (hasFilePathConflict(nextPath, state.files, state.folders)) {
           return false;
+        }
 
         const relocate = (entryPath: string) =>
           entryPath === path || entryPath.startsWith(`${path}/`)
@@ -183,8 +193,9 @@ export function createSkillEditorStore(
           [...nextFolders, ...Object.keys(nextFiles)].some(
             (entryPath) => !SkillFilePathSchema.safeParse(entryPath).success,
           )
-        )
+        ) {
           return false;
+        }
 
         set({
           files: nextFiles,
@@ -214,7 +225,9 @@ export function createSkillEditorStore(
         return true;
       },
       deleteFile: (path) => {
-        if (path === "SKILL.md") return;
+        if (path === "SKILL.md") {
+          return;
+        }
         set((state) => {
           const { [path]: _, ...remainingFiles } = state.files;
           return {
@@ -235,7 +248,9 @@ export function createSkillEditorStore(
             (folderPath) =>
               folderPath !== path && folderPath.startsWith(`${path}/`),
           );
-        if (!isEmpty) return false;
+        if (!isEmpty) {
+          return false;
+        }
         set({
           folders: state.folders.filter((folderPath) => folderPath !== path),
           dirty: true,

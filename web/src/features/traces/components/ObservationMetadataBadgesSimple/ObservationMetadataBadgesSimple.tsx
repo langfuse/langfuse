@@ -12,7 +12,9 @@ export function LatencyBadge({
 }: {
   latencySeconds: number | null;
 }) {
-  if (latencySeconds == null) return null;
+  if (latencySeconds == null) {
+    return null;
+  }
 
   return <Badge color="ghost" text={formatIntervalSeconds(latencySeconds)} />;
 }
@@ -22,7 +24,9 @@ export function TimeToFirstTokenBadge({
 }: {
   timeToFirstToken: number | null | undefined;
 }) {
-  if (timeToFirstToken == null) return null;
+  if (timeToFirstToken == null) {
+    return null;
+  }
 
   return (
     <Badge

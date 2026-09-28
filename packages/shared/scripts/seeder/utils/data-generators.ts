@@ -994,7 +994,9 @@ export class DataGenerator {
   }
 
   private generateTraceInput(): string {
-    if (!this.fileContent) return "Sample input";
+    if (!this.fileContent) {
+      return "Sample input";
+    }
 
     // Match original logic: 30% chance of heavy markdown, otherwise chatML
     return this.randomBoolean(0.3)
@@ -1003,7 +1005,9 @@ export class DataGenerator {
   }
 
   private generateTraceOutput(): string {
-    if (!this.fileContent) return "Sample output";
+    if (!this.fileContent) {
+      return "Sample output";
+    }
 
     // Match original logic: 20% chance of nested JSON, otherwise chatML
     return this.randomBoolean(0.2)
@@ -1012,7 +1016,9 @@ export class DataGenerator {
   }
 
   private generateObservationInput(): string {
-    if (!this.fileContent) return "Sample observation input";
+    if (!this.fileContent) {
+      return "Sample observation input";
+    }
 
     // Match original logic: 40% chance of heavy markdown, otherwise chatML
     return this.randomBoolean(0.4)
@@ -1021,7 +1027,9 @@ export class DataGenerator {
   }
 
   private generateObservationOutput(): string {
-    if (!this.fileContent) return "Sample observation output";
+    if (!this.fileContent) {
+      return "Sample observation output";
+    }
 
     // Match original logic: 30% chance of nested JSON, otherwise chatML
     return this.randomBoolean(0.3)
@@ -1030,7 +1038,9 @@ export class DataGenerator {
   }
 
   private generateEvaluationInput(): string {
-    if (!this.fileContent) return "Evaluation input";
+    if (!this.fileContent) {
+      return "Evaluation input";
+    }
 
     return this.randomBoolean(0.3)
       ? this.fileContent.heavyMarkdown
@@ -1038,7 +1048,9 @@ export class DataGenerator {
   }
 
   private generateEvaluationOutput(): string {
-    if (!this.fileContent) return "Evaluation output";
+    if (!this.fileContent) {
+      return "Evaluation output";
+    }
 
     return this.randomBoolean(0.2)
       ? JSON.stringify(this.fileContent.nestedJson)
@@ -1229,7 +1241,9 @@ export class DataGenerator {
           tool_call_names: d.tool ? [d.tool.name] : undefined,
         };
 
-        if (!d.tool) return [baseGen];
+        if (!d.tool) {
+          return [baseGen];
+        }
 
         const toolObs: ObservationRecordInsertType = {
           id: `support-chat-${index}-${projectId.slice(-8)}-tool`,
@@ -1383,7 +1397,9 @@ export class DataGenerator {
 
     for (const evalJobConfiguration of SEED_EVALUATOR_CONFIGS) {
       traces.forEach((trace, traceIndex) => {
-        if (traceIndex % FAILED_EVAL_TRACE_INTERVAL === 0) return;
+        if (traceIndex % FAILED_EVAL_TRACE_INTERVAL === 0) {
+          return;
+        }
         // Create exactly one score per evaluation trace with prefixed ID
         const score: ScoreRecordInsertType = createTraceScore({
           id: generateEvalScoreId(

@@ -122,7 +122,9 @@ describe("getServerAuthSession invalid callback URL handling", () => {
   it("falls back to the base URL for a malformed redirect callback URL", async () => {
     const authOptions = await getAuthOptions();
     const redirect = authOptions.callbacks?.redirect;
-    if (!redirect) throw new Error("Expected a redirect callback");
+    if (!redirect) {
+      throw new Error("Expected a redirect callback");
+    }
 
     expect(
       redirect({
@@ -135,7 +137,9 @@ describe("getServerAuthSession invalid callback URL handling", () => {
   it("does not attach the user email to the sign-in span", async () => {
     const authOptions = await getAuthOptions();
     const signIn = authOptions.callbacks?.signIn;
-    if (!signIn) throw new Error("Expected a sign-in callback");
+    if (!signIn) {
+      throw new Error("Expected a sign-in callback");
+    }
 
     await signIn({
       user: { id: "user-1", email: "user@example.com" },

@@ -25,12 +25,13 @@ type HasOrganizationAccessParams =
  * @throws TRPCError("FORBIDDEN") if user does not have access
  */
 export const throwIfNoOrganizationAccess = (p: HasOrganizationAccessParams) => {
-  if (!hasOrganizationAccess(p))
+  if (!hasOrganizationAccess(p)) {
     throw new TRPCError({
       code: "FORBIDDEN",
       message:
         "Forbidden, user does not have access to this resource or action",
     });
+  }
 };
 
 /**
@@ -44,8 +45,12 @@ export const useHasOrganizationAccess = (p: {
   const { scope, organizationId } = p;
   const session = useSession();
 
-  if (session.data?.user?.admin) return true;
-  if (!organizationId) return false;
+  if (session.data?.user?.admin) {
+    return true;
+  }
+  if (!organizationId) {
+    return false;
+  }
 
   return hasOrganizationAccess({
     session: session.data,
@@ -57,13 +62,17 @@ export const useHasOrganizationAccess = (p: {
 // For use in UI components as function, if session is already available
 export function hasOrganizationAccess(p: HasOrganizationAccessParams): boolean {
   const isAdmin = hasOwnRole(p) ? p.admin : p.session?.user?.admin;
-  if (isAdmin) return true;
+  if (isAdmin) {
+    return true;
+  }
 
   const organizationRole: Role | undefined = hasOwnRole(p)
     ? p.role
     : p.session?.user?.organizations.find((org) => org.id === p.organizationId)
         ?.role;
-  if (organizationRole === undefined) return false;
+  if (organizationRole === undefined) {
+    return false;
+  }
 
   return organizationRoleAccessRights[organizationRole].includes(p.scope);
 }

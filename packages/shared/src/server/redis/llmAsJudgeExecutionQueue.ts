@@ -21,7 +21,9 @@ export class LLMAsJudgeExecutionQueue {
   static getShardIndexFromShardName(
     shardName: string | undefined,
   ): number | null {
-    if (!shardName) return null;
+    if (!shardName) {
+      return null;
+    }
 
     const shardIndex =
       shardName === QueueName.LLMAsJudgeExecution
@@ -31,7 +33,9 @@ export class LLMAsJudgeExecutionQueue {
             10,
           );
 
-    if (isNaN(shardIndex)) return null;
+    if (isNaN(shardIndex)) {
+      return null;
+    }
     return shardIndex;
   }
 

@@ -74,7 +74,9 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
 
   private async collectQueueDepth(): Promise<void> {
     const queue = TraceBatchQueue.getInstance();
-    if (!queue) throw new Error("Trace batch queue is unavailable");
+    if (!queue) {
+      throw new Error("Trace batch queue is unavailable");
+    }
     const counts = await queue.getJobCounts(
       "waiting",
       "paused",
@@ -98,7 +100,9 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
 
   private async collectWaitingHeadAge(): Promise<void> {
     const queue = TraceBatchQueue.getInstance();
-    if (!queue) throw new Error("Trace batch queue is unavailable");
+    if (!queue) {
+      throw new Error("Trace batch queue is unavailable");
+    }
     // BullMQ returns the next FIFO entry in each of waiting and paused. A retry
     // can re-enter behind newer jobs, so this is not the oldest creation time
     // anywhere in the queue. Jobs can disappear between ID and hash reads.
@@ -121,7 +125,9 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
   }
 
   private async collectMemory(): Promise<void> {
-    if (!redis) throw new Error("Trace batch metrics require Redis");
+    if (!redis) {
+      throw new Error("Trace batch metrics require Redis");
+    }
     const [dueBytes, dueEntries, stateBytes, stateEntries] = (await redis.eval(
       MEMORY_SCRIPT,
       2,

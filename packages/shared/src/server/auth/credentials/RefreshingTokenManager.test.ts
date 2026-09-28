@@ -92,7 +92,9 @@ describe("RefreshingTokenManager", () => {
       name: "fake",
       fetchToken: vi.fn(async () => {
         call += 1;
-        if (call === 2) throw new Error("token endpoint unavailable");
+        if (call === 2) {
+          throw new Error("token endpoint unavailable");
+        }
         return {
           token: `token-${call}`,
           expiresOnTimestamp: Date.now() + ONE_HOUR,

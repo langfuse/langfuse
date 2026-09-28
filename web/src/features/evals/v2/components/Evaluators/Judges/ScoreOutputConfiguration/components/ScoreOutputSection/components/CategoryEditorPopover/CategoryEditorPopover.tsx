@@ -51,8 +51,9 @@ export function CategoryEditorPopover({
             value={choice.label}
             onChange={(event) => onChange({ label: event.target.value })}
             onKeyDown={(event) => {
-              if (event.key !== "Enter" || event.nativeEvent.isComposing)
+              if (event.key !== "Enter" || event.nativeEvent.isComposing) {
                 return;
+              }
               event.preventDefault();
               onDone();
             }}

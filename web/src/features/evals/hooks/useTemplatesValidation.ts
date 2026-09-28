@@ -32,7 +32,9 @@ export function useTemplatesValidation({
   );
 
   useEffect(() => {
-    if (isLoadingDefaultModel) return;
+    if (isLoadingDefaultModel) {
+      return;
+    }
 
     // Find selected templates
     const selectedTemplates = (templatesData?.templates || []).filter(
@@ -78,17 +80,23 @@ export function useTemplatesValidation({
    * Check if a specific template is valid (has a default model if needed)
    */
   const isTemplateValid = (templateId: string): boolean => {
-    if (!templatesData?.templates) return true;
+    if (!templatesData?.templates) {
+      return true;
+    }
 
     // Find the template
     const template = templatesData.templates.find((t) => t.id === templateId);
-    if (!template) return true;
+    if (!template) {
+      return true;
+    }
     if (isCodeEvalTemplate(template)) {
       return shouldShowEvalTemplate(template, codeEvalCapabilities);
     }
 
     // If we have a default model, all LLM-as-a-judge templates are valid
-    if (defaultModel) return true;
+    if (defaultModel) {
+      return true;
+    }
 
     // If template has no provider or model, it requires a default model
     return Boolean(template.provider && template.model);

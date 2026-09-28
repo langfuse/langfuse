@@ -80,7 +80,9 @@ function AnnotateHeader({
 }
 
 function annotationTargetLabel(scoreTarget: ScoreTarget) {
-  if (scoreTarget.type === "session") return "Session";
+  if (scoreTarget.type === "session") {
+    return "Session";
+  }
   return scoreTarget.observationId ? "Observation" : "Trace";
 }
 
@@ -160,7 +162,9 @@ export function AnnotationFormContent({
             target.scoreTarget.observationId ===
               data.scoreTarget.observationId);
         const scores = primary ? data.scores : data.companionTrace?.scores;
-        if (!scores) return [];
+        if (!scores) {
+          return [];
+        }
         const selected = form
           .getValues("scoreData")
           .filter((field) => field.targetKey === target.key)
@@ -241,7 +245,9 @@ export function AnnotationFormContent({
                     const target = preferredAnnotationTargets(targets).find(
                       (target) => target.configControl.allowManualSelection,
                     );
-                    if (!target) return;
+                    if (!target) {
+                      return;
+                    }
 
                     const controlledFields = form.getValues("scoreData");
                     const nextIndex = controlledFields.findIndex(
@@ -357,7 +363,9 @@ export function AnnotationFormContent({
                 key={field.id}
                 isActive={isActive}
                 onRemove={() => {
-                  if (actions.isSaving(annotationFieldKey(field))) return;
+                  if (actions.isSaving(annotationFieldKey(field))) {
+                    return;
+                  }
                   getScoreConfigSelection({
                     targets,
                     controlledFields: form.getValues("scoreData"),

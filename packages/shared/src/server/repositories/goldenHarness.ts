@@ -152,7 +152,9 @@ function resolveClickhouseBin(): string {
         input: "SELECT 1",
         encoding: "utf8",
       });
-      if (res.status === 0) return bin;
+      if (res.status === 0) {
+        return bin;
+      }
     } catch {
       // try the next candidate
     }
@@ -170,7 +172,9 @@ let formatAvailability: boolean | undefined;
  * than silently passing an unnormalized comparison.
  */
 export function clickhouseFormatAvailable(): boolean {
-  if (formatAvailability !== undefined) return formatAvailability;
+  if (formatAvailability !== undefined) {
+    return formatAvailability;
+  }
   try {
     const res = spawnSync(clickhouseBin, ["format"], {
       input: "SELECT 1",
@@ -195,7 +199,9 @@ export function formatSql(sql: string): string {
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
-  if (res.error) throw res.error;
+  if (res.error) {
+    throw res.error;
+  }
   if (res.status !== 0) {
     throw new Error(
       `clickhouse format failed (status ${res.status}): ${res.stderr?.trim()}\n--- SQL ---\n${sql}`,
@@ -208,7 +214,9 @@ let localAvailability: boolean | undefined;
 
 /** Whether `clickhouse local` can execute a query on this machine. */
 export function clickhouseLocalAvailable(): boolean {
-  if (localAvailability !== undefined) return localAvailability;
+  if (localAvailability !== undefined) {
+    return localAvailability;
+  }
   try {
     const res = spawnSync(clickhouseBin, ["local", "--query", "SELECT 1"], {
       encoding: "utf8",
@@ -240,7 +248,9 @@ function sqlLiteral(value: unknown, type: string): string {
   if (typeof value === "number" || typeof value === "bigint") {
     return String(value);
   }
-  if (typeof value === "boolean") return value ? "1" : "0";
+  if (typeof value === "boolean") {
+    return value ? "1" : "0";
+  }
   const escaped = String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
   return `'${escaped}'`;
 }
@@ -267,7 +277,9 @@ export function executeClickhouseLocal(sql: string): string {
     encoding: "utf8",
     maxBuffer: 16 * 1024 * 1024,
   });
-  if (res.error) throw res.error;
+  if (res.error) {
+    throw res.error;
+  }
   if (res.status !== 0) {
     throw new Error(
       `clickhouse local failed (status ${res.status}): ${res.stderr?.trim()}\n--- SQL ---\n${sql}`,
@@ -292,7 +304,9 @@ export function normalizeParams(
   const normalizedSql = sql.replace(
     PARAM_PLACEHOLDER,
     (_match, name: string) => {
-      if (!mapping.has(name)) mapping.set(name, `param${mapping.size + 1}`);
+      if (!mapping.has(name)) {
+        mapping.set(name, `param${mapping.size + 1}`);
+      }
       return `{${mapping.get(name)}:`;
     },
   );
@@ -300,7 +314,9 @@ export function normalizeParams(
   const normalizedParams: Record<string, unknown> = {};
   if (params) {
     for (const [key, token] of mapping) {
-      if (key in params) normalizedParams[token] = params[key];
+      if (key in params) {
+        normalizedParams[token] = params[key];
+      }
     }
   }
   return { sql: normalizedSql, params: normalizedParams };
@@ -331,10 +347,14 @@ function wrapLongSql(sql: string): string {
   return sql
     .split("\n")
     .map((line) => {
-      if (line.length <= MAX_SQL_LINE) return line;
+      if (line.length <= MAX_SQL_LINE) {
+        return line;
+      }
       const indent = /^\s*/.exec(line)?.[0] ?? "";
       const body = line.slice(indent.length);
-      if (CLAUSE_KEYWORD.test(body)) return line;
+      if (CLAUSE_KEYWORD.test(body)) {
+        return line;
+      }
       return formatSqlExpr(body, indent);
     })
     .join("\n");
@@ -353,17 +373,23 @@ function firstGroup(expr: string): {
   for (let i = 0; i < expr.length; i++) {
     const c = expr[i];
     if (inStr) {
-      if (c === "\\") i++;
-      else if (c === "'") inStr = false;
+      if (c === "\\") {
+        i++;
+      } else if (c === "'") {
+        inStr = false;
+      }
       continue;
     }
-    if (c === "'") inStr = true;
-    else if (c === "(" || c === "[") {
+    if (c === "'") {
+      inStr = true;
+    } else if (c === "(" || c === "[") {
       open = i;
       break;
     }
   }
-  if (open === -1) return null;
+  if (open === -1) {
+    return null;
+  }
 
   const args: string[] = [];
   let depth = 0;
@@ -372,13 +398,18 @@ function firstGroup(expr: string): {
   for (let i = open; i < expr.length; i++) {
     const c = expr[i];
     if (inStr) {
-      if (c === "\\") i++;
-      else if (c === "'") inStr = false;
+      if (c === "\\") {
+        i++;
+      } else if (c === "'") {
+        inStr = false;
+      }
       continue;
     }
-    if (c === "'") inStr = true;
-    else if (c === "(" || c === "[") depth++;
-    else if (c === ")" || c === "]") {
+    if (c === "'") {
+      inStr = true;
+    } else if (c === "(" || c === "[") {
+      depth++;
+    } else if (c === ")" || c === "]") {
       depth--;
       if (depth === 0) {
         args.push(expr.slice(argStart, i));
@@ -399,9 +430,13 @@ function firstGroup(expr: string): {
 }
 
 function formatSqlExpr(expr: string, indent: string): string {
-  if (indent.length + expr.length <= MAX_SQL_LINE) return indent + expr;
+  if (indent.length + expr.length <= MAX_SQL_LINE) {
+    return indent + expr;
+  }
   const group = firstGroup(expr);
-  if (!group || group.args.every((a) => a.trim() === "")) return indent + expr;
+  if (!group || group.args.every((a) => a.trim() === "")) {
+    return indent + expr;
+  }
   const childIndent = indent + WRAP_INDENT;
   const lines = [indent + group.head + group.open];
   group.args.forEach((arg, i) => {
@@ -415,7 +450,9 @@ function formatSqlExpr(expr: string, indent: string): string {
 function routeOf(tags: unknown): string {
   if (tags && typeof tags === "object" && "route" in tags) {
     const route = (tags as { route?: unknown }).route;
-    if (typeof route === "string" && route.trim()) return route.trim();
+    if (typeof route === "string" && route.trim()) {
+      return route.trim();
+    }
   }
   return "unknown";
 }

@@ -74,7 +74,9 @@ const metadataKeysInUse = (
 ): string[] => {
   const keys = new Set<string>(editedKeys);
   for (const filter of filterState) {
-    if (filter.type === "stringObject" && filter.key) keys.add(filter.key);
+    if (filter.type === "stringObject" && filter.key) {
+      keys.add(filter.key);
+    }
   }
   return [...keys];
 };
@@ -87,7 +89,9 @@ const zipMetadataValueOptions = (
   const map: Record<string, SingleValueOption[]> = {};
   results.forEach((result, i) => {
     const key = keys[i];
-    if (key === undefined || !result.data) return;
+    if (key === undefined || !result.data) {
+      return;
+    }
     map[key] = normalizeSingleValueOptions(result.data);
   });
   return map;

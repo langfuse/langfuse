@@ -187,7 +187,9 @@ const run = async (
         timestamp + o * 350 + jitter(ctx.seed, t * 131 + o, 100);
       const endTime =
         startTime + (isGeneration ? rng.int(700, 3500) : rng.int(10, 300));
-      if (!isRoot) maxChildEndTime = Math.max(maxChildEndTime, endTime);
+      if (!isRoot) {
+        maxChildEndTime = Math.max(maxChildEndTime, endTime);
+      }
       const hasError = t % 13 === 6 && isGeneration;
       const usageInput = rng.int(100, 4000);
       const usageOutput = rng.int(50, 2000);
@@ -328,7 +330,9 @@ const run = async (
     }
     for (const obs of observations) {
       const trace = obs.trace_id ? tracesById.get(obs.trace_id) : undefined;
-      if (trace) events.push(observationToEvent(obs, trace));
+      if (trace) {
+        events.push(observationToEvent(obs, trace));
+      }
     }
   }
 

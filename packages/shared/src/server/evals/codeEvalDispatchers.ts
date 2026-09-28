@@ -17,7 +17,9 @@ export function resolveConfiguredCodeEvalDispatcher(): CodeEvalDispatcher | null
       ? "insecure-local"
       : undefined);
 
-  if (!dispatcherName) return null;
+  if (!dispatcherName) {
+    return null;
+  }
 
   if (dispatcherName === "insecure-local") {
     if (!hasLoggedInsecureLocalWarning) {

@@ -70,10 +70,14 @@ export function markProjectIngestFailure(
     reason?: IngestionFailureReason;
   },
 ): void {
-  if (!redis) return;
+  if (!redis) {
+    return;
+  }
 
   const now = Date.now();
-  if (!shouldRecordProjectMark(projectId, now)) return;
+  if (!shouldRecordProjectMark(projectId, now)) {
+    return;
+  }
 
   const ttlSeconds = env.LANGFUSE_INGEST_FAILURE_PROJECT_TTL_SECONDS;
   const expiresAtMs = now + ttlSeconds * 1000;
@@ -101,7 +105,9 @@ export function markProjectIngestFailure(
 export async function updateActiveIngestFailureProjectsMetric(): Promise<
   number | null
 > {
-  if (!redis) return null;
+  if (!redis) {
+    return null;
+  }
 
   try {
     const results = await redis
@@ -111,7 +117,9 @@ export async function updateActiveIngestFailureProjectsMetric(): Promise<
       .exec();
 
     const commandError = results?.find(([error]) => error)?.[0];
-    if (commandError) throw commandError;
+    if (commandError) {
+      throw commandError;
+    }
 
     const activeProjects = Number(results?.[1]?.[1] ?? 0);
 

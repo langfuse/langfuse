@@ -147,7 +147,9 @@ function DeleteAccountButton() {
   const blockingOrganizations = canDeleteData?.blockingOrganizations ?? [];
 
   const onSubmit = async () => {
-    if (!canDelete) return;
+    if (!canDelete) {
+      return;
+    }
     try {
       await deleteAccount.mutateAsync();
       showSuccessToast({

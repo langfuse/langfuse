@@ -62,11 +62,12 @@ export function append(
   // Count first so a truncated replay cannot attach a result to the wrong call.
   for (const { message } of input) {
     for (const part of message.parts) {
-      if (part.type === "tool-call" && part.toolCallId)
+      if (part.type === "tool-call" && part.toolCallId) {
         replayTotals.set(
           part.toolCallId,
           (replayTotals.get(part.toolCallId) ?? 0) + 1,
         );
+      }
     }
   }
   for (const { message, key: originalKey } of [...input, ...output]) {
@@ -78,7 +79,9 @@ export function append(
       traceId: observation.traceId,
     };
     // Anchor output calls before attaching any results carried by the same message.
-    if (isOutput) thread.messages.push(emitted);
+    if (isOutput) {
+      thread.messages.push(emitted);
+    }
     for (const part of message.parts) {
       if (
         !toolCalls.consumePart(
@@ -89,11 +92,14 @@ export function append(
           replayCalls,
           replayTotals,
         )
-      )
+      ) {
         emitted.parts.push(part);
+      }
     }
     if (!emitted.parts.length) {
-      if (isOutput) thread.messages.splice(thread.messages.indexOf(emitted), 1);
+      if (isOutput) {
+        thread.messages.splice(thread.messages.indexOf(emitted), 1);
+      }
       continue;
     }
     const key =
@@ -103,7 +109,9 @@ export function append(
     if (!isOutput) {
       const occurrence = (inputCounts.get(key) ?? 0) + 1;
       inputCounts.set(key, occurrence);
-      if (!isNewThread && occurrence <= (shownCounts.get(key) ?? 0)) continue;
+      if (!isNewThread && occurrence <= (shownCounts.get(key) ?? 0)) {
+        continue;
+      }
       thread.messages.push(emitted);
     }
     messages.push({ message: emitted, key });

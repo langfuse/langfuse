@@ -102,12 +102,16 @@ import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table
 const repositionTrailingMetadata = (order: string[]): string[] => {
   const lastIndex = order.length - 1;
   // Only act on the stale default: metadata sitting as the last column.
-  if (order[lastIndex] !== "metadata") return order;
+  if (order[lastIndex] !== "metadata") {
+    return order;
+  }
   // New default slot: immediately after the `description` column, matching the
   // JS column definition (select, name, description, metadata...).
   const descriptionIndex = order.indexOf("description");
   const targetIndex = descriptionIndex === -1 ? 0 : descriptionIndex + 1;
-  if (targetIndex === lastIndex) return order; // already in place
+  if (targetIndex === lastIndex) {
+    return order;
+  } // already in place
   const next = [...order];
   next.splice(lastIndex, 1); // remove trailing metadata
   next.splice(targetIndex, 0, "metadata"); // insert at new default slot
@@ -175,7 +179,9 @@ function ExperimentsMultiSelectActionMenu({
   // Handler for comparing selected experiments
   // First selected becomes baseline, rest become comparisons
   const handleCompareSelected = () => {
-    if (selectedExperimentIds.length === 0) return;
+    if (selectedExperimentIds.length === 0) {
+      return;
+    }
 
     const [baseline, ...comparisons] = selectedExperimentIds;
     // The list's own way into a comparison — the same events the picker and the
@@ -209,7 +215,9 @@ function ExperimentsMultiSelectActionMenu({
     );
   };
 
-  if (selectedExperimentIds.length === 0) return null;
+  if (selectedExperimentIds.length === 0) {
+    return null;
+  }
 
   // Build table actions - Compare is disabled (not hidden) when >MAX_SELECTED_EXPERIMENTS rows selected
   const tooManySelected =
@@ -452,7 +460,9 @@ export default function ExperimentsTable({
   // create columns for the keys the metrics query actually returned. Undefined
   // while metrics load, so columns don't disappear and come back on each fetch.
   const presentScoreKeys = useMemo(() => {
-    if (metricsLoading || experiments.status !== "success") return undefined;
+    if (metricsLoading || experiments.status !== "success") {
+      return undefined;
+    }
     const rows = experiments.rows ?? [];
     return {
       traceItem: collectPresentScoreKeys(rows.map((r) => r.traceItemScores)),
@@ -467,7 +477,9 @@ export default function ExperimentsTable({
   // the same time as `presentScoreKeys`: the strip opens on the best-recorded
   // numeric score instead of the alphabetically first one, with no extra query.
   const scoreCoverage = useMemo(() => {
-    if (metricsLoading || experiments.status !== "success") return undefined;
+    if (metricsLoading || experiments.status !== "success") {
+      return undefined;
+    }
     const rows = experiments.rows ?? [];
     return {
       obs: collectScoreNameCoverage(rows.map((r) => r.observationItemScores)),

@@ -7,11 +7,17 @@
 
 /** Case-insensitive match; prefix matches rank before substring matches. */
 export function filterRank(label: string, query: string): number | null {
-  if (query.length === 0) return 0;
+  if (query.length === 0) {
+    return 0;
+  }
   const l = label.toLowerCase();
   const q = query.toLowerCase();
-  if (l.startsWith(q)) return 0;
-  if (l.includes(q)) return 1;
+  if (l.startsWith(q)) {
+    return 0;
+  }
+  if (l.includes(q)) {
+    return 1;
+  }
   return null;
 }
 

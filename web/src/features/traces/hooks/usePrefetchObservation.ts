@@ -22,7 +22,9 @@ export function usePrefetchObservation({
   ) => {
     if (isV4) {
       // Beta ON: prefetch from events table via batchIO
-      if (!startTime) return;
+      if (!startTime) {
+        return;
+      }
       utils.events.batchIO.prefetch(
         {
           projectId,

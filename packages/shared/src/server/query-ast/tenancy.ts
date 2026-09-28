@@ -217,7 +217,9 @@ function tableNameOf(node: TableNode): string {
 }
 
 function identifierName(node: OperationNode): string | undefined {
-  if (IdentifierNode.is(node)) return node.name;
+  if (IdentifierNode.is(node)) {
+    return node.name;
+  }
   return undefined;
 }
 
@@ -251,7 +253,9 @@ function predicateCovers(
   projectId: string,
   requireQualified: boolean,
 ): boolean {
-  if (!expr) return false;
+  if (!expr) {
+    return false;
+  }
   if (AndNode.is(expr)) {
     return (
       predicateCovers(expr.left, table, projectId, requireQualified) ||
@@ -267,7 +271,9 @@ function predicateCovers(
   if (ParensNode.is(expr)) {
     return predicateCovers(expr.node, table, projectId, requireQualified);
   }
-  if (!BinaryOperationNode.is(expr)) return false;
+  if (!BinaryOperationNode.is(expr)) {
+    return false;
+  }
   if (!OperatorNode.is(expr.operator) || expr.operator.operator !== "=") {
     return false;
   }
@@ -287,8 +293,12 @@ function isProjectIdColumn(
     return !requireQualified && node.column.name === PROJECT_ID_COLUMN;
   }
   if (ReferenceNode.is(node) && ColumnNode.is(node.column)) {
-    if (node.column.column.name !== PROJECT_ID_COLUMN) return false;
-    if (!node.table) return !requireQualified;
+    if (node.column.column.name !== PROJECT_ID_COLUMN) {
+      return false;
+    }
+    if (!node.table) {
+      return !requireQualified;
+    }
     const referenced = tableNameOf(node.table);
     // Once a relation is aliased, its physical table name is no longer a valid
     // SQL qualifier for it — only the alias is. Accepting the physical name
@@ -344,9 +354,13 @@ export function assertTenancyStamped(node: RootOperationNode): void {
 const RAW_RELATION_SQL = /\b(?:from|join|select)\b/i;
 
 function rejectUnscopedRawSql(node: unknown): void {
-  if (!node || typeof node !== "object") return;
+  if (!node || typeof node !== "object") {
+    return;
+  }
   if (Array.isArray(node)) {
-    for (const item of node) rejectUnscopedRawSql(item);
+    for (const item of node) {
+      rejectUnscopedRawSql(item);
+    }
     return;
   }
   if (RawNode.is(node as OperationNode)) {

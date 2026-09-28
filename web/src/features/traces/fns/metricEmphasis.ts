@@ -16,8 +16,12 @@ export type TraceMetricEmphasis = {
 };
 
 function nodeDurationMs(node: TreeNode): number | undefined {
-  if (node.latency != null) return node.latency * 1000;
-  if (node.endTime) return node.endTime.getTime() - node.startTime.getTime();
+  if (node.latency != null) {
+    return node.latency * 1000;
+  }
+  if (node.endTime) {
+    return node.endTime.getTime() - node.startTime.getTime();
+  }
   return undefined;
 }
 
@@ -33,9 +37,12 @@ export function computeTraceMetricEmphasis(
   const base = traceRoot ? [traceRoot] : roots;
 
   const wholeTraceNodeIds = new Set<string>();
-  if (traceRoot) wholeTraceNodeIds.add(traceRoot.id);
-  if (topLevel.length === 1 && topLevel[0])
+  if (traceRoot) {
+    wholeTraceNodeIds.add(traceRoot.id);
+  }
+  if (topLevel.length === 1 && topLevel[0]) {
     wholeTraceNodeIds.add(topLevel[0].id);
+  }
 
   let traceTotalCost: Decimal | undefined;
   let traceTotalDurationMs: number | undefined;
@@ -62,9 +69,15 @@ export function metricEmphasisFor(
   node: TreeNode,
   trace: TraceMetricEmphasis | undefined,
 ): MetricEmphasisContext | undefined {
-  if (!trace) return undefined;
-  if (node.type === "TRACE") return undefined;
-  if (trace.wholeTraceNodeIds.has(node.id)) return undefined;
+  if (!trace) {
+    return undefined;
+  }
+  if (node.type === "TRACE") {
+    return undefined;
+  }
+  if (trace.wholeTraceNodeIds.has(node.id)) {
+    return undefined;
+  }
   return trace.totals;
 }
 
@@ -72,8 +85,12 @@ export function isEmphasizedShare(
   value: number | Decimal | undefined,
   total: number | Decimal | undefined,
 ): boolean {
-  if (value == null || total == null) return false;
+  if (value == null || total == null) {
+    return false;
+  }
   const totalDecimal = new Decimal(total);
-  if (totalDecimal.lte(0)) return false;
+  if (totalDecimal.lte(0)) {
+    return false;
+  }
   return new Decimal(value).div(totalDecimal).gte(METRIC_EMPHASIS_THRESHOLD);
 }

@@ -31,8 +31,9 @@ describe("events search scope", () => {
       "session_id",
       "promptName",
       "promptVersion",
-    ])
+    ]) {
       expect(registry.resolveField(field)).toBeNull();
+    }
     expect(planCommit("name:checkout", undefined, registry)).toMatchObject({
       status: "committed",
       filters: [

@@ -438,7 +438,9 @@ export class ObservationTypeMapperRegistry {
       "LiveKit_SpanName",
       9,
       (_attributes, _resourceAttributes, scopeData, spanName) => {
-        if (scopeData?.name !== "livekit-agents") return false;
+        if (scopeData?.name !== "livekit-agents") {
+          return false;
+        }
 
         return (
           spanName === "agent_turn" ||
@@ -447,9 +449,12 @@ export class ObservationTypeMapperRegistry {
         );
       },
       (_attributes, _resourceAttributes, _scopeData, spanName) => {
-        if (spanName === "agent_turn" || spanName === "start_agent_activity")
+        if (spanName === "agent_turn" || spanName === "start_agent_activity") {
           return "AGENT";
-        if (spanName === "function_tool") return "TOOL";
+        }
+        if (spanName === "function_tool") {
+          return "TOOL";
+        }
         return null;
       },
     ),

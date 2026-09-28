@@ -39,7 +39,9 @@ const getQueryCacheSnapshot = (
   queryCache: QueryCache,
   queryHashSignature: string,
 ) => {
-  if (!queryHashSignature) return "";
+  if (!queryHashSignature) {
+    return "";
+  }
 
   return queryHashSignature
     .split("\u0000")
@@ -58,7 +60,9 @@ const useQueryCacheEntries = (queryHashSignature: string) => {
     (onStoreChange: () => void) => {
       const queryHashes = new Set(queryHashSignature.split("\u0000"));
       return queryCache.subscribe((event) => {
-        if (queryHashes.has(event.query.queryHash)) onStoreChange();
+        if (queryHashes.has(event.query.queryHash)) {
+          onStoreChange();
+        }
       });
     },
     [queryCache, queryHashSignature],

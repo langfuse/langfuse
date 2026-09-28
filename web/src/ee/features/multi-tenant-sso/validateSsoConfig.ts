@@ -23,7 +23,9 @@ export async function validateSsoConfig(
   payload: SsoProviderSchema,
 ): Promise<void> {
   const issuer = getDiscoveryIssuer(payload);
-  if (!issuer) return;
+  if (!issuer) {
+    return;
+  }
 
   const discoveryUrl = getDiscoveryUrl(issuer);
 
@@ -33,8 +35,9 @@ export async function validateSsoConfig(
     await validateUrls(doc);
     validateDiscoveryIssuer(doc, payload, issuer);
   } catch (error) {
-    if (error instanceof TRPCError)
+    if (error instanceof TRPCError) {
       throw prefixError(`OIDC discovery at ${discoveryUrl}: `, error);
+    }
     throw error;
   }
 }
@@ -148,7 +151,9 @@ async function validateUrls(doc: DiscoveryDoc): Promise<void> {
     "userinfo_endpoint",
   ] as const) {
     const url = doc[key];
-    if (!url) continue;
+    if (!url) {
+      continue;
+    }
     try {
       await validateWebhookURL(url, whitelist, {
         allowedPorts: "any",

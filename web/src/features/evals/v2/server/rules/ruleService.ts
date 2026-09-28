@@ -100,7 +100,9 @@ export class RuleService {
       projectId,
       ruleId,
     });
-    if (!rule) throw new LangfuseNotFoundError("Evaluation rule not found");
+    if (!rule) {
+      throw new LangfuseNotFoundError("Evaluation rule not found");
+    }
     return toRuleResponse(rule);
   }
 
@@ -108,7 +110,9 @@ export class RuleService {
     const result = Object.fromEntries(
       params.ruleIds.map((ruleId) => [ruleId, []]),
     ) as Record<string, Array<{ id: string; level: string; timestamp: Date }>>;
-    if (params.ruleIds.length === 0) return result;
+    if (params.ruleIds.length === 0) {
+      return result;
+    }
 
     const traces = await getRecentRuleExecutionTraces(
       params.projectId,
@@ -148,7 +152,9 @@ export class RuleService {
 
     for (const candidate of candidates) {
       const filter = candidate.filter as FilterState;
-      if (filter.length === 0) continue;
+      if (filter.length === 0) {
+        continue;
+      }
       const key = filterStateKey(filter);
       const group = grouped.get(key) ?? {
         latestRuleId: candidate.id,
@@ -186,7 +192,9 @@ export class RuleService {
       projectId,
       evaluatorIds: [evaluatorId],
     });
-    if (exists !== 1) throw new LangfuseNotFoundError("Evaluator not found");
+    if (exists !== 1) {
+      throw new LangfuseNotFoundError("Evaluator not found");
+    }
     return repository.listRulesForEvaluator({
       prisma: this.prisma,
       projectId,
@@ -215,7 +223,9 @@ export class RuleService {
       prisma: this.prisma,
       projectId: params.projectId,
     });
-    if (!availability.available) return null;
+    if (!availability.available) {
+      return null;
+    }
 
     try {
       const generated = await generateLangfuseAIText({
@@ -317,7 +327,9 @@ export class RuleService {
           filter,
           sampling: input.sampling,
         });
-      if (!matchingRule) return null;
+      if (!matchingRule) {
+        return null;
+      }
 
       if (
         matchingRule.assignments.some(
@@ -335,8 +347,9 @@ export class RuleService {
     };
 
     const existingRule = await attachToMatch();
-    if (existingRule)
+    if (existingRule) {
       return { action: "attached" as const, rule: existingRule };
+    }
 
     const suggestedName = await this.suggestName({
       projectId: input.projectId,
@@ -446,8 +459,9 @@ export class RuleService {
         projectId: input.projectId,
         ruleId: input.ruleId,
       });
-      if (!updated)
+      if (!updated) {
         throw new LangfuseNotFoundError("Evaluation rule not found");
+      }
       return updated;
     });
     await invalidateProjectEvalConfigCaches(input.projectId);
@@ -495,8 +509,9 @@ export class RuleService {
         projectId: params.projectId,
         ruleId: params.ruleId,
       });
-      if (!updated)
+      if (!updated) {
         throw new LangfuseNotFoundError("Evaluation rule not found");
+      }
       return updated;
     });
     await invalidateProjectEvalConfigCaches(params.projectId);
@@ -513,7 +528,9 @@ export class RuleService {
     const deleted = await this.prisma.$transaction((prisma) =>
       repository.deleteRule({ prisma, projectId, ruleId }),
     );
-    if (!deleted) throw new LangfuseNotFoundError("Evaluation rule not found");
+    if (!deleted) {
+      throw new LangfuseNotFoundError("Evaluation rule not found");
+    }
     await invalidateProjectEvalConfigCaches(projectId);
     await this.audit({ action: "delete", projectId, ruleId });
   }
@@ -672,7 +689,9 @@ export class RuleService {
       await this.requireRule(prisma, params.projectId, params.ruleId);
       return repository.detachEvaluator({ prisma, ...params });
     });
-    if (!deleted) throw new LangfuseNotFoundError("Assignment not found");
+    if (!deleted) {
+      throw new LangfuseNotFoundError("Assignment not found");
+    }
     await invalidateProjectEvalConfigCaches(params.projectId);
     const rule = await this.get(params.projectId, params.ruleId);
     await this.audit({
@@ -702,7 +721,9 @@ export class RuleService {
     ruleId: string,
   ) {
     const rule = await repository.findRule({ prisma, projectId, ruleId });
-    if (!rule) throw new LangfuseNotFoundError("Evaluation rule not found");
+    if (!rule) {
+      throw new LangfuseNotFoundError("Evaluation rule not found");
+    }
     return rule;
   }
 
@@ -727,7 +748,9 @@ export class RuleService {
     targetObject: string,
     input: RuleServiceUpdateInput,
   ) {
-    if (!isLegacyEvalTarget(targetObject)) return;
+    if (!isLegacyEvalTarget(targetObject)) {
+      return;
+    }
     if (input.evaluatorMappings !== undefined) {
       this.assertLegacyRuleAssignmentsWritable(targetObject);
     }

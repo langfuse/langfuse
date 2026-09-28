@@ -170,7 +170,9 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   const dashboardOwner = dashboard.data?.owner;
   const viewedDashboardRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!dashboardOwner || viewedDashboardRef.current === dashboardId) return;
+    if (!dashboardOwner || viewedDashboardRef.current === dashboardId) {
+      return;
+    }
     viewedDashboardRef.current = dashboardId;
     capture("dashboard:view", { dashboardId, owner: dashboardOwner });
   }, [capture, dashboardId, dashboardOwner]);
@@ -220,7 +222,9 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     api.dashboard.updateDashboardDefinition.useMutation({
       // Saves are silent; the header shows a spinner while in flight.
       onSuccess: (updatedDashboard, variables) => {
-        if (!clearDraftIfSaved(variables.definition)) return;
+        if (!clearDraftIfSaved(variables.definition)) {
+          return;
+        }
 
         utils.dashboard.getDashboard.setData(
           {
@@ -278,7 +282,9 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
 
   const saveDashboardChanges = useDebounce(
     (definition: { widgets: DashboardPlacement[] }) => {
-      if (!hasCUDAccess) return;
+      if (!hasCUDAccess) {
+        return;
+      }
       updateDashboardDefinition.mutate({
         projectId,
         dashboardId,
@@ -302,7 +308,9 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
 
   // Function to save current filters
   const handleSaveFilters = () => {
-    if (!hasCUDAccess) return;
+    if (!hasCUDAccess) {
+      return;
+    }
 
     updateDashboardFilters.mutate({
       projectId,
@@ -322,7 +330,9 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       // Read through the ref: async callers (paste/duplicate) reach here
       // after a network round-trip.
       const currentDefinition = dashboardDefinitionRef.current;
-      if (!currentDefinition) return;
+      if (!currentDefinition) {
+        return;
+      }
 
       // Find the maximum y position to place the new widget at the bottom
       const maxY =
@@ -376,7 +386,9 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       position?: { x: number; y: number; x_size: number; y_size: number },
     ) => {
       const currentDefinition = dashboardDefinitionRef.current;
-      if (!currentDefinition) return;
+      if (!currentDefinition) {
+        return;
+      }
 
       const maxY =
         currentDefinition.widgets.length > 0
@@ -509,7 +521,9 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       // Don't create a widget row the placement step couldn't attach — a
       // paste firing before the dashboard definition has loaded would
       // otherwise leave an orphan widget in the library.
-      if (!dashboardDefinitionRef.current) return;
+      if (!dashboardDefinitionRef.current) {
+        return;
+      }
       try {
         const result = await createWidgetAsync({
           projectId,
@@ -600,10 +614,14 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   // the clipboard actually holds a Langfuse widget payload and the paste is
   // not aimed at a text input.
   useEffect(() => {
-    if (!hasCUDAccess) return;
+    if (!hasCUDAccess) {
+      return;
+    }
 
     const onPaste = (event: ClipboardEvent) => {
-      if (event.defaultPrevented) return;
+      if (event.defaultPrevented) {
+        return;
+      }
       const target = event.target;
       if (
         target instanceof HTMLElement &&
@@ -612,13 +630,17 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         return;
       }
       const text = event.clipboardData?.getData("text/plain");
-      if (!text) return;
+      if (!text) {
+        return;
+      }
       const parsed = parsePastedWidget(text, { isV4 });
       if (parsed.status === "not-widget") {
         const preset = parsePastedPreset(text);
         // Neither widget nor preset payload: leave the event alone (silent,
         // per spec).
-        if (preset.status === "not-preset") return;
+        if (preset.status === "not-preset") {
+          return;
+        }
         event.preventDefault();
         if (preset.status === "invalid") {
           capture("dashboard:widget_paste_rejected", {
@@ -664,7 +686,9 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   // file's relative layout.
   const handleDashboardImport = useCallback(
     async (imported: ParsedDashboardImport) => {
-      if (!dashboardDefinitionRef.current) return;
+      if (!dashboardDefinitionRef.current) {
+        return;
+      }
       try {
         const widgetPlacements = imported.placements.flatMap((p) =>
           p.type === "widget" ? [p] : [],
@@ -703,7 +727,9 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         // Re-read the definition after the awaits: a drag/delete/paste may
         // have landed while the widgets were being created.
         const currentDefinition = dashboardDefinitionRef.current;
-        if (!currentDefinition) return;
+        if (!currentDefinition) {
+          return;
+        }
         const maxY =
           currentDefinition.widgets.length > 0
             ? Math.max(...currentDefinition.widgets.map((w) => w.y + w.y_size))
@@ -856,33 +882,47 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   const dragDepthRef = useRef(0);
 
   useEffect(() => {
-    if (!hasCUDAccess) return;
+    if (!hasCUDAccess) {
+      return;
+    }
 
     const isFileDrag = (event: DragEvent) =>
       Array.from(event.dataTransfer?.types ?? []).includes("Files");
 
     const onDragEnter = (event: DragEvent) => {
-      if (!isFileDrag(event)) return;
+      if (!isFileDrag(event)) {
+        return;
+      }
       dragDepthRef.current += 1;
       setIsDraggingFile(true);
     };
     const onDragOver = (event: DragEvent) => {
-      if (!isFileDrag(event)) return;
+      if (!isFileDrag(event)) {
+        return;
+      }
       // Required for the drop event to fire.
       event.preventDefault();
     };
     const onDragLeave = (event: DragEvent) => {
-      if (!isFileDrag(event)) return;
+      if (!isFileDrag(event)) {
+        return;
+      }
       dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-      if (dragDepthRef.current === 0) setIsDraggingFile(false);
+      if (dragDepthRef.current === 0) {
+        setIsDraggingFile(false);
+      }
     };
     const onDrop = (event: DragEvent) => {
       dragDepthRef.current = 0;
       setIsDraggingFile(false);
-      if (!isFileDrag(event)) return;
+      if (!isFileDrag(event)) {
+        return;
+      }
       event.preventDefault();
       const file = extractTransferFiles(event.dataTransfer)[0];
-      if (file) handleDroppedFile(file);
+      if (file) {
+        handleDroppedFile(file);
+      }
     };
 
     document.addEventListener("dragenter", onDragEnter);
@@ -1061,7 +1101,9 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   });
 
   const handleCloneDashboard = () => {
-    if (!projectId || !dashboardId) return;
+    if (!projectId || !dashboardId) {
+      return;
+    }
     mutateCloneDashboard.mutate({ projectId, dashboardId });
   };
 
@@ -1134,7 +1176,9 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         };
 
         const handleDeleteWidget = (tileId: string) => {
-          if (!dashboardDefinition) return;
+          if (!dashboardDefinition) {
+            return;
+          }
 
           const updatedDefinition = {
             ...dashboardDefinition,

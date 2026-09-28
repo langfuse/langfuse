@@ -134,8 +134,11 @@ export function SessionTimelineContentMessage({
                   onClick={() =>
                     setExpandedJsonGroupIndices((current) => {
                       const next = new Set(current);
-                      if (isJsonExpanded) next.delete(groupIndex);
-                      else next.add(groupIndex);
+                      if (isJsonExpanded) {
+                        next.delete(groupIndex);
+                      } else {
+                        next.add(groupIndex);
+                      }
                       return next;
                     })
                   }

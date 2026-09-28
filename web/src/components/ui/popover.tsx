@@ -99,7 +99,9 @@ const PopoverController = ({
 }: PopoverControllerProps) => {
   const [isOpen, setIsOpen] = React.useState(false);
   const handleOpenChange = (nextIsOpen: boolean) => {
-    if (nextIsOpen && disabled) return;
+    if (nextIsOpen && disabled) {
+      return;
+    }
 
     setIsOpen(nextIsOpen);
     onOpenChange?.(nextIsOpen);

@@ -492,7 +492,9 @@ const filterStateToListMonitorFilter = (
   state: FilterState,
 ): ListMonitorFilter => {
   const parsed = ListMonitorFilterSchema.safeParse(state);
-  if (!parsed.success) return [];
+  if (!parsed.success) {
+    return [];
+  }
   return parsed.data.map((row) => {
     if (
       row.column === "severity" &&

@@ -151,7 +151,9 @@ export function JSONView(props: {
               // else falls through to the default value rendering.
               customizeNode={({ node }) => {
                 const customNode = props.customizeNode?.(node);
-                if (customNode !== undefined) return customNode;
+                if (customNode !== undefined) {
+                  return customNode;
+                }
                 const descriptor = classifyMediaValue(node);
                 return descriptor ? (
                   <MediaReferenceTag descriptor={descriptor} />

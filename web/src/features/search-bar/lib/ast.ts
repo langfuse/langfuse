@@ -72,8 +72,12 @@ function spanWithin(a: Span, b: Span): boolean {
 
 /** Semantic equality — ignores spans, parens, rawKey/quoted presentation. */
 export function astEquals(a: ASTNode | null, b: ASTNode | null): boolean {
-  if (a === null || b === null) return a === b;
-  if (a.kind !== b.kind) return false;
+  if (a === null || b === null) {
+    return a === b;
+  }
+  if (a.kind !== b.kind) {
+    return false;
+  }
   switch (a.kind) {
     case "filter": {
       const o = b as FilterNode;
@@ -110,7 +114,9 @@ export function astEquals(a: ASTNode | null, b: ASTNode | null): boolean {
 export function removeNodeBySpan(node: ASTNode, target: Span): ASTNode | null {
   const ownSpan =
     node.kind === "and" || node.kind === "or" ? undefined : node.span;
-  if (spanEq(ownSpan, target) || spanEq(node.parenSpan, target)) return null;
+  if (spanEq(ownSpan, target) || spanEq(node.parenSpan, target)) {
+    return null;
+  }
   switch (node.kind) {
     case "filter":
     case "text":
@@ -118,11 +124,15 @@ export function removeNodeBySpan(node: ASTNode, target: Span): ASTNode | null {
       // free-text chip's span covers several text leaves (matching none
       // exactly), and a `-foo` chip's target token span includes the leading
       // dash while the inner text leaf's span does not.
-      if (ownSpan && spanWithin(ownSpan, target)) return null;
+      if (ownSpan && spanWithin(ownSpan, target)) {
+        return null;
+      }
       return node;
     case "not": {
       const child = removeNodeBySpan(node.child, target);
-      if (child === null) return null;
+      if (child === null) {
+        return null;
+      }
       return child === node.child ? node : { ...node, child };
     }
     case "and":
@@ -131,15 +141,24 @@ export function removeNodeBySpan(node: ASTNode, target: Span): ASTNode | null {
       let changed = false;
       for (const c of node.children) {
         const r = removeNodeBySpan(c, target);
-        if (r === null) changed = true;
-        else {
-          if (r !== c) changed = true;
+        if (r === null) {
+          changed = true;
+        } else {
+          if (r !== c) {
+            changed = true;
+          }
           kept.push(r);
         }
       }
-      if (!changed) return node;
-      if (kept.length === 0) return null;
-      if (kept.length === 1) return kept[0]!;
+      if (!changed) {
+        return node;
+      }
+      if (kept.length === 0) {
+        return null;
+      }
+      if (kept.length === 1) {
+        return kept[0]!;
+      }
       return { ...node, children: kept };
     }
   }

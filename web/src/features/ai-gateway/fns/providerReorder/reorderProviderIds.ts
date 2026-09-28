@@ -11,7 +11,9 @@ export function reorderProviderIds(
 
   const nextIds = [...ids];
   const [movedId] = nextIds.splice(sourceIndex, 1);
-  if (!movedId) return ids;
+  if (!movedId) {
+    return ids;
+  }
   nextIds.splice(targetIndex, 0, movedId);
   return nextIds;
 }

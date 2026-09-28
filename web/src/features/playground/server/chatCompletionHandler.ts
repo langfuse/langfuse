@@ -59,10 +59,11 @@ export default async function chatCompletionHandler(req: NextRequest) {
         },
       });
 
-      if (!LLMApiKey)
+      if (!LLMApiKey) {
         throw new InvalidRequestError(
           `No ${modelParams.provider} API key found in project. Please add one in the project settings.`,
         );
+      }
 
       const parsedKey = LLMApiKeySchema.safeParse(LLMApiKey);
       if (!parsedKey.success) {

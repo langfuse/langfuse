@@ -59,7 +59,9 @@ export const usePointerSelectionFocusGuard = () => {
   return {
     markPointerSelection: (event: { detail: number }) => {
       // Keyboard-synthesized clicks carry detail 0; real pointer clicks ≥ 1.
-      if (event.detail > 0) selectedViaPointerRef.current = true;
+      if (event.detail > 0) {
+        selectedViaPointerRef.current = true;
+      }
     },
     onCloseAutoFocus: (event: Event) => {
       if (selectedViaPointerRef.current) {

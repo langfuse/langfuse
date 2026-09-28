@@ -83,7 +83,9 @@ export function useCsvImport(options: UseCsvImportOptions) {
     const { csvFile, projectId, datasetId, input, expectedOutput, metadata } =
       options;
 
-    if (!csvFile) return false;
+    if (!csvFile) {
+      return false;
+    }
     if (csvFile.size > MAX_FILE_SIZE_BYTES) {
       showErrorToast("File too large", "Maximum file size is 10MB");
       return false;

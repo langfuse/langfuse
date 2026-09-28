@@ -149,7 +149,9 @@ function TraceWithSelection({
   // misplaced.
   const detachedIsMisplaced = useMemo(() => {
     const parentId = detachedObservation?.parentObservationId;
-    if (!parentId) return false;
+    if (!parentId) {
+      return false;
+    }
     return !loadedObservations.some((obs) => obs.id === parentId);
   }, [detachedObservation, loadedObservations]);
 

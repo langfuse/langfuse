@@ -103,7 +103,9 @@ export function validateAnalyticsIntegrationUrl(
     );
   }
 
-  if (!isIPAddress(url.hostname)) return;
+  if (!isIPAddress(url.hostname)) {
+    return;
+  }
 
   validateOutboundResolvedIp({
     hostname: url.hostname,
@@ -144,7 +146,9 @@ export function rethrowIfOutboundValidationFailure(
   labels: { logSubject: string; jobSubject: string },
 ): void {
   const validationError = findOutboundUrlValidationError(error);
-  if (!validationError) return;
+  if (!validationError) {
+    return;
+  }
 
   const reason = redactUrlCredentials(validationError.message);
   const description = describeOutboundFailure(validationError);

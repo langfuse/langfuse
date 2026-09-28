@@ -91,7 +91,9 @@ const SimpleMultiSectionViewerInner = forwardRef<
   // Measure scroll container width for sticky headers
   useLayoutEffect(() => {
     const container = scrollContainerRef?.current;
-    if (!container) return;
+    if (!container) {
+      return;
+    }
 
     const updateWidth = () => {
       const newWidth = container.clientWidth;
@@ -112,7 +114,9 @@ const SimpleMultiSectionViewerInner = forwardRef<
 
   // Get all visible nodes
   const allNodes = useMemo(() => {
-    if (!tree) return [];
+    if (!tree) {
+      return [];
+    }
     return getAllVisibleNodes(tree.rootNode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tree, expansionVersion]);
@@ -140,7 +144,9 @@ const SimpleMultiSectionViewerInner = forwardRef<
 
   // Search matches
   const searchMatches = useMemo(() => {
-    if (!searchQuery || !tree) return [];
+    if (!searchQuery || !tree) {
+      return [];
+    }
     return searchInTree(tree, searchQuery);
   }, [tree, searchQuery]);
 
@@ -154,7 +160,9 @@ const SimpleMultiSectionViewerInner = forwardRef<
 
   // Scroll to current match when it changes
   useEffect(() => {
-    if (!currentMatch) return;
+    if (!currentMatch) {
+      return;
+    }
     const element = rowRefs.current.get(currentMatch.rowId);
     if (element) {
       element.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -167,7 +175,9 @@ const SimpleMultiSectionViewerInner = forwardRef<
     () => ({
       scrollToSection: (sectionKey: string) => {
         const container = scrollContainerRef?.current;
-        if (!container) return;
+        if (!container) {
+          return;
+        }
 
         // Find section by data-section-key attribute
         const sectionElement = container.querySelector(

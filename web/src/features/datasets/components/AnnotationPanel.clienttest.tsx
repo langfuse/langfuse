@@ -70,8 +70,9 @@ function ReviewHarness() {
         <button
           key={runId}
           onClick={() => {
-            if (closeRunAnnotation?.(runId))
+            if (closeRunAnnotation?.(runId)) {
               setRuns((current) => current.filter((id) => id !== runId));
+            }
           }}
         >
           Remove {runId}

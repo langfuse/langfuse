@@ -20,7 +20,9 @@ export class OtelIngestionQueue {
   static getShardIndexFromShardName(
     shardName: string | undefined,
   ): number | null {
-    if (!shardName) return null;
+    if (!shardName) {
+      return null;
+    }
 
     // Extract shard index from shard name
     const shardIndex =
@@ -31,7 +33,9 @@ export class OtelIngestionQueue {
             10,
           );
 
-    if (isNaN(shardIndex)) return null;
+    if (isNaN(shardIndex)) {
+      return null;
+    }
     return shardIndex;
   }
 
@@ -105,7 +109,9 @@ export class SecondaryOtelIngestionQueue {
   static getShardIndexFromShardName(
     shardName: string | undefined,
   ): number | null {
-    if (!shardName) return null;
+    if (!shardName) {
+      return null;
+    }
 
     const shardIndex =
       shardName === QueueName.OtelIngestionSecondaryQueue
@@ -115,7 +121,9 @@ export class SecondaryOtelIngestionQueue {
             10,
           );
 
-    if (isNaN(shardIndex)) return null;
+    if (isNaN(shardIndex)) {
+      return null;
+    }
     return shardIndex;
   }
 

@@ -26,7 +26,9 @@ export function TraceDetailBody({
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
 }) {
-  if (!trace) return <Skeleton className="h-full w-full rounded-none" />;
+  if (!trace) {
+    return <Skeleton className="h-full w-full rounded-none" />;
+  }
   return (
     <Trace
       key={keySuffix ? `${trace.id}-${keySuffix}` : trace.id}

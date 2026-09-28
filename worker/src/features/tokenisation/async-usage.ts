@@ -74,13 +74,17 @@ export class TokenCountWorkerManager {
     worker.on("error", (error) => {
       // Terminating workers surface as errors/non-zero exits; don't respawn
       // into a pool we are tearing down.
-      if (this.isShuttingDown) return;
+      if (this.isShuttingDown) {
+        return;
+      }
       logger.error("Worker thread error:", error);
       this.replaceWorker(worker);
     });
 
     worker.on("exit", (code) => {
-      if (this.isShuttingDown) return;
+      if (this.isShuttingDown) {
+        return;
+      }
       if (code !== 0) {
         logger.error(`Worker stopped with exit code ${code}`);
         this.replaceWorker(worker);

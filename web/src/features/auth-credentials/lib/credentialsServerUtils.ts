@@ -35,8 +35,9 @@ export async function createUserEmailPassword(
     adClickIds?: AdClickIds;
   },
 ) {
-  if (!isValidPassword(password))
+  if (!isValidPassword(password)) {
     throw new Error("Password needs to be at least 8 characters long.");
+  }
 
   const hashedPassword = await hashPassword(password);
   // check that no user exists with this email
@@ -78,8 +79,9 @@ export async function consumeEmailOtpAndUpdatePassword({
   token: string;
   password: string;
 }) {
-  if (!isValidPassword(password))
+  if (!isValidPassword(password)) {
     throw new Error("Password needs to be at least 8 characters long.");
+  }
 
   const identifier = email.toLowerCase();
   const hashedToken = hashEmailOtpToken(token);

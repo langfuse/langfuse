@@ -128,7 +128,9 @@ export function resolveEvaluatorMediaTransport(params: {
   configured: EvaluatorMediaTransport | undefined;
   cloudRegion: string | undefined;
 }): EvaluatorMediaTransport {
-  if (params.configured) return params.configured;
+  if (params.configured) {
+    return params.configured;
+  }
   return params.cloudRegion ? "url" : "inline";
 }
 
@@ -145,14 +147,18 @@ async function fetchMediaBytes(
   if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
     throw new Error("Media download exceeds the inline byte limit");
   }
-  if (!response.body) return new Uint8Array();
+  if (!response.body) {
+    return new Uint8Array();
+  }
 
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let byteLength = 0;
   while (true) {
     const { done, value } = await reader.read();
-    if (done) break;
+    if (done) {
+      break;
+    }
     byteLength += value.byteLength;
     if (byteLength > maxBytes) {
       await reader.cancel();
@@ -350,7 +356,9 @@ function buildTraceContent(content: string): string | TraceContentPart[] {
     new RegExp(MEDIA_REFERENCE_PATTERN.source, MEDIA_REFERENCE_PATTERN.flags),
   )) {
     const parsed = MediaReferenceStringSchema.safeParse(match[0]);
-    if (!parsed.success || match.index === undefined) continue;
+    if (!parsed.success || match.index === undefined) {
+      continue;
+    }
     if (match.index > cursor) {
       parts.push({ type: "text", text: content.slice(cursor, match.index) });
     }
@@ -362,7 +370,9 @@ function buildTraceContent(content: string): string | TraceContentPart[] {
     cursor = match.index + match[0].length;
   }
 
-  if (parts.length === 0) return content;
+  if (parts.length === 0) {
+    return content;
+  }
   if (cursor < content.length) {
     parts.push({ type: "text", text: content.slice(cursor) });
   }
@@ -375,13 +385,16 @@ function getSupportedReferences(content: string): SupportedReference[] {
     new RegExp(MEDIA_REFERENCE_PATTERN.source, MEDIA_REFERENCE_PATTERN.flags),
   )) {
     const parsed = MediaReferenceStringSchema.safeParse(match[0]);
-    if (!parsed.success || match.index === undefined) continue;
+    if (!parsed.success || match.index === undefined) {
+      continue;
+    }
     const mediaType = normalizeEvaluatorMediaType(parsed.data.type);
     if (
       !EVALUATOR_MEDIA_TYPES.has(mediaType) ||
       parsed.data.source === OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE
-    )
+    ) {
       continue;
+    }
     references.push({
       index: match.index,
       id: parsed.data.id,

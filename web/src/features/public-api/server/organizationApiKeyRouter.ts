@@ -162,7 +162,9 @@ export const organizationApiKeysRouter = createTRPCRouter({
         },
       });
 
-      if (apiKey.isInAppAgentKey) return false;
+      if (apiKey.isInAppAgentKey) {
+        return false;
+      }
 
       await auditLog({
         session: ctx.session,

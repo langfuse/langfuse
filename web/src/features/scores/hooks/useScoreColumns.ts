@@ -64,7 +64,9 @@ export function createScoreColumns<T extends Record<string, any>>({
         const scoresData: ScoreAggregate = row.getValue(scoreColumnKey) ?? {};
         const value = rawKey ? scoresData[key] : scoresData[accessorKey];
 
-        if (!value) return null;
+        if (!value) {
+          return null;
+        }
 
         return ScoresTableCell({
           aggregate: value,
@@ -130,7 +132,9 @@ export function useScoreColumns<T extends Record<string, any>>({
   );
 
   const scoreColumns = useMemo(() => {
-    if (!scoreColumnsQuery.data?.scoreColumns) return [];
+    if (!scoreColumnsQuery.data?.scoreColumns) {
+      return [];
+    }
 
     return createScoreColumns<T>({
       scoreColumns: withPresentScoreKeys(

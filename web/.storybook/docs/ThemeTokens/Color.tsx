@@ -444,9 +444,12 @@ function renderSample(
           name === "--foreground" ||
           name === "--foreground-secondary" ||
           name === "--foreground-tertiary"
-        )
+        ) {
           base = "--background";
-        if (name === "--muted-foreground") base = "--muted";
+        }
+        if (name === "--muted-foreground") {
+          base = "--muted";
+        }
         return (
           <SurfaceSample background={color(base)} color={color(name)}>
             Aa · The quick brown fox
@@ -817,7 +820,9 @@ export function Color() {
 
   const sectionEntries = new Map<SectionId, typeof rootEntries>();
   for (const entry of rootEntries) {
-    if (pageForToken(entry.name) !== "color") continue; // other pages own these
+    if (pageForToken(entry.name) !== "color") {
+      continue;
+    } // other pages own these
     const matcher = SECTION_MATCHERS.find((m) => m.test(entry.name));
     const section = matcher?.id ?? "other";
     const bucket = sectionEntries.get(section) ?? [];
@@ -860,7 +865,9 @@ export function Color() {
         <InteractionStatesSection ctx={ctx} />
         {VISIBLE_SECTIONS.map(({ id, title, blurb }) => {
           const rows = renderRows(id);
-          if (rows.length === 0) return null;
+          if (rows.length === 0) {
+            return null;
+          }
           return (
             <TokenSection
               key={id}
@@ -876,7 +883,9 @@ export function Color() {
         <div className="flex flex-col gap-6">
           {COLLAPSED_SECTIONS.map(({ id, title, blurb }) => {
             const rows = renderRows(id);
-            if (rows.length === 0) return null;
+            if (rows.length === 0) {
+              return null;
+            }
             return (
               <CollapsedSection
                 key={id}

@@ -103,7 +103,9 @@ export class S3ChunkedUploadStrategy implements ChunkedUploadStrategy {
   }
 
   async abort(reason?: string): Promise<void> {
-    if (!this.uploadId) return;
+    if (!this.uploadId) {
+      return;
+    }
 
     try {
       await this.params.client.send(

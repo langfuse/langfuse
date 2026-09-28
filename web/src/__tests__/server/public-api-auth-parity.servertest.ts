@@ -272,7 +272,9 @@ function matrixCells(routes: Route[]): Cell[] {
       for (const apiKeyKind of apiKeyKinds) {
         for (const { headerKind, headers } of getHeaders(apiKeyKind, route)) {
           const key = `${method} ${route} | ${apiKeyKind}/${headerKind}`;
-          if (streamReadingCells.has(key)) continue;
+          if (streamReadingCells.has(key)) {
+            continue;
+          }
           cells.push({ key, run: () => callRoute(route, method, headers) });
         }
       }
@@ -373,7 +375,9 @@ describe("public-api auth parity", () => {
   it("legacy matches the captured baseline except documented divergences", () => {
     const baseline = { ...matrices.legacy };
     for (const [cell, { legacy }] of Object.entries(divergences)) {
-      if (legacy === undefined) continue;
+      if (legacy === undefined) {
+        continue;
+      }
       expect(baseline[cell]).toBe(legacy);
       delete baseline[cell];
     }
@@ -387,7 +391,9 @@ describe("public-api auth parity", () => {
   it("enforce matches legacy except documented divergences", () => {
     const expected = { ...matrices.legacy };
     for (const [cell, { enforce }] of Object.entries(divergences)) {
-      if (enforce !== undefined) expected[cell] = enforce;
+      if (enforce !== undefined) {
+        expected[cell] = enforce;
+      }
     }
     expect(matrices.enforce).toEqual(expected);
   });

@@ -28,7 +28,9 @@ export function TraceTruncationNotice() {
   // detached row and so the message changes both ways.
   const [dismissedRank, setDismissedRank] = useState(-1);
 
-  if (!truncatedAtObservations) return null;
+  if (!truncatedAtObservations) {
+    return null;
+  }
 
   // The detached row carries no marker of its own (deliberately — a per-row label
   // is noise on every scroll), so this sentence is the ONLY place that can say
@@ -56,7 +58,9 @@ export function TraceTruncationNotice() {
     }
     return 0;
   })();
-  if (rank <= dismissedRank) return null;
+  if (rank <= dismissedRank) {
+    return null;
+  }
 
   return (
     <div className="text-muted-foreground border-border bg-muted/40 flex shrink-0 items-start gap-2 border-b py-1.5 pr-1 pl-2 text-xs">

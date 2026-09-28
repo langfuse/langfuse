@@ -248,7 +248,9 @@ const TurnCard = React.memo(
     return (
       <div
         onClick={(event) => {
-          if (!isTraceLevelIOOnly) return;
+          if (!isTraceLevelIOOnly) {
+            return;
+          }
           if ((event.target as Element).closest("button, [role='button']")) {
             return;
           }
@@ -363,7 +365,9 @@ export function ModernSessionSidebar(
     overscan: OBSERVATION_LIST_OVERSCAN,
     getItemKey: (index) => traces[index]?.trace.id ?? index,
     onChange: (instance) => {
-      if (props.state !== "loaded") return;
+      if (props.state !== "loaded") {
+        return;
+      }
 
       props.onVisibleTraceIdsChange(
         instance.getVirtualItems().flatMap((virtualItem) => {
@@ -656,7 +660,9 @@ export function ModernSessionSidebar(
           >
             {virtualItems.map((virtualItem) => {
               const sidebarTrace = traces[virtualItem.index];
-              if (!sidebarTrace) return null;
+              if (!sidebarTrace) {
+                return null;
+              }
               const { trace } = sidebarTrace;
               const isCollapsed = !expandedTraceIds.has(trace.id);
               const gap = sidebarTrace.idleGapSeconds;

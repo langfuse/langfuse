@@ -240,7 +240,9 @@ export function useScoreAnalyticsQuery(
 
   // Transform data ONCE
   const transformedData = useMemo<ScoreAnalyticsData | null>(() => {
-    if (!apiData) return null;
+    if (!apiData) {
+      return null;
+    }
 
     // Use metadata from backend (authoritative source for mode, isSameScore, dataType)
     const { mode, isSameScore } = apiData.metadata;
@@ -261,8 +263,12 @@ export function useScoreAnalyticsQuery(
       value: string,
     ): "False" | "True" | null => {
       const normalized = value.trim().toLowerCase();
-      if (normalized === "true" || normalized === "1") return "True";
-      if (normalized === "false" || normalized === "0") return "False";
+      if (normalized === "true" || normalized === "1") {
+        return "True";
+      }
+      if (normalized === "false" || normalized === "0") {
+        return "False";
+      }
       return null;
     };
 

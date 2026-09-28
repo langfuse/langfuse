@@ -125,10 +125,14 @@ export function PromptEditorContent({
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
     setActiveMessageId(null);
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id) {
+      return;
+    }
     const fromIndex = state.promptMessageIds.indexOf(String(active.id));
     const toIndex = state.promptMessageIds.indexOf(String(over.id));
-    if (fromIndex < 0 || toIndex < 0) return;
+    if (fromIndex < 0 || toIndex < 0) {
+      return;
+    }
     state.actions.reorderPromptMessage(fromIndex, toIndex);
   };
 

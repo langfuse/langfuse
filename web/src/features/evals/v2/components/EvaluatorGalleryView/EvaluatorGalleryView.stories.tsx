@@ -36,8 +36,11 @@ function StatefulEvaluatorGalleryView(args: EvaluatorGalleryViewProps) {
       onExpandedChange={(key, expanded) => {
         setExpandedSections((current) => {
           const next = new Set(current);
-          if (expanded) next.add(key);
-          else next.delete(key);
+          if (expanded) {
+            next.add(key);
+          } else {
+            next.delete(key);
+          }
           return next;
         });
         args.onExpandedChange(key, expanded);

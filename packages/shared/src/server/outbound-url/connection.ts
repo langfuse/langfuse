@@ -70,7 +70,9 @@ export function getOutboundProxyDispatcher(
   validationOptions: OutboundUrlConnectionValidationOptions,
 ): Dispatcher | undefined {
   const proxyUri = env.HTTPS_PROXY;
-  if (!proxyUri) return undefined;
+  if (!proxyUri) {
+    return undefined;
+  }
 
   // Lowercase wins when both are set, mirroring undici and curl.
   const noProxyValue = env.no_proxy ?? env.NO_PROXY ?? "";
@@ -188,7 +190,9 @@ function getOrCreatePolicyResource<T>(
   createResource: () => T,
 ): T {
   const existingResource = cache.get(policyKey);
-  if (existingResource) return existingResource;
+  if (existingResource) {
+    return existingResource;
+  }
 
   if (cache.size >= OUTBOUND_AGENT_POLICY_LIMIT) {
     // Do not evict existing resources: Agents/Dispatchers own socket pools and

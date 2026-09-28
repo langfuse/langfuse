@@ -77,7 +77,9 @@ export class ChbBillingService {
   }
 
   private toUnixSeconds(value: string | null | undefined): number | null {
-    if (!value) return null;
+    if (!value) {
+      return null;
+    }
     const ms = Date.parse(value);
     return Number.isNaN(ms) ? null : Math.floor(ms / 1000);
   }
@@ -94,18 +96,24 @@ export class ChbBillingService {
     scheduledChange: BillingSubscriptionInfo["scheduledChange"];
   } {
     const scheduled = attachedPlan.scheduled;
-    if (!scheduled) return { cancellation: null, scheduledChange: null };
+    if (!scheduled) {
+      return { cancellation: null, scheduledChange: null };
+    }
 
     const periodEnd = this.toUnixSeconds(attachedPlan.period?.endDate);
 
     if (scheduled.type === "cancel") {
       const cancelAt = this.toUnixSeconds(scheduled.endDate) ?? periodEnd;
-      if (!cancelAt) return { cancellation: null, scheduledChange: null };
+      if (!cancelAt) {
+        return { cancellation: null, scheduledChange: null };
+      }
       return { cancellation: { cancelAt }, scheduledChange: null };
     }
 
     const switchAt = this.toUnixSeconds(scheduled.startDate) ?? periodEnd;
-    if (!switchAt) return { cancellation: null, scheduledChange: null };
+    if (!switchAt) {
+      return { cancellation: null, scheduledChange: null };
+    }
 
     return {
       cancellation: null,
@@ -673,7 +681,9 @@ export class ChbBillingService {
     const attachedPlan = await this.client.getAttachedPlan({
       chOrganizationId,
     });
-    if (!attachedPlan.scheduled) return;
+    if (!attachedPlan.scheduled) {
+      return;
+    }
 
     logger.info("chbBillingService.attachedplan.scheduled.clearBeforeSet", {
       chOrganizationId,

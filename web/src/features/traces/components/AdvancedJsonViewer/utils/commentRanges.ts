@@ -30,7 +30,9 @@ export function getCommentCountForSection(
   sectionKey: string | undefined,
   commentedPathsByField: CommentedPathsByField | undefined,
 ): number {
-  if (!sectionKey || !commentedPathsByField) return 0;
+  if (!sectionKey || !commentedPathsByField) {
+    return 0;
+  }
 
   if (
     sectionKey !== "input" &&
@@ -52,7 +54,9 @@ export function getCommentRangesForRow(
   sectionKey: string | undefined,
   commentedPathsByField: CommentedPathsByField | undefined,
 ): CommentRange[] | undefined {
-  if (!sectionKey || !commentedPathsByField) return undefined;
+  if (!sectionKey || !commentedPathsByField) {
+    return undefined;
+  }
 
   // Type-safe check for valid section keys
   if (

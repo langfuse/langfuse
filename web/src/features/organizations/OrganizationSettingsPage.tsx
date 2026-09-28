@@ -69,7 +69,9 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     organizationId: organization?.id,
   });
 
-  if (!organization) return [];
+  if (!organization) {
+    return [];
+  }
 
   return getOrganizationSettingsPages({
     organization,

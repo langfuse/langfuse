@@ -255,7 +255,9 @@ export default function ObservationsTable({
 
   // Auto-increment refresh tick to force date range recalculation
   useEffect(() => {
-    if (!refreshInterval) return;
+    if (!refreshInterval) {
+      return;
+    }
     const id = setInterval(() => {
       setRefreshTick((t) => t + 1);
     }, refreshInterval);
@@ -1133,7 +1135,9 @@ export default function ObservationsTable({
         createNumberTableColumn<ObservationsTableRow>({
           id: "tokensPerSecond",
           accessorFn: (row) => {
-            if (!row.latency || !row.usage.outputUsage) return null;
+            if (!row.latency || !row.usage.outputUsage) {
+              return null;
+            }
             return row.usage.outputUsage / row.latency;
           },
           header: "Tokens per second",
@@ -1306,7 +1310,9 @@ export default function ObservationsTable({
   };
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
-    if (hideControls) return undefined;
+    if (hideControls) {
+      return undefined;
+    }
     return {
       itemType: "TRACE",
       detailNavigationKey: detailPageListKeys.observations,

@@ -78,16 +78,22 @@ const getCause = (error: unknown): unknown =>
   error instanceof Error ? error.cause : undefined;
 
 const hasReportedFailedFetchMessage = (error: unknown): boolean => {
-  if (!(error instanceof Error)) return false;
+  if (!(error instanceof Error)) {
+    return false;
+  }
 
   return REPORTED_FAILED_FETCH_MESSAGE.test(error.message);
 };
 
 export const isNetworkConnectivityError = (error: unknown): boolean => {
-  if (!(error instanceof TRPCClientError)) return false;
+  if (!(error instanceof TRPCClientError)) {
+    return false;
+  }
 
   // tRPC server errors and infrastructure responses have response metadata.
-  if (error.data || hasResponseMeta(error)) return false;
+  if (error.data || hasResponseMeta(error)) {
+    return false;
+  }
 
   const cause = getCause(error);
 
@@ -313,9 +319,15 @@ const getResponseStatus = (error: TRPCClientError<any>): number | undefined => {
  * which is why `fetchWithParseErrorStatus` exists.
  */
 export const isTrpcResponseParseError = (error: unknown): boolean => {
-  if (!(error instanceof TRPCClientError)) return false;
-  if (error.data) return false;
-  if (!(getCause(error) instanceof SyntaxError)) return false;
+  if (!(error instanceof TRPCClientError)) {
+    return false;
+  }
+  if (error.data) {
+    return false;
+  }
+  if (!(getCause(error) instanceof SyntaxError)) {
+    return false;
+  }
   const status = getResponseStatus(error);
   return status === undefined || !REQUEST_TOO_LARGE_STATUSES.includes(status);
 };
@@ -368,8 +380,12 @@ export const sendAsPostOption = {
 export const shouldSendQueryAsPost = (
   op: Pick<Operation, "type" | "path" | "input" | "context">,
 ): boolean => {
-  if (op.context.sendAsPost === true) return true;
-  if (op.type !== "query") return false;
+  if (op.context.sendAsPost === true) {
+    return true;
+  }
+  if (op.type !== "query") {
+    return false;
+  }
   try {
     return getApproxTrpcGetUrlBytes(op.path, op.input) > MAX_TRPC_GET_URL_BYTES;
   } catch {
@@ -396,7 +412,9 @@ const getErrorHash = (error: unknown): string => {
     const path = (error.data as { path?: string })?.path;
     const code = error.data?.httpStatus;
 
-    if (path && code) return `${path}::${code}`;
+    if (path && code) {
+      return `${path}::${code}`;
+    }
   }
 
   if (error instanceof Error) {
@@ -411,7 +429,9 @@ const getErrorHash = (error: unknown): string => {
  * @returns `true` if a toast should be shown, `false` if it should be suppressed.
  */
 const shouldShowToast = (error: unknown): boolean => {
-  if (typeof window === "undefined") return true;
+  if (typeof window === "undefined") {
+    return true;
+  }
 
   const errorHash = getErrorHash(error);
 
@@ -519,7 +539,9 @@ export const reportNonTrpcError = (
   area: string,
   extra?: Record<string, unknown>,
 ): void => {
-  if (error instanceof TRPCClientError) return;
+  if (error instanceof TRPCClientError) {
+    return;
+  }
   reportError(error, { area, extra });
 };
 
@@ -552,9 +574,13 @@ export const reportTrpcErrorWithoutToast = (
 // not only when a stale chunk 404s. Exported so tests can inject an observed
 // build id without going through the tRPC link.
 export const captureBuildId = (response: unknown) => {
-  if (!(response instanceof Response)) return;
+  if (!(response instanceof Response)) {
+    return;
+  }
   const observed = response.headers.get("x-build-id");
-  if (!observed) return;
+  if (!observed) {
+    return;
+  }
   versionUpdateStore.reportObservedBuildId(observed);
 };
 

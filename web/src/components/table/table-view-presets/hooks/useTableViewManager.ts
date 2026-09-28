@@ -95,7 +95,9 @@ const hasQueryParam = (
   key: (typeof IMPLICIT_VIEW_BLOCKING_QUERY_PARAMS)[number],
 ) => {
   const value = query[key];
-  if (Array.isArray(value)) return value.length > 0;
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
   return value !== undefined && value !== "";
 };
 
@@ -186,8 +188,9 @@ export function useTableViewManager({
       options?: { force?: boolean },
     ) => {
       const viewId = selectedViewIdRef.current;
-      if (!viewId || (!options?.force && isEqual(previousValue, nextValue)))
+      if (!viewId || (!options?.force && isEqual(previousValue, nextValue))) {
         return;
+      }
       const columnsApplied = storedViewIdRef.current === viewId;
       handleSetViewId(null, { updateType: "replaceIn" });
       setViewUpdateTarget({ viewId, columnsApplied });
@@ -228,9 +231,15 @@ export function useTableViewManager({
   // Single resolve effect: walk priority list and either return early (pending) or initialize.
   // `selectedViewId` (use-query-params state) is the single source of truth for bootstrap/fetch.
   useEffect(() => {
-    if (disabled) return;
-    if (isInitialized) return;
-    if (!isRouterReady) return;
+    if (disabled) {
+      return;
+    }
+    if (isInitialized) {
+      return;
+    }
+    if (!isRouterReady) {
+      return;
+    }
 
     // Clear stale frontend-only system presets from the URL first (they are
     // defined in code, not the DB, so there is nothing to fetch).
@@ -271,7 +280,9 @@ export function useTableViewManager({
 
     // Resolve the default before restoring session state so a stored default
     // can use replace semantics.
-    if (isDefaultLoading) return;
+    if (isDefaultLoading) {
+      return;
+    }
 
     // Priority 1: Session storage (from a previous visit to this table)
     if (
@@ -365,7 +376,9 @@ export function useTableViewManager({
         );
       }
 
-      if (setOrderByRef.current) setOrderByRef.current(validOrderBy);
+      if (setOrderByRef.current) {
+        setOrderByRef.current(validOrderBy);
+      }
 
       const filtersAlreadyApplied = isEqual(currentFilterState, validFilters);
 
@@ -424,8 +437,9 @@ export function useTableViewManager({
       if (
         viewData.columnVisibility &&
         Object.keys(viewData.columnVisibility).length > 0
-      )
+      ) {
         setColumnVisibility(viewData.columnVisibility);
+      }
 
       // Applying a view discards drafts; leaving a view while editing preserves them.
       setFilterEditorResetKey((key) => key + 1);
@@ -501,11 +515,19 @@ export function useTableViewManager({
   );
 
   useEffect(() => {
-    if (disabled) return;
-    if (!isSelectedViewSuccess || !selectedViewData) return;
+    if (disabled) {
+      return;
+    }
+    if (!isSelectedViewSuccess || !selectedViewData) {
+      return;
+    }
     const requestedViewId = selectedViewId;
-    if (!requestedViewId) return;
-    if (isInitializedRef.current) return;
+    if (!requestedViewId) {
+      return;
+    }
+    if (isInitializedRef.current) {
+      return;
+    }
     // Explicit URL state is authoritative and the view is deliberately not
     // applied over it — guard here too (not just via the query `enabled`) so
     // cached view data can never apply the view on the first render regardless
@@ -515,8 +537,12 @@ export function useTableViewManager({
       setIsLoading(false);
       return;
     }
-    if (selectedViewIdRef.current !== requestedViewId) return;
-    if (selectedViewData.id !== requestedViewId) return;
+    if (selectedViewIdRef.current !== requestedViewId) {
+      return;
+    }
+    if (selectedViewData.id !== requestedViewId) {
+      return;
+    }
     if (!isViewApplicableToTable(tableName, selectedViewData.tableName)) {
       handleSetViewId(null, { updateType: "replaceIn" });
       return;
@@ -528,7 +554,9 @@ export function useTableViewManager({
     // session-restore), `defaultViewId` is still undefined here and a
     // default-view restore would be mislabeled `permalink` — permanently, since
     // the `isInitializedRef` guard makes this a one-shot (LFE-10781 review).
-    if (isDefaultLoading) return;
+    if (isDefaultLoading) {
+      return;
+    }
 
     // Track permalink visit
     capture("saved_views:permalink_visit", {
@@ -577,12 +605,22 @@ export function useTableViewManager({
   ]);
 
   useEffect(() => {
-    if (disabled) return;
-    if (!isSelectedViewError || !selectedViewError) return;
+    if (disabled) {
+      return;
+    }
+    if (!isSelectedViewError || !selectedViewError) {
+      return;
+    }
     const requestedViewId = selectedViewId;
-    if (!requestedViewId) return;
-    if (isInitializedRef.current) return;
-    if (selectedViewIdRef.current !== requestedViewId) return;
+    if (!requestedViewId) {
+      return;
+    }
+    if (isInitializedRef.current) {
+      return;
+    }
+    if (selectedViewIdRef.current !== requestedViewId) {
+      return;
+    }
 
     isInitializedRef.current = true;
     setIsInitialized(true);

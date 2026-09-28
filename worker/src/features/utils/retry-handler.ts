@@ -20,14 +20,18 @@ const getLLMQueueRetryTargetOffsetSeconds = ({
   maxRetryAttempts: number;
   maxAgeSeconds: number;
 }) => {
-  if (attempt < 1 || attempt > maxRetryAttempts) return 0;
+  if (attempt < 1 || attempt > maxRetryAttempts) {
+    return 0;
+  }
 
   const firstRetryDelaySeconds = Math.min(
     LLM_QUEUE_RETRY_FIRST_DELAY_SECONDS,
     maxAgeSeconds / maxRetryAttempts,
   );
 
-  if (maxRetryAttempts === 1) return firstRetryDelaySeconds;
+  if (maxRetryAttempts === 1) {
+    return firstRetryDelaySeconds;
+  }
 
   // With the default 4 retries over 120m this is roughly 5m, 43m, 82m, 120m.
   const retryProgress = (attempt - 1) / (maxRetryAttempts - 1);

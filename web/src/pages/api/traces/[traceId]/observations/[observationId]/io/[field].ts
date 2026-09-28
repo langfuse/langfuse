@@ -166,13 +166,19 @@ export default withMiddlewares({
       // drain — but race drain against `close`, or a disconnect mid-drain would
       // never settle (`once(res,"drain")` alone hangs on socket close).
       for await (const chunk of stream) {
-        if (clientClosed) break;
+        if (clientClosed) {
+          break;
+        }
         if (res.write(chunk) === false) {
           await Promise.race([once(res, "drain"), closed]);
-          if (clientClosed) break;
+          if (clientClosed) {
+            break;
+          }
         }
       }
-      if (!clientClosed) res.end();
+      if (!clientClosed) {
+        res.end();
+      }
     } catch (error) {
       // Mid-stream ClickHouse/transport failure after headers were sent. Abort
       // the socket (res.destroy, not a clean res.end) so the client's fetch

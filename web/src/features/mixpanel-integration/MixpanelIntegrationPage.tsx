@@ -418,8 +418,9 @@ const MixpanelIntegrationSettingsForm = ({
               confirm(
                 "Are you sure you want to reset the Mixpanel integration for this project?",
               )
-            )
+            ) {
               mutDelete.mutate({ projectId });
+            }
           }}
         >
           Reset

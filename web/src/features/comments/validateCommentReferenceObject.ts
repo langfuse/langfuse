@@ -41,7 +41,9 @@ export const validateCommentReferenceObject = async ({
           startTime: objectStartTime ?? undefined,
         });
       } catch (e) {
-        if (!(e instanceof LangfuseNotFoundError) || !objectStartTime) throw e;
+        if (!(e instanceof LangfuseNotFoundError) || !objectStartTime) {
+          throw e;
+        }
         commentTarget = await getObservation({ id: objectId, projectId });
       }
       break;

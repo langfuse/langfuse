@@ -22,7 +22,9 @@ const INTERACTIVE_ROW_CLICK_SELECTOR =
   "a, button, input, select, textarea, summary, [role='button'], [role='link']";
 
 function shouldIgnoreRowClickTarget(target: EventTarget | null) {
-  if (!(target instanceof Element)) return false;
+  if (!(target instanceof Element)) {
+    return false;
+  }
   return Boolean(target.closest(INTERACTIVE_ROW_CLICK_SELECTOR));
 }
 
@@ -65,7 +67,9 @@ export function Table<TData extends object>({
   rowHeight,
 }: TableProps<TData>) {
   const tableColumns = useMemo<ColumnDef<TData>[]>(() => {
-    if (!actions) return columns;
+    if (!actions) {
+      return columns;
+    }
 
     return [
       ...columns,
@@ -143,7 +147,9 @@ export function Table<TData extends object>({
                       ? column.header
                       : undefined;
                   let ariaSort: React.AriaAttributes["aria-sort"];
-                  if (isSortable) ariaSort = "none";
+                  if (isSortable) {
+                    ariaSort = "none";
+                  }
                   if (isSorted && orderBy.order === "ASC") {
                     ariaSort = "ascending";
                   }
@@ -325,12 +331,18 @@ export function Table<TData extends object>({
                   )}
                   tabIndex={onRowClick ? 0 : undefined}
                   onClick={(event) => {
-                    if (shouldIgnoreRowClickTarget(event.target)) return;
+                    if (shouldIgnoreRowClickTarget(event.target)) {
+                      return;
+                    }
                     onRowClick?.(row.original, event);
                   }}
                   onKeyDown={(event) => {
-                    if (event.key !== "Enter") return;
-                    if (shouldIgnoreRowClickTarget(event.target)) return;
+                    if (event.key !== "Enter") {
+                      return;
+                    }
+                    if (shouldIgnoreRowClickTarget(event.target)) {
+                      return;
+                    }
                     onRowClick?.(row.original);
                   }}
                 >

@@ -54,7 +54,9 @@ async function layoutGraph() {
   const elk = new ELK();
   const groupedNodes = new Map<string, typeof graph.nodes>();
   for (const node of graph.nodes) {
-    if (node.group === null) continue;
+    if (node.group === null) {
+      continue;
+    }
     groupedNodes.set(node.group, [
       ...(groupedNodes.get(node.group) ?? []),
       node,
@@ -113,7 +115,9 @@ async function layoutGraph() {
   for (const node of result.children ?? []) {
     if (!node.id.startsWith("group:")) {
       const graphNode = graphNodes.get(node.id);
-      if (!graphNode) continue;
+      if (!graphNode) {
+        continue;
+      }
       nodes.push({
         ...graphNode,
         x: node.x ?? 0,
@@ -133,7 +137,9 @@ async function layoutGraph() {
     });
     for (const child of node.children ?? []) {
       const graphNode = graphNodes.get(child.id);
-      if (!graphNode) continue;
+      if (!graphNode) {
+        continue;
+      }
       nodes.push({
         ...graphNode,
         x: x + (child.x ?? 0),
@@ -149,7 +155,9 @@ async function layoutGraph() {
   );
   const edges = (result.edges ?? []).flatMap((edge) => {
     const section = edge.sections?.[0];
-    if (!section) return [];
+    if (!section) {
+      return [];
+    }
     const offset = edge.container
       ? (groupOffsets.get(edge.container) ?? { x: 0, y: 0 })
       : { x: 0, y: 0 };
@@ -197,7 +205,9 @@ export function ComponentRelationshipGraph() {
   useEffect(() => {
     let active = true;
     layoutGraph().then((nextLayout) => {
-      if (active) setLayout(nextLayout);
+      if (active) {
+        setLayout(nextLayout);
+      }
     });
     return () => {
       active = false;
@@ -206,7 +216,9 @@ export function ComponentRelationshipGraph() {
 
   useEffect(() => {
     const svg = svgRef.current;
-    if (!svg) return;
+    if (!svg) {
+      return;
+    }
     select(svg).call(zoomBehavior);
     return () => {
       select(svg).on(".zoom", null);
@@ -214,7 +226,9 @@ export function ComponentRelationshipGraph() {
   }, [layout, zoomBehavior]);
 
   const resetZoom = () => {
-    if (!svgRef.current) return;
+    if (!svgRef.current) {
+      return;
+    }
     select(svgRef.current).call(zoomBehavior.transform, zoomIdentity);
   };
 

@@ -18,7 +18,9 @@ export const shouldShowEvalTemplate = (
   template: Partial<Pick<EvalTemplate, "type" | "sourceCodeLanguage">>,
   codeEvalCapabilities: CodeEvalCapabilities,
 ) => {
-  if (!isCodeEvalTemplate(template)) return true;
+  if (!isCodeEvalTemplate(template)) {
+    return true;
+  }
 
   return (
     codeEvalCapabilities.enabled &&
@@ -35,7 +37,11 @@ export const CODE_EVAL_ESCAPE_CONFIRM_MESSAGE =
   "Close code editor? Unsaved changes will be lost.";
 
 export function resolveCodeEvalTarget(target: EvalTargetObject) {
-  if (target === EvalTargetObject.TRACE) return EvalTargetObject.EVENT;
-  if (target === EvalTargetObject.DATASET) return EvalTargetObject.EXPERIMENT;
+  if (target === EvalTargetObject.TRACE) {
+    return EvalTargetObject.EVENT;
+  }
+  if (target === EvalTargetObject.DATASET) {
+    return EvalTargetObject.EXPERIMENT;
+  }
   return target;
 }

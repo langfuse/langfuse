@@ -52,7 +52,9 @@ const clampWidthFraction = (fraction: number) =>
 // the plain fraction when there's no window).
 export function resolveDefaultWidthFraction(): number {
   const vw = typeof window === "undefined" ? 0 : window.innerWidth;
-  if (vw <= 0) return PEEK_DEFAULT_WIDTH_FRACTION;
+  if (vw <= 0) {
+    return PEEK_DEFAULT_WIDTH_FRACTION;
+  }
   return Math.max(
     PEEK_MIN_WIDTH_FRACTION,
     Math.min(PEEK_DEFAULT_WIDTH_FRACTION, PEEK_MAX_DEFAULT_WIDTH_PX / vw),
@@ -65,12 +67,16 @@ export function resolveDefaultWidthFraction(): number {
 // tree↔info split can size its default against the real peek width without
 // re-measuring the DOM.
 export function resolveEffectiveWidthFraction(): number {
-  if (typeof window === "undefined") return PEEK_DEFAULT_WIDTH_FRACTION;
+  if (typeof window === "undefined") {
+    return PEEK_DEFAULT_WIDTH_FRACTION;
+  }
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (typeof parsed === "number") return clampWidthFraction(parsed);
+      if (typeof parsed === "number") {
+        return clampWidthFraction(parsed);
+      }
     }
   } catch {
     // Fall through to the default on any read/parse failure.
@@ -79,7 +85,9 @@ export function resolveEffectiveWidthFraction(): number {
 }
 
 function writeStoredWidthFraction(fraction: number): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined") {
+    return;
+  }
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(fraction));
   } catch {

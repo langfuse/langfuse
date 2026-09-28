@@ -115,8 +115,12 @@ export const TemplateSelector = ({
         const partnerB = templateB.partner;
 
         // No partner comes before partner
-        if (!partnerA && partnerB) return -1;
-        if (partnerA && !partnerB) return 1;
+        if (!partnerA && partnerB) {
+          return -1;
+        }
+        if (partnerA && !partnerB) {
+          return 1;
+        }
 
         // Sort by name within each group
         return templateA.name.localeCompare(templateB.name);
@@ -379,7 +383,9 @@ export const TemplateSelector = ({
                 <InputCommandGroup forceMount>
                   <InputCommandItem
                     onSelect={() => {
-                      if (disabled) return;
+                      if (disabled) {
+                        return;
+                      }
                       window.open(
                         `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/evals/templates/new`,
                         "_blank",
@@ -392,7 +398,9 @@ export const TemplateSelector = ({
                   {!hasDefaultModel && (
                     <InputCommandItem
                       onSelect={() => {
-                        if (disabled) return;
+                        if (disabled) {
+                          return;
+                        }
                         window.open(
                           `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/evals/default-model`,
                           "_blank",

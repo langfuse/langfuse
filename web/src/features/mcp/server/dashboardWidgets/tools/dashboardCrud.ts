@@ -99,18 +99,20 @@ const requirePlacementIds = (
   placement: z.infer<typeof placementCreateBaseSchema>,
   ctx: z.RefinementCtx,
 ) => {
-  if (placement.type === "widget" && !placement.widgetId)
+  if (placement.type === "widget" && !placement.widgetId) {
     ctx.addIssue({
       code: "custom",
       path: ["widgetId"],
       message: "widgetId is required for widget placements",
     });
-  if (placement.type === "preset" && !placement.presetId)
+  }
+  if (placement.type === "preset" && !placement.presetId) {
     ctx.addIssue({
       code: "custom",
       path: ["presetId"],
       message: "presetId is required for preset placements",
     });
+  }
 };
 const requirePatchField =
   (idKeys: string[]) =>
@@ -118,11 +120,12 @@ const requirePatchField =
     const patchKeys = Object.keys(value).filter(
       (key) => !idKeys.includes(key) && value[key] !== undefined,
     );
-    if (patchKeys.length === 0)
+    if (patchKeys.length === 0) {
       ctx.addIssue({
         code: "custom",
         message: "At least one field is required",
       });
+    }
   };
 // Extract the placement fields from an MCP add-placement input (which also
 // carries dashboardId).

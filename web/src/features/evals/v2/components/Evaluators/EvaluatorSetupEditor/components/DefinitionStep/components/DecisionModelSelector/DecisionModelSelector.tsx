@@ -75,7 +75,9 @@ export function DecisionModelSelector({
         options={options}
         onValueChange={(value) => {
           const separatorIndex = value.indexOf(SEPARATOR);
-          if (separatorIndex === -1) return;
+          if (separatorIndex === -1) {
+            return;
+          }
           selectModel({
             provider: value.slice(0, separatorIndex),
             model: value.slice(separatorIndex + SEPARATOR.length),

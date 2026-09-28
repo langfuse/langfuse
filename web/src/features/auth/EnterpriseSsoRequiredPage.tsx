@@ -60,7 +60,9 @@ export default function EnterpriseSsoRequiredPage() {
       : undefined;
 
   const friendlyProviderName = useMemo(() => {
-    if (!attemptedProvider) return undefined;
+    if (!attemptedProvider) {
+      return undefined;
+    }
     return (
       PROVIDER_LABELS[attemptedProvider] ?? attemptedProvider.replace(/-/g, " ")
     );

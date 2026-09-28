@@ -35,7 +35,9 @@ function asSingleValue(value: string | string[] | undefined) {
 }
 
 function asArrayValue(value: string | string[] | undefined) {
-  if (!value) return [];
+  if (!value) {
+    return [];
+  }
   return Array.isArray(value) ? value : [value];
 }
 
@@ -68,11 +70,15 @@ function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
   // holds until the redirect lands.
   const redirectAfterToggle = (enabled: boolean): Promise<unknown> | void => {
     const projectId = asSingleValue(router.query.projectId);
-    if (!projectId) return;
+    if (!projectId) {
+      return;
+    }
 
     if (!enabled) {
       const redirect = getV4PreviewDisabledRedirect(router.pathname, projectId);
-      if (redirect) return router.push(redirect);
+      if (redirect) {
+        return router.push(redirect);
+      }
       return;
     }
 

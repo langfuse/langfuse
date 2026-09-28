@@ -65,7 +65,9 @@ const SLACK_FIELD_TEXT_LIMIT = 2000;
 const FEEDBACK_SLACK_TIMEOUT_MS = 5_000;
 
 const truncateForSlack = (value: string, maxLength: number): string => {
-  if (value.length <= maxLength) return value;
+  if (value.length <= maxLength) {
+    return value;
+  }
   return `${value.slice(0, Math.max(0, maxLength - 14))}\n[truncated]`;
 };
 
@@ -85,7 +87,9 @@ const appendPlainTextSection = (
   label: string,
   value: string | undefined,
 ) => {
-  if (!value) return;
+  if (!value) {
+    return;
+  }
 
   blocks.push(
     {

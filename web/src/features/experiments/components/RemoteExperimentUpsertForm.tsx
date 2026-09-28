@@ -175,7 +175,9 @@ export const RemoteExperimentUpsertForm = ({
       {};
     for (const [index, header] of data.headers.entries()) {
       const name = header.name.trim();
-      if (!name) continue;
+      if (!name) {
+        continue;
+      }
       if (WebhookProtectedHeaders.includes(name.toLowerCase())) {
         form.setError(`headers.${index}.name`, {
           message: `"${name}" is set by Langfuse and cannot be overridden`,

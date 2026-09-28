@@ -494,7 +494,9 @@ async function ingestEventsToQueue(jsonlPath: string): Promise<void> {
   });
 
   for await (const line of ingestRl) {
-    if (!line.trim()) continue;
+    if (!line.trim()) {
+      continue;
+    }
 
     try {
       const event: JsonOutputItem = JSON.parse(line);
@@ -644,7 +646,9 @@ async function ingestEventsToOtelQueue(otelJsonlPath: string): Promise<void> {
   });
 
   for await (const line of ingestRl) {
-    if (!line.trim()) continue;
+    if (!line.trim()) {
+      continue;
+    }
 
     try {
       const event: OTelJsonOutputItem = JSON.parse(line);

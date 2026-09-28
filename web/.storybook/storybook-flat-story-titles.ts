@@ -36,7 +36,9 @@ function groupedStoryTitle(
     const directory = normalizePath(group.directory).replace(/^\/+|\/+$/g, "");
     const directoryMarker = `/${directory}/`;
     const directoryIndex = normalizedFileName.indexOf(directoryMarker);
-    if (directoryIndex === -1) continue;
+    if (directoryIndex === -1) {
+      continue;
+    }
 
     const relativeFileName = normalizedFileName.slice(
       directoryIndex + directoryMarker.length,
@@ -81,7 +83,9 @@ function findMetaObject(code: string, fileName: string) {
   let metaObject: ts.ObjectLiteralExpression | undefined;
 
   const visit = (node: ts.Node) => {
-    if (metaObject) return;
+    if (metaObject) {
+      return;
+    }
 
     if (
       ts.isCallExpression(node) &&
@@ -127,7 +131,9 @@ function addFlatStoryTitle(
   groups: readonly StoryTitleGroup[],
 ) {
   const metaObject = assertNoExplicitStoryTitle(code, fileName);
-  if (!metaObject) return null;
+  if (!metaObject) {
+    return null;
+  }
 
   const componentTitle = flatStoryTitle(fileName, groups);
   const insertionPoint = metaObject.getStart() + 1;
@@ -153,7 +159,9 @@ export function flattenStoryIndexTitles(
 
         return entries.map((entry) => {
           const componentTitle = entry.title?.split("/").at(-1);
-          if (!componentTitle) return entry;
+          if (!componentTitle) {
+            return entry;
+          }
 
           const title =
             groupedStoryTitle(groups, fileName, componentTitle) ??
@@ -180,7 +188,9 @@ export function flatStoryTitlesPlugin(groups: readonly StoryTitleGroup[] = []) {
     enforce: "pre",
     transform(code, id) {
       const [fileName] = id.split("?");
-      if (!fileName || !STORY_FILE_PATTERN.test(fileName)) return null;
+      if (!fileName || !STORY_FILE_PATTERN.test(fileName)) {
+        return null;
+      }
 
       return addFlatStoryTitle(code, fileName, groups);
     },

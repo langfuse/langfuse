@@ -11,7 +11,9 @@ export class CreateEvalQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.CreateEvalQueue]
   > | null {
-    if (CreateEvalQueue.instance) return CreateEvalQueue.instance;
+    if (CreateEvalQueue.instance) {
+      return CreateEvalQueue.instance;
+    }
 
     const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
       QueueName.CreateEvalQueue,

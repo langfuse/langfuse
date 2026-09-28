@@ -119,7 +119,9 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
   }
 
   async function handleDelete() {
-    if (!existingLlmSchema) return;
+    if (!existingLlmSchema) {
+      return;
+    }
 
     await deleteLlmSchema.mutateAsync({
       id: existingLlmSchema.id,

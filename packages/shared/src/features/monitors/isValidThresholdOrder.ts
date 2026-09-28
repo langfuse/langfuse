@@ -9,7 +9,9 @@ export const isValidThresholdOrder = (monitor: {
   alertThreshold: number;
   warningThreshold: number | null;
 }): { valid: true } | { valid: false; reason: string } => {
-  if (monitor.warningThreshold == null) return { valid: true };
+  if (monitor.warningThreshold == null) {
+    return { valid: true };
+  }
   switch (monitor.thresholdOperator) {
     case "GT":
     case "GTE":

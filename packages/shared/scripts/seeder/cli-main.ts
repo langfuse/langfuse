@@ -65,7 +65,9 @@ const baseUrl = (process.env.NEXTAUTH_URL ?? "http://localhost:3000").replace(
 );
 
 const truncateDescription = (text: string, maxLen = 100): string => {
-  if (text.length <= maxLen) return text;
+  if (text.length <= maxLen) {
+    return text;
+  }
   const cut = text.slice(0, maxLen);
   const lastSpace = cut.lastIndexOf(" ");
   // Keep at least 60% of the budget before bailing on the word boundary, so
@@ -185,7 +187,9 @@ const main = async (): Promise<number> => {
 
   // pnpm forwards the "--" separator itself; strip leading occurrences.
   let argv = process.argv.slice(2);
-  while (argv[0] === "--") argv = argv.slice(1);
+  while (argv[0] === "--") {
+    argv = argv.slice(1);
+  }
   const command = argv[0];
 
   if (
@@ -276,7 +280,9 @@ const main = async (): Promise<number> => {
     });
     params = coerceValues(allFlags, values);
   } catch (error) {
-    if (error instanceof SeedError) throw error;
+    if (error instanceof SeedError) {
+      throw error;
+    }
     throw new SeedError(
       (error as Error).message,
       "run `pnpm run seed -- list` to see supported flags",
@@ -293,7 +299,9 @@ const main = async (): Promise<number> => {
     dryRun: params["dry-run"] === true,
     baseUrl,
     log: (message) => {
-      if (!jsonOnly) console.error(`[seed:${scenario.name}] ${message}`);
+      if (!jsonOnly) {
+        console.error(`[seed:${scenario.name}] ${message}`);
+      }
     },
   };
 
@@ -325,7 +333,9 @@ export const run = async (): Promise<void> => {
   } catch (error) {
     if (error instanceof SeedError) {
       console.error(`error: ${error.message}`);
-      if (error.fix) console.error(`fix:   ${error.fix}`);
+      if (error.fix) {
+        console.error(`fix:   ${error.fix}`);
+      }
     } else {
       console.error(error);
     }

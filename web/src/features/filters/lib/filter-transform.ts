@@ -95,13 +95,17 @@ export function getColumnOptionsForFilterRow<
   filterColumn: string | undefined,
   hiddenUnlessSelected: readonly string[] = [],
 ): T[] {
-  if (hiddenUnlessSelected.length === 0) return columns;
+  if (hiddenUnlessSelected.length === 0) {
+    return columns;
+  }
 
   const hidden = new Set(hiddenUnlessSelected);
   return columns.filter((option) => {
     const isHiddenUnlessSelected =
       hidden.has(option.id) || hidden.has(option.name);
-    if (!isHiddenUnlessSelected) return true;
+    if (!isHiddenUnlessSelected) {
+      return true;
+    }
 
     return (
       option.id === filterColumn ||

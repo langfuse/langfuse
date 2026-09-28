@@ -33,8 +33,11 @@ export function deactivationReason(
   fieldReason?: (field: string) => string | null,
   freeTextReason?: string | null,
 ): string | null {
-  if (segment.kind === "filter")
+  if (segment.kind === "filter") {
     return fieldReason?.(segment.displayField) ?? null;
-  if (segment.kind === "freeText") return freeTextReason ?? null;
+  }
+  if (segment.kind === "freeText") {
+    return freeTextReason ?? null;
+  }
   return null;
 }

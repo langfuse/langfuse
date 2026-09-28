@@ -34,7 +34,9 @@ export function ConnectedWebCalloutSettingsTable({
   });
 
   const data = useMemo<AsyncTableData<WebCalloutEndpoint[]>>(() => {
-    if (endpoints.isLoading) return { status: "loading" };
+    if (endpoints.isLoading) {
+      return { status: "loading" };
+    }
     if (endpoints.isError) {
       return {
         status: "error",

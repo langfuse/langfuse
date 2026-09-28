@@ -466,7 +466,9 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
     traceId,
   ]);
 
-  if (renderMenu) return renderMenu(items);
+  if (renderMenu) {
+    return renderMenu(items);
+  }
 
   return (
     <DropdownMenu items={items} maxHeight="24rem" placement="bottom-start">

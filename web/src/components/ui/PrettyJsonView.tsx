@@ -123,7 +123,9 @@ export {
 } from "@/src/utils/decodeUnicodeInJson";
 
 function shouldShowValue(value: unknown, showNullValues: boolean): boolean {
-  if (showNullValues) return true;
+  if (showNullValues) {
+    return true;
+  }
   return value !== null && value !== "" && value !== 0;
 }
 
@@ -131,7 +133,9 @@ function filterTableRows(
   rows: JsonTableRow[],
   showNullValues: boolean,
 ): JsonTableRow[] {
-  if (showNullValues) return rows;
+  if (showNullValues) {
+    return rows;
+  }
 
   return rows
     .filter((row) => shouldShowValue(row.value, showNullValues))
@@ -144,9 +148,15 @@ function filterTableRows(
 }
 
 function getEmptyValueDisplay(value: unknown): string | null {
-  if (value === null) return "null";
-  if (value === undefined) return "undefined";
-  if (value === "") return "empty string";
+  if (value === null) {
+    return "null";
+  }
+  if (value === undefined) {
+    return "undefined";
+  }
+  if (value === "") {
+    return "empty string";
+  }
   if (
     typeof value === "object" &&
     value !== null &&
@@ -179,7 +189,9 @@ function getContainerClasses(
 }
 
 function isChatMLFormat(json: unknown): boolean {
-  if (!json || typeof json !== "object") return false;
+  if (!json || typeof json !== "object") {
+    return false;
+  }
 
   if (Array.isArray(json)) {
     const directArray = ChatMlArraySchema.safeParse(json);
@@ -198,12 +210,16 @@ function isChatMLFormat(json: unknown): boolean {
 
   if ("messages" in json && Array.isArray((json as any).messages)) {
     const messagesArray = ChatMlArraySchema.safeParse((json as any).messages);
-    if (messagesArray.success) return true;
+    if (messagesArray.success) {
+      return true;
+    }
   }
 
   if (Array.isArray(json) && json.length === 1 && Array.isArray(json[0])) {
     const nestedArray = ChatMlArraySchema.safeParse(json[0]);
-    if (nestedArray.success) return true;
+    if (nestedArray.success) {
+      return true;
+    }
   }
 
   return false;
@@ -250,9 +266,15 @@ function isMarkdownContent(
 }
 
 function getValueType(value: unknown): JsonTableRow["type"] {
-  if (value === null) return "null";
-  if (value === undefined) return "undefined";
-  if (Array.isArray(value)) return "array";
+  if (value === null) {
+    return "null";
+  }
+  if (value === undefined) {
+    return "undefined";
+  }
+  if (Array.isArray(value)) {
+    return "array";
+  }
   return typeof value as JsonTableRow["type"];
 }
 
@@ -773,7 +795,9 @@ export function PrettyJsonView(props: {
   // unvirtualized render we protect against does not run during parse anyway,
   // so fall through to the normal loading/parsing state in that window.
   const largeStringValue = useMemo(() => {
-    if (props.isParsing) return null;
+    if (props.isParsing) {
+      return null;
+    }
     const settled =
       props.parsedJson !== undefined ? props.parsedJson : props.json;
     return isLargeRenderString(settled) ? settled : null;
@@ -822,8 +846,12 @@ export function PrettyJsonView(props: {
   // while hidden via display:none). Pass a deep clone so the two views stay
   // independent.
   const jsonViewInput = useMemo(() => {
-    if (parsedJson === null || parsedJson === undefined) return props.json;
-    if (typeof parsedJson !== "object") return parsedJson;
+    if (parsedJson === null || parsedJson === undefined) {
+      return props.json;
+    }
+    if (typeof parsedJson !== "object") {
+      return parsedJson;
+    }
     return structuredClone(parsedJson);
   }, [parsedJson, props.json]);
 
@@ -835,12 +863,19 @@ export function PrettyJsonView(props: {
   // false or empty object = collapsed, true or object with keys = expanded
   const deriveJsonCollapsedFromExternal = useCallback(
     (extState: Record<string, boolean> | boolean | undefined): boolean => {
-      if (extState === undefined) return false; // default: not collapsed
-      if (extState === false) return true; // explicitly collapsed
-      if (extState === true) return false; // explicitly expanded
-      // empty object = collapsed (user collapsed all)
-      if (typeof extState === "object" && Object.keys(extState).length === 0)
+      if (extState === undefined) {
+        return false;
+      } // default: not collapsed
+      if (extState === false) {
         return true;
+      } // explicitly collapsed
+      if (extState === true) {
+        return false;
+      } // explicitly expanded
+      // empty object = collapsed (user collapsed all)
+      if (typeof extState === "object" && Object.keys(extState).length === 0) {
+        return true;
+      }
       return false; // has keys = not collapsed
     },
     [],
@@ -955,7 +990,9 @@ export function PrettyJsonView(props: {
 
   // state precedence: external state before smart expansion
   const finalExpansionState: ExpandedState = useMemo(() => {
-    if (baseTableData.length === 0) return {};
+    if (baseTableData.length === 0) {
+      return {};
+    }
 
     if (props.externalExpansionState === false) {
       // user collapsed all
@@ -1005,7 +1042,9 @@ export function PrettyJsonView(props: {
 
   // actual expansion state used by the table (combines initial + user changes)
   const actualExpansionState = useMemo(() => {
-    if (finalExpansionState === true) return true;
+    if (finalExpansionState === true) {
+      return true;
+    }
 
     // Ensure both states are objects with fallback
     const finalState = (finalExpansionState as Record<string, boolean>) || {};
@@ -1177,7 +1216,9 @@ export function PrettyJsonView(props: {
   };
 
   const hasExpandableRows = useMemo(() => {
-    if (typeof parsedJson !== "object" || parsedJson === null) return false;
+    if (typeof parsedJson !== "object" || parsedJson === null) {
+      return false;
+    }
     return Object.values(parsedJson as Record<string, unknown>).some((value) =>
       hasChildren(value, getValueType(value)),
     );

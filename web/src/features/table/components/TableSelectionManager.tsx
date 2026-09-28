@@ -125,7 +125,9 @@ function SelectionRowCheckbox<TData>({
       }
       return next;
     });
-    if (!nextSelected) setSelectAll(false);
+    if (!nextSelected) {
+      setSelectAll(false);
+    }
   };
 
   return (
@@ -138,7 +140,9 @@ function SelectionRowCheckbox<TData>({
       }}
       onMouseDown={(e) => {
         // prevent text selection between rows on shift-click
-        if (e.shiftKey) e.preventDefault();
+        if (e.shiftKey) {
+          e.preventDefault();
+        }
       }}
     >
       <Checkbox
@@ -182,7 +186,9 @@ function SelectionRowCheckbox<TData>({
           }
 
           row.toggleSelected(!!value);
-          if (!value) setSelectAll(false);
+          if (!value) {
+            setSelectAll(false);
+          }
         }}
         aria-label="Select row"
       />

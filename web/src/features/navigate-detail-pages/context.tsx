@@ -61,7 +61,9 @@ export function useFirstDetailPageListEntry<
   TEntry extends ListEntry = ListEntry,
 >(key: string | undefined): TEntry | undefined {
   const { detailPagelists } = useDetailPageLists();
-  if (!key) return undefined;
+  if (!key) {
+    return undefined;
+  }
   return detailPagelists[key]?.[0] as TEntry | undefined;
 }
 

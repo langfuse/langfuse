@@ -141,7 +141,9 @@ function DatasetCompareRunsTableInternal(props: {
       enableHiding: true,
       defaultHidden: true,
       getCell: (id) => {
-        if (!id) return undefined;
+        if (!id) {
+          return undefined;
+        }
         return {
           type: "link",
           props: {

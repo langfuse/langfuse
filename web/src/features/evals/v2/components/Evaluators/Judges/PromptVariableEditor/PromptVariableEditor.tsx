@@ -253,14 +253,17 @@ export function PromptVariableEditor({
             onToolbarClick && "cursor-pointer",
           )}
           onClick={(event) => {
-            if (!onToolbarClick) return;
+            if (!onToolbarClick) {
+              return;
+            }
             const target = event.target as HTMLElement;
             if (
               target.closest(
                 "button, a, input, label, [role='button'], [role='menuitem'], [role='switch']",
               )
-            )
+            ) {
               return;
+            }
             onToolbarClick();
           }}
         >

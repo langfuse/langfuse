@@ -10,7 +10,9 @@ export class ScoreDeleteQueue {
   public static getInstance(): Queue<
     TQueueJobTypes[QueueName.ScoreDelete]
   > | null {
-    if (ScoreDeleteQueue.instance) return ScoreDeleteQueue.instance;
+    if (ScoreDeleteQueue.instance) {
+      return ScoreDeleteQueue.instance;
+    }
 
     const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
       QueueName.ScoreDelete,

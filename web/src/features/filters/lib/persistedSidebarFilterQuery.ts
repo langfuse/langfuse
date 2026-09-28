@@ -38,12 +38,16 @@ export function createPersistedSidebarFilterQueryState(
 function parsePersistedSidebarFilterQueryState(
   rawState: string | null,
 ): PersistedSidebarFilterQueryState | null {
-  if (!rawState) return null;
+  if (!rawState) {
+    return null;
+  }
 
   try {
     const parsed = JSON.parse(rawState) as unknown;
 
-    if (!parsed || typeof parsed !== "object") return null;
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
 
     const contextId = (() => {
       if ("contextId" in parsed && typeof parsed.contextId === "string") {
@@ -59,7 +63,9 @@ function parsePersistedSidebarFilterQueryState(
         ? parsed.query
         : undefined;
 
-    if (contextId === undefined || query === undefined) return null;
+    if (contextId === undefined || query === undefined) {
+      return null;
+    }
 
     return { contextId, query };
   } catch {
@@ -72,7 +78,9 @@ export function getPersistedSidebarFilterQueryForContext(params: {
   contextId: string | null;
 }): string {
   const { state, contextId } = params;
-  if (!state) return "";
+  if (!state) {
+    return "";
+  }
   return state.contextId === contextId ? state.query : "";
 }
 
@@ -81,7 +89,9 @@ export function readPersistedSidebarFilterQuery(params: {
   contextId: string | null;
 }): string {
   const { storageKey, contextId } = params;
-  if (typeof window === "undefined") return "";
+  if (typeof window === "undefined") {
+    return "";
+  }
 
   const persistedState = parsePersistedSidebarFilterQueryState(
     sessionStorage.getItem(storageKey),

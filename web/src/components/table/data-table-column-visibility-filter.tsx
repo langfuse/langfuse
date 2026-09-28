@@ -174,7 +174,9 @@ function ColumnVisibilityListItem<TData, TValue>({
           id={checkboxId}
           checked={isChecked || isLocked}
           onCheckedChange={() => {
-            if (!isLocked) toggleColumn(column.accessorKey);
+            if (!isLocked) {
+              toggleColumn(column.accessorKey);
+            }
           }}
           disabled={isLocked}
         />
@@ -321,8 +323,9 @@ function setAllColumns<TData, TValue>(
     columns.forEach((col) => {
       if (groupName && col.header === groupName && col.columns) {
         col.columns.forEach((subCol) => {
-          if (subCol.enableHiding)
+          if (subCol.enableHiding) {
             newColumnVisibility[subCol.accessorKey] = visible;
+          }
         });
       } else if (!groupName && col.enableHiding) {
         newColumnVisibility[col.accessorKey] = visible;
@@ -505,7 +508,9 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                     const column = columns.find(
                       (col) => col.accessorKey === columnId,
                     );
-                    if (!column) return null;
+                    if (!column) {
+                      return null;
+                    }
 
                     if (!!column.columns && column.columns.length > 0) {
                       // Column groups

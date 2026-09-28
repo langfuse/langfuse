@@ -43,7 +43,9 @@ function LangfuseRefMediaTag({
     descriptor.source === OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE;
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
-    if (nextOpen) setArmed(true);
+    if (nextOpen) {
+      setArmed(true);
+    }
   };
 
   return (

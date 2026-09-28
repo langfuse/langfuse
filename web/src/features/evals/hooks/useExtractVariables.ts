@@ -74,7 +74,9 @@ export function useExtractVariables({
 
   // Handle error toasts separately to avoid repeated toasts on re-renders
   useEffect(() => {
-    if (!extractionError) return;
+    if (!extractionError) {
+      return;
+    }
     const title =
       extractionError.kind === "jsonPath"
         ? "Invalid JSONPath in variable mapping"

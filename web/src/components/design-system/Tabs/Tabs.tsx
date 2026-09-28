@@ -136,16 +136,22 @@ function TabsList({
   const hasSlidingIndicator = variant !== "underline";
 
   React.useLayoutEffect(() => {
-    if (!hasSlidingIndicator) return;
+    if (!hasSlidingIndicator) {
+      return;
+    }
 
     const list = listRef.current;
     const indicator = indicatorRef.current;
-    if (!list || !indicator) return;
+    if (!list || !indicator) {
+      return;
+    }
 
     let frame: number | undefined;
     let readyFrame: number | undefined;
     const updateIndicator = () => {
-      if (frame !== undefined) cancelAnimationFrame(frame);
+      if (frame !== undefined) {
+        cancelAnimationFrame(frame);
+      }
       frame = requestAnimationFrame(() => {
         const activeTrigger = list.querySelector<HTMLElement>(
           '[role="tab"][data-state="active"]',
@@ -161,7 +167,9 @@ function TabsList({
           triggerOffset += offsetElement.offsetLeft;
           offsetElement = offsetElement.offsetParent as HTMLElement | null;
         }
-        if (offsetElement !== list) return;
+        if (offsetElement !== list) {
+          return;
+        }
 
         indicator.style.width = `${activeTrigger.offsetWidth}px`;
         indicator.style.transform = `translateX(${triggerOffset}px)`;
@@ -213,8 +221,12 @@ function TabsList({
     updateIndicator();
 
     return () => {
-      if (frame !== undefined) cancelAnimationFrame(frame);
-      if (readyFrame !== undefined) cancelAnimationFrame(readyFrame);
+      if (frame !== undefined) {
+        cancelAnimationFrame(frame);
+      }
+      if (readyFrame !== undefined) {
+        cancelAnimationFrame(readyFrame);
+      }
       resizeObserver?.disconnect();
       mutationObserver.disconnect();
     };

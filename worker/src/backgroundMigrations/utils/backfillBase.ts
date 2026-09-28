@@ -367,7 +367,9 @@ async function recoverInProgressTodos<T extends BaseChunkTodo>(
   const inProgress = todos.filter(
     (t) => t.status === "in_progress" && t.queryId,
   );
-  if (inProgress.length === 0) return [];
+  if (inProgress.length === 0) {
+    return [];
+  }
 
   logger.info(
     `${logPrefix} Recovering ${inProgress.length} in-progress chunks`,
@@ -540,7 +542,9 @@ export abstract class ChunkedClickhouseBackfillMigration<
 
     for (let attempt = 0; ; attempt++) {
       const missing = await this.findFirstMissingTable();
-      if (!missing) break;
+      if (!missing) {
+        break;
+      }
       if (attempt >= attempts) {
         return {
           valid: false,
@@ -645,13 +649,17 @@ export abstract class ChunkedClickhouseBackfillMigration<
 
     while (!this.isAborted && !this.haltError) {
       await this.pollActiveQueries(active, state, config);
-      if (this.isAborted || this.haltError) break;
+      if (this.isAborted || this.haltError) {
+        break;
+      }
 
       await this.fillFreeSlots(active, state, config);
 
       const outstanding =
         active.size > 0 || state.todos.some((t) => t.status === "pending");
-      if (!outstanding) break;
+      if (!outstanding) {
+        break;
+      }
 
       await sleep(config.pollIntervalMs);
     }
@@ -711,7 +719,9 @@ export abstract class ChunkedClickhouseBackfillMigration<
         continue;
       }
 
-      if (status === "running") continue;
+      if (status === "running") {
+        continue;
+      }
 
       active.delete(queryId);
       state.activeQueries = state.activeQueries.filter((q) => q !== queryId);
@@ -754,7 +764,9 @@ export abstract class ChunkedClickhouseBackfillMigration<
   ): Promise<void> {
     while (active.size < config.concurrency) {
       const next = state.todos.find((t) => t.status === "pending");
-      if (!next) return;
+      if (!next) {
+        return;
+      }
 
       next.status = "in_progress";
       next.queryId = generateQueryId(next.id);

@@ -194,7 +194,9 @@ function buildScoreColumnSummaries({
   comparisonExperimentId?: string;
 }): Map<string, ScoreColumnSummary> {
   const summaries = new Map<string, ScoreColumnSummary>();
-  if (!primaryExperimentId) return summaries;
+  if (!primaryExperimentId) {
+    return summaries;
+  }
 
   const scoresFor = (row: ExperimentItemsTableRow, experimentId?: string) =>
     experimentId
@@ -244,7 +246,9 @@ const shouldEnableExperimentPeek = (props: {
 const formatScoreAggregateValue = (
   aggregate?: AggregatedScoreData | null,
 ): string => {
-  if (!aggregate) return "nothing";
+  if (!aggregate) {
+    return "nothing";
+  }
   return aggregate.type === "NUMERIC"
     ? aggregate.average.toFixed(2)
     : (aggregate.values[0] ?? "nothing");
@@ -376,10 +380,14 @@ const matchesExpectedOutput = (
   output: string | null | undefined,
   expectedOutput: string | null | undefined,
 ): boolean | null => {
-  if (!output || !expectedOutput) return null;
+  if (!output || !expectedOutput) {
+    return null;
+  }
   const left = output.trim();
   const right = expectedOutput.trim();
-  if (left !== right) return false;
+  if (left !== right) {
+    return false;
+  }
   const mayBeTruncated =
     output.length >= EXPERIMENT_IO_TRUNCATE_LENGTH ||
     expectedOutput.length >= EXPERIMENT_IO_TRUNCATE_LENGTH;
@@ -573,7 +581,9 @@ export default function ExperimentItemsTable({
       experimentId: string,
     ) => {
       // A real control inside the cell (a link, a button) owns its own click.
-      if (shouldIgnoreRowClickTarget(event.target)) return;
+      if (shouldIgnoreRowClickTarget(event.target)) {
+        return;
+      }
       // Otherwise the row handler would win and re-open the baseline.
       event.stopPropagation();
       openPeekRef.current?.(row.itemId, {
@@ -692,8 +702,12 @@ export default function ExperimentItemsTable({
   // Group filters by their target experiment (defaults to baseline)
   const filtersByExperiment = useMemo(() => {
     const filterState = queryFilter.filterState;
-    if (filterState.length === 0) return [];
-    if (!defaultFilterTargetExperimentId) return [];
+    if (filterState.length === 0) {
+      return [];
+    }
+    if (!defaultFilterTargetExperimentId) {
+      return [];
+    }
 
     // Group filters by target experiment
     const grouped: Record<string, FilterState> = {};
@@ -739,7 +753,9 @@ export default function ExperimentItemsTable({
         }
       }
 
-      if (originalIndex < 0) return;
+      if (originalIndex < 0) {
+        return;
+      }
       viewControllersRef.current?.handleUserStateChange(
         filterTargets[originalIndex] ?? defaultFilterTargetExperimentId,
         toExperimentId,
@@ -773,7 +789,9 @@ export default function ExperimentItemsTable({
         }
       }
 
-      if (originalIndex < 0) return;
+      if (originalIndex < 0) {
+        return;
+      }
       // Remove the filter from queryFilter
       const newFilters = filterState.filter((_, idx) => idx !== originalIndex);
       queryFilterRef.current.setFilterState(newFilters);
@@ -843,7 +861,9 @@ export default function ExperimentItemsTable({
   // the keys the items query actually returned. Undefined while items load, so
   // columns don't disappear and come back on each fetch.
   const presentScoreKeys = useMemo(() => {
-    if (items.status !== "success") return undefined;
+    if (items.status !== "success") {
+      return undefined;
+    }
     const experimentsInView = (items.rows ?? []).flatMap(
       (row) => row.experiments,
     );
@@ -971,7 +991,9 @@ export default function ExperimentItemsTable({
         comparisonIds,
         source,
       });
-      if (props) capture("experiment:item_regression_filter_applied", props);
+      if (props) {
+        capture("experiment:item_regression_filter_applied", props);
+      }
     },
     [capture, comparisonIds],
   );
@@ -981,8 +1003,12 @@ export default function ExperimentItemsTable({
   // type), and never again — it is a shared view, not an action.
   const hasReportedUrlScoreFilters = useRef(false);
   useEffect(() => {
-    if (hasReportedUrlScoreFilters.current) return;
-    if (isFilterOptionsLoading) return;
+    if (hasReportedUrlScoreFilters.current) {
+      return;
+    }
+    if (isFilterOptionsLoading) {
+      return;
+    }
     hasReportedUrlScoreFilters.current = true;
     for (const filter of scoreComparisonFilters) {
       captureScoreComparisonFilter({
@@ -1103,7 +1129,9 @@ export default function ExperimentItemsTable({
                           hasOrder={dataType !== "CATEGORICAL"}
                           active={activeComparisonFilter}
                           onSelect={(operator, comparisonExperimentId) => {
-                            if (!key) return;
+                            if (!key) {
+                              return;
+                            }
                             const nextFilter = {
                               level,
                               scoreKey: key,
@@ -1161,7 +1189,9 @@ export default function ExperimentItemsTable({
                   const scoresData = exp[scoreField] ?? {};
                   const value = scoresData[scoreKey];
 
-                  if (!value) return <EmptyValue />;
+                  if (!value) {
+                    return <EmptyValue />;
+                  }
 
                   const mockRow = {
                     getValue: (key: string) =>
@@ -1314,9 +1344,13 @@ export default function ExperimentItemsTable({
     format: (value: number) => string;
     verb: "cost" | "took";
   }) => {
-    if (!showComparisonDiff || exp.experimentId === baselineId) return null;
+    if (!showComparisonDiff || exp.experimentId === baselineId) {
+      return null;
+    }
     const diff = calculateNumericDiff(value, baselineValue);
-    if (!diff) return null;
+    if (!diff) {
+      return null;
+    }
     return (
       <DiffLabel
         variant="ghost"
@@ -1616,11 +1650,15 @@ export default function ExperimentItemsTable({
     ): ScoreMatrixRow[] =>
       scoreCols.flatMap((scoreCol) => {
         const accessorKey = scoreCol.accessorKey;
-        if (!accessorKey || columnVisibility[accessorKey] === false) return [];
+        if (!accessorKey || columnVisibility[accessorKey] === false) {
+          return [];
+        }
         const scoreKey = accessorKey.replace(/^Trace-/, "");
         const dataType =
           scoreDataTypesByKey[scoreFieldForLevel(level)].get(scoreKey);
-        if (!dataType) return [];
+        if (!dataType) {
+          return [];
+        }
         return [
           {
             scoreKey,
@@ -1749,7 +1787,9 @@ export default function ExperimentItemsTable({
   };
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
-    if (!canUsePeek) return undefined;
+    if (!canUsePeek) {
+      return undefined;
+    }
     return {
       itemType: "TRACE",
       detailNavigationKey: "experiment-items",
@@ -1762,7 +1802,9 @@ export default function ExperimentItemsTable({
   // so the movement a comparison filter was built from stays readable while
   // that filter is applied.
   const unfilteredRows: ExperimentItemsTableRow[] = useMemo(() => {
-    if (items.status !== "success" || !items.rows) return [];
+    if (items.status !== "success" || !items.rows) {
+      return [];
+    }
     // Add 'id' field for DataTable row identification (peek view requires it)
     return items.rows.map((row) => ({ ...row, id: row.itemId }));
   }, [items]);
@@ -1851,11 +1893,14 @@ export default function ExperimentItemsTable({
   );
 
   const scoreComparisonEmptyMessage = useMemo(() => {
-    if (rows.length > 0 || (items.rows ?? []).length === 0) return undefined;
-    if (scoreComparisonPills.length !== 1)
+    if (rows.length > 0 || (items.rows ?? []).length === 0) {
+      return undefined;
+    }
+    if (scoreComparisonPills.length !== 1) {
       return scoreComparisonPills.length > 1
         ? "No item on this page matches every score comparison."
         : undefined;
+    }
     const [pill] = scoreComparisonPills;
     return describeEmptyScoreComparison({
       operator: pill.filter.operator,
@@ -1891,7 +1936,9 @@ export default function ExperimentItemsTable({
   const exampleObservation = useMemo(() => {
     // Find first experiment with a non-null observationId from selected rows
     for (const row of rows ?? []) {
-      if (!selectedRows[row.itemId]) continue;
+      if (!selectedRows[row.itemId]) {
+        continue;
+      }
       for (const exp of row.experiments) {
         if (exp.observationId && exp.traceId) {
           return {

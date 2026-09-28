@@ -90,9 +90,15 @@ function handleWorkerError(event: ErrorEvent) {
 }
 
 function getLayoutWorker(): LayoutWorker | null {
-  if (workerUnavailable) return null;
-  if (typeof window === "undefined" || !window.Worker) return null;
-  if (active) return active;
+  if (workerUnavailable) {
+    return null;
+  }
+  if (typeof window === "undefined" || !window.Worker) {
+    return null;
+  }
+  if (active) {
+    return active;
+  }
   try {
     const worker = new Worker(
       new URL("@/src/workers/elk-layout.worker.ts", import.meta.url),
@@ -133,7 +139,9 @@ function dispatch(entry: PendingLayout, target: LayoutWorker) {
  */
 function settle(id: string, finish: (entry: PendingLayout) => void) {
   const entry = pending.get(id);
-  if (!entry) return;
+  if (!entry) {
+    return;
+  }
   pending.delete(id);
   clearTimeout(entry.timer);
   finish(entry);
@@ -149,17 +157,24 @@ function restartWorker() {
   pending.clear();
   active?.worker.terminate();
   active = null;
-  if (carried.length === 0) return;
+  if (carried.length === 0) {
+    return;
+  }
   const target = getLayoutWorker();
   for (const entry of carried) {
-    if (target) dispatch(entry, target);
-    else layoutWithoutWorker(entry.request).then(entry.resolve, entry.reject);
+    if (target) {
+      dispatch(entry, target);
+    } else {
+      layoutWithoutWorker(entry.request).then(entry.resolve, entry.reject);
+    }
   }
 }
 
 function cancel(id: string) {
   const entry = pending.get(id);
-  if (!entry) return; // already answered
+  if (!entry) {
+    return;
+  } // already answered
   pending.delete(id);
   clearTimeout(entry.timer);
   // ALWAYS terminate, however young the run is. Letting a just-started layout
@@ -174,7 +189,9 @@ function cancel(id: string) {
 
 function onDeadline(id: string) {
   const entry = pending.get(id);
-  if (!entry) return;
+  if (!entry) {
+    return;
+  }
   pending.delete(id);
   restartWorker();
   entry.resolve(refusedLayout(entry.request));
@@ -198,10 +215,14 @@ export function requestGraphLayout(
   // it keeps the posted payload to the deduped graph — postMessage's structured
   // clone is main-thread work too.
   const prepared = prepareGraphLayout(graph, nodeToObservationsMap, direction);
-  if (prepared.kind === "layout") return Promise.resolve(prepared.layout);
+  if (prepared.kind === "layout") {
+    return Promise.resolve(prepared.layout);
+  }
 
   const target = getLayoutWorker();
-  if (!target) return layoutWithoutWorker(prepared.request);
+  if (!target) {
+    return layoutWithoutWorker(prepared.request);
+  }
 
   return new Promise<GraphLayout>((resolve, reject) => {
     const id = String(++requestCounter);

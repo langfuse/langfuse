@@ -3,10 +3,14 @@ import { registeredProviders } from "../../conventions";
 /** `role`/`content` are the universal message keys; every other container
  * key is provider vocabulary contributed via `messageLikeKeys`. */
 export function isMessageLike(value: Record<string, unknown>): boolean {
-  if ("role" in value || "content" in value) return true;
+  if ("role" in value || "content" in value) {
+    return true;
+  }
   return registeredProviders.some((provider) => {
     for (const key of provider.messageLikeKeys ?? []) {
-      if (key in value) return true;
+      if (key in value) {
+        return true;
+      }
     }
     return false;
   });

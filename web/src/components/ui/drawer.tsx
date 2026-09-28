@@ -282,9 +282,13 @@ const DrawerController = <State = void,>({
       {...drawerProps}
       open={controllerState.active}
       onOpenChange={(open) => {
-        if (onOpenChange?.(open) === false) return;
+        if (onOpenChange?.(open) === false) {
+          return;
+        }
 
-        if (open) return;
+        if (open) {
+          return;
+        }
         closeDrawer();
       }}
     >

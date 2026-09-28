@@ -70,7 +70,9 @@ export const SlackTestMessageButton: React.FC<SlackTestMessageButtonProps> = ({
 
   // Handle test message
   const handleTestMessage = async () => {
-    if (!selectedChannel) return;
+    if (!selectedChannel) {
+      return;
+    }
 
     try {
       await testMessageMutation.mutateAsync({

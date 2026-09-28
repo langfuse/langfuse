@@ -131,10 +131,11 @@ function SkillsList({
   });
 
   let tableData: AsyncTableData<SkillRow[]> = { status: "loading" };
-  if (skills.isError)
+  if (skills.isError) {
     tableData = { status: "error", error: skills.error.message };
-  else if (skills.data)
+  } else if (skills.data) {
     tableData = { status: "success", data: skills.data.data };
+  }
   const hasFilters = Boolean(searchQuery) || queryFilter.filterState.length > 0;
   const isEmptyProject =
     skills.data?.meta.totalItems === 0 &&

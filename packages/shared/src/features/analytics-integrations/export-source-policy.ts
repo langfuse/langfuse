@@ -57,7 +57,9 @@ function cutoffFromEnv(
   override: string | undefined,
   fallbackIso: string,
 ): Date {
-  if (!override) return new Date(fallbackIso);
+  if (!override) {
+    return new Date(fallbackIso);
+  }
   const parsed = new Date(override);
   return isNaN(parsed.getTime()) ? new Date(fallbackIso) : parsed;
 }
@@ -144,8 +146,12 @@ export function isLegacyExporter(
   isCloud: boolean,
   exporterCutoff: Date = LEGACY_BLOB_EXPORTER_CUTOFF,
 ): boolean {
-  if (!isCloud) return true;
-  if (integrationCreatedAt == null) return false;
+  if (!isCloud) {
+    return true;
+  }
+  if (integrationCreatedAt == null) {
+    return false;
+  }
   return integrationCreatedAt < exporterCutoff;
 }
 

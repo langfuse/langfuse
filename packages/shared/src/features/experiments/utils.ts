@@ -9,8 +9,9 @@ export const datasetItemMatchesVariable = (
     input === undefined ||
     typeof input !== "object" ||
     Array.isArray(input)
-  )
+  ) {
     return false;
+  }
   return Object.keys(input).includes(variable);
 };
 

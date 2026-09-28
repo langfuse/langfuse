@@ -46,9 +46,13 @@ const sumForProject = (
 
 const isAuthorized = (req: NextRequest, apiKey: string): boolean => {
   const authHeader = req.headers.get("authorization");
-  if (!authHeader) return false;
+  if (!authHeader) {
+    return false;
+  }
   const [scheme, token] = authHeader.split(" ");
-  if (scheme !== "Bearer" || !token) return false;
+  if (scheme !== "Bearer" || !token) {
+    return false;
+  }
   try {
     // timingSafeEqual throws on different input lengths, handle accordingly
     return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(apiKey));

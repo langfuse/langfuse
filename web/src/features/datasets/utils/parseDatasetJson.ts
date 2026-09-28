@@ -8,7 +8,9 @@ export function isDatasetJsonParseFailure(
   value: string,
   parsed: unknown = parseDatasetJson(value),
 ): boolean {
-  if (value === "") return false;
+  if (value === "") {
+    return false;
+  }
 
   return (
     parsed === value && parsed !== undefined && !isJsonNumberLiteral(value)
@@ -16,10 +18,14 @@ export function isDatasetJsonParseFailure(
 }
 
 export function isValidDatasetJson(value: string): boolean {
-  if (value === "") return true;
+  if (value === "") {
+    return true;
+  }
 
   const parsed = parseDatasetJson(value);
-  if (parsed === undefined) return false;
+  if (parsed === undefined) {
+    return false;
+  }
 
   return !isDatasetJsonParseFailure(value, parsed);
 }

@@ -86,7 +86,9 @@ export function renderTranscript(
 
   const clip = (raw: string, maxChars: number, block: TranscriptBlockType) => {
     let text = redactInlineMedia(raw);
-    if (config.collapseWhitespace) text = text.replace(/\s+/g, " ").trim();
+    if (config.collapseWhitespace) {
+      text = text.replace(/\s+/g, " ").trim();
+    }
     blockCharacters[block].raw += text.length;
     if (text.length > maxChars) {
       blocksCut++;
@@ -161,7 +163,7 @@ export function renderTranscript(
     for (const message of config.history === "include"
       ? thread.conversationHistory
       : []) {
-      for (const part of message.parts)
+      for (const part of message.parts) {
         historyEvents.push({
           kind: "part",
           thread: threadIndex,
@@ -171,9 +173,10 @@ export function renderTranscript(
           sequence: sequence++,
           history: true,
         });
+      }
     }
     for (const message of thread.currentTurn.messages) {
-      for (const part of message.parts)
+      for (const part of message.parts) {
         currentEvents.push({
           kind: "part",
           thread: threadIndex,
@@ -185,6 +188,7 @@ export function renderTranscript(
           sequence: sequence++,
           history: false,
         });
+      }
     }
   });
   currentEvents.sort(
@@ -214,12 +218,16 @@ export function renderTranscript(
     );
     const candidates = sameSection?.length ? sameSection : available;
     const call = newest ? candidates?.at(-1) : candidates?.[0];
-    if (call) matchedCalls.add(call);
+    if (call) {
+      matchedCalls.add(call);
+    }
     return call?.callNumber;
   };
   for (const event of allPartEvents) {
     if (event.part.type === "tool-call" && config.toolCalls.include) {
-      if (!event.history) event.callNumber = ++nextCallNumber;
+      if (!event.history) {
+        event.callNumber = ++nextCallNumber;
+      }
       const name = callKey(event.thread, event.part.toolName);
       callsByName.set(name, [...(callsByName.get(name) ?? []), event]);
       if (event.part.toolCallId) {
@@ -230,7 +238,9 @@ export function renderTranscript(
     }
     const isResult =
       event.part.type === "tool-result" || event.message.role === "tool";
-    if (!isResult) continue;
+    if (!isResult) {
+      continue;
+    }
     event.toolName =
       (event.part.type === "tool-result" ? event.part.toolName : undefined) ??
       ("observationId" in event.message
@@ -250,8 +260,9 @@ export function renderTranscript(
           false,
           event.history,
         );
-    if (event.message.role === "tool")
+    if (event.message.role === "tool") {
       resultMessages.set(event.message, event.callNumber ?? null);
+    }
   }
 
   const comparable = (value: string) => value.replace(/\s+/g, " ").trim();
@@ -293,8 +304,9 @@ export function renderTranscript(
         (content) => comparable(content) === comparableRootInput,
       ) ||
       comparable(inputContents.join("\n")) === comparableRootInput
-    )
+    ) {
       rootInput = null;
+    }
   }
   const rootOutput =
     config.runIO.include && root?.output != null
@@ -325,7 +337,9 @@ export function renderTranscript(
     !!rootOutput &&
     !!finalMessageText &&
     comparable(rootOutput) === comparable(finalMessageText);
-  if (outputMatchesMessage && finalEvent) finalEvent.finalOutput = true;
+  if (outputMatchesMessage && finalEvent) {
+    finalEvent.finalOutput = true;
+  }
   const partLine = (event: PartEvent): string | null => {
     const { message, part } = event;
     const role =
@@ -334,10 +348,11 @@ export function renderTranscript(
       ? `${message.role} (${message.senderName})`
       : message.role;
     let userLabel = roleLabel;
-    if (message.role === "user" && message === requestMessage)
+    if (message.role === "user" && message === requestMessage) {
       userLabel = `${roleLabel} · request`;
-    else if (event.finalOutput && message.role === "assistant")
+    } else if (event.finalOutput && message.role === "assistant") {
       userLabel = `${roleLabel} · final output`;
+    }
     const resultLabel =
       `tool ${event.toolName ?? ""}${event.callNumber ? ` #${event.callNumber}` : ""} ←${event.finalOutput ? " FINAL OUTPUT" : ""}`
         .replace(/\s+/g, " ")
@@ -425,8 +440,9 @@ export function renderTranscript(
   );
   if (config.observations.include) {
     observations.forEach((observation, observationIndex) => {
-      if (observation.type === "TOOL" && representedTools.has(observation.id))
+      if (observation.type === "TOOL" && representedTools.has(observation.id)) {
         return;
+      }
       currentWithErrors.push({
         kind: "observation",
         observation,
@@ -440,13 +456,14 @@ export function renderTranscript(
       if (
         observation.level === "ERROR" ||
         (observation.level === "WARNING" && observation.statusMessage)
-      )
+      ) {
         currentWithErrors.push({
           kind: "error",
           observation,
           observationIndex,
           thread: threadByObservation.get(observationIndex) ?? null,
         });
+      }
     });
   }
   currentWithErrors.sort(
@@ -459,21 +476,23 @@ export function renderTranscript(
   const current = currentWithErrors
     .map((event): RenderedEvent | null => {
       let text: string | null;
-      if (event.kind === "part") text = partLine(event);
-      else if (event.kind === "observation")
+      if (event.kind === "part") {
+        text = partLine(event);
+      } else if (event.kind === "observation") {
         text = labeled(
           event.observation.type.toLowerCase(),
           event.observation.name ?? "",
           config.observations.maxChars,
           "observations",
         );
-      else
+      } else {
         text = labeled(
           `${event.observation.level === "WARNING" ? "warning" : "error"} ${event.observation.type} ${event.observation.name ?? ""}`.trim(),
           event.observation.statusMessage ?? "",
           config.errors.maxChars,
           "errors",
         );
+      }
       return text ? { event, text } : null;
     })
     .filter((event): event is RenderedEvent => event !== null);
@@ -504,8 +523,9 @@ export function renderTranscript(
       event.part.type === "tool-result" &&
       event.part.isError
     ) {
-      if ("observationId" in event.message)
+      if ("observationId" in event.message) {
         errorObservations.add(event.message.observationId as string);
+      }
     }
   }
   const userMessages = new Set(
@@ -531,7 +551,9 @@ export function renderTranscript(
   if (config.toolDefinitions.include) {
     const definitions = new Map<string, string>();
     for (const observation of observations) {
-      if (observation.type !== "GENERATION") continue;
+      if (observation.type !== "GENERATION") {
+        continue;
+      }
       const io = {
         input: observation.input,
         output: undefined,
@@ -539,16 +561,17 @@ export function renderTranscript(
       };
       for (const definition of normalizeIO({ kind: "io", io })
         .toolDefinitions) {
-        if (!definitions.has(definition.name))
+        if (!definitions.has(definition.name)) {
           definitions.set(
             definition.name,
             definition.description?.split(/(?<=\.)\s/)[0] ?? "",
           );
+        }
       }
     }
     if (definitions.size) {
       header("<tools>");
-      for (const [name, description] of definitions)
+      for (const [name, description] of definitions) {
         header(
           labeled(
             name,
@@ -557,6 +580,7 @@ export function renderTranscript(
             "tool_definitions",
           ).replace(/^\[(.*?)\]/, "- $1:"),
         );
+      }
       header("</tools>");
     }
   }
@@ -566,7 +590,9 @@ export function renderTranscript(
     for (const { event, text } of events) {
       const thread = event.thread;
       if (threads.length > 1 && thread !== null && thread !== activeThread) {
-        if (activeThread !== null) header("</thread>");
+        if (activeThread !== null) {
+          header("</thread>");
+        }
         header(`<thread n="${thread + 1}">`);
         activeThread = thread;
       }
@@ -576,7 +602,9 @@ export function renderTranscript(
         history: historySection,
       });
     }
-    if (threads.length > 1 && activeThread !== null) header("</thread>");
+    if (threads.length > 1 && activeThread !== null) {
+      header("</thread>");
+    }
   };
   if (history.length) {
     header('<earlier_conversation source="replayed input">');
@@ -585,11 +613,13 @@ export function renderTranscript(
   }
   if (rootInputLine || current.length || rootOutputLine) {
     header("<this_run>");
-    if (rootInputLine)
+    if (rootInputLine) {
       lines.push({ text: rootInputLine, removable: false, history: false });
+    }
     addEvents(current, false);
-    if (rootOutputLine)
+    if (rootOutputLine) {
       lines.push({ text: rootOutputLine, removable: false, history: false });
+    }
     header("</this_run>");
   }
 
@@ -598,26 +628,32 @@ export function renderTranscript(
     .find(({ event }) => event.kind === "part")?.event;
   let lastAction = "none";
   if (lastPart?.kind === "part") {
-    if (lastPart.part.type === "tool-call") lastAction = "assistant tool call";
-    else if (
+    if (lastPart.part.type === "tool-call") {
+      lastAction = "assistant tool call";
+    } else if (
       lastPart.part.type === "tool-result" ||
       lastPart.message.role === "tool"
-    )
+    ) {
       lastAction = "tool result";
-    else if (lastPart.message.role === "user") lastAction = "user message";
-    else if (lastPart.part.type === "reasoning")
+    } else if (lastPart.message.role === "user") {
+      lastAction = "user message";
+    } else if (lastPart.part.type === "reasoning") {
       lastAction = "assistant reasoning";
-    else if (lastPart.message.role === "assistant")
+    } else if (lastPart.message.role === "assistant") {
       lastAction = "assistant text";
-    else lastAction = `${lastPart.message.role} message`;
+    } else {
+      lastAction = `${lastPart.message.role} message`;
+    }
   }
   header("<end_of_run>");
   header(`last action: ${lastAction}`);
-  if (rootOutputLine) header("final output: application output");
-  else if (outputMatchesMessage)
+  if (rootOutputLine) {
+    header("final output: application output");
+  } else if (outputMatchesMessage) {
     header(
       `final output: ${finalEvent?.part.type === "tool-result" || finalEvent?.message.role === "tool" ? "tool result" : "assistant"}`,
     );
+  }
   header("</end_of_run>");
 
   // Keep headings and trace-level I/O; drop ordinary lines from the middle.
@@ -630,8 +666,9 @@ export function renderTranscript(
     const selected: Line[] = [];
     let marked = false;
     for (const line of lines) {
-      if (!line.removable || kept.has(line)) selected.push(line);
-      else if (!marked) {
+      if (!line.removable || kept.has(line)) {
+        selected.push(line);
+      } else if (!marked) {
         selected.push({
           text: `[… ${removable.length - keep} lines omitted …]`,
           removable: false,
@@ -661,8 +698,11 @@ export function renderTranscript(
     let high = keep - 1;
     while (low < high) {
       const middle = low + Math.ceil((high - low) / 2);
-      if (tokensOf(middle) <= config.maxTokens) low = middle;
-      else high = middle - 1;
+      if (tokensOf(middle) <= config.maxTokens) {
+        low = middle;
+      } else {
+        high = middle - 1;
+      }
     }
     keep = low;
   }

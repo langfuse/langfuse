@@ -82,7 +82,9 @@ export function ConnectedGatewayApiKeysTable({
                       setPageIndex(state.pageIndex);
                       return;
                     }
-                    if (!apiKeysQuery.hasNextPage) return;
+                    if (!apiKeysQuery.hasNextPage) {
+                      return;
+                    }
                     apiKeysQuery.fetchNextPage().then((result) => {
                       if (result.data?.pages[state.pageIndex]) {
                         setPageIndex(state.pageIndex);

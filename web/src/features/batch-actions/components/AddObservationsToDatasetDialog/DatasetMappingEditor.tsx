@@ -67,7 +67,9 @@ export function DatasetMappingEditor({
                   value={datasetId ?? undefined}
                   onValueChange={(id) => {
                     const selected = options.find((option) => option.id === id);
-                    if (selected) actions.selectDataset(selected);
+                    if (selected) {
+                      actions.selectDataset(selected);
+                    }
                   }}
                   placeholder="Select dataset"
                   searchPlaceholder="Search datasets..."
@@ -142,7 +144,7 @@ function DatasetMappingPreview({
   unavailable: boolean;
   onRetry: () => void;
 }) {
-  if (unavailable)
+  if (unavailable) {
     return (
       <div className="flex flex-col items-start gap-2">
         <p className="text-muted-foreground text-sm">
@@ -153,6 +155,7 @@ function DatasetMappingPreview({
         </Button>
       </div>
     );
+  }
   return (
     <>
       {fields.map((field) => (

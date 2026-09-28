@@ -65,7 +65,9 @@ export function AddTracesToAnnotationQueueSelectDialogContent({
     queueOptionsState.status === "ready" ? queueOptionsState.options : [];
 
   const handleSubmit = async ({ targetId }: SelectFormValues) => {
-    if (!targetId) return;
+    if (!targetId) {
+      return;
+    }
 
     setIsSubmitting(true);
     try {

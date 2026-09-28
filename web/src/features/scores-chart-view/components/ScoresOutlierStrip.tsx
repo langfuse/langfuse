@@ -246,7 +246,9 @@ export function ScoresOutlierStrip({
   };
 
   const handleModeChange = (next: StripMode) => {
-    if (next === mode) return;
+    if (next === mode) {
+      return;
+    }
     capture("pulse:mode_switch", {
       mode: next,
       previousMode: mode,
@@ -256,7 +258,9 @@ export function ScoresOutlierStrip({
   };
 
   const setAggregation = (agg: ScoreOutlierAggKey) => {
-    if (agg === aggregation) return;
+    if (agg === aggregation) {
+      return;
+    }
     capture("pulse:aggregation_switch", {
       metric: mode,
       aggregation: agg,

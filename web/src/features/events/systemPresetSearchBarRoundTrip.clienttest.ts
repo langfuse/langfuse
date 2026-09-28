@@ -58,7 +58,9 @@ describe("system preset filters round-trip the search-bar grammar (LFE-14699 dem
       // of removing the preset from this guard.
       const commit = planCommit(text);
       expect(commit.status).toBe("committed");
-      if (commit.status !== "committed") return;
+      if (commit.status !== "committed") {
+        return;
+      }
 
       const merged = mergeWithSkipped(commit.filters, skippedFilters);
       expect(merged).toEqual(preset.state.filters);

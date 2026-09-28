@@ -179,7 +179,9 @@ async function runTestAndWaitForCost({
   >[number];
 }) {
   const latestVersion = evaluator.versions[0];
-  if (!sample.traceId || !latestVersion) return null;
+  if (!sample.traceId || !latestVersion) {
+    return null;
+  }
 
   try {
     const result = await testEvaluator({
@@ -192,7 +194,9 @@ async function runTestAndWaitForCost({
       startTime: sample.startTime,
       shouldReadFromObservationsTable: params.shouldReadFromObservationsTable,
     });
-    if (!("executionTraceId" in result)) return null;
+    if (!("executionTraceId" in result)) {
+      return null;
+    }
     if (
       "estimatedCostUsd" in result &&
       typeof result.estimatedCostUsd === "number"
@@ -218,7 +222,9 @@ async function waitForEvaluatorRunCost(projectId: string, evaluatorId: string) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
     const cost = await getLatestEvaluatorRunCost(projectId, evaluatorId);
-    if (cost !== null) return cost;
+    if (cost !== null) {
+      return cost;
+    }
   }
   return null;
 }

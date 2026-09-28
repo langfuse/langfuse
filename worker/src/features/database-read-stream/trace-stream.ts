@@ -312,10 +312,11 @@ export const getTraceStream = async (props: {
           // Process each row in the buffer
           for (const bufferedRow of rowBuffer) {
             recordsProcessed++;
-            if (recordsProcessed % 10000 === 0)
+            if (recordsProcessed % 10000 === 0) {
               logger.info(
                 `Streaming traces for project ${projectId}: processed ${recordsProcessed} rows`,
               );
+            }
 
             yield processTraceRow(bufferedRow, commentsByTrace);
           }
@@ -336,10 +337,11 @@ export const getTraceStream = async (props: {
 
         for (const bufferedRow of rowBuffer) {
           recordsProcessed++;
-          if (recordsProcessed % 10000 === 0)
+          if (recordsProcessed % 10000 === 0) {
             logger.info(
               `Streaming traces for project ${projectId}: processed ${recordsProcessed} rows`,
             );
+          }
 
           yield processTraceRow(bufferedRow, commentsByTrace);
         }

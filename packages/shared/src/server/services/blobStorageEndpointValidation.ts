@@ -115,7 +115,9 @@ function getEffectiveWhitelist(
 function isBlobStorageEndpointValidationEnabled(
   whitelist: OutboundUrlValidationWhitelist,
 ): boolean {
-  if (isLangfuseCloudEndpointValidationEnabled()) return true;
+  if (isLangfuseCloudEndpointValidationEnabled()) {
+    return true;
+  }
 
   // Compatibility rollout: self-hosted deployments may already point blob
   // exports at private MinIO/Azure endpoints. Keep the stricter SSRF/rebind
@@ -130,7 +132,9 @@ function isBlobStorageEndpointValidationEnabled(
 }
 
 function getSelfHostedWhitelistGuidance(): string {
-  if (isLangfuseCloudEndpointValidationEnabled()) return "";
+  if (isLangfuseCloudEndpointValidationEnabled()) {
+    return "";
+  }
 
   return " For self-hosted deployments with internal blob storage endpoints, configure LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_HOST, LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS, or LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS.";
 }

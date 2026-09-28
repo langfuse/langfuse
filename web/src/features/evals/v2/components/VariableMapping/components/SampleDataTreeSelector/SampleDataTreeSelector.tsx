@@ -29,9 +29,15 @@ const SEGMENT_SEPARATOR = "\x01";
 const NON_KEY_PREFIX = "\0";
 
 function segmentKey(segment: PathSegment): string {
-  if (segment === WILDCARD) return `${NON_KEY_PREFIX}*`;
-  if (segment === LAST) return `${NON_KEY_PREFIX}last`;
-  if (typeof segment === "number") return `${NON_KEY_PREFIX}${segment}`;
+  if (segment === WILDCARD) {
+    return `${NON_KEY_PREFIX}*`;
+  }
+  if (segment === LAST) {
+    return `${NON_KEY_PREFIX}last`;
+  }
+  if (typeof segment === "number") {
+    return `${NON_KEY_PREFIX}${segment}`;
+  }
   return segment;
 }
 
@@ -94,7 +100,9 @@ function wildcardRepresentative(entries: unknown[]) {
   const counts = new Map<string, number>();
   for (const entry of objects) {
     for (const [key, childValue] of Object.entries(entry)) {
-      if (!(key in value)) value[key] = childValue;
+      if (!(key in value)) {
+        value[key] = childValue;
+      }
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
   }
@@ -155,8 +163,11 @@ function TreeRow({
     );
 
   const selectOrToggle = () => {
-    if (expandable) onToggleExpand(key);
-    else onSelect(columnId, segments);
+    if (expandable) {
+      onToggleExpand(key);
+    } else {
+      onSelect(columnId, segments);
+    }
   };
 
   return (
@@ -388,8 +399,11 @@ export function SampleDataTreeSelector({
           onToggleExpand={(key) =>
             setExpanded((current) => {
               const next = new Set(current);
-              if (next.has(key)) next.delete(key);
-              else next.add(key);
+              if (next.has(key)) {
+                next.delete(key);
+              } else {
+                next.add(key);
+              }
               return next;
             })
           }

@@ -69,7 +69,9 @@ export const BreakdownTooltip = ({
     )
     .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
   const otherTotal = otherEntries.reduce((acc, [, value]) => {
-    if (typeof value !== "number") return acc;
+    if (typeof value !== "number") {
+      return acc;
+    }
 
     return acc + value;
   }, 0);
@@ -381,7 +383,9 @@ function createWaterfallSegments(
     0,
   );
 
-  if (total === 0) return new Map();
+  if (total === 0) {
+    return new Map();
+  }
 
   let cumulative = 0;
   let contributionIndex = 0;
@@ -402,7 +406,9 @@ function createWaterfallSegments(
         edge,
       };
       cumulative += contribution;
-      if (contribution > 0) contributionIndex += 1;
+      if (contribution > 0) {
+        contributionIndex += 1;
+      }
       return [key, segment];
     }),
   );

@@ -281,7 +281,9 @@ export const ChromeRowAlignment = meta.story({
 
     // Skip geometry when the desktop sidebar is `display: none` (narrow
     // Storybook viewport uses the mobile sheet instead).
-    if (sidebarBox.width === 0) return;
+    if (sidebarBox.width === 0) {
+      return;
+    }
 
     // Same box geometry (the shared min-h-11 + border-b class). Absolute Y
     // also matches when this file uses `layout: fullscreen` so the fixed

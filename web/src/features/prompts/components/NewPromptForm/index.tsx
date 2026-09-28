@@ -133,7 +133,9 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
       },
     );
 
-    if (!projectId) throw Error("Project ID is not defined.");
+    if (!projectId) {
+      throw Error("Project ID is not defined.");
+    }
 
     const { type, textPrompt, chatPrompt } = values;
 
@@ -174,7 +176,9 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
 
   const hasInitializedMessages = useRef(false);
   useEffect(() => {
-    if (hasInitializedMessages.current) return;
+    if (hasInitializedMessages.current) {
+      return;
+    }
     hasInitializedMessages.current = true;
 
     if (shouldLoadPlaygroundCache && playgroundCache) {

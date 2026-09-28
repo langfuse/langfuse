@@ -20,8 +20,12 @@ export const MessagePlaceholders = () => {
           {messagePlaceholders
             .slice()
             .sort((a, b) => {
-              if (a.isUsed && !b.isUsed) return -1;
-              if (!a.isUsed && b.isUsed) return 1;
+              if (a.isUsed && !b.isUsed) {
+                return -1;
+              }
+              if (!a.isUsed && b.isUsed) {
+                return 1;
+              }
               return a.name.localeCompare(b.name);
             })
             .map((placeholder, index) => (

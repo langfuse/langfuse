@@ -52,14 +52,30 @@ const LineChartDemo = (props: LineChartStoryProps) => {
     x: Date;
     values: Record<string, number | null>;
   }> = data;
-  if (props.variant === "many-lines") chartData = manyLinesData;
-  if (props.variant === "boundary-points") chartData = boundaryPointData;
-  if (props.variant === "negative-values") chartData = negativeData;
-  if (props.variant === "intermittent") chartData = intermittentData;
-  if (props.variant === "intraday") chartData = intradayData;
-  if (props.variant === "year-boundary") chartData = yearBoundaryData;
-  if (props.variant === "monthly") chartData = monthlyData;
-  if (props.variant === "empty") chartData = [];
+  if (props.variant === "many-lines") {
+    chartData = manyLinesData;
+  }
+  if (props.variant === "boundary-points") {
+    chartData = boundaryPointData;
+  }
+  if (props.variant === "negative-values") {
+    chartData = negativeData;
+  }
+  if (props.variant === "intermittent") {
+    chartData = intermittentData;
+  }
+  if (props.variant === "intraday") {
+    chartData = intradayData;
+  }
+  if (props.variant === "year-boundary") {
+    chartData = yearBoundaryData;
+  }
+  if (props.variant === "monthly") {
+    chartData = monthlyData;
+  }
+  if (props.variant === "empty") {
+    chartData = [];
+  }
   const chartSeries = props.variant === "many-lines" ? manyLinesSeries : series;
 
   return (
@@ -183,7 +199,9 @@ export const TooltipBelowChart = meta.story({
     const hoverArea = canvasElement.querySelector<SVGRectElement>(
       'rect[fill="transparent"]',
     );
-    if (!hoverArea) throw new Error("Chart hover area not found");
+    if (!hoverArea) {
+      throw new Error("Chart hover area not found");
+    }
     fireEvent.pointerMove(hoverArea, {
       clientX: hoverArea.getBoundingClientRect().left + 4,
       clientY: hoverArea.getBoundingClientRect().top + 40,
@@ -213,12 +231,16 @@ export const OnCardSurface = meta.story({
     const hoverArea = canvasElement.querySelector<SVGRectElement>(
       'rect[fill="transparent"]',
     );
-    if (!hoverArea) throw new Error("Hover area not found");
+    if (!hoverArea) {
+      throw new Error("Hover area not found");
+    }
     await userEvent.hover(hoverArea);
     const activeLabel = canvasElement.querySelector<SVGTextElement>(
       "[data-active-x-axis-label]",
     );
-    if (!activeLabel) throw new Error("Active label not found");
+    if (!activeLabel) {
+      throw new Error("Active label not found");
+    }
     await expect(
       canvasElement.querySelector("[data-active-x-axis-label-background]"),
     ).not.toBeInTheDocument();
@@ -302,7 +324,9 @@ export const Intermittent = meta.story({
     const hoverArea = canvasElement.querySelectorAll<SVGRectElement>(
       'rect[fill="transparent"]',
     )[1];
-    if (!hoverArea) throw new Error("Missing hover area for data gap");
+    if (!hoverArea) {
+      throw new Error("Missing hover area for data gap");
+    }
     await userEvent.hover(hoverArea);
     await expect(within(document.body).getByRole("tooltip")).toHaveTextContent(
       "No data available",
@@ -359,7 +383,9 @@ export const ManyLegendEntries = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const firstPoint = canvas.getAllByRole("graphics-symbol")[0];
-    if (!firstPoint) throw new Error("Data point not found");
+    if (!firstPoint) {
+      throw new Error("Data point not found");
+    }
 
     firstPoint.focus();
 
@@ -401,7 +427,9 @@ export const CategoryLongLabels = meta.story({
     const firstInteractionArea = canvasElement.querySelector(
       'rect[fill="transparent"]',
     );
-    if (!firstInteractionArea) throw new Error("Interaction area not found");
+    if (!firstInteractionArea) {
+      throw new Error("Interaction area not found");
+    }
 
     await userEvent.hover(firstInteractionArea);
 

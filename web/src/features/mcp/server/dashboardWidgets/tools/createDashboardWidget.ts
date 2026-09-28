@@ -76,7 +76,9 @@ const throwActionableDashboardWidgetError = (
   error: unknown,
   input: z.infer<typeof PostUnstableDashboardWidgetBody>,
 ): never => {
-  if (!(error instanceof StructuredPublicApiError)) throw error;
+  if (!(error instanceof StructuredPublicApiError)) {
+    throw error;
+  }
 
   const field = error.details?.field;
   const allowedValues =

@@ -217,7 +217,9 @@ export function V4MigrationUpdateRequiredBadge() {
   };
 
   const handleManualUpgrade = () => {
-    if (!project) return;
+    if (!project) {
+      return;
+    }
     setDialogOpen(false);
     router.push(buildDeprecatedRulesUrl(project.id));
   };

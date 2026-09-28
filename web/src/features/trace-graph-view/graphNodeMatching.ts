@@ -49,7 +49,9 @@ export function nearestGraphNodeName(
   // Aggregated: the observation's own step name, when it has one.
   if (!isExpanded) {
     const own = nodeByObservationId.get(observationId);
-    if (own) return own;
+    if (own) {
+      return own;
+    }
   }
   // Walk up to the nearest ancestor the graph DID keep. `seen` guards a cycle
   // in the parent references rather than trusting the data to be a tree.
@@ -80,7 +82,9 @@ export function matchedGraphNodeNames({
   // Nothing matched, so no node can be lit by association. An empty set, not
   // "no search": the caller's `search` prop says whether a query is live, and a
   // query with no hits must still dim everything.
-  if (matchedObservationIds.size === 0) return lit;
+  if (matchedObservationIds.size === 0) {
+    return lit;
+  }
 
   // One index over the map instead of a scan per hit.
   const claimedBy = new Map<string, string>();
@@ -88,7 +92,9 @@ export function matchedGraphNodeNames({
     nodeToObservationsMap,
   )) {
     for (const id of observationIds) {
-      if (!claimedBy.has(id)) claimedBy.set(id, nodeName);
+      if (!claimedBy.has(id)) {
+        claimedBy.set(id, nodeName);
+      }
     }
   }
 
@@ -96,7 +102,9 @@ export function matchedGraphNodeNames({
     const nodeName = claimedBy.get(id) ?? nearestGraphNodeName(id, resolution);
     // A resolved name still has to be a node that was laid out — an ancestor
     // can carry a step name the graph never drew.
-    if (nodeName && resolution.graphNodeIds.has(nodeName)) lit.add(nodeName);
+    if (nodeName && resolution.graphNodeIds.has(nodeName)) {
+      lit.add(nodeName);
+    }
   }
   return lit;
 }

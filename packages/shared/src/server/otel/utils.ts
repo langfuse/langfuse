@@ -12,13 +12,19 @@ export type OtelIdRejectionReason = "absent" | "not_an_id";
 export function getOtelIdRejectionReason(
   value: unknown,
 ): OtelIdRejectionReason | null {
-  if (value === null || value === undefined) return "absent";
+  if (value === null || value === undefined) {
+    return "absent";
+  }
 
   // parseId short-circuits on strings, so any string is convertible.
-  if (typeof value === "string") return null;
+  if (typeof value === "string") {
+    return null;
+  }
 
   // Uint8Array/Buffer from a protobuf decode, int arrays from the Python SDK.
-  if (value instanceof Uint8Array || Array.isArray(value)) return null;
+  if (value instanceof Uint8Array || Array.isArray(value)) {
+    return null;
+  }
 
   // A Buffer that has been through JSON. Matched explicitly rather than by
   // probing Buffer.from, which must never see attacker-controlled input on the
@@ -181,14 +187,18 @@ export function validateOtelSpanIds(
         const spanReasons: string[] = [];
         for (const kind of ["traceId", "spanId"] as const) {
           const reason = getOtelIdRejectionReason(span?.[kind]);
-          if (reason) spanReasons.push(`${kind}:${reason}`);
+          if (reason) {
+            spanReasons.push(`${kind}:${reason}`);
+          }
         }
         // parentSpanId is optional and the worker only converts it when truthy
         // (OtelIngestionProcessor.ts:325), so an absent one is legitimate and
         // only a present-but-unconvertible value crashes there.
         if (span?.parentSpanId) {
           const reason = getOtelIdRejectionReason(span.parentSpanId);
-          if (reason) spanReasons.push(`parentSpanId:${reason}`);
+          if (reason) {
+            spanReasons.push(`parentSpanId:${reason}`);
+          }
         }
 
         // Attributed to the span rather than counted as a malformed collection,
@@ -205,11 +215,14 @@ export function validateOtelSpanIds(
           // for every further one, so stop at the first.
           if (
             span.events.some((event: any) => isMalformedList(event?.attributes))
-          )
+          ) {
             spanReasons.push("event.attributes:not_an_array");
+          }
         }
 
-        if (spanReasons.length === 0) continue;
+        if (spanReasons.length === 0) {
+          continue;
+        }
 
         invalidSpanCount++;
         spanReasons.forEach(countReason);

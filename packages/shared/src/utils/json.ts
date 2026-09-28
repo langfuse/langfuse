@@ -73,34 +73,46 @@ function exceedsParseSize(json: object, maxSize: number): boolean {
       // Count an opaque leaf as null, without scanning or copying its contents.
       size += value.length > maxSize ? 4 : value.length + 2;
     } else if (typeof value === "object" && value !== null) {
-      if (ancestors.has(value)) return true;
+      if (ancestors.has(value)) {
+        return true;
+      }
       const keys = Array.isArray(value) ? null : Object.keys(value);
       const length = Array.isArray(value) ? value.length : keys!.length;
       size += 2 + Math.max(0, length - 1); // Brackets/braces and commas.
       // Every child costs at least one character. Reject wide containers before
       // reading their children or allocating parser entries for them.
-      if (size + length > maxSize) return true;
+      if (size + length > maxSize) {
+        return true;
+      }
       ancestors.add(value);
       stack.push({ value, keys, length, index: 0 });
     } else {
       size += String(value).length;
     }
-    if (size > maxSize) return true;
+    if (size > maxSize) {
+      return true;
+    }
 
     while (stack.length > 0) {
       const frame = stack[stack.length - 1];
-      if (frame.index < frame.length) break;
+      if (frame.index < frame.length) {
+        break;
+      }
       ancestors.delete(frame.value);
       stack.pop();
     }
-    if (stack.length === 0) return false;
+    if (stack.length === 0) {
+      return false;
+    }
 
     const frame = stack[stack.length - 1];
     const index = frame.index++;
     if (frame.keys) {
       const key = frame.keys[index];
       size += key.length + 3; // Key quotes and colon.
-      if (size > maxSize) return true;
+      if (size > maxSize) {
+        return true;
+      }
       value = (frame.value as Record<string, unknown>)[key];
     } else {
       value = (frame.value as unknown[])[index];
@@ -126,7 +138,9 @@ export function deepParseJson(
   // object inputs use the traversal limit and opaque-string handling.
   let maxStringSize = Infinity;
   if (typeof json === "object" && json !== null) {
-    if (exceedsParseSize(json, maxSize)) return json;
+    if (exceedsParseSize(json, maxSize)) {
+      return json;
+    }
     maxStringSize = maxSize;
   }
 
@@ -151,11 +165,15 @@ function deepParseJsonRecursive(
   }
 
   if (typeof json === "string") {
-    if (json.length > maxStringSize) return json;
+    if (json.length > maxStringSize) {
+      return json;
+    }
     // A bare JSON number literal stays a string: this preserves user-provided
     // numeric strings and, critically, big integers that would lose precision
     // if coerced to a JS number (issue #6628).
-    if (isJsonNumberLiteral(json)) return json;
+    if (isJsonNumberLiteral(json)) {
+      return json;
+    }
     try {
       const parsed = parsePreservingPrecision(json);
       return deepParseJsonRecursive(
@@ -249,7 +267,9 @@ export function deepParseJsonIterative(
 
   let maxStringSize = Infinity;
   if (typeof json === "object" && json !== null) {
-    if (exceedsParseSize(json, maxSize)) return json;
+    if (exceedsParseSize(json, maxSize)) {
+      return json;
+    }
     maxStringSize = maxSize;
   }
 

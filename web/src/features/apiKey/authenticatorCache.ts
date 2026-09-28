@@ -31,10 +31,14 @@ export class AuthenticatorCache {
   async get(credential: Credential): Promise<ResolveContextResult | null> {
     const key = this.keyFor(credential);
     const redis = this.redis;
-    if (!key || !cacheEnabled(redis)) return null;
+    if (!key || !cacheEnabled(redis)) {
+      return null;
+    }
     try {
       const raw = await redis.get(key);
-      if (!raw) return null;
+      if (!raw) {
+        return null;
+      }
       return deserialize(JSON.parse(raw) as CachedEntry);
     } catch (error) {
       logger.error("authz context cache read failed, falling open", error);
@@ -50,7 +54,9 @@ export class AuthenticatorCache {
     const key = this.keyFor(credential);
     const entry = toEntry(result);
     const redis = this.redis;
-    if (!key || !entry || !cacheEnabled(redis)) return false;
+    if (!key || !entry || !cacheEnabled(redis)) {
+      return false;
+    }
     try {
       await redis.set(
         key,
@@ -88,7 +94,9 @@ function cacheEnabled(redis: Redis | Cluster | null): redis is Redis | Cluster {
 
 /** toEntry maps a resolved result to its cache row, yielding null for a 500 so it is never negatively cached. */
 function toEntry(result: ApiKeyAuthResults): CachedEntry | null {
-  if (result.success) return { context: result.context };
+  if (result.success) {
+    return { context: result.context };
+  }
   if (result.error instanceof UnauthorizedError) {
     return { unauthorized: result.error.message };
   }
@@ -97,7 +105,9 @@ function toEntry(result: ApiKeyAuthResults): CachedEntry | null {
 
 /** deserialize reconstructs a cache hit from its stored row. */
 function deserialize(entry: CachedEntry): ResolveContextResult {
-  if ("context" in entry) return { success: true, context: entry.context };
+  if ("context" in entry) {
+    return { success: true, context: entry.context };
+  }
   return unauthorizedError(entry.unauthorized);
 }
 

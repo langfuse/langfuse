@@ -166,7 +166,9 @@ export async function scheduleObservationEvals(
   });
 
   // Early return if no configs match - no S3 upload needed
-  if (matchingConfigs.length === 0) return;
+  if (matchingConfigs.length === 0) {
+    return;
+  }
 
   // Upload observation to S3 once
   const observationS3Path = await schedulerDeps.uploadObservationToS3({

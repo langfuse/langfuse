@@ -33,7 +33,9 @@ export function orderObservations(observations: Observation[]): Observation[] {
     for (const observation of (children.get(parentId) ?? []).sort(
       byStartTime,
     )) {
-      if (visited.has(observation.id)) continue;
+      if (visited.has(observation.id)) {
+        continue;
+      }
       visited.add(observation.id);
       ordered.push(observation);
       walk(observation.id);
@@ -42,7 +44,9 @@ export function orderObservations(observations: Observation[]): Observation[] {
   walk(null);
   // Rows inside a parent cycle are unreachable from any root; keep them.
   for (const observation of [...byId.values()].sort(byStartTime)) {
-    if (!visited.has(observation.id)) ordered.push(observation);
+    if (!visited.has(observation.id)) {
+      ordered.push(observation);
+    }
   }
   return ordered;
 }

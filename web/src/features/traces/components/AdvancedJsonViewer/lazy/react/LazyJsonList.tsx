@@ -23,13 +23,17 @@ const COPY_MAX_BYTES = 64 * 1024 * 1024;
 async function copyFullValue(store: RowModelStore, nodeId: number) {
   await store.getState().materialize(nodeId, COPY_MAX_BYTES);
   const result = store.getState().values.get(nodeId);
-  if (!result || !result.ok) return;
+  if (!result || !result.ok) {
+    return;
+  }
   const { value, truncated } = result.value;
   // Honesty: if the value is STILL truncated at the copy cap, we do NOT have
   // the whole value — writing the prefix would silently produce a corrupt copy
   // (a half base64 image is useless) under a "Copy full value" label. Skip it;
   // the field-level download is the escape hatch for values this large.
-  if (truncated) return;
+  if (truncated) {
+    return;
+  }
   // Out-of-double integers come back as bigint, which JSON.stringify can't
   // serialize — handle strings and bigint before the object path.
   const text = (() => {
@@ -118,7 +122,9 @@ export function LazyJsonList({ store, className }: LazyJsonListProps) {
   // computed range + revision covers both. `ensureRange` no-ops when the range
   // is already cached, so scroll ticks are cheap.
   useEffect(() => {
-    if (totalVisible === 0) return;
+    if (totalVisible === 0) {
+      return;
+    }
     store.getState().ensureRange(firstIndex, lastIndex - firstIndex + 1);
   }, [store, firstIndex, lastIndex, revision, totalVisible]);
 

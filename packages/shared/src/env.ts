@@ -392,7 +392,9 @@ const EnvSchema = z.object({
     .optional()
     .transform((val) => {
       try {
-        if (!val) return new Map<string, number>();
+        if (!val) {
+          return new Map<string, number>();
+        }
 
         const map = new Map<string, number>();
         const parts = val.split(",");

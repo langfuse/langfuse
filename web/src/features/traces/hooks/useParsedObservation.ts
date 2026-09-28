@@ -49,8 +49,12 @@ const PARSE_IN_WEBWORKER_THRESHOLD = 100_000; // 100KB
  * Estimate the size of a value in characters (for threshold check)
  */
 function estimateSize(value: unknown): number {
-  if (value === null || value === undefined) return 0;
-  if (typeof value === "string") return value.length;
+  if (value === null || value === undefined) {
+    return 0;
+  }
+  if (typeof value === "string") {
+    return value.length;
+  }
   // For objects/arrays, estimate via JSON stringification length
   // This is approximate but good enough for threshold decisions
   try {

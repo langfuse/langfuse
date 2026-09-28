@@ -360,7 +360,9 @@ const run = async (
     const isError = node.index % 29 === 7;
     const isFailedToolRetryPair =
       !retryNodeUsed && node.kind === "TOOL" && node.index > depth;
-    if (isFailedToolRetryPair) retryNodeUsed = true;
+    if (isFailedToolRetryPair) {
+      retryNodeUsed = true;
+    }
 
     const longName = node.index % 37 === 11;
     const baseName = rng.pick(NAME_BY_KIND[node.kind]);
@@ -375,7 +377,9 @@ const run = async (
     })();
 
     const payloadForNode = (): string | null => {
-      if (node.index === 0) return rootInput;
+      if (node.index === 0) {
+        return rootInput;
+      }
       if (node.index === Math.floor(observationCount / 2)) {
         return buildPayload("malformed", Math.min(payloadBytes, 20_000), rng);
       }
