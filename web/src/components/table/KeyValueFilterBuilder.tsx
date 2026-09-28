@@ -1,34 +1,18 @@
 /* eslint-disable no-nested-ternary */
 import { useId, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
+import { Input } from "@/src/components/design-system/Input/Input";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
-  PopoverTrigger,
 } from "@/src/components/ui/popover";
-import {
-  InputCommand,
-  InputCommandEmpty,
-  InputCommandGroup,
-  InputCommandInput,
-  InputCommandItem,
-  InputCommandList,
-} from "@/src/components/ui/input-command";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { rankFacetOptions } from "@/src/features/filters/lib/facet-display";
 import { isStringPresenceOperator } from "@/src/features/filters/lib/sidebar-filter-actions";
-import { Plus, X, Check, ChevronDown } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
-import { ScoreTag } from "@/src/components/score-tag";
 import type {
   KeyScoreLevels,
   KeyValueFilterEntry,
@@ -105,6 +89,25 @@ const BOOLEAN_OPERATOR_LABELS = {
   "=": "equals",
   "<>": "does not equal",
 } as const;
+
+const CATEGORICAL_OPERATOR_OPTIONS = [
+  { value: "any of", label: "any of" },
+  { value: "none of", label: "none of" },
+];
+
+const NUMERIC_OPERATOR_OPTIONS = Object.entries(NUMERIC_OPERATOR_LABELS).map(
+  ([value, label]) => ({ value, label }),
+);
+const BOOLEAN_OPERATOR_OPTIONS = Object.entries(BOOLEAN_OPERATOR_LABELS).map(
+  ([value, label]) => ({ value, label }),
+);
+const STRING_OPERATOR_OPTIONS = Object.entries(STRING_OPERATOR_LABELS).map(
+  ([value, label]) => ({ value, label }),
+);
+const BOOLEAN_VALUE_OPTIONS = [
+  { value: "true", label: "true" },
+  { value: "false", label: "false" },
+];
 
 // Enough to recognise what is available without turning the facet into a
 // scroll surface.
@@ -274,9 +277,6 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   const keyDetails = mode === "string" ? props.keyDetails : undefined;
   const valueOptions = mode === "string" ? props.valueOptions : undefined;
 
-  // Track which popover is open (by index)
-  const [openPopoverIndex, setOpenPopoverIndex] = useState<number | null>(null);
-
   // Applied rows belong to the parent; only incomplete edits stay local.
   const [draftFilters, setDraftFilters] = useState<
     { index: number; filter: KeyedFilterEntry }[]
@@ -379,81 +379,27 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
             {/* Key input and delete button row */}
             <div className="flex items-center gap-2">
               {hasKeyOptions ? (
-                // Combobox for known keys
-                <Popover
-                  open={openPopoverIndex === index}
-                  onOpenChange={(open) =>
-                    setOpenPopoverIndex(open ? index : null)
-                  }
-                >
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      className="min-w-0 flex-1 justify-between overflow-hidden text-left font-normal"
-                    >
-                      {/* Selected name renders plain — level tags show only in
-                          the option rows below (design call: a selected filter
-                          needs no level tag, and long names must truncate). */}
-                      <span
-                        className={cn(
-                          "min-w-0 truncate",
-                          !filter.key && "text-muted-foreground",
-                        )}
-                        title={filter.key || keyPlaceholder}
-                      >
-                        {filter.key || keyPlaceholder}
-                      </span>
-                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[200px] p-0" align="start">
-                    <InputCommand>
-                      <InputCommandInput
-                        placeholder="Search keys..."
-                        variant="bottom"
-                      />
-                      <InputCommandList>
-                        <InputCommandEmpty>No keys found.</InputCommandEmpty>
-                        <InputCommandGroup>
-                          {mergedKeyOptions.map((option) => (
-                            <InputCommandItem
-                              key={option}
-                              value={option}
-                              onSelect={(value) => {
-                                // Only update the key, preserve the existing value
-                                handleFilterChange(index, {
-                                  key: value,
-                                });
-                                setOpenPopoverIndex(null); // Close after selection
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  option === filter.key
-                                    ? "visible"
-                                    : "invisible",
-                                )}
-                              />
-                              <span
-                                className="min-w-0 flex-1 truncate"
-                                title={option}
-                              >
-                                {option}
-                              </span>
-                              {keyLevels?.[option]?.map((level) => (
-                                <span key={level} className="ml-1.5">
-                                  <ScoreTag level={level} />
-                                </span>
-                              ))}
-                            </InputCommandItem>
-                          ))}
-                        </InputCommandGroup>
-                      </InputCommandList>
-                    </InputCommand>
-                  </PopoverContent>
-                </Popover>
+                <div className="min-w-0 flex-1">
+                  <SelectInput
+                    value={filter.key}
+                    placeholder={keyPlaceholder}
+                    search={{ placeholder: "Search keys..." }}
+                    emptyMessage="No keys found."
+                    options={mergedKeyOptions.map((option) => ({
+                      value: option,
+                      label: option,
+                      badges: keyLevels?.[option]?.map((level) => ({
+                        text: level === "trace" ? "Trace" : "Observation",
+                        title: `${level === "trace" ? "Trace" : "Observation"}-level score`,
+                        color:
+                          level === "trace"
+                            ? ("violet" as const)
+                            : ("blue" as const),
+                      })),
+                    }))}
+                    onValueChange={(key) => handleFilterChange(index, { key })}
+                  />
+                </div>
               ) : (
                 // Free-form key, with observed keys offered as suggestions.
                 // Only the key changes — the row's value is preserved.
@@ -482,28 +428,33 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
             {mode === "categorical" ? (
               <>
                 {/* Operator select */}
-                <Select
+                <SelectInput
                   value={filter.operator}
+                  options={CATEGORICAL_OPERATOR_OPTIONS}
+                  placeholder="Operator"
                   onValueChange={(value) =>
                     handleFilterChange(index, {
                       operator: value as "any of" | "none of",
                     })
                   }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="any of">any of</SelectItem>
-                    <SelectItem value="none of">none of</SelectItem>
-                  </SelectContent>
-                </Select>
+                />
 
                 {/* Values multi-select */}
-                <MultiSelect
-                  title="Values"
-                  options={availableValuesForKey.map((v) => ({ value: v }))}
-                  values={filter.value as string[]}
+                <MultiSelectInput
+                  placeholder="Select"
+                  selectedLabel={`${(filter.value as string[]).length} selected`}
+                  searchPlaceholder="Values"
+                  emptyMessage="No results found."
+                  selectAllLabel="Select All"
+                  options={Array.from(
+                    new Set([
+                      ...availableValuesForKey,
+                      ...(filter.value as string[]),
+                    ]),
+                  )
+                    .filter((value) => value.length > 0)
+                    .map((value) => ({ value, label: value }))}
+                  value={filter.value as string[]}
                   onValueChange={(values) =>
                     handleFilterChange(index, { value: values })
                   }
@@ -513,27 +464,16 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
             ) : mode === "numeric" ? (
               <>
                 {/* Numeric operator select */}
-                <Select
+                <SelectInput
                   value={filter.operator}
+                  options={NUMERIC_OPERATOR_OPTIONS}
+                  placeholder="Operator"
                   onValueChange={(value) =>
                     handleFilterChange(index, {
                       operator: value as "=" | ">" | "<" | ">=" | "<=",
                     })
                   }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(NUMERIC_OPERATOR_LABELS).map(
-                      ([op, label]) => (
-                        <SelectItem key={op} value={op}>
-                          {label}
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
+                />
 
                 {/* Numeric value input */}
                 <Input
@@ -551,55 +491,40 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
               </>
             ) : mode === "boolean" ? (
               <>
-                <Select
+                <SelectInput
                   value={filter.operator}
+                  options={BOOLEAN_OPERATOR_OPTIONS}
+                  placeholder="Operator"
                   onValueChange={(value) =>
                     handleFilterChange(index, {
                       operator: value as "=" | "<>",
                     })
                   }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(BOOLEAN_OPERATOR_LABELS).map(
-                      ([op, label]) => (
-                        <SelectItem key={op} value={op}>
-                          {label}
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
+                />
 
-                <Select
+                <SelectInput
                   value={
                     typeof filter.value === "boolean"
                       ? String(filter.value)
-                      : undefined
+                      : ""
                   }
+                  options={BOOLEAN_VALUE_OPTIONS}
+                  placeholder="Value"
                   onValueChange={(value) =>
                     handleFilterChange(index, {
                       value: value === "true",
                     })
                   }
                   disabled={!filter.key}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Value" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="true">true</SelectItem>
-                    <SelectItem value="false">false</SelectItem>
-                  </SelectContent>
-                </Select>
+                />
               </>
             ) : (
               <>
                 {/* String operator select */}
-                <Select
+                <SelectInput
                   value={filter.operator}
+                  options={STRING_OPERATOR_OPTIONS}
+                  placeholder="Operator"
                   onValueChange={(value) => {
                     const operator = value as StringOperator;
                     handleFilterChange(index, {
@@ -611,20 +536,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                         : {}),
                     });
                   }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(STRING_OPERATOR_LABELS).map(
-                      ([op, label]) => (
-                        <SelectItem key={op} value={op}>
-                          {label}
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
+                />
 
                 {/* String value input, hidden for value-less presence operators */}
                 {isStringPresenceOperator(filter.operator) ? null : (
