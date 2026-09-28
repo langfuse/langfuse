@@ -1,5 +1,6 @@
 import { recordIncrement } from "../instrumentation";
 import { type NormalizedClickHouseQueryTags } from "./queryTags";
+import { type ClickhouseService } from "./client";
 
 /**
  * Terminal outcome of one logical ClickHouse query, counted once per query
@@ -216,6 +217,7 @@ export function recordClickHouseQueryOutcome(
   tags: NormalizedClickHouseQueryTags,
   table: ClickHouseQueryTable,
   shape: ClickHouseQueryShape,
+  clickhouseService: ClickhouseService,
 ): void {
   recordIncrement(CLICKHOUSE_QUERY_OUTCOME_METRIC, 1, {
     outcome,
@@ -223,5 +225,6 @@ export function recordClickHouseQueryOutcome(
     route: clickHouseQueryOutcomeRouteLabel(tags.route),
     table,
     query_shape: shape,
+    clickhouse_service: clickhouseService,
   });
 }

@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import {
   createContext,
   useCallback,
@@ -454,14 +453,15 @@ function ModelCount({
 }
 
 function ProviderName({ provider }: { provider: GatewayProvider }) {
-  const icon =
-    provider === "OPENAI" ? (
-      <SiOpenai className="size-4" aria-hidden="true" />
-    ) : provider === "ANTHROPIC" ? (
-      <SiAnthropic className="size-4" aria-hidden="true" />
-    ) : (
-      <Route className="size-4" aria-hidden="true" />
-    );
+  const icon = (() => {
+    if (provider === "OPENAI") {
+      return <SiOpenai className="size-4" aria-hidden="true" />;
+    }
+    if (provider === "ANTHROPIC") {
+      return <SiAnthropic className="size-4" aria-hidden="true" />;
+    }
+    return <Route className="size-4" aria-hidden="true" />;
+  })();
 
   return (
     <div className="flex items-center gap-2">
@@ -478,11 +478,14 @@ function ConnectionStatus({
 }: {
   status: GatewayConnectionRow["status"];
 }) {
-  const variant =
-    status === "ENABLED"
-      ? "success"
-      : status === "ERROR"
-        ? "error"
-        : "secondary";
+  const variant = (() => {
+    if (status === "ENABLED") {
+      return "success";
+    }
+    if (status === "ERROR") {
+      return "error";
+    }
+    return "secondary";
+  })();
   return <Badge variant={variant}>{status.toLowerCase()}</Badge>;
 }
