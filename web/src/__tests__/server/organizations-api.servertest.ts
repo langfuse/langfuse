@@ -886,7 +886,7 @@ describe("Public Organizations API", () => {
     const apiKey = await createApiKey(prisma, {
       owner: OrganizationId(testOrgId),
       role: SystemRoleId("ORGANIZATION"),
-      creator: UserId(keyCreator.id),
+      createdBy: UserId(keyCreator.id),
       name: "Test API Key for Organizations API",
       predefinedKeys: {
         publicKey: `pk-lf-org-${randomUUID().substring(0, 8)}`,
@@ -958,7 +958,7 @@ describe("Public Organizations API", () => {
         const projectApiKey = await createApiKey(prisma, {
           owner: ProjectId(testProject1Id),
           role: SystemRoleId("PROJECT"),
-          creator: UserId(keyCreator.id),
+          createdBy: UserId(keyCreator.id),
           name: "Test Project API Key",
           predefinedKeys: {
             publicKey: `pk-lf-project-${randomUUID().substring(0, 8)}`,
@@ -1065,7 +1065,7 @@ describe("Public Organizations API", () => {
         const emptyOrgApiKey = await createApiKey(prisma, {
           owner: OrganizationId(emptyOrg.id),
           role: SystemRoleId("ORGANIZATION"),
-          creator: UserId(keyCreator.id),
+          createdBy: UserId(keyCreator.id),
           name: "Test API Key for Empty Org",
           predefinedKeys: {
             publicKey: `pk-lf-empty-${randomUUID().substring(0, 8)}`,
@@ -1155,7 +1155,7 @@ describe("Public Organizations API", () => {
       const orgApiKey = await createApiKey(prisma, {
         owner: OrganizationId(testOrgId),
         role: SystemRoleId("ORGANIZATION"),
-        creator: UserId(keyCreator.id),
+        createdBy: UserId(keyCreator.id),
         name: "Org API Key for testing",
       });
       testApiKey = orgApiKey.publicKey;
@@ -1165,14 +1165,14 @@ describe("Public Organizations API", () => {
       await createApiKey(prisma, {
         owner: OrganizationId(testOrgId),
         role: SystemRoleId("ORGANIZATION"),
-        creator: UserId(keyCreator.id),
+        createdBy: UserId(keyCreator.id),
         name: "First test key",
       });
 
       await createApiKey(prisma, {
         owner: OrganizationId(testOrgId),
         role: SystemRoleId("ORGANIZATION"),
-        creator: UserId(keyCreator.id),
+        createdBy: UserId(keyCreator.id),
         name: "Second test key",
       });
 
@@ -1189,7 +1189,7 @@ describe("Public Organizations API", () => {
       const secondOrgKey = await createApiKey(prisma, {
         owner: OrganizationId(secondOrgId),
         role: SystemRoleId("ORGANIZATION"),
-        creator: UserId(keyCreator.id),
+        createdBy: UserId(keyCreator.id),
         name: "Second org API key",
       });
       secondOrgApiKey = secondOrgKey.publicKey;
@@ -1290,7 +1290,7 @@ describe("Public Organizations API", () => {
       const projectApiKey = await createApiKey(prisma, {
         owner: ProjectId(project.id),
         role: SystemRoleId("PROJECT"),
-        creator: UserId(keyCreator.id),
+        createdBy: UserId(keyCreator.id),
         name: "Project API key",
       });
 

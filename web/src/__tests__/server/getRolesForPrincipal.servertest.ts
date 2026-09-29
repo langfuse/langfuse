@@ -31,7 +31,7 @@ describe("getRolesForPrincipal decision-equivalence", () => {
     const key = await createApiKey(prisma, {
       owner: ProjectId(projectId),
       role: SystemRoleId("PROJECT"),
-      creator: UserId(creator.id),
+      createdBy: UserId(creator.id),
     });
 
     const policies = (await getRolesForPrincipal(ApiKeyId(key.id))).flatMap(
@@ -58,7 +58,7 @@ describe("getRolesForPrincipal decision-equivalence", () => {
     const key = await createApiKey(prisma, {
       owner: OrganizationId(orgId),
       role: SystemRoleId("ORGANIZATION"),
-      creator: UserId(creator.id),
+      createdBy: UserId(creator.id),
     });
 
     const policies = (await getRolesForPrincipal(ApiKeyId(key.id))).flatMap(

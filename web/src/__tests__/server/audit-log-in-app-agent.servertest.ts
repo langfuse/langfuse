@@ -23,7 +23,7 @@ describe("in-app agent audit logging", () => {
     const mcpApiKey = await createApiKey(prisma, {
       owner: ProjectId(projectId),
       role: SystemRoleId("PROJECT"),
-      creator: UserId(user.id),
+      createdBy: UserId(user.id),
       name: "In-app agent MCP session",
       isInAppAgentKey: true,
     });
@@ -54,7 +54,7 @@ describe("in-app agent audit logging", () => {
     const mcpApiKey = await createApiKey(prisma, {
       owner: ProjectId(projectId),
       role: SystemRoleId("PROJECT"),
-      creator: UserId(user.id),
+      createdBy: UserId(user.id),
       name: "In-app agent MCP session",
       isInAppAgentKey: true,
     });

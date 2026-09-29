@@ -217,7 +217,7 @@ if (env.LANGFUSE_INIT_ORG_ID) {
         await createApiKey(prisma, {
           owner: ProjectId(projectId),
           role: SystemRoleId("PROJECT"),
-          creator: UserId(initUserId),
+          createdBy: UserId(initUserId),
           name: "Provisioned API Key",
           predefinedKeys: { secretKey, publicKey },
         });

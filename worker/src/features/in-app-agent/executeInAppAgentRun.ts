@@ -388,7 +388,7 @@ export async function executeInAppAgentRun(params: {
       const key = await createApiKey(tx, {
         owner: ProjectId(projectId),
         role: SystemRoleId("PROJECT"),
-        creator: UserId(triggeredByUserId),
+        createdBy: UserId(triggeredByUserId),
         name: IN_APP_AGENT_API_KEY_NOTE,
         isInAppAgentKey: true,
       });

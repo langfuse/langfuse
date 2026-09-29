@@ -105,7 +105,7 @@ export async function handleCreateApiKey(
     const apiKeyMeta = await createApiKey(prisma, {
       owner: ProjectId(projectId),
       role: SystemRoleId("PROJECT"),
-      creator: ApiKeyId(createdByApiKeyId),
+      createdBy: ApiKeyId(createdByApiKeyId),
       name: note,
       predefinedKeys:
         publicKey && secretKey ? { publicKey, secretKey } : undefined,

@@ -3329,7 +3329,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       const apiKey = await createApiKey(prisma, {
         owner: ProjectId(projectId),
         role: SystemRoleId("PROJECT"),
-        creator: UserId(userId),
+        createdBy: UserId(userId),
         isInAppAgentKey: true,
       });
       const name = "deleteProtectedAgent" + uuidv4();
@@ -3415,7 +3415,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       const apiKey = await createApiKey(prisma, {
         owner: ProjectId(projectId),
         role: SystemRoleId("PROJECT"),
-        creator: UserId(userId),
+        createdBy: UserId(userId),
         isInAppAgentKey: true,
       });
       const name = "deleteUnlabeledSibling" + uuidv4();

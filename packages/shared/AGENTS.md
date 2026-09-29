@@ -89,7 +89,9 @@
   `TenantId`/`RoleId` unions, their kind predicates/`untag`, and the
   `RoleAssignment` type. It also owns the role catalog: the system-role
   definitions/policies/tags and the helpers over them (`systemRoleAccessRights`,
-  `isAssignableAtCreate`, `roleHasProjectPolicy`, `apiKeyRolesForScope`), the
+  `isAssignableAtCreate`, `isLegacyApiKeyRole`, `roleHasProjectPolicy`,
+  `apiKeyRolesForScope`, `apiKeyRolesAcceptedForScope`,
+  `legacyApiKeyRoleForScope`), the
   action vocabulary (`ProjectAction`/`OrganizationAction`/`Action`/`Effect`,
   `allProjectActions`/`allOrganizationActions`/`isOrgAction`), and the
   organization access-right table (`organizationRoleAccessRights`,

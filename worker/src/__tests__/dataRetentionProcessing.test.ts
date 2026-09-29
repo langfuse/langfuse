@@ -92,7 +92,7 @@ describe("DataRetentionProcessingJob", () => {
       const key = await createApiKey(prisma, {
         owner: ProjectId(projectId),
         role: SystemRoleId("PROJECT"),
-        creator: UserId(creator.id),
+        createdBy: UserId(creator.id),
         isInAppAgentKey: true,
       });
       keyIds.push(key.id);

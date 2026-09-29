@@ -112,7 +112,7 @@ export async function createApiKey(
   opts: {
     owner: OwnerId;
     role: RoleId;
-    creator: ApiKeyId | UserId;
+    createdBy: ApiKeyId | UserId;
     name?: string;
     expiresAt?: Date | null;
     isInAppAgentKey?: boolean;
@@ -165,9 +165,9 @@ export async function createApiKey(
     scope,
     expiresAt: opts.expiresAt ?? null,
     isInAppAgentKey: opts.isInAppAgentKey ?? false,
-    ...(hasApiKeyKind(opts.creator)
-      ? { createdByApiKeyId: untag(opts.creator) }
-      : { createdByUserId: untag(opts.creator) }),
+    ...(hasApiKeyKind(opts.createdBy)
+      ? { createdByApiKeyId: untag(opts.createdBy) }
+      : { createdByUserId: untag(opts.createdBy) }),
   };
 
   // A root client owns the transaction; a transaction client joins the caller's.

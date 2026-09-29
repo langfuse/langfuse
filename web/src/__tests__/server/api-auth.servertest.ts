@@ -298,7 +298,7 @@ describe("Authenticate API calls", () => {
       const apiKey = await createApiKey(prisma, {
         owner: ProjectId(testApiKey.projectId),
         role: SystemRoleId("PROJECT"),
-        creator: UserId(keyCreator.id),
+        createdBy: UserId(keyCreator.id),
         isInAppAgentKey: true,
       });
 
@@ -323,7 +323,7 @@ describe("Authenticate API calls", () => {
       const apiKey = await createApiKey(prisma, {
         owner: ProjectId(testApiKey.projectId),
         role: SystemRoleId("PROJECT"),
-        creator: UserId(keyCreator.id),
+        createdBy: UserId(keyCreator.id),
         isInAppAgentKey: true,
       });
 

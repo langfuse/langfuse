@@ -136,7 +136,7 @@ describe("Blob Storage Integrations API", () => {
     const orgApiKey = await createApiKey(prisma, {
       owner: OrganizationId(testOrgId),
       role: SystemRoleId("ORGANIZATION"),
-      creator: UserId(orgKeyCreator.id),
+      createdBy: UserId(orgKeyCreator.id),
       name: "Test API Key for Blob Storage API",
       predefinedKeys: {
         publicKey: `pk-lf-blob-${randomUUID().substring(0, 8)}`,
@@ -250,7 +250,7 @@ describe("Blob Storage Integrations API", () => {
       const projectApiKey = await createApiKey(prisma, {
         owner: ProjectId(testProject1Id),
         role: SystemRoleId("PROJECT"),
-        creator: UserId(keyCreator.id),
+        createdBy: UserId(keyCreator.id),
         name: "Project API Key",
         predefinedKeys: {
           publicKey: `pk-lf-proj-${randomUUID().substring(0, 8)}`,
@@ -1477,7 +1477,7 @@ describe("Blob Storage Integrations API", () => {
       const projectApiKey = await createApiKey(prisma, {
         owner: ProjectId(testProject1Id),
         role: SystemRoleId("PROJECT"),
-        creator: UserId(keyCreator.id),
+        createdBy: UserId(keyCreator.id),
         name: "Project API Key",
         predefinedKeys: {
           publicKey: `pk-lf-proj-del-${randomUUID().substring(0, 8)}`,

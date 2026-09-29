@@ -201,7 +201,7 @@ describe("organization API keys trpc", () => {
       const inAppAgentKey = await createApiKey(prisma, {
         owner: OrganizationId(organizationId),
         role: SystemRoleId("ORGANIZATION"),
-        creator: UserId("user-1"),
+        createdBy: UserId("user-1"),
         name: "In-app agent key hidden from org UI",
         isInAppAgentKey: true,
       });
@@ -367,7 +367,7 @@ describe("organization API keys trpc", () => {
       const inAppAgentKey = await createApiKey(prisma, {
         owner: OrganizationId(organizationId),
         role: SystemRoleId("ORGANIZATION"),
-        creator: UserId("user-1"),
+        createdBy: UserId("user-1"),
         name: "Original in-app agent note",
         isInAppAgentKey: true,
       });
@@ -448,7 +448,7 @@ describe("organization API keys trpc", () => {
       const inAppAgentKey = await createApiKey(prisma, {
         owner: OrganizationId(organizationId),
         role: SystemRoleId("ORGANIZATION"),
-        creator: UserId("user-1"),
+        createdBy: UserId("user-1"),
         isInAppAgentKey: true,
       });
 
@@ -503,7 +503,7 @@ describe("organization API keys trpc", () => {
       const existingKey = await createApiKey(prisma, {
         owner: OrganizationId(organizationId),
         role: SystemRoleId("ORGANIZATION"),
-        creator: UserId("user-1"),
+        createdBy: UserId("user-1"),
         name: "Issued before downgrade",
       });
 
@@ -569,34 +569,9 @@ describe("organization API keys trpc", () => {
       expect(projectResources).toContain(ProjectId("*"));
     });
 
-    // Off enforce, the selected role is ignored and the key gets the legacy
-    // ORGANIZATION role so it behaves as a legacy org key does.
-    it("forces the legacy ORGANIZATION role when enforce is off", async () => {
-      const orgId = `org-${randomUUID()}`;
-      await prisma.organization.create({ data: { id: orgId, name: "Scoped" } });
-
-      const originalMigration = (env as { API_AUTH_MIGRATION: string })
-        .API_AUTH_MIGRATION;
-      (env as { API_AUTH_MIGRATION: string }).API_AUTH_MIGRATION = "legacy";
-      try {
-        const key = await ownerCallerForOrg(orgId).organizationApiKeys.create({
-          orgId,
-          role: "ADMIN",
-        });
-
-        const roleIds = (await getRolesForPrincipal(ApiKeyId(key.id))).map(
-          (role) => role.id,
-        );
-        expect(roleIds).toContain(SystemRoleId("ORGANIZATION"));
-      } finally {
-        (env as { API_AUTH_MIGRATION: string }).API_AUTH_MIGRATION =
-          originalMigration;
-      }
-    });
-
-    // Legacy roles carry api-key policies but are retired from the creation UI,
-    // so they are not among the roles the create input accepts.
-    it("rejects a legacy role that is not assignable at create time", async () => {
+    // Under enforce a legacy role is not offered for a new key, so the handler
+    // rejects it even though the input enum accepts it.
+    it("rejects a legacy role under enforce", async () => {
       const orgId = `org-${randomUUID()}`;
       await prisma.organization.create({ data: { id: orgId, name: "Scoped" } });
 
@@ -608,6 +583,38 @@ describe("organization API keys trpc", () => {
       ).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
       await expect(prisma.apiKey.count({ where: { orgId } })).resolves.toBe(0);
+    });
+
+    // Off enforce, only the legacy ORGANIZATION role is accepted: a normal role
+    // is rejected, and the legacy role creates a key that behaves as a legacy
+    // org key does.
+    it("accepts only the legacy ORGANIZATION role when enforce is off", async () => {
+      const orgId = `org-${randomUUID()}`;
+      await prisma.organization.create({ data: { id: orgId, name: "Scoped" } });
+
+      const originalMigration = (env as { API_AUTH_MIGRATION: string })
+        .API_AUTH_MIGRATION;
+      (env as { API_AUTH_MIGRATION: string }).API_AUTH_MIGRATION = "legacy";
+      try {
+        await expect(
+          ownerCallerForOrg(orgId).organizationApiKeys.create({
+            orgId,
+            role: "ADMIN",
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+        const key = await ownerCallerForOrg(orgId).organizationApiKeys.create({
+          orgId,
+          role: "ORGANIZATION",
+        });
+        const roleIds = (await getRolesForPrincipal(ApiKeyId(key.id))).map(
+          (role) => role.id,
+        );
+        expect(roleIds).toContain(SystemRoleId("ORGANIZATION"));
+      } finally {
+        (env as { API_AUTH_MIGRATION: string }).API_AUTH_MIGRATION =
+          originalMigration;
+      }
     });
   });
 });

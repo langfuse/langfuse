@@ -8,6 +8,7 @@ import {
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import { env } from "@/src/env.mjs";
 
 describe("project API keys trpc", () => {
   // The session user is persisted as the API key creator, so it must exist
@@ -81,7 +82,7 @@ describe("project API keys trpc", () => {
       const inAppAgentKey = await createApiKey(prisma, {
         owner: ProjectId(projectId),
         role: SystemRoleId("PROJECT"),
-        creator: UserId("user-1"),
+        createdBy: UserId("user-1"),
         name: "In-app agent key hidden from project UI",
         isInAppAgentKey: true,
       });
@@ -183,6 +184,39 @@ describe("project API keys trpc", () => {
       expect(assignment.systemRole).toBe("VIEWER");
       expect(assignment.ownerId).toBe(`project/${projectId}`);
     });
+
+    // Off enforce, only the legacy PROJECT role is accepted: a normal role is
+    // rejected, and the legacy role creates a key that behaves as a legacy
+    // project key does.
+    it("accepts only the legacy PROJECT role when enforce is off", async () => {
+      const { caller, projectId } = await createProjectCaller();
+
+      const originalMigration = (env as { API_AUTH_MIGRATION: string })
+        .API_AUTH_MIGRATION;
+      (env as { API_AUTH_MIGRATION: string }).API_AUTH_MIGRATION = "legacy";
+      try {
+        await expect(
+          caller.projectApiKeys.create({
+            projectId,
+            note: "normal role off enforce",
+            role: "VIEWER",
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+        const key = await caller.projectApiKeys.create({
+          projectId,
+          note: "legacy role off enforce",
+          role: "PROJECT",
+        });
+        const assignment = await prisma.systemRoleAssignment.findFirstOrThrow({
+          where: { principalId: `apiKey/${key.id}` },
+        });
+        expect(assignment.systemRole).toBe("PROJECT");
+      } finally {
+        (env as { API_AUTH_MIGRATION: string }).API_AUTH_MIGRATION =
+          originalMigration;
+      }
+    });
   });
 
   describe("projectApiKeys.updateNote", () => {
@@ -191,7 +225,7 @@ describe("project API keys trpc", () => {
       const inAppAgentKey = await createApiKey(prisma, {
         owner: ProjectId(projectId),
         role: SystemRoleId("PROJECT"),
-        creator: UserId("user-1"),
+        createdBy: UserId("user-1"),
         name: "Original in-app agent note",
         isInAppAgentKey: true,
       });
@@ -218,7 +252,7 @@ describe("project API keys trpc", () => {
       const key = await createApiKey(prisma, {
         owner: ProjectId(projectId),
         role: SystemRoleId("PROJECT"),
-        creator: UserId("user-1"),
+        createdBy: UserId("user-1"),
         name: "Key for role assignment test",
       });
 
@@ -252,7 +286,7 @@ describe("project API keys trpc", () => {
       const inAppAgentKey = await createApiKey(prisma, {
         owner: ProjectId(projectId),
         role: SystemRoleId("PROJECT"),
-        creator: UserId("user-1"),
+        createdBy: UserId("user-1"),
         isInAppAgentKey: true,
       });
 

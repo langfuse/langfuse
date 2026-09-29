@@ -612,7 +612,7 @@ async function seedAiGateway(params: {
     (await createApiKey(prisma, {
       owner: OrganizationId(params.organizationId),
       role: SystemRoleId("ORGANIZATION"),
-      creator: UserId(params.userId),
+      createdBy: UserId(params.userId),
       name: "Seeded gateway key",
       predefinedKeys: {
         publicKey,

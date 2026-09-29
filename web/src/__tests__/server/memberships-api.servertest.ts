@@ -70,7 +70,7 @@ describe("Memberships APIs", () => {
     const apiKey = await createApiKey(prisma, {
       owner: OrganizationId(testOrgId),
       role: SystemRoleId("ORGANIZATION"),
-      creator: UserId(testUserId),
+      createdBy: UserId(testUserId),
       name: "Test API Key for Memberships API",
       predefinedKeys: {
         publicKey: `pk-lf-org-${randomUUID().substring(0, 8)}`,
@@ -146,7 +146,7 @@ describe("Memberships APIs", () => {
         const projectApiKey = await createApiKey(prisma, {
           owner: ProjectId(testProjectId),
           role: SystemRoleId("PROJECT"),
-          creator: UserId(testUserId),
+          createdBy: UserId(testUserId),
           name: "Test API Key for Memberships API",
           predefinedKeys: {
             publicKey: `pk-lf-project-${randomUUID().substring(0, 8)}`,

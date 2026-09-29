@@ -10,16 +10,16 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
-  apiKeyRolesForScope,
+  apiKeyRolesAcceptedForScope,
   OrganizationId,
   SystemRoleId,
   UserId,
 } from "@langfuse/shared/rbac";
 import { SystemRole } from "@langfuse/shared/src/db";
 
-import { env } from "@/src/env.mjs";
+import { assertApiKeyRoleForMigration } from "@/src/features/public-api/server/assertApiKeyRoleForMigration";
 
-const organizationApiKeyRoles = apiKeyRolesForScope("organization") as [
+const organizationApiKeyRoles = apiKeyRolesAcceptedForScope("organization") as [
   SystemRole,
   ...SystemRole[],
 ];
@@ -96,15 +96,12 @@ export const organizationApiKeysRouter = createTRPCRouter({
         orgId: input.orgId,
       });
 
-      const role =
-        env.API_AUTH_MIGRATION === "enforce"
-          ? input.role
-          : SystemRole.ORGANIZATION;
+      assertApiKeyRoleForMigration(input.role);
 
       const apiKeyMeta = await createApiKey(ctx.prisma, {
         owner: OrganizationId(input.orgId),
-        role: SystemRoleId(role),
-        creator: UserId(ctx.session.user.id),
+        role: SystemRoleId(input.role),
+        createdBy: UserId(ctx.session.user.id),
         name: input.note,
         expiresAt: input.expiresAt,
       });
@@ -115,7 +112,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
         resourceId: apiKeyMeta.id,
         action: "create",
         after: {
-          role,
+          role: input.role,
           expiresAt: input.expiresAt ?? null,
         },
       });

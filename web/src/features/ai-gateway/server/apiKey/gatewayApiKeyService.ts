@@ -38,7 +38,7 @@ export class GatewayApiKeyService {
       const key = await createApiKey(tx, {
         owner: OrganizationId(params.organizationId),
         role: SystemRoleId("ORGANIZATION"),
-        creator: UserId(params.session.user.id),
+        createdBy: UserId(params.session.user.id),
         name: params.note,
       });
       await tx.gatewayApiKeyAssociation.create({

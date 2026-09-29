@@ -182,6 +182,23 @@ export const isApiKeyRole = (role: SystemRole): boolean =>
 export const isAssignableAtCreate = (role: SystemRole): boolean =>
   isApiKeyRole(role) && !systemRoleAccessRights[role].tags.includes("legacy");
 
+/** isLegacyApiKeyRole reports whether a role is a retired legacy api-key role. */
+export const isLegacyApiKeyRole = (role: SystemRole): boolean =>
+  isApiKeyRole(role) && systemRoleAccessRights[role].tags.includes("legacy");
+
+/** legacyApiKeyRoleForScope is the full-access role a scope's keys carried before per-key roles. */
+export const legacyApiKeyRoleForScope = (
+  scope: "project" | "organization",
+): SystemRole => (scope === "project" ? "PROJECT" : "ORGANIZATION");
+
+/** apiKeyRolesAcceptedForScope is the roles a scope's create input accepts: the roles the UI offers plus the scope's legacy role, hidden from the UI but required by off-enforce creation. */
+export const apiKeyRolesAcceptedForScope = (
+  scope: "project" | "organization",
+): SystemRole[] => [
+  ...apiKeyRolesForScope(scope),
+  legacyApiKeyRoleForScope(scope),
+];
+
 /** apiKeyRolesForScope lists, in catalog order, the roles offered when creating an api key at the given scope: project-capable roles for a project key, every creatable api-key role for an organization key. */
 export const apiKeyRolesForScope = (
   scope: "project" | "organization",

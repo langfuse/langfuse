@@ -899,7 +899,7 @@ describe("executeInAppAgentRun", () => {
     const key = await createApiKey(prisma, {
       owner: ProjectId(projectId),
       role: SystemRoleId("PROJECT"),
-      creator: UserId(user.id),
+      createdBy: UserId(user.id),
       name: "stale-run mcp key",
       isInAppAgentKey: true,
     });
@@ -938,7 +938,7 @@ describe("executeInAppAgentRun", () => {
     const key = await createApiKey(prisma, {
       owner: ProjectId(projectId),
       role: SystemRoleId("PROJECT"),
-      creator: UserId(user.id),
+      createdBy: UserId(user.id),
       name: "already-deleted mcp key",
       isInAppAgentKey: true,
     });
@@ -988,7 +988,7 @@ describe("executeInAppAgentRun", () => {
     const userKey = await createApiKey(prisma, {
       owner: ProjectId(projectId),
       role: SystemRoleId("PROJECT"),
-      creator: UserId(user.id),
+      createdBy: UserId(user.id),
       name: "user project key",
       isInAppAgentKey: false,
     });

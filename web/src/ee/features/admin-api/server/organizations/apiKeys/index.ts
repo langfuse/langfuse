@@ -84,7 +84,7 @@ export async function handleCreateApiKey(
   const apiKeyMeta = await createApiKey(prisma, {
     owner: OrganizationId(organizationId),
     role: SystemRoleId("ORGANIZATION"),
-    creator: UserId(member.userId),
+    createdBy: UserId(member.userId),
     name: note,
   });
 

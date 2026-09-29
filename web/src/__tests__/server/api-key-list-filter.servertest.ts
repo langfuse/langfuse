@@ -49,14 +49,14 @@ describe("public API key list filters", () => {
     const visibleKey = await createApiKey(prisma, {
       owner: ProjectId(projectId),
       role: SystemRoleId("PROJECT"),
-      creator: UserId(keyCreator.id),
+      createdBy: UserId(keyCreator.id),
       name: "Visible project key",
     });
 
     const inAppAgentKey = await createApiKey(prisma, {
       owner: ProjectId(projectId),
       role: SystemRoleId("PROJECT"),
-      creator: UserId(keyCreator.id),
+      createdBy: UserId(keyCreator.id),
       name: "Hidden project in-app agent key",
       isInAppAgentKey: true,
     });
@@ -83,14 +83,14 @@ describe("public API key list filters", () => {
     const visibleKey = await createApiKey(prisma, {
       owner: OrganizationId(orgId),
       role: SystemRoleId("ORGANIZATION"),
-      creator: UserId(keyCreator.id),
+      createdBy: UserId(keyCreator.id),
       name: "Visible org key",
     });
 
     const inAppAgentKey = await createApiKey(prisma, {
       owner: OrganizationId(orgId),
       role: SystemRoleId("ORGANIZATION"),
-      creator: UserId(keyCreator.id),
+      createdBy: UserId(keyCreator.id),
       name: "Hidden org in-app agent key",
       isInAppAgentKey: true,
     });
@@ -116,7 +116,7 @@ describe("public API key list filters", () => {
     const inAppAgentKey = await createApiKey(prisma, {
       owner: ProjectId(projectId),
       role: SystemRoleId("PROJECT"),
-      creator: UserId(keyCreator.id),
+      createdBy: UserId(keyCreator.id),
       isInAppAgentKey: true,
     });
 
@@ -143,7 +143,7 @@ describe("public API key list filters", () => {
     const inAppAgentKey = await createApiKey(prisma, {
       owner: OrganizationId(orgId),
       role: SystemRoleId("ORGANIZATION"),
-      creator: UserId(keyCreator.id),
+      createdBy: UserId(keyCreator.id),
       isInAppAgentKey: true,
     });
 

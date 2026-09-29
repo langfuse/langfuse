@@ -63,7 +63,7 @@ describe("revokeApiKeyRolesForOwners", () => {
     await createApiKey(prisma, {
       owner: ProjectId(otherProject.id),
       role: SystemRoleId("PROJECT"),
-      creator: UserId(keyCreator.id),
+      createdBy: UserId(keyCreator.id),
     });
 
     await revokeApiKeyRolesForOwners(prisma, [ProjectId(projectId)]);

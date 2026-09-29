@@ -148,7 +148,7 @@ describe("SCIM API", () => {
     await createApiKey(prisma, {
       owner: OrganizationId(orgId),
       role: SystemRoleId("ORGANIZATION"),
-      creator: UserId(keyCreator.id),
+      createdBy: UserId(keyCreator.id),
       predefinedKeys: {
         publicKey: orgApiKey,
         secretKey: orgSecretKey,
@@ -1314,7 +1314,7 @@ describe("SCIM API", () => {
         await createApiKey(prisma, {
           owner: OrganizationId(scopedOrgId),
           role: SystemRoleId("ORGANIZATION"),
-          creator: UserId(owner.id),
+          createdBy: UserId(owner.id),
           predefinedKeys: {
             publicKey: scopedOrgPublicKey,
             secretKey: scopedOrgSecretKey,
@@ -1658,7 +1658,7 @@ describe("SCIM API", () => {
       await createApiKey(prisma, {
         owner: OrganizationId(hobbyOrgId),
         role: SystemRoleId("ORGANIZATION"),
-        creator: UserId(hobbyKeyCreator.id),
+        createdBy: UserId(hobbyKeyCreator.id),
         predefinedKeys: {
           publicKey: hobbyPublicKey,
           secretKey: hobbySecretKey,
@@ -1682,7 +1682,7 @@ describe("SCIM API", () => {
       await createApiKey(prisma, {
         owner: OrganizationId(teamOrgId),
         role: SystemRoleId("ORGANIZATION"),
-        creator: UserId(teamKeyCreator.id),
+        createdBy: UserId(teamKeyCreator.id),
         predefinedKeys: {
           publicKey: teamPublicKey,
           secretKey: teamSecretKey,

@@ -141,7 +141,7 @@ describe("createApiKey assignment rows", () => {
     await createApiKey(asTx(tx), {
       owner: ProjectId("proj_1"),
       role: SystemRoleId("VIEWER"),
-      creator: UserId("user_1"),
+      createdBy: UserId("user_1"),
       name: "project key",
     });
 
@@ -167,7 +167,7 @@ describe("createApiKey assignment rows", () => {
     await createApiKey(asTx(tx), {
       owner: OrganizationId(ORG_ID),
       role: SystemRoleId("ORGANIZATION"),
-      creator: ApiKeyId("key_creator"),
+      createdBy: ApiKeyId("key_creator"),
       name: "org key",
     });
 
@@ -199,7 +199,7 @@ describe("createApiKey assignment rows", () => {
         createApiKey(asTx(tx), {
           owner: OrganizationId(ORG_ID),
           role: SystemRoleId("OWNER"),
-          creator: UserId("user_1"),
+          createdBy: UserId("user_1"),
         }),
       ).rejects.toThrow(/cannot back an organization API key/);
       expect(assignments).toEqual([]);
@@ -212,7 +212,7 @@ describe("createApiKey assignment rows", () => {
         createApiKey(asTx(tx), {
           owner: ProjectId("proj_1"),
           role: SystemRoleId("AI_GATEWAY"),
-          creator: UserId("user_1"),
+          createdBy: UserId("user_1"),
         }),
       ).rejects.toThrow(/cannot back a project API key/);
       expect(assignments).toEqual([]);
