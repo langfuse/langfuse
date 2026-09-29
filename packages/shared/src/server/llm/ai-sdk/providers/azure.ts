@@ -154,9 +154,11 @@ function getServicePrincipalTokenProvider(
 }
 
 function getDefaultCredentialTokenProvider(): AzureTokenProvider {
-  defaultCredentialTokenProvider ??= createEntraTokenProvider(
-    new DefaultAzureCredential(),
-  );
+  if (!defaultCredentialTokenProvider) {
+    defaultCredentialTokenProvider = createEntraTokenProvider(
+      new DefaultAzureCredential(),
+    );
+  }
   return defaultCredentialTokenProvider;
 }
 
