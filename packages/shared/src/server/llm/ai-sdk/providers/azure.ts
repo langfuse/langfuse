@@ -4,6 +4,7 @@ import { createAzure } from "@ai-sdk/azure";
 import {
   AggregateAuthenticationError,
   AuthenticationError,
+  AuthenticationRequiredError,
   ClientSecretCredential,
   CredentialUnavailableError,
   DefaultAzureCredential,
@@ -72,8 +73,11 @@ export function assertAzureHostAllowedForDefaultCredentials(
 function toEntraTokenError(error: unknown): unknown {
   if (!(error instanceof Error)) return error;
 
+  // ClientSecretCredential reports rejected tenants, secrets, and Conditional
+  // Access blocks as AuthenticationRequiredError.
   const isCredentialError =
     error instanceof AuthenticationError ||
+    error instanceof AuthenticationRequiredError ||
     error instanceof AggregateAuthenticationError ||
     error instanceof CredentialUnavailableError;
 

@@ -1,4 +1,7 @@
-import { AuthenticationError } from "@azure/identity";
+import {
+  AuthenticationError,
+  AuthenticationRequiredError,
+} from "@azure/identity";
 import { APICallError } from "ai";
 import { describe, expect, it, vi } from "vitest";
 
@@ -125,6 +128,14 @@ describe("resolveAzureProviderAuth", () => {
       isRetryable: false,
       message: expect.stringContaining("AADSTS7000215"),
     });
+
+    tokenFailure.error = new AuthenticationRequiredError({
+      scopes: ["https://cognitiveservices.azure.com/.default"],
+      message: "invalid_request: AADSTS90002: Tenant not found.",
+    });
+    expect(
+      await tokenProvider().catch((error: unknown) => error),
+    ).toMatchObject({ statusCode: 401, isRetryable: false });
 
     tokenFailure.error = new Error("getaddrinfo ENOTFOUND");
     const outage = await tokenProvider().catch((error: unknown) => error);
