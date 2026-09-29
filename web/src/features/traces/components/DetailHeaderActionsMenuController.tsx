@@ -238,7 +238,9 @@ export function DetailHeaderActionsMenuController({
           {
             type: "item" as const,
             id: "copy-clickhouse-query",
-            title: "Copy ClickHouse query",
+            title: "Copy ClickHouse query (internal)",
+            tooltip:
+              "Internal debug helper. Copies a ClickHouse query for this observation.",
             icon: copiedId === clickHouseQuery ? CheckIcon : CopyIcon,
             onClick: () => handleCopy(clickHouseQuery),
           },
