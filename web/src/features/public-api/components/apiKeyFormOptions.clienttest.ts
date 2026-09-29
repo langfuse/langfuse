@@ -18,11 +18,16 @@ describe("resolveExpiresAt", () => {
     );
   });
 
-  it("parses a custom date and rejects an empty or invalid one", () => {
+  it("expires a custom date at the end of that local day", () => {
     expect(resolveExpiresAt("custom", "2026-06-15", now)).toEqual(
-      new Date("2026-06-15"),
+      new Date(2026, 5, 15, 23, 59, 59, 999),
     );
-    expect(resolveExpiresAt("custom", "", now)).toBeNull();
-    expect(resolveExpiresAt("custom", "not-a-date", now)).toBeNull();
+  });
+
+  it("leaves a missing, invalid, or past custom date unresolved", () => {
+    expect(resolveExpiresAt("custom", "", now)).toBeUndefined();
+    expect(resolveExpiresAt("custom", "not-a-date", now)).toBeUndefined();
+    expect(resolveExpiresAt("custom", "2026-02-30", now)).toBeUndefined();
+    expect(resolveExpiresAt("custom", "2025-12-01", now)).toBeUndefined();
   });
 });

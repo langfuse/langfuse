@@ -274,6 +274,15 @@ describe("organization API keys trpc", () => {
       expect(listedKey?.createdByApiKey).toBeNull();
     });
 
+    it("rejects an expiration date in the past", async () => {
+      await expect(
+        ownerCaller.organizationApiKeys.create({
+          orgId: organizationId,
+          expiresAt: new Date(Date.now() - 60_000),
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
     it("regular member cannot create organization API keys", async () => {
       await expect(
         memberCaller.organizationApiKeys.create({

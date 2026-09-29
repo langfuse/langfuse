@@ -78,7 +78,12 @@ export const projectApiKeysRouter = createTRPCRouter({
         projectId: z.string(),
         note: StringNoHTML.optional(),
         role: z.enum(projectApiKeyRoles).default(SystemRole.ADMIN),
-        expiresAt: z.date().nullish(),
+        expiresAt: z
+          .date()
+          .nullish()
+          .refine((date) => date == null || date.getTime() > Date.now(), {
+            message: "Expiration date must be in the future",
+          }),
       }),
     )
     .mutation(async ({ input, ctx }) => {

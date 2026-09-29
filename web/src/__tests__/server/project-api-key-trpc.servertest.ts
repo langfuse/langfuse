@@ -131,6 +131,17 @@ describe("project API keys trpc", () => {
       expect(listedKey?.createdByApiKey).toBeNull();
     });
 
+    it("rejects an expiration date in the past", async () => {
+      const { caller, projectId } = await createProjectCaller();
+
+      await expect(
+        caller.projectApiKeys.create({
+          projectId,
+          expiresAt: new Date(Date.now() - 60_000),
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
     it("rejects users without apiKeys:CUD access", async () => {
       const { caller, projectId } = await createProjectCaller("MEMBER");
 

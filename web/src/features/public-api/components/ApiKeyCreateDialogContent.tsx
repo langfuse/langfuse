@@ -33,6 +33,7 @@ import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 import {
   expiryPresetOptions,
+  localDateInputValue,
   resolveExpiresAt,
   type ExpiryPreset,
 } from "@/src/features/public-api/components/apiKeyFormOptions";
@@ -111,7 +112,8 @@ function ApiKeyCreateForm({
     null,
   );
 
-  const submitDisabled = name.trim() === "";
+  const expiresAt = resolveExpiresAt(expiryPreset, customExpiry);
+  const submitDisabled = name.trim() === "" || expiresAt === undefined;
 
   const openPermissions = (target: SystemRole) => {
     setRoleSelectOpen(false);
@@ -124,7 +126,7 @@ function ApiKeyCreateForm({
     onSubmit({
       note: name.trim(),
       role: roleSelectionEnabled ? role : legacyApiKeyRoleForScope(scope),
-      expiresAt: resolveExpiresAt(expiryPreset, customExpiry),
+      expiresAt,
     });
   };
 
@@ -175,7 +177,7 @@ function ApiKeyCreateForm({
                 <Input
                   type="date"
                   aria-label="Custom expiration date"
-                  min={new Date().toISOString().slice(0, 10)}
+                  min={localDateInputValue(new Date())}
                   value={customExpiry}
                   onChange={(e) => setCustomExpiry(e.target.value)}
                 />
