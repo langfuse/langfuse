@@ -569,8 +569,6 @@ describe("organization API keys trpc", () => {
       expect(projectResources).toContain(ProjectId("*"));
     });
 
-    // Under enforce a legacy role is not offered for a new key, so the handler
-    // rejects it even though the input enum accepts it.
     it("rejects a legacy role under enforce", async () => {
       const orgId = `org-${randomUUID()}`;
       await prisma.organization.create({ data: { id: orgId, name: "Scoped" } });
@@ -585,9 +583,6 @@ describe("organization API keys trpc", () => {
       await expect(prisma.apiKey.count({ where: { orgId } })).resolves.toBe(0);
     });
 
-    // Off enforce, only the legacy ORGANIZATION role is accepted: a normal role
-    // is rejected, and the legacy role creates a key that behaves as a legacy
-    // org key does.
     it("accepts only the legacy ORGANIZATION role when enforce is off", async () => {
       const orgId = `org-${randomUUID()}`;
       await prisma.organization.create({ data: { id: orgId, name: "Scoped" } });

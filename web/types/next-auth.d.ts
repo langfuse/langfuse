@@ -78,9 +78,8 @@ declare module "next-auth" {
       // Optional so existing session mocks need not set it; the real session
       // callback always populates it.
       v4WriteMode?: "legacy" | "dual" | "events_only";
-      // Whether API key creation offers per-key role selection. True only once
-      // API_AUTH_MIGRATION enforces the new pipeline; until then keys take the
-      // legacy role. Optional so existing session mocks need not set it.
+      // Whether API key creation offers per-key role selection (API_AUTH_MIGRATION=enforce).
+      // Optional so existing session mocks need not set it.
       apiKeyRoleSelectionEnabled?: boolean;
     };
   }

@@ -185,9 +185,6 @@ describe("project API keys trpc", () => {
       expect(assignment.ownerId).toBe(`project/${projectId}`);
     });
 
-    // Off enforce, only the legacy PROJECT role is accepted: a normal role is
-    // rejected, and the legacy role creates a key that behaves as a legacy
-    // project key does.
     it("accepts only the legacy PROJECT role when enforce is off", async () => {
       const { caller, projectId } = await createProjectCaller();
 

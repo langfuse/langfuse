@@ -191,7 +191,7 @@ export const legacyApiKeyRoleForScope = (
   scope: "project" | "organization",
 ): SystemRole => (scope === "project" ? "PROJECT" : "ORGANIZATION");
 
-/** apiKeyRolesAcceptedForScope is the roles a scope's create input accepts: the roles the UI offers plus the scope's legacy role, hidden from the UI but required by off-enforce creation. */
+/** apiKeyRolesAcceptedForScope is the roles a scope's create input accepts: the UI roles plus the scope's legacy role. */
 export const apiKeyRolesAcceptedForScope = (
   scope: "project" | "organization",
 ): SystemRole[] => [

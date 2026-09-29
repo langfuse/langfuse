@@ -4,7 +4,7 @@ import { type SystemRole } from "@langfuse/shared/src/db";
 
 import { env } from "@/src/env.mjs";
 
-/** assertApiKeyRoleForMigration rejects a role the active migration mode will not honor: a legacy role under enforce, or any non-legacy role until enforce is on. */
+/** assertApiKeyRoleForMigration rejects a role the active migration mode will not honor. */
 export function assertApiKeyRoleForMigration(role: SystemRole): void {
   const enforce = env.API_AUTH_MIGRATION === "enforce";
   if (enforce && isLegacyApiKeyRole(role)) {
