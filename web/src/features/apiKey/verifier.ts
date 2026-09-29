@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { type ApiKey } from "@langfuse/shared/src/db";
 import {
   type InternalServerError,
+  type ServiceUnavailableError,
   type UnauthorizedError,
 } from "@langfuse/shared";
 import { createShaHash, verifySecretKey } from "@langfuse/shared/src/server";
@@ -151,4 +152,6 @@ type VerifiedCredential =
 /** VerifyApiKeyResult is the verified credential, or a typed failure; verify returns, never throws. */
 export type VerifyApiKeyResult =
   | (Success & VerifiedCredential)
-  | ErrorResult<UnauthorizedError | InternalServerError>;
+  | ErrorResult<
+      UnauthorizedError | InternalServerError | ServiceUnavailableError
+    >;

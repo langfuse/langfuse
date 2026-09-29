@@ -408,9 +408,9 @@ describe("the migration-mode gate reads a declared env var", () => {
     }
   });
 
-  it("defaults the migration mode to legacy", () => {
+  it("defaults the migration mode to enforce", () => {
     expect(source("env.mjs")).toMatch(
-      /API_AUTH_MIGRATION:\s*z[^;]*?\.default\("legacy"\)/,
+      /API_AUTH_MIGRATION:\s*z[^;]*?\.default\("enforce"\)/,
     );
   });
 });

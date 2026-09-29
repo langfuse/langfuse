@@ -3,6 +3,7 @@ import { type IncomingHttpHeaders } from "http";
 import {
   type ForbiddenError,
   type InternalServerError,
+  type ServiceUnavailableError,
   type UnauthorizedError,
 } from "@langfuse/shared";
 
@@ -108,7 +109,12 @@ export type ApiKeyAuthParams = {
 /** ApiKeyAuthResults is the pipeline's outcome: the resolved context, or a typed failure. */
 export type ApiKeyAuthResults =
   | Authenticated
-  | ErrorResult<UnauthorizedError | ForbiddenError | InternalServerError>;
+  | ErrorResult<
+      | UnauthorizedError
+      | ForbiddenError
+      | InternalServerError
+      | ServiceUnavailableError
+    >;
 
 /** Authenticated is the pipeline's success outcome: the resolved authorization context. */
 export type Authenticated = Success & { context: AuthorizationContext };

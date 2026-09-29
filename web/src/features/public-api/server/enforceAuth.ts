@@ -4,6 +4,7 @@ import {
   type ForbiddenError,
   type InternalServerError,
   type LangfuseNotFoundError,
+  type ServiceUnavailableError,
   type UnauthorizedError,
 } from "@langfuse/shared";
 import { type ApiAccessScope } from "@langfuse/shared/src/server";
@@ -290,6 +291,7 @@ export type EnforceAuthResult =
       | InternalServerError
       | ForbiddenError
       | LangfuseNotFoundError
+      | ServiceUnavailableError
     >;
 
 /** ResolvedOrg is org target resolution's success outcome. */

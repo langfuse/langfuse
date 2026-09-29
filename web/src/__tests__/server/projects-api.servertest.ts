@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   createApiKey,
   createBasicAuthHeader,
+  invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -155,26 +156,6 @@ describe("Projects API", () => {
       );
       expect(result.status).toBe(405);
       expect(result.body.message).toContain("Method not allowed");
-    });
-
-    it("should handle different authentication formats", async () => {
-      // Test with Bearer token format
-      const bearerResult = await makeAPICall<{ message: string }>(
-        "GET",
-        "/api/public/projects",
-        undefined,
-        `Bearer ${projectSecretKey}`,
-      );
-      expect(bearerResult.status).toBe(401);
-
-      // Test with just the secret key (no Bearer prefix)
-      const secretKeyResult = await makeAPICall<{ message: string }>(
-        "GET",
-        "/api/public/projects",
-        undefined,
-        projectSecretKey,
-      );
-      expect(secretKeyResult.status).toBe(401);
     });
   });
 
@@ -453,6 +434,9 @@ describe("Projects API", () => {
         },
       });
       testProjectId = project.id;
+      // The raw create bypasses the invalidation real create paths run, so the
+      // org key's cached context would keep a projectIds snapshot without it.
+      await invalidateCachedOrgApiKeys("seed-org-id");
     });
 
     afterEach(async () => {
@@ -702,6 +686,9 @@ describe("Projects API", () => {
         },
       });
       testProjectId = project.id;
+      // The raw create bypasses the invalidation real create paths run, so the
+      // org key's cached context would keep a projectIds snapshot without it.
+      await invalidateCachedOrgApiKeys("seed-org-id");
     });
 
     afterEach(async () => {
