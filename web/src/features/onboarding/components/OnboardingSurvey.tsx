@@ -131,7 +131,7 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
                           <p className="text-muted-foreground text-sm">
                             Relevant project data can be sent to AWS Bedrock
                             within your Langfuse data region. Your data will not
-                            be used for training models.{" "}
+                            be used to train models.{" "}
                             <a
                               href="https://langfuse.com/security/ai-features"
                               target="_blank"
