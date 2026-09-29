@@ -36,7 +36,6 @@ import { ObservationsTable as LegacyGenerations } from "@/src/features/tracing-t
 import EventsTable from "@/src/features/events/components/EventsTable";
 import { useReadPath } from "@/src/features/events";
 import {
-  ChevronDown,
   FlaskConical,
   History,
   MessageSquare,
@@ -45,6 +44,7 @@ import {
   Plus,
   Terminal,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
@@ -475,7 +475,7 @@ export const PromptDetail = ({
                   >
                     {prompt.commitMessage ?? prompt.name}
                   </span>
-                  <ChevronDown className="h-4 w-4 shrink-0" />
+                  <DropdownIndicator />
                 </Button>
               </DrawerTrigger>
               <DrawerContent className="max-h-[85dvh]">
@@ -548,7 +548,7 @@ export const PromptDetail = ({
                       >
                         <Terminal className="h-4 w-4" />
                         <span className="hidden md:inline">Playground</span>
-                        <ChevronDown className="h-3 w-3" />
+                        <DropdownIndicator size="sm" nudge />
                       </Button>
                     </Trigger>
                   )}

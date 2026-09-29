@@ -158,7 +158,7 @@ export function DecisionModelStateEditor({
           </span>
           <ChevronDown
             className={cn(
-              "h-4 w-4 shrink-0 transition-transform",
+              "text-foreground-tertiary size-3.5 shrink-0 transition-transform",
               previewOpen ? "rotate-180" : "rotate-0",
             )}
           />

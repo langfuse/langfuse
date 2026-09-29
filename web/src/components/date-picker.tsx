@@ -3,7 +3,8 @@
 "use client";
 
 import * as React from "react";
-import { Calendar as CalendarIcon, X, ChevronDown } from "lucide-react";
+import { Calendar as CalendarIcon, X } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { addMinutes, format } from "date-fns";
 import { Button } from "@/src/components/ui/button";
 import { Calendar } from "@/src/components/ui/calendar";
@@ -585,9 +586,7 @@ export function TimeRangePicker({
               className={cn("flex items-center gap-2", compact && "min-w-0")}
             >
               {getDisplayContent()}
-              <ChevronDown
-                className={cn("h-4 w-4 opacity-50", compact && "shrink-0")}
-              />
+              <DropdownIndicator size="sm" nudge />
             </div>
           </Button>
         </PopoverTrigger>

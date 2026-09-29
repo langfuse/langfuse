@@ -7,6 +7,7 @@ import { Command as CommandPrimitive } from "cmdk";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Badge } from "../Badge/Badge";
 import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
 import { InputControl } from "../internal/InputControl/InputControl";
@@ -104,7 +105,7 @@ function SelectInputInner<V extends string>(
             >
               {selectedOption?.label ?? placeholder}
             </span>
-            <ChevronDown className="size-4 shrink-0 opacity-50" />
+            <DropdownIndicator />
           </PopoverPrimitive.Trigger>
         </InputControl>
         <PopoverPrimitive.Portal container={container}>
@@ -255,7 +256,7 @@ function SelectInputInner<V extends string>(
             <SelectPrimitive.SelectValue placeholder={placeholder} />
           </span>
           <SelectPrimitive.Icon asChild>
-            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+            <DropdownIndicator />
           </SelectPrimitive.Icon>
         </SelectPrimitive.Trigger>
       </InputControl>
