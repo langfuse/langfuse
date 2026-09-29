@@ -1,8 +1,18 @@
 import { RuleTester } from "@typescript-eslint/rule-tester";
 import * as typescriptEslintParser from "@typescript-eslint/parser";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { afterAll, beforeEach } from "vitest";
+import { vi } from "vitest";
+
+vi.mock("node:fs", async (importOriginal) => {
+  const fs = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...fs,
+    existsSync: (path: string) => {
+      if (path === "/repo/Example.stories.ts") return true;
+      if (path === "/repo/Other.stories.tsx") return true;
+      return fs.existsSync(path);
+    },
+  };
+});
 
 import rule from "./prefer-stories-over-client-tests.js";
 
@@ -12,32 +22,25 @@ const ruleTester = new RuleTester({
   },
 });
 
-const fixture = mkdtempSync(join(process.cwd(), ".prefer-stories-test-"));
-beforeEach(() => {
-  writeFileSync(join(fixture, "Example.stories.ts"), "export default {};");
-  writeFileSync(join(fixture, "Other.stories.tsx"), "export default {};");
-});
-afterAll(() => rmSync(fixture, { recursive: true, force: true }));
-
 ruleTester.run("prefer-stories-over-client-tests", rule, {
   valid: [
-    { code: "export {};", filename: join(fixture, "Unrelated.clienttest.ts") },
-    { code: "export {};", filename: join(fixture, "Example.test.ts") },
-    { code: "export {};", filename: join(fixture, "Example.stories.ts") },
+    { code: "export {};", filename: "/repo/Unrelated.clienttest.ts" },
+    { code: "export {};", filename: "/repo/Example.test.ts" },
+    { code: "export {};", filename: "/repo/Example.stories.ts" },
     {
       code: "export {};",
-      filename: join(fixture, "nested/Example.clienttest.ts"),
+      filename: "/repo/nested/Example.clienttest.ts",
     },
   ],
   invalid: [
     {
       code: "export {};",
-      filename: join(fixture, "Example.clienttest.ts"),
+      filename: "/repo/Example.clienttest.ts",
       errors: [{ messageId: "preferStories" }],
     },
     {
       code: "export {};",
-      filename: join(fixture, "Other.clienttest.tsx"),
+      filename: "/repo/Other.clienttest.tsx",
       errors: [{ messageId: "preferStories" }],
     },
   ],
