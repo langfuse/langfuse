@@ -427,6 +427,56 @@ describe("Authenticate API calls", () => {
 
       warnSpy.mockRestore();
     });
+
+    it("accepts a key that has not expired yet", async () => {
+      await prisma.apiKey.update({
+        where: { id: testApiKey.id },
+        data: { expiresAt: new Date(Date.now() + 60 * 60_000) },
+      });
+
+      const auth = await new ApiAuthService(
+        prisma,
+        null,
+      ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
+
+      expect(auth.validKey).toBe(true);
+    });
+
+    it("rejects an expired key over basic auth like an unknown key", async () => {
+      await prisma.apiKey.update({
+        where: { id: testApiKey.id },
+        data: { expiresAt: new Date(Date.now() - 60_000) },
+      });
+
+      const auth = await new ApiAuthService(
+        prisma,
+        null,
+      ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
+
+      expect(auth).toEqual({
+        validKey: false,
+        error:
+          "Invalid credentials. Confirm that you've configured the correct host.",
+      });
+    });
+
+    it("rejects an expired key over public-key bearer auth like an unknown key", async () => {
+      await prisma.apiKey.update({
+        where: { id: testApiKey.id },
+        data: { expiresAt: new Date(Date.now() - 60_000) },
+      });
+
+      const auth = await new ApiAuthService(
+        prisma,
+        null,
+      ).verifyAuthHeaderAndReturnScope(`Bearer ${testApiKey.publicKey}`);
+
+      expect(auth).toEqual({
+        validKey: false,
+        error:
+          "Invalid public key. Confirm that you've configured the correct host.",
+      });
+    });
   });
 
   describe("validates with redis", () => {
@@ -869,6 +919,39 @@ describe("Authenticate API calls", () => {
 
       expect(ttl2).toBeGreaterThan(0);
       expect(ttl2).toBeLessThanOrEqual(10);
+    });
+
+    it("rejects a cached key once it has expired", async () => {
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        getValidAuthHeader(),
+      );
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        getValidAuthHeader(),
+      );
+      const apiKey = await prisma.apiKey.findUniqueOrThrow({
+        where: { publicKey: testApiKey.publicKey },
+      });
+      const redisKey = `api-key:${apiKey.fastHashedSecretKey}`;
+      const cached = JSON.parse((await getRedisValue(redis, redisKey))!);
+      await setRedisValue(
+        redis,
+        redisKey,
+        JSON.stringify({
+          ...cached,
+          expiresAt: new Date(Date.now() - 60_000).toISOString(),
+        }),
+      );
+
+      const auth = await new ApiAuthService(
+        { apiKey: { findUnique: vi.fn() } } as unknown as PrismaClient,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
+
+      expect(auth).toEqual({
+        validKey: false,
+        error:
+          "Invalid credentials. Confirm that you've configured the correct host.",
+      });
     });
 
     it("should delete API keys from cache and db", async () => {

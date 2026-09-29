@@ -42,22 +42,21 @@ export class AuthenticatorCache {
     }
   }
 
-  /** set persists a success context or a 401 under a fixed TTL, skips a 500 (fail open), and returns whether it wrote. */
+  /** set persists a success context or a 401 under a fixed TTL capped at the key's remaining lifetime, skips a 500 (fail open), and returns whether it wrote. */
   async set(
     credential: Credential,
     result: ApiKeyAuthResults,
+    expiresAt: Date | null = null,
   ): Promise<boolean> {
     const key = this.keyFor(credential);
     const entry = toEntry(result);
+    const ttlSeconds = ttlFor(expiresAt);
     const redis = this.redis;
-    if (!key || !entry || !cacheEnabled(redis)) return false;
+    if (!key || !entry || ttlSeconds <= 0 || !cacheEnabled(redis)) {
+      return false;
+    }
     try {
-      await redis.set(
-        key,
-        JSON.stringify(entry),
-        "EX",
-        env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
-      );
+      await redis.set(key, JSON.stringify(entry), "EX", ttlSeconds);
       return true;
     } catch (error) {
       logger.error("authz context cache write failed", error);
@@ -84,6 +83,13 @@ export class AuthenticatorCache {
 /** cacheEnabled is the shared on/off switch for the context cache, reusing the legacy api-key cache flag. */
 function cacheEnabled(redis: Redis | Cluster | null): redis is Redis | Cluster {
   return Boolean(redis) && env.LANGFUSE_CACHE_API_KEY_ENABLED === "true";
+}
+
+/** ttlFor is the cache TTL in seconds, floored to the key's remaining lifetime so an entry never outlives its key. */
+function ttlFor(expiresAt: Date | null): number {
+  const ttl = env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS;
+  if (!expiresAt) return ttl;
+  return Math.min(ttl, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
 }
 
 /** toEntry maps a resolved result to its cache row, yielding null for a 500 so it is never negatively cached. */

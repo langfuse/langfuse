@@ -64,7 +64,8 @@ export class Authenticator {
       return verified;
     }
     const resolved = await this.authz.resolve(verified);
-    await this.cache.set(credential, resolved);
+    const expiresAt = "apiKey" in verified ? verified.apiKey.expiresAt : null;
+    await this.cache.set(credential, resolved, expiresAt);
     return resolved;
   }
 }

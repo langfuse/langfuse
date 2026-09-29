@@ -11,6 +11,7 @@ import { createShaHash, verifySecretKey } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { type Credential } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
 import { ApiKeyRepository } from "@/src/features/apiKey/apiKeyRepository";
+import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
 import {
   internalServerError,
   unauthorizedError,
@@ -33,8 +34,15 @@ export class Verifier {
     private readonly adminApiKey: string | undefined = env.ADMIN_API_KEY,
   ) {}
 
-  /** verify resolves a parsed credential to a presentation, or a typed failure. */
+  /** verify resolves a parsed credential to a presentation, or a typed failure; an expired key 401s like an unknown one. */
   async verify(credential: Credential): Promise<VerifyApiKeyResult> {
+    return rejectExpired(await this.verifyScheme(credential));
+  }
+
+  /** verifyScheme dispatches a parsed credential by its scheme. */
+  private async verifyScheme(
+    credential: Credential,
+  ): Promise<VerifyApiKeyResult> {
     if (credential.kind === "basic") {
       return this.verifyBasic(credential.publicKey, credential.secretKey);
     }
@@ -142,6 +150,18 @@ export class Verifier {
 /** privateKey wraps an ApiKey row as the full-access privateKey presentation. */
 function privateKey(apiKey: ApiKey): VerifyApiKeyResult {
   return { success: true, authorization: "privateKey", apiKey };
+}
+
+/** rejectExpired maps a verified key past its expiry to the unknown-key 401. */
+function rejectExpired(result: VerifyApiKeyResult): VerifyApiKeyResult {
+  if (
+    result.success &&
+    result.authorization !== "admin" &&
+    isApiKeyExpired(result.apiKey.expiresAt)
+  ) {
+    return unauthorizedError(invalidCredentials);
+  }
+  return result;
 }
 
 /** VerifiedCredential is the presentation the resolver consumes: an api key with how it was presented, or the admin key. */

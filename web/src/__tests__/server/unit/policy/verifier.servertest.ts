@@ -4,7 +4,7 @@ import { InternalServerError } from "@langfuse/shared";
 import { type ApiKey } from "@langfuse/shared/src/db";
 import { hashSecretKey } from "@langfuse/shared/src/server";
 
-import { Verifier } from "@/src/features/apiKey/verifier";
+import { Verifier, invalidCredentials } from "@/src/features/apiKey/verifier";
 import {
   type FindApiKeyResult,
   type ApiKeyRepository,
@@ -163,6 +163,46 @@ describe("Bearer chains admin then private then public", () => {
       parseAuthorizationHeader("Bearer sk-secret"),
     );
     expect(result.success).toBe(false);
+  });
+});
+
+describe("an expired key is rejected like an unknown key", () => {
+  const expired = () => apiKey({ expiresAt: new Date(Date.now() - 60_000) });
+
+  it("401s an expired secret over Basic", async () => {
+    const store = stubStore({
+      findByFastHash: vi.fn(async () => lookup(expired())),
+    });
+    const result = await verifier(store).verify(
+      parseAuthorizationHeader(basicHeader("pk-lf-1", "sk")),
+    );
+    expect(result).toMatchObject({
+      success: false,
+      error: { message: invalidCredentials },
+    });
+  });
+  it("401s an expired public-key bearer", async () => {
+    const store = stubStore({
+      findByPublicKey: vi.fn(async () => lookup(expired())),
+    });
+    const result = await verifier(store).verify(
+      parseAuthorizationHeader("Bearer pk-lf-1"),
+    );
+    expect(result).toMatchObject({
+      success: false,
+      error: { message: invalidCredentials },
+    });
+  });
+  it("accepts a key expiring in the future", async () => {
+    const store = stubStore({
+      findByFastHash: vi.fn(async () =>
+        lookup(apiKey({ expiresAt: new Date(Date.now() + 60_000) })),
+      ),
+    });
+    const result = await verifier(store).verify(
+      parseAuthorizationHeader(basicHeader("pk-lf-1", "sk")),
+    );
+    expect(result.success).toBe(true);
   });
 });
 

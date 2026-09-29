@@ -339,6 +339,28 @@ describe("Authenticator consolidated context cache", () => {
     expect(setSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("caps a context's TTL at the key's remaining lifetime", async () => {
+    const expiringVerifier = new Verifier(
+      store(apiKey({ expiresAt: new Date(Date.now() + 10_000) })),
+      SALT,
+    );
+    const redis = fakeRedis();
+    const setSpy = vi.spyOn(redis, "set");
+    const auth = new Authenticator(
+      expiringVerifier,
+      resolver,
+      new AuthenticatorCache(redis, SALT),
+    );
+
+    const result = await auth.authenticate(bearer(KNOWN_SECRET));
+
+    expect(result.success).toBe(true);
+    expect(setSpy).toHaveBeenCalledOnce();
+    const ttl = setSpy.mock.calls[0][3] as unknown as number;
+    expect(ttl).toBeGreaterThan(0);
+    expect(ttl).toBeLessThanOrEqual(10);
+  });
+
   it("get returns null on a miss, distinct from a replayed 401", async () => {
     const redis = fakeRedis();
     const cache = new AuthenticatorCache(redis, SALT);
