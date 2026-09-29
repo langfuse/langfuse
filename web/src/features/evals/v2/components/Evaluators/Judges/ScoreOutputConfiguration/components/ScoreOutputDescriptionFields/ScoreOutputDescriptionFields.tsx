@@ -59,7 +59,7 @@ export function ScoreOutputDescriptionFields({
       >
         <ChevronDown
           className={cn(
-            "text-foreground-tertiary size-3 translate-y-px transition-transform",
+            "text-foreground-tertiary size-3.5 translate-y-px transition-transform",
             !advancedOpen && "-rotate-90",
           )}
         />

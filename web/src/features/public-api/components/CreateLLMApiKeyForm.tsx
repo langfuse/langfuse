@@ -1337,7 +1337,7 @@ export function CreateLLMApiKeyForm({
                         : "Show advanced settings"}
                     </span>
                     <ChevronDown
-                      className={`text-foreground-tertiary ml-1 size-3 translate-y-px transition-transform ${showAdvancedSettings ? "rotate-180" : "rotate-0"}`}
+                      className={`text-foreground-tertiary ml-1 size-3.5 translate-y-px transition-transform ${showAdvancedSettings ? "rotate-180" : "rotate-0"}`}
                     />
                   </Button>
                 </div>

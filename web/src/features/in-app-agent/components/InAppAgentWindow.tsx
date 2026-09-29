@@ -647,7 +647,7 @@ function AssistantActivityGroup({
         <ChevronRight
           aria-hidden="true"
           className={cn(
-            "text-foreground-tertiary size-3 translate-y-px transition-transform",
+            "text-foreground-tertiary size-3.5 translate-y-px transition-transform",
             isOpen && "rotate-90",
           )}
         />
