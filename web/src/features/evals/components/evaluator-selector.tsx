@@ -54,7 +54,7 @@ const CodeTemplateLanguageIcon = ({
       aria-label={language.title}
       className="text-muted-foreground ml-1 inline-flex shrink-0"
     >
-      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+      <Icon className="icon-base" aria-hidden="true" />
     </span>
   );
 };
@@ -209,7 +209,7 @@ export function EvaluatorSelector({
                     {isInvalid && (
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
+                          <AlertCircle className="icon-base ml-1 text-yellow-500" />
                         </TooltipTrigger>
                         <TooltipContent className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
                           <p>Requires project-level evaluation model</p>
@@ -225,7 +225,7 @@ export function EvaluatorSelector({
                       </Tooltip>
                     )}
                     {template.id === selectedTemplateId && (
-                      <CheckIcon className="ml-auto h-4 w-4" />
+                      <CheckIcon className="icon-base ml-auto" />
                     )}
                   </InputCommandItem>
                 );
@@ -280,7 +280,7 @@ export function EvaluatorSelector({
                     {isInvalid && (
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
+                          <AlertCircle className="icon-base ml-1 text-yellow-500" />
                         </TooltipTrigger>
                         <TooltipContent className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
                           <p>Requires project-level evaluation model</p>
@@ -296,7 +296,7 @@ export function EvaluatorSelector({
                       </Tooltip>
                     )}
                     {template.id === selectedTemplateId && (
-                      <CheckIcon className="ml-auto h-4 w-4" />
+                      <CheckIcon className="icon-base ml-auto" />
                     )}
                   </InputCommandItem>
                 );

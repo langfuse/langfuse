@@ -96,11 +96,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
           title="Export"
           className="hidden md:inline-flex"
         >
-          {isExporting ? (
-            <Spinner size="sm" />
-          ) : (
-            <Download className="h-4 w-4" />
-          )}
+          {isExporting ? <Spinner size="sm" /> : <Download />}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuPortal>
@@ -109,7 +105,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
           {warningMessage && (
             <div className="text-muted-foreground px-2 py-1.5 text-xs">
               <div className="flex items-start gap-1.5">
-                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <Info className="icon-base mt-0.5 shrink-0" />
                 <span>{warningMessage}</span>
               </div>
             </div>

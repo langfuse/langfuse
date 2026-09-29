@@ -714,7 +714,7 @@ const InnerEvalTemplateForm = (props: {
               {!useDefaultModel &&
                 (!props.isEditing && !isCustomModelValid ? (
                   <div className="text-destructive mt-2 flex items-center space-x-1 text-sm">
-                    <AlertCircle className="h-4 w-4" />
+                    <AlertCircle className="icon-base" />
                     <p>
                       This evaluator is configured to use{" "}
                       {modelParams.provider.value}s models but no API key
@@ -899,7 +899,7 @@ const InnerEvalTemplateForm = (props: {
                                 disabled={!props.isEditing}
                                 onClick={() => remove(index)}
                               >
-                                <Trash className="text-muted-foreground h-4 w-4" />
+                                <Trash className="text-muted-foreground" />
                               </Button>
                             </div>
                           </div>
@@ -912,7 +912,7 @@ const InnerEvalTemplateForm = (props: {
                         disabled={!props.isEditing}
                         onClick={() => append({ value: "" })}
                       >
-                        <PlusIcon className="mr-1.5 h-4 w-4" />
+                        <PlusIcon className="mr-1.5" />
                         Add category
                       </Button>
                       <FormField

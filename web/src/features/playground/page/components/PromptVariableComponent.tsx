@@ -29,9 +29,9 @@ export const PromptVariableComponent: React.FC<{
     deletePromptVariable(name);
   };
   const isUsedIcon = isUsed ? (
-    <CheckCircle2 size={16} color="green" />
+    <CheckCircle2 className="icon-base" color="green" />
   ) : (
-    <Circle size={16} color="grey" />
+    <Circle className="icon-base" color="grey" />
   );
   const isUsedTooltip = isUsed
     ? "Variable is in use"
@@ -57,7 +57,7 @@ export const PromptVariableComponent: React.FC<{
           onClick={handleDeleteVariable}
           className="p-0"
         >
-          {!isUsed && <TrashIcon size={16} />}
+          {!isUsed && <TrashIcon />}
         </Button>
       </div>
 

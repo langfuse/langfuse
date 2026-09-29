@@ -312,7 +312,7 @@ function CommandMenuTrigger() {
       }}
       className="whitespace-nowrap"
     >
-      <Search className="h-4 w-4" />
+      <Search />
       Go to...
       <span className="-mr-px ml-auto hidden md:inline-flex">
         <KeyboardShortcut keys={["Mod", "K"]} />

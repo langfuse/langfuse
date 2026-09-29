@@ -40,7 +40,7 @@ function VariableMappingCardHeaderContent({
       </span>
       {isUnmapped ? (
         <span className="text-dark-yellow flex min-w-0 items-center gap-1.5 font-bold">
-          <TriangleAlert className="h-4 w-4 shrink-0" />
+          <TriangleAlert className="icon-base shrink-0" />
           <span>nothing yet</span>
         </span>
       ) : (
@@ -52,7 +52,7 @@ function VariableMappingCardHeaderContent({
               aria-label={`Warning: ${warningMessage}`}
               title={warningMessage}
             >
-              <TriangleAlert className="h-4 w-4" aria-hidden="true" />
+              <TriangleAlert className="icon-base" aria-hidden="true" />
             </span>
           ) : null}
         </span>
@@ -143,7 +143,7 @@ function VariableMappingCardShell({
               title={`Rename ${variable}`}
               onClick={() => rename.onRenamingChange(true)}
             >
-              <TextCursorInput className="h-3.5 w-3.5" />
+              <TextCursorInput />
             </Button>
           ) : null}
           <Button
@@ -159,11 +159,7 @@ function VariableMappingCardShell({
             disabled={isRenaming}
             onClick={() => onEditingChange(!isEditing)}
           >
-            {isEditing ? (
-              <X className="h-3.5 w-3.5" />
-            ) : (
-              <Pencil className="h-3.5 w-3.5" />
-            )}
+            {isEditing ? <X /> : <Pencil />}
           </Button>
           {onDelete ? (
             <Button
@@ -178,7 +174,7 @@ function VariableMappingCardShell({
               }
               onClick={onDelete}
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 />
             </Button>
           ) : null}
         </span>

@@ -81,7 +81,7 @@ export const LangfuseMediaView = ({
     return (
       <div className="flex items-center gap-2">
         <span title={text}>
-          <ImageOff className="h-4 w-4" />
+          <ImageOff className="icon-base" />
         </span>
         <span className="truncate text-sm" title={text}>
           {text}
@@ -250,7 +250,7 @@ function FileViewer({
             title={`Open ${fileName} in new tab`}
             className="shrink-0"
           >
-            <ExternalLink className="h-4 w-4" />
+            <ExternalLink />
           </Button>
         </div>
       ) : (

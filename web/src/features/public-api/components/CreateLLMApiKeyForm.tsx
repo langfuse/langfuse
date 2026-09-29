@@ -472,7 +472,7 @@ export function CreateLLMApiKeyForm({
                 variant="ghost"
                 onClick={() => remove(index)}
               >
-                <TrashIcon className="h-4 w-4" />
+                <TrashIcon />
               </Button>
             </span>
           ))}
@@ -482,7 +482,7 @@ export function CreateLLMApiKeyForm({
             onClick={() => append({ value: "" })}
             className="w-full"
           >
-            <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+            <PlusIcon className="mr-1.5 -ml-0.5" aria-hidden="true" />
             Add custom model name
           </Button>
         </FormItem>
@@ -524,7 +524,7 @@ export function CreateLLMApiKeyForm({
                 variant="ghost"
                 onClick={() => removeHeader(index)}
               >
-                <TrashIcon className="h-4 w-4" />
+                <TrashIcon />
               </Button>
             </div>
           ))}
@@ -535,7 +535,7 @@ export function CreateLLMApiKeyForm({
             onClick={() => appendHeader({ key: "", value: "" })}
             className="w-full"
           >
-            <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+            <PlusIcon className="mr-1.5 -ml-0.5" aria-hidden="true" />
             Add Header
           </Button>
         </FormItem>
@@ -1337,7 +1337,7 @@ export function CreateLLMApiKeyForm({
                         : "Show advanced settings"}
                     </span>
                     <ChevronDown
-                      className={`text-foreground-tertiary ml-1 size-3.5 translate-y-px transition-transform ${showAdvancedSettings ? "rotate-180" : "rotate-0"}`}
+                      className={`text-foreground-tertiary icon-base ml-1 translate-y-px transition-transform ${showAdvancedSettings ? "rotate-180" : "rotate-0"}`}
                     />
                   </Button>
                 </div>

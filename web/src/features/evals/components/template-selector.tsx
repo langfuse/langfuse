@@ -219,7 +219,7 @@ export const TemplateSelector = ({
                             disabled={isInvalid || disabled}
                           >
                             {isActive ? (
-                              <CheckIcon className="mr-2 h-4 w-4" />
+                              <CheckIcon className="icon-base mr-2" />
                             ) : (
                               <div className="mr-2 h-4 w-4" />
                             )}
@@ -232,7 +232,7 @@ export const TemplateSelector = ({
                             {isInvalid && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
+                                  <AlertCircle className="icon-base ml-1 text-yellow-500" />
                                 </TooltipTrigger>
                                 <TooltipContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
                                   <p>Requires project-level evaluation model</p>
@@ -242,7 +242,7 @@ export const TemplateSelector = ({
                                     target="_blank"
                                     rel="noopener noreferrer"
                                   >
-                                    <ExternalLinkIcon className="h-3 w-3" />
+                                    <ExternalLinkIcon />
                                     Configure default model
                                   </Link>
                                 </TooltipContent>
@@ -275,7 +275,7 @@ export const TemplateSelector = ({
                                 }
                                 disabled={isInvalid || disabled}
                               >
-                                <Cog className="h-4 w-4" />
+                                <Cog />
                               </Button>
                             )}
                           </InputCommandItem>
@@ -310,7 +310,7 @@ export const TemplateSelector = ({
                           disabled={isInvalid || disabled}
                         >
                           {isActive ? (
-                            <CheckIcon className="mr-2 h-4 w-4" />
+                            <CheckIcon className="icon-base mr-2" />
                           ) : (
                             <div className="mr-2 h-4 w-4" />
                           )}
@@ -326,7 +326,7 @@ export const TemplateSelector = ({
                           {isInvalid && (
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
+                                <AlertCircle className="icon-base ml-1 text-yellow-500" />
                               </TooltipTrigger>
                               <TooltipContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
                                 <p>Requires project-level evaluation model</p>
@@ -336,7 +336,7 @@ export const TemplateSelector = ({
                                   target="_blank"
                                   rel="noopener noreferrer"
                                 >
-                                  <ExternalLinkIcon className="h-3 w-3" />
+                                  <ExternalLinkIcon />
                                   Configure default model
                                 </Link>
                               </TooltipContent>
@@ -369,7 +369,7 @@ export const TemplateSelector = ({
                               }
                               disabled={isInvalid || disabled}
                             >
-                              <Cog className="h-4 w-4" />
+                              <Cog />
                             </Button>
                           )}
                         </InputCommandItem>
@@ -390,7 +390,7 @@ export const TemplateSelector = ({
                     }}
                   >
                     Create custom evaluator
-                    <ExternalLink className="ml-auto h-4 w-4" />
+                    <ExternalLink className="icon-base ml-auto" />
                   </InputCommandItem>
                   {!hasDefaultModel && (
                     <InputCommandItem
@@ -403,7 +403,7 @@ export const TemplateSelector = ({
                       }}
                     >
                       Configure default model
-                      <ExternalLink className="ml-auto h-4 w-4" />
+                      <ExternalLink className="icon-base ml-auto" />
                     </InputCommandItem>
                   )}
                 </InputCommandGroup>

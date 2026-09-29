@@ -64,7 +64,7 @@ function JSONTableViewRowInner<T>({
 
         {/* Expand icon */}
         {expandable && (
-          <ChevronIcon className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+          <ChevronIcon className="text-muted-foreground icon-base shrink-0" />
         )}
 
         {/* Column cells */}

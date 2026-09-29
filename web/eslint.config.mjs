@@ -437,6 +437,14 @@ export default [
     files: ["src/**/*.{ts,tsx}"],
     rules: {
       "@repo/no-raw-font-weight": "error",
+      // Raw sizes of 40px and above are illustrations; the rule allows them by size.
+      // Spinner sizes follow their container, not the icon scale.
+      "@repo/no-raw-icon-size": [
+        "error",
+        {
+          exceptions: ["src/components/design-system/Spinner/Spinner.tsx"],
+        },
+      ],
       "@repo/no-arbitrary-colors": "error",
     },
   },

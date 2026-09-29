@@ -76,9 +76,9 @@ export function AIAssistedInput({
               }
             >
               {isGenerating ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="animate-spin" />
               ) : (
-                <Sparkles className="h-3.5 w-3.5" />
+                <Sparkles />
               )}
             </Button>
           </TooltipTrigger>

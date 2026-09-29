@@ -45,7 +45,7 @@ const ExecutionTraceLink = ({
       className="flex items-center gap-1 text-blue-600 hover:underline"
       target="_blank"
     >
-      <ExternalLinkIcon className="h-3 w-3" />
+      <ExternalLinkIcon className="icon-sm" />
       View execution trace
     </Link>
   );
@@ -103,7 +103,7 @@ export const ScoreBadge = <
                       aria-label={`View comment for ${name}: ${value}`}
                       className="inline-block shrink-0"
                     >
-                      <MessageCircleMoreIcon className="text-foreground-tertiary mb-0.25 size-3!" />
+                      <MessageCircleMoreIcon className="text-foreground-tertiary icon-sm! mb-0.25" />
                     </HoverCardTrigger>
                     <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
                       <p className="whitespace-pre-wrap">{score.comment}</p>
@@ -126,7 +126,7 @@ export const ScoreBadge = <
                       aria-label={`View metadata for ${name}: ${value}`}
                       className="inline-block shrink-0"
                     >
-                      <BracesIcon className="text-foreground-tertiary mb-0.25 size-3!" />
+                      <BracesIcon className="text-foreground-tertiary icon-sm! mb-0.25" />
                     </HoverCardTrigger>
                     <HoverCardContent className="max-h-[50dvh] overflow-y-auto rounded-md border-none p-0 text-xs break-normal whitespace-normal">
                       <JSONView

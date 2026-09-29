@@ -211,7 +211,7 @@ function ColumnVisibilityListItem<TData, TValue>({
           title="Drag and drop to reorder columns"
           className="invisible shrink-0 group-focus-within:visible group-hover:visible"
         >
-          <Menu className="h-3 w-3" />
+          <Menu />
         </Button>
       )}
     </div>
@@ -263,9 +263,9 @@ function GroupVisibilityHeader<TData, TValue>({
             className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 text-left"
           >
             {isOpen ? (
-              <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0 translate-y-px opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100" />
+              <ChevronDown className="text-foreground-tertiary icon-base shrink-0 translate-y-px opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100" />
             ) : (
-              <ChevronRight className="text-foreground-tertiary size-3.5 shrink-0 translate-y-px opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100" />
+              <ChevronRight className="text-foreground-tertiary icon-base shrink-0 translate-y-px opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100" />
             )}
             <span className="min-w-0 text-sm font-bold">
               {getColumnLabel(column)}
@@ -299,7 +299,7 @@ function GroupVisibilityHeader<TData, TValue>({
               title="Drag and drop to reorder columns"
               className="invisible group-focus-within:visible group-hover:visible"
             >
-              <Menu className="h-3 w-3" />
+              <Menu />
             </Button>
           )}
         </div>

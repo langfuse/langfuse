@@ -90,7 +90,7 @@ function FilterPillWithTarget({
       variant="secondary"
       className="flex max-w-full items-center gap-1 px-2 py-1 text-xs"
     >
-      <ListFilter className="h-3 w-3 shrink-0" />
+      <ListFilter className="shrink-0" />
       <span className="truncate" title={filterLabel}>
         {filterLabel}
       </span>
@@ -128,7 +128,7 @@ function FilterPillWithTarget({
               >
                 <div className="flex h-4 w-4 items-center justify-center">
                   {exp.experimentId === experimentId && (
-                    <Check className="text-primary h-3 w-3" />
+                    <Check className="text-primary icon-sm" />
                   )}
                 </div>
                 <span className="truncate" title={exp.experimentName}>
@@ -148,7 +148,7 @@ function FilterPillWithTarget({
           onRemove();
         }}
       >
-        <X className="h-3 w-3" />
+        <X />
       </Button>
     </Badge>
   );

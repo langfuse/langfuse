@@ -140,7 +140,7 @@ export function VirtualizedTreeNodeWrapper({
               isSelected ? "bg-muted" : "bg-background group-hover:bg-accent",
             )}
           >
-            <ItemTypeIcon type={nodeType} className="size-3" />
+            <ItemTypeIcon type={nodeType} />
           </div>
           {/* Vertical bar downwards if there are expanded children (skipped
               when children render capped at this same indent — the spine
@@ -177,7 +177,7 @@ export function VirtualizedTreeNodeWrapper({
                   isCollapsed ? "rotate-0" : "rotate-90",
                 )}
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight />
               </span>
             </Button>
           </div>

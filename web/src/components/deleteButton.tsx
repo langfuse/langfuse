@@ -123,7 +123,7 @@ export function DeleteButton({
         {({ openDialog }) =>
           icon ? (
             <IconOnlyButton
-              icon={<TrashIcon className="h-4 w-4" />}
+              icon={<TrashIcon className="icon-base" />}
               label={title ?? "Delete"}
               aria-label={ariaLabel ?? "delete"}
               disabledReason={
@@ -158,9 +158,9 @@ export function DeleteButton({
               }}
             >
               {hasAccess ? (
-                <TrashIcon className="mr-2 h-4 w-4" />
+                <TrashIcon className="icon-base mr-2" />
               ) : (
-                <LockIcon className="mr-2 h-4 w-4" />
+                <LockIcon className="icon-base mr-2" />
               )}
               Delete
             </Button>
@@ -185,7 +185,7 @@ export function DeleteButton({
         <PopoverAnchor asChild>
           <span className="inline-flex">
             <IconOnlyButton
-              icon={<TrashIcon className="h-4 w-4" />}
+              icon={<TrashIcon className="icon-base" />}
               label={title ?? "Delete"}
               aria-label={ariaLabel ?? "delete"}
               disabledReason={
@@ -224,9 +224,9 @@ export function DeleteButton({
             }}
           >
             {hasAccess ? (
-              <TrashIcon className="mr-2 h-4 w-4" />
+              <TrashIcon className="icon-base mr-2" />
             ) : (
-              <LockIcon className="mr-2 h-4 w-4" />
+              <LockIcon className="icon-base mr-2" />
             )}
             Delete
           </Button>

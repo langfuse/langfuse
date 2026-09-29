@@ -290,7 +290,7 @@ function TabsTrigger({
           "relative z-1 data-[state=active]:bg-transparent data-[state=active]:shadow-none",
       )}
     >
-      {Icon ? <Icon aria-hidden="true" className="size-3.5 shrink-0" /> : null}
+      {Icon ? <Icon aria-hidden="true" className="icon-base shrink-0" /> : null}
       {label !== undefined ? (
         <span className="min-w-0 truncate" title={label}>
           {label}

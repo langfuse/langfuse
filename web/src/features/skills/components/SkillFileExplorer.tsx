@@ -213,9 +213,9 @@ export function SkillFileExplorer({
         }}
       >
         {pendingEntry.kind === "folder" ? (
-          <Folder className="text-muted-foreground h-4 w-4 shrink-0" />
+          <Folder className="text-muted-foreground icon-base shrink-0" />
         ) : (
-          <FileCode2 className="text-muted-foreground h-4 w-4 shrink-0" />
+          <FileCode2 className="text-muted-foreground icon-base shrink-0" />
         )}
         <Input
           autoFocus
@@ -240,7 +240,7 @@ export function SkillFileExplorer({
           aria-label={`Create new ${label}`}
           disabled={moveDisabled}
         >
-          <Check className="h-3.5 w-3.5" />
+          <Check />
         </Button>
         <Button
           type="button"
@@ -249,7 +249,7 @@ export function SkillFileExplorer({
           aria-label={`Cancel new ${label}`}
           onClick={() => setPendingEntry(null)}
         >
-          <X className="h-3.5 w-3.5" />
+          <X />
         </Button>
       </form>
     );
@@ -360,7 +360,7 @@ export function SkillFileExplorer({
                     onClick={() => setSelectedFolder("")}
                     className="flex items-center gap-2 rounded px-1 py-2 text-sm font-bold"
                   >
-                    <FolderOpen className="h-4 w-4" /> Files
+                    <FolderOpen className="icon-base" /> Files
                   </button>
                 </SkillFolderDropTarget>
                 {!readOnly ? (
@@ -403,7 +403,7 @@ export function SkillFileExplorer({
                       disabled={moveDisabled}
                       onClick={() => startEntry("file")}
                     >
-                      <FilePlus2 className="h-4 w-4" />
+                      <FilePlus2 />
                     </Button>
                     <Button
                       type="button"
@@ -414,7 +414,7 @@ export function SkillFileExplorer({
                       disabled={moveDisabled}
                       onClick={() => startEntry("folder")}
                     >
-                      <FolderPlus className="h-4 w-4" />
+                      <FolderPlus />
                     </Button>
                   </div>
                 ) : null}
@@ -512,9 +512,9 @@ function DraggableSkillFile({
         )}
       >
         {path.endsWith(".md") ? (
-          <FileCode2 className="h-4 w-4 shrink-0" />
+          <FileCode2 className="icon-base shrink-0" />
         ) : (
-          <File className="h-4 w-4 shrink-0" />
+          <File className="icon-base shrink-0" />
         )}
         <span className="min-w-0 flex-1 truncate" title={path}>
           {name}
@@ -529,7 +529,7 @@ function DraggableSkillFile({
           onClick={onDelete}
           className="mr-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 />
         </Button>
       ) : null}
     </div>
@@ -594,14 +594,14 @@ function DraggableSkillFolder({
         >
           <ChevronRight
             className={cn(
-              "text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform",
+              "text-muted-foreground icon-base shrink-0 transition-transform",
               expanded && "rotate-90",
             )}
           />
           {expanded ? (
-            <FolderOpen className="h-4 w-4 shrink-0" />
+            <FolderOpen className="icon-base shrink-0" />
           ) : (
-            <Folder className="h-4 w-4 shrink-0" />
+            <Folder className="icon-base shrink-0" />
           )}
           <span className="min-w-0 flex-1 truncate" title={path}>
             {name}
@@ -616,7 +616,7 @@ function DraggableSkillFolder({
             onClick={onDelete}
             className="mr-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 />
           </Button>
         ) : null}
       </div>

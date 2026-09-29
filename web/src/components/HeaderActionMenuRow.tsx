@@ -62,7 +62,7 @@ export function HeaderActionMenuRows({
           <HeaderActionMenuRow
             key={item.id}
             label={item.title}
-            icon={Icon && <Icon className="h-4 w-4" />}
+            icon={Icon && <Icon className="icon-base" />}
             variant={item.variant}
             disabled={item.disabled !== undefined}
             disabledReason={item.disabled?.reason}

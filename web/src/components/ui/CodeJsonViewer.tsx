@@ -205,11 +205,7 @@ export function JSONView(props: {
                 className="hover:bg-border -mr-2"
                 title={isFullyCollapsed ? "Expand all" : "Collapse all"}
               >
-                {isFullyCollapsed ? (
-                  <UnfoldVertical className="h-3 w-3" />
-                ) : (
-                  <FoldVertical className="h-3 w-3" />
-                )}
+                {isFullyCollapsed ? <UnfoldVertical /> : <FoldVertical />}
               </Button>
             </>
           }
@@ -274,7 +270,7 @@ export function CodeView(props: {
   const CopySuccessIcon = useMemo(() => {
     return (
       <div className="animate-appear relative h-3">
-        <Check className="h-3 w-3" />
+        <Check className="icon-sm" />
         {copiedToClipboardMessage && (
           <div
             className="text-secondary-foreground absolute top-0 right-0 mr-6 h-full max-w-[60vw] transform truncate overflow-hidden text-right text-sm leading-none whitespace-nowrap"
@@ -305,7 +301,7 @@ export function CodeView(props: {
               onClick={handleCopy}
               className=""
             >
-              {isCopied ? CopySuccessIcon : <Copy className="h-3 w-3" />}
+              {isCopied ? CopySuccessIcon : <Copy />}
             </Button>
           </div>
         ) : undefined}
@@ -323,7 +319,7 @@ export function CodeView(props: {
             onClick={handleCopy}
             className="absolute top-2 right-2 z-10"
           >
-            {isCopied ? CopySuccessIcon : <Copy className="h-3 w-3" />}
+            {isCopied ? CopySuccessIcon : <Copy />}
           </Button>
         )}
         <code
@@ -344,11 +340,7 @@ export function CodeView(props: {
         {props.defaultCollapsed ? (
           <div className="flex gap-2 py-2 pr-2">
             <Button variant="secondary" size="xs" onClick={handleShowAll}>
-              {isCollapsed ? (
-                <ChevronsUpDown className="h-3 w-3" />
-              ) : (
-                <ChevronsDownUp className="h-3 w-3" />
-              )}
+              {isCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
             </Button>
           </div>
         ) : undefined}

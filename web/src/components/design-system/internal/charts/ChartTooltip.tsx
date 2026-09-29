@@ -498,7 +498,7 @@ export function ChartTooltip({
                   className={`flex items-center gap-1 [grid-area:1/1] ${activeCopyStatus === "copied" ? "visible" : "invisible"}`}
                 >
                   Label copied to clipboard{" "}
-                  <Check className="size-3" aria-hidden="true" />
+                  <Check className="icon-sm" aria-hidden="true" />
                 </span>
                 <span
                   className={`[grid-area:1/1] ${activeCopyStatus === "error" ? "visible" : "invisible"}`}

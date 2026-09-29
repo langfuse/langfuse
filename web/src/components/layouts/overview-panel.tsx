@@ -31,11 +31,7 @@ const OverviewPanelToggle = React.forwardRef<
     className={className}
     {...props}
   >
-    {open ? (
-      <PanelRightClose className="h-4 w-4" />
-    ) : (
-      <PanelRightOpen className="h-4 w-4" />
-    )}
+    {open ? <PanelRightClose /> : <PanelRightOpen />}
   </Button>
 ));
 OverviewPanelToggle.displayName = "OverviewPanelToggle";

@@ -84,7 +84,7 @@ export function createBadgeTableColumn<TData extends RowData>({
           className="max-w-fit gap-1 truncate rounded-sm px-1 font-normal"
           title={badge.value}
         >
-          {Icon && <Icon className="size-3 shrink-0" aria-hidden />}
+          {Icon && <Icon className="shrink-0" aria-hidden />}
           <span className="truncate" title={badge.value}>
             {badge.value}
           </span>

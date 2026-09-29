@@ -152,7 +152,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                         severity={alert.severity}
                         className="ml-auto w-auto shrink-0 px-2 py-0.5 text-[10px]"
                       />
-                      <ArrowUpRight className="text-muted-foreground h-4 w-4 shrink-0" />
+                      <ArrowUpRight className="text-muted-foreground icon-base shrink-0" />
                     </CommandItem>
                   ))}
                 </div>
@@ -173,7 +173,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                     }
                   >
                     <span>See all alerts</span>
-                    <ArrowUpRight className="text-muted-foreground ml-auto h-4 w-4 shrink-0" />
+                    <ArrowUpRight className="text-muted-foreground icon-base ml-auto shrink-0" />
                   </CommandItem>
                 ) : null}
               </div>
@@ -216,7 +216,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                         )
                       }
                     >
-                      <Gauge className="text-muted-foreground h-4 w-4" />
+                      <Gauge className="text-muted-foreground" />
                       Score
                     </Button>
                   ) : null}
@@ -235,7 +235,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                         )
                       }
                     >
-                      <DollarSign className="text-muted-foreground h-4 w-4" />
+                      <DollarSign className="text-muted-foreground" />
                       Cost
                     </Button>
                   ) : null}
@@ -263,7 +263,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                         threshold
                       </p>
                     </div>
-                    <ArrowUpRight className="text-muted-foreground ml-auto h-4 w-4 shrink-0" />
+                    <ArrowUpRight className="text-muted-foreground icon-base ml-auto shrink-0" />
                   </CommandItem>
                 ) : null}
                 {supportsCostAlert ? (
@@ -286,7 +286,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                           : "Alert on spend from running this evaluator"}
                       </p>
                     </div>
-                    <ArrowUpRight className="text-muted-foreground ml-auto h-4 w-4 shrink-0" />
+                    <ArrowUpRight className="text-muted-foreground icon-base ml-auto shrink-0" />
                   </CommandItem>
                 ) : null}
               </CommandGroup>
@@ -316,13 +316,13 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
           >
             {isLoading ? (
               <LoaderCircle
-                className="mr-1 h-4 w-4 shrink-0 animate-spin"
+                className="mr-1 shrink-0 animate-spin"
                 aria-hidden="true"
               />
             ) : alertCount > 0 ? (
-              <Bell className="mr-1 h-4 w-4 shrink-0" aria-hidden="true" />
+              <Bell className="mr-1 shrink-0" aria-hidden="true" />
             ) : (
-              <Plus className="mr-1 h-4 w-4 shrink-0" aria-hidden="true" />
+              <Plus className="mr-1 shrink-0" aria-hidden="true" />
             )}
             <span className="flex-1 text-left">
               {alertCount > 0 ? "Alerts" : "Add alert"}

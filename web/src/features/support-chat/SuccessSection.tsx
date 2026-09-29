@@ -9,7 +9,7 @@ export function SuccessSection({ onAnother }: { onAnother: () => void }) {
       {/* Success card */}
       <div className="rounded-md border p-4">
         <div className="flex items-start gap-3">
-          <CheckCircle2 className="mt-0.5 h-5 w-5 text-green-600" />
+          <CheckCircle2 className="icon-lg mt-0.5 text-green-600" />
           <div className="space-y-0.5">
             <div className="text-sm font-bold">Thanks for your message</div>
             <div className="text-muted-foreground text-sm">

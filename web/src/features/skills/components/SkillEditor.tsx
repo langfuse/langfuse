@@ -312,9 +312,9 @@ export function SkillEditor({
           aria-label={`Download version ${baseVersion}`}
         >
           {isDownloading ? (
-            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            <Loader2 className="mr-1.5 animate-spin" />
           ) : (
-            <Download className="mr-1.5 h-4 w-4" />
+            <Download className="mr-1.5" />
           )}
           Download
         </Button>
@@ -328,7 +328,7 @@ export function SkillEditor({
               className="text-dark-yellow flex shrink-0 items-center"
               {...getTriggerProps()}
             >
-              <TriangleAlert className="h-4 w-4" />
+              <TriangleAlert className="icon-base" />
             </button>
           )}
         </Tooltip>
@@ -355,7 +355,7 @@ export function SkillEditor({
             setIsDraft(true);
           }}
         >
-          <Plus className="mr-1.5 h-4 w-4" />
+          <Plus className="mr-1.5" />
           New version
         </Button>
       ) : (
@@ -374,7 +374,7 @@ export function SkillEditor({
           }
           title={createButtonTitle}
         >
-          <Save className="mr-1.5 h-4 w-4" />
+          <Save className="mr-1.5" />
           Save
         </Button>
       )}
@@ -548,7 +548,7 @@ function SkillFileEditor({
   } else if (content === undefined) {
     editorContent = (
       <div role="status" className="flex items-center gap-2 text-sm">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading file…
+        <Loader2 className="icon-base animate-spin" /> Loading file…
       </div>
     );
   } else {

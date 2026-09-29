@@ -324,14 +324,14 @@ function NewSkillButton({
   if (!canCreate) {
     return (
       <Button disabled title="You do not have write access">
-        <Plus className="mr-1.5 h-4 w-4" /> New skill
+        <Plus className="mr-1.5" /> New skill
       </Button>
     );
   }
   return (
     <Button asChild>
       <Link href={href} onClick={onOpen}>
-        <Plus className="mr-1.5 h-4 w-4" /> New skill
+        <Plus className="mr-1.5" /> New skill
       </Link>
     </Button>
   );
@@ -348,7 +348,7 @@ function EmptySkills({
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 py-24 text-center">
-      <FileCode2 className="text-muted-foreground h-9 w-9" />
+      <FileCode2 className="text-muted-foreground icon-xl" />
       <div>
         <h2 className="font-bold">Create your first skill</h2>
         <p className="text-muted-foreground mt-1 text-sm">
