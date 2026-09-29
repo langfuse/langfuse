@@ -3269,17 +3269,20 @@ export class OtelIngestionProcessor {
     const oneHour = count(
       usage["cache_creation"]?.["ephemeral_1h_input_tokens"],
     );
-    if (fiveMinutes !== undefined || oneHour !== undefined) {
+    const split = (fiveMinutes ?? 0) + (oneHour ?? 0);
+    const total = usageDetails.input_cache_creation;
+    // The split must fit inside the reported total (multi-step spans sum usage but carry the last step's metadata);
+    // otherwise the total stays at the generic write price rather than charging for more writes than reported.
+    if (
+      (fiveMinutes !== undefined || oneHour !== undefined) &&
+      (total === undefined || split <= total)
+    ) {
       if (fiveMinutes !== undefined)
         usageDetails.input_cache_creation_5m = fiveMinutes;
       if (oneHour !== undefined) usageDetails.input_cache_creation_1h = oneHour;
-      const split = (fiveMinutes ?? 0) + (oneHour ?? 0);
-      if (usageDetails.input_cache_creation !== undefined) {
+      if (total !== undefined) {
         // The split is part of the total, so only the unattributed remainder stays at the generic write price.
-        usageDetails.input_cache_creation = Math.max(
-          usageDetails.input_cache_creation - split,
-          0,
-        );
+        usageDetails.input_cache_creation = total - split;
       } else {
         notYetSubtracted += split;
       }

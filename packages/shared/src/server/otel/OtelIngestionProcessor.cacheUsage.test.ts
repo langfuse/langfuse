@@ -94,6 +94,20 @@ describe("OtelIngestionProcessor Anthropic cache usage", () => {
     });
   });
 
+  it("keeps the reported cache-write total when the metadata split does not fit inside it", () => {
+    const usage = usageOf("gen_ai", [
+      int("gen_ai.usage.cache_read.input_tokens", 47105),
+      int("gen_ai.usage.cache_creation.input_tokens", 500),
+      anthropicMetadata,
+    ]);
+    expect(usage).toMatchObject({
+      input: 578,
+      input_cached_tokens: 47105,
+      input_cache_creation: 500,
+    });
+    expect(usage).not.toHaveProperty("input_cache_creation_1h");
+  });
+
   it("reads AI SDK 7 gen_ai cache attributes under the ai scope", () => {
     expect(
       usageOf("ai", [
