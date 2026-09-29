@@ -17,6 +17,8 @@ import {
 } from "@langfuse/shared/rbac";
 import { SystemRole } from "@langfuse/shared/src/db";
 
+import { env } from "@/src/env.mjs";
+
 const organizationApiKeyRoles = apiKeyRolesForScope("organization") as [
   SystemRole,
   ...SystemRole[],
@@ -94,9 +96,14 @@ export const organizationApiKeysRouter = createTRPCRouter({
         orgId: input.orgId,
       });
 
+      const role =
+        env.API_AUTH_MIGRATION === "enforce"
+          ? input.role
+          : SystemRole.ORGANIZATION;
+
       const apiKeyMeta = await createApiKey(ctx.prisma, {
         owner: OrganizationId(input.orgId),
-        role: SystemRoleId(input.role),
+        role: SystemRoleId(role),
         creator: UserId(ctx.session.user.id),
         name: input.note,
         expiresAt: input.expiresAt,
@@ -108,7 +115,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
         resourceId: apiKeyMeta.id,
         action: "create",
         after: {
-          role: input.role,
+          role,
           expiresAt: input.expiresAt ?? null,
         },
       });

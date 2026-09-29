@@ -18,6 +18,7 @@ import {
   UserId,
 } from "@langfuse/shared/rbac";
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
+import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
 
 describe("organization API keys trpc", () => {
@@ -566,6 +567,31 @@ describe("organization API keys trpc", () => {
         .flatMap((policy) => policy.resources);
 
       expect(projectResources).toContain(ProjectId("*"));
+    });
+
+    // Off enforce, the selected role is ignored and the key gets the legacy
+    // ORGANIZATION role so it behaves as a legacy org key does.
+    it("forces the legacy ORGANIZATION role when enforce is off", async () => {
+      const orgId = `org-${randomUUID()}`;
+      await prisma.organization.create({ data: { id: orgId, name: "Scoped" } });
+
+      const originalMigration = (env as { API_AUTH_MIGRATION: string })
+        .API_AUTH_MIGRATION;
+      (env as { API_AUTH_MIGRATION: string }).API_AUTH_MIGRATION = "legacy";
+      try {
+        const key = await ownerCallerForOrg(orgId).organizationApiKeys.create({
+          orgId,
+          role: "ADMIN",
+        });
+
+        const roleIds = (await getRolesForPrincipal(ApiKeyId(key.id))).map(
+          (role) => role.id,
+        );
+        expect(roleIds).toContain(SystemRoleId("ORGANIZATION"));
+      } finally {
+        (env as { API_AUTH_MIGRATION: string }).API_AUTH_MIGRATION =
+          originalMigration;
+      }
     });
 
     // Legacy roles carry api-key policies but are retired from the creation UI,
