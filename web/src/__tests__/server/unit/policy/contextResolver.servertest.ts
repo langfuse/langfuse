@@ -152,9 +152,9 @@ describe("presentation rides in the input", () => {
     expect(authorize(priv, TENANT, "traces:read", ProjectId(PRJ)).success).toBe(
       true,
     );
-    expect(
-      authorize(pub, TENANT, "scores:create", ProjectId(PRJ)).success,
-    ).toBe(true);
+    expect(authorize(pub, TENANT, "scores:save", ProjectId(PRJ)).success).toBe(
+      true,
+    );
     expect(authorize(pub, TENANT, "traces:read", ProjectId(PRJ)).success).toBe(
       false,
     );

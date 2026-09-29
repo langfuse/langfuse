@@ -384,7 +384,7 @@ function ingestionActionForEventType(
   type: string | null,
 ): ProjectAction | typeof __dangerouslySkipAuthz {
   if (type === eventTypes.SDK_LOG) return __dangerouslySkipAuthz;
-  if (type === eventTypes.SCORE_CREATE) return "scores:create";
+  if (type === eventTypes.SCORE_CREATE) return "scores:save";
   return "traces:create";
 }
 

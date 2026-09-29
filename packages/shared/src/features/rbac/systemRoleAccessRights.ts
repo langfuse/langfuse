@@ -148,7 +148,7 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       name: "Ingestion",
       description: "Create scores and traces from application telemetry.",
       policies: [
-        allow("project", ["traces:create", "scores:create", "media:create"]),
+        allow("project", ["traces:create", "scores:save", "media:create"]),
       ],
       tags: ["principal:apiKey"],
     },
@@ -156,7 +156,7 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       id: "SCORES_INGEST",
       name: "Scores ingestion",
       description: "Submit scores from a web application.",
-      policies: [allow("project", ["scores:create"])],
+      policies: [allow("project", ["scores:save"])],
       tags: ["principal:apiKey"],
     },
     AI_GATEWAY: {

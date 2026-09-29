@@ -67,7 +67,7 @@ describe("policy authenticate() composition", () => {
       authorize(
         result.context,
         OrganizationId(fixture.orgId),
-        "scores:create",
+        "scores:save",
         ProjectId(fixture.projectId),
       ).success,
     ).toBe(true);

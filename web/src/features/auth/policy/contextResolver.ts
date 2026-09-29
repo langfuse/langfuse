@@ -119,7 +119,7 @@ async function materialize(
   return { principal, policies };
 }
 
-/** publicBearerPolicies narrows a public-key bearer to scores:create on its own project, regardless of any stored assignment. */
+/** publicBearerPolicies narrows a public-key bearer to scores:save on its own project, regardless of any stored assignment. */
 function publicBearerPolicies(
   apiKey: ApiKey,
   org: PrincipalOrganization,

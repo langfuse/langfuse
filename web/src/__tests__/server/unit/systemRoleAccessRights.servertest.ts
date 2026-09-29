@@ -57,12 +57,12 @@ describe("systemRoleAccessRights", () => {
     ]);
   });
 
-  it("grants SCORES_INGEST exactly scores:create at project scope", () => {
+  it("grants SCORES_INGEST exactly scores:save at project scope", () => {
     expect(systemRoleAccessRights.SCORES_INGEST.policies).toEqual([
       {
         resourceKind: "project",
         effect: "ALLOW",
-        actions: ["scores:create"],
+        actions: ["scores:save"],
       },
     ]);
   });
@@ -72,7 +72,7 @@ describe("systemRoleAccessRights", () => {
       {
         resourceKind: "project",
         effect: "ALLOW",
-        actions: ["traces:create", "scores:create", "media:create"],
+        actions: ["traces:create", "scores:save", "media:create"],
       },
     ]);
   });

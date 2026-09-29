@@ -435,7 +435,7 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
   it("a public-key bearer on a score-ingest route yields the scores access level", async () => {
     const { legacy, enforce } = await resultsUnderModes({
       req: reqWith({ authorization: `Bearer ${projectPublicKey}` }),
-      action: "scores:create",
+      action: "scores:save",
       allowedAccessLevels: ["project", "scores"],
     });
     expect(scopeOf(enforce).accessLevel).toBe("scores");
