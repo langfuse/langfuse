@@ -50,7 +50,7 @@ export function MessageSearchToolbar({ className }: { className?: string }) {
         onClick={openSearch}
         aria-label="Find in messages"
       >
-        <Search className="h-3.5 w-3.5" />
+        <Search />
         <span className="hidden lg:inline">Find</span>
       </Button>
     );
@@ -68,7 +68,7 @@ export function MessageSearchToolbar({ className }: { className?: string }) {
         className,
       )}
     >
-      <Search className="text-muted-foreground ml-1 h-3.5 w-3.5 shrink-0" />
+      <Search className="text-muted-foreground icon-base ml-1 shrink-0" />
       <Input
         ref={inputRef}
         value={queryInput}
@@ -137,7 +137,7 @@ function IconButton({
       disabled={disabled}
       aria-label={label}
     >
-      <Icon className="h-3.5 w-3.5" />
+      <Icon />
     </Button>
   );
 }

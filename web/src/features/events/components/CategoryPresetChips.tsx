@@ -240,7 +240,7 @@ export function CategoryPresetChips({
                     "bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground",
                 )}
               >
-                <Icon className="h-4 w-4" aria-hidden />
+                <Icon aria-hidden />
                 {label}
               </Button>
             </PopoverTrigger>
@@ -360,7 +360,7 @@ export function CategoryPresetChips({
                       </span>
                       {isPresetActive && (
                         <Check
-                          className="mt-0.5 h-4 w-4 shrink-0"
+                          className="icon-base mt-0.5 shrink-0"
                           aria-hidden
                         />
                       )}

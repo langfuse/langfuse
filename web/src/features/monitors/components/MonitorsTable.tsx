@@ -422,7 +422,7 @@ function MonitorRowActions({
         href={monitorHref(projectId, monitor.id)}
         onClick={(e) => e.stopPropagation()}
       >
-        <SquarePen className="h-4 w-4" aria-hidden="true" />
+        <SquarePen className="icon-base" aria-hidden="true" />
         {collapsed ? <span className="ml-2">Edit</span> : null}
       </Link>
     </Button>
@@ -442,9 +442,9 @@ function MonitorRowActions({
       }}
     >
       {isPaused ? (
-        <PlayCircle className="h-4.5 w-4.5" aria-hidden="true" />
+        <PlayCircle className="icon-lg" aria-hidden="true" />
       ) : (
-        <PauseCircle className="h-4.5 w-4.5" aria-hidden="true" />
+        <PauseCircle className="icon-lg" aria-hidden="true" />
       )}
       {collapsed ? (
         <span className="ml-2">{isPaused ? "Resume" : "Pause"}</span>
@@ -470,7 +470,7 @@ function MonitorRowActions({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="xs" variant="ghost" aria-label="Alert actions">
-              <MoreVertical className="h-4 w-4" />
+              <MoreVertical />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">

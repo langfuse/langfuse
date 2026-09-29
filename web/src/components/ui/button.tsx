@@ -23,14 +23,15 @@ const buttonVariants = cva(
           // border-contrast, not border-input: on dark surfaces the filled
           // primary reads optically larger than an outlined twin of the same
           // geometry — a brighter border lets the shape assert itself.
-          "border-border-contrast bg-background hover:bg-accent hover:text-accent-foreground border",
+          "border-border-contrast bg-background hover:bg-accent hover:text-accent-foreground border [&:not(.text-destructive)_svg:not([class*='text-'])]:text-icon-foreground",
         "outline-success":
           "border border-accent-dark-green bg-background text-accent-dark-green hover:bg-accent-light-green hover:text-accent-dark-green dark:border-dark-green dark:text-dark-green dark:hover:bg-light-green dark:hover:text-dark-green",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         tertiary:
           "bg-tertiary text-tertiary-foreground hover:bg-tertiary/80 text-xs",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
+        ghost:
+          "hover:bg-accent hover:text-accent-foreground [&:not(.text-destructive)_svg:not([class*='text-'])]:text-icon-foreground",
         // Same color as real hyperlinks (--link pair), not text-primary —
         // one link color across the app.
         link: "text-link hover:text-link-hover underline-offset-4 hover:underline",
@@ -38,13 +39,14 @@ const buttonVariants = cva(
           "bg-destructive-foreground/90 text-destructive hover:bg-destructive-foreground/80",
       },
       size: {
-        default: "h-8 px-3 py-1",
-        xs: "h-4 px-1 rounded-sm",
-        sm: "h-6 rounded-md px-2.5",
-        lg: "h-9 rounded-md px-8",
-        icon: "h-8 w-8",
-        "icon-xs": "h-6 w-6",
-        "icon-sm": "h-6 rounded-md px-2",
+        default: "h-8 px-3 py-1 [&_svg:not([class*='icon-'])]:icon-base",
+        xs: "h-4 px-1 rounded-sm [&_svg:not([class*='icon-'])]:icon-sm",
+        sm: "h-6 rounded-md px-2.5 [&_svg:not([class*='icon-'])]:icon-base",
+        lg: "h-9 rounded-md px-8 [&_svg:not([class*='icon-'])]:icon-base",
+        icon: "h-8 w-8 [&_svg:not([class*='icon-'])]:icon-base",
+        "icon-xs": "h-6 w-6 [&_svg:not([class*='icon-'])]:icon-sm",
+        "icon-sm":
+          "h-6 rounded-md px-2 [&_svg:not([class*='icon-'])]:icon-base",
       },
     },
     defaultVariants: {

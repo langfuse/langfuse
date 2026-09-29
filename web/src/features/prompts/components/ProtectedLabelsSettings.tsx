@@ -141,7 +141,7 @@ export default function ProtectedLabelsSettings({
                     }
                   }}
                 >
-                  <XIcon className="h-3 w-3" />
+                  <XIcon />
                 </Button>
               )}
             </StatusBadge>
@@ -196,7 +196,7 @@ export default function ProtectedLabelsSettings({
                             >
                               <Check
                                 className={cn(
-                                  "mr-2 h-4 w-4",
+                                  "icon-base mr-2",
                                   field.value === label
                                     ? "opacity-100"
                                     : "opacity-0",

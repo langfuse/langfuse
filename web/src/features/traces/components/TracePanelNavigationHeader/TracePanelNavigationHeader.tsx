@@ -176,9 +176,9 @@ function TracePanelNavigationHeaderExpanded({
     <>
       <DropdownMenuItem onSelect={handleToggleTreeNodes}>
         {isEverythingCollapsed ? (
-          <UnfoldVertical className="mr-2 h-3.5 w-3.5" />
+          <UnfoldVertical className="mr-2" />
         ) : (
-          <FoldVertical className="mr-2 h-3.5 w-3.5" />
+          <FoldVertical className="mr-2" />
         )}
         {isEverythingCollapsed ? "Expand all" : "Collapse all"}
       </DropdownMenuItem>
@@ -243,11 +243,7 @@ function TracePanelNavigationHeaderExpanded({
                 title={isEverythingCollapsed ? "Expand all" : "Collapse all"}
                 className="h-7 w-7"
               >
-                {isEverythingCollapsed ? (
-                  <UnfoldVertical className="h-3.5 w-3.5" />
-                ) : (
-                  <FoldVertical className="h-3.5 w-3.5" />
-                )}
+                {isEverythingCollapsed ? <UnfoldVertical /> : <FoldVertical />}
               </Button>
 
               <TraceSettingsDropdown />
@@ -263,7 +259,7 @@ function TracePanelNavigationHeaderExpanded({
                     aria-label="More options"
                     className="h-7 w-7"
                   >
-                    <MoreVertical className="h-3.5 w-3.5" />
+                    <MoreVertical className="icon-base" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="center" className="w-64">
@@ -322,7 +318,7 @@ function TracePanelNavigationHeaderExpanded({
                       {TRACE_VIEW_LABELS[activeView]}
                       <ChevronDown
                         className={cn(
-                          "text-foreground-tertiary size-3.5 transition-transform",
+                          "text-foreground-tertiary icon-base transition-transform",
                           isOpen && "rotate-180",
                         )}
                       />

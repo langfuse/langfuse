@@ -81,7 +81,7 @@ export function ToolCallInvocationsView({
             <div className="flex w-full items-center justify-between gap-2 py-1">
               {/* Left: Tool icon + number + name */}
               <div className="flex items-center gap-2">
-                <Wrench className="text-muted-foreground h-3.5 w-3.5" />
+                <Wrench className="text-muted-foreground icon-base" />
                 <span className="text-foreground-secondary text-sm">
                   {invocationNumber !== undefined && (
                     <span className="mr-1">{invocationNumber}.</span>

@@ -14,7 +14,7 @@ export const ButtonWithIcon = forwardRef<
   }
 >(({ icon: Icon, text, ...buttonProps }, ref) => (
   <Button ref={ref} className="gap-1.5" {...buttonProps}>
-    <Icon className="size-4" aria-hidden="true" />
+    <Icon aria-hidden="true" />
     {text}
   </Button>
 ));

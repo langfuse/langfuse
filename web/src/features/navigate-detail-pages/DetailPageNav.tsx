@@ -139,7 +139,7 @@ export const DetailPageNav = (props: {
           <HeaderActionButton
             label="Navigate up"
             shortcut="K"
-            icon={<ArrowUp className="h-4 w-4" />}
+            icon={<ArrowUp className="icon-base" />}
             active={shortcutPulse === "previous"}
             disabled={!previousPageEntry}
             onClick={() => {
@@ -151,7 +151,7 @@ export const DetailPageNav = (props: {
           <HeaderActionButton
             label="Navigate down"
             shortcut="J"
-            icon={<ArrowDown className="h-4 w-4" />}
+            icon={<ArrowDown className="icon-base" />}
             active={shortcutPulse === "next"}
             disabled={!nextPageEntry}
             onClick={() => {
@@ -185,7 +185,7 @@ export const DetailPageNav = (props: {
                 }
               }}
             >
-              <ArrowUp className="h-4 w-4" />
+              <ArrowUp className="icon-base" />
               <span className="hidden md:inline-flex">
                 <KeyboardShortcut keys={["K"]} />
               </span>
@@ -208,7 +208,7 @@ export const DetailPageNav = (props: {
                 }
               }}
             >
-              <ArrowDown className="h-4 w-4" />
+              <ArrowDown className="icon-base" />
               <span className="hidden md:inline-flex">
                 <KeyboardShortcut keys={["J"]} />
               </span>

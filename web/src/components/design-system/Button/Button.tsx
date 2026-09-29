@@ -15,11 +15,13 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
+        ghost:
+          "hover:bg-accent hover:text-accent-foreground [&:not(.text-destructive)_svg:not([class*='text-'])]:text-icon-foreground",
       },
       size: {
-        default: "h-8 px-3 py-1 text-sm",
-        sm: "h-7 px-2 text-xs",
+        default:
+          "h-8 px-3 py-1 text-sm [&_svg:not([class*='icon-'])]:icon-base",
+        sm: "h-7 px-2 text-xs [&_svg:not([class*='icon-'])]:icon-base",
       },
     },
     defaultVariants: {
@@ -80,16 +82,16 @@ export function Button(props: ButtonProps) {
           target="_blank"
           rel={isLangfuseDomain ? "noopener" : "noopener noreferrer"}
         >
-          {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden /> : null}
+          {Icon ? <Icon className="shrink-0" aria-hidden /> : null}
           {props.text}
-          <ExternalLink className="size-3" aria-hidden />
+          <ExternalLink aria-hidden />
         </a>
       );
     }
 
     return (
       <Link className={className} href={props.href} ref={props.ref}>
-        {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden /> : null}
+        {Icon ? <Icon className="shrink-0" aria-hidden /> : null}
         {props.text}
       </Link>
     );
@@ -114,7 +116,7 @@ export function Button(props: ButtonProps) {
         </span>
       ) : (
         <>
-          {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden /> : null}
+          {Icon ? <Icon className="shrink-0" aria-hidden /> : null}
           {props.text}
         </>
       )}

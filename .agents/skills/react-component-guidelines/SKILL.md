@@ -37,6 +37,13 @@ Components are useful because they act as an encapsulated unit and therefore pro
 - Margin should be applied by the parent component, not contained in a component. The child component should only define the inner spacing of itself and its contents.
 - It's bad practice to have a component that returns `null` or `undefined`. Most of the time this suggests that the condition that leads to this state should be handled by the parent component instead, often this can be done in a way close to the current component by using a hook or a HOC.
 
+## Icons
+
+- Icon sizes come only from the scale: `icon-sm` (12px), `icon-base` (14px), `icon-lg` (20px), `icon-xl` (28px). `icon-lg` is for headers, toasts and illustrations; icons inside buttons and menu rows are `icon-base`. No raw `h-*`/`w-*`/`size-*` classes or `size` props on icons, and no `strokeWidth`; every icon uses the lucide default stroke.
+- Primitives (Button, menu items, Badge, sidebar rows) set the icon size and `text-icon-foreground` on their svg children. Call sites do not size or colour icons inside them.
+- An icon paired with a short single-line label is centre-aligned with that label, not baseline-aligned. Geometric centring is the start, not the end: some glyphs need a nudge of a pixel or two so the pair reads balanced. Icons beside multi-line text, such as a title with a subtitle, follow the layout of that block.
+- An icon paired with text is the same colour as the text or one step lighter, never darker; `text-icon-foreground` is the default, status colours are the only exception.
+
 ## Overlays
 
 - Compose overlays with `DropdownMenuController`, `PopoverController`, or `DialogController`. Trigger presentation should remain in the caller and not be abstracted. If additional behavior is needed, add a feature-specific wrapper that handles things such as permissions, analytics, mutations, or other workflow behavior that should be shared.

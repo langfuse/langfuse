@@ -64,7 +64,7 @@ export const MessagePlaceholderComponent: React.FC<{
     <div className="p-1">
       <div className="mb-1 flex flex-row items-center">
         <span className="flex flex-1 flex-row space-x-2 text-xs">
-          <UsedIcon size={16} color={iconColor} />
+          <UsedIcon className="icon-base" color={iconColor} />
           <p
             className={`min-w-[90px] truncate font-mono ${hasConflict ? "text-red-500" : ""}`}
             title={name}
@@ -80,7 +80,7 @@ export const MessagePlaceholderComponent: React.FC<{
           onClick={() => deleteMessagePlaceholder(name)}
           className="p-0"
         >
-          {!isUsed && <TrashIcon size={16} />}
+          {!isUsed && <TrashIcon />}
         </Button>
       </div>
 

@@ -73,11 +73,7 @@ export function MarkdownJsonViewHeader({
             }}
             className="text-muted-foreground hover:text-foreground hover:bg-transparent"
           >
-            {isCopied ? (
-              <Check className="h-3 w-3" />
-            ) : (
-              <Copy className="h-3 w-3" />
-            )}
+            {isCopied ? <Check /> : <Copy />}
           </Button>
         )}
       </div>

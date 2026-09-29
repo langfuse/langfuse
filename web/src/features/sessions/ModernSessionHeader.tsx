@@ -448,7 +448,7 @@ export function ModernSessionHeader({
             <PopoverTrigger asChild>
               <BadgeShell asChild data-session-header-pill="true">
                 <button type="button" aria-label="Add metadata JSONPath">
-                  <Plus className="h-3 w-3" />
+                  <Plus />
                 </button>
               </BadgeShell>
             </PopoverTrigger>
@@ -503,7 +503,7 @@ export function ModernSessionHeader({
                 aria-label="All session details"
               >
                 <div className="relative border-b p-2">
-                  <Search className="text-muted-foreground absolute top-1/2 left-4 h-3.5 w-3.5 -translate-y-1/2" />
+                  <Search className="text-muted-foreground icon-base absolute top-1/2 left-4 -translate-y-1/2" />
                   <Input
                     value={search}
                     onChange={(event) => {

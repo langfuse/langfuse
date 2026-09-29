@@ -825,7 +825,7 @@ export function DataTableControls({
                 className="text-xs"
                 disabled={addableFilters.length === 0}
               >
-                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                <Plus className="mr-1.5" />
                 Add filter
               </Button>
             </PopoverTrigger>
@@ -902,7 +902,7 @@ export function DataTableControls({
                 aria-label="Show filters"
                 className="h-6 w-6"
               >
-                <PanelLeftOpen className="h-3.5 w-3.5" />
+                <PanelLeftOpen />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="right">Show filters</TooltipContent>
@@ -984,7 +984,7 @@ export function DataTableControls({
                 aria-label="Close filters"
                 className="-ml-1 h-6 w-6"
               >
-                <X className="h-4 w-4" />
+                <X />
               </Button>
             ) : (
               <Tooltip>
@@ -999,7 +999,7 @@ export function DataTableControls({
                     aria-label="Hide filters"
                     className="-ml-1 h-6 w-6"
                   >
-                    <PanelLeftClose className="h-3.5 w-3.5" />
+                    <PanelLeftClose />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Hide filters</TooltipContent>
@@ -1023,7 +1023,7 @@ export function DataTableControls({
                   <TooltipTrigger asChild>
                     <PopoverTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <WandSparkles className="h-4 w-4" />
+                        <WandSparkles />
                       </Button>
                     </PopoverTrigger>
                   </TooltipTrigger>
@@ -1076,9 +1076,9 @@ export function DataTableControls({
                   }
                 >
                   {expandedVisibleCount === 0 ? (
-                    <UnfoldVertical className="h-3.5 w-3.5" />
+                    <UnfoldVertical />
                   ) : (
-                    <FoldVertical className="h-3.5 w-3.5" />
+                    <FoldVertical />
                   )}
                 </Button>
               </TooltipTrigger>
@@ -1098,7 +1098,7 @@ export function DataTableControls({
                       className="h-6 w-6"
                       aria-label="Filter options"
                     >
-                      <MoreVertical className="h-3.5 w-3.5" />
+                      <MoreVertical />
                     </Button>
                   </DropdownMenuTrigger>
                 </TooltipTrigger>
@@ -1145,7 +1145,7 @@ export function DataTableControls({
                   }}
                 >
                   Show only active
-                  {showOnlyActive && <Check className="ml-auto h-3.5 w-3.5" />}
+                  {showOnlyActive && <Check className="ml-auto" />}
                 </DropdownMenuItem>
                 {/* "Collapse sidebar" is desktop-rail chrome — there's no rail
                     on mobile (either sheet), where the header X / sheet footer
@@ -1185,7 +1185,7 @@ export function DataTableControls({
           // the field, at rest and scrolled alike.
           <div className="bg-surface shrink-0 px-2 pt-2 pb-0.5">
             <div className="relative">
-              <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
+              <Search className="text-muted-foreground icon-base absolute top-1/2 left-2 -translate-y-1/2" />
               <Input
                 placeholder="Search filters"
                 aria-label="Search filters"
@@ -1221,7 +1221,7 @@ export function DataTableControls({
                   aria-label="Clear filter search"
                   className="absolute top-1/2 right-0.5 h-5 w-5 -translate-y-1/2"
                 >
-                  <IconX className="h-3 w-3" />
+                  <IconX />
                 </Button>
               )}
             </div>
@@ -1483,7 +1483,7 @@ function FilterAccordionItem({
               </span>
               <Tooltip delayDuration={80}>
                 <TooltipTrigger asChild>
-                  <InfoIcon className="text-muted-foreground h-3 w-3 shrink-0" />
+                  <InfoIcon className="text-muted-foreground icon-sm shrink-0" />
                 </TooltipTrigger>
                 <TooltipContent className="max-w-80 text-xs">
                   {tooltip}
@@ -1554,7 +1554,7 @@ function FilterAccordionItem({
                 className="text-muted-foreground hover:text-foreground flex shrink-0 cursor-pointer items-center gap-0.5 self-start rounded-sm px-1 py-0.5 text-[11px] leading-4 font-normal transition-colors hover:underline focus-visible:underline focus-visible:outline-none"
                 aria-label={`Clear ${label} filter`}
               >
-                <IconX className="h-3 w-3 shrink-0" />
+                <IconX className="icon-sm shrink-0" />
                 Clear
               </div>
             </TooltipTrigger>
@@ -1964,7 +1964,7 @@ function CategoricalSelectContent({
           {hasMoreOptions && (
             <div className="mb-2 px-2">
               <div className="relative">
-                <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
+                <Search className="text-muted-foreground icon-base absolute top-1/2 left-2 -translate-y-1/2" />
                 <Input
                   placeholder="Filter values"
                   value={searchQuery}
@@ -2179,7 +2179,7 @@ function NumericFacet({
                   onClick={() => onRemoveCondition(index)}
                   className="text-muted-foreground hover:text-foreground h-5 w-5 shrink-0 p-0"
                 >
-                  <X className="h-3 w-3" />
+                  <X />
                 </Button>
               </div>
             ))}

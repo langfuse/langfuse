@@ -215,7 +215,7 @@ export function PeekHeader({
             <div ref={openInTabRef}>
               <HeaderActionButton
                 label="Open in new tab"
-                icon={<ExternalLink className="h-4 w-4" />}
+                icon={<ExternalLink className="icon-base" />}
                 onClick={openInNewTab}
               />
             </div>
@@ -231,9 +231,9 @@ export function PeekHeader({
                 label={expand.isExpanded ? "Collapse" : "Expand"}
                 icon={
                   expand.isExpanded ? (
-                    <Minimize2 className="h-4 w-4" />
+                    <Minimize2 className="icon-base" />
                   ) : (
-                    <Maximize2 className="h-4 w-4" />
+                    <Maximize2 className="icon-base" />
                   )
                 }
                 onClick={expand.onToggle}
@@ -269,7 +269,7 @@ export function PeekHeader({
                       aria-label="More actions"
                       className="text-foreground-secondary hover:text-foreground-secondary"
                     >
-                      <MoreHorizontal className="h-4 w-4" />
+                      <MoreHorizontal />
                     </Button>
                   </PopoverTrigger>
                 </TooltipTrigger>
@@ -286,7 +286,7 @@ export function PeekHeader({
                     onClick={openInNewTab}
                     className="hover:bg-accent flex w-full items-center gap-2 rounded-sm py-1.5 pr-2 pl-1.5 text-sm"
                   >
-                    <ExternalLink className="h-4 w-4" />
+                    <ExternalLink className="icon-base" />
                     Open in new tab
                   </button>
                 ) : null}
@@ -297,7 +297,7 @@ export function PeekHeader({
           <div ref={closeRef}>
             <HeaderActionButton
               label="Close"
-              icon={<X className="h-4 w-4" />}
+              icon={<X className="icon-base" />}
               onClick={onClose}
             />
           </div>

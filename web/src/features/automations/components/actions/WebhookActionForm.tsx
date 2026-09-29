@@ -234,9 +234,9 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                 title={isSecret ? "Make header public" : "Make header secret"}
               >
                 {isSecret ? (
-                  <Lock className="h-4 w-4 text-orange-500" />
+                  <Lock className="text-orange-500" />
                 ) : (
-                  <LockOpen className="text-muted-foreground h-4 w-4" />
+                  <LockOpen className="text-muted-foreground" />
                 )}
               </Button>
               <Button
@@ -246,7 +246,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                 onClick={() => removeHeader(originalIndex)}
                 disabled={disabled}
               >
-                <X className="h-4 w-4" />
+                <X />
               </Button>
             </div>
           );
@@ -259,7 +259,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           disabled={disabled}
           className="mt-2"
         >
-          <Plus className="mr-1 h-4 w-4" />
+          <Plus className="mr-1" />
           Add Custom Header
         </Button>
       </div>
@@ -358,7 +358,7 @@ const RegenerateWebhookSecretButton = ({
             disabled={regenerateSecretMutation.isPending}
           >
             <RefreshCw
-              className={`mr-2 h-4 w-4 ${regenerateSecretMutation.isPending ? "animate-spin" : ""}`}
+              className={`mr-2 ${regenerateSecretMutation.isPending ? "animate-spin" : ""}`}
             />
             Regenerate
           </Button>

@@ -86,11 +86,7 @@ export function SkillVersionHistory(
           aria-expanded={!isCollapsed}
           onClick={() => setIsCollapsed((collapsed) => !collapsed)}
         >
-          {isCollapsed ? (
-            <PanelLeftOpen className="h-4 w-4" />
-          ) : (
-            <PanelLeftClose className="h-4 w-4" />
-          )}
+          {isCollapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
         </Button>
       </div>
       {isCollapsed ? null : (

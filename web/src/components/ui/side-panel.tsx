@@ -115,7 +115,7 @@ const SidePanel = ({
                 className="h-8 w-8"
                 title="Show details"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft />
               </Button>
             </SheetTrigger>
           </div>
@@ -187,7 +187,7 @@ const SidePanelHeader = ({ children }: { children: ReactNode }) => {
         onClick={() => setShowPanel(true)}
         title="Show details"
       >
-        <ChevronLeft className="h-4 w-4" />
+        <ChevronLeft />
       </Button>
     );
   }
@@ -202,7 +202,7 @@ const SidePanelHeader = ({ children }: { children: ReactNode }) => {
           onClick={() => setShowPanel(false)}
           title="Hide details"
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight />
         </Button>
       </div>
       <Separator />

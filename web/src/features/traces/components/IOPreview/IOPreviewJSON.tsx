@@ -402,12 +402,12 @@ function IOPreviewJSONInner({
 
   const wrapIcon = useMemo(() => {
     if (stringWrapMode === "truncate") {
-      return <Minus size={14} />;
+      return <Minus className="icon-base" />;
     }
     if (stringWrapMode === "wrap") {
-      return <WrapText size={14} />;
+      return <WrapText className="icon-base" />;
     }
-    return <ChevronDown size={14} className="-rotate-90" />;
+    return <ChevronDown className="icon-base -rotate-90" />;
   }, [stringWrapMode]);
 
   // Build sections - memoized to prevent re-creation. A gated field renders as
@@ -706,7 +706,7 @@ function IOPreviewJSONInner({
               onClick={handlePreviousMatch}
               title="Previous match (Shift+Enter)"
             >
-              <ChevronUp className="h-3.5 w-3.5" />
+              <ChevronUp />
             </Button>
             <Button
               variant="ghost"
@@ -715,7 +715,7 @@ function IOPreviewJSONInner({
               onClick={handleNextMatch}
               title="Next match (Enter)"
             >
-              <ChevronDown className="h-3.5 w-3.5" />
+              <ChevronDown />
             </Button>
           </>
         )}
@@ -739,7 +739,7 @@ function IOPreviewJSONInner({
           onClick={handleCopy}
           title="Copy to clipboard"
         >
-          <Copy className="h-3.5 w-3.5" />
+          <Copy />
         </Button>
       </div>
 

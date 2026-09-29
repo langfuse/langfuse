@@ -287,7 +287,7 @@ export function UpsertScoreConfigDialogContent({
                                   index === 0 || index !== fields.length - 1
                                 }
                               >
-                                <Trash className="h-4 w-4" />
+                                <Trash />
                               </Button>
                             )}
                           </div>

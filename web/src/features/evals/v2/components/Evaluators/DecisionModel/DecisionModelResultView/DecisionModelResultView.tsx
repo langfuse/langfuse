@@ -64,7 +64,7 @@ function LevelDescriptionTooltip({
         className="text-muted-foreground focus-visible:ring-ring cursor-help rounded-sm focus-visible:ring-2 focus-visible:outline-none"
         aria-label={`Level ${index} description`}
       >
-        <InfoIcon className="h-3.5 w-3.5" aria-hidden="true" />
+        <InfoIcon className="icon-base" aria-hidden="true" />
       </TooltipTrigger>
       <TooltipContent className="max-w-xs">{description}</TooltipContent>
     </Tooltip>
@@ -254,7 +254,7 @@ function ResultRow({ result }: { result: DecisionModelQuestionResult }) {
     <li className="flex flex-col gap-2 rounded-md border p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-2 text-sm">
-          <copy.icon className="h-4 w-4 shrink-0" aria-label={copy.label} />
+          <copy.icon className="icon-base shrink-0" aria-label={copy.label} />
           <Badge variant="secondary" className="font-mono">
             {result.scoreName}
           </Badge>

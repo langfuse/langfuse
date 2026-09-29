@@ -39,7 +39,7 @@ function Root({ ...props }: SlottedProps) {
 function Search({ ...props }: SlottedProps) {
   return (
     <div className="flex items-center border-b px-2">
-      <SearchIcon className="size-4 shrink-0 opacity-50" />
+      <SearchIcon className="icon-base shrink-0 opacity-50" />
       <Slot
         className="placeholder:text-foreground-tertiary flex h-8 w-full rounded border-transparent bg-transparent px-2 py-3 text-sm outline-hidden focus:border-0 focus:border-none focus:border-transparent focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
         {...props}
