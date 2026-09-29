@@ -81,8 +81,9 @@ function verifyGatewayRequestSignatureAndHashApiKey(input: {
 
 /**
  * Adds the gateway's request ID to the active span and to the baggage the logger
- * copies onto every line, so Web resolution logs join the gateway's. Only a
- * single UUID is accepted; the value comes from an unauthenticated header.
+ * copies onto every line, so Web resolution logs join the gateway's. Call it
+ * only after the gateway signature is verified; the header itself is unsigned,
+ * so only a single UUID is accepted.
  */
 export function contextWithGatewayRequestId(
   req: Pick<NextApiRequest, "headers">,
@@ -158,7 +159,7 @@ function withGatewayControlPlaneAuth<
   ) => Promise<unknown>,
   schema: z.ZodType<Body>,
 ) {
-  const handle = async (req: NextApiRequest, res: NextApiResponse) => {
+  return async (req: NextApiRequest, res: NextApiResponse) => {
     setNoStoreHeaders(res);
 
     if (req.method !== RESOLVE_METHOD) {
@@ -191,12 +192,14 @@ function withGatewayControlPlaneAuth<
         ),
       });
 
-      return await handler({
-        req,
-        res,
-        fastHashedSecretKey,
-        body: body.data,
-      });
+      return await context.with(contextWithGatewayRequestId(req), () =>
+        handler({
+          req,
+          res,
+          fastHashedSecretKey,
+          body: body.data,
+        }),
+      );
     } catch (error) {
       if (error instanceof GatewayControlPlaneError) {
         return res.status(error.status).json({ error: error.message });
@@ -204,8 +207,6 @@ function withGatewayControlPlaneAuth<
       return res.status(500).json({ error: "Internal server error" });
     }
   };
-  return (req: NextApiRequest, res: NextApiResponse) =>
-    context.with(contextWithGatewayRequestId(req), () => handle(req, res));
 }
 
 function setNoStoreHeaders(res: NextApiResponse) {
