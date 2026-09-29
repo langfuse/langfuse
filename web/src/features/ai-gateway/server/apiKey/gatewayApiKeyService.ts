@@ -34,10 +34,9 @@ export class GatewayApiKeyService {
     session: OrgAuthedContext["session"];
   }) {
     const key = await this.prisma.$transaction(async (tx) => {
-      // TODO: Narrow this virtual key to the `gateway:invoke` permission once granular API-key scopes are available.
       const key = await createApiKey(tx, {
         owner: OrganizationId(params.organizationId),
-        role: SystemRoleId("ORGANIZATION"),
+        role: SystemRoleId("AI_GATEWAY"),
         createdBy: UserId(params.session.user.id),
         name: params.note,
       });
