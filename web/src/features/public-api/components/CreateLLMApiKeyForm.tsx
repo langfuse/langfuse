@@ -1391,8 +1391,8 @@ export function CreateLLMApiKeyForm({
                       <FormItem>
                         <FormLabel>Authentication Method</FormLabel>
                         <FormDescription>
-                          Select how Langfuse should authenticate to Azure
-                          OpenAI or Azure AI Foundry.
+                          Authenticate to Azure OpenAI or Azure AI Foundry with
+                          an API key or Microsoft Entra ID.
                         </FormDescription>
                         <FormControl>
                           <div className="w-full">
@@ -1411,7 +1411,7 @@ export function CreateLLMApiKeyForm({
                                 <Tabs.Trigger
                                   value={AuthMethod.EntraServicePrincipal}
                                   size="sm"
-                                  label="Entra ID service principal"
+                                  label="Service principal"
                                 />
                                 {!isLangfuseCloud && (
                                   <Tabs.Trigger
