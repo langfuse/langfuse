@@ -12,7 +12,7 @@ const onPageChange = fn();
 
 const apiKeys = [
   {
-    metadata: { environment: "production", region: "eu" },
+    metadata: { user: "Marc Klingen", environment: "production" },
     apiKey: {
       id: "gateway-key-production",
       publicKey: "pk-lf-gw-...4fa2",

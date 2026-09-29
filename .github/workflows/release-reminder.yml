@@ -72,8 +72,8 @@ jobs:
           ' <<<"$pull_requests")"
           count="$(jq 'length' <<<"$pull_requests")"
 
-          if [ "$count" -eq 0 ]; then
-            echo "No release-worthy pull requests since ${release_tag}; skipping."
+          if [ "$count" -lt 15 ]; then
+            echo "Only ${count} release-worthy pull requests since ${release_tag}; at least 15 required. Skipping."
             echo "notify=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
