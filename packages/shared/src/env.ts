@@ -27,6 +27,35 @@ export const redisSocketTimeoutMsSchema = z.coerce
   })
   .default(30_000);
 
+// ClickHouse rejects unknown settings on every query, so a malformed value
+// must fail the process at startup instead.
+const clickhouseExtraSettingsSchema = (name: string) =>
+  z
+    .string()
+    .transform((value, ctx) => {
+      try {
+        return JSON.parse(value) as unknown;
+      } catch {
+        ctx.addIssue({ code: "custom", message: `${name} must be valid JSON` });
+        return z.NEVER;
+      }
+    })
+    .pipe(
+      z.record(
+        z
+          .string()
+          .regex(
+            /^[A-Za-z_][A-Za-z0-9_]*$/,
+            `${name} keys must be ClickHouse setting names`,
+          ),
+        z.union([z.string(), z.number(), z.boolean()]),
+        {
+          error: `${name} must be a JSON object of setting names to string, number, or boolean values`,
+        },
+      ),
+    )
+    .optional();
+
 const DEFAULT_LLM_COMPLETION_TIMEOUT_MS = 120_000;
 
 const EnvSchema = z.object({
@@ -180,6 +209,18 @@ const EnvSchema = z.object({
   CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
     .enum(["true", "false"])
     .default("false"),
+  // JSON objects of ClickHouse setting name to value. Every client gets
+  // CLICKHOUSE_EXTRA_SETTINGS; the service variants add to it for clients of
+  // that service. Settings set by Langfuse itself take precedence.
+  CLICKHOUSE_EXTRA_SETTINGS: clickhouseExtraSettingsSchema(
+    "CLICKHOUSE_EXTRA_SETTINGS",
+  ),
+  CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY: clickhouseExtraSettingsSchema(
+    "CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY",
+  ),
+  CLICKHOUSE_EXTRA_SETTINGS_EVENTS_READ_ONLY: clickhouseExtraSettingsSchema(
+    "CLICKHOUSE_EXTRA_SETTINGS_EVENTS_READ_ONLY",
+  ),
   LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION: z
     .enum(["true", "false"])
     .default("false"),
