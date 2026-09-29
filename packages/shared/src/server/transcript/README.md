@@ -12,7 +12,7 @@ Status: generation-led builder with tool responses matched by ID or name and ord
 ## Interface
 
 ```ts
-orderObservations(observations: Observation[]): Observation[];
+orderObservations(traceObservations: Observation[]): Observation[];
 assembleTranscript(orderedObservations: Observation[]): Transcript | null;
 
 type Transcript = { threads: Thread[] };
