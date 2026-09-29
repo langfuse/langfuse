@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import waitForExpect from "wait-for-expect";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   ActionId,
@@ -22,6 +22,7 @@ import {
   createTracesCh,
   deleteObservationsByTraceIds,
   deleteScoresByTraceIds,
+  logger,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { processTraceDeleteBatchAction } from "../features/batchAction/processTraceDeleteBatchAction";
@@ -744,5 +745,130 @@ describe("trace delete batch action worker processor", () => {
         traceIds: [expect.any(String)],
       },
     });
+  }, 30_000);
+});
+
+describe("trace delete batch action actor logging", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const closeActiveTraceDeleteBatchActions = () =>
+    prisma.batchAction.updateMany({
+      where: {
+        actionType: ActionId.TraceDelete,
+        tableName: BatchExportTableName.Traces,
+        status: {
+          in: [BatchActionStatus.Queued, BatchActionStatus.Processing],
+        },
+      },
+      data: {
+        status: BatchActionStatus.Failed,
+        finishedAt: new Date(),
+        log: "Closed by trace delete batch action actor logging test setup",
+      },
+    });
+
+  it("logs the requesting user and trace ids for each deleted page", async () => {
+    const { projectId } = await createOrgProjectAndApiKey({ plan: "Team" });
+    const deleteUserId = `delete-user-${randomUUID()}`;
+    const requestedByUserId = `user-${randomUUID()}`;
+    const selectedTraceIds = [randomUUID(), randomUUID(), randomUUID()];
+
+    await createLegacyArtifacts({
+      projectId,
+      traceIds: selectedTraceIds,
+      userId: deleteUserId,
+      timestamp: new Date(Date.now() - 60_000),
+    });
+
+    const batchAction = await createTraceDeleteBatchAction({
+      projectId,
+      userId: requestedByUserId,
+      useEventsTable: false,
+      cutoffCreatedAt: new Date(),
+      query: traceDeleteQuery(deleteUserId),
+    });
+
+    const infoSpy = vi.spyOn(logger, "info");
+
+    await processTraceDeleteBatchAction({
+      batchActionId: batchAction.id,
+      batchSize: 2,
+    });
+
+    const pageLogs = infoSpy.mock.calls.filter(
+      ([message]) =>
+        message ===
+        `Processing trace delete batch action page requested by user ${requestedByUserId}`,
+    );
+
+    // 3 traces with batchSize 2 -> 2 pages, each logged with the requester
+    expect(pageLogs).toHaveLength(2);
+    for (const [, meta] of pageLogs) {
+      expect(meta).toMatchObject({
+        batchActionId: batchAction.id,
+        projectId,
+        actorType: "USER",
+        userId: requestedByUserId,
+      });
+    }
+    const loggedTraceIds = pageLogs.flatMap(
+      ([, meta]) => (meta as { traceIds: string[] }).traceIds,
+    );
+    expect(loggedTraceIds.sort()).toEqual([...selectedTraceIds].sort());
+    expect(pageLogs.map(([, meta]) => meta)).toEqual([
+      expect.objectContaining({ traceCount: 2 }),
+      expect.objectContaining({ traceCount: 1 }),
+    ]);
+
+    await expectCountsEventually(projectId, selectedTraceIds, { traces: 0 });
+  }, 30_000);
+
+  it("runner logs the requesting user of the picked batch action", async () => {
+    const { projectId } = await createOrgProjectAndApiKey({ plan: "Team" });
+    const deleteUserId = `delete-user-${randomUUID()}`;
+    const requestedByUserId = `user-${randomUUID()}`;
+
+    await closeActiveTraceDeleteBatchActions();
+
+    await createLegacyArtifacts({
+      projectId,
+      traceIds: [randomUUID()],
+      userId: deleteUserId,
+      timestamp: new Date(Date.now() - 60_000),
+    });
+
+    const batchAction = await createTraceDeleteBatchAction({
+      projectId,
+      userId: requestedByUserId,
+      useEventsTable: false,
+      cutoffCreatedAt: new Date(),
+      query: traceDeleteQuery(deleteUserId),
+    });
+
+    const infoSpy = vi.spyOn(logger, "info");
+
+    const runner = new TraceDeleteBatchActionRunner({
+      batchSize: 10,
+      maxBatchesPerRun: 1,
+      intervalMs: 1_000,
+      lockTtlSeconds: 60,
+    });
+
+    await runner.processBatch();
+
+    expect(infoSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Processing trace delete action"),
+      expect.objectContaining({
+        batchActionId: batchAction.id,
+        projectId,
+        userId: requestedByUserId,
+      }),
+    );
+    expect(infoSpy).toHaveBeenCalledWith(
+      `Processing trace delete batch action page requested by user ${requestedByUserId}`,
+      expect.objectContaining({ batchActionId: batchAction.id }),
+    );
   }, 30_000);
 });

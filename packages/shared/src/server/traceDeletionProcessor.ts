@@ -1,13 +1,14 @@
 import { randomUUID } from "crypto";
 import { prisma } from "../db";
 import { TraceDeleteQueue } from "./redis/traceDelete";
-import { QueueJobs } from "./queues";
+import { type DeletionActor, QueueJobs } from "./queues";
 import { logger } from "./logger";
 import { env } from "../env";
 import { shouldSkipDeletionFor } from "./deletionGuard";
 
 export interface TraceDeletionProcessorOptions {
   delayMs?: number; // Default from LANGFUSE_TRACE_DELETE_DELAY_MS env var
+  actor?: DeletionActor; // Who requested the deletion, logged in web and worker
 }
 
 /**
@@ -28,7 +29,7 @@ export async function traceDeletionProcessor(
   traceIds: string[],
   options: TraceDeletionProcessorOptions = {},
 ): Promise<void> {
-  const { delayMs = env.LANGFUSE_TRACE_DELETE_DELAY_MS } = options;
+  const { delayMs = env.LANGFUSE_TRACE_DELETE_DELAY_MS, actor } = options;
 
   if (traceIds.length === 0) {
     logger.warn("traceDeletionProcessor called with empty traceIds array", {
@@ -38,11 +39,14 @@ export async function traceDeletionProcessor(
   }
 
   logger.info(
-    `Processing trace deletion for ${traceIds.length} traces in project ${projectId}`,
+    `Processing trace deletion for ${traceIds.length} traces in project ${projectId}${
+      actor ? ` requested by ${formatDeletionActor(actor)}` : ""
+    }`,
     {
       projectId,
       traceIds,
       delayMs,
+      actor,
     },
   );
 
@@ -78,6 +82,7 @@ export async function traceDeletionProcessor(
         payload: {
           projectId,
           traceIds,
+          actor,
         },
       },
       {
@@ -92,4 +97,11 @@ export async function traceDeletionProcessor(
     });
     throw error;
   }
+}
+
+export function formatDeletionActor(actor: DeletionActor): string {
+  if (actor.type === "API_KEY") {
+    return `API key ${actor.publicKey ?? actor.apiKeyId ?? "unknown"}`;
+  }
+  return `user ${actor.userId ?? "unknown"}`;
 }

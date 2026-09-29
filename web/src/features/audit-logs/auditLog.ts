@@ -4,6 +4,7 @@ import {
   AuditLogRecordType,
   type Prisma,
 } from "@langfuse/shared/src/db";
+import { logger } from "@langfuse/shared/src/server";
 
 type AuditableResource =
   | "annotationQueue"
@@ -87,6 +88,41 @@ type AuditLog = {
     }
 );
 
+// Mirrors each audit log record into the application logs so that actors can be
+// correlated with web/worker log lines (e.g. trace deletions) without querying
+// the audit_logs table. Only ids are logged, no emails or names.
+function logAuditEvent(
+  log: AuditLog,
+  actor: {
+    type: AuditLogRecordType;
+    orgId: string;
+    projectId?: string;
+    userId?: string;
+    apiKeyId?: string;
+    publicKey?: string;
+  },
+) {
+  logger.info(
+    `Audit log: ${log.resourceType}.${log.action} ${log.resourceId} by ${actor.type} ${
+      actor.type === AuditLogRecordType.API_KEY
+        ? (actor.publicKey ?? actor.apiKeyId)
+        : actor.userId
+    }`,
+    {
+      auditLog: true,
+      resourceType: log.resourceType,
+      resourceId: log.resourceId,
+      action: log.action,
+      actorType: actor.type,
+      userId: actor.userId,
+      apiKeyId: actor.apiKeyId,
+      publicKey: actor.publicKey,
+      orgId: actor.orgId,
+      projectId: actor.projectId,
+    },
+  );
+}
+
 export async function auditLog(
   log: AuditLog,
   prisma?: typeof _prisma | Prisma.TransactionClient,
@@ -109,21 +145,33 @@ export async function auditLog(
       select: {
         isInAppAgentKey: true,
         createdByUserId: true,
+        publicKey: true,
       },
     });
+
+    const userId =
+      apiKey?.isInAppAgentKey === true
+        ? (apiKey.createdByUserId ?? undefined)
+        : undefined;
 
     await db.auditLog.create({
       data: {
         apiKeyId: log.apiKeyId,
-        userId:
-          apiKey?.isInAppAgentKey === true
-            ? (apiKey.createdByUserId ?? undefined)
-            : undefined,
+        userId,
         orgId: log.orgId,
         projectId: log.projectId,
         type: AuditLogRecordType.API_KEY,
         ...shared,
       },
+    });
+
+    logAuditEvent(log, {
+      type: AuditLogRecordType.API_KEY,
+      orgId: log.orgId,
+      projectId: log.projectId,
+      userId,
+      apiKeyId: log.apiKeyId,
+      publicKey: apiKey?.publicKey,
     });
 
     return;
@@ -142,6 +190,13 @@ export async function auditLog(
       },
     });
 
+    logAuditEvent(log, {
+      type: AuditLogRecordType.USER,
+      orgId: log.session.orgId,
+      projectId: log.session.projectId,
+      userId: log.session.user.id,
+    });
+
     return;
   }
 
@@ -156,6 +211,13 @@ export async function auditLog(
         type: AuditLogRecordType.USER,
         ...shared,
       },
+    });
+
+    logAuditEvent(log, {
+      type: AuditLogRecordType.USER,
+      orgId: log.orgId,
+      projectId: log.projectId,
+      userId: log.userId,
     });
 
     return;

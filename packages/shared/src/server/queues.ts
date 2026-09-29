@@ -100,9 +100,19 @@ export const TraceQueueEventSchema = z.object({
   exactTimestamp: z.date().optional(),
   traceEnvironment: z.string().optional(), // Optional to maintain backward compatibility with existing jobs in queue during deployment. 'optional()' can be removed after queue was exhausted
 });
+// Who requested a deletion. Only used for logging; optional so that jobs
+// enqueued before this field existed still parse.
+export const DeletionActorSchema = z.object({
+  type: z.enum(["USER", "API_KEY"]),
+  userId: z.string().optional(),
+  apiKeyId: z.string().optional(),
+  publicKey: z.string().optional(),
+});
+export type DeletionActor = z.infer<typeof DeletionActorSchema>;
 export const TracesQueueEventSchema = z.object({
   projectId: z.string(),
   traceIds: z.array(z.string()),
+  actor: DeletionActorSchema.optional(),
 });
 export const ScoresQueueEventSchema = z.object({
   projectId: z.string(),
@@ -196,6 +206,7 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       cutoffCreatedAt: z.date(),
       targetId: z.string().optional(),
       type: z.enum(BatchActionType),
+      userId: z.string().optional(), // Requesting user, for logging only
     }),
     z.object({
       actionId: z.literal("dataset-delete"),
@@ -205,6 +216,7 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       cutoffCreatedAt: z.date(),
       targetId: z.string().optional(),
       type: z.enum(BatchActionType),
+      userId: z.string().optional(), // Requesting user, for logging only
     }),
     z.object({
       actionId: z.literal("trace-delete"),
@@ -214,6 +226,7 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       cutoffCreatedAt: z.date(),
       targetId: z.string().optional(),
       type: z.enum(BatchActionType),
+      userId: z.string().optional(), // Requesting user, for logging only
     }),
     z.object({
       actionId: z.literal("trace-add-to-annotation-queue"),
@@ -223,6 +236,7 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       cutoffCreatedAt: z.date(),
       targetId: z.string().optional(),
       type: z.enum(BatchActionType),
+      userId: z.string().optional(), // Requesting user, for logging only
     }),
     z.object({
       actionId: z.literal("session-add-to-annotation-queue"),
@@ -232,6 +246,7 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       cutoffCreatedAt: z.date(),
       targetId: z.string().optional(),
       type: z.enum(BatchActionType),
+      userId: z.string().optional(), // Requesting user, for logging only
     }),
     z.object({
       actionId: z.literal("observation-add-to-annotation-queue"),
@@ -241,6 +256,7 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       cutoffCreatedAt: z.date(),
       targetId: z.string().optional(),
       type: z.enum(BatchActionType),
+      userId: z.string().optional(), // Requesting user, for logging only
     }),
     z.object({
       actionId: z.literal("eval-create"),
