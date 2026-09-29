@@ -12,10 +12,7 @@ import {
 } from "@/src/features/events";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
-import {
-  InternalFeatureBadge,
-  useInternalFeaturesEnabled,
-} from "@/src/features/feature-flags";
+import { InternalFeatureBadge } from "@/src/features/feature-flags";
 import { useWebCalloutAction } from "@/src/features/web-callouts";
 
 type IdItem = {
@@ -95,16 +92,9 @@ export function ConnectedDetailHeaderActionsMenuController({
 }: ConnectedDetailHeaderActionsMenuControllerProps) {
   const session = useSession();
   const isAdmin = session.data?.user?.admin === true;
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  const showClickHouseQuery = isAdmin && internalFeaturesEnabled;
 
   if (!webCallout) {
-    return (
-      <DetailHeaderActionsMenuController
-        {...props}
-        isAdmin={showClickHouseQuery}
-      />
-    );
+    return <DetailHeaderActionsMenuController {...props} isAdmin={isAdmin} />;
   }
 
   return (
@@ -115,7 +105,7 @@ export function ConnectedDetailHeaderActionsMenuController({
       {(webCalloutAction) => (
         <DetailHeaderActionsMenuController
           {...props}
-          isAdmin={showClickHouseQuery}
+          isAdmin={isAdmin}
           webCalloutAction={webCalloutAction}
         />
       )}
