@@ -145,6 +145,28 @@ function splitAnthropicCacheCreation(
   }
 }
 
+const NON_USAGE_OPENAI_FIELDS = new Set(["cost", "cost_details"]);
+
+function preserveUnknownOpenAIUsageCounters(
+  usage: Record<string, unknown>,
+  result: Record<string, number>,
+  knownFields: readonly string[],
+) {
+  for (const [key, value] of Object.entries(
+    RawUsageDetails.parse(usage) ?? {},
+  )) {
+    if (
+      knownFields.includes(key) ||
+      NON_USAGE_OPENAI_FIELDS.has(key) ||
+      Object.hasOwn(result, key)
+    ) {
+      continue;
+    }
+
+    result[key] = value;
+  }
+}
+
 const OpenAICompletionUsageSchema = z
   .object({
     prompt_tokens: z.number().int().nonnegative(),
@@ -157,6 +179,7 @@ const OpenAICompletionUsageSchema = z
       .record(z.string(), z.number().int().nonnegative().nullish())
       .nullish(),
   })
+  .loose()
   .transform((v) => {
     if (!v) return;
 
@@ -195,6 +218,14 @@ const OpenAICompletionUsageSchema = z
       }
     }
 
+    preserveUnknownOpenAIUsageCounters(v, result, [
+      "prompt_tokens",
+      "completion_tokens",
+      "total_tokens",
+      "prompt_tokens_details",
+      "completion_tokens_details",
+    ]);
+
     return result;
   });
 
@@ -211,6 +242,7 @@ const OpenAIResponseUsageSchema = z
       .record(z.string(), z.number().int().nonnegative().nullish())
       .nullish(),
   })
+  .loose()
   .transform((v) => {
     if (!v) return;
 
@@ -248,6 +280,14 @@ const OpenAIResponseUsageSchema = z
         }
       }
     }
+
+    preserveUnknownOpenAIUsageCounters(v, result, [
+      "input_tokens",
+      "output_tokens",
+      "total_tokens",
+      "input_tokens_details",
+      "output_tokens_details",
+    ]);
 
     return result;
   });
