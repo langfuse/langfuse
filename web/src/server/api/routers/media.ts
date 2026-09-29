@@ -144,20 +144,15 @@ export const mediaRouter = createTRPCRouter({
         return [];
       }
 
-      const mediaStorageClient = getMediaStorageServiceClient(
-        media[0].bucket_name,
-      );
       const ttlSeconds = env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS;
       const urlExpiry = new Date(Date.now() + ttlSeconds * 1000).toISOString();
 
       // Use Promise.all as better to fail all media requests than one of them only
       return await Promise.all(
         media.map<Promise<MediaReturnType>>(async (m) => {
-          const url = await mediaStorageClient.getSignedUrl(
-            m.bucket_path,
-            ttlSeconds,
-            false,
-          );
+          const url = await getMediaStorageServiceClient(
+            m.bucket_name,
+          ).getSignedUrl(m.bucket_path, ttlSeconds, false);
           return {
             mediaId: m.id,
             contentType: m.content_type as MediaContentType,
