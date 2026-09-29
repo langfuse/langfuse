@@ -157,7 +157,6 @@ const OpenAICompletionUsageSchema = z
       .record(z.string(), z.number().int().nonnegative().nullish())
       .nullish(),
   })
-  .strict()
   .transform((v) => {
     if (!v) return;
 
@@ -212,7 +211,6 @@ const OpenAIResponseUsageSchema = z
       .record(z.string(), z.number().int().nonnegative().nullish())
       .nullish(),
   })
-  .strict()
   .transform((v) => {
     if (!v) return;
 
