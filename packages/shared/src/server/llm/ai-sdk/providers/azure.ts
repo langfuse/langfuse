@@ -24,8 +24,7 @@ import { trimTrailingSlashes } from "./utils";
 const AZURE_OPENAI_API_VERSION = "2025-02-01-preview";
 
 // Audience accepted by Azure OpenAI and Azure AI Foundry model endpoints.
-export const AZURE_ENTRA_TOKEN_SCOPE =
-  "https://cognitiveservices.azure.com/.default";
+const AZURE_ENTRA_TOKEN_SCOPE = "https://cognitiveservices.azure.com/.default";
 
 const AZURE_ENTRA_AUTHORITY_URL = "https://login.microsoftonline.com";
 
