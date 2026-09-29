@@ -21,13 +21,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import {
-  ChevronDown,
-  CheckIcon,
-  PlusIcon,
-  EyeIcon,
-  TriangleAlert,
-} from "lucide-react";
+import { CheckIcon, PlusIcon, EyeIcon, TriangleAlert } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground";
 import {
   hasPromptToolStructuredOutputConflict,
@@ -145,10 +140,10 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className="w-2/3 justify-between px-2 font-normal"
+                    className="w-2/3 justify-between gap-2 px-2 font-normal"
                   >
                     {selectedPromptName || "Select a prompt"}
-                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <DropdownIndicator />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
@@ -203,12 +198,12 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                     disabled={!selectedPromptName}
                     variant="outline"
                     role="combobox"
-                    className="w-1/3 justify-between px-2 font-normal"
+                    className="w-1/3 justify-between gap-2 px-2 font-normal"
                   >
                     {selectedPromptVersion
                       ? `Version ${selectedPromptVersion}`
                       : "Version"}
-                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <DropdownIndicator />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
@@ -338,10 +333,10 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                           variant="outline"
                           role="combobox"
                           aria-expanded={schemaPopoverOpen}
-                          className="flex-1 justify-between px-2 font-normal"
+                          className="flex-1 justify-between gap-2 px-2 font-normal"
                         >
                           {selectedSchema?.name || "Select schema"}
-                          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          <DropdownIndicator />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent
