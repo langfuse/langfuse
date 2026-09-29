@@ -1,63 +1,47 @@
-import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { randomUUID } from "crypto";
+import type { Session } from "next-auth";
+import type { NextApiRequest, NextApiResponse } from "next";
+import { createMocks } from "node-mocks-http";
+import { z } from "zod";
+
 import { env } from "@/src/env.mjs";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import {
+  createInAppAgentToolPolicy,
+  filterInAppAgentAvailableLangfuseMcpTools,
+} from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createAndAddApiKeysToDb,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
-import type { Session } from "next-auth";
-import type { NextApiRequest, NextApiResponse } from "next";
-import { createMocks } from "node-mocks-http";
-import { beforeEach, vi } from "vitest";
-import { z } from "zod";
 
 const authMocks = vi.hoisted(() => ({
-  getServerSession: vi.fn(),
-  getAuthOptions: vi.fn().mockResolvedValue({}),
+  getServerAuthSessionForRequest: vi.fn(),
 }));
 
 const entitlementMocks = vi.hoisted(() => ({
   hasEntitlement: vi.fn(() => true),
 }));
 
-const rateLimitMocks = vi.hoisted(() => ({
-  rateLimitRequest: vi.fn(),
-}));
-
-vi.mock("next-auth", () => ({
-  getServerSession: authMocks.getServerSession,
-}));
-
 vi.mock("@/src/server/auth", () => ({
-  getAuthOptions: authMocks.getAuthOptions,
+  getServerAuthSessionForRequest: authMocks.getServerAuthSessionForRequest,
 }));
 
-vi.mock("@/src/features/entitlements/server/hasEntitlement", () => ({
-  hasEntitlement: entitlementMocks.hasEntitlement,
-}));
-
-vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
-  RateLimitService: {
-    getInstance: () => ({
-      rateLimitRequest: rateLimitMocks.rateLimitRequest,
-    }),
-  },
-  createHttpHeaderFromRateLimit: () => ({
-    "Retry-After": 60,
-    "X-RateLimit-Limit": 2,
-    "X-RateLimit-Remaining": 0,
-    "X-RateLimit-Reset": "soon",
-  }),
-}));
+vi.mock("@/src/features/entitlements/server", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    hasEntitlement: entitlementMocks.hasEntitlement,
+  };
+});
 
 describe("in-app agent public API route auth", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    rateLimitMocks.rateLimitRequest.mockResolvedValue({
-      isRateLimited: () => false,
-      res: undefined,
-    });
+    entitlementMocks.hasEntitlement.mockReturnValue(true);
   });
 
   async function createInAppAgentAuthHeader() {
@@ -75,6 +59,7 @@ describe("in-app agent public API route auth", () => {
   async function callRoute(params: { allowInAppAgentKey?: boolean }) {
     const handler = createAuthedProjectAPIRoute({
       name: "Test Route",
+      action: "project:read",
       ...(params.allowInAppAgentKey === undefined
         ? {}
         : { allowInAppAgentKey: params.allowInAppAgentKey }),
@@ -102,6 +87,7 @@ describe("in-app agent public API route auth", () => {
     expect(res._getJSONData()).toEqual({
       message:
         "Access denied - in-app agent keys are not allowed for this endpoint",
+      error: "UnauthorizedError",
     });
   });
 
@@ -112,6 +98,7 @@ describe("in-app agent public API route auth", () => {
     expect(res._getJSONData()).toEqual({
       message:
         "Access denied - in-app agent keys are not allowed for this endpoint",
+      error: "UnauthorizedError",
     });
   });
 
@@ -122,210 +109,303 @@ describe("in-app agent public API route auth", () => {
     expect(res._getJSONData()).toEqual({ ok: true });
   });
 
-  it("returns 429 when an in-app agent run exceeds the rate limit", async () => {
-    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
+  it("filters Langfuse MCP tools using the in-app agent user's access", () => {
+    const tools = {
+      createModel: { id: "createModel" },
+      listDatasets: { id: "listDatasets" },
+      getPrompt: { id: "getPrompt" },
+    };
 
-    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    (env as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+    expect(
+      filterInAppAgentAvailableLangfuseMcpTools({
+        tools,
+        policy: createInAppAgentToolPolicy({
+          userAccess: { projectRole: "MEMBER", isAdmin: false },
+        }),
+      }),
+    ).toEqual({
+      listDatasets: { id: "listDatasets" },
+      getPrompt: { id: "getPrompt" },
+    });
 
-    const { org, project } = await createOrgProjectAndApiKey();
+    expect(
+      filterInAppAgentAvailableLangfuseMcpTools({
+        tools,
+        policy: createInAppAgentToolPolicy({
+          userAccess: { projectRole: "OWNER", isAdmin: false },
+        }),
+      }),
+    ).toEqual(tools);
+  });
 
-    try {
+  describe("background watch route authorization", () => {
+    async function setupWatchConversation() {
+      const { org, project } = await createOrgProjectAndApiKey();
+      const userId = `watch-owner-${randomUUID()}`;
+      const conversationId = `conversation-${randomUUID()}`;
+
       await prisma.organization.update({
         where: { id: org.id },
         data: { aiFeaturesEnabled: true },
       });
-      const session = createInAppAgentSession({
-        orgId: org.id,
-        projectId: project.id,
+      await prisma.user.create({
+        data: {
+          id: userId,
+          email: `${userId}@example.com`,
+        },
       });
-      authMocks.getServerSession.mockResolvedValue(session);
-      rateLimitMocks.rateLimitRequest.mockResolvedValue({
-        isRateLimited: () => true,
-        res: {
-          resource: "in-app-agent-run",
-          scope: {
-            orgId: org.id,
-            plan: "cloud:team",
-            projectId: project.id,
-            accessLevel: "project",
-            rateLimitOverrides: [],
-            apiKeyId: "in-app-agent-session",
-            publicKey: "in-app-agent-session",
-            isIngestionSuspended: false,
-          },
-          points: 2,
-          remainingPoints: 0,
-          msBeforeNext: 60_000,
-          consumedPoints: 2,
-          isFirstInDuration: false,
+      await prisma.inAppAgentConversation.create({
+        data: {
+          id: conversationId,
+          projectId: project.id,
+          createdByUserId: userId,
+          title: "Watch authorization test",
         },
       });
 
-      const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
-      const response = await handler(
-        new Request("http://localhost/api/in-app-agent", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            threadId: "conversation-1",
-            runId: "client-run-1",
-            messages: [{ id: "message-1", role: "user", content: "hello" }],
-            tools: [],
-            context: [],
-            state: {
-              type: "newConversation",
-              projectId: project.id,
-            },
-            forwardedProps: {},
-          }),
-        }),
-      );
-
-      expect(response.status).toBe(429);
-      await expect(response.json()).resolves.toEqual({
-        error: "Rate limit exceeded",
-      });
-      expect(response.headers.get("Retry-After")).toBe("60");
-      expect(rateLimitMocks.rateLimitRequest).toHaveBeenCalledWith(
-        expect.objectContaining({
-          orgId: org.id,
-          projectId: project.id,
-        }),
-        "in-app-agent-run",
-      );
-    } finally {
-      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
-      (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
+      return { conversationId, org, project, userId };
     }
-  });
 
-  it("rate-limits instance admins who are not project members", async () => {
-    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
+    async function callWatchRoute(params: {
+      projectId: string;
+      conversationId: string;
+    }) {
+      const { default: watchHandler } =
+        await import("@/src/features/in-app-agent/server/watchHandler");
 
-    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    (env as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+      return watchHandler(
+        new Request(
+          `http://localhost/api/in-app-agent/watch?projectId=${params.projectId}&conversationId=${params.conversationId}&cursor=-1`,
+        ),
+      );
+    }
 
-    const { org, project } = await createOrgProjectAndApiKey();
-
-    try {
-      await prisma.organization.update({
-        where: { id: org.id },
-        data: { aiFeaturesEnabled: true, cloudConfig: { plan: "Team" } },
-      });
-      const session = createInAppAgentSession({
-        orgId: org.id,
-        projectId: project.id,
-        admin: true,
-        includeProjectMembership: false,
-      });
-      authMocks.getServerSession.mockResolvedValue(session);
-      rateLimitMocks.rateLimitRequest.mockResolvedValue({
-        isRateLimited: () => true,
-        res: {
-          resource: "in-app-agent-run",
-          scope: {
+    it("allows the owner to watch the project-scoped conversation", async () => {
+      await withInAppAgentCloudEnv(async () => {
+        const { conversationId, org, project, userId } =
+          await setupWatchConversation();
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(
+          createInAppAgentSession({
             orgId: org.id,
-            plan: "cloud:team",
             projectId: project.id,
-            accessLevel: "project",
-            rateLimitOverrides: [],
-            apiKeyId: "in-app-agent-session",
-            publicKey: "in-app-agent-session",
-            isIngestionSuspended: false,
-          },
-          points: 2,
-          remainingPoints: 0,
-          msBeforeNext: 60_000,
-          consumedPoints: 2,
-          isFirstInDuration: false,
-        },
-      });
-
-      const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
-      const response = await handler(
-        new Request("http://localhost/api/in-app-agent", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            threadId: "conversation-1",
-            runId: "client-run-1",
-            messages: [{ id: "message-1", role: "user", content: "hello" }],
-            tools: [],
-            context: [],
-            state: {
-              type: "newConversation",
-              projectId: project.id,
-            },
-            forwardedProps: {},
+            userId,
           }),
-        }),
-      );
+        );
 
-      expect(response.status).toBe(429);
-      expect(rateLimitMocks.rateLimitRequest).toHaveBeenCalledWith(
-        expect.objectContaining({
-          orgId: org.id,
+        const response = await callWatchRoute({
           projectId: project.id,
-          plan: "cloud:team",
-        }),
-        "in-app-agent-run",
-      );
-    } finally {
-      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
-      (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
-    }
+          conversationId,
+        });
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toContain(
+          "text/event-stream",
+        );
+        await expect(response.text()).resolves.toContain("event: done");
+      });
+    });
+
+    it("rejects an unauthenticated watch", async () => {
+      await withInAppAgentCloudEnv(async () => {
+        const { conversationId, project } = await setupWatchConversation();
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(null);
+
+        const response = await callWatchRoute({
+          projectId: project.id,
+          conversationId,
+        });
+
+        expect(response.status).toBe(401);
+      });
+    });
+
+    it("rejects a watcher without project membership", async () => {
+      await withInAppAgentCloudEnv(async () => {
+        const { conversationId, org, project, userId } =
+          await setupWatchConversation();
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(
+          createInAppAgentSession({
+            orgId: org.id,
+            projectId: project.id,
+            userId,
+            includeProjectMembership: false,
+          }),
+        );
+
+        const response = await callWatchRoute({
+          projectId: project.id,
+          conversationId,
+        });
+
+        expect(response.status).toBe(403);
+      });
+    });
+
+    it("rejects a watcher without the in-app-agent entitlement", async () => {
+      await withInAppAgentCloudEnv(async () => {
+        const { conversationId, org, project, userId } =
+          await setupWatchConversation();
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(
+          createInAppAgentSession({
+            orgId: org.id,
+            projectId: project.id,
+            userId,
+          }),
+        );
+        entitlementMocks.hasEntitlement.mockReturnValue(false);
+
+        const response = await callWatchRoute({
+          projectId: project.id,
+          conversationId,
+        });
+
+        expect(response.status).toBe(403);
+      });
+    });
+
+    it("rejects a watch when organization AI features are disabled", async () => {
+      await withInAppAgentCloudEnv(async () => {
+        const { conversationId, org, project, userId } =
+          await setupWatchConversation();
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(
+          createInAppAgentSession({
+            orgId: org.id,
+            projectId: project.id,
+            userId,
+          }),
+        );
+        await prisma.organization.update({
+          where: { id: org.id },
+          data: { aiFeaturesEnabled: false },
+        });
+
+        const response = await callWatchRoute({
+          projectId: project.id,
+          conversationId,
+        });
+
+        expect(response.status).toBe(403);
+      });
+    });
+
+    it("does not reveal a conversation to another project member", async () => {
+      await withInAppAgentCloudEnv(async () => {
+        const { conversationId, org, project } = await setupWatchConversation();
+        const otherUserId = `watch-member-${randomUUID()}`;
+        await prisma.user.create({
+          data: {
+            id: otherUserId,
+            email: `${otherUserId}@example.com`,
+          },
+        });
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(
+          createInAppAgentSession({
+            orgId: org.id,
+            projectId: project.id,
+            userId: otherUserId,
+          }),
+        );
+
+        const response = await callWatchRoute({
+          projectId: project.id,
+          conversationId,
+        });
+
+        expect(response.status).toBe(404);
+      });
+    });
+
+    it("does not resolve a conversation through another project", async () => {
+      await withInAppAgentCloudEnv(async () => {
+        const { conversationId, userId } = await setupWatchConversation();
+        const other = await createOrgProjectAndApiKey();
+        await prisma.organization.update({
+          where: { id: other.org.id },
+          data: { aiFeaturesEnabled: true },
+        });
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(
+          createInAppAgentSession({
+            orgId: other.org.id,
+            projectId: other.project.id,
+            userId,
+          }),
+        );
+
+        const response = await callWatchRoute({
+          projectId: other.project.id,
+          conversationId,
+        });
+
+        expect(response.status).toBe(404);
+      });
+    });
   });
 });
 
 function createInAppAgentSession(params: {
   orgId: string;
   projectId: string;
-  admin?: boolean;
+  userId: string;
   includeProjectMembership?: boolean;
 }): Session {
-  const includeProjectMembership = params.includeProjectMembership ?? true;
-
   return {
     expires: new Date(Date.now() + 60_000).toISOString(),
     environment: { enableExperimentalFeatures: false },
     user: {
-      id: "user-1",
+      id: params.userId,
       name: "Test User",
       email: "test@example.com",
       image: null,
-      admin: params.admin ?? false,
-      featureFlags: { inAppAgent: true },
-      organizations: includeProjectMembership
-        ? [
-            {
-              id: params.orgId,
-              name: "Test Org",
-              plan: "cloud:team",
-              role: "OWNER",
-              metadata: {},
-              aiFeaturesEnabled: true,
-              aiTelemetryEnabled: false,
-              cloudConfig: { plan: "Team" },
-              projects: [
-                {
-                  id: params.projectId,
-                  name: "Test Project",
-                  role: "ADMIN",
-                  retentionDays: 30,
-                  hasTraces: false,
-                  deletedAt: null,
-                  metadata: {},
-                  createdAt: new Date().toISOString(),
-                },
-              ],
-            },
-          ]
-        : [],
+      admin: false,
+      featureFlags: testFeatureFlags({ templateFlag: false }),
+      organizations:
+        (params.includeProjectMembership ?? true)
+          ? [
+              {
+                id: params.orgId,
+                name: "Test Org",
+                plan: "cloud:team",
+                role: "OWNER",
+                metadata: {},
+                aiFeaturesEnabled: true,
+                aiTelemetryEnabled: false,
+                cloudConfig: { plan: "Team" },
+                projects: [
+                  {
+                    id: params.projectId,
+                    name: "Test Project",
+                    role: "ADMIN",
+                    retentionDays: 30,
+                    hasTraces: false,
+                    deletedAt: null,
+                    metadata: {},
+                    createdAt: new Date().toISOString(),
+                  },
+                ],
+              },
+            ]
+          : [],
     },
   } as Session;
+}
+
+async function withInAppAgentCloudEnv<T>(run: () => Promise<T>): Promise<T> {
+  const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const originalBedrockModel = env.LANGFUSE_AI_MODEL;
+  const originalAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
+  const originalAiFeaturesSecretKey = env.LANGFUSE_AI_FEATURES_SECRET_KEY;
+
+  (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+  (env as any).LANGFUSE_AI_MODEL = "test-model";
+  (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY = "pk-lf-test";
+  (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY = "sk-lf-test";
+
+  try {
+    return await run();
+  } finally {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    (env as any).LANGFUSE_AI_MODEL = originalBedrockModel;
+    (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY = originalAiFeaturesPublicKey;
+    (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY = originalAiFeaturesSecretKey;
+  }
 }

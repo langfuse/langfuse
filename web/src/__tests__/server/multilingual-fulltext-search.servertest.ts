@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 /**
  * Tests for GitHub issue #11538 — "Full-text search fails for non-English text".
  *
@@ -24,6 +25,7 @@
  * observations search, the issue's exact end-to-end scenario) and a few unit assertions on the
  * SQL builder. Testing-Trophy weighting: heavy on integration, light on unit.
  */
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
@@ -96,6 +98,7 @@ describe("multilingual full-text search (issue #11538)", () => {
           cloudConfig: undefined,
           metadata: {},
           aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
           projects: [
             {
               id: projectId,
@@ -104,11 +107,13 @@ describe("multilingual full-text search (issue #11538)", () => {
               deletedAt: null,
               name: "Test Project",
               metadata: {},
+              hasTraces: true,
+              createdAt: new Date().toISOString(),
             },
           ],
         },
       ],
-      featureFlags: { excludeClickhouseRead: false, templateFlag: true },
+      featureFlags: testFeatureFlags(),
       admin: true,
     },
     environment: {} as any,

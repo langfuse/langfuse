@@ -23,7 +23,7 @@ function createMockResponse() {
     },
   };
 
-  return response as NextApiResponse & {
+  return response as unknown as NextApiResponse & {
     statusCode: number;
     body: { apiKeys: Array<{ id: string; note: string | null }> } & Record<
       string,

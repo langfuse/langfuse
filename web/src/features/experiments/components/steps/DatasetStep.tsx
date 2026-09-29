@@ -34,7 +34,8 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
-import { Info, CircleCheck, ChevronDown, CheckIcon } from "lucide-react";
+import { Info, CircleCheck, CheckIcon } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { cn } from "@/src/utils/tailwind";
 import { type DatasetStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
@@ -91,12 +92,12 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
                     variant="outline"
                     role="combobox"
                     aria-expanded={datasetPopoverOpen}
-                    className="flex-1 justify-between px-2 font-normal"
+                    className="flex-1 justify-between gap-2 px-2 font-normal"
                   >
                     {field.value
                       ? datasets?.find((d) => d.id === field.value)?.name
                       : "Select a dataset"}
-                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <DropdownIndicator />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
@@ -147,7 +148,7 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
                   </PopoverTrigger>
                   <PopoverContent className="w-80">
                     <div className="space-y-2">
-                      <h4 className="leading-none font-medium">
+                      <h4 className="leading-none font-bold">
                         Expected Dataset Structure
                       </h4>
                       <p className="text-muted-foreground text-sm">
@@ -155,13 +156,13 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
                         {selectedPromptVersion}
                       </p>
                       <div className="space-y-1 pt-2">
-                        <p className="text-sm font-medium">Input variables:</p>
+                        <p className="text-sm font-bold">Input variables:</p>
                         <ul className="list-inside list-disc text-sm">
                           {expectedColumns.inputVariables.map((variable) => (
                             <li key={variable}>{variable}</li>
                           ))}
                         </ul>
-                        <p className="text-sm font-medium">Expected output:</p>
+                        <p className="text-sm font-bold">Expected output:</p>
                         <ul className="list-inside list-disc text-sm">
                           <li>
                             {expectedColumns.outputVariableName} (

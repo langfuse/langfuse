@@ -1,8 +1,5 @@
-import {
-  validateConfigAgainstBody,
-  type ScoreConfigDomain,
-  type ScoreDomain,
-} from "@langfuse/shared/src/server";
+import { validateConfigAgainstBody } from "@langfuse/shared/src/server";
+import { type ScoreConfigDomain, type ScoreDomain } from "@langfuse/shared";
 
 const baseTextConfig: ScoreConfigDomain = {
   id: "config-1",

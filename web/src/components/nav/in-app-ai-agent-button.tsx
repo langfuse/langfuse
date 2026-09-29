@@ -1,176 +1,123 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { useSession } from "next-auth/react";
+import { useCallback, useEffect } from "react";
 import { BotMessageSquare } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
-import { SidebarMenuButton } from "@/src/components/ui/sidebar";
-import { ControlledInAppAgentWindow } from "@/src/ee/features/in-app-agent/components";
-import {
-  InAppAgentWindowShell,
-  useInAppAgentWindowShellPanelControl,
-} from "@/src/ee/features/in-app-agent/components/InAppAgentWindowShell";
-import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+  useInAppAiAgent,
+  type InAppAgentEntryPoint,
+} from "@/src/features/in-app-agent";
+import { cn } from "@/src/utils/tailwind";
 
-const IN_APP_AI_AGENT_WINDOW_Z_INDEX = 51;
+/** Launcher only — the assistant window itself is rendered by
+ * InAppAgentWindowHost from the persistent authenticated layout, so it
+ * survives the per-page remount of this button on navigation.
+ *
+ * `prominent` is the compact, icon-only launcher for the mobile top bar: a
+ * gradient border in the agent's own palette (the colors of its window's
+ * conic-gradient) so the entry point stands out, instead of the easily-missed
+ * ghost icon it became when buried in the wrapping page controls row. */
+export const InAppAiAgentButton = ({
+  prominent = false,
+}: {
+  prominent?: boolean;
+} = {}) => {
+  const { open, setOpen, openAssistant, attentionCount } = useInAppAiAgent();
 
-export const InAppAiAgentButton = () => {
-  const session = useSession();
-  const { organization } = useQueryProjectOrOrganization();
-  const { isAvailable, open, setOpen, isExpanded, setIsExpanded } =
-    useInAppAiAgent();
-  const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
-  const isInAppAgentEnabled =
-    session.data?.user?.featureFlags.inAppAgent === true;
-  const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const previousPanelRectRef = useRef<DOMRect | null>(null);
-  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
-    null,
-  );
-  const [enableDialogOpen, setEnableDialogOpen] = useState(false);
-
-  const floatingPanelHandle = useInAppAgentWindowShellPanelControl({
-    anchorRef: buttonRef,
-  });
-
-  useEffect(() => {
-    setPortalContainer(document.body);
-  }, []);
-
-  useLayoutEffect(() => {
-    const previousRect = previousPanelRectRef.current;
-    const panel = panelRef.current;
-
-    previousPanelRectRef.current = null;
-
-    if (!previousRect || !panel) {
-      return;
-    }
-
-    const nextRect = panel.getBoundingClientRect();
-
-    panel.animate(
-      [
-        {
-          transform: `translate(${previousRect.left - nextRect.left}px, ${previousRect.top - nextRect.top}px) scale(${nextRect.width > 0 ? previousRect.width / nextRect.width : 1}, ${nextRect.height > 0 ? previousRect.height / nextRect.height : 1})`,
-        },
-        { transform: "translate(0, 0) scale(1, 1)" },
-      ],
-      {
-        duration: 180,
-        easing: "cubic-bezier(0.2, 0, 0, 1)",
-      },
-    );
-  }, [isExpanded]);
-
-  useLayoutEffect(() => {
-    if (
-      !open ||
-      !portalContainer ||
-      isExpanded ||
-      floatingPanelHandle.geometry
-    ) {
-      return;
-    }
-
-    floatingPanelHandle.initializeGeometry();
-  }, [floatingPanelHandle, isExpanded, open, portalContainer]);
-
-  if (!isAvailable || !hasInAppAgentEntitlement || !isInAppAgentEnabled) {
-    return null;
-  }
-
-  const handleClick = () => {
-    if (organization && !organization.aiFeaturesEnabled) {
-      setSupportDrawerOpen(false);
-      setEnableDialogOpen(true);
-      return;
-    }
-
-    setSupportDrawerOpen(false);
-    setOpen((currentOpen) => {
-      const nextOpen = !currentOpen;
-
-      if (nextOpen) {
-        floatingPanelHandle.resetGeometry();
+  const toggleAssistant = useCallback(
+    (source: InAppAgentEntryPoint) => {
+      if (open) {
+        setOpen(false);
+        return;
       }
 
-      return nextOpen;
-    });
-  };
+      openAssistant(source);
+    },
+    [open, openAssistant, setOpen],
+  );
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.repeat ||
+        event.key?.toLowerCase() !== "i" ||
+        (!event.metaKey && !event.ctrlKey) ||
+        event.altKey ||
+        event.shiftKey
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      toggleAssistant("keyboard_shortcut");
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [toggleAssistant]);
+
+  const attentionSuffix =
+    attentionCount > 0
+      ? ` (${attentionCount} ${attentionCount === 1 ? "needs" : "need"} attention)`
+      : "";
 
   return (
-    <>
-      <SidebarMenuButton ref={buttonRef} isActive={open} onClick={handleClick}>
-        <BotMessageSquare className="h-4 w-4" />
-        Assistant
-      </SidebarMenuButton>
-      {open && portalContainer
-        ? createPortal(
-            <InAppAgentWindowShell
-              floatingPanelHandle={floatingPanelHandle}
-              isExpanded={isExpanded}
-              panelRef={panelRef}
-              zIndex={IN_APP_AI_AGENT_WINDOW_Z_INDEX}
-            >
-              {({ isHeaderDragHandleEnabled }) => (
-                <ControlledInAppAgentWindow
-                  isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
-                  zIndex={IN_APP_AI_AGENT_WINDOW_Z_INDEX}
-                  isExpanded={isExpanded}
-                  onExpandedChange={(nextIsExpanded) => {
-                    previousPanelRectRef.current =
-                      panelRef.current?.getBoundingClientRect() ?? null;
-                    setIsExpanded(nextIsExpanded);
-                  }}
-                  onClose={() => {
-                    floatingPanelHandle.clearGeometry();
-                    setOpen(false);
-                  }}
-                />
-              )}
-            </InAppAgentWindowShell>,
-            portalContainer,
-          )
-        : null}
-      <Dialog open={enableDialogOpen} onOpenChange={setEnableDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>AI features are disabled</DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            <AIFeaturesDisabledNotice organizationId={organization?.id}>
-              The assistant requires AI features to be enabled for this
-              organization.
-            </AIFeaturesDisabledNotice>
-          </DialogBody>
-          <DialogFooter>
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setEnableDialogOpen(false)}
-              >
-                Close
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+    <Button
+      type="button"
+      variant="outline"
+      // Count lives on the button name — a nested badge aria-label is ignored
+      // once the parent already has aria-label.
+      aria-label={`${open ? "Close" : "Open"} assistant${attentionSuffix}`}
+      aria-pressed={open}
+      data-ignore-outside-interaction
+      onClick={() => toggleAssistant("top_nav")}
+      // Gradient border in the agent palette (its window's conic-gradient
+      // colors). Inline style rather than Tailwind arbitrary values: a
+      // two-layer background with per-layer clip is fiddly to quote, and this
+      // also overrides the outline variant's own border/bg cleanly.
+      style={
+        prominent
+          ? {
+              border: "1.5px solid transparent",
+              background:
+                "linear-gradient(hsl(var(--background)), hsl(var(--background))) padding-box, linear-gradient(130deg, var(--color-2), var(--color-3)) border-box",
+            }
+          : undefined
+      }
+      className={cn(
+        "relative gap-2",
+        // Compact icon-only launcher for the top bar.
+        prominent && "size-9 shrink-0 px-0",
+        !prominent &&
+          open &&
+          "border-primary-accent bg-primary-accent/10 hover:bg-primary-accent/15",
+      )}
+    >
+      <BotMessageSquare
+        className={cn("h-4 w-4", prominent && open && "text-primary-accent")}
+      />
+      {/* Conversations still owed a look. Anchored to the button rather than
+          the icon so it survives the prominent (icon-only) variant. Visual
+          only — accessible name is on the button. */}
+      {attentionCount > 0 && (
+        <span
+          aria-hidden="true"
+          className="bg-primary-accent text-primary-foreground absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold"
+        >
+          {attentionCount > 99 ? "99+" : attentionCount}
+        </span>
+      )}
+      {/* The prominent launcher is a fixed 36px square (top bar, below md), so
+          it stays strictly icon-only — the `sm:inline` label would otherwise
+          reveal in the 640–767px band and overflow the box. */}
+      {!prominent && (
+        <>
+          <span className="hidden sm:inline">Assistant</span>
+          <span className="hidden md:inline-flex">
+            <KeyboardShortcut variant="subtle" keys={["Mod", "I"]} />
+          </span>
+        </>
+      )}
+    </Button>
   );
 };

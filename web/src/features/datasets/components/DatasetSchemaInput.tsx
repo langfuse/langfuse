@@ -6,7 +6,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { JSONSchemaEditor } from "@/src/components/JSONSchemaEditor";
 
 type DatasetSchemaInputProps = {

@@ -6,8 +6,11 @@ import {
   tracesTableUiColumnDefinitions,
   type TraceQueryType,
 } from "@langfuse/shared/src/server";
-import { tracesTableCols } from "@langfuse/shared";
-import type { FilterState, OrderByState } from "@langfuse/shared";
+import {
+  tracesTableCols,
+  type FilterState,
+  type OrderByState,
+} from "@langfuse/shared";
 
 const publicApiTracesFilterParams = createPublicApiTracesColumnMapping(
   "traces",

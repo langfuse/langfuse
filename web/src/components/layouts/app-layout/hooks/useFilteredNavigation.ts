@@ -5,10 +5,11 @@
 
 import { useRouter } from "next/router";
 import { useMemo } from "react";
-import type { Session, User } from "next-auth";
-import { useEntitlements } from "@/src/features/entitlements/hooks";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import type { Session } from "next-auth";
+import { useEntitlements } from "@/src/features/entitlements";
+import { useUiCustomization } from "@/src/ee/features/ui-customization";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 import {
   ROUTES,
   RouteSection,
@@ -19,9 +20,15 @@ import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import { applyNavigationFilters } from "../utils/navigationFilters";
 import type { NavigationFilterContext } from "../utils/navigationFilters.types";
 import { isPathActive } from "../utils/pathClassification";
+import { resolveRoutePathname } from "../utils/routePathname";
+import { api } from "@/src/utils/api";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 
 /** Organization type from user session (can be null when not in project/org context) */
-type Organization = User["organizations"][number] | null | undefined;
+type Organization =
+  | NonNullable<Session["user"]>["organizations"][number]
+  | null
+  | undefined;
 
 /** Grouped navigation structure */
 type GroupedNavigation = {
@@ -51,6 +58,7 @@ function groupNavigationItems(items: NavigationItem[]): GroupedNavigation {
     ? [
         ...(grouped[RouteGroup.Observability] || []),
         ...(grouped[RouteGroup.PromptManagement] || []),
+        ...(grouped[RouteGroup.ContextManagement] || []),
         ...(grouped[RouteGroup.Evaluation] || []),
       ]
     : [];
@@ -84,8 +92,21 @@ export function useFilteredNavigation(
   const entitlements = useEntitlements();
   const uiCustomization = useUiCustomization();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { data: cloudStatus } = api.cloudStatus.getStatus.useQuery(undefined, {
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+    // Refresh status data every 5 minutes, keep response cached for 5 minutes.
+    refetchInterval: 5 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
+    enabled: isLangfuseCloud,
+  });
+  const hasActiveCloudIncident =
+    cloudStatus?.status === "degraded" || cloudStatus?.status === "downtime";
 
   const routerProjectId = router.query.projectId as string | undefined;
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const forceV3Experience = useForceV3Experience(routerProjectId);
   const routerOrganizationId = router.query.organizationId as
     | string
     | undefined;
@@ -102,6 +123,9 @@ export function useFilteredNavigation(
       entitlements,
       uiCustomization,
       isLangfuseCloud,
+      hasActiveCloudIncident,
+      forceV3Experience,
+      internalFeaturesEnabled,
       currentPath: router.asPath,
     }),
     [
@@ -112,6 +136,9 @@ export function useFilteredNavigation(
       uiCustomization,
       router.asPath,
       isLangfuseCloud,
+      hasActiveCloudIncident,
+      forceV3Experience,
+      internalFeaturesEnabled,
     ],
   );
 
@@ -124,7 +151,13 @@ export function useFilteredNavigation(
   // This is O(n) - we map directly over filteredRoutes instead of re-iterating ROUTES
   return useMemo(() => {
     const mapRouteToNavigationItem = (route: Route): NavigationItem => {
-      const url = route.pathname
+      const pathname = resolveRoutePathname({
+        pathname: route.href,
+        legacyPathname: route.legacyPathname,
+        v4Enabled: session?.user?.v4BetaEnabled === true,
+        forceV3Experience,
+      });
+      const url = pathname
         .replace("[projectId]", routerProjectId ?? "")
         .replace("[organizationId]", routerOrganizationId ?? "");
 
@@ -136,7 +169,13 @@ export function useFilteredNavigation(
       return {
         ...route,
         url,
-        isActive: isPathActive(route.pathname, router.pathname),
+        isActive: route.isActive
+          ? route.isActive(router.pathname)
+          : isPathActive(route.href, router.pathname) ||
+            Boolean(
+              route.legacyPathname &&
+              isPathActive(route.legacyPathname, router.pathname),
+            ),
         items: items && items.length > 0 ? items : undefined,
       };
     };
@@ -163,5 +202,12 @@ export function useFilteredNavigation(
         ...secondaryNavigation.flattened,
       ],
     };
-  }, [filteredRoutes, routerProjectId, routerOrganizationId, router.pathname]);
+  }, [
+    filteredRoutes,
+    routerProjectId,
+    routerOrganizationId,
+    router.pathname,
+    session?.user?.v4BetaEnabled,
+    forceV3Experience,
+  ]);
 }

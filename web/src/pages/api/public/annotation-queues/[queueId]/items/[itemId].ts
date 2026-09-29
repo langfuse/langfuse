@@ -12,13 +12,14 @@ import {
   deleteAnnotationQueueItemForApi,
   getAnnotationQueueItemForApi,
   updateAnnotationQueueItemForApi,
-} from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
-
+} from "@/src/features/annotation-queues/server";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get annotation queue item by ID",
+    action: "annotationQueues:read",
     querySchema: GetAnnotationQueueItemByIdQuery,
     responseSchema: GetAnnotationQueueItemByIdResponse,
+    rateLimitResource: "annotation-queues",
     fn: async ({ query, auth }) =>
       await getAnnotationQueueItemForApi({
         projectId: auth.scope.projectId,
@@ -28,9 +29,11 @@ export default withMiddlewares({
   }),
   PATCH: createAuthedProjectAPIRoute({
     name: "Update annotation queue item",
+    action: "annotationQueues:CUD",
     querySchema: GetAnnotationQueueItemByIdQuery,
     bodySchema: UpdateAnnotationQueueItemBody,
     responseSchema: UpdateAnnotationQueueItemResponse,
+    rateLimitResource: "annotation-queues",
     fn: async ({ query, body, auth }) =>
       await updateAnnotationQueueItemForApi({
         projectId: auth.scope.projectId,
@@ -42,8 +45,10 @@ export default withMiddlewares({
   }),
   DELETE: createAuthedProjectAPIRoute({
     name: "Delete annotation queue item",
+    action: "annotationQueues:CUD",
     querySchema: DeleteAnnotationQueueItemQuery,
     responseSchema: DeleteAnnotationQueueItemResponse,
+    rateLimitResource: "annotation-queues",
     fn: async ({ query, auth }) =>
       await deleteAnnotationQueueItemForApi({
         projectId: auth.scope.projectId,

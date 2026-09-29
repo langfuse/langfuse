@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 /**
  * Test suite to verify that OTEL events coming through the ingestion pipeline
  * correctly conform to the ObservationForEval schema.
@@ -20,6 +21,14 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { IngestionService } from "../../services/IngestionService";
 import * as clickhouseWriterExports from "../../services/ClickhouseWriter";
+
+const createTestOtelProcessor = (projectId = "test-project") =>
+  new OtelIngestionProcessor({
+    projectId,
+    publicKey: "",
+    sdkName: "",
+    sdkVersion: "",
+  });
 
 // Mock ClickhouseWriter to avoid actual database writes.
 // vi.hoisted ensures this is declared before vi.mock's hoisted factory runs.
@@ -86,7 +95,7 @@ async function processOtelSpanToObservationForEval(
   resourceSpan: any,
   projectId = "test-project",
 ): Promise<ObservationForEval[]> {
-  const processor = new OtelIngestionProcessor({ projectId });
+  const processor = createTestOtelProcessor(projectId);
 
   // Process to EventInput array using the real OtelIngestionProcessor
   const eventInputs = processor.processToEvent([resourceSpan]);
@@ -825,9 +834,7 @@ describe("OTEL to ObservationForEval Schema Validation", () => {
         ],
       };
 
-      const processor = new OtelIngestionProcessor({
-        projectId: "test-project",
-      });
+      const processor = createTestOtelProcessor();
       const eventInputs = processor.processToEvent([resourceSpan]);
 
       expect(eventInputs).toHaveLength(1);

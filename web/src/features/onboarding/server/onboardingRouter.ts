@@ -22,6 +22,7 @@ export const onboardingRouter = createTRPCRouter({
       z
         .object({
           referralSource: z.string().trim().max(500).optional(),
+          aiFeaturesEnabled: z.boolean().optional(),
         })
         .optional(),
     )
@@ -32,6 +33,7 @@ export const onboardingRouter = createTRPCRouter({
         userEmail: ctx.session.user.email,
         canCreateOrganizations: ctx.session.user.canCreateOrganizations,
         referralSource: input?.referralSource,
+        aiFeaturesEnabled: input?.aiFeaturesEnabled,
       });
     }),
 });

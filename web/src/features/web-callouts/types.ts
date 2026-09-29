@@ -1,10 +1,10 @@
 import { z } from "zod";
 
-export const WebCalloutHeadersSchema = z.record(z.string(), z.string());
+const WebCalloutHeadersSchema = z.record(z.string(), z.string());
 
 export type WebCalloutHeaders = z.infer<typeof WebCalloutHeadersSchema>;
 
-export const WebCalloutEndpointInputSchema = z.object({
+const WebCalloutEndpointInputSchema = z.object({
   id: z.string().optional(),
   name: z.string().trim().min(1).max(100).default("Default"),
   url: z.url(),

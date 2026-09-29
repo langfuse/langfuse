@@ -1,0 +1,41 @@
+.collapsibleContent {
+  overflow: hidden;
+}
+
+.collapsibleContent[data-state="open"] {
+  animation: expand 200ms cubic-bezier(0.2, 0, 0.38, 0.9);
+}
+
+.collapsibleContent[data-state="closed"] {
+  animation: collapse 200ms cubic-bezier(0.2, 0, 0.38, 0.9);
+}
+
+@keyframes expand {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+
+  to {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+}
+
+@keyframes collapse {
+  from {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collapsibleContent[data-state] {
+    animation-duration: 0.01ms;
+  }
+}

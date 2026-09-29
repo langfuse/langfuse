@@ -1,4 +1,5 @@
 import {
+  deleteMediaLinkRowsByProjectId,
   deleteMediaFiles,
   findAllMediaByProjectId,
   getDeletedProjectWithMedia,
@@ -6,7 +7,6 @@ import {
   logger,
   recordGauge,
   recordIncrement,
-  traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
@@ -34,6 +34,7 @@ export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
 
     super({
       name: "BatchProjectMediaCleaner",
+      metricName: "batch_project_media_cleaner",
       lockKey: "langfuse:batch-project-media-cleaner",
       lockTtlSeconds,
     });
@@ -63,7 +64,7 @@ export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
               `${this.instanceName}: Failed to query target project`,
               { error },
             );
-            traceException(error);
+            this.markRunFailed(error);
             return env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS;
           }
 
@@ -89,6 +90,8 @@ export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
   private async deleteMediaChunk(projectId: string): Promise<number> {
     const batchSize = env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_BATCH_SIZE;
 
+    await deleteMediaLinkRowsByProjectId({ projectId });
+
     const mediaFiles = await findAllMediaByProjectId({
       projectId,
       limit: batchSize,
@@ -103,7 +106,7 @@ export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
       return env.LANGFUSE_BATCH_PROJECT_CLEANER_CHECK_INTERVAL_MS;
     }
 
-    await deleteMediaFiles({
+    const deletedCount = await deleteMediaFiles({
       projectId,
       mediaFiles,
       storageClient: getS3MediaStorageClient(
@@ -111,13 +114,13 @@ export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
       ),
     });
 
-    recordIncrement(`${METRIC_PREFIX}.media_files_deleted`, mediaFiles.length, {
+    recordIncrement(`${METRIC_PREFIX}.media_files_deleted`, deletedCount, {
       projectId,
     });
 
     logger.info(`${this.instanceName}: Deleted media chunk`, {
       projectId,
-      count: mediaFiles.length,
+      count: deletedCount,
       hasMore: mediaFiles.length >= batchSize,
     });
 

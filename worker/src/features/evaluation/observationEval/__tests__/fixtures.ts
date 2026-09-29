@@ -8,7 +8,7 @@ import {
   EvalTargetObject,
 } from "@langfuse/shared";
 import {
-  type ObservationEvalConfig,
+  type LegacyObservationEvalConfig,
   type ObservationEvalSchedulerDeps,
 } from "../types";
 import { type ObservationEvalProcessorDeps } from "../observationEvalProcessor";
@@ -60,6 +60,7 @@ export function createTestObservation(
     trace_name: "test-trace",
     user_id: "user-123",
     session_id: "session-456",
+    is_app_root: false,
     tags: ["test-tag"],
     release: "v1.0.0",
 
@@ -103,11 +104,11 @@ export function createTestObservation(
 }
 
 /**
- * Creates a test ObservationEvalConfig with sensible defaults.
+ * Creates a test ObservationEvalRule with sensible defaults.
  */
 export function createTestEvalConfig(
-  overrides: Partial<ObservationEvalConfig> = {},
-): ObservationEvalConfig {
+  overrides: Partial<LegacyObservationEvalConfig> = {},
+): LegacyObservationEvalConfig {
   return {
     id: `config-${randomUUID()}`,
     projectId: "test-project-123",

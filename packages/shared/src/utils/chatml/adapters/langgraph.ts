@@ -6,6 +6,7 @@ import {
   isRichToolResult,
   attachToolDefinitionsToMessages,
   normalizeToolDefinitionsForChatMl,
+  schemaMatches,
 } from "../helpers";
 import { z } from "zod";
 
@@ -33,6 +34,14 @@ const LangGraphMessageSchema = z
   )
   .refine(
     (data) => {
+      const hasLangGraphMessageShape = data.every(
+        (msg) =>
+          typeof msg === "object" &&
+          msg !== null &&
+          ("role" in msg || "additional_kwargs" in msg),
+      );
+      if (!hasLangGraphMessageShape) return false;
+
       // Reject if any message has top-level parts (Microsoft Agent/Gemini format)
       return !data.some(
         (msg) =>
@@ -202,10 +211,10 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
       // Rich object: spread for table rendering
       const { content, ...rest } = normalized;
       return { ...rest, ...content };
-    } else {
-      // Simple object: stringify for text rendering
-      normalized.content = stringifyToolResultContent(normalized.content);
     }
+
+    // Simple object: stringify for text rendering
+    normalized.content = stringifyToolResultContent(normalized.content);
   }
 
   return normalized;
@@ -279,7 +288,11 @@ export const langgraphAdapter: ProviderAdapter = {
     // REJECTIONS: Reject AI SDK v5, OpenAI Agents SDK, Semantic Kernel and Pydantic formats
     if (meta && typeof meta === "object") {
       // Check scope.name for AI SDK, OpenAI Agents, or Semantic Kernel
-      if ("scope" in meta && typeof meta.scope === "object") {
+      if (
+        "scope" in meta &&
+        meta.scope !== null &&
+        typeof meta.scope === "object"
+      ) {
         const scope = meta.scope as Record<string, unknown>;
 
         // Reject AI SDK v5 (scope.name === "ai")
@@ -360,37 +373,33 @@ export const langgraphAdapter: ProviderAdapter = {
     }
 
     // STRUCTURAL: Schema-based detection on metadata
-    if (LangChainMessageSchema.safeParse(ctx.metadata).success) return true;
-    if (LangGraphMessageSchema.safeParse(ctx.metadata).success) return true;
+    if (schemaMatches(LangChainMessageSchema, ctx.metadata)) return true;
+    if (schemaMatches(LangGraphMessageSchema, ctx.metadata)) return true;
 
     // Check wrapped messages format
-    if (LangGraphWrappedSchema.safeParse(ctx.metadata).success) {
+    if (schemaMatches(LangGraphWrappedSchema, ctx.metadata)) {
       const wrapped = ctx.metadata as { messages: unknown[]; tools?: unknown };
       // reject OpenAI Chat Completions format {tools: [...], messages: [...]}
       if (Array.isArray(wrapped.tools)) {
         return false;
       }
-      if (LangChainMessageSchema.safeParse(wrapped.messages).success)
-        return true;
-      if (LangGraphMessageSchema.safeParse(wrapped.messages).success)
-        return true;
+      if (schemaMatches(LangChainMessageSchema, wrapped.messages)) return true;
+      if (schemaMatches(LangGraphMessageSchema, wrapped.messages)) return true;
     }
 
     // finally Schema-based detection on data b/c of performance
-    if (LangChainMessageSchema.safeParse(ctx.data).success) return true;
-    if (LangGraphMessageSchema.safeParse(ctx.data).success) return true;
+    if (schemaMatches(LangChainMessageSchema, ctx.data)) return true;
+    if (schemaMatches(LangGraphMessageSchema, ctx.data)) return true;
 
     // Check wrapped messages format on data
-    if (LangGraphWrappedSchema.safeParse(ctx.data).success) {
+    if (schemaMatches(LangGraphWrappedSchema, ctx.data)) {
       const wrapped = ctx.data as { messages: unknown[]; tools?: unknown };
       // reject OpenAI Chat Completions format {tools: [...], messages: [...]}
       if (Array.isArray(wrapped.tools)) {
         return false;
       }
-      if (LangChainMessageSchema.safeParse(wrapped.messages).success)
-        return true;
-      if (LangGraphMessageSchema.safeParse(wrapped.messages).success)
-        return true;
+      if (schemaMatches(LangChainMessageSchema, wrapped.messages)) return true;
+      if (schemaMatches(LangGraphMessageSchema, wrapped.messages)) return true;
     }
 
     return false;

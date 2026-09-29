@@ -1,24 +1,22 @@
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Pencil, Plus, Trash2, Webhook, X } from "lucide-react";
-import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { Plus, Webhook, X } from "lucide-react";
+import { useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { ActionButton } from "@/src/components/ActionButton";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import {
-  Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/src/components/ui/dialog";
 import {
   Form,
@@ -30,28 +28,19 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { Switch } from "@/src/components/ui/switch";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   WEB_CALLOUT_BLOCKED_HEADER_NAMES,
   WEB_CALLOUT_HEADER_NAME_PATTERN,
 } from "@/src/features/web-callouts/headerRules";
 import { api, type RouterOutputs } from "@/src/utils/api";
+import { ConnectedWebCalloutSettingsTable } from "./WebCalloutSettingsTable/ConnectedWebCalloutSettingsTable";
 
 type WebCalloutEndpoint = RouterOutputs["webCallouts"]["all"][number];
 
@@ -112,64 +101,25 @@ const webCalloutFormSchema = z
 type WebCalloutFormValues = z.infer<typeof webCalloutFormSchema>;
 
 export function WebCalloutSettingsPage(props: { projectId: string }) {
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingEndpoint, setEditingEndpoint] =
-    useState<WebCalloutEndpoint | null>(null);
+  const [formKey, setFormKey] = useState(0);
 
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "integrations:CRUD",
   });
 
-  const endpoints = api.webCallouts.all.useQuery(
-    { projectId: props.projectId },
-    { enabled: hasAccess },
-  );
-  const utils = api.useUtils();
-
-  const deleteMutation = api.webCallouts.delete.useMutation({
-    onSuccess: async () => {
-      await utils.webCallouts.invalidate();
-      showSuccessToast({
-        title: "Callout endpoint deleted",
-        description: "The endpoint was removed from this project.",
-      });
-    },
-    onError: (error) => {
-      showErrorToast("Failed to delete callout endpoint", error.message);
-    },
-  });
-
   if (!hasAccess) {
     return (
       <div>
         <Alert>
-          <AlertTitle>Access Denied</AlertTitle>
-          <AlertDescription>
+          <Alert.Title>Access Denied</Alert.Title>
+          <Alert.Description>
             You do not have permission to manage integrations for this project.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       </div>
     );
   }
-
-  const configuredEndpoint = endpoints.data?.[0];
-  const canCreateEndpoint = !configuredEndpoint;
-  const addEndpointDisabledReason = endpoints.isLoading
-    ? "Loading callout endpoint configuration."
-    : !canCreateEndpoint
-      ? "Currently you can only create one callout per project."
-      : undefined;
-
-  const openCreateDialog = () => {
-    setEditingEndpoint(null);
-    setDialogOpen(true);
-  };
-
-  const openEditDialog = (endpoint: WebCalloutEndpoint) => {
-    setEditingEndpoint(endpoint);
-    setDialogOpen(true);
-  };
 
   return (
     <div>
@@ -188,156 +138,30 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
         for more info.
       </p>
 
-      <div className="mb-4 flex justify-end">
-        <WebCalloutEndpointDialog
-          projectId={props.projectId}
-          endpoint={editingEndpoint}
-          open={dialogOpen}
-          onOpenChange={(open) => {
-            setDialogOpen(open);
-            if (!open) {
-              setEditingEndpoint(null);
-            }
-          }}
-          trigger={
-            <AddEndpointButton
-              disabledReason={addEndpointDisabledReason}
-              onClick={openCreateDialog}
-            />
-          }
-        />
-      </div>
-
-      <Card className="overflow-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-primary">Name</TableHead>
-              <TableHead className="text-primary">Endpoint</TableHead>
-              <TableHead className="text-primary">Toast Message</TableHead>
-              <TableHead className="text-primary">Headers</TableHead>
-              <TableHead className="text-primary">Status</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {endpoints.data?.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  density="comfortable"
-                  colSpan={6}
-                  className="text-muted-foreground text-center"
-                >
-                  No callout endpoint configured.
-                </TableCell>
-              </TableRow>
-            ) : (
-              endpoints.data?.map((endpoint) => (
-                <TableRow key={endpoint.id}>
-                  <TableCell density="comfortable" className="font-medium">
-                    {endpoint.name}
-                  </TableCell>
-                  <TableCell
-                    density="comfortable"
-                    className="max-w-xl font-mono break-all"
-                  >
-                    {endpoint.url}
-                  </TableCell>
-                  <TableCell density="comfortable">
-                    <ToastMessageCell endpoint={endpoint} />
-                  </TableCell>
-                  <TableCell density="comfortable">
-                    <HeaderList endpoint={endpoint} />
-                  </TableCell>
-                  <TableCell density="comfortable">
-                    <StatusBadge
-                      type={endpoint.enabled ? "active" : "disabled"}
-                    />
-                  </TableCell>
-                  <TableCell density="comfortable" className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditDialog(endpoint)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Edit endpoint</TooltipContent>
-                      </Tooltip>
-                      <DeleteEndpointButton
-                        endpoint={endpoint}
-                        onDelete={(id) => {
-                          deleteMutation.mutate({
-                            projectId: props.projectId,
-                            id,
-                          });
-                        }}
-                        loading={deleteMutation.isPending}
-                      />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
-    </div>
-  );
-}
-
-function AddEndpointButton(props: {
-  disabledReason?: string;
-  onClick: () => void;
-}) {
-  const button = (
-    <Button
-      disabled={Boolean(props.disabledReason)}
-      className={props.disabledReason ? "pointer-events-none" : undefined}
-      onClick={props.onClick}
-    >
-      <Plus className="mr-1 h-4 w-4" />
-      Add endpoint
-    </Button>
-  );
-
-  if (!props.disabledReason) {
-    return <DialogTrigger asChild>{button}</DialogTrigger>;
-  }
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex cursor-not-allowed">{button}</span>
-      </TooltipTrigger>
-      <TooltipContent>{props.disabledReason}</TooltipContent>
-    </Tooltip>
-  );
-}
-
-function HeaderList(props: { endpoint: WebCalloutEndpoint }) {
-  const headers = props.endpoint.requestHeaderKeys;
-
-  if (headers.length === 0) {
-    return <span className="text-muted-foreground">None</span>;
-  }
-
-  return (
-    <span className="font-mono text-sm break-words">{headers.join(", ")}</span>
-  );
-}
-
-function ToastMessageCell(props: { endpoint: WebCalloutEndpoint }) {
-  return (
-    <div
-      className="max-w-xs truncate text-sm"
-      title={props.endpoint.toastMessage}
-    >
-      {props.endpoint.toastMessage}
+      <DialogController<{ endpoint: WebCalloutEndpoint | null }>
+        renderDialog={({ state, closeDialog }) => (
+          <WebCalloutEndpointDialog
+            key={formKey}
+            projectId={props.projectId}
+            endpoint={state.endpoint}
+            closeDialog={closeDialog}
+          />
+        )}
+      >
+        {({ openDialog }) => (
+          <ConnectedWebCalloutSettingsTable
+            projectId={props.projectId}
+            onCreate={() => {
+              setFormKey((key) => key + 1);
+              openDialog({ endpoint: null });
+            }}
+            onEdit={(endpoint) => {
+              setFormKey((key) => key + 1);
+              openDialog({ endpoint });
+            }}
+          />
+        )}
+      </DialogController>
     </div>
   );
 }
@@ -345,9 +169,7 @@ function ToastMessageCell(props: { endpoint: WebCalloutEndpoint }) {
 function WebCalloutEndpointDialog(props: {
   projectId: string;
   endpoint: WebCalloutEndpoint | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  trigger: ReactNode;
+  closeDialog: () => void;
 }) {
   const utils = api.useUtils();
   const upsertMutation = api.webCallouts.upsert.useMutation({
@@ -359,7 +181,7 @@ function WebCalloutEndpointDialog(props: {
           : "Callout endpoint created",
         description: "Web callout configuration was saved.",
       });
-      props.onOpenChange(false);
+      props.closeDialog();
     },
     onError: (error) => {
       showErrorToast("Failed to save callout endpoint", error.message);
@@ -376,12 +198,6 @@ function WebCalloutEndpointDialog(props: {
     name: "headers",
   });
 
-  useEffect(() => {
-    if (props.open) {
-      form.reset(endpointToFormValues(props.endpoint));
-    }
-  }, [form, props.endpoint, props.open]);
-
   const onSubmit = (values: WebCalloutFormValues) => {
     upsertMutation.mutate({
       projectId: props.projectId,
@@ -395,259 +211,203 @@ function WebCalloutEndpointDialog(props: {
   };
 
   return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      {props.trigger}
-      <DialogContent size="lg">
-        <DialogHeader>
-          <DialogTitle>
-            {props.endpoint ? "Edit Callout Endpoint" : "Add Callout Endpoint"}
-          </DialogTitle>
-          <DialogDescription>
-            Langfuse sends a backend JSON POST when a user clicks a web callout
-            action.{" "}
-            <a
-              href="https://langfuse.com/docs/observability/features/web-callouts"
-              target="_blank"
-              rel="noreferrer"
-              className="underline underline-offset-2"
-            >
-              View docs
-            </a>
-            .
-          </DialogDescription>
-        </DialogHeader>
-
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+    <DialogContent size="lg">
+      <DialogHeader>
+        <DialogTitle>
+          {props.endpoint ? "Edit Callout Endpoint" : "Add Callout Endpoint"}
+        </DialogTitle>
+        <DialogDescription>
+          Langfuse sends a backend JSON POST when a user clicks a web callout
+          action.{" "}
+          <a
+            href="https://langfuse.com/docs/observability/features/web-callouts"
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-2"
           >
-            <DialogBody className="min-h-0">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            View docs
+          </a>
+          .
+        </DialogDescription>
+      </DialogHeader>
 
-              <FormField
-                control={form.control}
-                name="url"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Endpoint URL</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="https://example.com/langfuse/callout"
-                        {...field}
-                      />
-                    </FormControl>
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
+          <DialogBody className="min-h-0">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="url"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Endpoint URL</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="https://example.com/langfuse/callout"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    HTTP or HTTPS URL. Custom ports are allowed. The endpoint is
+                    called from the Langfuse backend.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="enabled"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-md border p-3">
+                  <div>
+                    <FormLabel>Enabled</FormLabel>
                     <FormDescription>
-                      HTTP or HTTPS URL. Custom ports are allowed. The endpoint
-                      is called from the Langfuse backend.
+                      Shows the callout action in trace, observation, and
+                      session detail headers.
                     </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
 
-              <FormField
-                control={form.control}
-                name="enabled"
-                render={({ field }) => (
-                  <FormItem className="flex items-center justify-between rounded-md border p-3">
-                    <div>
-                      <FormLabel>Enabled</FormLabel>
-                      <FormDescription>
-                        Shows the callout action in trace, observation, and
-                        session detail headers.
-                      </FormDescription>
+            <FormField
+              control={form.control}
+              name="toastMessage"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Toast message</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    Shown after the backend callout succeeds.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div>
+              <FormLabel>Headers</FormLabel>
+              <FormDescription className="mb-2">
+                Optional headers added to the backend POST. Content-Type is set
+                automatically. Leave values empty for existing header names to
+                keep encrypted values.
+              </FormDescription>
+              <div className="space-y-2">
+                {fields.map((field, index) => {
+                  const currentHeaderName = form.watch(`headers.${index}.name`);
+                  const preservesExistingValue = hasExistingHeaderName(
+                    props.endpoint,
+                    currentHeaderName,
+                  );
+
+                  return (
+                    <div
+                      key={field.id}
+                      className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-start gap-2"
+                    >
+                      <FormField
+                        control={form.control}
+                        name={`headers.${index}.name`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <Input placeholder="Header name" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name={`headers.${index}.value`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <Input
+                                placeholder={
+                                  preservesExistingValue
+                                    ? "***"
+                                    : "Header value"
+                                }
+                                type="password"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => remove(index)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Remove header</TooltipContent>
+                      </Tooltip>
                     </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="toastMessage"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Toast message</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      Shown after the backend callout succeeds.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div>
-                <FormLabel>Headers</FormLabel>
-                <FormDescription className="mb-2">
-                  Optional headers added to the backend POST. Content-Type is
-                  set automatically. Leave values empty for existing header
-                  names to keep encrypted values.
-                </FormDescription>
-                <div className="space-y-2">
-                  {fields.map((field, index) => {
-                    const currentHeaderName = form.watch(
-                      `headers.${index}.name`,
-                    );
-                    const preservesExistingValue = hasExistingHeaderName(
-                      props.endpoint,
-                      currentHeaderName,
-                    );
-
-                    return (
-                      <div
-                        key={field.id}
-                        className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-start gap-2"
-                      >
-                        <FormField
-                          control={form.control}
-                          name={`headers.${index}.name`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Input placeholder="Header name" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name={`headers.${index}.value`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Input
-                                  placeholder={
-                                    preservesExistingValue
-                                      ? "***"
-                                      : "Header value"
-                                  }
-                                  type="password"
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => remove(index)}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Remove header</TooltipContent>
-                        </Tooltip>
-                      </div>
-                    );
-                  })}
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="mt-2"
-                  onClick={() =>
-                    append({
-                      name: "",
-                      value: "",
-                    })
-                  }
-                >
-                  <Plus className="mr-1 h-4 w-4" />
-                  Add header
-                </Button>
+                  );
+                })}
               </div>
-            </DialogBody>
-
-            <DialogFooter>
               <Button
                 type="button"
-                variant="ghost"
-                onClick={() => props.onOpenChange(false)}
+                variant="outline"
+                className="mt-2"
+                onClick={() =>
+                  append({
+                    name: "",
+                    value: "",
+                  })
+                }
               >
-                Cancel
+                <Plus className="mr-1 h-4 w-4" />
+                Add header
               </Button>
-              <Button type="submit" loading={upsertMutation.isPending}>
-                Save endpoint
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  );
-}
+            </div>
+          </DialogBody>
 
-function DeleteEndpointButton(props: {
-  endpoint: WebCalloutEndpoint;
-  onDelete: (id: string) => void;
-  loading: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DialogTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <Trash2 className="h-4 w-4" />
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={props.closeDialog}>
+              Cancel
             </Button>
-          </DialogTrigger>
-        </TooltipTrigger>
-        <TooltipContent>Delete endpoint</TooltipContent>
-      </Tooltip>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Delete Callout Endpoint</DialogTitle>
-          <DialogDescription>
-            This removes the configured endpoint and hides the web callout
-            action.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="destructive"
-            loading={props.loading}
-            onClick={() => {
-              props.onDelete(props.endpoint.id);
-              setOpen(false);
-            }}
-          >
-            Delete endpoint
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            <Button type="submit" loading={upsertMutation.isPending}>
+              Save endpoint
+            </Button>
+          </DialogFooter>
+        </form>
+      </Form>
+    </DialogContent>
   );
 }
 
@@ -659,7 +419,7 @@ const endpointToFormValues = (
   url: endpoint?.url ?? "",
   enabled: endpoint?.enabled ?? true,
   toastMessage: endpoint?.toastMessage ?? "Callout sent",
-  headers: (endpoint?.requestHeaderKeys ?? []).map((name) => ({
+  headers: (endpoint?.requestHeaderKeys ?? []).map((name: string) => ({
     name,
     value: "",
   })),
@@ -685,7 +445,7 @@ const hasExistingHeaderName = (
 
   return (
     endpoint?.requestHeaderKeys.some(
-      (headerName) => headerName.toLowerCase() === normalizedName,
+      (headerName: string) => headerName.toLowerCase() === normalizedName,
     ) ?? false
   );
 };
@@ -698,7 +458,7 @@ export function WebCalloutIntegrationCard(props: {
     <Card className="p-3">
       <div className="mb-4 flex items-center gap-2">
         <Webhook className="text-foreground h-5 w-5" />
-        <span className="font-semibold">Web Callouts</span>
+        <span className="font-bold">Web Callouts</span>
       </div>
       <p className="text-primary mb-4 text-sm">
         Send backend callouts from trace, observation, and session detail views

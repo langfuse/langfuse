@@ -49,13 +49,7 @@ export const _handleGetScoreById = async ({
         ? { scoreDataTypes: scoreDataTypes.map((d) => d.toString()) }
         : {}),
     },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "byId",
-      projectId,
-      ...(apiVersion ? { api_version: apiVersion } : {}),
-    },
+    tags: { projectId, ...(apiVersion ? { api_version: apiVersion } : {}) },
     preferredClickhouseService,
   });
   return rows.map((row) => convertClickhouseScoreToDomain(row)).shift();
@@ -99,12 +93,7 @@ export const _handleGetScoresByIds = async ({
       ...(dataTypes ? { dataTypes: dataTypes.map((d) => d.toString()) } : {}),
       ...(source !== undefined ? { source } : {}),
     },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "byId",
-      projectId,
-    },
+    tags: { projectId },
   });
   return rows.map((row) => convertClickhouseScoreToDomain(row));
 };

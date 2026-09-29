@@ -1,29 +1,108 @@
-import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
-import eslintConfigPrettier from "eslint-config-prettier";
-import turboConfig from "eslint-config-turbo/flat";
-import "eslint-plugin-only-warn";
-import langfusePlugin from "@repo/eslint-plugin";
+import { fixupPluginRules } from "@eslint/compat";
+import nextPlugin from "@next/eslint-plugin-next";
+import importPlugin from "eslint-plugin-import";
+import jsxA11yPlugin from "eslint-plugin-jsx-a11y";
+import reactPlugin from "eslint-plugin-react";
+import reactHooksPlugin from "eslint-plugin-react-hooks";
+import globals from "globals";
+import tseslint from "typescript-eslint";
+import sharedConfig from "./shared.js";
 
 export default [
   // Global ignores - include config files
   {
     name: "langfuse/ignores",
-    ignores: [
-      "**/node_modules/",
-      "**/dist/",
-      "**/.next/",
-      "**/.next-check/",
-      "**/coverage/",
-      "eslint.config.mjs",
-    ],
+    ignores: ["**/.next/", "**/.next-check/"],
   },
 
-  // Next 16 ships native flat configs, so loading it through FlatCompat breaks.
-  ...nextCoreWebVitals,
+  // Use the plugins directly because this repo owns its parser and import resolver setup.
+  {
+    name: "langfuse/next/base",
+    files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
+    plugins: {
+      react: fixupPluginRules(reactPlugin),
+      "react-hooks": fixupPluginRules(reactHooksPlugin),
+      import: fixupPluginRules(importPlugin),
+      "jsx-a11y": fixupPluginRules(jsxA11yPlugin),
+      "@next/next": nextPlugin,
+    },
+    languageOptions: {
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+    },
+    settings: {
+      react: {
+        version: "detect",
+      },
+      "import/parsers": {
+        "@typescript-eslint/parser": [".ts", ".mts", ".cts", ".tsx", ".d.ts"],
+      },
+      "import/resolver": {
+        node: {
+          extensions: [".js", ".jsx", ".ts", ".tsx"],
+        },
+        typescript: {
+          alwaysTryTypes: true,
+        },
+      },
+    },
+    rules: {
+      ...nextPlugin.configs["core-web-vitals"].rules,
+      "import/no-anonymous-default-export": "warn",
+      "import/no-duplicates": ["error", { "prefer-inline": true }],
+      "jsx-a11y/alt-text": ["warn", { elements: ["img"], img: ["Image"] }],
+      "jsx-a11y/aria-props": "warn",
+      "jsx-a11y/aria-proptypes": "warn",
+      "jsx-a11y/aria-unsupported-elements": "warn",
+      "jsx-a11y/role-has-required-aria-props": "warn",
+      "jsx-a11y/role-supports-aria-props": "warn",
+    },
+  },
+
+  {
+    name: "langfuse/next/react",
+    files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
+    ignores: ["**/*.servertest.{ts,tsx}"],
+    rules: {
+      ...reactPlugin.configs.recommended.rules,
+      ...reactHooksPlugin.configs.recommended.rules,
+      "react/no-unknown-property": "off",
+      "react/react-in-jsx-scope": "off",
+      "react/prop-types": "off",
+      "react/jsx-no-target-blank": "off",
+    },
+  },
+
+  {
+    name: "langfuse/next/typescript-parser",
+    files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+    plugins: {
+      "@typescript-eslint": tseslint.plugin,
+    },
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        sourceType: "module",
+      },
+    },
+  },
+
+  {
+    name: "langfuse/next/ignores",
+    ignores: [".next/**", "out/**", "build/**", "next-env.d.ts"],
+  },
 
   // Keep the pre-React-Compiler hooks baseline used by this repo.
   {
     name: "langfuse/next/react-hooks-overrides",
+    ignores: ["**/*.servertest.{ts,tsx}"],
     rules: {
       "react-hooks/component-hook-factories": "off",
       "react-hooks/config": "off",
@@ -43,8 +122,7 @@ export default [
     },
   },
 
-  // Turbo rules
-  ...turboConfig,
+  ...sharedConfig,
 
   // Disable noisy turbo env var rule - project has many env vars not in turbo.json
   {
@@ -54,14 +132,12 @@ export default [
     },
   },
 
-  // Disable ESLint rules that conflict with Prettier formatting.
-  eslintConfigPrettier,
-
   // Layer repo-specific TS rules on top of Next's built-in flat TS config.
   // Next already provides the parser and @typescript-eslint plugin here.
   {
     name: "langfuse/next/typescript",
-    files: ["**/*.ts", "**/*.tsx"],
+    files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+    ignores: ["**/vitest.config.mts"],
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -78,12 +154,7 @@ export default [
         },
       },
     },
-    plugins: {
-      "@repo": langfusePlugin,
-    },
     rules: {
-      "no-void": "warn",
-      "no-unused-vars": "off", // Use @typescript-eslint/no-unused-vars instead
       "@repo/no-tailwind-overflow-scroll": "warn",
       // Custom rules from old config
       "@typescript-eslint/consistent-type-imports": [
@@ -93,30 +164,37 @@ export default [
           fixStyle: "inline-type-imports",
         },
       ],
-      "@typescript-eslint/no-unused-vars": [
+      "@typescript-eslint/no-deprecated": "warn",
+    },
+  },
+  {
+    name: "langfuse/next/typescript-react",
+    files: ["**/*.{ts,tsx,mts,cts}"],
+    ignores: ["**/*.servertest.{ts,tsx}"],
+    rules: {
+      "react/jsx-curly-brace-presence": [
         "warn",
         {
-          argsIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
-          caughtErrorsIgnorePattern: "^_",
-          destructuredArrayIgnorePattern: "^_",
-          ignoreRestSiblings: true,
+          props: "never",
+          children: "ignore",
+          propElementValues: "always",
         },
       ],
-      "@typescript-eslint/no-deprecated": "warn",
       "react/jsx-key": ["error", { warnOnDuplicates: true }],
       "react/no-unused-prop-types": "warn",
     },
   },
-
-  // Vitest in-source testing should only be used while developing, not in committed code.
   {
-    name: "langfuse/no-in-source-vitest",
-    plugins: {
-      "@repo": langfusePlugin,
-    },
+    name: "langfuse/next/tests-and-stories",
+    files: [
+      "**/*.clienttest.{ts,tsx}",
+      "**/*.servertest.{ts,tsx}",
+      "**/*.test.{ts,tsx}",
+      "**/*.story.{ts,tsx}",
+      "**/*.stories.{ts,tsx}",
+    ],
     rules: {
-      "@repo/no-in-source-vitest": "warn",
+      "@repo/no-tailwind-overflow-scroll": "off",
     },
   },
 ];

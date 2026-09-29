@@ -1,4 +1,8 @@
-import { UiColumnMappings } from "../../tableDefinitions";
+import type {
+  ColumnDefinition,
+  UiColumnMappings,
+} from "../../tableDefinitions";
+import type { ApiColumnMapping } from "../queries/public-api-filter-builder";
 
 /**
  * Pre-aggregation column mappings for experiments.
@@ -52,20 +56,35 @@ export const experimentPreAggCols: UiColumnMappings = [
  * Score aggregation column mappings for experiments.
  */
 export const experimentScoreAggCols: UiColumnMappings = [
-  // Observation-level scores
+  // Level-agnostic scores: these match a score whether it was recorded on an
+  // observation or on the trace. The legacy `obs_*` ids map here too, so links
+  // and saved views written against them keep working — and start matching
+  // trace-level scores, which is the point (a score recorded on the trace used
+  // to return nothing).
   {
     uiTableName: "Scores (numeric)",
-    uiTableId: "obs_scores_avg",
+    uiTableId: "scores_avg",
     clickhouseTableName: "scores",
-    clickhouseSelect: "obs_scores_avg",
+    clickhouseSelect: "scores_avg",
+    aliases: ["obs_scores_avg"],
   },
   {
     uiTableName: "Scores (categorical)",
-    uiTableId: "obs_score_categories",
+    uiTableId: "score_categories",
     clickhouseTableName: "scores",
-    clickhouseSelect: "obs_score_categories",
+    clickhouseSelect: "score_categories",
+    aliases: ["obs_score_categories"],
   },
-  // Trace-level scores
+  {
+    uiTableName: "Scores (boolean)",
+    uiTableId: "score_booleans",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "score_booleans",
+    aliases: ["obs_score_booleans"],
+  },
+  // Trace-only, kept resolving for saved views that deliberately scoped to the
+  // trace level. Not offered as a facet: aliasing these onto the agnostic
+  // arrays would silently WIDEN such a filter.
   {
     uiTableName: "Trace Scores (numeric)",
     uiTableId: "trace_scores_avg",
@@ -77,6 +96,12 @@ export const experimentScoreAggCols: UiColumnMappings = [
     uiTableId: "trace_score_categories",
     clickhouseTableName: "scores",
     clickhouseSelect: "trace_score_categories",
+  },
+  {
+    uiTableName: "Trace Scores (boolean)",
+    uiTableId: "trace_score_booleans",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "trace_score_booleans",
   },
 ];
 
@@ -97,3 +122,114 @@ export const experimentCols: UiColumnMappings = [
   ...experimentPreAggCols,
   ...experimentScoreAggCols,
 ];
+
+const publicApiExperimentFilterColumns = [
+  {
+    id: "id",
+    uiTableName: "ID",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_id",
+    nullable: false,
+  },
+  {
+    id: "name",
+    uiTableName: "Name",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_name",
+    nullable: true,
+  },
+  {
+    id: "datasetId",
+    uiTableName: "Dataset ID",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_dataset_id",
+    nullable: true,
+  },
+] as const;
+
+export const publicApiExperimentSimpleFilterMappings: ApiColumnMapping[] =
+  publicApiExperimentFilterColumns.map((column) => ({
+    id: column.id,
+    clickhouseSelect: column.clickhouseSelect,
+    clickhouseTable: column.clickhouseTableName,
+    filterType: "StringOptionsFilter",
+    clickhousePrefix: "e",
+  }));
+
+export const publicApiExperimentColumnMappings: UiColumnMappings =
+  publicApiExperimentFilterColumns.map((column) => ({
+    uiTableName: column.uiTableName,
+    uiTableId: column.id,
+    clickhouseTableName: column.clickhouseTableName,
+    clickhouseSelect: column.clickhouseSelect,
+    queryPrefix: "e",
+  }));
+
+export const publicApiExperimentColumnDefinitions: ColumnDefinition[] =
+  publicApiExperimentFilterColumns.map((column) => ({
+    name: column.uiTableName,
+    id: column.id,
+    type: "stringOptions",
+    internal: column.clickhouseSelect,
+    options: [],
+    ...(column.nullable ? { nullable: true } : {}),
+  }));
+
+const publicApiExperimentItemFilterColumns = [
+  {
+    id: "experimentId",
+    uiTableName: "ID",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_id",
+    nullable: false,
+  },
+  {
+    id: "experimentName",
+    uiTableName: "Name",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_name",
+    nullable: true,
+  },
+  {
+    id: "experimentItemId",
+    uiTableName: "Experiment Item ID",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_item_id",
+    nullable: false,
+  },
+  {
+    id: "datasetId",
+    uiTableName: "Dataset ID",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_dataset_id",
+    nullable: true,
+  },
+] as const;
+
+export const publicApiExperimentItemSimpleFilterMappings: ApiColumnMapping[] =
+  publicApiExperimentItemFilterColumns.map((column) => ({
+    id: column.id,
+    clickhouseSelect: column.clickhouseSelect,
+    clickhouseTable: column.clickhouseTableName,
+    filterType: "StringOptionsFilter",
+    clickhousePrefix: "e",
+  }));
+
+export const publicApiExperimentItemColumnMappings: UiColumnMappings =
+  publicApiExperimentItemFilterColumns.map((column) => ({
+    uiTableName: column.uiTableName,
+    uiTableId: column.id,
+    clickhouseTableName: column.clickhouseTableName,
+    clickhouseSelect: column.clickhouseSelect,
+    queryPrefix: "e",
+  }));
+
+export const publicApiExperimentItemColumnDefinitions: ColumnDefinition[] =
+  publicApiExperimentItemFilterColumns.map((column) => ({
+    name: column.uiTableName,
+    id: column.id,
+    type: "stringOptions",
+    internal: column.clickhouseSelect,
+    options: [],
+    ...(column.nullable ? { nullable: true } : {}),
+  }));

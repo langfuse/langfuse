@@ -25,9 +25,9 @@ export type CompareOp =
   | ">="
   | "<=";
 
-export type AndNode = { kind: "and"; children: ASTNode[]; parenSpan?: Span };
-export type OrNode = { kind: "or"; children: ASTNode[]; parenSpan?: Span };
-export type NotNode = {
+type AndNode = { kind: "and"; children: ASTNode[]; parenSpan?: Span };
+type OrNode = { kind: "or"; children: ASTNode[]; parenSpan?: Span };
+type NotNode = {
   kind: "not";
   child: ASTNode;
   span?: Span;

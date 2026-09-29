@@ -3,7 +3,8 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodError } from "zod";
 import {
-  BaseError,
+  type BaseError,
+  isBaseError,
   LangfuseNotFoundError,
   MethodNotAllowedError,
   UnauthorizedError,
@@ -16,15 +17,15 @@ import {
 } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 import {
-  sendUnstablePublicApiErrorResponse,
-  toUnstablePublicApiError,
-  unstablePublicEvalsErrorContract,
+  sendStructuredPublicApiErrorResponse,
+  structuredPublicApiErrorContract,
+  toStructuredPublicApiError,
   type PublicApiErrorContract,
-} from "@/src/features/public-api/server/unstable-public-api-error-contract";
+} from "./structuredPublicApiErrorContract";
+import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
-export const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
+const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
 export type HttpMethod = (typeof httpMethods)[number];
 type Handlers = {
   [Method in HttpMethod]?: (
@@ -86,6 +87,10 @@ export function withMiddlewares(
   return async (req: NextApiRequest, res: NextApiResponse) => {
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
+      clickhouse: {
+        surface: "publicapi",
+        route: clickHouseRouteForRequest(req),
+      },
     });
 
     return opentelemetry.context.with(ctx, async () => {
@@ -120,10 +125,10 @@ export function withMiddlewares(
             tags: error.tags,
           });
 
-          if (options?.errorContract === unstablePublicEvalsErrorContract) {
-            return sendUnstablePublicApiErrorResponse(
+          if (options?.errorContract === structuredPublicApiErrorContract) {
+            return sendStructuredPublicApiErrorResponse(
               res,
-              toUnstablePublicApiError(error),
+              toStructuredPublicApiError(error),
             );
           }
 
@@ -133,8 +138,8 @@ export function withMiddlewares(
           });
         }
 
-        if (options?.errorContract === unstablePublicEvalsErrorContract) {
-          if (error instanceof BaseError) {
+        if (options?.errorContract === structuredPublicApiErrorContract) {
+          if (isBaseError(error)) {
             logBaseError(error);
           } else if (isZodError(error)) {
             logger.warn(error);
@@ -142,7 +147,7 @@ export function withMiddlewares(
             logger.error(error);
           }
 
-          if (error instanceof BaseError) {
+          if (isBaseError(error)) {
             if (error.httpCode >= 500 && error.httpCode < 600) {
               traceException(error);
             }
@@ -150,13 +155,13 @@ export function withMiddlewares(
             traceException(error);
           }
 
-          return sendUnstablePublicApiErrorResponse(
+          return sendStructuredPublicApiErrorResponse(
             res,
-            toUnstablePublicApiError(error),
+            toStructuredPublicApiError(error),
           );
         }
 
-        if (error instanceof BaseError) {
+        if (isBaseError(error)) {
           logBaseError(error);
           if (error.httpCode >= 500 && error.httpCode < 600) {
             traceException(error);

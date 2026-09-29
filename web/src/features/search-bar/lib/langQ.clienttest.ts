@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import type { ASTNode } from "@/src/features/search-bar/lib/ast";
 import { parse, serialize, termAt } from "@/src/features/search-bar/lib/langQ";
 import {
@@ -30,13 +32,70 @@ function strip(node: ASTNode | null): unknown {
 
 describe("langQ parser", () => {
   it("resolves aliases to canonical field ids", () => {
-    const r = parse("env:prod");
+    const r = parse("env:prod apiKey:pk-lf-test");
     expect(r.valid).toBe(true);
     expect(strip(r.ast)).toEqual({
-      kind: "filter",
-      key: "environment",
-      op: "=",
-      values: ["prod"],
+      kind: "and",
+      children: [
+        {
+          kind: "filter",
+          key: "environment",
+          op: "=",
+          values: ["prod"],
+        },
+        {
+          kind: "filter",
+          key: "ingestionApiKey",
+          op: "=",
+          values: ["pk-lf-test"],
+        },
+      ],
+    });
+  });
+
+  it("resolves ingestion attribution aliases to canonical field ids", () => {
+    const r = parse("sdk_name:python sdkVersion:4.7.1 source:otel");
+    expect(r.valid).toBe(true);
+    expect(strip(r.ast)).toEqual({
+      kind: "and",
+      children: [
+        {
+          kind: "filter",
+          key: "ingestionSdkName",
+          op: "=",
+          values: ["python"],
+        },
+        {
+          kind: "filter",
+          key: "ingestionSdkVersion",
+          op: "=",
+          values: ["4.7.1"],
+        },
+        {
+          kind: "filter",
+          key: "ingestionSource",
+          op: "=",
+          values: ["otel"],
+        },
+      ],
+    });
+    // Snake-case and canonical spellings resolve to the same fields.
+    const alt = parse(
+      "sdkName:js ingestion_sdk_version:3.2.1 ingestionSource:api",
+    );
+    expect(alt.valid).toBe(true);
+    expect(strip(alt.ast)).toEqual({
+      kind: "and",
+      children: [
+        { kind: "filter", key: "ingestionSdkName", op: "=", values: ["js"] },
+        {
+          kind: "filter",
+          key: "ingestionSdkVersion",
+          op: "=",
+          values: ["3.2.1"],
+        },
+        { kind: "filter", key: "ingestionSource", op: "=", values: ["api"] },
+      ],
     });
   });
 
@@ -158,8 +217,16 @@ describe("langQ parser", () => {
     expect(parse('input:*""').valid).toBe(true);
   });
 
-  it("rejects a key with quotes or spaces", () => {
-    expect(parse('metadata."foo":bar').valid).toBe(false);
+  it("accepts a quoted dot-path key (score/metadata names with spaces)", () => {
+    // Quoting the segment after a dot prefix is how a score/metadata name with
+    // spaces or grammar chars is addressed; it parses and round-trips.
+    expect(parse('metadata."foo":bar').valid).toBe(true);
+    expect(parse('scores."Rouge Score":>=1').valid).toBe(true);
+    expect(parse('traceScores."Hallucination Check":faithful').valid).toBe(
+      true,
+    );
+    // A quoted UNKNOWN plain field is still rejected (resolves to nothing).
+    expect(parse('"level":ERROR').valid).toBe(false);
   });
 
   it("emits a single diagnostic for a bare AND, not a doubled one", () => {

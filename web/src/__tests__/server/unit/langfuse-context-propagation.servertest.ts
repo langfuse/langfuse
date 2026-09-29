@@ -57,4 +57,26 @@ describe("Langfuse context propagation", () => {
       expect(baggage?.getEntry("langfuse.api_key.id")?.value).toBe("api-key-1");
     });
   });
+
+  it("adds clickhouse request metadata to context baggage", () => {
+    opentelemetry.context.with(opentelemetry.ROOT_CONTEXT, () => {
+      const ctx = contextWithLangfuseProps({
+        projectId: "project-1",
+        clickhouse: {
+          surface: "publicapi",
+          route: "GET /api/public/traces",
+        },
+      });
+
+      const baggage = opentelemetry.propagation.getBaggage(ctx);
+
+      expect(baggage?.getEntry("langfuse.project.id")?.value).toBe("project-1");
+      expect(baggage?.getEntry("langfuse.clickhouse.surface")?.value).toBe(
+        "publicapi",
+      );
+      expect(baggage?.getEntry("langfuse.clickhouse.route")?.value).toBe(
+        "GET /api/public/traces",
+      );
+    });
+  });
 });

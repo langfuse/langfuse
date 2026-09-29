@@ -1,20 +1,10 @@
-import React, { useMemo, useState } from "react";
+import { useMemo } from "react";
+
 import {
-  ChartActiveReferenceLine,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/src/components/ui/chart";
-import {
-  CartesianGrid,
-  Label,
-  Line,
-  LineChart,
-  ReferenceArea,
-  ReferenceLine,
-  XAxis,
-  YAxis,
-} from "recharts";
+  LineChart as DesignSystemLineChart,
+  type LineChartLegend,
+  type LineChartThreshold,
+} from "@/src/components/design-system/charts/LineChart/LineChart";
 import {
   type ChartProps,
   type ChartThreshold,
@@ -25,284 +15,219 @@ import {
   groupDataByTimeDimension,
   toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
-import { cn } from "@/src/utils/tailwind";
+import { prepareDenseSeries } from "@/src/features/widgets/chart-library/prepareDenseSeries";
+import {
+  parseChartTimestamp,
+  prepareTimeAxis,
+} from "@/src/features/widgets/chart-library/prepareTimeAxis";
+import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
+import {
+  seriesColor,
+  SeriesOverflowNote,
+} from "@/src/features/widgets/chart-library/TimeSeriesLegend";
+import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 
-/** computeMetricExtent returns the [min, max] of all numeric metric values across the data, for sizing the eq/neq band. */
-const computeMetricExtent = (
-  data: ChartProps["data"],
-): { min: number; max: number } | null => {
-  let min = Infinity;
-  let max = -Infinity;
-  for (const point of data) {
-    const m = point.metric;
-    if (typeof m === "number" && Number.isFinite(m)) {
-      if (m < min) min = m;
-      if (m > max) max = m;
-    }
-  }
-  return Number.isFinite(min) && Number.isFinite(max) ? { min, max } : null;
-};
-
-/** ThresholdOverlay returns the ReferenceLine + (operator-derived) ReferenceArea recharts elements for a single ChartThreshold. */
-const ThresholdOverlay = ({
-  threshold,
-  extent,
-}: {
-  threshold: ChartThreshold;
-  extent: { min: number; max: number } | null;
-}) => {
-  const stroke = `var(--color-${threshold.color}-600)`;
-  const fill = `var(--color-${threshold.color}-500)`;
-  const elements: React.ReactNode[] = [];
-
-  switch (threshold.operator) {
-    case "GT":
-    case "GTE":
-      elements.push(
-        <ReferenceArea
-          key={`area-${threshold.value}`}
-          y2={threshold.value}
-          ifOverflow="extendDomain"
-          fill={fill}
-          fillOpacity={0.14}
-          stroke="none"
-        />,
-      );
-      break;
-    case "LT":
-    case "LTE":
-      elements.push(
-        <ReferenceArea
-          key={`area-${threshold.value}`}
-          y1={threshold.value}
-          ifOverflow="extendDomain"
-          fill={fill}
-          fillOpacity={0.14}
-          stroke="none"
-        />,
-      );
-      break;
-    case "EQ":
-    case "NEQ": {
-      // Floor at 1 so threshold.value === 0 with no extent doesn't collapse
-      // the band to a zero-height area (which Recharts then tiles across the
-      // full chart).
-      const bandEpsilon = Math.max(
-        extent && extent.max > extent.min
-          ? (extent.max - extent.min) * 0.01
-          : Math.abs(threshold.value) * 0.01,
-        1,
-      );
-      if (threshold.operator === "EQ") {
-        // The violation IS the band: a thin shaded region centered on value.
-        elements.push(
-          <ReferenceArea
-            key={`area-${threshold.value}`}
-            y1={threshold.value - bandEpsilon}
-            y2={threshold.value + bandEpsilon}
-            ifOverflow="extendDomain"
-            fill={fill}
-            fillOpacity={0.14}
-            stroke="none"
-          />,
-        );
-      } else {
-        elements.push(
-          <ReferenceArea
-            key={`area-above-${threshold.value}`}
-            y2={threshold.value + bandEpsilon}
-            ifOverflow="extendDomain"
-            fill={fill}
-            fillOpacity={0.14}
-            stroke="none"
-          />,
-          <ReferenceArea
-            key={`area-below-${threshold.value}`}
-            y1={threshold.value - bandEpsilon}
-            ifOverflow="extendDomain"
-            fill={fill}
-            fillOpacity={0.14}
-            stroke="none"
-          />,
-        );
-      }
-      break;
-    }
-  }
-
-  // Inclusive operators get solid lines, exclusive operators get dashed lines
-  const isInclusive =
-    threshold.operator === "GTE" ||
-    threshold.operator === "LTE" ||
-    threshold.operator === "EQ";
-
-  elements.push(
-    <ReferenceLine
-      key={`line-${threshold.value}`}
-      y={threshold.value}
-      stroke={stroke}
-      strokeWidth={1.5}
-      strokeDasharray={isInclusive ? undefined : "4 4"}
-      ifOverflow="extendDomain"
-    >
-      {threshold.label && (
-        <Label
-          value={threshold.label}
-          position="insideTopRight"
-          fill={stroke}
-          fontSize={11}
-        />
-      )}
-    </ReferenceLine>,
-  );
-
-  return <>{elements}</>;
-};
-
-/**
- * LineChartTimeSeries component
- * @param data - Data to be displayed. Expects an array of objects with time_dimension, dimension, and metric properties.
- * @param config - Configuration object for the chart. Can include theme settings for light and dark modes.
- * @param accessibilityLayer - Boolean to enable or disable the accessibility layer. Default is true.
- */
-export const LineChartTimeSeries: React.FC<ChartProps> = ({
-  data,
-  config = {
-    metric: {
-      theme: {
-        light: "hsl(var(--chart-1))",
-        dark: "hsl(var(--chart-1))",
-      },
+const defaultConfig: NonNullable<ChartProps["config"]> = {
+  metric: {
+    theme: {
+      light: "hsl(var(--chart-1))",
+      dark: "hsl(var(--chart-1))",
     },
   },
-  accessibilityLayer = true,
-  metricFormatter = (value, options) => formatMetric(value, options),
-  legendPosition = "none",
-  showDataPointDots = true,
-  thresholds,
-}) => {
-  const metricExtent = useMemo(() => computeMetricExtent(data), [data]);
-  const [highlightedDimension, setHighlightedDimension] = useState<
-    string | null
-  >(null);
+};
 
-  const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
-  const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
+function toDesignSystemThreshold(
+  threshold: ChartThreshold,
+): LineChartThreshold {
+  let region: LineChartThreshold["region"];
+  if (threshold.operator === "GT" || threshold.operator === "GTE") {
+    region = "above";
+  } else if (threshold.operator === "LT" || threshold.operator === "LTE") {
+    region = "below";
+  } else if (threshold.operator === "EQ") {
+    region = "equal";
+  } else {
+    region = "not-equal";
+  }
 
-  const tooltipFormatter = (value: number) =>
-    toFullMetricString(metricFormatter(value, { style: "compact" }));
-
-  const handleLegendClick = (dimension: string) => {
-    setHighlightedDimension((prev) => (prev === dimension ? null : dimension));
+  return {
+    value: threshold.value,
+    label: threshold.label,
+    color: `var(--color-${threshold.color}-600)`,
+    fillColor: `var(--color-${threshold.color}-500)`,
+    region,
+    lineStyle:
+      threshold.operator === "GT" ||
+      threshold.operator === "LT" ||
+      threshold.operator === "NEQ"
+        ? "dashed"
+        : "solid",
   };
+}
+
+/**
+ * Widget adapter for the design-system D3 line chart. Query-specific data
+ * shaping and legend state stay here; drawing belongs to the design system.
+ */
+export function LineChartTimeSeries({
+  data,
+  config = defaultConfig,
+  metricFormatter = formatMetric,
+  legendPosition = "auto",
+  legendSummary = "none",
+  legendInteraction = "highlight",
+  maxVisibleSeries,
+  sync,
+  showDataPointDots = false,
+  thresholds,
+  missingValue = "gap",
+  connectNulls = false,
+  hideXAxisLabels = false,
+}: ChartProps) {
+  const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
+  const groupedData = useMemo(
+    () =>
+      prepareDenseSeries(
+        groupDataByTimeDimension(data),
+        allDimensions,
+        missingValue,
+      ),
+    [data, allDimensions, missingValue],
+  );
+  const visibleSeries = useMemo(
+    () => prepareVisibleSeries(data, allDimensions),
+    [data, allDimensions],
+  );
+  const dimensions = visibleSeries.visible;
+  const hasNonTimestampBucket = groupedData.some(
+    (datum) => !parseChartTimestamp(datum.time_dimension),
+  );
+  const timeAxis = useMemo(
+    () =>
+      prepareTimeAxis(
+        groupedData.map((datum) => datum.time_dimension),
+        undefined,
+        { hideCategoryTickLabels: hideXAxisLabels },
+      ),
+    [groupedData, hideXAxisLabels],
+  );
+  const dateAxis = useMemo(() => {
+    if (timeAxis.mode !== "category") return timeAxis;
+    const dates = groupedData.flatMap((datum) => {
+      const date = parseChartTimestamp(datum.time_dimension);
+      return date ? [date.getTime()] : [];
+    });
+    return dates.length ? prepareTimeAxis(dates) : timeAxis;
+  }, [groupedData, timeAxis]);
+  const formatValue = useMemo(
+    () => (value: number) =>
+      toFullMetricString(metricFormatter(value, { style: "compact" })),
+    [metricFormatter],
+  );
+  const chartData = useMemo(
+    () =>
+      groupedData.map((datum) => ({
+        x: String(datum.time_dimension ?? ""),
+        values: Object.fromEntries(
+          dimensions.map((dimension) => {
+            const value = datum[dimension];
+            return [dimension, typeof value === "number" ? value : null];
+          }),
+        ),
+      })),
+    [dimensions, groupedData],
+  );
+  const chartSeries = useMemo(
+    () =>
+      dimensions.map((dimension, index) => ({
+        id: dimension,
+        label:
+          getPlainTextFromReactNode(config?.[dimension]?.label ?? dimension) ??
+          dimension,
+        color: seriesColor(index),
+      })),
+    [dimensions, config],
+  );
+  const timeChartData = useMemo(
+    () =>
+      chartData.flatMap((datum) => {
+        const date = parseChartTimestamp(datum.x);
+        return date ? [{ ...datum, x: date }] : [];
+      }),
+    [chartData],
+  );
+  const chartThresholds = useMemo(
+    () => thresholds?.map(toDesignSystemThreshold),
+    [thresholds],
+  );
+  let chartLegend: LineChartLegend = { visibility: "hidden" };
+  if (legendPosition !== "none" && legendInteraction === "toggle") {
+    chartLegend = {
+      visibility: legendPosition === "auto" ? "auto" : "visible",
+      interaction: "toggle",
+      summary: legendSummary,
+      maxVisibleSeries,
+    };
+  } else if (legendPosition !== "none") {
+    chartLegend = {
+      visibility: legendPosition === "auto" ? "auto" : "visible",
+      interaction: "highlight",
+      summary: legendSummary,
+    };
+  }
+  const chart =
+    timeAxis.mode === "category" || hasNonTimestampBucket ? (
+      <DesignSystemLineChart
+        data={chartData}
+        series={chartSeries}
+        valueFormatter={formatValue}
+        showDataPointDots={showDataPointDots}
+        connectNulls={connectNulls}
+        thresholds={chartThresholds}
+        sync={sync}
+        legend={chartLegend}
+        xAxis={{
+          type: "category",
+          labels: hideXAxisLabels ? "hidden" : "visible",
+          tickFormatter: (value) => {
+            const date = parseChartTimestamp(value);
+            return date
+              ? dateAxis.formatTick(date.getTime())
+              : timeAxis.formatTick(value);
+          },
+          tooltipFormatter: (value) => {
+            const date = parseChartTimestamp(value);
+            return date
+              ? dateAxis.formatTooltip(date.getTime())
+              : timeAxis.formatTooltip(value);
+          },
+        }}
+      />
+    ) : (
+      <DesignSystemLineChart
+        data={timeChartData}
+        series={chartSeries}
+        valueFormatter={formatValue}
+        showDataPointDots={showDataPointDots}
+        connectNulls={connectNulls}
+        thresholds={chartThresholds}
+        sync={sync}
+        legend={chartLegend}
+        xAxis={{
+          type: "time",
+        }}
+      />
+    );
 
   return (
     <div className="flex size-full min-w-0 flex-col">
-      {legendPosition === "above" && dimensions.length > 0 && (
-        <div className="min-w-0 shrink-0 overflow-x-auto pb-3">
-          <div className="flex w-max min-w-full flex-nowrap justify-end gap-4">
-            {dimensions.map((dimension, index) => {
-              const isHighlighted =
-                highlightedDimension === null ||
-                highlightedDimension === dimension;
-              const isMuted = highlightedDimension !== null && !isHighlighted;
-              return (
-                <button
-                  key={dimension}
-                  type="button"
-                  onClick={() => handleLegendClick(dimension)}
-                  className={cn(
-                    "flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap transition-opacity",
-                    "cursor-pointer hover:opacity-80",
-                    isMuted && "opacity-40",
-                  )}
-                  aria-pressed={isHighlighted}
-                  aria-label={
-                    isHighlighted ? `Show only ${dimension}` : "Show all series"
-                  }
-                >
-                  <div
-                    className="h-2 w-2 shrink-0 rounded-[2px]"
-                    style={{
-                      backgroundColor: `hsl(var(--chart-${(index % 8) + 1}))`,
-                    }}
-                  />
-                  <span className="text-muted-foreground">{dimension}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      <ChartContainer config={config} className="min-h-0 flex-1">
-        <LineChart accessibilityLayer={accessibilityLayer} data={groupedData}>
-          <CartesianGrid stroke="hsl(var(--chart-grid))" vertical={false} />
-          <XAxis
-            dataKey="time_dimension"
-            stroke="hsl(var(--chart-grid))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-            interval="preserveStartEnd"
-            minTickGap={24}
-          />
-          <YAxis
-            type="number"
-            stroke="hsl(var(--chart-grid))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-            width="auto"
-            niceTicks="auto"
-            tickFormatter={(value) => tooltipFormatter(Number(value))}
-          />
-          {dimensions.map((dimension, index) => {
-            const isMuted =
-              highlightedDimension !== null &&
-              highlightedDimension !== dimension;
-            return (
-              <Line
-                key={dimension}
-                type="monotone"
-                dataKey={dimension}
-                strokeWidth={2.5}
-                dot={showDataPointDots && !isMuted ? { r: 4 } : false}
-                activeDot={
-                  showDataPointDots && !isMuted
-                    ? { r: 5, strokeWidth: 0 }
-                    : false
-                }
-                stroke={`hsl(var(--chart-${(index % 8) + 1}))`}
-                strokeOpacity={isMuted ? 0.2 : 1}
-                connectNulls
-              />
-            );
-          })}
-          {thresholds?.map((threshold, i) => (
-            <ThresholdOverlay
-              key={`threshold-${i}-${threshold.value}`}
-              threshold={threshold}
-              extent={metricExtent}
-            />
-          ))}
-          <ChartActiveReferenceLine />
-          <ChartTooltip
-            contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-            content={({ active, payload, label }) => (
-              <ChartTooltipContent
-                active={active}
-                payload={payload}
-                label={label}
-                indicator="line"
-                valueFormatter={tooltipFormatter}
-                sortPayloadByValue="desc"
-              />
-            )}
-          />
-        </LineChart>
-      </ChartContainer>
+      {visibleSeries.total > dimensions.length ? (
+        <SeriesOverflowNote
+          visibleCount={dimensions.length}
+          totalCount={visibleSeries.total}
+        />
+      ) : null}
+      <div className="min-h-0 flex-1">{chart}</div>
     </div>
   );
-};
-
-export default LineChartTimeSeries;
+}

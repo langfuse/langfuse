@@ -4,6 +4,7 @@ import { FilterState } from "../types";
 import { filterOperators, timeFilter } from "../interfaces/filters";
 import { z } from "zod";
 import { logger } from "./index";
+import { InvalidRequestError } from "../errors";
 
 const operatorReplacements = {
   "any of": "IN",
@@ -53,7 +54,7 @@ export function tableColumnsToSqlFilter(
     );
     if (!col) {
       logger.error("Invalid filter column", filter.column);
-      throw new Error("Invalid filter column: " + filter.column);
+      throw new InvalidRequestError("Invalid filter column: " + filter.column);
     }
     const colPrisma = Prisma.raw(col.internal);
     return {
@@ -66,20 +67,23 @@ export function tableColumnsToSqlFilter(
 
   const statements = internalFilters.map((filterAndColumn) => {
     const filter = filterAndColumn.condition;
-    const operatorPrisma =
-      filter.type === "arrayOptions"
-        ? Prisma.raw(
-            arrayOperatorReplacements[
-              filter.operator as keyof typeof arrayOperatorReplacements
-            ],
-          )
-        : filter.operator in operatorReplacements
-          ? Prisma.raw(
-              operatorReplacements[
-                filter.operator as keyof typeof operatorReplacements
-              ],
-            )
-          : Prisma.raw(filter.operator); //checked by zod
+    const operatorPrisma = (() => {
+      if (filter.type === "arrayOptions") {
+        return Prisma.raw(
+          arrayOperatorReplacements[
+            filter.operator as keyof typeof arrayOperatorReplacements
+          ],
+        );
+      }
+      if (filter.operator in operatorReplacements) {
+        return Prisma.raw(
+          operatorReplacements[
+            filter.operator as keyof typeof operatorReplacements
+          ],
+        );
+      }
+      return Prisma.raw(filter.operator);
+    })(); //checked by zod
 
     // Get prisma value
     let valuePrisma: Prisma.Sql;
@@ -113,6 +117,9 @@ export function tableColumnsToSqlFilter(
         // LFE-4815: Support category options in postgres
         logger.warn("Category options not supported in postgres yet");
         throw new Error("Category options not supported in postgres yet");
+      case "booleanObject":
+        logger.warn("Boolean object filters not supported in postgres yet");
+        throw new Error("Boolean object filters not supported in postgres yet");
       case "null":
         valuePrisma = Prisma.sql``;
         break;
@@ -120,6 +127,22 @@ export function tableColumnsToSqlFilter(
         logger.warn("Position-in-trace filters are not supported in postgres");
         throw new Error("Position-in-trace filters not supported in postgres");
     }
+    if (filter.type === "string" && filter.operator === "is not empty") {
+      return Prisma.sql`(${filterAndColumn.internalColumn} IS NOT NULL AND ${filterAndColumn.internalColumn} <> '')`;
+    }
+
+    if (
+      filter.type === "stringObject" &&
+      (filter.operator === "is set" || filter.operator === "is not set")
+    ) {
+      // Key presence, mirroring the ClickHouse `has`/`mapContains` semantics.
+      // COALESCE handles a NULL column (no metadata at all) as "key absent".
+      const keyExists = Prisma.sql`COALESCE(jsonb_exists(${filterAndColumn.internalColumn}::jsonb, ${filter.key}), false)`;
+      return filter.operator === "is set"
+        ? keyExists
+        : Prisma.sql`NOT ${keyExists}`;
+    }
+
     const jsonKeyPrisma =
       filter.type === "stringObject" || filter.type === "numberObject"
         ? Prisma.sql`->>${filter.key}`
@@ -194,15 +217,20 @@ export const datetimeFilterToPrismaSql = (
 export const datetimeFilterToPrisma = (
   timestampFilter: z.infer<typeof timeFilter>,
 ) => {
-  const prismaTimestampFilter =
-    timestampFilter.operator === ">="
-      ? { gte: timestampFilter.value }
-      : timestampFilter.operator === ">"
-        ? { gt: timestampFilter.value }
-        : timestampFilter.operator === "<="
-          ? { lte: timestampFilter.value }
-          : timestampFilter.operator === "<"
-            ? { lt: timestampFilter.value }
-            : {};
+  const prismaTimestampFilter = (() => {
+    if (timestampFilter.operator === ">=") {
+      return { gte: timestampFilter.value };
+    }
+    if (timestampFilter.operator === ">") {
+      return { gt: timestampFilter.value };
+    }
+    if (timestampFilter.operator === "<=") {
+      return { lte: timestampFilter.value };
+    }
+    if (timestampFilter.operator === "<") {
+      return { lt: timestampFilter.value };
+    }
+    return {};
+  })();
   return prismaTimestampFilter;
 };

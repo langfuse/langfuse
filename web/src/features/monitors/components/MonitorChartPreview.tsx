@@ -3,10 +3,12 @@ import { type z } from "zod";
 
 import { api } from "@/src/utils/api";
 import { Card, CardContent } from "@/src/components/ui/card";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
-import { getWidgetMetricPresentation } from "@/src/features/widgets/utils";
+import {
+  Chart,
+  ChartLoadingState,
+  type DataPoint,
+  getWidgetMetricPresentation,
+} from "@/src/features/widgets";
 import {
   type FilterState,
   type metricAggregations,
@@ -21,9 +23,7 @@ import {
 } from "@langfuse/shared/monitors";
 
 import { renderChartSubtitle } from "../helpers/renderMonitorLabels";
-
-/** previewBucketCount is the number of complete window buckets the preview renders. */
-const previewBucketCount = 20;
+import { getMonitorPreviewRange } from "../helpers/monitorTimeRanges";
 
 /** MonitorChartPreview renders the live time-series preview with alert/warning threshold bands for a monitor draft. */
 export const MonitorChartPreview = ({
@@ -49,12 +49,10 @@ export const MonitorChartPreview = ({
 }) => {
   /** bucketRange spans 20 complete window buckets ending at the last floored boundary. */
   const { fromTimestamp, toTimestamp } = useMemo(() => {
-    const ms = Number(windowToMs(window));
-    const to = Math.floor(Date.now() / ms) * ms;
-    const from = to - previewBucketCount * ms;
+    const { from, to } = getMonitorPreviewRange(window, Date.now());
     return {
-      toTimestamp: new Date(to).toISOString(),
-      fromTimestamp: new Date(from).toISOString(),
+      toTimestamp: to.toISOString(),
+      fromTimestamp: from.toISOString(),
     };
   }, [window]);
 
@@ -83,7 +81,7 @@ export const MonitorChartPreview = ({
     },
     {
       trpc: { context: { skipBatch: true } },
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       refetchOnWindowFocus: false,
     },
   );
@@ -107,7 +105,7 @@ export const MonitorChartPreview = ({
     },
     {
       trpc: { context: { skipBatch: true } },
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       refetchOnWindowFocus: false,
     },
   );
@@ -179,6 +177,10 @@ export const MonitorChartPreview = ({
             rowLimit={1000}
             thresholds={thresholds}
             metricFormatter={metricFormatter}
+            // Both queries feed `data`; while either is still pending it can
+            // be spuriously `[]`, which would otherwise flash "No data"
+            // before the real result (or the leading point) arrives.
+            isLoading={queryResult.isPending || scalarResult.isPending}
           />
           <ChartLoadingState
             isLoading={queryResult.isError}

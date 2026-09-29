@@ -1,6 +1,6 @@
 ---
 name: backend-dev-guidelines
-description: Shared backend guide for Langfuse's Next.js, tRPC, BullMQ, and TypeScript monorepo. Use when creating or reviewing tRPC routers, public REST endpoints, BullMQ queue processors, backend services, middleware, Prisma or ClickHouse data access, OpenTelemetry instrumentation, Zod validation, env configuration, or backend tests across web, worker, or packages/shared.
+description: Build or review Langfuse backend code. Use for tRPC routers, public REST APIs, BullMQ processors, services, middleware, Prisma or ClickHouse access, OpenTelemetry, Zod, environment configuration, or backend tests.
 ---
 
 # Backend Development Guidelines
@@ -16,6 +16,7 @@ Use this skill for backend and API work across `web/`, `worker/`, and
 - Building or refactoring backend services and repositories
 - Working on backend auth, middleware, validation, or observability
 - Updating Prisma or ClickHouse access patterns
+- Adding a field, option, flag, or enum member to shared backend code
 - Adding or fixing backend tests
 
 ## How to Read This Skill
@@ -28,6 +29,13 @@ Use this skill for backend and API work across `web/`, `worker/`, and
   integration, or touches secrets, RBAC, or redirect handling, also load the
   shared [`security-review`](../security-review/SKILL.md) skill before
   designing or implementing the change.
+
+## Before Adding a New Concept
+
+Before adding a field to a shared schema or payload, an option or flag on a
+shared signature, an enum member, an env toggle, or a branch that exists for one
+caller — or before concluding that no change is needed — read
+[`references/new-concepts.md`](references/new-concepts.md).
 
 ## Quick Start Checklists
 
@@ -42,6 +50,23 @@ Use this skill for backend and API work across `web/`, `worker/`, and
 - Use `traceException` for error handling where relevant.
 - Add unit or integration tests in `__tests__/`.
 - Access config via `env.mjs`.
+
+### Existing Endpoint: Additive Field or Filter
+
+Before coding, classify the change as a new endpoint, an additive field/filter
+on an existing endpoint, or a semantic replacement/breaking change.
+
+For an additive field/filter:
+
+- Reuse the canonical predicate. For endpoints that already support field-group
+  selection, reuse their existing field-group/projection path.
+- Preserve the endpoint's existing response contract: use the normal optional
+  partial-row schema and converter path for field-group endpoints; retain the
+  strict response schema and converter path for ordinary endpoints.
+- Do not create API-version-specific field sets, casts, or "must be selected"
+  runtime assertions unless compatibility requires them.
+- Extend examples and contracts; do not replace an existing filter example.
+- Write one test per unique boundary, not one test per file touched.
 
 ### SDKs: New Public API Endpoint
 
@@ -71,6 +96,8 @@ Use this skill for backend and API work across `web/`, `worker/`, and
   outside env setup.
 - Validate all external input with Zod v4.
 - Use Prisma directly for simple CRUD and repositories for complex query access.
+- Express new requirements in the vocabulary shared code already has; adding a
+  concept to a shared abstraction is the last resort, not the first.
 - Use OpenTelemetry and DataDog for backend observability.
 - Always filter project-scoped database queries by `projectId`.
 - Keep Fern API definitions in sync with public TypeScript API contracts.
@@ -112,5 +139,6 @@ Use this skill for backend and API work across `web/`, `worker/`, and
 | Middleware and auth                 | You are changing request auth, permissions, or middleware composition    | [references/middleware-guide.md](references/middleware-guide.md)                   |
 | Services and repositories           | You are placing business logic, repository code, or DI patterns          | [references/services-and-repositories.md](references/services-and-repositories.md) |
 | Database access                     | You are touching Prisma, ClickHouse, tenant filters, or query patterns   | [references/database-patterns.md](references/database-patterns.md)                 |
+| New concepts in shared code         | You are adding a field, option, flag, or enum member to a shared abstraction | [references/new-concepts.md](references/new-concepts.md)                            |
 | Configuration                       | You are adding env vars, startup config, or runtime toggles              | [references/configuration.md](references/configuration.md)                         |
 | Testing                             | You are adding or updating backend tests                                 | [references/testing-guide.md](references/testing-guide.md)                         |

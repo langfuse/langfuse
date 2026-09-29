@@ -137,9 +137,9 @@ export class DatasetItemValidator {
       if (opts?.sanitizeControlChars) {
         // Sanitize control characters from parsed value before sending to PostgreSQL
         return this.sanitizeJsonValue(parsed) as Prisma.InputJsonValue;
-      } else {
-        return parsed;
       }
+
+      return parsed;
     } catch (e) {
       logger.info(
         "[DatasetItemValidator.normalize] failed to parse dataset item data",
@@ -162,17 +162,28 @@ export class DatasetItemValidator {
     normalizeUndefinedToNull?: boolean;
   }): ValidateItemResult {
     // 1. Normalize IO for validation
-    const inputToValidate = params.normalizeUndefinedToNull
-      ? params.input === undefined || params.input === null
-        ? null
-        : params.input
-      : params.input;
+    const inputToValidate = (() => {
+      if (params.normalizeUndefinedToNull) {
+        if (params.input === undefined || params.input === null) {
+          return null;
+        }
+        return params.input;
+      }
+      return params.input;
+    })();
 
-    const outputToValidate = params.normalizeUndefinedToNull
-      ? params.expectedOutput === undefined || params.expectedOutput === null
-        ? null
-        : params.expectedOutput
-      : params.expectedOutput;
+    const outputToValidate = (() => {
+      if (params.normalizeUndefinedToNull) {
+        if (
+          params.expectedOutput === undefined ||
+          params.expectedOutput === null
+        ) {
+          return null;
+        }
+        return params.expectedOutput;
+      }
+      return params.expectedOutput;
+    })();
 
     // 2. Validate IO against schema
     return this.validator.validateItem({

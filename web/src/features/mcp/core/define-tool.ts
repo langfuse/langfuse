@@ -7,6 +7,7 @@
 
 import { z } from "zod";
 import { wrapErrorHandling } from "./error-formatting";
+import type { ApiAction } from "@/src/features/public-api/server";
 import type { ServerContext } from "../types";
 
 /**
@@ -20,9 +21,9 @@ export type ToolHandler<TInput> = (
 /**
  * Tool definition options
  */
-export interface DefineToolOptions<TInput> {
+export interface DefineToolOptions<TInput, TName extends string = string> {
   /** Tool name (must be unique across all tools) */
-  name: string;
+  name: TName;
 
   /** Description for LLM to understand when to use this tool */
   description: string;
@@ -35,6 +36,9 @@ export interface DefineToolOptions<TInput> {
 
   /** Handler function that executes the tool logic */
   handler: ToolHandler<TInput>;
+
+  /** Action the caller must hold to run this tool. */
+  action: ApiAction;
 
   /** Hint: This tool only reads data, does not modify anything */
   readOnlyHint?: boolean;
@@ -49,9 +53,10 @@ export interface DefineToolOptions<TInput> {
 /**
  * MCP Tool definition
  */
-export interface ToolDefinition {
-  name: string;
+export interface ToolDefinition<TName extends string = string> {
+  name: TName;
   description: string;
+  action: ApiAction;
   inputSchema: Record<string, unknown>;
   annotations?: {
     readOnlyHint?: boolean;
@@ -109,12 +114,13 @@ function hasJsonSchemaUnion(value: unknown): boolean {
  *   readOnly: true,
  * });
  */
-export function defineTool<TInput>(
-  options: DefineToolOptions<TInput>,
-): [ToolDefinition, ToolHandler<TInput>] {
+export function defineTool<TInput, const TName extends string>(
+  options: DefineToolOptions<TInput, TName>,
+): [ToolDefinition<TName>, ToolHandler<TInput>] {
   const {
     name,
     description,
+    action,
     baseSchema,
     inputSchema,
     handler,
@@ -151,9 +157,10 @@ export function defineTool<TInput>(
   }
 
   // Build tool definition
-  const toolDefinition: ToolDefinition = {
+  const toolDefinition: ToolDefinition<TName> = {
     name,
     description,
+    action,
     inputSchema: jsonSchemaObject,
   };
 

@@ -1,6 +1,6 @@
 import { ScoreDataTypeEnum } from "@langfuse/shared";
 
-export const numericOutputDefinitionDefaults = {
+const numericOutputDefinitionDefaults = {
   scoreDataType: ScoreDataTypeEnum.NUMERIC,
   reasoningDescription: "Explain the assigned score in one concise sentence.",
   scoreDescription:
@@ -9,7 +9,7 @@ export const numericOutputDefinitionDefaults = {
   shouldAllowMultipleMatches: false,
 };
 
-export const booleanOutputDefinitionDefaults = {
+const booleanOutputDefinitionDefaults = {
   scoreDataType: ScoreDataTypeEnum.BOOLEAN,
   reasoningDescription:
     "Explain briefly why the answer does or does not satisfy the criteria.",
@@ -19,7 +19,7 @@ export const booleanOutputDefinitionDefaults = {
   shouldAllowMultipleMatches: false,
 };
 
-export const categoricalSingleOutputDefinitionDefaults = {
+const categoricalSingleOutputDefinitionDefaults = {
   scoreDataType: ScoreDataTypeEnum.CATEGORICAL,
   reasoningDescription: "Explain why the selected category is the best match.",
   scoreDescription: "Choose exactly one category from the provided list.",
@@ -27,7 +27,7 @@ export const categoricalSingleOutputDefinitionDefaults = {
   shouldAllowMultipleMatches: false,
 };
 
-export const categoricalMultiOutputDefinitionDefaults = {
+const categoricalMultiOutputDefinitionDefaults = {
   scoreDataType: ScoreDataTypeEnum.CATEGORICAL,
   reasoningDescription: "Explain why each selected category applies.",
   scoreDescription:

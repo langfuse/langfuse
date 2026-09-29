@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
   commons: ./commons.yml
+  pagination: ./utils/pagination.yml
 service:
   auth: true
   base-path: /api/public
@@ -8,6 +9,8 @@ service:
     getMany:
       docs: |
         Get a list of observations with cursor-based pagination and flexible field selection.
+
+        Together with OpenTelemetry ingestion and Metrics API v2, this is the only real-time read path. Other public API endpoints can delay data by about 10 minutes.
 
         ## Cursor-based Pagination
         This endpoint uses cursor-based pagination for efficient traversal of large datasets.
@@ -17,11 +20,11 @@ service:
         ## Field Selection
         Use the `fields` parameter to control which observation fields are returned:
         - `core` - Always included: id, traceId, startTime, endTime, projectId, parentObservationId, type
-        - `basic` - name, level, statusMessage, version, environment, bookmarked, public, userId, sessionId
+        - `basic` - name, level, statusMessage, version, environment, bookmarked, public, userId, sessionId, isRootObservation
         - `time` - completionStartTime, createdAt, updatedAt
         - `io` - input, output
         - `metadata` - metadata (truncated to 200 chars by default, use `expandMetadata` to get full values)
-        - `model` - providedModelName, internalModelId, modelParameters
+        - `model` - model, internalModelId, modelParameters
         - `usage` - usageDetails, costDetails, totalCost, usagePricingTierName
         - `prompt` - promptId, promptName, promptVersion
         - `metrics` - latency, timeToFirstToken
@@ -65,6 +68,9 @@ service:
               Remove this parameter or set it to `false`.
           name: optional<string>
           userId: optional<string>
+          sessionId:
+            type: optional<string>
+            docs: Filter by session ID.
           type:
             type: optional<string>
             docs: Filter by observation type (e.g., "GENERATION", "SPAN", "EVENT", "AGENT", "TOOL", "CHAIN", "RETRIEVER", "EVALUATOR", "EMBEDDING", "GUARDRAIL")
@@ -72,7 +78,17 @@ service:
           level:
             type: optional<commons.ObservationLevel>
             docs: Optional filter for observations with a specific level (e.g. "DEBUG", "DEFAULT", "WARNING", "ERROR").
-          parentObservationId: optional<string>
+          parentObservationId:
+            type: optional<string>
+            docs: |
+              Filter by the physical parent observation ID.
+              An empty value matches only observations without a physical parent. Use `isRootObservation` to include observations marked as app roots by the SDK, which may retain a non-null `parentObservationId`.
+          isRootObservation:
+            type: optional<boolean>
+            docs: |
+              Filter by whether an observation is a logical root.
+              Root observations include observations without a physical parent and observations marked as app roots by the SDK.
+              An app-root observation may have `isRootObservation=true` and a non-null `parentObservationId`.
           environment:
             type: optional<string>
             allow-multiple: true
@@ -105,7 +121,7 @@ service:
                                             // - categoryOptions: "any of", "none of"
                                             // - arrayOptions: "any of", "none of", "all of"
                                             // - number: "=", ">", "<", ">=", "<="
-                                            // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "matches"
+                                            // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "matches", "is set", "is not set"
                                             // - numberObject: "=", ">", "<", ">=", "<="
                                             // - boolean: "=", "<>"
                                             // - null: "is null", "is not null"
@@ -130,6 +146,7 @@ service:
               - `version` (string) - Version tag
               - `userId` (string) - User ID
               - `sessionId` (string) - Session ID
+              - `isRootObservation` (boolean) - Whether the observation is a logical root. Observations marked as app roots by the SDK may retain a non-null parentObservationId.
 
               ### Trace-Related Fields
               - `traceName` (string) - Name of the parent trace
@@ -190,6 +207,12 @@ service:
                   "column": "output",
                   "operator": "matches",
                   "value": "needle"
+                },
+                {
+                  "type": "boolean",
+                  "column": "isRootObservation",
+                  "operator": "=",
+                  "value": true
                 }
               ]
               ```
@@ -209,8 +232,6 @@ types:
       meta: ObservationsV2Meta
 
   ObservationsV2Meta:
-    docs: Metadata for cursor-based pagination
-    properties:
-      cursor:
-        type: optional<string>
-        docs: Base64-encoded cursor to use for retrieving the next page. If not present, there are no more results.
+    docs: Metadata for cursor-based pagination.
+    extends:
+      - pagination.CursorMetaResponse

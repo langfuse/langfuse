@@ -2,8 +2,6 @@ import { z } from "zod";
 import {
   paginationMetaResponseZod,
   publicApiPaginationZod,
-} from "@langfuse/shared";
-import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
 } from "@langfuse/shared";
@@ -12,7 +10,7 @@ import {
  * Common Types
  */
 
-export const AnnotationQueueItemSchema = z
+const AnnotationQueueItemSchema = z
   .object({
     id: z.string(),
     queueId: z.string(),
@@ -25,7 +23,7 @@ export const AnnotationQueueItemSchema = z
   })
   .strict();
 
-export const AnnotationQueueSchema = z
+const AnnotationQueueSchema = z
   .object({
     id: z.string(),
     name: z.string(),
@@ -66,6 +64,7 @@ export const CreateAnnotationQueueBody = z
   })
   .strict();
 
+/** @alias */
 export const CreateAnnotationQueueResponse = AnnotationQueueSchema;
 
 // GET /annotation-queues/:queueId
@@ -75,6 +74,7 @@ export const GetAnnotationQueueByIdQuery = z
   })
   .strict();
 
+/** @alias */
 export const GetAnnotationQueueByIdResponse = AnnotationQueueSchema;
 
 // GET /annotation-queues/:queueId/items
@@ -101,6 +101,7 @@ export const GetAnnotationQueueItemByIdQuery = z
   })
   .strict();
 
+/** @alias */
 export const GetAnnotationQueueItemByIdResponse = AnnotationQueueItemSchema;
 
 // POST /annotation-queues/:queueId/items
@@ -115,6 +116,7 @@ export const CreateAnnotationQueueItemBody = z
   })
   .strict();
 
+/** @alias */
 export const CreateAnnotationQueueItemResponse = AnnotationQueueItemSchema;
 
 // PATCH /annotation-queues/:queueId/items/:itemId
@@ -124,6 +126,7 @@ export const UpdateAnnotationQueueItemBody = z
   })
   .strict();
 
+/** @alias */
 export const UpdateAnnotationQueueItemResponse = AnnotationQueueItemSchema;
 
 // DELETE /annotation-queues/:queueId/items/:itemId
@@ -142,7 +145,7 @@ export const DeleteAnnotationQueueItemResponse = z
   .strict();
 
 // Assignment endpoints
-export const AnnotationQueueAssignmentSchema = z
+const AnnotationQueueAssignmentSchema = z
   .object({
     userId: z.string(),
     projectId: z.string(),
@@ -163,6 +166,7 @@ export const CreateAnnotationQueueAssignmentBody = z
   })
   .strict();
 
+/** @alias */
 export const CreateAnnotationQueueAssignmentResponse =
   AnnotationQueueAssignmentSchema;
 

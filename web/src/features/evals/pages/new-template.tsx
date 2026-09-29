@@ -1,6 +1,6 @@
 import Page from "@/src/components/layouts/page";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useRouter } from "next/router";
 
 export default function NewTemplatesPage() {
@@ -9,11 +9,11 @@ export default function NewTemplatesPage() {
 
   const hasAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:read",
+    scope: "evaluator:CUD",
   });
 
   if (!hasAccess) {
-    return null;
+    return <div>You do not have access to this page.</div>;
   }
 
   return (

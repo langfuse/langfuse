@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { Button } from "@/src/components/ui/button";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,24 +12,16 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { api } from "@/src/utils/api";
-import {
-  useMemo,
-  useState,
-  useEffect,
-  useRef,
-  forwardRef,
-  useImperativeHandle,
-} from "react";
-import { Input } from "@/src/components/ui/input";
+import { api, reportNonTrpcError } from "@/src/utils/api";
+import { useMemo, useState, useRef } from "react";
+import { Input } from "@/src/components/design-system/Input/Input";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import {
   DatasetNameSchema,
   isValidJSONSchema,
   type Prisma,
 } from "@langfuse/shared";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Label } from "@/src/components/ui/label";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useRouter } from "next/router";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
@@ -45,13 +38,8 @@ type ServerSideSchemaValidationErrors = {
   }>;
 }[];
 
-// Ref interface for imperative form submission
-export interface DatasetFormRef {
-  submit: () => void;
-}
-
 interface BaseDatasetFormProps {
-  mode: "create" | "update" | "delete";
+  mode: "create" | "update";
   projectId: string;
   onFormSuccess?: () => void;
   onCreateDatasetSuccess?: (params: {
@@ -63,18 +51,13 @@ interface BaseDatasetFormProps {
   className?: string;
   redirectOnSuccess?: boolean;
   showFooter?: boolean;
-  onValidationChange?: (isValid: boolean, isSubmitting: boolean) => void;
+  onSubmittingChange?: (pending: boolean) => void;
+  onCancel?: () => void;
 }
 
 interface CreateDatasetFormProps extends BaseDatasetFormProps {
   mode: "create";
   folderPrefix?: string;
-}
-
-interface DeleteDatasetFormProps extends BaseDatasetFormProps {
-  mode: "delete";
-  datasetName: string;
-  datasetId: string;
 }
 
 interface UpdateDatasetFormProps extends BaseDatasetFormProps {
@@ -87,13 +70,10 @@ interface UpdateDatasetFormProps extends BaseDatasetFormProps {
   datasetExpectedOutputSchema?: Prisma.JsonValue;
 }
 
-type DatasetFormProps =
-  | CreateDatasetFormProps
-  | UpdateDatasetFormProps
-  | DeleteDatasetFormProps;
+type DatasetFormProps = CreateDatasetFormProps | UpdateDatasetFormProps;
 
 // Validation schema for JSON Schema strings
-export const jsonSchemaStringValidator = z.string().refine(
+const jsonSchemaStringValidator = z.string().refine(
   (value) => {
     if (value === "") return true; // Empty is valid (means no schema)
 
@@ -133,380 +113,283 @@ const formSchema = z.object({
   expectedOutputSchema: jsonSchemaStringValidator,
 });
 
-export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
-  (props, ref) => {
-    const [formError, setFormError] = useState<string | null>(null);
-    const [
-      serverSideSchemaValidationErrors,
-      setServerSideSchemaValidationErrors,
-    ] = useState<ServerSideSchemaValidationErrors | null>(null);
-    const capture = usePostHogClientCapture();
-    const [deleteConfirmationInput, setDeleteConfirmationInput] = useState("");
+export const DatasetForm = (props: DatasetFormProps) => {
+  const [pending, setPending] = useState(false);
+  const submissionPending = useRef(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [
+    serverSideSchemaValidationErrors,
+    setServerSideSchemaValidationErrors,
+  ] = useState<ServerSideSchemaValidationErrors | null>(null);
+  const capture = usePostHogClientCapture();
 
-    const inputSchemaString =
-      props.mode === "update" && props.datasetInputSchema
-        ? JSON.stringify(props.datasetInputSchema, null, 2)
-        : "";
-    const expectedOutputSchemaString =
-      props.mode === "update" && props.datasetExpectedOutputSchema
-        ? JSON.stringify(props.datasetExpectedOutputSchema, null, 2)
-        : "";
+  const inputSchemaString =
+    props.mode === "update" && props.datasetInputSchema
+      ? JSON.stringify(props.datasetInputSchema, null, 2)
+      : "";
+  const expectedOutputSchemaString =
+    props.mode === "update" && props.datasetExpectedOutputSchema
+      ? JSON.stringify(props.datasetExpectedOutputSchema, null, 2)
+      : "";
 
-    const form = useForm({
-      resolver: zodResolver(formSchema),
-      defaultValues:
-        props.mode === "update"
-          ? {
-              name: props.datasetName,
-              description: props.datasetDescription ?? "",
-              metadata: props.datasetMetadata
-                ? JSON.stringify(props.datasetMetadata, null, 2)
-                : "",
-              inputSchema: inputSchemaString,
-              expectedOutputSchema: expectedOutputSchemaString,
-            }
-          : {
-              name:
-                props.mode === "create" && props.folderPrefix
-                  ? `${props.folderPrefix}/`
-                  : "",
-              description: "",
-              metadata: "",
-              inputSchema: "",
-              expectedOutputSchema: "",
-            },
-    });
-
-    const utils = api.useUtils();
-    const router = useRouter();
-    const createMutation = api.datasets.createDataset.useMutation();
-    const updateMutation = api.datasets.updateDataset.useMutation();
-    const deleteMutation = api.datasets.deleteDataset.useMutation();
-
-    const allDatasets = api.datasets.allDatasetMeta.useQuery(
-      { projectId: props.projectId },
-      {
-        enabled: props.mode === "create" || props.mode === "update",
-      },
-    );
-
-    const allDatasetNames = useMemo(() => {
-      return (
-        allDatasets.data?.map((dataset) => ({ value: dataset.name })) ?? []
-      );
-    }, [allDatasets.data]);
-
-    useUniqueNameValidation({
-      currentName: form.watch("name"),
-      allNames: allDatasetNames,
-      form,
-      errorMessage: "Dataset name already exists.",
-      whitelistedName: props.mode === "update" ? props.datasetName : undefined,
-    });
-
-    // Track previous validation state to avoid redundant callbacks
-    const prevValidationRef = useRef<{
-      isValid: boolean;
-      isSubmitting: boolean;
-    } | null>(null);
-
-    // Report validation state to parent (only when values actually change)
-    const { onValidationChange, mode } = props;
-    useEffect(() => {
-      if (onValidationChange) {
-        const isValid = form.formState.isValid && !form.formState.errors.name;
-        const isSubmitting =
-          (mode === "create" && createMutation.isPending) ||
-          (mode === "update" && updateMutation.isPending) ||
-          (mode === "delete" && deleteMutation.isPending);
-
-        const prev = prevValidationRef.current;
-        if (
-          !prev ||
-          prev.isValid !== isValid ||
-          prev.isSubmitting !== isSubmitting
-        ) {
-          prevValidationRef.current = { isValid, isSubmitting };
-          onValidationChange(isValid, isSubmitting);
-        }
-      }
-    }, [
-      form.formState.isValid,
-      form.formState.errors.name,
-      createMutation.isPending,
-      updateMutation.isPending,
-      deleteMutation.isPending,
-      mode,
-      onValidationChange,
-    ]);
-
-    // Expose submit method via ref for external triggering
-    useImperativeHandle(
-      ref,
-      () => ({
-        submit: () => {
-          if (props.mode !== "delete") {
-            form.handleSubmit(onSubmit)();
+  const form = useForm({
+    resolver: zodResolver(formSchema),
+    defaultValues:
+      props.mode === "update"
+        ? {
+            name: props.datasetName,
+            description: props.datasetDescription ?? "",
+            metadata: props.datasetMetadata
+              ? JSON.stringify(props.datasetMetadata, null, 2)
+              : "",
+            inputSchema: inputSchemaString,
+            expectedOutputSchema: expectedOutputSchemaString,
           }
-        },
-      }),
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      [props.mode],
-    );
+        : {
+            name:
+              props.mode === "create" && props.folderPrefix
+                ? `${props.folderPrefix}/`
+                : "",
+            description: "",
+            metadata: "",
+            inputSchema: "",
+            expectedOutputSchema: "",
+          },
+  });
 
-    function onSubmit(values: z.infer<typeof formSchema>) {
-      // Parse schemas if they're not empty (tRPC expects objects for DatasetJSONSchema)
-      const inputSchema =
-        values.inputSchema === "" ? null : JSON.parse(values.inputSchema);
-      const expectedOutputSchema =
-        values.expectedOutputSchema === ""
-          ? null
-          : JSON.parse(values.expectedOutputSchema);
+  const utils = api.useUtils();
+  const router = useRouter();
+  const createMutation = api.datasets.createDataset.useMutation();
+  const updateMutation = api.datasets.updateDataset.useMutation();
 
-      const trimmedValues = {
-        name: values.name.trim(),
-        description:
-          values.description !== "" ? values.description.trim() : null,
-        // Keep metadata as string - resolveMetadata in tRPC will parse it
-        metadata: values.metadata !== "" ? values.metadata : null,
-        inputSchema,
-        expectedOutputSchema,
-      };
+  const allDatasets = api.datasets.allDatasetMeta.useQuery(
+    { projectId: props.projectId },
+    {
+      enabled: props.mode === "create" || props.mode === "update",
+    },
+  );
 
-      if (props.mode === "create") {
-        capture("datasets:new_form_submit");
-        createMutation
-          .mutateAsync({
-            ...trimmedValues,
-            projectId: props.projectId,
-          })
-          .then((result) => {
-            if (result.success) {
-              // Success - navigate to dataset items
-              utils.datasets.invalidate();
-              props.onCreateDatasetSuccess?.(result.dataset);
-              props.onFormSuccess?.();
-              form.reset();
-              if (props.redirectOnSuccess !== false) {
-                router.push(
-                  `/project/${props.projectId}/datasets/${result.dataset.id}/items`,
-                );
-              }
-            } else {
-              // Validation failed - show errors
-              setServerSideSchemaValidationErrors(result.validationErrors);
-              setFormError(null);
-            }
-          })
-          .catch((error: Error) => {
-            // System error (not validation)
-            setFormError(error.message);
-            setServerSideSchemaValidationErrors(null);
-            console.error(error);
-          });
-      } else if (props.mode === "update") {
-        capture("datasets:update_form_submit");
-        updateMutation
-          .mutateAsync({
-            ...trimmedValues,
-            projectId: props.projectId,
-            datasetId: props.datasetId,
-          })
-          .then((result) => {
-            if (result.success) {
-              // Success - close dialog
-              utils.datasets.invalidate();
-              props.onFormSuccess?.();
-              form.reset();
-            } else {
-              // Validation failed - show errors
-              setServerSideSchemaValidationErrors(result.validationErrors);
-              setFormError(null);
-            }
-          })
-          .catch((error: Error) => {
-            // System error (not validation)
-            setFormError(error.message);
-            setServerSideSchemaValidationErrors(null);
-            console.error(error);
-          });
-      }
-    }
+  const allDatasetNames = useMemo(() => {
+    return allDatasets.data?.map((dataset) => ({ value: dataset.name })) ?? [];
+  }, [allDatasets.data]);
 
-    const handleDelete = (e: React.SyntheticEvent) => {
-      e.preventDefault();
+  useUniqueNameValidation({
+    currentName: form.watch("name"),
+    allNames: allDatasetNames,
+    form,
+    errorMessage: "Dataset name already exists.",
+    whitelistedName: props.mode === "update" ? props.datasetName : undefined,
+  });
 
-      // helps with type safety
-      if (props.mode !== "delete") return;
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (submissionPending.current) return;
+    submissionPending.current = true;
+    setPending(true);
+    props.onSubmittingChange?.(true);
+    setFormError(null);
+    setServerSideSchemaValidationErrors(null);
+    // Parse schemas if they're not empty (tRPC expects objects for DatasetJSONSchema)
+    const inputSchema =
+      values.inputSchema === "" ? null : JSON.parse(values.inputSchema);
+    const expectedOutputSchema =
+      values.expectedOutputSchema === ""
+        ? null
+        : JSON.parse(values.expectedOutputSchema);
 
-      if (deleteConfirmationInput !== props.datasetName) {
-        setFormError(
-          "Please type the correct dataset name to confirm deletion",
-        );
-        return;
-      }
-
-      capture("datasets:delete_form_submit");
-      deleteMutation
-        .mutateAsync({
-          projectId: props.projectId,
-          datasetId: props.datasetId,
-        })
-        .then(() => {
-          utils.datasets.invalidate();
-          form.reset();
-        })
-        .catch((error: Error) => {
-          setFormError(error.message);
-          console.error(error);
-        });
+    const trimmedValues = {
+      name: values.name.trim(),
+      description: values.description !== "" ? values.description.trim() : null,
+      // Keep metadata as string - resolveMetadata in tRPC will parse it
+      metadata: values.metadata !== "" ? values.metadata : null,
+      inputSchema,
+      expectedOutputSchema,
     };
 
-    return (
-      <Form {...form}>
-        <form
-          onSubmit={
-            props.mode === "delete" ? handleDelete : form.handleSubmit(onSubmit)
+    let succeeded = false;
+    let createdDataset:
+      | Parameters<
+          NonNullable<BaseDatasetFormProps["onCreateDatasetSuccess"]>
+        >[0]
+      | undefined;
+    try {
+      capture(
+        props.mode === "create"
+          ? "datasets:new_form_submit"
+          : "datasets:update_form_submit",
+      );
+      const result =
+        props.mode === "create"
+          ? await createMutation.mutateAsync({
+              ...trimmedValues,
+              projectId: props.projectId,
+            })
+          : await updateMutation.mutateAsync({
+              ...trimmedValues,
+              projectId: props.projectId,
+              datasetId: props.datasetId,
+            });
+      if (result.success) {
+        succeeded = true;
+        if (props.mode === "create") createdDataset = result.dataset;
+        utils.datasets.invalidate();
+        form.reset();
+      } else {
+        setServerSideSchemaValidationErrors(result.validationErrors);
+      }
+    } catch (error) {
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : "Could not save the dataset. Please try again.",
+      );
+      reportNonTrpcError(error, "datasets");
+    } finally {
+      submissionPending.current = false;
+      setPending(false);
+      props.onSubmittingChange?.(false);
+    }
+    if (succeeded) {
+      if (createdDataset) props.onCreateDatasetSuccess?.(createdDataset);
+      props.onFormSuccess?.();
+      if (createdDataset && props.redirectOnSuccess !== false) {
+        router.push(
+          `/project/${props.projectId}/datasets/${createdDataset.id}/items`,
+        );
+      }
+    }
+  }
+
+  return (
+    <Form {...form}>
+      <form
+        onSubmit={(event) => {
+          if (submissionPending.current) {
+            event.preventDefault();
+            return;
           }
-          className="flex h-full min-h-0 flex-col"
-        >
-          <DialogBody
-            className={props.showFooter === false ? "p-0" : undefined}
-          >
-            {props.mode === "delete" ? (
-              <div className="mb-8 grid w-full gap-1.5">
-                <Label htmlFor="delete-confirmation">
-                  Type &quot;{props.datasetName}&quot; to confirm deletion
-                </Label>
-                <Input
-                  id="delete-confirmation"
-                  value={deleteConfirmationInput}
-                  onChange={(e) => setDeleteConfirmationInput(e.target.value)}
-                />
-              </div>
-            ) : (
-              <div className="mb-8 space-y-6">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name</FormLabel>
-                      <FormDescription>
-                        Use slashes &apos;/&apos; in dataset names to organize
-                        them into <em>folders</em>.
-                      </FormDescription>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description (optional)</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="metadata"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Metadata (optional)</FormLabel>
-                      <FormControl>
-                        <CodeMirrorEditor
-                          mode="json"
-                          value={field.value}
-                          onChange={(v) => {
-                            field.onChange(v);
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="inputSchema"
-                  render={({ field }) => (
-                    <DatasetSchemaInput
-                      label="Input schema"
-                      description="Validate dataset item inputs against a JSON Schema. All new and existing items must conform to this schema."
+          return form.handleSubmit(onSubmit)(event);
+        }}
+        className="flex h-full min-h-0 flex-col"
+      >
+        <DialogBody className={props.showFooter === false ? "p-0" : undefined}>
+          <fieldset disabled={pending} className="mb-8 min-w-0 space-y-6">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormDescription>
+                    Use slashes &apos;/&apos; in dataset names to organize them
+                    into <em>folders</em>.
+                  </FormDescription>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description (optional)</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="metadata"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Metadata (optional)</FormLabel>
+                  <FormControl>
+                    <CodeMirrorEditor
+                      mode="json"
+                      editable={!pending}
                       value={field.value}
-                      onChange={field.onChange}
-                      initialValue={inputSchemaString}
+                      onChange={(v) => {
+                        field.onChange(v);
+                      }}
                     />
-                  )}
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="inputSchema"
+              render={({ field }) => (
+                <DatasetSchemaInput
+                  disabled={pending}
+                  label="Input schema"
+                  description="Validate dataset item inputs against a JSON Schema. All new and existing items must conform to this schema."
+                  value={field.value}
+                  onChange={field.onChange}
+                  initialValue={inputSchemaString}
                 />
-                <FormField
-                  control={form.control}
-                  name="expectedOutputSchema"
-                  render={({ field }) => (
-                    <DatasetSchemaInput
-                      label="Expected output schema"
-                      description="Validate dataset item expected outputs against a JSON Schema. All new and existing items must conform to this schema."
-                      value={field.value}
-                      onChange={field.onChange}
-                      initialValue={expectedOutputSchemaString}
-                    />
-                  )}
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="expectedOutputSchema"
+              render={({ field }) => (
+                <DatasetSchemaInput
+                  disabled={pending}
+                  label="Expected output schema"
+                  description="Validate dataset item expected outputs against a JSON Schema. All new and existing items must conform to this schema."
+                  value={field.value}
+                  onChange={field.onChange}
+                  initialValue={expectedOutputSchemaString}
                 />
+              )}
+            />
 
-                {/* Show validation errors inline with form */}
-                {serverSideSchemaValidationErrors && (
-                  <DatasetSchemaValidationError
-                    projectId={props.projectId}
-                    datasetId={
-                      props.mode === "update" ? props.datasetId : "unknown"
-                    }
-                    errors={serverSideSchemaValidationErrors}
-                  />
-                )}
-              </div>
+            {/* Show validation errors inline with form */}
+            {serverSideSchemaValidationErrors && (
+              <DatasetSchemaValidationError
+                projectId={props.projectId}
+                datasetId={
+                  props.mode === "update" ? props.datasetId : "unknown"
+                }
+                errors={serverSideSchemaValidationErrors}
+              />
             )}
-          </DialogBody>
-          {props.showFooter !== false && (
-            <DialogFooter>
-              <div className="flex w-full flex-col gap-4">
-                <Button
-                  type="submit"
-                  variant={props.mode === "delete" ? "destructive" : "default"}
-                  disabled={!!form.formState.errors.name}
-                  loading={
-                    (props.mode === "create" && createMutation.isPending) ||
-                    (props.mode === "update" && updateMutation.isPending) ||
-                    (props.mode === "delete" && deleteMutation.isPending)
-                  }
-                  className="w-full"
-                >
-                  {props.mode === "create"
-                    ? "Create dataset"
-                    : props.mode === "delete"
-                      ? "Delete Dataset"
-                      : "Update dataset"}
-                </Button>
-                {formError && (
-                  <p className="mt-4 text-center text-sm text-red-500">
-                    <span className="font-bold">Error:</span> {formError}
-                  </p>
-                )}
-              </div>
-            </DialogFooter>
+          </fieldset>
+          {formError && (
+            <p role="alert" className="text-destructive text-sm">
+              {formError}
+            </p>
           )}
-        </form>
-      </Form>
-    );
-  },
-);
-
-DatasetForm.displayName = "DatasetForm";
+        </DialogBody>
+        {props.showFooter !== false && (
+          <DialogFooter>
+            {props.onCancel && (
+              <Button
+                variant="ghost"
+                onClick={props.onCancel}
+                disabled={pending}
+              >
+                Back
+              </Button>
+            )}
+            <Button
+              type="submit"
+              disabled={!!form.formState.errors.name}
+              loading={pending}
+            >
+              {props.mode === "create" ? "Create dataset" : "Update dataset"}
+            </Button>
+          </DialogFooter>
+        )}
+      </form>
+    </Form>
+  );
+};

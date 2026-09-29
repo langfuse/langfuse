@@ -90,12 +90,7 @@ export const getScoreAggregate = async (
         ? { tracesTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
         : {}),
     },
-    tags: {
-      feature: "dashboard",
-      type: "scoreAggregate",
-      kind: "analytic",
-      projectId,
-    },
+    tags: { projectId },
   });
 
   return result;
@@ -173,12 +168,7 @@ export const getObservationCostByTypeByTime = async (
         ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
         : {}),
     },
-    tags: {
-      feature: "dashboard",
-      type: "observationCostByTypeByTime",
-      kind: "analytic",
-      projectId,
-    },
+    tags: { projectId },
   });
 
   const types = result.flatMap((row) => {
@@ -271,12 +261,7 @@ export const getObservationUsageByTypeByTime = async (
         ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
         : {}),
     },
-    tags: {
-      feature: "dashboard",
-      type: "observationUsageByTime",
-      kind: "analytic",
-      projectId,
-    },
+    tags: { projectId },
   });
 
   const types = result.flatMap((row) => {

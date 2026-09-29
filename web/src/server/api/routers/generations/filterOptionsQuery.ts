@@ -8,6 +8,7 @@ import {
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import {
   getCategoricalScoresGroupedByName,
+  getBooleanScoresGroupedByName,
   getObservationsGroupedByModel,
   getObservationsGroupedByModelId,
   getObservationsGroupedByName,
@@ -68,6 +69,7 @@ export const filterOptionsQuery = protectedProjectProcedure
     const [
       numericScoreNames,
       categoricalScoreNames,
+      booleanScoreNames,
       model,
       name,
       promptNames,
@@ -81,6 +83,7 @@ export const filterOptionsQuery = protectedProjectProcedure
       getNumericScoresGroupedByName(input.projectId, traceTimestampFilters),
       // categorical scores
       getCategoricalScoresGroupedByName(input.projectId, traceTimestampFilters),
+      getBooleanScoresGroupedByName(input.projectId, traceTimestampFilters),
       //model
       getObservationsGroupedByModel(input.projectId, startTimeFilter ?? []),
       //name
@@ -129,6 +132,7 @@ export const filterOptionsQuery = protectedProjectProcedure
         })),
       scores_avg: numericScoreNames.map((score) => score.name),
       score_categories: categoricalScoreNames,
+      score_booleans: booleanScoreNames.map((score) => score.name),
       promptName: promptNames
         .filter((i) => i.promptName !== null)
         .map((i) => ({

@@ -1,7 +1,9 @@
+/* eslint-disable no-nested-ternary */
 import { useState } from "react";
-import { CheckIcon, ChevronDown } from "lucide-react";
+import { CheckIcon } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
@@ -89,7 +91,7 @@ export const RemoteExperimentDatasetStep = ({
           <Skeleton className="h-24 w-full" />
         ) : datasets.data && datasets.data.length > 0 ? (
           <div className="space-y-2">
-            <div className="text-sm font-medium">Dataset</div>
+            <div className="text-sm font-bold">Dataset</div>
             <Popover
               open={datasetPopoverOpen}
               onOpenChange={setDatasetPopoverOpen}
@@ -99,10 +101,10 @@ export const RemoteExperimentDatasetStep = ({
                   variant="outline"
                   role="combobox"
                   aria-expanded={datasetPopoverOpen}
-                  className="w-full justify-between px-2 font-normal"
+                  className="w-full justify-between gap-2 px-2 font-normal"
                 >
                   {selectedDataset?.name ?? "Select a dataset"}
-                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  <DropdownIndicator />
                 </Button>
               </PopoverTrigger>
               <PopoverContent
@@ -146,7 +148,7 @@ export const RemoteExperimentDatasetStep = ({
           </div>
         ) : (
           <div className="rounded-md border p-4 text-sm">
-            <div className="font-medium">No datasets found</div>
+            <div className="font-bold">No datasets found</div>
             <p className="text-muted-foreground mt-1">
               Create a dataset before setting up a remote experiment trigger.
             </p>

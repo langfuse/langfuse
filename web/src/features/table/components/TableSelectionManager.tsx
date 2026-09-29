@@ -1,6 +1,7 @@
+/* eslint-disable no-nested-ternary */
 import { useRef, type RefObject } from "react";
-import { TableCheckboxLoadingCell } from "@/src/components/table/loading-cells";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   type TableSelectionStoreLike,
   useTableRowIsSelected,
@@ -82,7 +83,6 @@ function SelectionHeaderCheckbox<TData>({
           }
         }}
         aria-label="Select all"
-        className="opacity-60"
       />
     </div>
   );
@@ -185,7 +185,6 @@ function SelectionRowCheckbox<TData>({
           if (!value) setSelectAll(false);
         }}
         aria-label="Select row"
-        className="opacity-60"
       />
     </div>
   );
@@ -208,7 +207,7 @@ export function TableSelectionManager<TData>({
       size: 35,
       isFixedPosition: true,
       isPinnedLeft: true,
-      loadingCell: <TableCheckboxLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-4 shrink-0 rounded-sm" />,
       header: ({ table }: { table: Table<TData> }) => (
         <SelectionHeaderCheckbox
           table={table}

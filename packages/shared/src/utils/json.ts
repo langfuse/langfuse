@@ -1,5 +1,5 @@
 import { JsonNested } from "./zod";
-import { parse, isSafeNumber, isNumber } from "lossless-json";
+import { isSafeNumber } from "lossless-json";
 
 // Dangerous keys that could lead to prototype pollution
 const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
@@ -34,7 +34,9 @@ function tryParsePythonDict(str: string): unknown {
       // therefore, the failure case is the default already.
       .replace(/'/g, '"');
 
-    return JSON.parse(jsonStr);
+    // parsePreservingPrecision (not JSON.parse) so big integers in Python-dict
+    // payloads (e.g. LangChain/LangGraph run IDs) keep their precision too.
+    return parsePreservingPrecision(jsonStr);
   } catch {
     return str;
   }
@@ -44,10 +46,66 @@ function tryParsePythonDict(str: string): unknown {
  * Options for deepParseJson
  */
 export interface DeepParseJsonOptions {
-  /** Maximum size in bytes before skipping parsing (default: 500KB) */
+  /** Approximate object size in characters to traverse (default: 500,000).
+   * Larger nested strings stay raw and count only as opaque leaves.
+   * Root string inputs retain their existing parsing behavior.
+   */
   maxSize?: number;
   /** Maximum recursion depth (default: 3) */
   maxDepth?: number;
+}
+
+/** Bound object traversal without serializing oversized, opaque string fields. */
+function exceedsParseSize(json: object, maxSize: number): boolean {
+  type Frame = {
+    value: object;
+    keys: string[] | null;
+    length: number;
+    index: number;
+  };
+  const stack: Frame[] = [];
+  const ancestors = new Set<object>();
+  let value: unknown = json;
+  let size = 0;
+
+  while (true) {
+    if (typeof value === "string") {
+      // Count an opaque leaf as null, without scanning or copying its contents.
+      size += value.length > maxSize ? 4 : value.length + 2;
+    } else if (typeof value === "object" && value !== null) {
+      if (ancestors.has(value)) return true;
+      const keys = Array.isArray(value) ? null : Object.keys(value);
+      const length = Array.isArray(value) ? value.length : keys!.length;
+      size += 2 + Math.max(0, length - 1); // Brackets/braces and commas.
+      // Every child costs at least one character. Reject wide containers before
+      // reading their children or allocating parser entries for them.
+      if (size + length > maxSize) return true;
+      ancestors.add(value);
+      stack.push({ value, keys, length, index: 0 });
+    } else {
+      size += String(value).length;
+    }
+    if (size > maxSize) return true;
+
+    while (stack.length > 0) {
+      const frame = stack[stack.length - 1];
+      if (frame.index < frame.length) break;
+      ancestors.delete(frame.value);
+      stack.pop();
+    }
+    if (stack.length === 0) return false;
+
+    const frame = stack[stack.length - 1];
+    const index = frame.index++;
+    if (frame.keys) {
+      const key = frame.keys[index];
+      size += key.length + 3; // Key quotes and colon.
+      if (size > maxSize) return true;
+      value = (frame.value as Record<string, unknown>)[key];
+    } else {
+      value = (frame.value as unknown[])[index];
+    }
+  }
 }
 
 /**
@@ -64,16 +122,16 @@ export function deepParseJson(
 ): unknown {
   const { maxSize = 500_000, maxDepth = 3 } = options;
 
-  // Size check: skip parsing for large objects to prevent UI freeze
+  // Root strings are also used for document decoding on the server. Only
+  // object inputs use the traversal limit and opaque-string handling.
+  let maxStringSize = Infinity;
   if (typeof json === "object" && json !== null) {
-    const size = JSON.stringify(json).length;
-    if (size > maxSize) {
-      return json;
-    }
+    if (exceedsParseSize(json, maxSize)) return json;
+    maxStringSize = maxSize;
   }
 
   // Perform depth-limited parsing
-  const result = deepParseJsonRecursive(json, 0, maxDepth);
+  const result = deepParseJsonRecursive(json, 0, maxDepth, maxStringSize);
 
   return result;
 }
@@ -85,6 +143,7 @@ function deepParseJsonRecursive(
   json: unknown,
   currentDepth: number,
   maxDepth: number,
+  maxStringSize: number,
 ): unknown {
   // Stop recursing if we've hit max depth
   if (currentDepth >= maxDepth) {
@@ -92,14 +151,28 @@ function deepParseJsonRecursive(
   }
 
   if (typeof json === "string") {
+    if (json.length > maxStringSize) return json;
+    // A bare JSON number literal stays a string: this preserves user-provided
+    // numeric strings and, critically, big integers that would lose precision
+    // if coerced to a JS number (issue #6628).
+    if (isJsonNumberLiteral(json)) return json;
     try {
-      const parsed = JSON.parse(json);
-      if (typeof parsed === "number") return json; // numbers that were strings in the input should remain as strings
-      return deepParseJsonRecursive(parsed, currentDepth + 1, maxDepth); // Recursively parse parsed value
+      const parsed = parsePreservingPrecision(json);
+      return deepParseJsonRecursive(
+        parsed,
+        currentDepth + 1,
+        maxDepth,
+        maxStringSize,
+      );
     } catch {
       const pythonParsed = tryParsePythonDict(json);
       if (pythonParsed !== json) {
-        return deepParseJsonRecursive(pythonParsed, currentDepth + 1, maxDepth);
+        return deepParseJsonRecursive(
+          pythonParsed,
+          currentDepth + 1,
+          maxDepth,
+          maxStringSize,
+        );
       }
       return json; // If it's not a valid JSON string, just return the original string
     }
@@ -107,7 +180,12 @@ function deepParseJsonRecursive(
     // Handle arrays
     if (Array.isArray(json)) {
       for (let i = 0; i < json.length; i++) {
-        json[i] = deepParseJsonRecursive(json[i], currentDepth + 1, maxDepth);
+        json[i] = deepParseJsonRecursive(
+          json[i],
+          currentDepth + 1,
+          maxDepth,
+          maxStringSize,
+        );
       }
     } else {
       // Handle nested objects
@@ -122,6 +200,7 @@ function deepParseJsonRecursive(
               (json as Record<string, unknown>)[key],
               currentDepth + 1,
               maxDepth,
+              maxStringSize,
             );
           }
         }
@@ -168,12 +247,10 @@ export function deepParseJsonIterative(
 ): unknown {
   const { maxSize = 500_000, maxDepth = 3 } = options;
 
-  // Size check: skip parsing for large objects to prevent UI freeze
+  let maxStringSize = Infinity;
   if (typeof json === "object" && json !== null) {
-    const size = JSON.stringify(json).length;
-    if (size > maxSize) {
-      return json;
-    }
+    if (exceedsParseSize(json, maxSize)) return json;
+    maxStringSize = maxSize;
   }
 
   // Root entry
@@ -208,15 +285,26 @@ export function deepParseJsonIterative(
 
     // Process strings - try to parse as JSON
     if (typeof input === "string") {
+      if (input.length > maxStringSize) {
+        entry.output = input;
+        processed.add(entry);
+        continue;
+      }
+      // A bare JSON number literal stays a string (see deepParseJsonRecursive):
+      // preserves numeric strings and big integers that would otherwise lose
+      // precision when coerced to a JS number (issue #6628).
+      if (isJsonNumberLiteral(input)) {
+        entry.output = input;
+        processed.add(entry);
+        continue;
+      }
+
       let parsed: unknown;
       let wasParsed = false;
 
       try {
-        parsed = JSON.parse(input);
-        // Numbers that were strings in the input should remain as strings
-        if (typeof parsed !== "number") {
-          wasParsed = true;
-        }
+        parsed = parsePreservingPrecision(input);
+        wasParsed = true;
       } catch {
         // Try Python dict parsing
         const pythonParsed = tryParsePythonDict(input);
@@ -264,7 +352,9 @@ export function deepParseJsonIterative(
           }
         }
       } else {
-        // Not JSON or parsed to number, use as-is
+        // Not valid JSON (and the Python-dict fallback also failed), keep as-is.
+        // Bare numeric literals never reach here — isJsonNumberLiteral above
+        // already short-circuits them to preserve big-int precision (#6628).
         entry.output = input;
         processed.add(entry);
         continue;
@@ -386,7 +476,7 @@ export function deepParseJsonIterative(
  *
  * Catches:
  * 1. [\d.]{13,} - 13+ characters of digits/dots (conservative threshold for ~12+ significant digits)
- * 2. \d[eE] - scientific notation (always use lossless-json for safety)
+ * 2. \d[eE] - scientific notation (always take the precision-preserving path for safety)
  */
 const UNSAFE_NUMBER_PATTERN = /[\d.]{13,}|\d[eE]/;
 const JSON_NUMBER_LITERAL_PATTERN =
@@ -395,29 +485,96 @@ const JSON_NUMBER_LITERAL_PATTERN =
 export const isJsonNumberLiteral = (value: string): boolean =>
   JSON_NUMBER_LITERAL_PATTERN.test(value.trim());
 
+/**
+ * JSON.parse reviver with source-text access (TC39 json-parse-with-source,
+ * V8 in Node >= 21 and evergreen browsers). The `context` parameter is not
+ * yet part of the es2023 lib types, hence the local signature. `context` is
+ * optional so the function stays assignable to the classic reviver type.
+ */
+type ReviverWithSource = (
+  this: unknown,
+  key: string,
+  value: unknown,
+  context?: { source?: string },
+) => unknown;
+
+/**
+ * Keeps numbers that cannot round-trip through a JS double as their exact
+ * source token (a string) instead of the rounded double. `context.source` is
+ * only provided for primitive values, so objects/arrays pass through.
+ */
+const preserveUnsafeNumbers: ReviverWithSource = (_key, value, context) =>
+  typeof value === "number" &&
+  context?.source !== undefined &&
+  !isSafeNumber(context.source)
+    ? context.source
+    : value;
+
+/**
+ * Parses a JSON string like JSON.parse, but preserves integers beyond
+ * Number.MAX_SAFE_INTEGER (2^53-1) by emitting them as strings instead of
+ * rounding them to a JS double (issue #6628). Throws on invalid JSON, exactly
+ * like JSON.parse, so callers can fall back to other parsing strategies.
+ */
+const parsePreservingPrecision = (json: string): unknown => {
+  // Fast path: native JSON.parse when no number could lose precision.
+  if (!UNSAFE_NUMBER_PATTERN.test(json)) {
+    return JSON.parse(json);
+  }
+
+  // Precision path: native JSON.parse with a source-access reviver. Safe
+  // numbers stay real numbers, unsafe ones keep their exact source token as
+  // a string. Native parsing here replaced lossless-json's pure-JS parser,
+  // which dominated heap allocation on large payloads (any 13+ digit run or
+  // digit-followed-by-e — e.g. ms timestamps or base64 — lands on this path).
+  // On runtimes without source access (Safari < 18.4, Firefox < 135) the
+  // reviver receives no context and unsafe numbers round like plain
+  // JSON.parse; the server (Node >= 21) always preserves them.
+  return JSON.parse(json, preserveUnsafeNumbers);
+};
+
 export const parseJsonPrioritised = (
   json: string,
 ): JsonNested | string | undefined => {
   try {
-    // Fast path: use native JSON.parse if no potentially unsafe numbers detected
-    if (!UNSAFE_NUMBER_PATTERN.test(json)) {
-      return JSON.parse(json) as JsonNested;
-    }
-
-    // Slow path: use lossless-json to preserve precision
-    return parse(json, null, (value) => {
-      if (isNumber(value)) {
-        if (isSafeNumber(value)) {
-          // Safe numbers (integers and decimals) can be converted to Number
-          return Number(value.valueOf());
-        } else {
-          // For large integers beyond safe limits, preserve string representation
-          return value.toString();
-        }
-      }
-      return value;
-    }) as JsonNested;
+    return parsePreservingPrecision(json) as JsonNested;
   } catch {
     return json;
   }
 };
+
+/**
+ * Parses a value that may be a JSON string. Non-strings and unparsable
+ * strings pass through unchanged; parsing preserves big-integer precision
+ * (parseJsonPrioritised).
+ */
+export const parseJsonIfString = (value: unknown): unknown =>
+  typeof value === "string" ? parseJsonPrioritised(value) : value;
+
+export function safeJsonParse(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+}
+
+export function stableJsonStringify(value: unknown): string {
+  return JSON.stringify(sortJsonValue(value)) ?? "undefined";
+}
+
+function sortJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortJsonValue);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nestedValue]) => [key, sortJsonValue(nestedValue)]),
+    );
+  }
+
+  return value;
+}

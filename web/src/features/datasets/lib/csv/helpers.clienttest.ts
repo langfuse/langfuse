@@ -43,4 +43,25 @@ describe("CSV dataset parsing", () => {
     expect(parseValue("true")).toBe(true);
     expect(parseValue("FALSE")).toBe(false);
   });
+
+  it("explains the preview truncation when a >2MB file has a quoted cell cut at the preview boundary", async () => {
+    const hugeCell = "A".repeat(3 * 1024 * 1024);
+    const file = new File([`input\n"${hugeCell}"\n`], "large.csv", {
+      type: "text/csv",
+    });
+
+    await expect(
+      parseCsvClient(file, { isPreview: true, collectSamples: true }),
+    ).rejects.toThrow(/single dataset items are too large/);
+  });
+
+  it("keeps the raw parser error for genuinely malformed small files", async () => {
+    const file = new File(['input\n"unclosed\n'], "malformed.csv", {
+      type: "text/csv",
+    });
+
+    await expect(
+      parseCsvClient(file, { isPreview: true, collectSamples: true }),
+    ).rejects.toThrow(/Quote Not Closed/);
+  });
 });

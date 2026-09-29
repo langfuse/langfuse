@@ -70,7 +70,16 @@ function runnerError(code, message) {
 }
 
 function formatError(error) {
-  return error instanceof Error ? error.message : String(error);
+  if (error instanceof Error) {
+    if (!error.message) return error.name || "Error";
+    // "Error" carries no signal; other names (TypeError, RangeError, custom
+    // classes) tell the evaluator author what went wrong.
+    return error.name && error.name !== "Error"
+      ? `${error.name}: ${error.message}`
+      : error.message;
+  }
+
+  return String(error);
 }
 
 function withCodeEvalDocs(message) {

@@ -1,5 +1,9 @@
 import { prisma } from "../../../db";
 import { TableViewPresetTableName } from "../../../domain/table-view-presets";
+import {
+  getSystemTableViewPresetById,
+  isSystemTableViewPresetId,
+} from "../TableViewService/systemPresets";
 import type {
   DefaultViewAssignments,
   DefaultViewScope,
@@ -103,11 +107,27 @@ export class DefaultViewService {
       userId,
     });
 
-    if (assignments.userDefaultViewId) {
+    // A default may point at a system preset (view_id has no FK on purpose),
+    // and system presets are code-defined — a catalog iteration can retire an
+    // id. Treat a retired system-preset default as absent and FALL THROUGH to
+    // the next scope, instead of handing the client an id whose fetch errors
+    // on every visit. The row is deliberately left in place: ignoring it is
+    // reversible, deleting it is not.
+    const isResolvable = (viewId: string) =>
+      !isSystemTableViewPresetId(viewId) ||
+      getSystemTableViewPresetById(viewId) !== null;
+
+    if (
+      assignments.userDefaultViewId &&
+      isResolvable(assignments.userDefaultViewId)
+    ) {
       return { viewId: assignments.userDefaultViewId, scope: "user" };
     }
 
-    if (assignments.projectDefaultViewId) {
+    if (
+      assignments.projectDefaultViewId &&
+      isResolvable(assignments.projectDefaultViewId)
+    ) {
       return { viewId: assignments.projectDefaultViewId, scope: "project" };
     }
 

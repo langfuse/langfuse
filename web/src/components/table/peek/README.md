@@ -6,6 +6,86 @@ This document describes how table state (filters, sorting, pagination, search) i
 
 Peek views allow users to quickly preview table items in a side panel. When navigating between items using K/J shortcuts, tables inside the peek view remount, which would normally reset their state. The peek state management system prevents this by storing table state in a context that persists across navigation.
 
+## Panel shell, resize, and expand
+
+`TablePeekView` ([`../peek.tsx`](../peek.tsx)) is responsive and keeps the peek
+**on top of the table** (it does not split the layout):
+
+- **Desktop** — a docked-right, non-modal Radix dialog (no overlay), so the
+  table behind stays interactive. A left-edge handle resizes it; dragging to the
+  far edge (or the header Expand button) **expands** it to the max width
+  (viewport − sidebar; the sidebar stays visible).
+- **Handheld** (`useIsHandheld` — narrower than `md`, _or_ a coarse pointer on a
+  short screen, i.e. a phone in landscape) — a `vaul` bottom drawer with native
+  swipe-down dismissal (Expand is hidden). Not width-only: a landscape phone is
+  wider than `md` and would otherwise get the desktop sheet. An inner non-modal
+  Radix root keeps child menus and dialogs accessible: Vaul's `modal` option
+  controls its gestures and backdrop but is not forwarded to its Radix root.
+
+Dismissal:
+
+- **Click-outside closes**, with exceptions: a target inside the peek
+  (`[data-peek-content]`) never closes it; clicking another table row
+  (`[data-row-index]`) **switches** the peeked item in place; and selection
+  checkboxes / `data-ignore-outside-interaction` regions / toast-layer overlays
+  (`[data-layer="toast"]`, e.g. the version-update banner) / the table's
+  `ignoredSelectors` don't close it. Nested Radix popovers/menus opened inside
+  the peek don't close it (DismissableLayer stacking).
+- **Escape**, the close button, and (mobile) swipe-down also close.
+
+Panel state follows the local-feature-state pattern from
+`frontend-large-feature-architecture`:
+
+- [`store/peekPanelStore.ts`](./store/peekPanelStore.ts) — a per-mount vanilla
+  Zustand store (lazy `useState`) owning ONLY the widget width + transient drag
+  state, mutated through named `actions`. Selectors (`selectWidgetWidth`,
+  `selectIsResizing`, `selectDraftExpanded`) return primitives so subscriptions
+  bail out cheaply.
+- [`actions/resizePeekPanel.ts`](./actions/resizePeekPanel.ts) — the drag
+  workflow (window pointer listeners → store actions; on pointer-up commits a
+  widget width or flips the expanded flag). Takes the store instance, not hooks.
+- [`usePeekPanelState.ts`](./usePeekPanelState.ts) — the integration boundary:
+  owns the store, derives the final width (widget vs expanded — measuring the
+  sidebar offset for the expanded case), and wires drag/keyboard to the store +
+  action. Takes `isExpanded` in / `onExpandedChange` out (the URL owns expanded).
+
+State altitudes:
+
+| State       | Altitude                        | Where it lives                                                                                             |
+| ----------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| expanded    | route (shareable, reloadable)   | URL `peekView=expanded`, managed in `peek.tsx` (`router.replace`), cleared on close by `usePeekNavigation` |
+| width       | cross-view persisted preference | store `widthFraction`, mirrored to `localStorage` (`peekViewWidthFraction`)                                |
+| resize drag | high-frequency transient        | store `draftFraction` / `draftExpanded` / `isResizing`, committed on pointer-up                            |
+| which item  | route                           | the `peek` URL param (see below)                                                                           |
+
+The **default** width (no saved preference) is viewport-aware: 50vw, but capped
+in px (`PEEK_MAX_DEFAULT_WIDTH_PX`) so a bigger screen doesn't mean a
+proportionally bigger peek (LFE-10601). Normal laptops still open at 50vw; only
+very wide monitors trim the fraction so the peek stays comfortable and the list
+navigable.
+
+The **inner tree ↔ info split** inside the peek is a separate
+`react-resizable-panels` group (`TraceLayoutDesktop`), unified with the width to
+persist in **`localStorage`** under a peek-scoped group id (`trace-layout-peek-*`)
+rather than per-tab `sessionStorage`. Its default is computed as an explicit
+**percentage** from the width the peek opens at: the info panel gets a
+comfortable target and the tree/timeline takes the remainder, clamped to a
+comfortable band — so extra width on a big peek flows to info (the content), not
+the tree (the index). A percentage (not a px `defaultSize`, which the library
+resolves against a transient mid-open width) keeps that default deterministic.
+The full-page trace view keeps its own share-based, per-tab layout.
+
+The peek and the standalone trace page already share one beta-aware fetch
+([`../../trace/useTraceDetailData.ts`](../../../features/traces)), one
+body
+([`../../trace/TraceDetailBody.tsx`](../../../features/traces) →
+`TraceDetailBody`), and one action set
+([`../../trace/TraceDetailActions.tsx`](../../../features/traces) —
+star / publish / delete) — `usePeekData` is now a thin wrapper over the shared
+hook. **Next slice:** collapse the `<Trace context>` branching and fold these
+primitives into a single `TraceDetailSurface` wrapper so the peek and `TracePage`
+share one component, not four — see the PR discussion.
+
 ## Architecture
 
 The peek state architecture separates the persisting context provider from the remounting content:
@@ -85,7 +165,7 @@ exception and must be wired explicitly by the caller.
    - Automatically detects peek context and uses it if available
 
 4. **`useFullTextSearch`** - Manages search query state
-   - Location: `web/src/components/table/use-cases/useFullTextSearch.tsx`
+   - Location: `web/src/features/search-bar/hooks/useFullTextSearch.ts`
    - Handles both search query and search type state
 
 ## Behavior
@@ -125,11 +205,15 @@ The `PeekTableState` interface defines what state is persisted:
 ```typescript
 interface PeekTableState {
   filters: FilterState;
-  sorting: OrderByState;
+  sorting: OrderByState | undefined;
   pagination: { pageIndex: number; pageSize: number };
   search: { query: string | null; type: string[] };
 }
 ```
+
+An undefined `sorting` value means the table uses the default passed to
+`useOrderByState`. Once the user changes or disables sorting, that explicit
+peek-local value is persisted.
 
 ## Implementation Guide
 
@@ -304,6 +388,12 @@ const filters = useSidebarFilterState(config, options, queryFilterOptions);
 
 - Peek state context: [`contexts/PeekTableStateContext.tsx`](./contexts/PeekTableStateContext.tsx)
 - Pagination hook: [`web/src/hooks/usePaginationState.ts`](../../../hooks/usePaginationState.ts)
-- Full text search hook: [`use-cases/useFullTextSearch.tsx`](../use-cases/useFullTextSearch.tsx)
+- Full text search hook: [`search-bar/hooks/useFullTextSearch.ts`](../../../features/search-bar/hooks/useFullTextSearch.ts)
 - Filter state hook: [`web/src/features/filters/hooks/useSidebarFilterState.tsx`](../../../features/filters/hooks/useSidebarFilterState.tsx)
 - Order by hook: [`web/src/features/orderBy/hooks/useOrderByState.ts`](../../../features/orderBy/hooks/useOrderByState.ts)
+
+Content may request a temporary review width with `data-peek-layout="review"`
+(two columns) or `"review-navigation"` (three columns). The shell's CSS minimum
+width is capped at the sidebar edge; it does not write the stored widget width
+or expanded URL state. Nested content owns its responsive fallback when the
+available width is smaller than its preferred columns.

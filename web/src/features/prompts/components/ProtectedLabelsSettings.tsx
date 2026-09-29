@@ -11,11 +11,13 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import Header from "@/src/components/layouts/header";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasEntitlement } from "@/src/features/entitlements";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { XIcon, Check, ChevronsUpDown } from "lucide-react";
+import { XIcon, Check } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { ActionButton } from "@/src/components/ActionButton";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -31,7 +33,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import {
   LATEST_PROMPT_LABEL,
   PRODUCTION_LABEL,
@@ -54,6 +56,7 @@ export default function ProtectedLabelsSettings({
     scope: "promptProtectedLabels:CUD",
   });
   const hasEntitlement = useHasEntitlement("prompt-protected-labels");
+  const skillsEnabled = useInternalFeaturesEnabled();
 
   const form = useForm({
     resolver: zodResolver(AddLabelFormSchema),
@@ -108,20 +111,20 @@ export default function ProtectedLabelsSettings({
 
   return (
     <div>
-      <Header title="Protected Prompt Labels" />
+      <Header title="Protected Labels" />
       <Card className="mb-4 p-3">
         <p className="text-primary mb-4 text-sm">
           Protected labels can only be modified by users with admin or owner
           access. This prevents other users from changing or removing these
-          labels from prompts.
+          labels from {skillsEnabled ? "prompts and skills" : "prompts"}.
         </p>
         <div className="mb-4 flex flex-wrap gap-2">
           {protectedLabels.map((label) => (
             <StatusBadge
               type={label}
               key={label}
-              className="break-all sm:break-normal"
               isLive={label === PRODUCTION_LABEL}
+              preserveCase
             >
               {hasAccess && hasEntitlement && (
                 <Button
@@ -162,13 +165,13 @@ export default function ProtectedLabelsSettings({
                           role="combobox"
                           aria-expanded={open}
                           className={cn(
-                            "w-full justify-between",
+                            "w-full justify-between gap-2",
                             !field.value && "text-muted-foreground",
                           )}
                           disabled={!hasAccess || !hasEntitlement}
                         >
                           {field.value || "Select or enter a label"}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          <DropdownIndicator direction="up-down" />
                         </Button>
                       </FormControl>
                     </PopoverTrigger>

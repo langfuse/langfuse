@@ -13,12 +13,15 @@ export type TemplateValidationInput = Pick<
 
 export function useSingleTemplateValidation({
   projectId,
+  enabled = true,
 }: {
   projectId: string;
+  enabled?: boolean;
 }) {
   const codeEvalCapabilities = useIsCodeEvalEnabled();
   const { data: defaultModel } = api.defaultLlmModel.fetchDefaultModel.useQuery(
     { projectId },
+    { enabled: enabled && !!projectId },
   );
 
   const templateRequiresDefaultModel = (
@@ -30,6 +33,8 @@ export function useSingleTemplateValidation({
   };
 
   const isTemplateInvalid = (template: TemplateValidationInput): boolean => {
+    if (!enabled) return false;
+
     if (isCodeEvalTemplate(template)) {
       return !shouldShowEvalTemplate(template, codeEvalCapabilities);
     }

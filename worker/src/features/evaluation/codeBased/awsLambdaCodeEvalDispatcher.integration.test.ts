@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { describe, expect, it } from "vitest";
 import {
   AwsLambdaCodeEvalDispatcher,
@@ -28,6 +29,7 @@ const baseInput: DispatchInput = {
       input: "hello",
       output: "hello world",
       metadata: { topic: "integration" },
+      toolCalls: [],
     },
     experiment: {
       itemExpectedOutput: "hello world",
@@ -50,7 +52,13 @@ const expectedScores = [
     dataType: "TEXT",
     metadata: { source: "runner-fixture" },
   },
-  { name: "rating", value: "good", dataType: "CATEGORICAL" },
+  {
+    name: "rating",
+    value: "good",
+    dataType: "CATEGORICAL",
+    configId: "rating-config",
+  },
+  { name: "untyped", value: "fallback" },
 ] as const;
 
 const sources: Record<CodeEvalRuntimeLanguage, string> = {
@@ -74,7 +82,8 @@ function evaluate(ctx: {
       { name: "output-contains-input-str", value: contains ? "True" : "False", dataType: "BOOLEAN" },
       { name: ctx.observation.metadata.topic, value: ctx.experiment?.itemMetadata.item ?? 0, dataType: "NUMERIC" },
       { name: "expected-output", value: ctx.experiment?.itemExpectedOutput ?? "", dataType: "TEXT", metadata: { source: "runner-fixture" } },
-      { name: "rating", value: "good", dataType: "CATEGORICAL" },
+      { name: "rating", value: "good", dataType: "CATEGORICAL", configId: "rating-config" },
+      { name: "untyped", value: "fallback" },
     ],
   };
 }
@@ -89,7 +98,8 @@ def evaluate(ctx):
             {"name": "output-contains-input-str", "value": "true" if contains else "false", "dataType": "BOOLEAN"},
             {"name": ctx.observation.metadata["topic"], "value": ctx.experiment.item_metadata["item"], "dataType": "NUMERIC"},
             Score(name="expected-output", value=ctx.experiment.item_expected_output, data_type="TEXT", metadata={"source": "runner-fixture"}),
-            {"name": "rating", "value": "good", "dataType": "CATEGORICAL"},
+            {"name": "rating", "value": "good", "data_type": "CATEGORICAL", "config_id": "rating-config"},
+            {"name": "untyped", "value": "fallback", "data_type": None, "config_id": None},
         ],
     }
 `,
@@ -126,6 +136,53 @@ describeWithFloci("AwsLambdaCodeEvalDispatcher Floci integration", () => {
       ).rejects.toMatchObject({
         code: "USER_CODE_ERROR",
         message: "boom",
+        retryable: false,
+      } satisfies Partial<CodeEvalDispatcherError>);
+    },
+    FLOCI_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "formats Python exceptions with type and evaluator line number",
+    async () => {
+      // Line 4 of the source raises; str(KeyError) alone would be just "'beer'".
+      await expect(
+        dispatcher.dispatch({
+          ...baseInput,
+          runtime: { language: "PYTHON" },
+          code: {
+            source: `
+def evaluate(ctx):
+    data = {"output": ctx.observation.output}
+    return data["beer"]
+`,
+          },
+        }),
+      ).rejects.toMatchObject({
+        code: "USER_CODE_ERROR",
+        message: "KeyError: 'beer' (line 4)",
+        retryable: false,
+      } satisfies Partial<CodeEvalDispatcherError>);
+    },
+    FLOCI_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "prefixes non-generic error names from the Node runner",
+    async () => {
+      await expect(
+        dispatcher.dispatch({
+          ...baseInput,
+          runtime: { language: "TYPESCRIPT" },
+          code: {
+            source: `function evaluate(ctx: any) { return ctx.observation.missing.deeply; }`,
+          },
+        }),
+      ).rejects.toMatchObject({
+        code: "USER_CODE_ERROR",
+        message: expect.stringMatching(
+          /^TypeError: Cannot read properties of undefined/,
+        ),
         retryable: false,
       } satisfies Partial<CodeEvalDispatcherError>);
     },

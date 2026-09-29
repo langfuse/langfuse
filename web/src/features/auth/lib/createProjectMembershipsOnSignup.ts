@@ -2,20 +2,28 @@ import { env } from "@/src/env.mjs";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import {
+  getOrganizationPlanServerSide,
+  hasEntitlementBasedOnPlan,
+} from "@/src/features/entitlements/server";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
-import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
-import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
-import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { canCreateOrganizations } from "@/src/features/organizations/server";
+import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server";
+import { projectRoleAccessRights } from "@langfuse/shared";
+import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 
 export async function createProjectMembershipsOnSignup(
   user: {
     id: string;
     email: string | null;
-    name?: string | null;
+    name: string | null;
   },
-  options?: { userWasJustCreated?: boolean },
+  options?: {
+    userWasJustCreated?: boolean;
+    /** Ad-platform click ids, see getAdClickIdsFromRequest */
+    adClickIds?: AdClickIds;
+  },
 ) {
   try {
     const isCloudDeployment = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
@@ -157,6 +165,37 @@ export async function createProjectMembershipsOnSignup(
       }
     }
 
+    // SFDC lead upsert (never throws; no-op when SfdcService is not
+    // configured).
+    // Must run BEFORE processMembershipInvitations below so the lead exists
+    // when setUserRole events fire for accepted invitations — which is also
+    // why the invitation lookup for the lead source runs here, while the
+    // invitations still exist.
+    if (options?.userWasJustCreated || isNewUser) {
+      const sfdcService = getSfdcService();
+      if (sfdcService) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { createdAt: true },
+        });
+        const hasPendingInvitation = user.email
+          ? (await prisma.membershipInvitation.findFirst({
+              where: { email: user.email.toLowerCase() },
+              select: { id: true },
+            })) !== null
+          : false;
+        await sfdcService.upsertUser({
+          userId: user.id,
+          email: user.email,
+          name: user.name,
+          createdAt: dbUser?.createdAt ?? new Date(),
+          leadSource: hasPendingInvitation
+            ? "Langfuse Cloud Invite"
+            : "Langfuse Cloud Signup",
+        });
+      }
+    }
+
     // Invites do not work for users without emails (some future SSO users)
     const joinedRealOrganizationViaInvitation = user.email
       ? await processMembershipInvitations(user.email, user.id)
@@ -168,11 +207,26 @@ export async function createProjectMembershipsOnSignup(
       canCreateOrganizations(user.email) &&
       (options?.userWasJustCreated || isNewUser)
     ) {
-      await provisionStarterOrganizationForNewUser({
+      const starterOrg = await provisionStarterOrganizationForNewUser({
         prisma,
         userId: user.id,
         userName: user.name,
       });
+
+      if (starterOrg) {
+        await getSfdcService()?.upsertOrg({
+          orgId: starterOrg.organization.id,
+          orgName: starterOrg.organization.name,
+          createdAt: starterOrg.organization.createdAt,
+          plan: "Hobby",
+        });
+        await getSfdcService()?.setUserRole({
+          orgId: starterOrg.organization.id,
+          userId: user.id,
+          email: user.email,
+          role: "OWNER",
+        });
+      }
     }
 
     if (isCloudDeployment && (options?.userWasJustCreated || isNewUser)) {
@@ -230,10 +284,15 @@ export async function createProjectMembershipsOnSignup(
     }
 
     // for conversion metric tracking in posthog: did a new user sign up?
+    // Fires on all production cloud regions, including ones added in the
+    // future. STAGING/DEV are excluded to keep test signups out of
+    // conversion metrics, and self-hosted deployments never emit this
+    // event as the region env is unset. HIPAA still constructs ServerPosthog
+    // here; the client is opted out via disable() so the capture is a no-op.
     if (
       isNewUser &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-      ["EU", "US"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
+      !["STAGING", "DEV"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
     ) {
       try {
         const posthog = new ServerPosthog();
@@ -245,6 +304,10 @@ export async function createProjectMembershipsOnSignup(
             hasDemoAccess: demoProject !== undefined,
             hasDefaultOrg: defaultOrgs.length > 0,
             hasDefaultProject: defaultProjects.length > 0,
+            // Google Ads click id for ad conversion attribution
+            // ad-platform click ids (gclid, li_fat_id, rdt_cid, twclid)
+            // for ad conversion attribution; only resolved ids are present
+            ...(options?.adClickIds ?? {}),
           },
         });
         await posthog.shutdown();
@@ -312,6 +375,18 @@ async function processMembershipInvitations(email: string, userId: string) {
       },
     }),
   ]);
+
+  // SFDC: link the freshly-created lead to each org as an org-member.
+  await Promise.all(
+    invitationsForUser.map((invitation) =>
+      getSfdcService()?.setUserRole({
+        orgId: invitation.orgId,
+        userId,
+        email,
+        role: invitation.orgRole,
+      }),
+    ),
+  );
 
   return joinedReadableRealProjectViaInvitation;
 }

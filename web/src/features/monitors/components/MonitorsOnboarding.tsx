@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { ChevronRight, Github, Plus, Slack, Webhook } from "lucide-react";
+import { Github, Plus, Slack, Webhook } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { ActionButton } from "@/src/components/ActionButton";
 import { Button } from "@/src/components/ui/button";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
-import { automationCreateHref } from "@/src/features/automations/components/automationForm";
+import { automationCreateHref } from "@/src/features/automations";
 import { type ActionTypes } from "@langfuse/shared";
 
 /** OnboardingChannel describes one notification-channel CTA shown in step 1 of the splash. */
@@ -67,14 +68,14 @@ export function MonitorsOnboarding({
                       href={automationCreateHref(
                         projectId,
                         channel.actionType,
-                        `/project/${projectId}/monitors`,
+                        `/project/${projectId}/alerts`,
                       )}
                     >
                       <span className="flex items-center gap-2">
                         {channel.icon}
                         {channel.label}
                       </span>
-                      <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                      <DropdownIndicator direction="right" />
                     </Link>
                   </Button>
                 ))}
@@ -84,16 +85,16 @@ export function MonitorsOnboarding({
           {
             title: "Decide what to monitor",
             description:
-              "Create monitors for sudden cost spikes, quality drops, latency changes, or other important changes.",
+              "Create alerts for sudden cost spikes, quality drops, latency changes, or other important changes.",
             content: (
               <ActionButton
                 hasAccess={hasCUDAccess}
                 icon={<Plus className="h-4 w-4" aria-hidden="true" />}
-                href={`/project/${projectId}/monitors/new`}
+                href={`/project/${projectId}/alerts/new`}
                 variant="default"
                 size="lg"
               >
-                Create Monitor
+                Create Alert
               </ActionButton>
             ),
           },

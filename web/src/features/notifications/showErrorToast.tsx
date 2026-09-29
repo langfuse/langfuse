@@ -7,8 +7,8 @@ const toastErrorStyleProps = {
 };
 
 const toastWarningStyleProps = {
-  border: "1px solid hsl(var(--light-yellow))",
-  backgroundColor: "hsl(var(--light-yellow))",
+  border: "1px solid var(--light-yellow)",
+  backgroundColor: "var(--light-yellow)",
 };
 
 export const showErrorToast = (

@@ -61,6 +61,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
     parse: vi.fn((value) => value),
   },
   addUserToSpan: addUserToSpanMock,
+  createApiKeyCacheKey: vi.fn((hash: string) => `api-key:${hash}`),
   createShaHash: createShaHashMock,
   deleteApiKeyFromDb: vi.fn(),
   invalidateCachedApiKeys: vi.fn(),

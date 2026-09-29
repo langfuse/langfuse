@@ -1,6 +1,6 @@
 import { env } from "@/src/env.mjs";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -10,6 +10,7 @@ import {
   AnnotationQueueStatus,
   CreateQueueData,
   filterAndValidateDbScoreConfigList,
+  isBaseError,
   LangfuseNotFoundError,
   optionalPaginationZod,
   Prisma,
@@ -315,44 +316,48 @@ export const queueRouter = createTRPCRouter({
         );
         const plan = org?.plan ?? "oss";
 
-        if (plan === "cloud:hobby") {
-          if (
-            (await ctx.prisma.annotationQueue.count({
-              where: {
-                projectId: input.projectId,
-              },
-            })) >= 1
-          ) {
-            throw new TRPCError({
-              code: "FORBIDDEN",
-              message:
-                "Maximum number of annotation queues reached on Hobby plan.",
+        // Counting and inserting must share one serializable snapshot.
+        // Otherwise parallel creates with distinct names all observe
+        // count = 0 and bypass the hobby limit, which the (projectId, name)
+        // unique index cannot prevent.
+        const queue = await ctx.prisma.$transaction(
+          async (tx) => {
+            if (plan === "cloud:hobby") {
+              const queueCount = await tx.annotationQueue.count({
+                where: { projectId: input.projectId },
+              });
+
+              if (queueCount >= 1) {
+                throw new TRPCError({
+                  code: "FORBIDDEN",
+                  message:
+                    "Maximum number of annotation queues reached on Hobby plan.",
+                });
+              }
+            }
+
+            const existingQueue = await tx.annotationQueue.findFirst({
+              where: { projectId: input.projectId, name: input.name },
             });
-          }
-        }
 
-        const existingQueue = await ctx.prisma.annotationQueue.findFirst({
-          where: {
-            projectId: input.projectId,
-            name: input.name,
+            if (existingQueue) {
+              throw new TRPCError({
+                code: "CONFLICT",
+                message: "A queue with this name already exists in the project",
+              });
+            }
+
+            return tx.annotationQueue.create({
+              data: {
+                name: input.name,
+                projectId: input.projectId,
+                description: input.description,
+                scoreConfigIds: input.scoreConfigIds,
+              },
+            });
           },
-        });
-
-        if (existingQueue) {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: "A queue with this name already exists in the project",
-          });
-        }
-
-        const queue = await ctx.prisma.annotationQueue.create({
-          data: {
-            name: input.name,
-            projectId: input.projectId,
-            description: input.description,
-            scoreConfigIds: input.scoreConfigIds,
-          },
-        });
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
 
         await auditLog({
           session: ctx.session,
@@ -368,6 +373,27 @@ export const queueRouter = createTRPCRouter({
         if (error instanceof TRPCError) {
           throw error;
         }
+
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "A queue with this name already exists in the project",
+          });
+        }
+
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2034"
+        ) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Could not create annotation queue, please retry.",
+          });
+        }
+
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Creating annotation queue failed.",
@@ -400,6 +426,23 @@ export const queueRouter = createTRPCRouter({
           throw new LangfuseNotFoundError("Queue not found in project");
         }
 
+        const existingQueueWithName =
+          await ctx.prisma.annotationQueue.findFirst({
+            where: {
+              projectId: input.projectId,
+              name: input.name,
+              id: { not: input.queueId },
+            },
+            select: { id: true },
+          });
+
+        if (existingQueueWithName) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "A queue with this name already exists in the project",
+          });
+        }
+
         const updatedQueue = await ctx.prisma.annotationQueue.update({
           where: { id: input.queueId, projectId: input.projectId },
           data: {
@@ -420,10 +463,21 @@ export const queueRouter = createTRPCRouter({
 
         return updatedQueue;
       } catch (error) {
-        logger.error(error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || isBaseError(error)) {
           throw error;
         }
+
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "A queue with this name already exists in the project",
+          });
+        }
+
+        logger.error(error);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Updating annotation queue failed.",

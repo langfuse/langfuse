@@ -150,4 +150,21 @@ export const sessionCols: UiColumnMappings = [
     clickhouseTableName: "scores",
     clickhouseSelect: "score_categories",
   },
+  {
+    uiTableName: "Scores (boolean)",
+    uiTableId: "score_booleans",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "score_booleans",
+  },
 ];
+
+export const sessionEventsCols: UiColumnMappings = sessionCols.concat({
+  uiTableName: "Metadata",
+  uiTableId: "metadata",
+  clickhouseTableName: "events_proto",
+  clickhouseSelect: "metadata",
+  queryPrefix: "s",
+});
+
+export const sessionEventsOrderByCols: UiColumnMappings =
+  sessionEventsCols.filter((column) => column.uiTableId !== "metadata");

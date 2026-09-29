@@ -1,5 +1,5 @@
 import {
-  createEvent,
+  createEvent as createEventBase,
   createEventsCh,
   createOrgProjectAndApiKey,
   queryClickhouse,
@@ -11,13 +11,19 @@ import {
 import { GetObservationsV2Response } from "@/src/features/public-api/types/observations";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
-// Shared env: the subquery-rewrite kill-switch is read by shouldUseObservationsSubqueryRewrite()
-// from the shared env object, not the web env above. Mutate this instance to toggle the flag.
-import { env as sharedEnv } from "@langfuse/shared/src/env";
 import waitForExpect from "wait-for-expect";
 
 let projectId: string;
 let auth: string;
+
+// The events tables carry metadata as flattened `metadata_names` /
+// `metadata_values` arrays. The fixtures below also pass the nested object
+// form for readability; it is not a column and is ignored by the insert.
+const createEvent = (
+  event: Parameters<typeof createEventBase>[0] & {
+    metadata?: Record<string, unknown>;
+  },
+) => createEventBase(event);
 
 const getObservations = (url: string) =>
   makeZodVerifiedAPICall(
@@ -65,6 +71,43 @@ describe("/api/public/v2/observations API Endpoint", () => {
   });
 
   maybe("GET /api/public/v2/observations", () => {
+    it("clamps Hobby observation access to the last 30 days", async () => {
+      const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
+      const oldId = randomUUID();
+      const recentId = randomUUID();
+      const createObservationAt = (id: string, timestamp: number) =>
+        createEvent({
+          id,
+          span_id: id,
+          trace_id: randomUUID(),
+          project_id: fixture.projectId,
+          name: `data-access-${id}`,
+          type: "SPAN",
+          level: "DEFAULT",
+          start_time: timestamp * 1000,
+          end_time: timestamp * 1000 + 1_000,
+        });
+      await createEventsCh([
+        createObservationAt(oldId, Date.now() - 100 * 24 * 60 * 60 * 1000),
+        createObservationAt(recentId, Date.now() - 24 * 60 * 60 * 1000),
+      ]);
+
+      const response = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        "/api/public/v2/observations",
+        undefined,
+        fixture.auth,
+      );
+
+      expect(response.body.data.map((observation) => observation.id)).toContain(
+        recentId,
+      );
+      expect(
+        response.body.data.map((observation) => observation.id),
+      ).not.toContain(oldId);
+    });
+
     it("allows legacy v1 contains filters on IO", async () => {
       const filterParam = JSON.stringify([
         {
@@ -94,6 +137,8 @@ describe("/api/public/v2/observations API Endpoint", () => {
         span_id: observationId,
         trace_id: traceId,
         project_id: projectId,
+        parent_span_id: "external-parent",
+        is_app_root: true,
         name: "test-observation",
         type: "GENERATION",
         level: "DEFAULT",
@@ -109,9 +154,9 @@ describe("/api/public/v2/observations API Endpoint", () => {
 
       await createEventsCh([observation]);
 
-      // Request only basic field group (core is always included)
+      // Request only basic and trace context field groups (core is always included)
       const response = await getObservations(
-        `/api/public/v2/observations?fields=basic&traceId=${traceId}`,
+        `/api/public/v2/observations?fields=basic,trace_context&traceId=${traceId}`,
       );
 
       expect(response.status).toBe(200);
@@ -136,6 +181,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       // Verify basic fields are present
       expect(createdObs?.name).toBe("test-observation");
       expect(createdObs?.level).toBe("DEFAULT");
+      expect(createdObs?.traceName).toBe("test-observation");
 
       // Verify fields from non-requested groups are not present
       expect(createdObs?.input).toBeUndefined();
@@ -194,6 +240,38 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty("error");
       expect(JSON.stringify(response.body)).toContain("parseIoAsJson");
+    });
+
+    it("returns core and basic fields when fields is omitted", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "default-fields-observation",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      const response = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toContainEqual(
+        expect.objectContaining({
+          id: observationId,
+          name: "default-fields-observation",
+          level: "DEFAULT",
+          isRootObservation: true,
+        }),
+      );
     });
 
     it("should respect limit parameter with default of 50", async () => {
@@ -262,14 +340,234 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(obs?.level).toBe("WARNING");
     });
 
+    it("should filter observations by sessionId and prefer advanced filters", async () => {
+      const sessionId = `session-${randomUUID()}`;
+      const otherSessionId = `session-${randomUUID()}`;
+      const userId = `user-${randomUUID()}`;
+      const otherUserId = `user-${randomUUID()}`;
+      const environment = `environment-${randomUUID()}`;
+      const otherEnvironment = `environment-${randomUUID()}`;
+      const observations = [
+        [sessionId, userId, environment],
+        [otherSessionId, otherUserId, otherEnvironment],
+      ].map(([value, observationUserId, observationEnvironment]) => {
+        const observationId = randomUUID();
+        return createEvent({
+          id: observationId,
+          span_id: observationId,
+          trace_id: randomUUID(),
+          project_id: projectId,
+          name: `session-filter-${value}`,
+          type: "GENERATION",
+          level: "DEFAULT",
+          session_id: value,
+          user_id: observationUserId,
+          environment: observationEnvironment,
+          start_time: Date.now() * 1000,
+        });
+      });
+      const otherProject = await createOrgProjectAndApiKey();
+      const crossProjectObservationId = randomUUID();
+      const crossProjectObservation = createEvent({
+        id: crossProjectObservationId,
+        span_id: crossProjectObservationId,
+        trace_id: randomUUID(),
+        project_id: otherProject.projectId,
+        name: "cross-project-session-filter",
+        type: "GENERATION",
+        level: "DEFAULT",
+        session_id: sessionId,
+        start_time: Date.now() * 1000,
+      });
+
+      await createEventsCh([...observations, crossProjectObservation]);
+
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events_core WHERE span_id IN ({ids: Array(String)})`,
+            params: {
+              ids: [
+                ...observations.map((observation) => observation.span_id),
+                crossProjectObservation.span_id,
+              ],
+            },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(3);
+        },
+        5000,
+        10,
+      );
+
+      const matchingResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic&sessionId=${encodeURIComponent(sessionId)}`,
+      );
+
+      expect(matchingResponse.status).toBe(200);
+      expect(matchingResponse.body.data).toHaveLength(1);
+      expect(matchingResponse.body.data[0]?.sessionId).toBe(sessionId);
+
+      const missingResponse = await getObservations(
+        "/api/public/v2/observations?fields=basic&sessionId=missing-session",
+      );
+
+      expect(missingResponse.status).toBe(200);
+      expect(missingResponse.body.data).toHaveLength(0);
+
+      const advancedFilter = JSON.stringify([
+        {
+          type: "string",
+          column: "sessionId",
+          operator: "=",
+          value: otherSessionId,
+        },
+      ]);
+      const advancedFilterResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic&sessionId=${encodeURIComponent(sessionId)}&filter=${encodeURIComponent(advancedFilter)}`,
+      );
+
+      expect(advancedFilterResponse.status).toBe(200);
+      expect(advancedFilterResponse.body.data).toHaveLength(1);
+      expect(advancedFilterResponse.body.data[0]?.sessionId).toBe(
+        otherSessionId,
+      );
+
+      const userAdvancedFilter = JSON.stringify([
+        {
+          type: "string",
+          column: "userId",
+          operator: "=",
+          value: otherUserId,
+        },
+      ]);
+      const userFilterResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic&userId=${encodeURIComponent(userId)}&filter=${encodeURIComponent(userAdvancedFilter)}`,
+      );
+
+      expect(userFilterResponse.status).toBe(200);
+      expect(userFilterResponse.body.data).toHaveLength(1);
+      expect(userFilterResponse.body.data[0]?.id).toBe(
+        observations[1]?.span_id,
+      );
+
+      const nameAdvancedFilter = JSON.stringify([
+        {
+          type: "string",
+          column: "name",
+          operator: "=",
+          value: observations[1]!.name,
+        },
+      ]);
+      const nameFilterResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic&name=${encodeURIComponent(observations[0]!.name)}&filter=${encodeURIComponent(nameAdvancedFilter)}`,
+      );
+
+      expect(nameFilterResponse.status).toBe(200);
+      expect(nameFilterResponse.body.data).toHaveLength(1);
+      expect(nameFilterResponse.body.data[0]?.id).toBe(
+        observations[1]?.span_id,
+      );
+
+      const environmentAdvancedFilter = JSON.stringify([
+        {
+          type: "string",
+          column: "traceEnvironment",
+          operator: "=",
+          value: otherEnvironment,
+        },
+      ]);
+      const environmentFilterResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic&environment=${encodeURIComponent(environment)}&filter=${encodeURIComponent(environmentAdvancedFilter)}`,
+      );
+
+      expect(environmentFilterResponse.status).toBe(200);
+      expect(environmentFilterResponse.body.data).toHaveLength(1);
+      expect(environmentFilterResponse.body.data[0]?.id).toBe(
+        observations[1]?.span_id,
+      );
+    });
+
+    it("should filter semantic roots while preserving their physical parent", async () => {
+      const traceId = randomUUID();
+      const physicalRootId = randomUUID();
+      const appRootId = randomUUID();
+      const childId = randomUUID();
+      const externalParentId = randomUUID();
+      const timeValue = Date.now() * 1000;
+
+      await createEventsCh(
+        (
+          [
+            [physicalRootId, "", false],
+            [appRootId, externalParentId, true],
+            [childId, physicalRootId, false],
+          ] as const
+        ).map(([id, parentSpanId, isAppRoot], offset) =>
+          createEvent({
+            id,
+            span_id: id,
+            parent_span_id: parentSpanId,
+            is_app_root: isAppRoot,
+            trace_id: traceId,
+            project_id: projectId,
+            type: "SPAN",
+            level: "DEFAULT",
+            start_time: timeValue + offset,
+          }),
+        ),
+      );
+
+      const fetchTopology = async (filter: string) =>
+        Object.fromEntries(
+          (
+            await getObservations(
+              `/api/public/v2/observations?fields=basic&traceId=${traceId}&${filter}`,
+            )
+          ).body.data.map(({ id, isRootObservation, parentObservationId }) => [
+            id,
+            [isRootObservation, parentObservationId],
+          ]),
+        );
+      const structuredFilter = encodeURIComponent(
+        JSON.stringify([
+          {
+            type: "boolean",
+            column: "isRootObservation",
+            operator: "=",
+            value: true,
+          },
+        ]),
+      );
+      const expectedRoots = {
+        [physicalRootId]: [true, null],
+        [appRootId]: [true, externalParentId],
+      };
+
+      expect(
+        await Promise.all(
+          [
+            "isRootObservation=true",
+            `filter=${structuredFilter}`,
+            "parentObservationId=",
+            "isRootObservation=false",
+          ].map(fetchTopology),
+        ),
+      ).toEqual([
+        expectedRoots,
+        expectedRoots,
+        { [physicalRootId]: [true, null] },
+        { [childId]: [false, physicalRootId] },
+      ]);
+    });
+
     it("should filter by multiple environment query params (any-of semantics)", async () => {
       const traceId = randomUUID();
       const envA = `env-a-${randomUUID()}`;
       const envB = `env-b-${randomUUID()}`;
       const envC = `env-c-${randomUUID()}`;
-      const observationIdA = randomUUID();
-      const observationIdB = randomUUID();
-      const observationIdC = randomUUID();
+      const observationIdA: string = randomUUID();
+      const observationIdB: string = randomUUID();
+      const observationIdC: string = randomUUID();
       const timestamp = new Date();
       const timeValue = timestamp.getTime() * 1000;
 
@@ -1057,6 +1355,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       "public",
       "userId",
       "sessionId",
+      "isRootObservation",
       // time
       "completionStartTime",
       "createdAt",
@@ -1170,6 +1469,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         "public",
         "userId",
         "sessionId",
+        "isRootObservation",
       ],
       time: ["completionStartTime", "createdAt", "updatedAt"],
       io: ["input", "output"],
@@ -1234,6 +1534,40 @@ describe("/api/public/v2/observations API Endpoint", () => {
         }
       });
     }
+  });
+
+  maybe("trace_context group: unresolvable trace name", () => {
+    // The events table ships "no resolvable trace name" as '' on the wire
+    // (eventsTableTraceNameSelectSql, LFE-14924). The API contract is null, so
+    // the partial (field-group) converter must map it back.
+    it("returns null traceName for a child span without a stored trace name", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          parent_span_id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          type: "SPAN",
+          name: "child-without-trace-name",
+          trace_name: "",
+        }),
+      ]);
+
+      const response = await getObservations(
+        `/api/public/v2/observations?fields=trace_context&traceId=${traceId}`,
+      );
+
+      expect(response.status).toBe(200);
+      const observation = response.body.data.find(
+        (candidate: { id: string }) => candidate.id === observationId,
+      );
+      expect(observation).toBeDefined();
+      expect(observation?.traceName).toBeNull();
+    });
   });
 
   maybe("Metadata expansion with expandMetadata parameter", () => {
@@ -1738,262 +2072,9 @@ describe("/api/public/v2/observations API Endpoint", () => {
       // Should fail validation
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty("message");
-      expect((response.body as { message: string }).message).toContain(
-        "Invalid cursor format",
-      );
-    });
-  });
-
-  // Exercises the needsIOCTE branch (the only path the rewrite replaces)
-  // under both flag values: results must match the CTE path byte-identically
-  // and keep the canonical ORDER BY.
-  maybe("subquery rewrite", () => {
-    const originalFlag = sharedEnv.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE;
-
-    const setRewrite = (value: "true" | "false") => {
-      (
-        sharedEnv as { LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: string }
-      ).LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE = value;
-    };
-
-    afterEach(() => {
-      setRewrite(originalFlag);
-    });
-
-    const seedRichObservations = async (traceId: string, count: number) => {
-      const base = Date.now() * 1000;
-      const seeded = [] as Array<{ id: string; startMicros: number }>;
-      const events = Array.from({ length: count }, (_, i) => {
-        const obsId = randomUUID();
-        const startMicros = base + i * 1000 * 1000; // 1s apart, distinct order
-        seeded.push({ id: obsId, startMicros });
-        return createEvent({
-          id: obsId,
-          span_id: obsId,
-          trace_id: traceId,
-          project_id: projectId,
-          name: `rewrite-obs-${i}`,
-          type: "GENERATION",
-          level: "DEFAULT",
-          start_time: startMicros,
-          end_time: startMicros + 500 * 1000,
-          input: `input-${i}-${"x".repeat(300)}`, // > events_core truncation
-          output: `output-${i}-${"y".repeat(300)}`,
-          metadata: { source: "api", idx: String(i) },
-          metadata_names: ["source", "idx"],
-          metadata_values: ["api", String(i)],
-          provided_model_name: "gpt-4",
-        });
-      });
-      await createEventsCh(events);
-      return seeded;
-    };
-
-    it("returns identical results to the CTE path across field-group combos", async () => {
-      const traceId = randomUUID();
-      await seedRichObservations(traceId, 5);
-
-      // Each combo includes `io` (or expandMetadata) so the needsIOCTE branch —
-      // the only path the rewrite touches — is exercised.
-      const urls = [
-        `/api/public/v2/observations?traceId=${traceId}&fields=core,basic,io`,
-        `/api/public/v2/observations?traceId=${traceId}&fields=core,basic,model,usage,io,metadata`,
-        `/api/public/v2/observations?traceId=${traceId}&fields=io,metadata`,
-        `/api/public/v2/observations?traceId=${traceId}&fields=metadata&expandMetadata=source,idx`,
-      ];
-
-      for (const url of urls) {
-        setRewrite("false");
-        const ctePath = await getObservations(url);
-        setRewrite("true");
-        const subqueryPath = await getObservations(url);
-
-        expect(subqueryPath.status).toBe(200);
-        expect(ctePath.status).toBe(200);
-        expect(subqueryPath.body.data.length).toBe(5);
-        // Byte-identical rows (same values, same order) between both code paths.
-        expect(subqueryPath.body.data).toEqual(ctePath.body.data);
-      }
-    });
-
-    it("applies the canonical ORDER BY under the subquery path", async () => {
-      const traceId = randomUUID();
-      const base = Date.now() * 1000;
-
-      // Two observations share a start_time to exercise the span_id tiebreak.
-      const sharedStart = base + 1000 * 1000;
-      const specs = [
-        { id: randomUUID(), startMicros: base + 3 * 1000 * 1000 },
-        { id: randomUUID(), startMicros: sharedStart },
-        { id: randomUUID(), startMicros: sharedStart },
-        { id: randomUUID(), startMicros: base },
-      ];
-      await createEventsCh(
-        specs.map((s, i) =>
-          createEvent({
-            id: s.id,
-            span_id: s.id,
-            trace_id: traceId,
-            project_id: projectId,
-            name: `order-obs-${i}`,
-            type: "GENERATION",
-            level: "DEFAULT",
-            start_time: s.startMicros,
-            input: `io-${i}`,
-            output: `io-${i}`,
-          }),
-        ),
-      );
-
-      // Canonical order within a single trace (xxHash32(trace_id) constant):
-      // start_time DESC, then span_id DESC.
-      const expectedIds = [...specs]
-        .sort((a, b) =>
-          b.startMicros !== a.startMicros
-            ? b.startMicros - a.startMicros
-            : a.id < b.id
-              ? 1
-              : a.id > b.id
-                ? -1
-                : 0,
-        )
-        .map((s) => s.id);
-
-      setRewrite("true");
-      const response = await getObservations(
-        `/api/public/v2/observations?traceId=${traceId}&fields=io&limit=50`,
-      );
-
-      expect(response.status).toBe(200);
-      expect(response.body.data.map((o: { id: string }) => o.id)).toEqual(
-        expectedIds,
-      );
-    });
-
-    it("returns identical results to the CTE path for trace-level (userId) filters", async () => {
-      // userId is a trace-level field denormalized onto events_*, so it
-      // filters inside the IN subquery without an external traces CTE.
-      const traceId = randomUUID();
-      const userId = `rewrite-user-${randomUUID()}`;
-      const base = Date.now() * 1000;
-
-      await createEventsCh(
-        Array.from({ length: 4 }, (_, i) => {
-          const obsId = randomUUID();
-          return createEvent({
-            id: obsId,
-            span_id: obsId,
-            trace_id: traceId,
-            project_id: projectId,
-            user_id: i < 2 ? userId : `other-user-${i}`,
-            name: `user-filter-obs-${i}`,
-            type: "GENERATION",
-            level: "DEFAULT",
-            start_time: base + i * 1000 * 1000,
-            input: `input-${i}-${"x".repeat(300)}`, // > events_core truncation
-            output: `output-${i}-${"y".repeat(300)}`,
-          });
-        }),
-      );
-
-      const url = `/api/public/v2/observations?traceId=${traceId}&userId=${userId}&fields=core,basic,io`;
-
-      setRewrite("false");
-      const ctePath = await getObservations(url);
-      setRewrite("true");
-      const subqueryPath = await getObservations(url);
-
-      expect(ctePath.status).toBe(200);
-      expect(subqueryPath.status).toBe(200);
-      expect(subqueryPath.body.data.length).toBe(2);
-      expect(subqueryPath.body.data).toEqual(ctePath.body.data);
-    });
-
-    it("paginates without skips or duplicates under the subquery path", async () => {
-      const traceId = randomUUID();
-      const seeded = await seedRichObservations(traceId, 5);
-      const expectedIds = [...seeded]
-        .sort((a, b) => b.startMicros - a.startMicros)
-        .map((s) => s.id);
-
-      setRewrite("true");
-      const collected: string[] = [];
-      let cursor: string | undefined;
-      for (let page = 0; page < 4; page++) {
-        const response = await getObservations(
-          `/api/public/v2/observations?traceId=${traceId}&fields=io&limit=2` +
-            (cursor ? `&cursor=${cursor}` : ""),
-        );
-        expect(response.status).toBe(200);
-        collected.push(...response.body.data.map((o: { id: string }) => o.id));
-        cursor = response.body.meta.cursor ?? undefined;
-        if (!cursor) break;
-      }
-
-      // Every seeded row exactly once, in canonical order across pages.
-      expect(collected).toEqual(expectedIds);
-    });
-
-    it("returns identical results to the CTE path for FTS filters (forceFullTable)", async () => {
-      // A `matches` filter on output is an FTS filter, which escalates the
-      // inner query from events_core to events_full.
-      const traceId = randomUUID();
-      const base = Date.now() * 1000;
-      const matching = [randomUUID(), randomUUID()];
-
-      await createEventsCh(
-        Array.from({ length: 5 }, (_, i) => {
-          const obsId = i < 2 ? matching[i] : randomUUID();
-          return createEvent({
-            id: obsId,
-            span_id: obsId,
-            trace_id: traceId,
-            project_id: projectId,
-            name: `fts-obs-${i}`,
-            type: "GENERATION",
-            level: "DEFAULT",
-            start_time: base + i * 1000 * 1000,
-            input: `input-${i}-${"x".repeat(300)}`,
-            output:
-              i < 2
-                ? `needle result ${i} ${"y".repeat(300)}`
-                : `plain result ${i} ${"y".repeat(300)}`,
-          });
-        }),
-      );
-
-      const filterParam = JSON.stringify([
-        {
-          type: "string",
-          column: "output",
-          operator: "matches",
-          value: "needle",
-        },
-      ]);
-      const url = `/api/public/v2/observations?traceId=${traceId}&fields=core,basic,io&filter=${encodeURIComponent(filterParam)}`;
-
-      setRewrite("false");
-      const ctePath = await getObservations(url);
-      setRewrite("true");
-      const subqueryPath = await getObservations(url);
-
-      expect(ctePath.status).toBe(200);
-      expect(subqueryPath.status).toBe(200);
       expect(
-        subqueryPath.body.data.map((o: { id: string }) => o.id).sort(),
-      ).toEqual([...matching].sort());
-      expect(subqueryPath.body.data).toEqual(ctePath.body.data);
-    });
-
-    it("returns an empty page under the subquery path", async () => {
-      setRewrite("true");
-      const response = await getObservations(
-        `/api/public/v2/observations?traceId=${randomUUID()}&fields=io`,
-      );
-
-      expect(response.status).toBe(200);
-      expect(response.body.data).toEqual([]);
-      expect(response.body.meta.cursor).toBeUndefined();
+        (response.body as unknown as { message: string }).message,
+      ).toContain("Invalid cursor format");
     });
   });
 });

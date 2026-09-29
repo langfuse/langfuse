@@ -4,21 +4,29 @@ import type { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/
 import { VERSION } from "../../constants/VERSION";
 import { env } from "../../env";
 import { logger } from "../logger";
-import {
-  compareParsedVersions,
-  parseVersionString,
-  type ParsedVersion,
-} from "../utils/compareVersions";
+import { compareParsedVersions } from "../utils/compareVersions";
 import { ClickHouseLogger, mapLogLevel } from "./clickhouse-logger";
 
-export type ClickHouseVersion = ParsedVersion;
+type ClickHouseVersionTuple = readonly [number, number, number, number];
+
+export type ClickHouseVersion = {
+  raw: string;
+  major: number;
+  minor: number;
+  patch: number;
+  build: number;
+  tuple: ClickHouseVersionTuple;
+};
 
 export type ClickHouseVersionBand = {
   minInclusive: string;
   maxExclusive?: string;
 };
 
-type ClickHouseCompatibilityEnvKey = "CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION";
+type ClickHouseCompatibilityEnvKey =
+  | "CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION"
+  | "CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN"
+  | "CLICKHOUSE_ENABLE_SKIP_INDEXES_ON_DATA_READ";
 
 type ClickHouseCompatibilityEnvValue = "auto" | "true" | "false";
 
@@ -31,6 +39,17 @@ type ClickHouseCompatibilityRule = {
   overrideEnvKey: ClickHouseCompatibilityEnvKey;
 };
 
+type ComputedClickHouseCompatibilityFlag = {
+  id: string;
+  setting: string;
+  value: ClickHouseSettings[string];
+  reason: string;
+  override: ClickHouseCompatibilityEnvValue;
+  versionBands: ClickHouseVersionBand[];
+  matchesVersionBand: boolean;
+  applied: boolean;
+};
+
 type ResolveClickHouseCompatibilityParams = {
   version?: string | null;
   overrides?: Partial<
@@ -41,17 +60,42 @@ type ResolveClickHouseCompatibilityParams = {
 type ResolvedClickHouseCompatibility = {
   settings: ClickHouseSettings;
   appliedRules: ClickHouseCompatibilityRule[];
+  parsedVersion: ClickHouseVersion | null;
+  flags: ComputedClickHouseCompatibilityFlag[];
 };
 
 const CLICKHOUSE_COMPATIBILITY_RULES: ClickHouseCompatibilityRule[] = [
   {
-    id: "disable-lazy-materialization",
+    id: "disable-lazy-materialization-for-patch-parts",
     setting: "query_plan_optimize_lazy_materialization",
     value: 0,
     reason:
-      "Work around ClickHouse analyzer failures that can surface as `Not found column and(...)` on compound predicates.",
-    versionBands: [{ minInclusive: "25.4.0" }],
+      "Work around ClickHouse #102904, where lazy materialization can lose `_block_number` while reading lightweight-update patch parts.",
+    versionBands: [{ minInclusive: "25.4.0.0", maxExclusive: "26.4.1.1005" }],
     overrideEnvKey: "CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION",
+  },
+  {
+    id: "disable-top-k-through-join",
+    setting: "query_plan_top_k_through_join",
+    value: 0,
+    reason:
+      "Work around ClickHouse #109210, where top-K-through-join can leave lazy materialization with a dangling filter input.",
+    versionBands: [
+      { minInclusive: "26.5.1.651", maxExclusive: "26.5.6.70" },
+      { minInclusive: "26.6.0.0", maxExclusive: "26.6.2.108" },
+      { minInclusive: "26.7.0.0", maxExclusive: "26.7.1.1334" },
+      { minInclusive: "26.7.2.0", maxExclusive: "26.7.2.11" },
+    ],
+    overrideEnvKey: "CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN",
+  },
+  {
+    id: "enable-skip-indexes-on-data-read",
+    setting: "use_skip_indexes_on_data_read",
+    value: 1,
+    reason:
+      "Evaluate skip indexes at granule read time to cut query startup latency. Held back below 26.2, where reading a column patched by a lightweight update fails with `Not found column _part_offset in block`.",
+    versionBands: [{ minInclusive: "26.2.0.0" }],
+    overrideEnvKey: "CLICKHOUSE_ENABLE_SKIP_INDEXES_ON_DATA_READ",
   },
 ];
 
@@ -60,15 +104,42 @@ let initializationPromise: Promise<void> | null = null;
 
 export const parseClickHouseVersion = (
   rawVersion: string,
-): ClickHouseVersion | null => parseVersionString(rawVersion);
+): ClickHouseVersion | null => {
+  const match = rawVersion
+    .trim()
+    .match(/^v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?(?:[.+-].+)?$/);
+  if (!match) return null;
 
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  const patch = Number(match[3]);
+  const build = Number(match[4] ?? 0);
+
+  if (![major, minor, patch, build].every(Number.isSafeInteger)) return null;
+
+  return {
+    raw: rawVersion,
+    major,
+    minor,
+    patch,
+    build,
+    tuple: [major, minor, patch, build],
+  };
+};
+
+const parsedVersionBoundCache = new Map<string, ClickHouseVersion>();
 const parseVersionBound = (version: string): ClickHouseVersion => {
+  const cached = parsedVersionBoundCache.get(version);
+  if (cached) return cached;
+
   const parsed = parseClickHouseVersion(version);
   if (!parsed) {
     throw new Error(
       `Invalid ClickHouse compatibility version bound: ${version}`,
     );
   }
+
+  parsedVersionBoundCache.set(version, parsed);
   return parsed;
 };
 
@@ -93,6 +164,47 @@ export const isClickHouseVersionInBand = (
   return true;
 };
 
+// The setting was introduced in ClickHouse 24.4.
+const CLICKHOUSE_JSON_BAD_UNICODE_ESCAPE_MIN_VERSION = "24.4.0.0";
+
+type ClickHouseJsonBadUnicodeEscapeMode = NonNullable<
+  typeof env.LANGFUSE_JSON_BAD_UNICODE_ESCAPE
+>;
+
+type ResolvedClickHouseJsonBadUnicodeEscapeMode = Exclude<
+  ClickHouseJsonBadUnicodeEscapeMode,
+  "auto"
+>;
+
+export const resolveClickHouseJsonBadUnicodeEscapeMode = ({
+  version,
+  configuredMode,
+  applicationVersion = VERSION,
+}: {
+  version?: string | null;
+  configuredMode?: ClickHouseJsonBadUnicodeEscapeMode;
+  applicationVersion?: string;
+} = {}): ResolvedClickHouseJsonBadUnicodeEscapeMode => {
+  const mode =
+    configuredMode ??
+    (applicationVersion.startsWith("v4.") ? "no_throw" : "auto");
+
+  if (mode !== "auto") return mode;
+
+  return version &&
+    isClickHouseVersionInBand(version, {
+      minInclusive: CLICKHOUSE_JSON_BAD_UNICODE_ESCAPE_MIN_VERSION,
+    })
+    ? "no_throw"
+    : "sanitize";
+};
+
+export const getClickHouseJsonBadUnicodeEscapeMode = () =>
+  resolveClickHouseJsonBadUnicodeEscapeMode({
+    version: detectedClickHouseVersion,
+    configuredMode: env.LANGFUSE_JSON_BAD_UNICODE_ESCAPE,
+  });
+
 export const resolveClickHouseCompatibility = ({
   version,
   overrides,
@@ -100,28 +212,38 @@ export const resolveClickHouseCompatibility = ({
   const parsedVersion = version ? parseClickHouseVersion(version) : null;
   const settings: ClickHouseSettings = {};
   const appliedRules: ClickHouseCompatibilityRule[] = [];
+  const flags: ComputedClickHouseCompatibilityFlag[] = [];
 
   for (const rule of CLICKHOUSE_COMPATIBILITY_RULES) {
     const override =
       overrides?.[rule.overrideEnvKey] ?? env[rule.overrideEnvKey] ?? "auto";
+    const matchesVersionBand =
+      parsedVersion !== null &&
+      rule.versionBands.some((band) =>
+        isClickHouseVersionInBand(parsedVersion, band),
+      );
 
-    if (override === "false") continue;
+    const applied =
+      override === "true" || (override === "auto" && matchesVersionBand);
 
-    const shouldApply =
-      override === "true" ||
-      (override === "auto" &&
-        parsedVersion &&
-        rule.versionBands.some((band) =>
-          isClickHouseVersionInBand(parsedVersion, band),
-        ));
+    flags.push({
+      id: rule.id,
+      setting: rule.setting,
+      value: rule.value,
+      reason: rule.reason,
+      override,
+      versionBands: rule.versionBands,
+      matchesVersionBand,
+      applied,
+    });
 
-    if (shouldApply) {
+    if (applied) {
       settings[rule.setting] = rule.value;
       appliedRules.push(rule);
     }
   }
 
-  return { settings, appliedRules };
+  return { settings, appliedRules, parsedVersion, flags };
 };
 
 export const getClickHouseCompatibilitySettings = (): ClickHouseSettings =>
@@ -133,14 +255,29 @@ export const initializeClickhouseCompatibility = async (): Promise<void> => {
 
   initializationPromise = (async () => {
     try {
-      detectedClickHouseVersion = await fetchClickHouseVersion();
+      const clickHouseVersion = await fetchClickHouseVersion();
       const resolved = resolveClickHouseCompatibility({
-        version: detectedClickHouseVersion,
+        version: clickHouseVersion,
       });
+
+      logger.info("Resolved ClickHouse compatibility from version", {
+        clickhouseVersion: clickHouseVersion,
+        parsedClickHouseVersion: resolved.parsedVersion,
+        computedCompatibilityFlags: resolved.flags,
+        settings: resolved.settings,
+      });
+
+      if (!resolved.parsedVersion) {
+        throw new Error(
+          `ClickHouse returned an unsupported version: ${clickHouseVersion}`,
+        );
+      }
+
+      detectedClickHouseVersion = clickHouseVersion;
 
       if (resolved.appliedRules.length > 0) {
         logger.info("Applying ClickHouse compatibility settings", {
-          clickhouseVersion: detectedClickHouseVersion,
+          clickhouseVersion: clickHouseVersion,
           settings: resolved.settings,
           rules: resolved.appliedRules.map((rule) => ({
             id: rule.id,
@@ -150,7 +287,7 @@ export const initializeClickhouseCompatibility = async (): Promise<void> => {
         });
       } else {
         logger.info("No ClickHouse compatibility settings required", {
-          clickhouseVersion: detectedClickHouseVersion,
+          clickhouseVersion: clickHouseVersion,
         });
       }
     } catch (error) {
@@ -179,10 +316,6 @@ const fetchClickHouseVersion = async (): Promise<string> => {
 
     if (!version) {
       throw new Error("ClickHouse version query returned no version");
-    }
-
-    if (!parseClickHouseVersion(version)) {
-      throw new Error(`ClickHouse returned an unsupported version: ${version}`);
     }
 
     return version;

@@ -1,30 +1,11 @@
 import { createRule } from "../util.js";
+import { extractTailwindUtilityTokens } from "../rule-helpers/tailwind.js";
 
 const FORBIDDEN_TAILWIND_UTILITIES = new Set([
   "overflow-scroll",
   "overflow-x-scroll",
   "overflow-y-scroll",
 ]);
-
-// Tailwind important modifiers can wrap a utility token in either position,
-// for example `!overflow-scroll` or `overflow-scroll!`.
-function normalizeTailwindToken(token: string): string {
-  return token.replace(/^!|!$/g, "");
-}
-
-// Yield normalized utility tokens, for example `md:overflow-scroll!` ->
-// `overflow-scroll`.
-function* extractTailwindUtilityTokens(value: string): Generator<string> {
-  for (const match of value.matchAll(/\S+/g)) {
-    const normalizedToken = normalizeTailwindToken(match[0]);
-    const variantSeparatorIndex = normalizedToken.lastIndexOf(":");
-    yield variantSeparatorIndex === -1
-      ? normalizedToken
-      : normalizeTailwindToken(
-          normalizedToken.slice(variantSeparatorIndex + 1),
-        );
-  }
-}
 
 const rule = createRule({
   name: "no-tailwind-overflow-scroll",

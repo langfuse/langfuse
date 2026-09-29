@@ -15,7 +15,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { type z } from "zod";
 
-export const getQueues = () => {
+const getQueues = () => {
   const queues: string[] = Object.values(QueueName);
   queues.push(
     ...IngestionQueue.getShardNames(),
@@ -41,52 +41,59 @@ export const getQueues = () => {
     .filter(
       (queueName) => !listOfQueuesToIgnore.includes(queueName as QueueName),
     )
-    .map((queueName) =>
-      queueName.startsWith(QueueName.IngestionQueue)
-        ? IngestionQueue.getInstance({ shardName: queueName })
-        : queueName.startsWith(QueueName.IngestionSecondaryQueue)
-          ? SecondaryIngestionQueue.getInstance({ shardName: queueName })
-          : queueName.startsWith(QueueName.EvaluationExecution)
-            ? EvalExecutionQueue.getInstance({ shardName: queueName })
-            : queueName.startsWith(QueueName.EvaluationExecutionSecondaryQueue)
-              ? SecondaryEvalExecutionQueue.getInstance({
-                  shardName: queueName,
-                })
-              : queueName.startsWith(QueueName.LLMAsJudgeExecution)
-                ? LLMAsJudgeExecutionQueue.getInstance({
-                    shardName: queueName,
-                  })
-                : queueName.startsWith(QueueName.CodeEvalExecution)
-                  ? CodeEvalExecutionQueue.getInstance({
-                      shardName: queueName,
-                    })
-                  : queueName.startsWith(QueueName.TraceUpsert)
-                    ? TraceUpsertQueue.getInstance({ shardName: queueName })
-                    : queueName.startsWith(
-                          QueueName.OtelIngestionSecondaryQueue,
-                        )
-                      ? SecondaryOtelIngestionQueue.getInstance({
-                          shardName: queueName,
-                        })
-                      : queueName.startsWith(QueueName.OtelIngestionQueue)
-                        ? OtelIngestionQueue.getInstance({
-                            shardName: queueName,
-                          })
-                        : getQueue(
-                            queueName as Exclude<
-                              QueueName,
-                              | QueueName.IngestionQueue
-                              | QueueName.IngestionSecondaryQueue
-                              | QueueName.EvaluationExecution
-                              | QueueName.EvaluationExecutionSecondaryQueue
-                              | QueueName.LLMAsJudgeExecution
-                              | QueueName.CodeEvalExecution
-                              | QueueName.TraceUpsert
-                              | QueueName.OtelIngestionQueue
-                              | QueueName.OtelIngestionSecondaryQueue
-                            >,
-                          ),
-    );
+    .map((queueName) => {
+      if (queueName.startsWith(QueueName.IngestionQueue)) {
+        return IngestionQueue.getInstance({ shardName: queueName });
+      }
+      if (queueName.startsWith(QueueName.IngestionSecondaryQueue)) {
+        return SecondaryIngestionQueue.getInstance({ shardName: queueName });
+      }
+      if (queueName.startsWith(QueueName.EvaluationExecution)) {
+        return EvalExecutionQueue.getInstance({ shardName: queueName });
+      }
+      if (queueName.startsWith(QueueName.EvaluationExecutionSecondaryQueue)) {
+        return SecondaryEvalExecutionQueue.getInstance({
+          shardName: queueName,
+        });
+      }
+      if (queueName.startsWith(QueueName.LLMAsJudgeExecution)) {
+        return LLMAsJudgeExecutionQueue.getInstance({
+          shardName: queueName,
+        });
+      }
+      if (queueName.startsWith(QueueName.CodeEvalExecution)) {
+        return CodeEvalExecutionQueue.getInstance({
+          shardName: queueName,
+        });
+      }
+      if (queueName.startsWith(QueueName.TraceUpsert)) {
+        return TraceUpsertQueue.getInstance({ shardName: queueName });
+      }
+      if (queueName.startsWith(QueueName.OtelIngestionSecondaryQueue)) {
+        return SecondaryOtelIngestionQueue.getInstance({
+          shardName: queueName,
+        });
+      }
+      if (queueName.startsWith(QueueName.OtelIngestionQueue)) {
+        return OtelIngestionQueue.getInstance({
+          shardName: queueName,
+        });
+      }
+      return getQueue(
+        queueName as Exclude<
+          QueueName,
+          | QueueName.IngestionQueue
+          | QueueName.IngestionSecondaryQueue
+          | QueueName.EvaluationExecution
+          | QueueName.EvaluationExecutionSecondaryQueue
+          | QueueName.LLMAsJudgeExecution
+          | QueueName.CodeEvalExecution
+          | QueueName.TraceUpsert
+          | QueueName.OtelIngestionQueue
+          | QueueName.OtelIngestionSecondaryQueue
+        >,
+      );
+    });
 };
 
 export const disconnectQueues = async (disconnectTimeoutMs = 2_000) => {
@@ -116,12 +123,12 @@ export type IngestionAPIResponse = {
   successes: SuccessfulIngestion[];
 };
 
-export type SuccessfulIngestion = {
+type SuccessfulIngestion = {
   id: string;
   status: number;
 };
 
-export type ErrorIngestion = {
+type ErrorIngestion = {
   id: string;
   status: number;
   message: string;
@@ -179,7 +186,12 @@ export async function makeZodVerifiedAPICall<T extends z.ZodType>(
   auth?: string,
   statusCode = 200,
 ): Promise<{ body: z.infer<T>; status: number }> {
-  const { body: resBody, status } = await makeAPICall(method, url, body, auth);
+  const { body: resBody, status } = await makeAPICall<z.infer<T>>(
+    method,
+    url,
+    body,
+    auth,
+  );
   if (status !== statusCode) {
     throw new Error(
       `API call did not return ${statusCode}, returned status ${status}, body ${JSON.stringify(resBody)}`,
@@ -202,7 +214,12 @@ export async function makeZodVerifiedAPICallSilent<T extends z.ZodType>(
   body?: unknown,
   auth?: string,
 ): Promise<{ body: z.infer<T>; status: number }> {
-  const { body: resBody, status } = await makeAPICall(method, url, body, auth);
+  const { body: resBody, status } = await makeAPICall<z.infer<T>>(
+    method,
+    url,
+    body,
+    auth,
+  );
 
   if (status === 200) {
     const typeCheckResult = responseZodSchema.safeParse(resBody);

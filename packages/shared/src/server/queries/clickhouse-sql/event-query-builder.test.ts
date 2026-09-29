@@ -1,81 +1,238 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildEventsFullTableSubqueryQuery,
+  buildEventsFullTableSplitQuery,
+  EventsAggregationQueryBuilder,
   EventsQueryBuilder,
+  EventsSessionAggregationQueryBuilder,
+  ExperimentsAggregationQueryBuilder,
 } from "./event-query-builder";
 
-describe("buildEventsFullTableSubqueryQuery", () => {
-  const buildInner = () =>
-    new EventsQueryBuilder({ projectId: "test-project" })
-      .whereRaw("e.trace_id = {traceId: String}", { traceId: "trace-1" })
-      .orderByColumns([
-        { column: "e.start_time", direction: "DESC" },
-        { column: "xxHash32(e.trace_id)", direction: "DESC" },
-        { column: "e.span_id", direction: "DESC" },
-      ])
-      .limit(51, undefined);
+describe("EventsQueryBuilder public API v2 field groups", () => {
+  it.each([
+    ["basic", true],
+    ["core", false],
+  ] as const)(
+    "projects semantic root status for %s: %s",
+    (fieldSet, selected) => {
+      const query = new EventsQueryBuilder({ projectId: "test-project" })
+        .selectFieldSet(fieldSet)
+        .buildWithParams().query;
 
-  it("compiles the full query", () => {
-    const { query, params } = buildEventsFullTableSubqueryQuery({
+      expect(query.includes('"is_root_observation"')).toBe(selected);
+    },
+  );
+
+  it.each([
+    {
+      name: "usage vs metadata",
+      orderA: ["core", "basic", "usage", "metadata"] as const,
+      orderB: ["core", "basic", "metadata", "usage"] as const,
+    },
+    {
+      name: "usage vs metrics",
+      orderA: ["core", "basic", "usage", "metrics"] as const,
+      orderB: ["core", "basic", "metrics", "usage"] as const,
+    },
+    {
+      name: "usage vs trace_context",
+      orderA: ["core", "basic", "usage", "trace_context"] as const,
+      orderB: ["core", "basic", "trace_context", "usage"] as const,
+    },
+  ])(
+    "emits identical SQL regardless of field-group order ($name)",
+    ({ orderA, orderB }) => {
+      const queryFor = (sets: typeof orderA | typeof orderB) =>
+        new EventsQueryBuilder({ projectId: "test-project" })
+          .selectFieldSet(...sets)
+          .buildWithParams().query;
+
+      expect(queryFor(orderA)).toBe(queryFor(orderB));
+    },
+  );
+});
+
+describe("EventsAggregationQueryBuilder", () => {
+  it("counts distinct non-synthetic observations per trace", () => {
+    const { query } = new EventsAggregationQueryBuilder({
       projectId: "test-project",
-      innerBuilder: buildInner(),
-      fieldSetNames: ["core", "io"],
-    }).buildWithParams();
+    })
+      .selectFieldSet("all")
+      .buildWithParams();
 
-    expect(query).toMatchInlineSnapshot(`
-      "SELECT
-        e.span_id as id,
-        e.trace_id as "trace_id",
-        e.start_time as "start_time",
-        e.end_time as "end_time",
-        e.project_id as "project_id",
-        e.parent_span_id as "parent_observation_id",
-        e.type as type,
-        e.input,
-        e.output
-      FROM events_full e
-      WHERE e.project_id = {projectId: String}
-        AND (e.span_id, e.trace_id, e.start_time, e.project_id) IN (
-      SELECT
-        e.span_id,
-        e.trace_id,
-        e.start_time,
-        e.project_id
-      FROM events_core e
-      WHERE e.project_id = {projectId: String}
-        AND e.trace_id = {traceId: String}
-      ORDER BY e.project_id DESC, toStartOfMinute(e.start_time) DESC, e.start_time DESC, xxHash32(e.trace_id) DESC, e.span_id DESC
-      LIMIT {limit: Int32}
-      )
-      ORDER BY e.project_id DESC, toStartOfMinute(e.start_time) DESC, e.start_time DESC, xxHash32(e.trace_id) DESC, e.span_id DESC"
-    `);
-    expect(params).toMatchInlineSnapshot(`
-      {
-        "limit": 51,
-        "projectId": "test-project",
-        "traceId": "trace-1",
-      }
-    `);
+    expect(query).toContain(
+      "length(groupUniqArrayIf(span_id, span_id <> '' AND span_id <> concat('t-', trace_id))) AS observation_count",
+    );
+    expect(query).toContain(
+      "(e.parent_span_id = '' OR e.is_app_root = true) AND e.name <> ''",
+    );
   });
 
-  it("throws if the inner builder already carries a projection", () => {
-    const withFieldSet = buildInner().selectFieldSet("core");
-    expect(() =>
-      buildEventsFullTableSubqueryQuery({
-        projectId: "test-project",
-        innerBuilder: withFieldSet,
-        fieldSetNames: ["core"],
-      }),
-    ).toThrow(/without SELECT expressions/);
+  it("promotes evaluator execution fields into the trace aggregation", () => {
+    const { query } = new EventsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("all")
+      .buildWithParams();
 
-    const withIO = buildInner().selectIO(false);
-    expect(() =>
-      buildEventsFullTableSubqueryQuery({
-        projectId: "test-project",
-        innerBuilder: withIO,
-        fieldSetNames: ["core"],
-      }),
-    ).toThrow(/without SELECT expressions/);
+    expect(query).toContain(
+      "argMaxIf(evaluator_id, event_ts, evaluator_id <> '') AS evaluator_id",
+    );
+    expect(query).toContain(
+      "argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id <> '') AS evaluation_rule_id",
+    );
+  });
+});
+
+describe("EventsSessionAggregationQueryBuilder", () => {
+  it("selects metadata arrays from the same deterministic latest observation", () => {
+    const { query } = new EventsSessionAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("metadata")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "argMax(metadata_names, tuple(start_time, event_ts, span_id)) AS metadata_names",
+    );
+    expect(query).toContain(
+      "argMax(metadata_values, tuple(start_time, event_ts, span_id)) AS metadata_values",
+    );
+    expect(query).toContain("e.project_id = {projectId: String}");
+  });
+
+  it("omits metadata aggregation from the base field set", () => {
+    const { query } = new EventsSessionAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("base")
+      .buildWithParams();
+
+    expect(query).not.toContain("metadata_names");
+    expect(query).not.toContain("metadata_values");
+  });
+});
+
+describe("EventsQueryBuilder.selectIOWithSizeCap", () => {
+  const build = () =>
+    new EventsQueryBuilder({ projectId: "test-project" })
+      .selectFieldSet("base", "calculated", "metadata")
+      .selectIOWithSizeCap(300_000, 4_000)
+      .whereRaw("e.trace_id = {traceId: String}", { traceId: "trace-1" })
+      .buildWithParams();
+
+  it("returns full fields under the cap and a preview head above it", () => {
+    const { query } = build();
+
+    // lengthUTF8() is computed in the query on purpose: the materialized
+    // input_length/output_length columns cannot be assumed present on every
+    // deployment's events_full, and the full column is read here anyway.
+    expect(query).toContain(
+      "if(lengthUTF8(e.input) <= 300000, e.input, leftUTF8(e.input, 4000)) as input",
+    );
+    expect(query).toContain(
+      "if(lengthUTF8(e.output) <= 300000, e.output, leftUTF8(e.output, 4000)) as output",
+    );
+  });
+
+  it("exposes the true lengths so callers can detect previews", () => {
+    const { query } = build();
+
+    expect(query).toContain("lengthUTF8(e.input) as input_length");
+    expect(query).toContain("lengthUTF8(e.output) as output_length");
+  });
+
+  it("caps metadata values with the same policy and flags truncation", () => {
+    const { query } = build();
+
+    expect(query).toContain(
+      "arrayMap(v -> if(lengthUTF8(v) <= 300000, v, leftUTF8(v, 4000)), arrayReverse(e.metadata_values))",
+    );
+    // The flag only fires for a key's winning value (a shadowed duplicate
+    // must not raise it), and the shipped weight counts every capped value.
+    expect(query).toContain(
+      "arrayExists((v, i) -> lengthUTF8(v) > 300000 AND arrayFirstIndex(n -> n = e.metadata_names[i], e.metadata_names) = i, e.metadata_values, arrayEnumerate(e.metadata_values)) as metadata_truncated",
+    );
+    expect(query).toContain(
+      "arraySum(arrayMap(v -> if(lengthUTF8(v) <= 300000, lengthUTF8(v), 4000), e.metadata_values)) as metadata_length",
+    );
+    // The default full-value metadata expression must not also be present.
+    expect(query).not.toContain(
+      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata",
+    );
+  });
+
+  it("reads events_full (true lengths + full under-cap values)", () => {
+    const { query } = build();
+
+    expect(query).toContain("FROM events_full");
+  });
+});
+
+describe("buildEventsFullTableSplitQuery", () => {
+  const buildBase = () =>
+    new EventsQueryBuilder({ projectId: "test-project" })
+      .selectFieldSet("core")
+      .whereRaw("e.trace_id = {traceId: String}", { traceId: "trace-1" })
+      .orderByColumns([{ column: "e.start_time", direction: "DESC" }])
+      .limit(51, undefined);
+
+  it("joins the io CTE with LEFT ANY JOIN (no row fan-out)", () => {
+    const { query } = buildEventsFullTableSplitQuery({
+      projectId: "test-project",
+      baseBuilder: buildBase(),
+      includeIO: true,
+      includeMetadata: true,
+    }).buildWithParams();
+
+    // ANY takes exactly one matching io row per base row, preventing the
+    // N_base x N_io amplification a plain LEFT JOIN produces on un-merged
+    // ReplacingMergeTree duplicates.
+    expect(query).toContain(
+      'LEFT ANY JOIN io i ON b."start_time" = i."_io_start_time"',
+    );
+    expect(query).not.toMatch(/\bLEFT JOIN io\b/);
+    // io columns come from the joined events_full CTE.
+    expect(query).toContain("i.input as input");
+    expect(query).toContain("i.output as output");
+    expect(query).toContain("i.metadata as metadata");
+  });
+
+  it("bounds the io lane to base's start_time range and keeps the semi-join", () => {
+    const { query } = buildEventsFullTableSplitQuery({
+      projectId: "test-project",
+      baseBuilder: buildBase(),
+      includeIO: true,
+      includeMetadata: false,
+    }).buildWithParams();
+
+    // The bound is derived from base (no re-serialized params) so events_full
+    // can prune partitions/primary key; the semi-join stays for join exactness.
+    // Both bounds read one byte-identical (min, max) scalar subquery so
+    // ClickHouse's scalar cache evaluates base's bounds pass once, not twice.
+    expect(query).not.toContain("io_bounds");
+    expect(query).toContain(
+      "AND e.start_time >= (SELECT (min(start_time), max(start_time)) FROM base).1",
+    );
+    expect(query).toContain(
+      "AND e.start_time <= (SELECT (min(start_time), max(start_time)) FROM base).2",
+    );
+    expect(query).toContain(
+      'AND (e.start_time, e.trace_id, e.span_id) IN (SELECT "start_time", "trace_id", id FROM base)',
+    );
+  });
+});
+
+describe("ExperimentsAggregationQueryBuilder", () => {
+  it("reads non propagated experiment-level attributes from experiment item root spans", () => {
+    const { query } = new ExperimentsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("base")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "anyIf(e.experiment_description, e.span_id = e.experiment_item_root_span_id) AS experiment_description",
+    );
   });
 });

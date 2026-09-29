@@ -7,6 +7,32 @@ import {
   isIPAddress,
 } from "../webhooks/ipBlocking";
 
+export type OutboundUrlValidationErrorCode =
+  | "blocked-hostname"
+  | "blocked-ip"
+  | "dns-lookup-failed"
+  | "https-required"
+  | "invalid-encoding"
+  | "invalid-syntax"
+  | "port-not-allowed"
+  | "protocol-not-allowed"
+  | "url-credentials-not-allowed";
+
+export class OutboundUrlValidationError extends Error {
+  constructor(
+    readonly code: OutboundUrlValidationErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = "OutboundUrlValidationError";
+  }
+}
+
+// Prefix of the message thrown on DNS-resolution failure. Exported so consumers
+// can detect this failure by message when the typed `code` is lost — e.g. after
+// RedirectValidationError re-wraps the inner error by message text only.
+export const DNS_LOOKUP_FAILED_MESSAGE_PREFIX = "DNS lookup failed for";
+
 export interface OutboundUrlValidationWhitelist {
   hosts: string[];
   ips: string[];
@@ -54,7 +80,12 @@ export async function resolveHost(hostname: string): Promise<string[]> {
       .forEach((ip) => ips.add(ip));
   }
 
-  if (!ips.size) throw new Error(`DNS lookup failed for ${hostname}`);
+  if (!ips.size) {
+    throw new OutboundUrlValidationError(
+      "dns-lookup-failed",
+      `${DNS_LOOKUP_FAILED_MESSAGE_PREFIX} ${hostname}`,
+    );
+  }
   return [...ips];
 }
 
@@ -69,11 +100,15 @@ export function parseOutboundUrl(urlString: string): URL {
     // into delimiters and make validation inspect a different hostname.
     url = new URL(trimmedUrl);
   } catch {
-    throw new Error("Invalid URL syntax");
+    throw new OutboundUrlValidationError(
+      "invalid-syntax",
+      "Invalid URL syntax",
+    );
   }
 
   if (url.username !== "" || url.password !== "") {
-    throw new Error(
+    throw new OutboundUrlValidationError(
+      "url-credentials-not-allowed",
       "URL credentials are not allowed. Use authentication headers instead.",
     );
   }
@@ -96,7 +131,10 @@ export async function validateOutboundUrlHost({
   }
 
   if (isHostnameBlocked(hostname)) {
-    throw new Error("Blocked hostname detected");
+    throw new OutboundUrlValidationError(
+      "blocked-hostname",
+      "Blocked hostname detected",
+    );
   }
 
   if (isIPAddress(hostname)) {
@@ -140,7 +178,10 @@ export function validateOutboundResolvedIp({
     logger.warn(
       `${logContext} validation blocked resolved IP address: ${ip} for hostname: ${hostname}`,
     );
-    throw new Error("Blocked IP address detected");
+    throw new OutboundUrlValidationError(
+      "blocked-ip",
+      "Blocked IP address detected",
+    );
   }
 }
 
@@ -151,6 +192,9 @@ function assertValidUrlEncoding(urlString: string): void {
   try {
     decodeURIComponent(urlString);
   } catch {
-    throw new Error("Invalid URL encoding");
+    throw new OutboundUrlValidationError(
+      "invalid-encoding",
+      "Invalid URL encoding",
+    );
   }
 }

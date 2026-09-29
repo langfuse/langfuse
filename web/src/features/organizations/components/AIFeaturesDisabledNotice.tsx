@@ -2,7 +2,7 @@ import { type ReactNode } from "react";
 import { ExternalLink } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 
 export function openAIFeaturesSettings(organizationId: string) {
   window.open(
@@ -15,9 +15,11 @@ export function openAIFeaturesSettings(organizationId: string) {
 export function AIFeaturesDisabledNotice({
   organizationId,
   children,
+  onSettingsOpened,
 }: {
   organizationId: string | undefined;
   children: ReactNode;
+  onSettingsOpened?: () => void;
 }) {
   const canUpdateOrgSettings = useHasOrganizationAccess({
     organizationId,
@@ -34,7 +36,10 @@ export function AIFeaturesDisabledNotice({
       </p>
       {canUpdateOrgSettings && organizationId ? (
         <Button
-          onClick={() => openAIFeaturesSettings(organizationId)}
+          onClick={() => {
+            openAIFeaturesSettings(organizationId);
+            onSettingsOpened?.();
+          }}
           variant="outline"
           size="sm"
           className="w-fit"

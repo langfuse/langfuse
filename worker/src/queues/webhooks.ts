@@ -18,6 +18,7 @@ import {
   whitelistFromEnv,
   fetchWithSecureRedirects,
   WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
+  buildWebhookRequestHeaders,
 } from "@langfuse/shared/src/server";
 import {
   TQueueJobTypes,
@@ -30,6 +31,8 @@ import {
   SlackService,
   logger,
   redis,
+  ProjectNotificationWebhookQueueEventSchema,
+  buildProjectNotificationSlackMessage,
 } from "@langfuse/shared/src/server";
 import {
   MonitorWebhookQueueEventSchema,
@@ -87,6 +90,17 @@ function buildWebhookOutboundPayload(input: WebhookInput) {
     if (!parsed.success) {
       throw new InternalServerError(
         `Invalid monitor-alert payload: ${parsed.error.message}`,
+      );
+    }
+    return parsed.data;
+  }
+  if (input.payload.type === "project-notification") {
+    const parsed = ProjectNotificationWebhookQueueEventSchema.safeParse(
+      input.payload,
+    );
+    if (!parsed.success) {
+      throw new InternalServerError(
+        `Invalid project notification payload: ${parsed.error.message}`,
       );
     }
     return parsed.data;
@@ -382,6 +396,11 @@ async function executeHttpAction({
       return { httpStatus: httpStatus || 0, responseBody: responseBody || "" };
     }
 
+    // project-notification records the ERROR row for visibility but never
+    // auto-disables; prompt-version / github keep the consecutive-failure
+    // disable behavior below.
+    const disablesOnFailure = payloadType !== "project-notification";
+
     // Update execution status and check if we should disable trigger
     await prisma.$transaction(async (tx) => {
       // Update execution status
@@ -405,6 +424,10 @@ async function executeHttpAction({
             : undefined,
         },
       });
+
+      if (!disablesOnFailure) {
+        return;
+      }
 
       // Check consecutive failures from execution history
       const consecutiveFailures = await getConsecutiveAutomationFailures({
@@ -506,29 +529,16 @@ async function executeWebhookAction({
     webhookPayload = JSON.stringify(validated);
   }
 
-  // Prepare headers with signature if secret exists
-  const requestHeaders: Record<string, string> = {};
-  const additionalSensitiveHeaders: string[] = [];
-
-  // Add webhook config headers first
-  if (webhookConfig.requestHeaders) {
-    for (const [key, value] of Object.entries(webhookConfig.requestHeaders)) {
-      requestHeaders[key] = value.value;
-      if (value.secret) {
-        additionalSensitiveHeaders.push(key);
-      }
-    }
-  }
-
-  // Add default headers with precedence
-  for (const [key, value] of Object.entries(WebhookDefaultHeaders)) {
-    requestHeaders[key] = value;
-  }
-
+  let requestHeaders: Record<string, string>;
+  let additionalSensitiveHeaders: string[];
   try {
-    const decryptedSecret = decrypt(webhookConfig.secretKey);
-    const signature = createSignatureHeader(webhookPayload, decryptedSecret);
-    requestHeaders["x-langfuse-signature"] = signature;
+    const builtRequestHeaders = buildWebhookRequestHeaders({
+      customHeaders: webhookConfig.requestHeaders,
+      body: webhookPayload,
+      signingSecret: decrypt(webhookConfig.secretKey),
+    });
+    requestHeaders = builtRequestHeaders.headers;
+    additionalSensitiveHeaders = builtRequestHeaders.sensitiveHeaderNames;
   } catch (error) {
     logger.error(
       "Failed to decrypt webhook secret or generate signature",
@@ -743,6 +753,49 @@ async function executeSlackAction({
     return;
   }
 
+  if (input.payload.type === "project-notification") {
+    // Project notifications resolve their AutomationExecution row (so the
+    // executions table stays accurate) but never auto-disable — a persistently
+    // failing channel keeps recording ERROR rows and stays ACTIVE.
+    try {
+      await sendSlackProjectNotification({
+        payload: input.payload,
+        projectId,
+        channelId: slackConfig.channelId,
+      });
+      await prisma.automationExecution.update({
+        where: {
+          projectId,
+          triggerId: automation.trigger.id,
+          actionId: automation.action.id,
+          id: executionId,
+        },
+        data: {
+          status: ActionExecutionStatus.COMPLETED,
+          startedAt: executionStart,
+          finishedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      logger.error("Error executing Slack action", error);
+      await prisma.automationExecution.update({
+        where: {
+          id: executionId,
+          projectId,
+          triggerId: automation.trigger.id,
+          actionId: automation.action.id,
+        },
+        data: {
+          status: ActionExecutionStatus.ERROR,
+          startedAt: executionStart,
+          finishedAt: new Date(),
+          error: error instanceof Error ? error.message : "Unknown error",
+        },
+      });
+    }
+    return;
+  }
+
   try {
     // Build message blocks using predefined formats or custom template
     let blocks: any[] = [];
@@ -892,6 +945,32 @@ async function sendSlackMonitorAlert({
   await resetAutomationFailures({ projectId, automationId });
 }
 
+/** sendSlackProjectNotification builds and posts a project notification to Slack. */
+async function sendSlackProjectNotification({
+  payload,
+  projectId,
+  channelId,
+}: {
+  payload: WebhookInput["payload"];
+  projectId: string;
+  channelId: string;
+}) {
+  const parsed = ProjectNotificationWebhookQueueEventSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new InternalServerError(
+      `Invalid project notification payload: ${parsed.error.message}`,
+    );
+  }
+  const message = buildProjectNotificationSlackMessage(parsed.data.event);
+  const client =
+    await SlackService.getInstance().getWebClientForProject(projectId);
+  await SlackService.getInstance().sendMessage({
+    client,
+    channelId,
+    ...message,
+  });
+}
+
 /** slackMonitorAlertFailure tracks a failed monitor-alert delivery and auto-disables the trigger past the failure threshold. */
 async function slackMonitorAlertFailure({
   projectId,
@@ -909,7 +988,10 @@ async function slackMonitorAlertFailure({
       where: { id: automation.trigger.id, projectId },
       data: { status: JobConfigState.INACTIVE },
     });
-    await resetAutomationFailures({ projectId, automationId: automation.id });
+    await resetAutomationFailures({
+      projectId,
+      automationId: automation.id,
+    });
     logger.warn(
       `Automation ${automation.trigger.id} disabled after ${count} consecutive failures in project ${projectId} (monitor-alert/slack)`,
     );

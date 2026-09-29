@@ -1,6 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
+  testDir: "./src/__e2e__",
   timeout: 180000, // test timeout 180s (3 minutes)
   expect: {
     timeout: 60000, // assertion timeout 60s (increased for CI)

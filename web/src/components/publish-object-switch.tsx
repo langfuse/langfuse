@@ -5,44 +5,84 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { useReadPath } from "@/src/features/events";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { env } from "@/src/env.mjs";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { cn } from "@/src/utils/tailwind";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { type RouterInput } from "@/src/utils/types";
+import { useMutation } from "@tanstack/react-query";
 import { CheckIcon, Globe, Link, Share2 } from "lucide-react";
 import { useState } from "react";
 
-export const PublishTraceSwitch = (props: {
-  traceId: string;
+type PublishObjectProps = {
+  kind: "trace" | "session";
   projectId: string;
+  objectId: string;
   timestamp?: Date;
-  isPublic: boolean;
-  size?: "icon" | "icon-xs";
-}) => {
-  const { isBetaEnabled } = useV4Beta();
+};
+
+/** Publish toggle for a trace or a session with optimistic detail-query updates. */
+export function usePublishObject(props: PublishObjectProps) {
+  const { kind, projectId, objectId, timestamp } = props;
+  const { isV4 } = useReadPath();
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
-    projectId: props.projectId,
+    projectId,
     scope: "objects:publish",
   });
   const utils = api.useUtils();
   const traceQueryInput: RouterInput["traces"]["byIdWithObservationsAndScores"] =
-    {
-      projectId: props.projectId,
-      traceId: props.traceId,
-      timestamp: props.timestamp,
-    };
+    { projectId, traceId: objectId, timestamp };
   const eventsTraceQueryInput: RouterInput["events"]["byTraceId"] = {
-    projectId: props.projectId,
-    traceId: props.traceId,
-    timestamp: props.timestamp,
+    projectId,
+    traceId: objectId,
+    timestamp,
   };
-  const mut = api.traces.publish.useMutation({
-    onMutate: async (input) => {
-      if (isBetaEnabled) {
+  const sessionQueryInput = { projectId, sessionId: objectId };
+
+  const mutation = useMutation({
+    mutationFn: (isPublic: boolean) =>
+      kind === "trace"
+        ? utils.client.traces.publish.mutate({
+            projectId,
+            traceId: objectId,
+            public: isPublic,
+          })
+        : utils.client.sessions.publish.mutate({
+            projectId,
+            sessionId: objectId,
+            public: isPublic,
+          }),
+    onMutate: async (isPublic) => {
+      if (kind === "session") {
+        await Promise.all([
+          utils.sessions.byIdWithScores.cancel(sessionQueryInput),
+          utils.sessions.byIdWithScoresFromEvents.cancel(sessionQueryInput),
+        ]);
+        const previousSession =
+          utils.sessions.byIdWithScores.getData(sessionQueryInput);
+        const previousSessionFromEvents =
+          utils.sessions.byIdWithScoresFromEvents.getData(sessionQueryInput);
+        utils.sessions.byIdWithScores.setData(sessionQueryInput, (old) =>
+          old ? { ...old, public: isPublic } : old,
+        );
+        utils.sessions.byIdWithScoresFromEvents.setData(
+          sessionQueryInput,
+          (old) => (old ? { ...old, public: isPublic } : old),
+        );
+        return { previousSession, previousSessionFromEvents };
+      }
+
+      if (isV4) {
         await utils.events.byTraceId.cancel(eventsTraceQueryInput);
 
         const previousEvents = utils.events.byTraceId.getData(
@@ -56,7 +96,7 @@ export const PublishTraceSwitch = (props: {
             ...old,
             observations: old.observations.map((observation) =>
               !observation.parentObservationId
-                ? { ...observation, public: input.public }
+                ? { ...observation, public: isPublic }
                 : observation,
             ),
           };
@@ -72,13 +112,22 @@ export const PublishTraceSwitch = (props: {
 
       utils.traces.byIdWithObservationsAndScores.setData(
         traceQueryInput,
-        (old) => (old ? { ...old, public: input.public } : old),
+        (old) => (old ? { ...old, public: isPublic } : old),
       );
 
       return { previousTrace };
     },
     onError: (err, _input, context) => {
-      if (isBetaEnabled) {
+      if (kind === "session") {
+        utils.sessions.byIdWithScores.setData(
+          sessionQueryInput,
+          context?.previousSession,
+        );
+        utils.sessions.byIdWithScoresFromEvents.setData(
+          sessionQueryInput,
+          context?.previousSessionFromEvents,
+        );
+      } else if (isV4) {
         utils.events.byTraceId.setData(
           eventsTraceQueryInput,
           context?.previousEvents,
@@ -92,50 +141,38 @@ export const PublishTraceSwitch = (props: {
       trpcErrorToast(err);
     },
     onSuccess: async () => {
-      if (!isBetaEnabled) {
+      if (kind === "session") {
+        await utils.sessions.invalidate();
+      } else if (!isV4) {
         await utils.traces.all.invalidate();
       }
     },
   });
 
-  return (
-    <Base
-      itemName="trace"
-      isPublic={props.isPublic}
-      size={props.size}
-      onChange={(val) => {
-        capture("trace_detail:publish_button_click");
-        return mut.mutateAsync({
-          projectId: props.projectId,
-          traceId: props.traceId,
-          public: val,
-        });
-      }}
-      isLoading={mut.isPending}
-      disabled={!hasAccess}
-    />
-  );
-};
+  const toggle = (isPublic: boolean) => {
+    capture(
+      kind === "trace"
+        ? "trace_detail:publish_button_click"
+        : "session_detail:publish_button_click",
+    );
+    return mutation.mutateAsync(isPublic);
+  };
+
+  return { hasAccess, isPending: mutation.isPending, toggle };
+}
 
 export const PublishSessionSwitch = (props: {
   sessionId: string;
   projectId: string;
   isPublic: boolean;
   size?: "icon" | "icon-xs";
+  /** When set, render as a full-width labeled menu item instead of an icon. */
+  label?: string;
 }) => {
-  const capture = usePostHogClientCapture();
-  const hasAccess = useHasProjectAccess({
+  const publish = usePublishObject({
+    kind: "session",
     projectId: props.projectId,
-    scope: "objects:publish",
-  });
-  const utils = api.useUtils();
-  const mut = api.sessions.publish.useMutation({
-    onError: (err) => {
-      trpcErrorToast(err);
-    },
-    onSuccess: async () => {
-      await utils.sessions.invalidate();
-    },
+    objectId: props.sessionId,
   });
 
   return (
@@ -143,34 +180,51 @@ export const PublishSessionSwitch = (props: {
       itemName="session"
       isPublic={props.isPublic}
       size={props.size}
-      onChange={(val) => {
-        capture("session_detail:publish_button_click");
-        return mut.mutateAsync({
-          projectId: props.projectId,
-          sessionId: props.sessionId,
-          public: val,
-        });
-      }}
-      isLoading={mut.isPending}
-      disabled={!hasAccess}
+      label={props.label}
+      onChange={publish.toggle}
+      isLoading={publish.isPending}
+      disabled={!publish.hasAccess}
     />
   );
 };
+
+const getShareUrlWithBasePath = (shareUrl: string) => {
+  const basePath = (env.NEXT_PUBLIC_BASE_PATH ?? "").replace(/\/$/, "");
+  const shouldPrependBasePath =
+    Boolean(basePath) &&
+    shareUrl.startsWith("/") &&
+    !shareUrl.startsWith("//") &&
+    shareUrl !== basePath &&
+    !shareUrl.startsWith(`${basePath}/`);
+
+  return shouldPrependBasePath ? `${basePath}${shareUrl}` : shareUrl;
+};
+
+export const getShareUrl = (shareUrl?: string) =>
+  shareUrl
+    ? new URL(
+        getShareUrlWithBasePath(shareUrl),
+        window.location.origin,
+      ).toString()
+    : window.location.href;
 
 const Base = (props: {
   itemName: string;
   onChange: (value: boolean) => Promise<unknown>;
   isLoading: boolean;
   isPublic: boolean;
+  shareUrl?: string;
   disabled?: boolean;
   size?: "icon" | "icon-xs";
+  label?: string;
+  tooltip?: string;
 }) => {
   const [isCopied, setIsCopied] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
   const copyUrl = () => {
     setIsCopied(true);
-    copyTextToClipboard(window.location.href);
+    copyTextToClipboard(getShareUrl(props.shareUrl));
     setTimeout(() => setIsCopied(false), 2500);
   };
 
@@ -181,34 +235,58 @@ const Base = (props: {
   };
 
   return (
-    <div className="flex items-center gap-1">
-      <div className="text-sm font-semibold">
+    <div className={cn("flex items-center gap-1", props.label && "w-full")}>
+      <div className={cn("text-sm font-bold", props.label && "w-full")}>
         <Popover
           open={isOpen}
           onOpenChange={(open) => {
             if (!props.isLoading) setIsOpen(open);
           }}
         >
-          <PopoverTrigger asChild>
-            <Button
-              id="publish-trace"
-              variant="ghost"
-              size={props.size}
-              loading={props.isLoading}
-              disabled={props.disabled}
-            >
-              {props.isPublic ? (
-                <Globe
-                  className="h-4 w-4"
-                  fill="#b3d9ff"
-                  stroke="#4d94ff"
-                  strokeWidth={2}
-                />
-              ) : (
-                <Share2 className="h-4 w-4" />
-              )}
-            </Button>
-          </PopoverTrigger>
+          {(() => {
+            const trigger = (
+              <PopoverTrigger asChild>
+                <Button
+                  id="publish-trace"
+                  variant="ghost"
+                  size={props.label ? "sm" : props.size}
+                  // Menu row: same box and icon size as the peek menu's
+                  // Delete and Expand rows, so the three line up.
+                  className={
+                    props.label
+                      ? "h-auto w-full justify-start gap-2 rounded-sm py-1.5 pr-2 pl-1.5 font-normal"
+                      : undefined
+                  }
+                  loading={props.isLoading}
+                  disabled={props.disabled}
+                >
+                  {props.isPublic ? (
+                    <Globe
+                      className={props.label ? "h-4 w-4" : "h-3.5 w-3.5"}
+                      fill="#b3d9ff"
+                      stroke="#4d94ff"
+                      strokeWidth={2}
+                    />
+                  ) : (
+                    <Share2
+                      className={props.label ? "h-4 w-4" : "h-3.5 w-3.5"}
+                    />
+                  )}
+                  {props.label ? (
+                    <span className="text-sm">{props.label}</span>
+                  ) : null}
+                </Button>
+              </PopoverTrigger>
+            );
+            if (!props.tooltip) return trigger;
+            // Suppress the hover tooltip while the share popover is open.
+            return (
+              <Tooltip open={isOpen ? false : undefined}>
+                <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+                <TooltipContent>{props.tooltip}</TooltipContent>
+              </Tooltip>
+            );
+          })()}
           <PopoverContent className="flex flex-col gap-3">
             {props.isPublic ? (
               <>

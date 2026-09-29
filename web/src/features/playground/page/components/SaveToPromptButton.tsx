@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { Check, Save } from "lucide-react";
 import { useRouter } from "next/router";
 import { useState } from "react";
@@ -24,7 +25,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { usePlaygroundContext } from "@/src/features/playground/page/context";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
@@ -183,7 +184,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
   );
 };
 
-export function Divider() {
+function Divider() {
   return (
     <div className="my-3 flex flex-row justify-center align-middle">
       <div className="flex flex-1 flex-col">

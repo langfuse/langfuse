@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import Link from "next/link";
 import { useRouter } from "next/router";
 import {
@@ -7,45 +8,55 @@ import {
   withDefault,
 } from "use-query-params";
 import type { z } from "zod";
-import { OpenAiMessageView } from "@/src/components/trace/components/IOPreview/components/ChatMessageList";
+import { ChatMessageList } from "@/src/features/traces";
 import {
   TabsBar,
   TabsBarList,
   TabsBarContent,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/ui/badge";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { getNumberFromMap } from "@/src/utils/map-utils";
+import { cn } from "@/src/utils/tailwind";
 import {
   extractVariables,
   PRODUCTION_LABEL,
   PromptType,
 } from "@langfuse/shared";
-import {
-  getPromptTabs,
-  PROMPT_TABS,
-} from "@/src/features/navigation/utils/prompt-tabs";
+import { getPromptTabs, PROMPT_TABS } from "@/src/features/navigation";
 import { PromptHistoryNode } from "./prompt-history";
-import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
+import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
-import Generations from "@/src/components/table/use-cases/observations";
-import { FlaskConical, MoreVertical, Plus } from "lucide-react";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { ObservationsTable as LegacyGenerations } from "@/src/features/tracing-tables";
+import EventsTable from "@/src/features/events/components/EventsTable";
+import { useReadPath } from "@/src/features/events";
+import {
+  FlaskConical,
+  History,
+  MessageSquare,
+  MessageSquareOff,
+  MoreVertical,
+  Plus,
+  Terminal,
+} from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Button } from "@/src/components/ui/button";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   Dialog,
   DialogContent,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
+import { CreateExperimentsForm } from "@/src/features/experiments";
 import { useMemo, useState } from "react";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { DuplicatePromptButton } from "@/src/features/prompts/components/duplicate-prompt";
 import Page from "@/src/components/layouts/page";
 import {
@@ -55,16 +66,28 @@ import {
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
-import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
+import { TagPromptDetailsPopover } from "@/src/features/tag";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import {
+  CommentDrawerController,
+  getCommentDrawerInitialStateFromUrl,
+} from "@/src/features/comments";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import {
   PromptReferenceProvider,
   renderRichPromptContent,
 } from "@/src/components/ui/PromptReferences";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
-import { createBreadcrumbItems } from "@/src/features/folders/utils";
+import { createBreadcrumbItems } from "@/src/features/folders";
+import { useIsMobile } from "@/src/hooks/use-mobile";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/src/components/ui/drawer";
 
 const getPythonCode = (
   name: string,
@@ -112,6 +135,8 @@ export const PromptDetail = ({
   const projectId = useProjectIdFromURL();
   const capture = usePostHogClientCapture();
   const router = useRouter();
+  const { isV4 } = useReadPath();
+  const isMobile = useIsMobile();
 
   const promptName =
     promptNameProp ||
@@ -133,6 +158,7 @@ export const PromptDetail = ({
   const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
+  const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
   const [resolutionMode, setResolutionMode] = useState<"tagged" | "resolved">(
     "tagged",
   );
@@ -177,6 +203,7 @@ export const PromptDetail = ({
     },
     {
       enabled: Boolean(projectId) && Boolean(prompt?.id),
+      meta: { silentHttpCodes: [404] },
     },
   );
 
@@ -271,6 +298,105 @@ export const PromptDetail = ({
   const folderPath = segments.length > 1 ? segments.slice(0, -1).join("/") : "";
   const breadcrumbItems = folderPath ? createBreadcrumbItems(folderPath) : [];
 
+  const renderVersionHistory = ({
+    mobile = false,
+    onVersionSelect,
+  }: {
+    mobile?: boolean;
+    onVersionSelect?: () => void;
+  } = {}) => (
+    <Command
+      className={cn(
+        "flex min-h-0 flex-col gap-2 overflow-hidden font-bold focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0",
+        mobile ? "rounded-none" : "rounded-none border-r pr-3",
+      )}
+    >
+      <div
+        className={cn(
+          "flex shrink-0 items-center justify-between",
+          mobile ? "mb-1" : "mt-3",
+        )}
+      >
+        <CommandInput
+          showBorder={false}
+          placeholder="Search..."
+          className="text-muted-foreground h-fit border-none py-0 text-sm focus:ring-0"
+        />
+
+        <Button
+          onClick={() => {
+            capture("prompts:update_form_open");
+          }}
+          className={cn(
+            "shrink-0",
+            mobile ? "h-8 w-fit px-3" : "h-6 w-6 px-1 lg:h-8 lg:w-fit lg:px-3",
+          )}
+        >
+          <Link
+            className="grid w-full grid-flow-col place-items-center"
+            href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
+          >
+            <Plus className={cn("h-4 w-4", mobile ? "mr-2" : "lg:mr-2")} />
+            <span className={cn(mobile ? "inline" : "hidden lg:inline")}>
+              New version
+            </span>
+          </Link>
+        </Button>
+      </div>
+      <CommentDrawerController
+        projectId={projectId as string}
+        mode="read-only"
+        onCommentChange={() =>
+          utils.prompts.allVersions.invalidate(promptHistoryInput)
+        }
+      >
+        {({ openDrawer }) => {
+          const openPromptComments = (
+            promptId: string,
+            promptVersion: number,
+          ) => {
+            const { label, ...query } = router.query;
+            router.push(
+              {
+                pathname: router.pathname,
+                query: {
+                  ...query,
+                  version: promptVersion,
+                  comments: "open",
+                  commentObjectType: "PROMPT",
+                  commentObjectId: promptId,
+                },
+              },
+              undefined,
+              { shallow: true },
+            );
+            openDrawer({
+              type: "comments",
+              objectId: promptId,
+              objectType: "PROMPT",
+            });
+          };
+
+          return (
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+              <PromptHistoryNode
+                prompts={promptHistory.data.promptVersions}
+                currentPromptVersion={prompt.version}
+                setCurrentPromptVersion={(version) => {
+                  setCurrentPromptVersion(version);
+                  setCurrentPromptLabel(null);
+                  onVersionSelect?.();
+                }}
+                openCommentDrawer={openPromptComments}
+                commentCounts={commentCounts}
+              />
+            </div>
+          );
+        }}
+      </CommentDrawerController>
+    </Command>
+  );
+
   return (
     <Page
       headerProps={{
@@ -328,45 +454,48 @@ export const PromptDetail = ({
         ),
       }}
     >
-      <div className="grid flex-1 grid-cols-3 gap-4 overflow-hidden px-3 md:grid-cols-4">
-        <Command className="flex flex-col gap-2 overflow-y-auto rounded-none border-r pr-3 font-medium focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0">
-          <div className="mt-3 flex items-center justify-between">
-            <CommandInput
-              showBorder={false}
-              placeholder="Search..."
-              className="text-muted-foreground h-fit border-none py-0 text-sm font-light focus:ring-0"
-            />
-
-            <Button
-              onClick={() => {
-                capture("prompts:update_form_open");
-              }}
-              className="h-6 w-6 shrink-0 px-1 lg:h-8 lg:w-fit lg:px-3"
+      <div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden px-3 md:grid-cols-4">
+        {isMobile ? null : renderVersionHistory()}
+        <div className="col-span-1 mt-3 flex max-h-full min-h-0 min-w-0 flex-col md:col-span-3">
+          {isMobile ? (
+            <Drawer
+              open={isVersionHistoryOpen}
+              onOpenChange={setIsVersionHistoryOpen}
             >
-              <Link
-                className="grid w-full place-items-center md:grid-flow-col"
-                href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
-              >
-                <Plus className="h-4 w-4 md:mr-2" />
-                <span className="hidden lg:inline">New version</span>
-              </Link>
-            </Button>
-          </div>
-          <div className="flex flex-col overflow-y-auto">
-            <PromptHistoryNode
-              prompts={promptHistory.data.promptVersions}
-              currentPromptVersion={prompt.version}
-              setCurrentPromptVersion={(version) => {
-                setCurrentPromptVersion(version);
-                setCurrentPromptLabel(null);
-              }}
-              commentCounts={commentCounts}
-            />
-          </div>
-        </Command>
-        <div className="col-span-2 mt-3 flex max-h-full min-h-0 flex-col md:col-span-3">
+              <DrawerTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="mb-3 w-full min-w-0 justify-start gap-2 px-3"
+                >
+                  <History className="h-4 w-4 shrink-0" />
+                  <span className="shrink-0">Version #{prompt.version}</span>
+                  <span
+                    className="text-muted-foreground min-w-0 flex-1 truncate text-left font-normal"
+                    title={prompt.commitMessage ?? prompt.name}
+                  >
+                    {prompt.commitMessage ?? prompt.name}
+                  </span>
+                  <DropdownIndicator />
+                </Button>
+              </DrawerTrigger>
+              <DrawerContent className="max-h-[85dvh]">
+                <DrawerHeader className="shrink-0 border-b text-left">
+                  <DrawerTitle>Prompt versions</DrawerTitle>
+                  <DrawerDescription>
+                    Select a version of {prompt.name}.
+                  </DrawerDescription>
+                </DrawerHeader>
+                <div className="min-h-0 flex-1 overflow-hidden p-4 pt-2">
+                  {renderVersionHistory({
+                    mobile: true,
+                    onVersionSelect: () => setIsVersionHistoryOpen(false),
+                  })}
+                </div>
+              </DrawerContent>
+            </Drawer>
+          ) : null}
           <div className="flex flex-col items-start gap-2">
-            <div className="grid w-full min-w-0 grid-cols-[auto_auto] items-center justify-between">
+            <div className="flex w-full min-w-0 flex-col gap-2 md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-start md:justify-between">
               <div className="flex max-w-full min-w-0 shrink flex-col">
                 <div className="flex max-w-full min-w-0 flex-wrap items-start gap-1">
                   <SetPromptVersionLabels
@@ -381,7 +510,7 @@ export const PromptDetail = ({
                         >
                           # {prompt.version}
                         </Badge>
-                        <span className="mb-0 line-clamp-2 min-w-0 text-lg font-medium break-all md:break-normal md:wrap-break-word">
+                        <span className="mb-0 line-clamp-2 min-w-0 text-lg font-bold break-all md:break-normal md:wrap-break-word">
                           {prompt.commitMessage ?? prompt.name}
                         </span>
                       </div>
@@ -395,16 +524,35 @@ export const PromptDetail = ({
 
                 <div className="min-h-1 flex-1" />
               </div>
-              <div className="flex h-full flex-wrap content-start items-start justify-end gap-1 lg:flex-nowrap">
-                <JumpToPlaygroundButton
+              <div className="flex h-full w-full flex-wrap content-start items-start justify-end gap-1 md:w-auto lg:flex-nowrap">
+                <JumpToPlaygroundDropdownMenuController
                   source="prompt"
                   prompt={{
                     ...prompt,
                     resolvedPrompt: promptGraph.data?.resolvedPrompt,
                   }}
                   analyticsEventName="prompt_detail:test_in_playground_button_click"
-                  variant="outline"
-                />
+                >
+                  {({ Trigger, disabled, title }) => (
+                    <Trigger asChild>
+                      <Button
+                        variant="outline"
+                        disabled={disabled}
+                        title={title}
+                        className={cn(
+                          "flex items-center gap-1",
+                          disabled
+                            ? "cursor-not-allowed opacity-50"
+                            : "cursor-pointer",
+                        )}
+                      >
+                        <Terminal className="h-4 w-4" />
+                        <span className="hidden md:inline">Playground</span>
+                        <DropdownIndicator size="sm" nudge />
+                      </Button>
+                    </Trigger>
+                  )}
+                </JumpToPlaygroundDropdownMenuController>
                 {hasAccess && (
                   <Dialog
                     open={isCreateExperimentDialogOpen}
@@ -439,16 +587,48 @@ export const PromptDetail = ({
                     </DialogContent>
                   </Dialog>
                 )}
-                <CommentDrawerButton
+                <CommentDrawerController
                   projectId={projectId as string}
-                  objectId={prompt.id}
-                  objectType="PROMPT"
+                  initialState={() =>
+                    getCommentDrawerInitialStateFromUrl(router.query)
+                  }
                   count={getNumberFromMap(commentCounts, prompt.id)}
-                  variant="outline"
                   onCommentChange={() =>
                     utils.prompts.allVersions.invalidate(promptHistoryInput)
                   }
-                />
+                >
+                  {({ disabled, openDrawer }) => (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={disabled}
+                      onClick={() =>
+                        openDrawer({
+                          type: "comments",
+                          objectId: prompt.id,
+                          objectType: "PROMPT",
+                        })
+                      }
+                      className="gap-1"
+                    >
+                      {disabled ? (
+                        <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                      ) : (
+                        <>
+                          <MessageSquare className="h-4 w-4" />
+                          <span>Add comment</span>
+                          {getNumberFromMap(commentCounts, prompt.id) ? (
+                            <ActionButtonCountBadge
+                              count={
+                                getNumberFromMap(commentCounts, prompt.id) ?? 0
+                              }
+                            />
+                          ) : null}
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </CommentDrawerController>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="icon">
@@ -489,12 +669,22 @@ export const PromptDetail = ({
               className="mt-0 mb-2 flex max-h-full min-h-0 flex-1 flex-col overflow-hidden"
             >
               <div className="flex h-full flex-1 flex-col overflow-hidden">
-                <Generations
-                  projectId={prompt.projectId}
-                  promptName={prompt.name}
-                  promptVersion={prompt.version}
-                  omittedFilter={["promptName"]}
-                />
+                {isV4 ? (
+                  <EventsTable
+                    projectId={prompt.projectId}
+                    promptName={prompt.name}
+                    promptVersion={prompt.version}
+                    omittedFilter={["promptName"]}
+                    isolateTableState
+                  />
+                ) : (
+                  <LegacyGenerations
+                    projectId={prompt.projectId}
+                    promptName={prompt.name}
+                    promptVersion={prompt.version}
+                    omittedFilter={["promptName"]}
+                  />
+                )}
               </div>
             </TabsBarContent>
             <TabsBarContent
@@ -510,28 +700,25 @@ export const PromptDetail = ({
                         setResolutionMode(value as "tagged" | "resolved");
                       }}
                     >
-                      <TabsList className="h-auto gap-1">
-                        <TabsTrigger
+                      <Tabs.List gap="sm" size="auto">
+                        <Tabs.Trigger
                           value="resolved"
-                          className="h-fit px-1 text-xs"
-                        >
-                          Resolved prompt
-                        </TabsTrigger>
-                        <TabsTrigger
+                          size="sm"
+                          label="Resolved prompt"
+                        />
+                        <Tabs.Trigger
                           value="tagged"
-                          className="h-fit px-1 text-xs"
-                        >
-                          Tagged prompt
-                        </TabsTrigger>
-                      </TabsList>
+                          size="sm"
+                          label="Tagged prompt"
+                        />
+                      </Tabs.List>
                     </Tabs>
                   </div>
                 )}
                 <PromptReferenceProvider projectId={projectId}>
                   {prompt.type === PromptType.Chat && chatMessages ? (
                     <div className="w-full">
-                      {/* eslint-disable-next-line @typescript-eslint/no-deprecated -- Internal backwards-compatible component alias. */}
-                      <OpenAiMessageView
+                      <ChatMessageList
                         messages={chatMessages}
                         shouldRenderMarkdown={true}
                         currentView="pretty"
@@ -557,7 +744,9 @@ export const PromptDetail = ({
                     <JSONView json={prompt.prompt} title="Prompt" />
                   )}
                 </PromptReferenceProvider>
-                <PromptVariableListPreview variables={extractedVariables} />
+                {extractedVariables.length > 0 && (
+                  <PromptVariableListPreview variables={extractedVariables} />
+                )}
               </div>
             </TabsBarContent>
             <TabsBarContent

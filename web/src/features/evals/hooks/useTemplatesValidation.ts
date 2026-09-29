@@ -26,7 +26,7 @@ export function useTemplatesValidation({
     );
 
   // Fetch all templates
-  const { data: templatesData } = api.evals.allTemplates.useQuery(
+  const { data: templatesData } = api.evals.latestTemplates.useQuery(
     { projectId },
     { enabled: !!projectId },
   );

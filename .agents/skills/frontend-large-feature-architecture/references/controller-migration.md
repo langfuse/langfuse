@@ -7,8 +7,9 @@ actions, and expensive rendering.
 The target is clear ownership, not "everything in a store." Start from the
 ownership baseline in `big-feature-rules.md`.
 
-Most existing features are not there yet. Migrate in narrow slices and keep
-behavior stable.
+Most existing features are not there yet, and there are hundreds of cases
+still to fix. Be explicit about which boundaries each change improves and what
+behavior changes on purpose.
 
 ## Realistic Migration Strategy
 
@@ -18,15 +19,16 @@ change safer than the previous one.
 For each migration PR, write down:
 
 - the current controller problem being targeted
-- the single state/action/data-preparation/render boundary being improved
-- what behavior must remain unchanged
+- the state/action/data-preparation/render boundaries being improved
+- what behavior changes on purpose and what must remain unchanged — a UI
+  simplification such as gating render behind a spinner is often the right
+  call (see `react-without-useeffect.md`)
 - what instrumentation or tests prove the slice worked
 - what still remains spread across the feature
-- the next recommended atomic slice
+- the next recommended slice
 
-This is how large features become managed features without review-hostile
-rewrites. The feature README is the living owner map; update it in place as the
-feature moves forward.
+This is how large features become managed features. The feature README is the
+living owner map; update it in place as the feature moves forward.
 
 ## Step-by-Step Path
 
@@ -39,12 +41,12 @@ feature moves forward.
    selection, scroll, filter change, drawer open, form step change, or
    saved-view change. Measure what rerenders, remounts, refetches, or
    recalculates.
-4. **Choose one boundary.** Start with the smallest high-value boundary:
-   selection, lazy-row state, batch action workflow, filter-target mapping,
-   column/view state, wizard step state, or pure data preparation. Do not
-   migrate everything at once.
+4. **Choose a boundary.** Start with a high-value boundary: selection,
+   lazy-row state, batch action workflow, filter-target mapping, column/view
+   state, wizard step state, or pure data preparation. Work boundary by
+   boundary, even when one change improves several.
 5. **Choose the lightest tool.** A pure helper or action extraction may be the
-   right first PR. Add a local store only when selective subscriptions or
+   right first move. Add a local store only when selective subscriptions or
    per-mount persistence are needed.
 6. **Create a local store instance when needed.** Use lazy `useState` in the
    page/view:
@@ -105,11 +107,11 @@ migration, not proof that the whole surface is healthy.
 - Page components no longer rebuild columns, filters, row wrappers, and action
   callbacks for unrelated row-level changes.
 - Expensive rows/cells are view-only behind narrow containers.
-- Effects are integration boundaries or one-time initialization, not ordinary
-  data derivation.
+- Effects are external-system integration boundaries, not initialization or
+  ordinary data derivation.
 - Complex workflows can be called without rendering the page.
 - The feature README tells the next developer what has improved, what remains
-  spread, and what the next small PR should target.
+  spread, and what the next improvement should target.
 
 Avoid:
 

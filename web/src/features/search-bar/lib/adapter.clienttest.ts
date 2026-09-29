@@ -3,6 +3,170 @@ import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-sta
 import { parse } from "@/src/features/search-bar/lib/langQ";
 import { validateQuery } from "@/src/features/search-bar/lib/validate";
 import type { FilterState } from "@langfuse/shared";
+import { createFieldRegistry, EVENTS_FIELD_REGISTRY } from "./fields";
+import { planCommit } from "./commit";
+import {
+  USERS_FIELD_REGISTRY,
+  LEGACY_USERS_FIELD_REGISTRY,
+} from "@/src/features/filters";
+
+const scopedRegistry = createFieldRegistry({
+  ...EVENTS_FIELD_REGISTRY,
+  defaultSearchType: ["id"],
+  fields: EVENTS_FIELD_REGISTRY.fields.filter(
+    (field) => field.id !== "input" && field.id !== "output",
+  ),
+  searchScopes: {
+    content: {
+      searchType: ["content"],
+      label: "Content",
+      description: "Input and output",
+    },
+    all: {
+      searchType: ["id", "content"],
+      label: "All fields",
+      description: "IDs, names, input and output",
+    },
+    input: {
+      searchType: ["input"],
+      label: "Input",
+      description: "Input payload",
+    },
+    output: {
+      searchType: ["output"],
+      label: "Output",
+      description: "Output payload",
+    },
+  },
+});
+
+describe("declared search scopes", () => {
+  it("does not interpret inherited object properties as search scopes", () => {
+    for (const name of ["constructor", "toString", "__proto__"]) {
+      expect(scopedRegistry.resolveField(name)).toBeNull();
+    }
+  });
+  it.each([USERS_FIELD_REGISTRY, LEGACY_USERS_FIELD_REGISTRY])(
+    "does not expose scopes on fixed-lane Users registries",
+    (registry) => {
+      expect(registry.resolveField("in")).toBeNull();
+      expect(planCommit("in:content refund", undefined, registry).status).toBe(
+        "invalid",
+      );
+    },
+  );
+  it.each([
+    ["refund policy", "refund policy", ["id"]],
+    ['content:"refund policy" env:prod', "refund policy", ["content"]],
+    ["all:refund", "refund", ["id", "content"]],
+    ["input:refund", "refund", ["input"]],
+    ['in:(id OR input) "refund policy"', "refund policy", ["id", "input"]],
+    ['IN:(id OR input) "refund policy"', "refund policy", ["id", "input"]],
+  ])("lowers %s to one backend search lane", (text, query, type) => {
+    expect(planCommit(text as string, undefined, scopedRegistry)).toMatchObject(
+      {
+        status: "committed",
+        searchQuery: query,
+        searchType: type,
+      },
+    );
+  });
+
+  it.each([
+    "content:refund output:policy",
+    "content:refund refund",
+    "content:(refund OR policy)",
+    "-content:refund",
+    "content:=refund",
+    "content:refund*",
+    "in:(id AND input) refund",
+    "in:unsupported refund",
+    "in:input content:refund",
+    "in:input in:output refund",
+  ])("rejects unsupported scope composition: %s", (text) => {
+    const parsed = parse(text, scopedRegistry);
+    const lowered = astToFilterState(parsed.ast, undefined, scopedRegistry);
+    expect(lowered.errors.length).toBeGreaterThan(0);
+    expect(validateQuery(text, undefined, scopedRegistry).valid).toBe(false);
+    expect(planCommit(text, undefined, scopedRegistry).status).toBe("invalid");
+  });
+
+  it("reports only the phrase conflict when a scoped phrase has a compatibility scope", () => {
+    const { ast } = parse("content:refund in:id", scopedRegistry);
+    expect(astToFilterState(ast, undefined, scopedRegistry).errors).toEqual([
+      "Only one search phrase is supported — use either bare text or one scoped search",
+    ]);
+    const { ast: missingPhrase } = parse("in:id", scopedRegistry);
+    expect(
+      astToFilterState(missingPhrase, undefined, scopedRegistry).errors,
+    ).toEqual(["Add search text after in:"]);
+  });
+
+  it.each([
+    ["id"],
+    ["content"],
+    ["input"],
+    ["output"],
+    ["id", "content"],
+    ["id", "input"],
+    ["id", "output"],
+    ["input", "output"],
+  ] as const)("round-trips the existing search scope %j", (...searchType) => {
+    const text = filterStateToQueryText(
+      [],
+      {
+        searchQuery: "refund policy",
+        searchType: [...searchType],
+      },
+      scopedRegistry,
+    ).text;
+    expect(planCommit(text, undefined, scopedRegistry)).toMatchObject({
+      status: "committed",
+      searchQuery: "refund policy",
+      searchType,
+    });
+  });
+
+  it("keeps Events input/output as independent column filters", () => {
+    expect(planCommit("input:refund output:policy")).toMatchObject({
+      status: "committed",
+      searchQuery: null,
+      filters: [
+        { column: "input", operator: "contains", value: "refund" },
+        { column: "output", operator: "contains", value: "policy" },
+      ],
+    });
+  });
+
+  it.each(['content:""', 'content:" "'])(
+    "rejects an empty scoped phrase: %s",
+    (text) => {
+      expect(validateQuery(text, undefined, scopedRegistry).valid).toBe(false);
+      expect(planCommit(text, undefined, scopedRegistry).status).toBe(
+        "invalid",
+      );
+    },
+  );
+
+  it("preserves spaces inside an explicit scoped phrase on projection", () => {
+    const committed = planCommit(
+      'content:" refund policy "',
+      undefined,
+      scopedRegistry,
+    );
+    expect(committed.status).toBe("committed");
+    if (committed.status !== "committed") return;
+    const projected = filterStateToQueryText(
+      [],
+      committed,
+      scopedRegistry,
+    ).text;
+    expect(planCommit(projected, undefined, scopedRegistry)).toMatchObject({
+      searchQuery: " refund policy ",
+      searchType: ["content"],
+    });
+  });
+});
 
 function lower(text: string) {
   return astToFilterState(parse(text).ast);
@@ -302,6 +466,150 @@ describe("astToFilterState", () => {
     ]);
   });
 
+  it("routes known boolean scores to booleanObject filters", () => {
+    const scoreTypes = {
+      numericScoreNames: new Set<string>(),
+      categoricalScoreNames: new Set<string>(),
+      booleanScoreNames: new Set<string>(["flag"]),
+      traceNumericScoreNames: new Set<string>(),
+      traceCategoricalScoreNames: new Set<string>(),
+      traceBooleanScoreNames: new Set<string>(["traceFlag"]),
+    };
+    const lowerWith = (text: string) =>
+      astToFilterState(parse(text).ast, scoreTypes);
+
+    expect(lowerWith("scores.flag:true").filters).toEqual([
+      {
+        type: "booleanObject",
+        column: "score_booleans",
+        key: "flag",
+        operator: "=",
+        value: true,
+      },
+    ]);
+    expect(lowerWith("-traceScores.traceFlag:false").filters).toEqual([
+      {
+        type: "booleanObject",
+        column: "trace_score_booleans",
+        key: "traceFlag",
+        operator: "<>",
+        value: false,
+      },
+    ]);
+    // Comparisons fall back to the legacy numeric column — see the
+    // "keeps legacy numeric filters" test below.
+    expect(lowerWith("scores.flag:>0").errors).toEqual([]);
+    expect(
+      lowerWith("scores.flag:(true OR false)").errors.length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("routes boolean literals to booleanObject when legacy numeric options also include the score", () => {
+    const scoreTypes = {
+      numericScoreNames: new Set<string>(["flag"]),
+      categoricalScoreNames: new Set<string>(),
+      booleanScoreNames: new Set<string>(["flag"]),
+      traceNumericScoreNames: new Set<string>(["traceFlag"]),
+      traceCategoricalScoreNames: new Set<string>(),
+      traceBooleanScoreNames: new Set<string>(["traceFlag"]),
+    };
+
+    expect(
+      astToFilterState(parse("scores.flag:true").ast, scoreTypes).filters,
+    ).toEqual([
+      {
+        type: "booleanObject",
+        column: "score_booleans",
+        key: "flag",
+        operator: "=",
+        value: true,
+      },
+    ]);
+    expect(
+      astToFilterState(parse("-traceScores.traceFlag:false").ast, scoreTypes)
+        .filters,
+    ).toEqual([
+      {
+        type: "booleanObject",
+        column: "trace_score_booleans",
+        key: "traceFlag",
+        operator: "<>",
+        value: false,
+      },
+    ]);
+    expect(
+      astToFilterState(parse("scores.flag:1").ast, scoreTypes).filters,
+    ).toEqual([
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "flag",
+        operator: "=",
+        value: 1,
+      },
+    ]);
+  });
+
+  it("keeps legacy numeric filters working on boolean-observed scores", () => {
+    // Boolean scores also aggregate numerically (0/1) into scores_avg. The
+    // sidebar's numeric facet and pre-boolean-filter URLs/saved views still
+    // produce numberObject filters on them; those must keep lowering
+    // numerically — rejecting them would lock the bar red on state a
+    // first-party surface created.
+    const scoreTypes = {
+      numericScoreNames: new Set<string>(),
+      categoricalScoreNames: new Set<string>(),
+      booleanScoreNames: new Set<string>(["flag"]),
+      traceNumericScoreNames: new Set<string>(),
+      traceCategoricalScoreNames: new Set<string>(),
+      traceBooleanScoreNames: new Set<string>(["traceFlag"]),
+    };
+    const lowerWith = (text: string) =>
+      astToFilterState(parse(text).ast, scoreTypes);
+
+    const comparison = lowerWith("scores.flag:>=0.5");
+    expect(comparison.errors).toEqual([]);
+    expect(comparison.filters).toEqual([
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "flag",
+        operator: ">=",
+        value: 0.5,
+      },
+    ]);
+    expect(lowerWith("scores.flag:1").filters).toEqual([
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "flag",
+        operator: "=",
+        value: 1,
+      },
+    ]);
+    expect(lowerWith("traceScores.traceFlag:<1").filters).toEqual([
+      {
+        type: "numberObject",
+        column: "trace_scores_avg",
+        key: "traceFlag",
+        operator: "<",
+        value: 1,
+      },
+    ]);
+    // Boolean literals still prefer the boolean column…
+    expect(lowerWith("scores.flag:true").filters).toEqual([
+      {
+        type: "booleanObject",
+        column: "score_booleans",
+        key: "flag",
+        operator: "=",
+        value: true,
+      },
+    ]);
+    // …and anything neither numeric nor boolean keeps the boolean diagnostic.
+    expect(lowerWith("scores.flag:positive").errors.length).toBeGreaterThan(0);
+  });
+
   it("treats := (exact) on a categorical score as a category match", () => {
     // `:=positive` must behave like the bare `:positive` (any-of category),
     // not be rejected as a comparison.
@@ -391,6 +699,22 @@ describe("astToFilterState", () => {
     ]);
   });
 
+  it("lowers negated exact on id/name to stringOptions none-of (exact inequality)", () => {
+    // `-name:=abc` is exact-inequality — the faithful flat form is
+    // stringOptions none-of (there is no `string !=`). It is the inverse of the
+    // positive `name:=abc` (`string =`) and the shape the facet emits when one
+    // value is unchecked, so it must lower cleanly rather than error.
+    for (const column of ["id", "name"]) {
+      const r = lower(`-${column}:=abc`);
+      expect(r.errors).toEqual([]);
+      expect(r.filters).toEqual([
+        { type: "stringOptions", column, operator: "none of", value: ["abc"] },
+      ]);
+    }
+    // The commit gate accepts it (no longer a "not representable" error).
+    expect(validateQuery("-name:=abc").valid).toBe(true);
+  });
+
   it("lowers input:/output: to real column filters (not searchType)", () => {
     const r = lower("input:refund");
     expect(r.errors).toEqual([]);
@@ -425,6 +749,62 @@ describe("astToFilterState", () => {
       expect(r.errors.length, `expected errors: ${text}`).toBeGreaterThan(0);
     }
   });
+
+  it("lowers quoted dot-path keys (score/metadata names with spaces)", () => {
+    // A score or metadata name containing spaces is addressed with a quoted
+    // segment after the prefix: `scores."Rouge Score"`. The quotes are stripped
+    // to the real key in the lowered FilterState.
+    expect(lower('scores."Rouge Score":>=1').filters).toEqual([
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "Rouge Score",
+        operator: ">=",
+        value: 1,
+      },
+    ]);
+    expect(lower('traceScores."Hallucination Check":faithful').filters).toEqual(
+      [
+        {
+          type: "categoryOptions",
+          column: "trace_score_categories",
+          key: "Hallucination Check",
+          operator: "any of",
+          value: ["faithful"],
+        },
+      ],
+    );
+    expect(lower('metadata."my key":eu').filters).toEqual([
+      {
+        type: "stringObject",
+        column: "metadata",
+        key: "my key",
+        operator: "=",
+        value: "eu",
+      },
+    ]);
+    expect(validateQuery('scores."Rouge Score":>=1').valid).toBe(true);
+  });
+
+  it("quotes grammar-char keys in error-message example syntax", () => {
+    // The suggested example syntax in diagnostics must itself parse for a
+    // spaced/colon key — i.e. show the quoted form, not the bare one.
+    const errsFor = (text: string) => lower(text).errors.join(" • ");
+    // metadata any-of group → "supports a single value"
+    expect(errsFor('metadata."my key":(a OR b)')).toContain(
+      'metadata."my key"',
+    );
+    // negated metadata exact → suggestion quotes the key
+    expect(errsFor('-metadata."my key":=foo')).toContain('-metadata."my key"');
+    // numeric score any-of → "expects a single numeric value"
+    expect(errsFor('scores."Rouge Score":(0.1 OR 0.2)')).toContain(
+      'scores."Rouge Score"',
+    );
+    // string-glob op on a score → operatorIssue example quotes the key
+    expect(errsFor('scores."Rouge Score":foo*')).toContain(
+      'scores."Rouge Score"',
+    );
+  });
 });
 
 describe("validateQuery / adapter parity", () => {
@@ -450,6 +830,33 @@ describe("validateQuery / adapter parity", () => {
 });
 
 describe("filterStateToQueryText", () => {
+  it("renders the experiment and evaluation exclusions as explicit filters", () => {
+    expect(
+      filterStateToQueryText([
+        {
+          column: "environment",
+          type: "string",
+          operator: "does not contain",
+          value: "langfuse-",
+        },
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["sdk-experiment"],
+        },
+        {
+          column: "experimentId",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ]).text,
+    ).toBe(
+      "-environment:*langfuse-* -environment:sdk-experiment -has:experimentId",
+    );
+  });
+
   it("round-trips legacy filter state through the grammar", () => {
     const filters: FilterState = [
       {
@@ -585,10 +992,10 @@ describe("filterStateToQueryText", () => {
     expect(back.filters).toEqual([multi]);
   });
 
-  it("skips keyed filters whose key carries grammar chars (would mis-parse)", () => {
-    // `metadata.foo:bar` would reparse as key `metadata.foo` value `bar:…` and
-    // silently corrupt the filter — so a key with a colon (or any NEEDS_QUOTES
-    // char) must be preserved via skippedFilters, not serialized into text.
+  it("renders keyed filters whose key carries grammar chars via a quoted segment", () => {
+    // A metadata/score key with spaces, colons, or other grammar chars is now
+    // addressable with a quoted segment after the prefix (`metadata."foo:bar"`,
+    // `scores."rate test"`); it round-trips instead of being skipped.
     const colonKeyMeta: FilterState[number] = {
       type: "stringObject",
       column: "metadata",
@@ -596,20 +1003,93 @@ describe("filterStateToQueryText", () => {
       operator: "contains",
       value: "x",
     };
-    const colonKeyScore: FilterState[number] = {
+    const spacedScore: FilterState[number] = {
       type: "categoryOptions",
       column: "score_categories",
-      key: "rate:test",
+      key: "rate test",
       operator: "any of",
-      value: ["5"],
+      value: ["high"],
     };
-    const r = filterStateToQueryText([colonKeyMeta, colonKeyScore]);
-    expect(r.text).toBe("");
-    expect(r.skippedFilters).toEqual([colonKeyMeta, colonKeyScore]);
-    // A normal key still serializes into the query text (contains → `*x*`).
+    const r = filterStateToQueryText([colonKeyMeta, spacedScore]);
+    expect(r.skippedFilters).toEqual([]);
+    expect(r.text).toBe('metadata."foo:bar":*x* scores."rate test":high');
+    // Both round-trip back to the same FilterState.
+    expect(astToFilterState(validateQuery(r.text).ast).filters).toEqual([
+      colonKeyMeta,
+      spacedScore,
+    ]);
+    // A normal key still serializes bare (contains → `*x*`).
     expect(
       filterStateToQueryText([{ ...colonKeyMeta, key: "region" }]).text,
     ).toBe("metadata.region:*x*");
+  });
+
+  it("round-trips score names with spaces (numeric + categorical, no skip)", () => {
+    const numeric: FilterState = [
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "Rouge Score",
+        operator: ">=",
+        value: 1,
+      },
+    ];
+    const numericResult = filterStateToQueryText(numeric);
+    expect(numericResult.skippedFilters).toEqual([]);
+    expect(numericResult.text).toBe('scores."Rouge Score":>=1');
+    expect(
+      astToFilterState(validateQuery(numericResult.text).ast).filters,
+    ).toEqual(numeric);
+
+    const categorical: FilterState = [
+      {
+        type: "categoryOptions",
+        column: "trace_score_categories",
+        key: "Hallucination Check",
+        operator: "any of",
+        value: ["faithful"],
+      },
+    ];
+    const catResult = filterStateToQueryText(categorical);
+    expect(catResult.skippedFilters).toEqual([]);
+    expect(catResult.text).toBe('traceScores."Hallucination Check":faithful');
+    expect(astToFilterState(validateQuery(catResult.text).ast).filters).toEqual(
+      categorical,
+    );
+  });
+
+  it("reverse-renders booleanObject score filters without rewriting legacy numeric filters", () => {
+    const booleanFilter: FilterState = [
+      {
+        type: "booleanObject",
+        column: "score_booleans",
+        key: "Boolean Flag",
+        operator: "=",
+        value: true,
+      },
+      {
+        type: "booleanObject",
+        column: "trace_score_booleans",
+        key: "traceFlag",
+        operator: "<>",
+        value: false,
+      },
+    ];
+    expect(filterStateToQueryText(booleanFilter).text).toBe(
+      'scores."Boolean Flag":true -traceScores.traceFlag:false',
+    );
+
+    expect(
+      filterStateToQueryText([
+        {
+          type: "numberObject",
+          column: "scores_avg",
+          key: "Boolean Flag",
+          operator: "=",
+          value: 1,
+        },
+      ]).text,
+    ).toBe('scores."Boolean Flag":1');
   });
 
   it("serializes metadata equality as the bare form, not :=value", () => {
@@ -650,14 +1130,13 @@ describe("filterStateToQueryText", () => {
     ).toBe("-input:refund");
   });
 
-  it("rejects content: as an unknown field (the pseudo-field was removed)", () => {
-    // `content:` is no longer a field, so a value form errors as "Unknown field".
-    const r = lower('content:"refund"');
-    expect(r.errors).toEqual(['Unknown field "content"']);
-    expect(r.searchQuery).toBeNull();
-    expect(r.searchType).toBeNull();
-    // Bare `content:` (no value) is left to the parser — the adapter stays silent
-    // (empty-value FilterNode returns before resolveField), so no double.
+  it("lowers content to the payload-only search lane", () => {
+    expect(lower('content:"refund"')).toMatchObject({
+      errors: [],
+      searchQuery: "refund",
+      searchType: ["content"],
+      filters: [],
+    });
     expect(lower("content:").errors).toEqual([]);
   });
 
@@ -688,45 +1167,39 @@ describe("filterStateToQueryText", () => {
     }
   });
 
-  it("normalizes a residual input scope to an input: column filter", () => {
-    // A residual input/output searchType (legacy URL or the legacy toolbar)
-    // renders as the scoped token, which reparses to a real column filter — the
-    // deliberate canonicalization (searchType → column filter on next commit).
+  it("keeps a residual input search in its backend lane", () => {
     const { text } = filterStateToQueryText([], {
       searchQuery: "refund policy",
       searchType: ["input"],
     });
-    const r = astToFilterState(validateQuery(text).ast);
-    expect(r.errors).toEqual([]);
-    expect(r.filters).toEqual([
-      {
-        type: "string",
-        column: "input",
-        operator: "contains",
-        value: "refund policy",
-      },
-    ]);
-    expect(r.searchQuery).toBeNull();
-    expect(r.searchType).toBeNull();
+    expect(text).toBe('in:input "refund policy"');
+    expect(planCommit(text)).toMatchObject({
+      status: "committed",
+      filters: [],
+      searchQuery: "refund policy",
+      searchType: ["input"],
+    });
   });
 
-  it("renders the default scope (ids+names+input+output) as bare free text", () => {
-    // Any subset of {id, content} is the default scope — no scope token, so it
-    // round-trips to bare free text (and the caller re-applies the default).
-    for (const searchType of [
-      ["id"],
-      ["id", "content"],
-      ["content"],
-    ] as const) {
-      const { text } = filterStateToQueryText([], {
+  it("only renders the exact default scope as bare text", () => {
+    expect(
+      filterStateToQueryText([], {
         searchQuery: "hello",
-        searchType: [...searchType],
-      });
-      expect(text, `${searchType}`).toBe("hello");
-      const r = astToFilterState(validateQuery(text).ast);
-      expect(r.searchType).toBeNull();
-      expect(r.searchQuery).toBe("hello");
-    }
+        searchType: ["id", "content"],
+      }).text,
+    ).toBe("hello");
+    expect(
+      filterStateToQueryText([], {
+        searchQuery: "hello",
+        searchType: ["content"],
+      }).text,
+    ).toBe("content:hello");
+    expect(
+      filterStateToQueryText([], {
+        searchQuery: "hello",
+        searchType: ["id"],
+      }).text,
+    ).toBe("in:id hello");
   });
 
   it("preserves EXACT semantics for a single-value stringOptions any-of on id/name", () => {
@@ -765,19 +1238,30 @@ describe("filterStateToQueryText", () => {
     expect(astToFilterState(validateQuery(text).ast).filters).toEqual(filters);
   });
 
-  it("preserves a single-value stringOptions none-of on id/name via skippedFilters", () => {
-    // `-id:=abc` (negated exact) is not representable, so rather than rewrite it
-    // to `does not contain` (a substring flip), the bar must skip + preserve it.
-    const filters: FilterState = [
-      {
-        type: "stringOptions",
-        column: "name",
-        operator: "none of",
-        value: ["abc"],
-      },
-    ];
-    const { skippedFilters } = filterStateToQueryText(filters);
-    expect(skippedFilters).toEqual(filters);
+  it("renders a single-value stringOptions none-of on id/name as negated exact", () => {
+    // A single none-of on a textSearch field is exact-inequality. The faithful
+    // grammar form is the negated exact `-name:=abc` (which lowers back to
+    // stringOptions none-of), NOT `-name:abc` (does-not-contain / substring).
+    // This is the facet "uncheck one value" shape — it must render in the bar,
+    // not vanish into skippedFilters.
+    for (const column of ["id", "name"]) {
+      const filters: FilterState = [
+        {
+          type: "stringOptions",
+          column,
+          operator: "none of",
+          value: ["abc"],
+        },
+      ];
+      const { text, skipped, skippedFilters } = filterStateToQueryText(filters);
+      expect(skipped).toEqual([]);
+      expect(skippedFilters).toEqual([]);
+      expect(text).toBe(`-${column}:=abc`);
+      // And it round-trips back to the same stringOptions none-of filter.
+      expect(astToFilterState(validateQuery(text).ast).filters).toEqual(
+        filters,
+      );
+    }
   });
 
   it("round-trips option values with operator-prefix, keyword, and empty forms", () => {

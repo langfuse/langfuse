@@ -16,6 +16,39 @@ const denyOnLangfuseCloud = () => {
   }
 };
 
+const ENV_GATE_PREFIX = "LANGFUSE_BACKGROUND_MIGRATION_";
+
+// Mirrors the worker's gate discovery
+// (worker/src/backgroundMigrations/backgroundMigrationManager.ts): a row may
+// declare `args.envGate = "<ENV_VAR>"` and stays dormant until the operator
+// sets that env var to "true". Only gates sharing the
+// LANGFUSE_BACKGROUND_MIGRATION_ prefix are considered, matching the worker.
+// A row already claimed by a worker (workerId set) is never dormant — the
+// gate only needs to be enabled on the worker for the migration to run.
+const isDormant = (migration: {
+  args: unknown;
+  workerId: string | null;
+}): boolean => {
+  if (migration.workerId !== null) {
+    return false;
+  }
+
+  const envGate =
+    typeof migration.args === "object" &&
+    migration.args !== null &&
+    !Array.isArray(migration.args)
+      ? (migration.args as Record<string, unknown>).envGate
+      : undefined;
+  if (typeof envGate !== "string") {
+    return false;
+  }
+
+  return (
+    !envGate.startsWith(ENV_GATE_PREFIX) ||
+    (env as unknown as Record<string, unknown>)[envGate] !== "true"
+  );
+};
+
 export const backgroundMigrationsRouter = createTRPCRouter({
   all: authenticatedProcedure.query(async ({ ctx }) => {
     denyOnLangfuseCloud();
@@ -39,9 +72,11 @@ export const backgroundMigrationsRouter = createTRPCRouter({
       return { status: "FAILED" };
     }
 
+    // Dormant rows are excluded: they wait on an env gate the operator has not
+    // set, so nothing is running and the sidebar should not show activity.
     if (
       backgroundMigrations.some(
-        (m) => m.finishedAt === null && m.failedAt === null,
+        (m) => m.finishedAt === null && m.failedAt === null && !isDormant(m),
       )
     ) {
       return { status: "ACTIVE" };

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { prisma } from "../../../src/db";
 import {
   createTrace,
@@ -8,13 +9,14 @@ import {
   createObservationsCh,
   createScoresCh,
   createEventsCh,
+  toClickhouseDateTime,
   EventRecordInsertType,
   ObservationRecordInsertType,
   ScoreRecordInsertType,
   TraceRecordInsertType,
 } from "../../../src/server";
 import { observationToEvent, traceToEvent } from "./event-mirror";
-import { buildPayload, PayloadStyle } from "./payload";
+import { buildPayload, generationUsageCost, PayloadStyle } from "./payload";
 import { jitter, Rng, utcDayStartMs } from "./rng";
 import {
   chunk,
@@ -127,12 +129,15 @@ const run = async (
     const isHuge = t > 0 && t % 17 === 0;
     const style: PayloadStyle =
       t % 7 === 3 ? "unicode" : rng.bool(0.6) ? "json" : "text";
-    const name =
-      t % 9 === 4
-        ? `${rng.pick(TRACE_NAMES)}-with-a-very-long-descriptive-name-${"y".repeat(120)}`
-        : t % 7 === 3
-          ? `多言語サポート ${rng.pick(TRACE_NAMES)}`
-          : rng.pick(TRACE_NAMES);
+    const name = (() => {
+      if (t % 9 === 4) {
+        return `${rng.pick(TRACE_NAMES)}-with-a-very-long-descriptive-name-${"y".repeat(120)}`;
+      }
+      if (t % 7 === 3) {
+        return `多言語サポート ${rng.pick(TRACE_NAMES)}`;
+      }
+      return rng.pick(TRACE_NAMES);
+    })();
 
     const trace = createTrace({
       id: traceId,
@@ -204,7 +209,7 @@ const run = async (
           name: isRoot
             ? "session-turn"
             : isGeneration
-              ? "gpt-4o-completion"
+              ? "gpt-5.4-completion"
               : rng.pick(["fetch-context", "log-event", "format-reply"]),
           start_time: startTime,
           end_time: endTime,
@@ -228,38 +233,23 @@ const run = async (
             ? buildPayload("text", rng.int(100, 600), rng)
             : null,
           metadata: { scenario: "long-session", turn: String(t) },
-          provided_model_name: isGeneration ? "gpt-4o" : null,
+          provided_model_name: isGeneration ? "gpt-5.4" : null,
           internal_model_id: null,
           model_parameters: isGeneration
             ? JSON.stringify({ temperature: 0.7 })
             : "{}",
-          provided_usage_details: isGeneration
-            ? {
-                input: usageInput,
-                output: usageOutput,
-                total: usageInput + usageOutput,
-              }
-            : {},
-          usage_details: isGeneration
-            ? {
-                input: usageInput,
-                output: usageOutput,
-                total: usageInput + usageOutput,
-              }
-            : {},
-          provided_cost_details: isGeneration
-            ? { input: usageInput * 2e-6, output: usageOutput * 6e-6 }
-            : {},
-          cost_details: isGeneration
-            ? {
-                input: usageInput * 2e-6,
-                output: usageOutput * 6e-6,
-                total: usageInput * 2e-6 + usageOutput * 6e-6,
-              }
-            : {},
-          total_cost: isGeneration
-            ? usageInput * 2e-6 + usageOutput * 6e-6
-            : null,
+          // Empty fields stay explicit for non-generations: the
+          // createObservation factory would otherwise fill non-empty
+          // usage/cost defaults.
+          ...(isGeneration
+            ? generationUsageCost(usageInput, usageOutput)
+            : {
+                provided_usage_details: {},
+                usage_details: {},
+                provided_cost_details: {},
+                cost_details: {},
+                total_cost: null,
+              }),
           prompt_id: null,
           prompt_name: null,
           prompt_version: null,
@@ -273,7 +263,9 @@ const run = async (
     // The root "session-turn" span must cover its children, otherwise the
     // waterfall shows children running after their parent already ended.
     if (observationsPerTrace > 1) {
-      observations[rootObservationIndex].end_time = maxChildEndTime + 25;
+      observations[rootObservationIndex].end_time = toClickhouseDateTime(
+        maxChildEndTime + 25,
+      );
     }
 
     if (t % 3 === 0) {
@@ -350,7 +342,11 @@ const run = async (
 
   const links = [
     sessionLink(ctx, sessionId),
-    traceLink(ctx, traces[0].id, traces[0].timestamp as number),
+    traceLink(
+      ctx,
+      traces[0].id,
+      Date.parse(traces[0].timestamp.replace(" ", "T") + "Z"),
+    ),
   ];
 
   // The session detail page 404s without the Postgres trace_sessions row.

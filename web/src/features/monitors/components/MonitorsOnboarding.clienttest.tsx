@@ -40,7 +40,7 @@ describe("MonitorsOnboarding", () => {
       screen.getByRole("link", { name: /Connect Github Actions/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /Create Monitor/i }),
+      screen.getByRole("link", { name: /Create Alert/i }),
     ).toBeInTheDocument();
   });
 
@@ -62,16 +62,14 @@ describe("MonitorsOnboarding", () => {
       const decoded = parsePrefill(href);
       expect(decoded.eventSource).toBe("monitor");
       expect(decoded.actionType).toBe(expected);
-      expect(decoded.redirectUrl).toBe(`/project/${PROJECT_ID}/monitors`);
+      expect(decoded.redirectUrl).toBe(`/project/${PROJECT_ID}/alerts`);
     }
   });
 
-  it("links the Create Monitor CTA to the project's new-monitor route", () => {
+  it("links the Create Alert CTA to the project's new-alert route", () => {
     render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
 
-    const link = screen.getByRole("link", { name: /Create Monitor/i });
-    expect(link.getAttribute("href")).toBe(
-      `/project/${PROJECT_ID}/monitors/new`,
-    );
+    const link = screen.getByRole("link", { name: /Create Alert/i });
+    expect(link.getAttribute("href")).toBe(`/project/${PROJECT_ID}/alerts/new`);
   });
 });

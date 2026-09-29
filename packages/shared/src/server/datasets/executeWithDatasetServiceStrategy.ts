@@ -26,9 +26,9 @@ export async function executeWithDatasetServiceStrategy<T>(
       env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION === "true"
     ) {
       return await implementations[Implementation.VERSIONED]();
-    } else {
-      return await implementations[Implementation.STATEFUL]();
     }
+
+    return await implementations[Implementation.STATEFUL]();
   }
 
   // READ operation - use configured source

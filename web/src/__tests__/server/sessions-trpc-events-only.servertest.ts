@@ -12,6 +12,7 @@
  * it via process.env BEFORE any module is imported (mirrors
  * traces-trpc-events-only.servertest.ts).
  */
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { vi } from "vitest";
 
 // The events_full table is created only by the ClickHouse dev-tables setup,
@@ -69,6 +70,9 @@ maybe("sessions trpc (events_only write mode)", () => {
           role: "OWNER",
           plan: "cloud:hobby",
           cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
           projects: [
             {
               id: projectId,
@@ -76,26 +80,27 @@ maybe("sessions trpc (events_only write mode)", () => {
               retentionDays: 30,
               deletedAt: null,
               name: "Test Project",
+              hasTraces: false,
+              metadata: {},
+              createdAt: new Date().toISOString(),
             },
           ],
         },
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-      },
+      featureFlags: testFeatureFlags(),
       admin: true,
     },
     environment: {} as any,
   };
 
-  const ctx = createInnerTRPCContext({ session });
+  const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   // Seed a single root event for a session into the events table and wait until
   // the session is countable (ClickHouse insert visibility can lag).
   const seedSessionEvent = async (sessionId: string) => {
     const traceId = randomUUID();
+    const startTime = new Date();
     await createEventsCh([
       createEvent({
         id: traceId,
@@ -106,7 +111,7 @@ maybe("sessions trpc (events_only write mode)", () => {
         type: "SPAN",
         session_id: sessionId,
         user_id: "user-a",
-        start_time: Date.now() * 1000,
+        start_time: startTime.getTime() * 1000,
       }),
     ]);
 
@@ -118,7 +123,7 @@ maybe("sessions trpc (events_only write mode)", () => {
       expect(rows[0]?.session_id).toBe(sessionId);
     });
 
-    return traceId;
+    return { traceId, startTime };
   };
 
   it("forces events_only write mode", () => {
@@ -134,7 +139,7 @@ maybe("sessions trpc (events_only write mode)", () => {
     });
     expect(before).toBeNull();
 
-    await seedSessionEvent(sessionId);
+    const { startTime } = await seedSessionEvent(sessionId);
 
     const result = await caller.sessions.byIdWithScoresFromEvents({
       projectId,
@@ -145,6 +150,12 @@ maybe("sessions trpc (events_only write mode)", () => {
     expect(result.bookmarked).toBe(false);
     expect(result.public).toBe(false);
     expect(result.countTraces).toBeGreaterThanOrEqual(1);
+    expect(
+      Math.abs(result.minTimestamp.getTime() - startTime.getTime()),
+    ).toBeLessThan(1000);
+    expect(
+      Math.abs(result.maxTimestamp.getTime() - startTime.getTime()),
+    ).toBeLessThan(1000);
   });
 
   it("bookmark creates the trace_sessions row on demand and round-trips", async () => {
@@ -200,5 +211,15 @@ maybe("sessions trpc (events_only write mode)", () => {
     });
     expect(read.public).toBe(true);
     expect(read.bookmarked).toBe(false);
+  });
+
+  it("rejects publishing an empty session id", async () => {
+    await expect(
+      caller.sessions.publish({
+        projectId,
+        sessionId: "",
+        public: true,
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });

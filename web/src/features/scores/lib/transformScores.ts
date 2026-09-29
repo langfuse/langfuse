@@ -1,5 +1,8 @@
-import { type ScoreDomain, type ScoreConfigDomain } from "@langfuse/shared";
-import { type ScoreAggregate } from "@langfuse/shared";
+import {
+  type ScoreDomain,
+  type ScoreConfigDomain,
+  type ScoreAggregate,
+} from "@langfuse/shared";
 import {
   ANNOTATION_SCORE_DATA_TYPES_ARRAY,
   type AnnotationScoreDataType,

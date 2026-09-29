@@ -10,13 +10,14 @@ import {
 import {
   InvalidRequestError,
   normalizeOrderByForTable,
+  promptsTableCols,
   scoresTableCols,
   tracesTableCols,
 } from "@langfuse/shared";
 
 // The test for the orderByToPrisma function
 describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
-  test("orderByToPrisma throws error for orderBy column not included in column defs", () => {
+  test("orderByToPrisma throws InvalidRequestError for orderBy column not included in column defs", () => {
     expect(() =>
       orderByToPrismaSql(
         {
@@ -25,7 +26,7 @@ describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
         },
         tracesTableCols,
       ),
-    ).toThrow(/Invalid filter column: InvalidCol/);
+    ).toThrow(InvalidRequestError);
   });
 
   test("orderByToPrisma throws error for orderBy order that is not valid", () => {
@@ -54,6 +55,30 @@ describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
         expectedTimeColumn: "createdAt",
       }),
     ).toEqual({ column: "createdAt", order: "ASC" });
+  });
+
+  test("prompts list remaps leaked startTime orderBy onto createdAt", () => {
+    expect(() =>
+      orderByToPrismaSql(
+        { column: "startTime", order: "DESC" },
+        promptsTableCols,
+      ),
+    ).toThrow(InvalidRequestError);
+
+    expect(
+      orderByToPrismaSql(
+        normalizeOrderByForTable({
+          orderBy: { column: "startTime", order: "DESC" },
+          expectedTimeColumn: "createdAt",
+        }),
+        promptsTableCols,
+      ),
+    ).toEqual(
+      orderByToPrismaSql(
+        { column: "createdAt", order: "DESC" },
+        promptsTableCols,
+      ),
+    );
   });
 
   test("orderByToClickhouseSql throws InvalidRequestError for invalid columns", () => {
@@ -98,7 +123,7 @@ describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
     );
 
     expect(filterList.apply().query).toMatch(
-      /^s\.timestamp >= \{dateTimeFilter[A-Za-z]{5}: DateTime64\(3\)\}$/,
+      /^s\.timestamp >= \{dateTimeFilter[A-Za-z]{5}: DateTime64\(3, 'UTC'\)\}$/,
     );
   });
 });

@@ -35,7 +35,7 @@ describe("createFilterFromFilterState with emptyEqualsNull", () => {
   it.each<{
     desc: string;
     operator: "is null" | "is not null";
-    mapping: typeof withEmptyEqualsNull;
+    mapping: typeof withoutFlag & { emptyEqualsNull?: boolean };
     expected: string;
   }>([
     {

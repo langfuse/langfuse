@@ -31,6 +31,16 @@ Use this skill for interactive dependency bumps in Langfuse.
 - If the current parent range does not cover the requested transitive version,
   upgrade that parent dependency instead of adding the target package directly
   unless the user explicitly wants that.
+- Probe the parent once at `@latest`:
+  `npm view <parent>@latest dependencies peerDependencies optionalDependencies --json`.
+  If that range resolves to any non-vulnerable version of the target, even one
+  newer than the lowest fix, upgrade the parent instead of pinning the exact
+  lowest fix. If the latest parent still pins a vulnerable range, do not walk
+  intermediate parent versions: add a scoped `overrides` entry in
+  `pnpm-workspace.yaml` only when the fixed version stays within the major the
+  parent declares, otherwise treat it as a major migration and stop. In the
+  final response, state that the parent pins the vulnerable range so the
+  reviewer knows the override is a workaround.
 - If pnpm will not move an already-allowed transitive version, a scoped
   `overrides` entry in `pnpm-workspace.yaml` may be used as a temporary
   resolution tool. Before finishing, prove whether the override is still
@@ -48,11 +58,20 @@ Use this skill for interactive dependency bumps in Langfuse.
   unless the user asked for latest.
 - Compare the target version with the latest version installable under the
   current `minimumReleaseAge` window.
+- Before generating lockfile changes, run
+  `pnpm install --dry-run --ignore-scripts` to catch resolver and policy
+  failures without writing `pnpm-lock.yaml` or `node_modules`.
+- Inspect any dry-run "would make changes" output as baseline resolver drift
+  before deciding which write command is safe.
 - Ask before adding `minimumReleaseAgeExclude` entries for the target package,
   exact dependency companions from `dependencies` or `optionalDependencies`, or
   locally installed exact peer dependencies.
 - Finish with `pnpm why -r <package>` to confirm that only the intended version
   remains in the workspace.
+- In the final response, include a copy-pasteable human commit command using
+  the resolved package name and target version. Use a branch-safe package slug
+  for scoped packages, but keep the exact package name in the commit message:
+  `git switch -C deps/bump-<package-slug>-to-<version> && git commit -m "chore(deps): bump <package> to <version>" --no-verify`
 
 ## Quick Commands
 
@@ -62,6 +81,8 @@ Use this skill for interactive dependency bumps in Langfuse.
   `pnpm why -r <package>`
 - Inspect a current parent manifest on the registry:
   `npm view <parent>@<installedVersion> dependencies peerDependencies optionalDependencies --json`
+- Preflight resolver/policy check:
+  `pnpm install --dry-run --ignore-scripts`
 - Optional lockfile cleanup:
   `pnpm dedupe`
 - Bump in the root workspace:
@@ -72,3 +93,5 @@ Use this skill for interactive dependency bumps in Langfuse.
   `pnpm -r up <package>@<version>`
 - Verify temporary override removal:
   remove the override, then run `pnpm install` and `pnpm dedupe`
+- Human commit helper:
+  `git switch -C deps/bump-<package-slug>-to-<version> && git commit -m "chore(deps): bump <package> to <version>" --no-verify`

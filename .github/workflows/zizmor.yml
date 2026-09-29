@@ -6,10 +6,12 @@ on:
   push:
     branches:
       - "main"
+      - "v3"
   merge_group:
   pull_request:
     branches:
       - "main"
+      - "v3"
 
 permissions: {}
 
@@ -22,12 +24,12 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Run zizmor
-        uses: zizmorcore/zizmor-action@5f14fd08f7cf1cb1609c1e344975f152c7ee938d # v0.5.6
+        uses: zizmorcore/zizmor-action@6fc4b006235f201fdab3722e17240ab420d580e5 # v0.6.1
         with:
           advanced-security: ${{ github.event_name == 'push' && 'true' || 'false' }}
           min-severity: low

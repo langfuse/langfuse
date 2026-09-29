@@ -10,14 +10,15 @@ import {
 import {
   createAnnotationQueueAssignmentForApi,
   deleteAnnotationQueueAssignmentForApi,
-} from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
-
+} from "@/src/features/annotation-queues/server";
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Annotation Queue Assignment",
+    action: "annotationQueueAssignments:CUD",
     bodySchema: CreateAnnotationQueueAssignmentBody,
     querySchema: AnnotationQueueAssignmentQuery,
     responseSchema: CreateAnnotationQueueAssignmentResponse,
+    rateLimitResource: "annotation-queues",
     fn: async ({ query, body, auth }) => {
       const { assignment } = await createAnnotationQueueAssignmentForApi({
         projectId: auth.scope.projectId,
@@ -33,9 +34,11 @@ export default withMiddlewares({
 
   DELETE: createAuthedProjectAPIRoute({
     name: "Delete Annotation Queue Assignment",
+    action: "annotationQueueAssignments:CUD",
     querySchema: AnnotationQueueAssignmentQuery,
     bodySchema: DeleteAnnotationQueueAssignmentBody,
     responseSchema: DeleteAnnotationQueueAssignmentResponse,
+    rateLimitResource: "annotation-queues",
     fn: async ({ query, body, auth }) => {
       const result = await deleteAnnotationQueueAssignmentForApi({
         projectId: auth.scope.projectId,

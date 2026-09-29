@@ -1,4 +1,4 @@
-import { stripeWebhookHandler } from "@/src/ee/features/billing/server/stripeWebhookHandler";
+import { stripeWebhookHandler } from "@/src/ee/features/billing/server/stripe/stripeWebhookHandler";
 
 export const dynamic = "force-dynamic";
 
