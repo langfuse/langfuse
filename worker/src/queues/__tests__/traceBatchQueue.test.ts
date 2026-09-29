@@ -592,7 +592,7 @@ describe("trace batch queue", () => {
       }
     },
   );
-  it("finishes the batch past a failed trace, reports outcomes and re-enqueues only the failure until retries run out", async () => {
+  it("finishes the batch past a failed trace, reports outcomes and does not re-enqueue the failure", async () => {
     const traces = ["a", "b", "c"];
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
       for (const projectId of traces)
@@ -631,17 +631,18 @@ describe("trace batch queue", () => {
       maxStart: 1,
       revision: "r",
     });
-    const job = (topicsRetry?: number) =>
-      ({
-        data: {
-          id: "outcomes",
-          name: QueueJobs.TraceBatch,
-          timestamp: new Date(),
-          payload: { traces: traces.map(entry), topicsRetry },
-        },
-      }) as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+    const job = {
+      data: {
+        id: "outcomes",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: { traces: traces.map(entry) },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
 
-    await traceBatchQueueProcessor(job(), undefined);
+    await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual(
+      expect.objectContaining({ traceCount: 3 }),
+    );
     expect(
       vi.mocked(summarizeAssembledTrace).mock.calls.map(([t]) => t.projectId),
     ).toEqual(traces);
@@ -655,22 +656,7 @@ describe("trace batch queue", () => {
       1,
       { outcome: "failed", reason: "invalid_output" },
     );
-    expect(add).toHaveBeenCalledExactlyOnceWith(
-      QueueJobs.TraceBatch,
-      expect.objectContaining({
-        payload: { traces: [entry("b")], topicsRetry: 1 },
-      }),
-      expect.objectContaining({ delay: 60_000 }),
-    );
-
-    add.mockClear();
-    await traceBatchQueueProcessor(job(2), undefined);
     expect(add).not.toHaveBeenCalled();
-    expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.topics.trace_retries",
-      1,
-      { decision: "exhausted" },
-    );
     vi.mocked(summarizeAssembledTrace).mockImplementation(
       async () => "disabled",
     );

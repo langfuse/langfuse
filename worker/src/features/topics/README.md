@@ -98,13 +98,10 @@ transcript for each current facet of an allowlisted project. It does not load
 the trace from ClickHouse again. Projects outside
 `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` are skipped. A finished facet version is
 skipped on retry. A failing trace does not stop the batch: every trace is
-processed, outcomes are counted once per job (`langfuse.topics.trace_outcomes`
-by outcome and reason), and failed traces are re-enqueued as a new trace-batch
-job with `topicsRetry` and a doubling delay (`LANGFUSE_TOPICS_TRACE_RETRY_DELAY_MS`,
-default 60 s) up to `LANGFUSE_TOPICS_TRACE_MAX_RETRIES` (default 2). Errors
-without a provider reason, such as the input limit, are not retried
-(`langfuse.topics.trace_retries` by decision). Only a failed batch read fails
-the job. Summaries and embeddings use the same Bedrock models as manual
+processed and outcomes are counted once per job (`langfuse.topics.trace_outcomes`
+by outcome and reason). Failed traces are not retried, because a retry would
+read the shared batch from ClickHouse again. Only a failed batch read fails the
+job. Summaries and embeddings use the same Bedrock models as manual
 processing.
 
 Required for a local run, in addition to Postgres, ClickHouse, and Redis:

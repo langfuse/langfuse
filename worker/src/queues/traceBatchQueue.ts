@@ -1,17 +1,15 @@
 import { type Processor } from "bullmq";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { type Observation } from "@langfuse/shared";
 import {
   convertObservation,
   getCurrentSpan,
   getTraceBatchEventStream,
   logger,
-  QueueJobs,
   recordDistribution,
   recordGauge,
   recordIncrement,
   TraceBatchEventSchema,
-  TraceBatchQueue,
   type QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
@@ -22,7 +20,7 @@ import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatch
 
 type TraceOutcome =
   | { outcome: "disabled" | "unchanged" | "summarized" }
-  | { outcome: "failed"; projectId: string; traceId: string; reason: string };
+  | { outcome: "failed"; reason: string };
 
 async function summarizeTraceBatch(
   observations: Observation[],
@@ -56,15 +54,10 @@ async function summarizeTraceBatch(
         }),
       };
     } catch (error) {
-      // One trace's failure must not stop the batch; the job re-enqueues it.
+      // One trace's failure must not fail or re-read the shared batch.
       const reason =
         error instanceof TopicsProviderUnavailable ? error.reason : "other";
-      outcome = {
-        outcome: "failed",
-        projectId: first.projectId,
-        traceId,
-        reason,
-      };
+      outcome = { outcome: "failed", reason };
       logger.warn("Topics summary failed for trace", {
         projectId: first.projectId,
         traceId,
@@ -75,18 +68,8 @@ async function summarizeTraceBatch(
   return outcome;
 }
 
-/**
- * Reports the batch's Topics outcomes and re-enqueues failed traces as a new
- * job with a retry counter and doubling delay. Unclassified errors (for example
- * the input limit) cannot succeed on retry and are dropped.
- */
-async function retryFailedTopicsTraces(
-  batch: {
-    traces: ReturnType<typeof TraceBatchEventSchema.parse>["payload"]["traces"];
-    topicsRetry?: number;
-  },
-  outcomes: TraceOutcome[],
-): Promise<void> {
+/** Failed traces are counted, not retried. */
+function recordTopicsOutcomes(outcomes: TraceOutcome[]): void {
   const counts = new Map<string, number>();
   for (const result of outcomes) {
     const key = JSON.stringify([
@@ -102,45 +85,6 @@ async function retryFailedTopicsTraces(
       ...(reason ? { reason } : {}),
     });
   }
-  const failed = outcomes.filter((result) => result.outcome === "failed");
-  if (!failed.length) return;
-  const attempt = (batch.topicsRetry ?? 0) + 1;
-  const retryable = failed.filter(({ reason }) => reason !== "other");
-  const decision = (name: string, count: number) =>
-    count &&
-    recordIncrement("langfuse.topics.trace_retries", count, { decision: name });
-  decision("not_retryable", failed.length - retryable.length);
-  if (attempt > env.LANGFUSE_TOPICS_TRACE_MAX_RETRIES) {
-    decision("exhausted", retryable.length);
-    return;
-  }
-  const keys = new Set(
-    retryable.map(({ projectId, traceId }) =>
-      JSON.stringify([projectId, traceId]),
-    ),
-  );
-  const traces = batch.traces.filter(({ projectId, traceId }) =>
-    keys.has(JSON.stringify([projectId, traceId])),
-  );
-  const queue = TraceBatchQueue.getInstance();
-  if (!traces.length || !queue) return;
-  const id = createHash("sha256")
-    .update(JSON.stringify([traces, attempt]))
-    .digest("hex");
-  await queue.add(
-    QueueJobs.TraceBatch,
-    {
-      id,
-      timestamp: new Date(),
-      name: QueueJobs.TraceBatch,
-      payload: { traces, topicsRetry: attempt },
-    },
-    {
-      jobId: id,
-      delay: env.LANGFUSE_TOPICS_TRACE_RETRY_DELAY_MS * 2 ** (attempt - 1),
-    },
-  );
-  decision("requeued", traces.length);
 }
 
 const JOB_MAX_AGE_MS = 2 * 60 * 60_000;
@@ -372,7 +316,7 @@ function createTraceBatchQueueProcessor(
         batch.traces.length - foundTraces.size,
       );
 
-      await retryFailedTopicsTraces(batch, topicsOutcomes);
+      recordTopicsOutcomes(topicsOutcomes);
       // Retries can repeat this read; observation payloads never enter job results.
       outcome = "success";
       return {
