@@ -395,6 +395,7 @@ export type OpenAIModel = (typeof openAIModels)[number];
 export const anthropicModels = [
   "claude-sonnet-4-5-20250929",
   "claude-sonnet-5",
+  "claude-sonnet-5-5",
   "claude-fable-5",
   "claude-fable-5-1",
   "claude-mythos-5",
