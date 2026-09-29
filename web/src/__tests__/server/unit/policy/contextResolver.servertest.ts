@@ -47,6 +47,8 @@ const assignmentsFor = (principalId: string) => {
     ];
   if (principalId === "apiKey/key_p")
     return [{ systemRole: "PROJECT", ownerId: `project/${PRJ}`, orgId: ORG }];
+  if (principalId === "apiKey/key_v")
+    return [{ systemRole: "VIEWER", ownerId: `project/${PRJ}`, orgId: ORG }];
   return [];
 };
 
@@ -156,6 +158,18 @@ describe("presentation rides in the input", () => {
       true,
     );
     expect(authorize(pub, TENANT, "traces:read", ProjectId(PRJ)).success).toBe(
+      false,
+    );
+  });
+});
+
+describe("publicKey is capped by the key's stored role", () => {
+  it("grants no scores:save to a key whose role lacks it", async () => {
+    const ctx = await contextFor({
+      authorization: "publicKey",
+      apiKey: apiKey({ id: "key_v" }),
+    });
+    expect(authorize(ctx, TENANT, "scores:save", ProjectId(PRJ)).success).toBe(
       false,
     );
   });

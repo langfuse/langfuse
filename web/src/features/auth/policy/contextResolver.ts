@@ -19,6 +19,7 @@ import {
   type GetOrganizationResult,
   type OrganizationWithProjects,
 } from "./organizationRepository";
+import { authorize } from "@/src/features/rbac/authorize";
 import { type Policy } from "@/src/features/rbac/types";
 import {
   internalServerError,
@@ -111,21 +112,29 @@ async function materialize(
     boundResource: boundResourceFor(apiKey, org),
   };
 
-  if (authorization === "publicKey") {
-    return { principal, policies: publicBearerPolicies(apiKey, org) };
-  }
   const roles = await getRolesForPrincipal(ApiKeyId(apiKey.id), prisma);
-  const policies = roles.flatMap((role) => role.policies);
-  return { principal, policies };
+  const context = {
+    principal,
+    policies: roles.flatMap((role) => role.policies),
+  };
+  if (authorization === "publicKey") {
+    return { principal, policies: publicBearerPolicies(context, apiKey, org) };
+  }
+  return context;
 }
 
-/** publicBearerPolicies narrows a public-key bearer to scores:save on its own project, regardless of any stored assignment. */
+/** publicBearerPolicies narrows a public-key bearer to scores:save on its own project, granted only when the key's stored roles allow it there. */
 function publicBearerPolicies(
+  roleContext: AuthorizationContext,
   apiKey: ApiKey,
   org: PrincipalOrganization,
 ): Policy[] {
   const tenantId = OrganizationId(org.orgId);
-  const resources = [ProjectId(apiKey.projectId!)];
+  const project = ProjectId(apiKey.projectId!);
+  if (!authorize(roleContext, tenantId, "scores:save", project).success) {
+    return [];
+  }
+  const resources = [project];
   const roleId = SystemRoleId("SCORES_INGEST");
   return systemRoleAccessRights.SCORES_INGEST.policies.map((policy) => ({
     id: `${roleId}:${policy.resourceKind}`,
