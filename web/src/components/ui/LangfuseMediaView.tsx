@@ -100,6 +100,7 @@ export const LangfuseMediaView = ({
     },
     {
       enabled: Boolean(projectId) && !isOversizedField,
+      meta: { silentHttpCodes: [404] },
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
