@@ -196,32 +196,37 @@ Examples:
     {
       name: "Issues",
       description: "The main problem in how the run was handled.",
-      prompt: `Describe the most consequential problem in how the assistant or application handled this run.
+      prompt: `Describe the problem that did the most damage to the result of this run: the mistake that made the final answer or action wrong, unsupported, or missing.
 
-Format: "<Category>: <what went wrong, where, and its consequence>", where Category is one of:
-- Tool error: a tool call failed, timed out, or returned an error.
-- Wrong action: the assistant called the wrong tool, passed wrong arguments, or acted on the wrong item.
-- Unsupported claim: the assistant stated a fact or reported an action the transcript does not back, such as "done" without a confirming result.
-- Ignored instruction: the run breaks a rule, format, or correction the user or system gave, or skips a step the assistant's own plan committed to.
-- Off target: the response answers a different request or assumes a premise the conversation does not support.
-- Unfinished: the run stops after a tool call or mid-answer, with no final response.
-- Repetition: the assistant repeats the same step without progress.
-- Unhelpful refusal: the assistant declines a reasonable request without trying.
-- Exposed reasoning: the visible reply contains internal reasoning or thinking tags. Reasoning parts are internal and do not count.
+Format: one sentence that names the mistake, the kind of step where it happened, and its consequence, for example "Answered from memory instead of querying the dataset, so the reported value is unverified."
+- Describe the mechanism in plain, generic words: what the assistant did wrong and how, such as answering from memory, inventing data, claiming a check that never ran, choosing the wrong tool, breaking a required format, or stopping before the answer. Use the words that fit this run.
+- Name the kind of step (a web search, a file read, a calculation, a code change, the final answer), not the task's subject. "Skipped the file read and guessed the count" is right; "gave a wrong count of crustacean slides" is not.
+- Do not start with a label or category.
+
+How to find it:
+- Start from the end. Check the final answer or action against the request: is it on target, complete, and backed by what the run actually retrieved or did? Then work back to the step that caused the gap.
+- Report the cause with its consequence, not the symptom. When a tool fails and the assistant then answers anyway from guesses or invented data, the problem is the unsupported answer, not the tool failure.
+- When several problems occur, report the one with the biggest effect on the result. Prefer, in this order: an answer or reported result that is wrong or not backed by the run; a task left unfinished or answered off target; a wrong tool, approach, or argument; a broken instruction or format; a tool failure that blocked the result. A problem the assistant fully recovered from counts only when nothing worse happened.
+- Keep the symptoms of one problem together; do not list separate problems.
+
+Before you return not_applicable, check these four points. Return not_applicable only when all of them hold:
+1. Every fact, number, or result in the final answer comes from a tool result or user input in this run, not from memory or assumption.
+2. Every tool call used a tool suited to its input, such as a file tool on a local file rather than a web address, with valid arguments.
+3. The run followed the output format, tags, and steps that the system prompt or the assistant's own plan required.
+4. The final answer addresses exactly what was asked: the right quantity, unit, entity, and scope.
 
 - Only problems in this run count. An error the user pastes for explanation, a problem in earlier conversation, or a complaint about something outside the run is not an issue here.
-- A clarifying question, a justified refusal, a short answer, and a retry that succeeds are not issues. If the assistant recovered from a real problem, report it and mention the recovery.
-- Check the end of this run before calling it Unfinished: if a later assistant message delivers an answer or fallback, the run is finished.
-- Compare what the assistant did with the rules it was given and the plan it stated. Breaking an explicit rule, skipping a planned step, or using a different tool than planned is an issue even when the run otherwise succeeds.
-- Report only what the transcript shows directly. If a problem is only a possibility, return not_applicable.
-- Report one problem. Keep related symptoms together.
+- A clarifying question, a justified refusal, a short answer, and a retry that succeeds are not issues.
+- Check the end of this run before calling it unfinished: if a later assistant message delivers an answer or fallback, the run is finished.
+- Report only what the transcript shows directly. A stated fact with no supporting lookup in the run is shown directly. A problem that is only a possibility is not.
 
 Status: not_applicable when the run is complete enough to judge and shows no problem. insufficient_input when too much is missing to judge, for example only the first request survives.
 
 Examples:
-- Tool error: inventory lookup timed out, so the quote left out stock levels; the assistant asked the user to retry.
-- Unsupported claim: assistant confirmed a refund was issued, but no refund tool was called.
-- Ignored instruction: user asked for metric units, but the answer used imperial units throughout.`,
+- Answered from a made-up example after the data file could not be read, so the reported result is invented.
+- Reported the total instead of the requested minimum, so the answer misses the question.
+- Searched the web for figures the attached spreadsheet contained, so the answer used outdated data.
+- Every inventory lookup timed out, so no quote could be produced and the user was asked to retry later.`,
     },
   ];
   for (const preset of presets) {
