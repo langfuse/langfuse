@@ -50,6 +50,7 @@ import {
   EvaluatorBlockSource,
   finalizeEvaluatorBlocks,
   validateLlmConnectionBaseURL,
+  assertAzureHostAllowedForDefaultCredentials,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -91,6 +92,7 @@ function parseAzureServicePrincipal(secretKey: string) {
 export function validateAzureSecretKey(params: {
   adapter: LLMAdapter;
   secretKey: string;
+  baseURL?: string | null;
 }) {
   if (params.secretKey === AZURE_USE_DEFAULT_CREDENTIALS) {
     if (
@@ -100,6 +102,9 @@ export function validateAzureSecretKey(params: {
       throw new Error(
         "Default Azure credentials are only allowed for Azure in self-hosted deployments.",
       );
+    }
+    if (params.baseURL) {
+      assertAzureHostAllowedForDefaultCredentials(params.baseURL);
     }
     return;
   }
@@ -121,6 +126,7 @@ function getAzureAuthMethod(secretKey: string): AzureAuthMethod {
 function assertValidAzureSecretKey(params: {
   adapter: LLMAdapter;
   secretKey: string;
+  baseURL?: string | null;
 }) {
   try {
     validateAzureSecretKey(params);
@@ -423,6 +429,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         assertValidAzureSecretKey({
           adapter: input.adapter,
           secretKey: input.secretKey,
+          baseURL: input.baseURL,
         });
 
         if (!env.ENCRYPTION_KEY) {
@@ -820,6 +827,7 @@ export const llmApiKeyRouter = createTRPCRouter({
           assertValidAzureSecretKey({
             adapter: input.adapter,
             secretKey: input.secretKey,
+            baseURL: input.baseURL ?? existingKey.baseURL,
           });
         }
 

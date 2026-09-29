@@ -108,7 +108,7 @@ export function parseAzureCredential(secretKey: string): AzureCredential {
   const result = AzureEntraServicePrincipalSchema.safeParse(parsedJson);
   if (!result.success) {
     throw new Error(
-      `${INVALID_AZURE_ENTRA_CREDENTIALS_MESSAGE} ${result.error.issues.map((issue) => issue.message).join(", ")}`,
+      `${INVALID_AZURE_ENTRA_CREDENTIALS_MESSAGE} ${result.error.issues.map((issue) => (issue.path.length ? `${issue.path.join(".")}: ${issue.message}` : issue.message)).join("; ")}`,
     );
   }
 

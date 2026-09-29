@@ -126,6 +126,7 @@ export default withMiddlewares({
         validateAzureSecretKey({
           adapter: body.adapter,
           secretKey: body.secretKey,
+          baseURL: body.baseURL,
         });
       } catch (error) {
         throw new InvalidRequestError(

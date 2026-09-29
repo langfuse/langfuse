@@ -713,6 +713,26 @@ describe("llmApiKey.all RPC", () => {
         }),
       ).toBe(0);
     });
+
+    it("rejects default Azure credentials for hosts outside Azure OpenAI and Foundry", async () => {
+      await withCloudRegion(undefined, async () => {
+        await expect(
+          caller.llmApiKey.create({
+            ...azureConnection,
+            projectId,
+            provider: "azure-mi-gateway",
+            baseURL: "https://example.com/openai/deployments",
+            secretKey: AZURE_USE_DEFAULT_CREDENTIALS,
+          }),
+        ).rejects.toThrow(/Azure OpenAI or Azure AI Foundry endpoints/);
+      });
+
+      expect(
+        await prisma.llmApiKeys.count({
+          where: { projectId, provider: "azure-mi-gateway" },
+        }),
+      ).toBe(0);
+    });
   });
 
   it("should require llmApiKeys:create access for testing a new llm api key", async () => {
