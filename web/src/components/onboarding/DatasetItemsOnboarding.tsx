@@ -99,7 +99,7 @@ export const DatasetItemsOnboarding = ({
         >
           <DialogTrigger asChild disabled={!hasProjectAccess}>
             <DatasetItemEntryPointRow
-              icon={<Upload className="h-5 w-5" />}
+              icon={<Upload className="icon-lg" />}
               title="Upload CSV"
               description="Import dataset items from a CSV file"
               onClick={() => {
@@ -120,7 +120,7 @@ export const DatasetItemsOnboarding = ({
         >
           <DialogTrigger asChild disabled={!hasProjectAccess}>
             <DatasetItemEntryPointRow
-              icon={<Braces className="h-5 w-5" />}
+              icon={<Braces className="icon-lg" />}
               title="Add Manually"
               description="Manually input a single item"
               onClick={() => {
@@ -152,7 +152,7 @@ export const DatasetItemsOnboarding = ({
           target="_blank"
         >
           <DatasetItemEntryPointRow
-            icon={<Code className="h-5 w-5" />}
+            icon={<Code className="icon-lg" />}
             title="Add via Code"
             description="Use our Python/TS/JS SDKs or custom API"
           />
@@ -160,7 +160,7 @@ export const DatasetItemsOnboarding = ({
 
         <Link href={`/project/${projectId}/observations`}>
           <DatasetItemEntryPointRow
-            icon={<ListTree className="h-5 w-5" />}
+            icon={<ListTree className="icon-lg" />}
             title="Select Observations"
             description="Select observations in the observations table and use a batch action to add them to your dataset"
             onClick={() => {

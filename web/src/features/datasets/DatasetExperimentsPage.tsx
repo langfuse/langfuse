@@ -215,7 +215,7 @@ function DatasetExperimentsView({
                     disabled={!hasExperimentWriteAccess}
                     onClick={() => capture("dataset_run:new_form_open")}
                   >
-                    <FlaskConical className="h-4 w-4" />
+                    <FlaskConical />
                     <span className="ml-2 hidden md:block">Run experiment</span>
                   </Button>
                 </DialogTrigger>
@@ -279,7 +279,7 @@ function DatasetExperimentsView({
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
-                  <FlaskConical className="h-4 w-4" />
+                  <FlaskConical />
                   <span className="ml-2 hidden md:block">Run experiment</span>
                 </Button>
               </DialogTrigger>
@@ -347,7 +347,7 @@ function DatasetExperimentsView({
                   aria-label="Dataset actions"
                   {...getTriggerProps()}
                 >
-                  <MoreVertical className="h-4 w-4" />
+                  <MoreVertical />
                 </Button>
               )}
             </DatasetActionMenu>

@@ -56,7 +56,7 @@ export function EvaluatorGallerySection({
         <>
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
-              <Icon className={cn("h-3.5 w-3.5 shrink-0", iconClassName)} />
+              <Icon className={cn("icon-base shrink-0", iconClassName)} />
               <h4 className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
                 {section.label}
               </h4>

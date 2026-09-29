@@ -38,7 +38,7 @@ export function EvaluatorStatusBadge({
           "bg-light-green text-dark-green hover:bg-light-green",
       )}
     >
-      <Circle className="h-2 w-2 fill-current" />
+      <Circle className="fill-current" />
       {blocked ? "Blocked" : active ? "Active" : "Inactive"} · {ruleCount}
     </Badge>
   );

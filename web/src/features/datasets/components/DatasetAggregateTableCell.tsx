@@ -238,7 +238,7 @@ const DatasetAggregateCellContent = ({
                 />
               ) : (
                 <Badge variant="tertiary" className="font-normal">
-                  <ClockIcon className="mr-1 mb-0.5 h-3 w-3" />
+                  <ClockIcon className="mr-1 mb-0.5" />
                   <span className="capitalize">
                     {formatIntervalSeconds(latency)}
                   </span>
@@ -277,7 +277,7 @@ const DatasetAggregateCellContent = ({
                 title="View trace/observation"
                 onClick={handleOpenPeek}
               >
-                <ListTree className="h-3 w-3" />
+                <ListTree />
               </Button>
             </div>
           )}

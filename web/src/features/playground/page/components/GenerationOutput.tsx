@@ -59,9 +59,9 @@ export const GenerationOutput = () => {
     }
   }, [output]);
 
-  const checkIcon = <Check className="h-2 w-2" />;
-  const copyIcon = <Copy className="h-2 w-2" />;
-  const plusIcon = <Plus className="h-2 w-2" />;
+  const checkIcon = <Check className="icon-sm" />;
+  const copyIcon = <Copy className="icon-sm" />;
+  const plusIcon = <Plus className="icon-sm" />;
 
   const copyButton =
     output || outputToolCalls.length ? (
@@ -74,7 +74,7 @@ export const GenerationOutput = () => {
           }}
           title="Toggle Input/Output JSON"
         >
-          <BracesIcon size={15} />
+          <BracesIcon />
         </Button>
 
         <Button

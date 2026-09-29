@@ -197,7 +197,7 @@ export function SSOButtons({
           <div className="flex flex-row flex-wrap items-center justify-center gap-2">
             {authProviders.google && (
               <AuthProviderButton
-                icon={<SiGoogle className="mr-3" size={18} />}
+                icon={<SiGoogle className="icon-base mr-3" />}
                 label="Google"
                 onClick={() => handleSignIn("google")}
                 loading={providerSigningIn === "google"}
@@ -208,7 +208,7 @@ export function SSOButtons({
             )}
             {authProviders.github && (
               <AuthProviderButton
-                icon={<SiGithub className="mr-3" size={18} />}
+                icon={<SiGithub className="icon-base mr-3" />}
                 label="GitHub"
                 onClick={() => handleSignIn("github")}
                 loading={providerSigningIn === "github"}
@@ -219,7 +219,7 @@ export function SSOButtons({
             )}
             {authProviders.githubEnterprise && (
               <AuthProviderButton
-                icon={<SiGithub className="mr-3" size={18} />}
+                icon={<SiGithub className="icon-base mr-3" />}
                 label="GitHub Enterprise"
                 onClick={() => handleSignIn("github-enterprise")}
                 loading={providerSigningIn === "github-enterprise"}
@@ -231,7 +231,7 @@ export function SSOButtons({
             )}
             {authProviders.gitlab && (
               <AuthProviderButton
-                icon={<SiGitlab className="mr-3" size={18} />}
+                icon={<SiGitlab className="icon-base mr-3" />}
                 label="Gitlab"
                 onClick={() => handleSignIn("gitlab")}
                 loading={providerSigningIn === "gitlab"}
@@ -242,7 +242,7 @@ export function SSOButtons({
             )}
             {authProviders.azureAd && (
               <AuthProviderButton
-                icon={<TbBrandAzure className="mr-3" size={18} />}
+                icon={<TbBrandAzure className="icon-base mr-3" />}
                 label="Azure AD"
                 onClick={() => handleSignIn("azure-ad")}
                 loading={providerSigningIn === "azure-ad"}
@@ -253,7 +253,7 @@ export function SSOButtons({
             )}
             {authProviders.okta && (
               <AuthProviderButton
-                icon={<SiOkta className="mr-3" size={18} />}
+                icon={<SiOkta className="icon-base mr-3" />}
                 label="Okta"
                 onClick={() => handleSignIn("okta")}
                 loading={providerSigningIn === "okta"}
@@ -264,7 +264,7 @@ export function SSOButtons({
             )}
             {authProviders.authentik && (
               <AuthProviderButton
-                icon={<SiAuthentik className="mr-3" size={18} />}
+                icon={<SiAuthentik className="icon-base mr-3" />}
                 label="Authentik"
                 onClick={() => handleSignIn("authentik")}
                 loading={providerSigningIn === "authentik"}
@@ -275,7 +275,7 @@ export function SSOButtons({
             )}
             {authProviders.onelogin && (
               <AuthProviderButton
-                icon={<Key className="mr-3" size={18} />}
+                icon={<Key className="icon-base mr-3" />}
                 label="OneLogin"
                 onClick={() => handleSignIn("onelogin")}
                 loading={providerSigningIn === "onelogin"}
@@ -286,7 +286,7 @@ export function SSOButtons({
             )}
             {authProviders.auth0 && (
               <AuthProviderButton
-                icon={<SiAuth0 className="mr-3" size={18} />}
+                icon={<SiAuth0 className="icon-base mr-3" />}
                 label="Auth0"
                 onClick={() => handleSignIn("auth0")}
                 loading={providerSigningIn === "auth0"}
@@ -297,7 +297,7 @@ export function SSOButtons({
             )}
             {authProviders.clickhouseCloud && (
               <AuthProviderButton
-                icon={<SiClickhouse className="mr-3" size={18} />}
+                icon={<SiClickhouse className="icon-base mr-3" />}
                 label="ClickHouse Cloud"
                 onClick={() => handleSignIn("clickhouse-cloud")}
                 loading={providerSigningIn === "clickhouse-cloud"}
@@ -309,7 +309,7 @@ export function SSOButtons({
             )}
             {authProviders.cognito && (
               <AuthProviderButton
-                icon={<SiAmazoncognito className="mr-3" size={18} />}
+                icon={<SiAmazoncognito className="icon-base mr-3" />}
                 label="Cognito"
                 onClick={() => handleSignIn("cognito")}
                 loading={providerSigningIn === "cognito"}
@@ -320,7 +320,7 @@ export function SSOButtons({
             )}
             {authProviders.jumpcloud && (
               <AuthProviderButton
-                icon={<TbBrandOauth className="mr-3" size={18} />}
+                icon={<TbBrandOauth className="icon-base mr-3" />}
                 label="JumpCloud"
                 onClick={() => handleSignIn("jumpcloud")}
                 loading={providerSigningIn === "jumpcloud"}
@@ -331,7 +331,7 @@ export function SSOButtons({
             )}
             {authProviders.keycloak && (
               <AuthProviderButton
-                icon={<SiKeycloak className="mr-3" size={18} />}
+                icon={<SiKeycloak className="icon-base mr-3" />}
                 label={
                   typeof authProviders.keycloak === "object"
                     ? authProviders.keycloak.name
@@ -351,7 +351,7 @@ export function SSOButtons({
             {typeof authProviders.workos === "object" &&
               "connectionId" in authProviders.workos && (
                 <AuthProviderButton
-                  icon={<Code className="mr-3" size={18} />}
+                  icon={<Code className="icon-base mr-3" />}
                   label="WorkOS"
                   onClick={() => {
                     capture("sign_in:button_click", { provider: "workos" });
@@ -371,7 +371,7 @@ export function SSOButtons({
             {typeof authProviders.workos === "object" &&
               "organizationId" in authProviders.workos && (
                 <AuthProviderButton
-                  icon={<Code className="mr-3" size={18} />}
+                  icon={<Code className="icon-base mr-3" />}
                   label="WorkOS"
                   onClick={() => {
                     capture("sign_in:button_click", { provider: "workos" });
@@ -391,7 +391,7 @@ export function SSOButtons({
             {authProviders.workos === true && (
               <>
                 <AuthProviderButton
-                  icon={<Code className="mr-3" size={18} />}
+                  icon={<Code className="icon-base mr-3" />}
                   label="WorkOS (organization)"
                   onClick={() => {
                     const organization = window.prompt(
@@ -411,7 +411,7 @@ export function SSOButtons({
                   }
                 />
                 <AuthProviderButton
-                  icon={<Code className="mr-3" size={18} />}
+                  icon={<Code className="icon-base mr-3" />}
                   label="WorkOS (connection)"
                   onClick={() => {
                     const connection = window.prompt(
@@ -434,7 +434,7 @@ export function SSOButtons({
             )}
             {authProviders.wordpress && (
               <AuthProviderButton
-                icon={<SiWordpress className="mr-3" size={18} />}
+                icon={<SiWordpress className="icon-base mr-3" />}
                 label="WordPress"
                 onClick={() => handleSignIn("wordpress")}
                 loading={providerSigningIn === "wordpress"}
@@ -445,7 +445,7 @@ export function SSOButtons({
             )}
             {authProviders.custom && (
               <AuthProviderButton
-                icon={<TbBrandOauth className="mr-3" size={18} />}
+                icon={<TbBrandOauth className="icon-base mr-3" />}
                 label={authProviders.custom.name}
                 onClick={() => handleSignIn("custom")}
                 loading={providerSigningIn === "custom"}

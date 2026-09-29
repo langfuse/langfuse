@@ -194,7 +194,7 @@ export function SetPromptVersionLabels({
               !hasAccess && "cursor-not-allowed group-hover:opacity-50",
             )}
           >
-            <CircleFadingArrowUp className="h-3.5 w-3.5 shrink-0" />
+            <CircleFadingArrowUp className="shrink-0" />
           </Button>
         </div>
       </PopoverTrigger>

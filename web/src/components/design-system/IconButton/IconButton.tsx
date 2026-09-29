@@ -7,15 +7,17 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        ghost: "hover:bg-accent hover:text-accent-foreground",
+        ghost:
+          "hover:bg-accent hover:text-accent-foreground [&:not(.text-destructive)_svg:not([class*='text-'])]:text-icon-foreground",
         outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-        subtle: "hover:bg-border aria-expanded:bg-border",
+          "border border-input bg-background hover:bg-accent hover:text-accent-foreground [&:not(.text-destructive)_svg:not([class*='text-'])]:text-icon-foreground",
+        subtle:
+          "hover:bg-border aria-expanded:bg-border [&:not(.text-destructive)_svg:not([class*='text-'])]:text-icon-foreground",
       },
       size: {
-        xs: "size-4 rounded-sm",
-        sm: "size-6",
-        md: "size-8",
+        xs: "size-4 rounded-sm [&_svg:not([class*='icon-'])]:icon-sm",
+        sm: "size-6 [&_svg:not([class*='icon-'])]:icon-base",
+        md: "size-8 [&_svg:not([class*='icon-'])]:icon-base",
       },
     },
     defaultVariants: {
@@ -24,17 +26,6 @@ const buttonVariants = cva(
     },
   },
 );
-
-const iconVariants = cva("shrink-0", {
-  variants: {
-    size: {
-      xs: "size-3",
-      sm: "size-4",
-      md: "size-4",
-    },
-  },
-  defaultVariants: { size: "md" },
-});
 
 type NativeButtonProps = Omit<
   ComponentProps<"button">,
@@ -66,7 +57,7 @@ export function IconButton({
       ref={ref}
       type={type}
     >
-      <Icon className={iconVariants({ size })} aria-hidden />
+      <Icon className="shrink-0" aria-hidden />
     </button>
   );
 }

@@ -45,7 +45,7 @@ export function MediaFileCard({
       title={fileName}
       className="from-accent-light-green/30 to-muted hover:from-accent-light-green/40 hover:to-muted/90 dark:from-accent-dark-green/20 dark:to-muted dark:hover:from-accent-dark-green/30 group relative flex h-24 w-24 shrink-0 flex-col items-center justify-center gap-2 rounded-md border bg-linear-to-br px-2 transition-colors"
     >
-      <Icon className="h-5 w-5 transition-transform group-hover:scale-110" />
+      <Icon className="icon-lg transition-transform group-hover:scale-110" />
       <div className="flex w-full min-w-0 flex-col items-center gap-1">
         <span
           className={

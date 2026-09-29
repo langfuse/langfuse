@@ -53,7 +53,7 @@ export function GraphViewModeSwitch({
               : "text-muted-foreground hover:text-foreground",
           )}
         >
-          <Icon className="h-3.5 w-3.5 shrink-0" />
+          <Icon className="icon-base shrink-0" />
           {/* Collapse to icons on narrow canvases (mirrors the nav header's
               switch) so the pill never collides with the zoom stack. */}
           <span className="@max-[340px]/graphcanvas:hidden">{label}</span>

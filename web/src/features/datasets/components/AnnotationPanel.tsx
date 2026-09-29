@@ -103,7 +103,7 @@ function ActiveAnnotationPanel({
                   aria-label="Close annotation panel"
                   onClick={clearActiveCell}
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight />
                 </Button>
               }
             />

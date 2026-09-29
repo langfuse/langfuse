@@ -128,7 +128,7 @@ export const BreakdownTooltip = ({
                   >
                     Calculated · {priceSource.pricingTierName} Tier Pricing
                   </span>
-                  <ExternalLink className="h-3 w-3 shrink-0" />
+                  <ExternalLink className="shrink-0" />
                 </Link>
               ) : null}
 

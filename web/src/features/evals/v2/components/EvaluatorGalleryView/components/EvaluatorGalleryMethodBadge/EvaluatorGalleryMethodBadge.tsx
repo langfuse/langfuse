@@ -22,7 +22,7 @@ export function EvaluatorGalleryMethodBadge({
 
   return (
     <span className="bg-muted text-muted-foreground inline-flex h-5 shrink-0 items-center gap-1 rounded-full px-2 text-xs leading-none whitespace-nowrap">
-      <Icon className="size-3" />
+      <Icon className="icon-sm" />
       {label}
     </span>
   );

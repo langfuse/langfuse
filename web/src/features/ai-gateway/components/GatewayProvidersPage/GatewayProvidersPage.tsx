@@ -125,7 +125,7 @@ export function GatewayProvidersPage({
           <ProviderDialogController organizationId={organizationId}>
             {({ openAddDialog }) => (
               <Button onClick={openAddDialog}>
-                <Plus className="mr-1.5 size-4" />
+                <Plus className="mr-1.5" />
                 Add credential
               </Button>
             )}

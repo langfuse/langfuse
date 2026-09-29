@@ -92,7 +92,7 @@ export function EvaluatorAssignmentsEditor({
             className="border-border hover:bg-muted/50 focus-visible:ring-ring flex w-full flex-col items-center justify-center gap-1 rounded-md border border-dashed px-4 py-6 text-center transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="flex items-center gap-2 text-sm font-bold">
-              <Link2 className="h-4 w-4" />
+              <Link2 className="icon-base" />
               {emptyActionLabel}
             </span>
             <span className="text-muted-foreground text-sm font-normal">
@@ -110,7 +110,7 @@ export function EvaluatorAssignmentsEditor({
               pickerWidth === "trigger" && "w-full justify-start",
             )}
           >
-            <Plus className="size-3.5 shrink-0" aria-hidden="true" />
+            <Plus className="shrink-0" aria-hidden="true" />
             {additionalActionLabel}
           </Button>
         )}
@@ -141,7 +141,7 @@ export function EvaluatorAssignmentsEditor({
                     disabled
                     className="py-2.5"
                   >
-                    <Check className="h-4 w-4 shrink-0" />
+                    <Check className="icon-base shrink-0" />
                     <EvaluatorPickerOption evaluator={evaluator} />
                   </CommandItem>
                 ))}
@@ -167,7 +167,7 @@ export function EvaluatorAssignmentsEditor({
                       setPickerOpen(false);
                     }}
                   >
-                    <Plus className="h-4 w-4 shrink-0" />
+                    <Plus className="icon-base shrink-0" />
                     <EvaluatorPickerOption evaluator={evaluator} />
                   </CommandItem>
                 ))}

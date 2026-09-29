@@ -195,7 +195,7 @@ export default function RemapEvaluatorPage() {
                 onDismiss={onDismiss}
               >
                 <div className="flex items-start gap-2">
-                  <Zap className="mt-0.5 h-4 w-4 shrink-0" />
+                  <Zap className="icon-base mt-0.5 shrink-0" />
                   <span>
                     <span className="font-bold">
                       This evaluator needs an upgrade for Langfuse v4.
@@ -348,7 +348,7 @@ export default function RemapEvaluatorPage() {
                               className="mt-3 rounded-l-none rounded-r-md border-l-2"
                               {...getTriggerProps()}
                             >
-                              <ChevronDown className="h-4 w-4" />
+                              <ChevronDown />
                             </Button>
                           )}
                         </DropdownMenu>

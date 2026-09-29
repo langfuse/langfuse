@@ -170,7 +170,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                       : "Show indentation"
                 }
               >
-                <IndentIncrease className="h-3.5 w-3.5" />
+                <IndentIncrease />
               </Button>
             </HoverCardTrigger>
             {indentDisabled && (
@@ -196,7 +196,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
             onClick={onToggleMilliseconds}
             title={showMilliseconds ? "Hide milliseconds" : "Show milliseconds"}
           >
-            <Timer className="h-3.5 w-3.5" />
+            <Timer />
           </Button>
         )}
 
@@ -216,9 +216,9 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                   disabled={isVirtualized}
                 >
                   {allRowsExpanded && !isVirtualized ? (
-                    <FoldVertical className="h-3.5 w-3.5" />
+                    <FoldVertical />
                   ) : (
-                    <UnfoldVertical className="h-3.5 w-3.5" />
+                    <UnfoldVertical />
                   )}
                 </Button>
               </span>
@@ -251,9 +251,9 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                     {isCopyOrDownloadLoading ? (
                       <Spinner size="xs" />
                     ) : isCopied ? (
-                      <Check className="h-3.5 w-3.5" />
+                      <Check />
                     ) : (
-                      <Copy className="h-3.5 w-3.5" />
+                      <Copy />
                     )}
                   </Button>
                 </TooltipTrigger>

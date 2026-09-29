@@ -70,7 +70,7 @@ function DatasetRunLegacy() {
               }}
             >
               <Button>
-                <Columns3 className="mr-2 h-4 w-4" />
+                <Columns3 className="mr-2" />
                 <span>Compare</span>
               </Button>
             </Link>
@@ -108,7 +108,7 @@ function DatasetRunLegacy() {
                       size="icon"
                       {...getTriggerProps()}
                     >
-                      <MoreVertical className="h-4 w-4" />
+                      <MoreVertical />
                     </Button>
                   )}
                 </DropdownMenu>

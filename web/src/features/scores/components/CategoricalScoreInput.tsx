@@ -75,7 +75,7 @@ export function CategoricalScoreInput({
         setPendingLabel(search.trim());
       }}
     >
-      <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+      <Plus className="icon-base mr-2 shrink-0" />
       {getAddCategoryActionLabel(search, existingLabels)}
     </button>
   );
@@ -162,7 +162,7 @@ export function CategoricalScoreInput({
               title="Add new category"
               onClick={() => setPendingLabel("")}
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus />
             </Button>
           ) : null}
         </div>
