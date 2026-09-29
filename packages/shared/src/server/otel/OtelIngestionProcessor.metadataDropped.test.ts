@@ -119,6 +119,13 @@ const expectDropTags = (
   expect(tags?.sdkVersion).toBe("3.8.1");
 };
 
+// The gateway links a generation to its logs and provider call through these keys.
+const gatewayRequestIds = {
+  request: "0192b6f4-6c1e-7a3b-8c4d-5e6f7a8b9c0d",
+  client: "client-request",
+  upstream: "req_upstream",
+};
+
 describe("gateway metadata", () => {
   it.each([
     ["v3", "langfuse-ai-gateway"],
@@ -158,6 +165,9 @@ describe("gateway metadata", () => {
           "langfuse.observation.output": '[{"type":"message","content":[]}]',
           "langfuse.observation.metadata": JSON.stringify({
             "langfuse.gateway.provider.request.id": "req-test",
+            "langfuse.gateway.request.id": gatewayRequestIds.request,
+            "langfuse.gateway.client.request.id": gatewayRequestIds.client,
+            "langfuse.gateway.upstream.request.id": gatewayRequestIds.upstream,
           }),
           "langfuse.observation.metadata.langfuse.gateway.api-key.id":
             "key-test",
@@ -205,6 +215,9 @@ describe("gateway metadata", () => {
       });
       expect(observation?.metadata).toEqual({
         "langfuse.gateway.provider.request.id": "req-test",
+        "langfuse.gateway.request.id": gatewayRequestIds.request,
+        "langfuse.gateway.client.request.id": gatewayRequestIds.client,
+        "langfuse.gateway.upstream.request.id": gatewayRequestIds.upstream,
         "langfuse.gateway.api-key.id": "key-test",
         attributes: {
           ...(scope === "langfuse-ai-gateway" ? {} : canonicalAttributes),

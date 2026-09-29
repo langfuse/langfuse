@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { context, propagation, trace, type Context } from "@opentelemetry/api";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod/v4";
 
@@ -23,6 +24,8 @@ const resolveBodySchema = z
 const modelsQuerySchema = z
   .object({ api_format: GatewayApiFormatSchema })
   .strict();
+const GATEWAY_REQUEST_ID_HEADER = "langfuse-gateway-request-id";
+const GATEWAY_REQUEST_ID_KEY = "langfuse.gateway.request.id";
 const gatewayAuthorizationSchema =
   /^HMAC timestamp=(\d+),signature=([0-9a-f]{64})$/;
 
@@ -74,6 +77,24 @@ function verifyGatewayRequestSignatureAndHashApiKey(input: {
   }
 
   return createShaHash(input.virtualSecretKey, env.SALT);
+}
+
+/**
+ * Adds the gateway's request ID to the active span and to the baggage the logger
+ * copies onto every line, so Web resolution logs join the gateway's. Only a
+ * single UUID is accepted; the value comes from an unauthenticated header.
+ */
+export function contextWithGatewayRequestId(
+  req: Pick<NextApiRequest, "headers">,
+  parent: Context = context.active(),
+): Context {
+  const requestId = singleHeader(req.headers[GATEWAY_REQUEST_ID_HEADER]);
+  if (!requestId || !z.uuid().safeParse(requestId).success) return parent;
+  trace.getSpan(parent)?.setAttribute(GATEWAY_REQUEST_ID_KEY, requestId);
+  const baggage = (
+    propagation.getBaggage(parent) ?? propagation.createBaggage()
+  ).setEntry(GATEWAY_REQUEST_ID_KEY, { value: requestId });
+  return propagation.setBaggage(parent, baggage);
 }
 
 export function withGatewayResolveSignatureVerification(
@@ -137,7 +158,7 @@ function withGatewayControlPlaneAuth<
   ) => Promise<unknown>,
   schema: z.ZodType<Body>,
 ) {
-  return async (req: NextApiRequest, res: NextApiResponse) => {
+  const handle = async (req: NextApiRequest, res: NextApiResponse) => {
     setNoStoreHeaders(res);
 
     if (req.method !== RESOLVE_METHOD) {
@@ -183,6 +204,8 @@ function withGatewayControlPlaneAuth<
       return res.status(500).json({ error: "Internal server error" });
     }
   };
+  return (req: NextApiRequest, res: NextApiResponse) =>
+    context.with(contextWithGatewayRequestId(req), () => handle(req, res));
 }
 
 function setNoStoreHeaders(res: NextApiResponse) {
