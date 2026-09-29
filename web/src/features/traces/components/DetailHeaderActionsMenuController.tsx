@@ -12,6 +12,10 @@ import {
 } from "@/src/features/events";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
+import {
+  InternalFeatureBadge,
+  useInternalFeaturesEnabled,
+} from "@/src/features/feature-flags";
 import { useWebCalloutAction } from "@/src/features/web-callouts";
 
 type IdItem = {
@@ -91,9 +95,16 @@ export function ConnectedDetailHeaderActionsMenuController({
 }: ConnectedDetailHeaderActionsMenuControllerProps) {
   const session = useSession();
   const isAdmin = session.data?.user?.admin === true;
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const showClickHouseQuery = isAdmin && internalFeaturesEnabled;
 
   if (!webCallout) {
-    return <DetailHeaderActionsMenuController {...props} isAdmin={isAdmin} />;
+    return (
+      <DetailHeaderActionsMenuController
+        {...props}
+        isAdmin={showClickHouseQuery}
+      />
+    );
   }
 
   return (
@@ -104,7 +115,7 @@ export function ConnectedDetailHeaderActionsMenuController({
       {(webCalloutAction) => (
         <DetailHeaderActionsMenuController
           {...props}
-          isAdmin={isAdmin}
+          isAdmin={showClickHouseQuery}
           webCalloutAction={webCalloutAction}
         />
       )}
@@ -238,7 +249,8 @@ export function DetailHeaderActionsMenuController({
           {
             type: "item" as const,
             id: "copy-clickhouse-query",
-            title: "Copy ClickHouse query (internal)",
+            title: "Copy ClickHouse query",
+            badge: <InternalFeatureBadge />,
             icon: copiedId === clickHouseQuery ? CheckIcon : CopyIcon,
             onClick: () => handleCopy(clickHouseQuery),
           },
