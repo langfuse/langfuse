@@ -115,7 +115,9 @@ export function isRangeWithinMaxDuration(
   range: RDPDateRange | undefined,
   maxDurationMs: number | undefined,
 ): boolean {
-  if (!range?.from || !range.to || maxDurationMs === undefined) return true;
+  if (!range?.from || !range.to) return true;
+  if (range.to.getTime() < range.from.getTime()) return false;
+  if (maxDurationMs === undefined) return true;
   return range.to.getTime() - range.from.getTime() <= maxDurationMs;
 }
 
