@@ -2920,6 +2920,18 @@ export class OtelIngestionProcessor {
           }
         }
 
+        // AI SDK 7 reports cache tokens as gen_ai attributes rather than under ai.usage.*
+        const genAiCacheRead =
+          attributes["gen_ai.usage.cache_read.input_tokens"];
+        if (genAiCacheRead !== undefined) {
+          usageDetails["input_cached_tokens"] ??= Number(genAiCacheRead);
+        }
+        const genAiCacheCreation =
+          attributes["gen_ai.usage.cache_creation.input_tokens"];
+        if (genAiCacheCreation !== undefined) {
+          usageDetails["input_cache_creation"] ??= Number(genAiCacheCreation);
+        }
+
         // Add additional usage details from provider metadata
         if (providerMetadata) {
           const parsed = JSON.parse(providerMetadata as string);
@@ -3211,7 +3223,71 @@ export class OtelIngestionProcessor {
       normalizedUsageDetails.output_audio_tokens = outputAudioTokens;
     }
 
+    this.addAnthropicProviderMetadataUsage(attributes, normalizedUsageDetails);
+
     return normalizedUsageDetails;
+  }
+
+  /**
+   * Anthropic's own usage, as the Vercel AI SDK forwards it in `ai.response.providerMetadata`, is the only source of
+   * the 5-minute / 1-hour split of cache writes; the gen_ai conventions carry only the total. It also supplies cache
+   * tokens for instrumentations that send no gen_ai cache attributes. Tokens already taken out of `input` through the
+   * gen_ai attributes are not subtracted again.
+   */
+  private addAnthropicProviderMetadataUsage(
+    attributes: Record<string, unknown>,
+    usageDetails: Record<string, number>,
+  ): void {
+    const usage = this.parseJsonPayload(
+      attributes["ai.response.providerMetadata"],
+    )?.anthropic?.usage;
+    if (!usage || typeof usage !== "object") return;
+
+    const count = (value: unknown) =>
+      typeof value === "number" && Number.isFinite(value) ? value : undefined;
+    let notYetSubtracted = 0;
+
+    const cacheRead = count(usage["cache_read_input_tokens"]);
+    if (
+      cacheRead !== undefined &&
+      usageDetails.input_cached_tokens === undefined
+    ) {
+      usageDetails.input_cached_tokens = cacheRead;
+      notYetSubtracted += cacheRead;
+    }
+
+    const cacheCreation = count(usage["cache_creation_input_tokens"]);
+    const hadCacheCreation = usageDetails.input_cache_creation !== undefined;
+    if (cacheCreation !== undefined && !hadCacheCreation) {
+      usageDetails.input_cache_creation = cacheCreation;
+      notYetSubtracted += cacheCreation;
+    }
+
+    const fiveMinutes = count(
+      usage["cache_creation"]?.["ephemeral_5m_input_tokens"],
+    );
+    const oneHour = count(
+      usage["cache_creation"]?.["ephemeral_1h_input_tokens"],
+    );
+    if (fiveMinutes !== undefined || oneHour !== undefined) {
+      if (fiveMinutes !== undefined)
+        usageDetails.input_cache_creation_5m = fiveMinutes;
+      if (oneHour !== undefined) usageDetails.input_cache_creation_1h = oneHour;
+      const split = (fiveMinutes ?? 0) + (oneHour ?? 0);
+      if (usageDetails.input_cache_creation !== undefined) {
+        // The split is part of the total, so only the unattributed remainder stays at the generic write price.
+        usageDetails.input_cache_creation = Math.max(
+          usageDetails.input_cache_creation - split,
+          0,
+        );
+      } else {
+        notYetSubtracted += split;
+      }
+    }
+
+    if (usageDetails.input !== undefined && notYetSubtracted > 0) {
+      usageDetails.input = Math.max(usageDetails.input - notYetSubtracted, 0);
+    }
   }
 
   private extractCostDetails(
