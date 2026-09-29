@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { type SystemRole } from "@langfuse/shared/src/db";
 import {
   systemRoleAccessRights,
@@ -16,6 +16,16 @@ const resourceKindLabels: Record<ResourceKind, string> = {
 };
 
 const resourceKindOrder: ResourceKind[] = ["organization", "project"];
+
+const actionOrder = [
+  "read",
+  "create",
+  "update",
+  "save",
+  "delete",
+  "CUD",
+  "CRUD",
+];
 
 /** entityMeta maps a scope's entity (the part before the `:`) to its display title and description. Held UI-side; unmapped entities fall back to the raw entity name. */
 const entityMeta: Record<string, { title: string; description: string }> = {
@@ -132,7 +142,7 @@ type EntityGroup = {
   actions: string[];
 };
 
-/** groupByEntity splits each scope at the first `:` and groups the trailing actions under their entity, each group's actions sorted. */
+/** groupByEntity splits each scope at the first `:` and groups the trailing actions under their entity, each group's actions ordered by compareActions. */
 const groupByEntity = (scopes: string[]): EntityGroup[] => {
   const byEntity = new Map<string, string[]>();
   for (const scope of scopes) {
@@ -147,8 +157,18 @@ const groupByEntity = (scopes: string[]): EntityGroup[] => {
     entity,
     title: entityMeta[entity]?.title ?? entity,
     description: entityMeta[entity]?.description ?? "",
-    actions: [...actions].sort(),
+    actions: [...actions].sort(compareActions),
   }));
+};
+
+/** compareActions orders actions by actionOrder, sending unranked actions to the end sorted alphabetically. */
+const compareActions = (a: string, b: string): number => {
+  const rankA = actionOrder.indexOf(a);
+  const rankB = actionOrder.indexOf(b);
+  if (rankA === -1 && rankB === -1) return a.localeCompare(b);
+  if (rankA === -1) return 1;
+  if (rankB === -1) return -1;
+  return rankA - rankB;
 };
 
 /** rolePermissionCount is the total number of actions a role grants across all its policies. */
@@ -191,7 +211,7 @@ const SectionHeader = ({ label }: { label: string }) => {
     <span
       ref={ref}
       className={cn(
-        "bg-modal text-muted-foreground sticky -top-px z-10 block px-4 pt-4 pb-2 text-[0.65rem] font-bold tracking-wider uppercase",
+        "bg-modal text-muted-foreground sticky -top-px z-10 col-span-2 block px-4 pt-4 pb-2 text-[0.65rem] font-bold tracking-wider uppercase",
         stuck && "shadow-[0_8px_8px_-4px_hsl(var(--modal))]",
       )}
     >
@@ -212,7 +232,7 @@ export const RolePermissionList = ({ role }: { role: SystemRole }) => {
     );
 
   return (
-    <div className="flex flex-col pb-5">
+    <div className="grid grid-cols-[max-content_1fr] items-center gap-x-6 gap-y-2 pb-5">
       {resourceKindOrder.map((kind) => {
         const scopes = policies
           .filter((policy) => policy.resourceKind === kind)
@@ -220,29 +240,27 @@ export const RolePermissionList = ({ role }: { role: SystemRole }) => {
         if (scopes.length === 0) return null;
 
         return (
-          <div key={kind} className="mb-2 flex flex-col">
+          <Fragment key={kind}>
             <SectionHeader label={resourceKindLabels[kind]} />
-            <div className="flex flex-col gap-2 px-4">
-              {groupByEntity(scopes).map((group) => (
-                <div key={group.entity} className="flex items-start gap-2">
-                  <span className="w-36 shrink-0 text-xs leading-tight font-bold">
-                    {group.title}
-                  </span>
-                  <div className="flex flex-1 flex-wrap gap-1">
-                    {group.actions.map((action) => (
-                      <Badge
-                        key={action}
-                        variant="outline"
-                        className="px-1.5 py-0 font-mono text-[0.65rem] font-normal"
-                      >
-                        {action}
-                      </Badge>
-                    ))}
-                  </div>
+            {groupByEntity(scopes).map((group) => (
+              <div key={group.entity} className="contents">
+                <span className="pl-4 text-xs leading-tight font-bold whitespace-nowrap">
+                  {group.title}
+                </span>
+                <div className="flex flex-wrap gap-1 pr-4">
+                  {group.actions.map((action) => (
+                    <Badge
+                      key={action}
+                      variant="outline"
+                      className="px-1.5 py-0 font-mono text-[0.65rem] font-normal"
+                    >
+                      {action}
+                    </Badge>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
+            ))}
+          </Fragment>
         );
       })}
     </div>

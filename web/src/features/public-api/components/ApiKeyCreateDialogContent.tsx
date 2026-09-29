@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { ArrowUpRight } from "lucide-react";
 
 import { type SystemRole } from "@langfuse/shared/src/db";
 import {
@@ -25,10 +26,7 @@ import {
 } from "@/src/components/ui/select";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
-import {
-  RolePermissionTooltip,
-  RolePermissionTooltipGroup,
-} from "@/src/features/rbac/components/RolePermissionTooltip";
+import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 import {
@@ -102,8 +100,19 @@ function ApiKeyCreateForm({
   const [role, setRole] = useState<SystemRole>(DEFAULT_ROLE);
   const [expiryPreset, setExpiryPreset] = useState<ExpiryPreset>("never");
   const [customExpiry, setCustomExpiry] = useState("");
+  const [roleSelectOpen, setRoleSelectOpen] = useState(false);
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const [permissionsRole, setPermissionsRole] = useState<SystemRole | null>(
+    null,
+  );
 
   const submitDisabled = name.trim() === "";
+
+  const openPermissions = (target: SystemRole) => {
+    setRoleSelectOpen(false);
+    setPermissionsRole(target);
+    setPermissionsOpen(true);
+  };
 
   const submit = () => {
     if (submitDisabled) return;
@@ -171,45 +180,55 @@ function ApiKeyCreateForm({
 
           <div className="flex flex-col gap-1.5">
             <Label>Permissions</Label>
-            <RolePermissionTooltipGroup>
-              <Select
-                value={role}
-                onValueChange={(value) => setRole(value as SystemRole)}
-              >
-                <SelectTrigger className="h-auto" disableValueLineClamp>
-                  <div className="flex items-start gap-2 text-left">
-                    <SelectedRoleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-                    <div className="flex flex-col">
-                      <span className="font-bold">{selectedRoleDef.name}</span>
-                      <span className="text-muted-foreground text-xs">
-                        {selectedRoleDef.description}
-                      </span>
-                    </div>
+            <Select
+              open={roleSelectOpen}
+              onOpenChange={setRoleSelectOpen}
+              value={role}
+              onValueChange={(value) => setRole(value as SystemRole)}
+            >
+              <SelectTrigger className="h-auto" disableValueLineClamp>
+                <div className="flex items-start gap-2 text-left">
+                  <SelectedRoleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="flex flex-col">
+                    <span className="font-bold">{selectedRoleDef.name}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {selectedRoleDef.description}
+                    </span>
                   </div>
-                </SelectTrigger>
-                <SelectContent>
-                  {roles.map((r) => (
-                    <RoleSelectItem key={r} role={r} />
-                  ))}
-                </SelectContent>
-              </Select>
-            </RolePermissionTooltipGroup>
-            <RolePermissionTooltip
-              role={role}
-              trigger={
-                <button
-                  type="button"
-                  className="text-muted-foreground hover:text-foreground ml-1 w-fit text-xs"
-                >
-                  View{" "}
-                  <span className="underline">
-                    {rolePermissionCountLabel(role)}
-                  </span>
-                </button>
-              }
-            />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {roles.map((r) => (
+                  <RoleSelectItem
+                    key={r}
+                    role={r}
+                    onViewPermissions={openPermissions}
+                  />
+                ))}
+              </SelectContent>
+            </Select>
+            <button
+              type="button"
+              onClick={() => {
+                setPermissionsRole(role);
+                setPermissionsOpen(true);
+              }}
+              className="text-muted-foreground hover:text-foreground ml-1 w-fit text-xs"
+            >
+              View{" "}
+              <span className="inline-flex items-center gap-0.5 underline">
+                {rolePermissionCountLabel(role)}
+                <ArrowUpRight className="h-3 w-3" />
+              </span>
+            </button>
           </div>
         </div>
+
+        <RolePermissionPopup
+          open={permissionsOpen}
+          onOpenChange={setPermissionsOpen}
+          role={permissionsRole}
+        />
       </DialogBody>
       <DialogFooter>
         <Button onClick={submit} loading={isPending} disabled={submitDisabled}>
