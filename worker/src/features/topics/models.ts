@@ -182,6 +182,47 @@ export function summarizeTopicTrace(
   );
 }
 
+/**
+ * Summarizes all given facets of one trace in a single call. The system prompt
+ * is identical across traces; each facet is listed under its key and answered
+ * independently, with short evidence notes before each summary.
+ */
+export function summarizeTopicTraceFacets(
+  facets: { key: string; facet: TopicFacetVersion }[],
+  text: string,
+  config: TopicProcessingConfig,
+) {
+  const entry = z.object({
+    notes: z
+      .string()
+      .describe(
+        "At most 25 words: the transcript evidence this facet rests on. Not shown to anyone.",
+      ),
+    ...summarySchema.shape,
+  });
+  const schema = z.object(
+    Object.fromEntries(facets.map(({ key }) => [key, entry])),
+  );
+  // Without these rules, a whole-run facet such as Intent narrows to the end of the run.
+  const system = `${SUMMARY_SYSTEM_PROMPT}
+
+This request covers ${facets.length} facets of the same run. Treat each facet as a separate task:
+- For each facet, read the whole transcript again for what that facet asks about. Facets are independent: what you write for one facet must not narrow or shape another.
+- A facet about the run as a whole covers all of it, from the first request to the last turn, even when other facets concentrate on how the run ended.
+- Follow each facet's own format and apply the status rules to each facet separately.
+For each facet, first write brief notes on the evidence it rests on, then its summary and status. Return one entry per facet key.
+
+${facets.map(({ key, facet }) => `<facet key="${key}">\n${facet.prompt}\n</facet>`).join("\n\n")}`;
+  return structuredCall(
+    system,
+    `<transcript>\n${text}\n</transcript>\n\nWrite the summaries now, one per facet key, each in its facet's format.`,
+    schema,
+    config.maxInputTokens,
+    config.maxOutputTokens * facets.length,
+    config.summaryModel,
+  );
+}
+
 export async function nameTopicGroup(group: {
   members: { id: string; summary: string }[];
   contrasts: { id: string; summary: string }[];
