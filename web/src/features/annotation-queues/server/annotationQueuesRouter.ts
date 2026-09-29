@@ -1,4 +1,5 @@
 import { env } from "@/src/env.mjs";
+import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
@@ -511,10 +512,7 @@ export const queueRouter = createTRPCRouter({
           throw error;
         }
 
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2025"
-        ) {
+        if (isPrismaRecordNotFoundError(error)) {
           throw new LangfuseNotFoundError("Queue not found in project");
         }
 
