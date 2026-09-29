@@ -633,23 +633,12 @@ describe("Admin Organizations API", () => {
   describe("POST /api/admin/organizations/[organizationId]/apiKeys", () => {
     let testOrgId: string;
 
-    let testMemberUserId: string;
-
     beforeEach(async () => {
-      // Create a test organization with a member. The admin API attributes the
-      // created key to an organization member, so one must exist.
       const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
       const org = await prisma.organization.create({
         data: { name: uniqueOrgName, metadata: { tier: "testing", users: 5 } },
       });
       testOrgId = org.id;
-      const user = await prisma.user.create({
-        data: { email: `admin-key-${randomUUID()}@example.com` },
-      });
-      testMemberUserId = user.id;
-      await prisma.organizationMembership.create({
-        data: { orgId: testOrgId, userId: testMemberUserId, role: "OWNER" },
-      });
     });
 
     afterEach(async () => {
@@ -661,11 +650,6 @@ describe("Admin Organizations API", () => {
         .delete({
           where: { id: testOrgId },
         })
-        .catch(() => {
-          /* ignore if already deleted */
-        });
-      await prisma.user
-        .delete({ where: { id: testMemberUserId } })
         .catch(() => {
           /* ignore if already deleted */
         });
@@ -695,6 +679,8 @@ describe("Admin Organizations API", () => {
       expect(apiKey).not.toBeNull();
       expect(apiKey?.orgId).toBe(testOrgId);
       expect(apiKey?.scope).toBe("ORGANIZATION");
+      expect(apiKey?.createdByUserId).toBeNull();
+      expect(apiKey?.createdByApiKeyId).toBeNull();
     });
 
     it("should return 404 when creating an API key for a non-existent organization", async () => {

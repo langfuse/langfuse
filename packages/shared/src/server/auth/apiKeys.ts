@@ -112,7 +112,7 @@ export async function createApiKey(
   opts: {
     owner: OwnerId;
     role: RoleId;
-    createdBy: ApiKeyId | UserId;
+    createdBy: ApiKeyId | UserId | "system";
     name?: string;
     expiresAt?: Date | null;
     isInAppAgentKey?: boolean;
@@ -165,9 +165,7 @@ export async function createApiKey(
     scope,
     expiresAt: opts.expiresAt ?? null,
     isInAppAgentKey: opts.isInAppAgentKey ?? false,
-    ...(hasApiKeyKind(opts.createdBy)
-      ? { createdByApiKeyId: untag(opts.createdBy) }
-      : { createdByUserId: untag(opts.createdBy) }),
+    ...creatorColumns(opts.createdBy),
   };
 
   // A root client owns the transaction; a transaction client joins the caller's.
@@ -179,6 +177,19 @@ export async function createApiKey(
 }
 
 /** isPrismaClient narrows a client to a root client, which can own a transaction. */
+/** creatorColumns maps a key's creator to its api-key columns; "system" records none. */
+function creatorColumns(
+  createdBy: ApiKeyId | UserId | "system",
+): Pick<
+  Prisma.ApiKeyUncheckedCreateInput,
+  "createdByApiKeyId" | "createdByUserId"
+> {
+  if (createdBy === "system") return {};
+  return hasApiKeyKind(createdBy)
+    ? { createdByApiKeyId: untag(createdBy) }
+    : { createdByUserId: untag(createdBy) };
+}
+
 function isPrismaClient(
   client: PrismaClient | Prisma.TransactionClient,
 ): client is PrismaClient {
