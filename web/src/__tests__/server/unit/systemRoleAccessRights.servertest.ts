@@ -105,6 +105,14 @@ describe("systemRoleAccessRights", () => {
     },
   );
 
+  it("grants VIEWER public-API reads without write actions", () => {
+    const viewerProjectActions = systemRoleAccessRights.VIEWER.policies
+      .filter((policy) => policy.resourceKind === "project")
+      .flatMap((policy) => policy.actions);
+    expect(viewerProjectActions).toContain("traces:read");
+    expect(viewerProjectActions).not.toContain("scores:save");
+  });
+
   it("keys every definition by its own id", () => {
     for (const [key, definition] of Object.entries(systemRoleAccessRights)) {
       expect(definition.id).toBe(key);

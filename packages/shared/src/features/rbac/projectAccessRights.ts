@@ -313,6 +313,14 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "TableViewPresets:read",
     "automations:read",
     "alerts:read",
+    // used for api keys
+    "traces:read",
+    "scores:read",
+    "media:read",
+    "sessions:read",
+    "metrics:read",
+    "models:read",
+    "experiments:read",
   ],
   NONE: [],
 };
