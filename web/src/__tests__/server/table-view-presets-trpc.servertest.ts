@@ -63,7 +63,11 @@ describe("table view presets tRPC", () => {
   it("creates separate saved views for evaluator and rule tables", async () => {
     const { caller, projectId, userId } = await prepare();
     await prisma.user.create({
-      data: { id: userId, email: `${userId}@example.com` },
+      data: {
+        id: userId,
+        name: "Table View Test User",
+        email: `${userId}@example.com`,
+      },
     });
     const [evaluatorView, ruleView] = await Promise.all([
       caller.TableViewPresets.create({
@@ -111,6 +115,11 @@ describe("table view presets tRPC", () => {
         id: evaluatorView.view.id,
         tableName: TableViewPresetTableName.Evaluators,
         searchQuery: "quality",
+        createdByUser: {
+          image: null,
+          name: "Table View Test User",
+          email: `${userId}@example.com`,
+        },
       }),
     ]);
     await expect(

@@ -24,6 +24,7 @@ import {
 import { useViewMutations } from "@/src/components/table/table-view-presets/hooks/useViewMutations";
 import { cn } from "@/src/utils/tailwind";
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   Dialog,
   DialogContent,
@@ -195,6 +196,54 @@ const useTableViewPresetsDrawerData = ({
 
 function formatOrderBy(orderBy?: OrderByState) {
   return orderBy?.column ? `${orderBy.column} ${orderBy.order}` : "none";
+}
+
+type ViewOwner = {
+  image?: string | null;
+  name?: string | null;
+  email?: string | null;
+};
+
+function viewOwnerLabel(user: ViewOwner | null | undefined) {
+  const name = user?.name?.trim() || null;
+  const email = user?.email?.trim() || null;
+  if (name && email && name.toLowerCase() !== email.toLowerCase()) {
+    return `${name}\n${email}`;
+  }
+  return name ?? email;
+}
+
+function ViewOwnerAvatar({ user }: { user: ViewOwner | null | undefined }) {
+  const label = viewOwnerLabel(user);
+  const avatar = (
+    <Avatar
+      size="sm"
+      src={user?.image ?? undefined}
+      displayName={user?.name?.trim() || user?.email?.trim() || "User"}
+      aria-hidden={label ? true : undefined}
+    />
+  );
+
+  return (
+    <div className="text-muted-foreground flex items-center text-xs">
+      {label ? (
+        <Tooltip label={label}>
+          {({ getTriggerProps }) => (
+            <span
+              {...getTriggerProps()}
+              className="inline-flex"
+              role="img"
+              aria-label={label.replace("\n", ", ")}
+            >
+              {avatar}
+            </span>
+          )}
+        </Tooltip>
+      ) : (
+        avatar
+      )}
+    </div>
+  );
 }
 
 function buildSystemFilterPresetState(
@@ -934,13 +983,7 @@ function TableViewPresetsDrawerContentBody({
                           </DropdownMenuContent>
                         </DropdownMenu>
                         {!isSystemView && (
-                          <div className="text-muted-foreground flex items-center text-xs">
-                            <Avatar
-                              size="sm"
-                              src={view.createdByUser?.image ?? undefined}
-                              displayName={view.createdByUser?.name ?? "User"}
-                            />
-                          </div>
+                          <ViewOwnerAvatar user={view.createdByUser} />
                         )}
                       </div>
                     </CommandItem>
