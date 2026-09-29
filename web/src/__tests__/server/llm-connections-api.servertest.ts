@@ -1070,6 +1070,54 @@ describe("/api/public/llm-connections API Endpoints", () => {
         );
       });
 
+      it("should create Azure connection with an Entra ID service principal", async () => {
+        const provider = generateUniqueProvider("azure-entra");
+        const servicePrincipal = {
+          tenantId: "contoso.onmicrosoft.com",
+          clientId: "11111111-2222-3333-4444-555555555555",
+          clientSecret: "entra-client-secret-abcd",
+        };
+
+        const response = await makeZodVerifiedAPICall(
+          PutLlmConnectionV1Response,
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider,
+            adapter: LLMAdapter.Azure,
+            secretKey: JSON.stringify(servicePrincipal),
+            baseURL: TEST_PUBLIC_LLM_BASE_URL,
+            customModels: ["gpt-4o"],
+            withDefaultModels: false,
+          },
+          auth,
+          201,
+        );
+
+        expect(response.body.displaySecretKey).toBe("Entra ID app ...5555");
+        expect(JSON.stringify(response.body)).not.toContain("abcd");
+      });
+
+      it("should reject Azure connection with malformed Entra ID credentials", async () => {
+        const response = await makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider: generateUniqueProvider("azure-entra-invalid"),
+            adapter: LLMAdapter.Azure,
+            secretKey: JSON.stringify({ tenantId: "contoso.onmicrosoft.com" }),
+            baseURL: TEST_PUBLIC_LLM_BASE_URL,
+            customModels: ["gpt-4o"],
+          },
+          auth,
+        );
+
+        expect(response.status).toBe(400);
+        expect(JSON.stringify(response.body)).toContain(
+          "Invalid Azure Entra ID credentials",
+        );
+      });
+
       it("should create VertexAI connection with location config", async () => {
         const createData = {
           provider: generateUniqueProvider("vertexai-config-test"),

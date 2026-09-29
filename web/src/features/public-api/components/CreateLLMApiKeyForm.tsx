@@ -8,7 +8,9 @@ import {
   type BedrockConfig,
   type OpenAIConfig,
   type VertexAIConfig,
+  type AzureEntraServicePrincipal,
   LLMAdapter,
+  AZURE_USE_DEFAULT_CREDENTIALS,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   TYPESAFE_UPSTREAMS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
@@ -47,8 +49,11 @@ import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
 import { env } from "@/src/env.mjs";
 import {
   AuthMethod,
+  AzureAuthMethodSchema,
   BedrockAuthMethodSchema,
+  type AzureAuthMethod,
   type BedrockAuthMethod,
+  type LlmAuthMethod,
 } from "@/src/features/llm-api-key";
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
@@ -71,7 +76,7 @@ const hasText = (value?: string) => Boolean(value?.trim());
  */
 const isMatchingBedrockAuthMethod = (
   newAuthMethod: BedrockAuthMethod,
-  existingAuthMethod?: BedrockAuthMethod,
+  existingAuthMethod?: LlmAuthMethod,
 ): boolean =>
   (newAuthMethod === AuthMethod.ApiKey &&
     existingAuthMethod === AuthMethod.ApiKey) ||
@@ -83,7 +88,7 @@ type LlmApiKeyListItem = RouterOutputs["llmApiKey"]["all"]["data"][number];
 
 const getInitialBedrockAuthMethod = (params: {
   mode: "create" | "update";
-  existingAuthMethod?: BedrockAuthMethod;
+  existingAuthMethod?: LlmAuthMethod;
 }): BedrockAuthMethod => {
   if (params.mode === "update") {
     return params.existingAuthMethod === AuthMethod.ApiKey
@@ -94,9 +99,16 @@ const getInitialBedrockAuthMethod = (params: {
   return AuthMethod.AccessKeys;
 };
 
+const getInitialAzureAuthMethod = (
+  existingAuthMethod?: LlmAuthMethod,
+): AzureAuthMethod => {
+  const parsed = AzureAuthMethodSchema.safeParse(existingAuthMethod);
+  return parsed.success ? parsed.data : AuthMethod.ApiKey;
+};
+
 const createFormSchema = (params: {
   mode: "create" | "update";
-  existingAuthMethod?: BedrockAuthMethod;
+  existingAuthMethod?: LlmAuthMethod;
 }) =>
   z
     .object({
@@ -121,6 +133,10 @@ const createFormSchema = (params: {
       awsSecretAccessKey: z.string().optional(),
       bedrockApiKey: z.string().optional(),
       authMethod: BedrockAuthMethodSchema,
+      azureAuthMethod: AzureAuthMethodSchema,
+      azureTenantId: z.string().optional(),
+      azureClientId: z.string().optional(),
+      azureClientSecret: z.string().optional(),
       awsRegion: z.string().optional(),
       vertexAILocation: z.string().optional(),
       openAIUseResponsesApi: z.boolean(),
@@ -194,6 +210,46 @@ const createFormSchema = (params: {
         });
       }
     })
+    .superRefine((data, ctx) => {
+      if (data.adapter !== LLMAdapter.Azure) return;
+
+      const isUpdatingCurrentAuthMethod =
+        params.mode === "update" &&
+        data.azureAuthMethod === params.existingAuthMethod;
+
+      if (data.azureAuthMethod === AuthMethod.ApiKey) {
+        if (!isUpdatingCurrentAuthMethod && !hasText(data.secretKey)) {
+          ctx.addIssue({
+            code: "custom",
+            message: "API key is required.",
+            path: ["secretKey"],
+          });
+        }
+        return;
+      }
+
+      if (data.azureAuthMethod !== AuthMethod.EntraServicePrincipal) return;
+
+      const servicePrincipalFields = [
+        ["azureTenantId", data.azureTenantId, "Tenant ID is required."],
+        ["azureClientId", data.azureClientId, "Client ID is required."],
+        [
+          "azureClientSecret",
+          data.azureClientSecret,
+          "Client secret is required.",
+        ],
+      ] as const;
+      const hasAnyField = servicePrincipalFields.some(([, value]) =>
+        hasText(value),
+      );
+      if (isUpdatingCurrentAuthMethod && !hasAnyField) return;
+
+      for (const [path, value, message] of servicePrincipalFields) {
+        if (!hasText(value)) {
+          ctx.addIssue({ code: "custom", message, path: [path] });
+        }
+      }
+    })
     .refine(
       (data) => {
         if (isCustomModelsRequired(data.adapter)) {
@@ -242,6 +298,7 @@ const createFormSchema = (params: {
       (data) =>
         data.adapter === LLMAdapter.Bedrock ||
         data.adapter === LLMAdapter.VertexAI ||
+        data.adapter === LLMAdapter.Azure ||
         params.mode === "update" ||
         data.secretKey,
       {
@@ -376,6 +433,10 @@ export function CreateLLMApiKeyForm({
               mode,
               existingAuthMethod: existingKey.authMethod,
             }),
+            azureAuthMethod: getInitialAzureAuthMethod(existingKey.authMethod),
+            azureTenantId: "",
+            azureClientId: "",
+            azureClientSecret: "",
           }
         : {
             adapter: defaultAdapter,
@@ -395,11 +456,20 @@ export function CreateLLMApiKeyForm({
             authMethod: getInitialBedrockAuthMethod({
               mode,
             }),
+            azureAuthMethod: AuthMethod.ApiKey,
+            azureTenantId: "",
+            azureClientId: "",
+            azureClientSecret: "",
           },
   });
 
   const currentAdapter = form.watch("adapter");
   const currentAuthMethod = form.watch("authMethod");
+  const currentAzureAuthMethod = form.watch("azureAuthMethod");
+  const isKeepingCurrentAzureAuthMethod =
+    mode === "update" &&
+    currentAdapter === LLMAdapter.Azure &&
+    currentAzureAuthMethod === existingKey?.authMethod;
   const currentTypeSafeUpstreamId = form.watch("typeSafeUpstream");
   const currentTypeSafeUpstream =
     TYPESAFE_UPSTREAMS.find(
@@ -543,6 +613,41 @@ export function CreateLLMApiKeyForm({
     />
   );
 
+  const renderSecretKeyField = () => (
+    <FormField
+      control={form.control}
+      name="secretKey"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>
+            {currentAdapter === LLMAdapter.TypeSafe
+              ? currentTypeSafeUpstream.apiKeyLabel
+              : "API Key"}
+          </FormLabel>
+          <FormDescription>
+            {isLangfuseCloud
+              ? "Your API keys are stored encrypted on our servers."
+              : "Your API keys are stored encrypted in your database."}
+          </FormDescription>
+          <FormControl>
+            <PasswordInput
+              {...field}
+              placeholder={
+                mode === "update" &&
+                (currentAdapter !== LLMAdapter.Azure ||
+                  isKeepingCurrentAzureAuthMethod)
+                  ? existingKey?.displaySecretKey
+                  : undefined
+              }
+              autoComplete="off"
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+
   // Disable provider and adapter fields in update mode
   const isFieldDisabled = (fieldName: string) => {
     if (mode !== "update") return false;
@@ -629,6 +734,28 @@ export function CreateLLMApiKeyForm({
       // If config is empty, set to undefined
       config =
         Object.keys(vertexAIConfig).length > 0 ? vertexAIConfig : undefined;
+    } else if (currentAdapter === LLMAdapter.Azure) {
+      switch (values.azureAuthMethod) {
+        case AuthMethod.ApiKey:
+          secretKey = values.secretKey;
+          break;
+        case AuthMethod.EntraServicePrincipal:
+          secretKey =
+            isKeepingCurrentAzureAuthMethod &&
+            !values.azureTenantId &&
+            !values.azureClientId &&
+            !values.azureClientSecret
+              ? undefined
+              : JSON.stringify({
+                  tenantId: values.azureTenantId!.trim(),
+                  clientId: values.azureClientId!.trim(),
+                  clientSecret: values.azureClientSecret!,
+                } satisfies AzureEntraServicePrincipal);
+          break;
+        case AuthMethod.DefaultCredentials:
+          secretKey = AZURE_USE_DEFAULT_CREDENTIALS;
+          break;
+      }
     } else if (currentAdapter === LLMAdapter.OpenAI) {
       config =
         values.openAIUseResponsesApi || mode === "update"
@@ -1255,37 +1382,168 @@ export function CreateLLMApiKeyForm({
                       </div>
                     )}
                 </>
-              ) : (
-                <FormField
-                  control={form.control}
-                  name="secretKey"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        {currentAdapter === LLMAdapter.TypeSafe
-                          ? currentTypeSafeUpstream.apiKeyLabel
-                          : "API Key"}
-                      </FormLabel>
+              ) : currentAdapter === LLMAdapter.Azure ? (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="azureAuthMethod"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Authentication Method</FormLabel>
+                        <FormDescription>
+                          Select how Langfuse should authenticate to Azure
+                          OpenAI or Azure AI Foundry.
+                        </FormDescription>
+                        <FormControl>
+                          <div className="w-full">
+                            <Tabs
+                              value={field.value}
+                              onValueChange={(value) =>
+                                field.onChange(value as AzureAuthMethod)
+                              }
+                            >
+                              <Tabs.List layout="full" gap="sm" size="auto">
+                                <Tabs.Trigger
+                                  value={AuthMethod.ApiKey}
+                                  size="sm"
+                                  label="API key"
+                                />
+                                <Tabs.Trigger
+                                  value={AuthMethod.EntraServicePrincipal}
+                                  size="sm"
+                                  label="Entra ID service principal"
+                                />
+                                {!isLangfuseCloud && (
+                                  <Tabs.Trigger
+                                    value={AuthMethod.DefaultCredentials}
+                                    size="sm"
+                                    label="Managed identity"
+                                  />
+                                )}
+                              </Tabs.List>
+                            </Tabs>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {currentAzureAuthMethod === AuthMethod.ApiKey &&
+                    renderSecretKeyField()}
+                  {currentAzureAuthMethod ===
+                    AuthMethod.EntraServicePrincipal && (
+                    <>
                       <FormDescription>
-                        {isLangfuseCloud
-                          ? "Your API keys are stored encrypted on our servers."
-                          : "Your API keys are stored encrypted in your database."}
+                        Langfuse requests short-lived Microsoft Entra ID tokens
+                        with the app registration&apos;s client secret. Grant
+                        the app the <code>Cognitive Services OpenAI User</code>{" "}
+                        role on the Azure resource.
+                        {isKeepingCurrentAzureAuthMethod &&
+                          " Leave all fields empty to keep the current credentials."}
                       </FormDescription>
-                      <FormControl>
-                        <PasswordInput
-                          {...field}
-                          placeholder={
-                            mode === "update"
-                              ? existingKey?.displaySecretKey
-                              : undefined
-                          }
-                          autoComplete="off"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                      <FormField
+                        control={form.control}
+                        name="azureTenantId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Tenant ID</FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                placeholder="Directory (tenant) ID"
+                                autoComplete="off"
+                                data-1p-ignore
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="azureClientId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Client ID</FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                placeholder={
+                                  isKeepingCurrentAzureAuthMethod &&
+                                  existingKey?.displaySecretKey
+                                    ? `${existingKey.displaySecretKey} (preserved if empty)`
+                                    : "Application (client) ID"
+                                }
+                                autoComplete="off"
+                                data-1p-ignore
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="azureClientSecret"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Client secret</FormLabel>
+                            <FormDescription>
+                              {isLangfuseCloud
+                                ? "Stored encrypted on our servers."
+                                : "Stored encrypted in your database."}
+                            </FormDescription>
+                            <FormControl>
+                              <PasswordInput {...field} autoComplete="off" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
                   )}
-                />
+                  {!isLangfuseCloud &&
+                    currentAzureAuthMethod ===
+                      AuthMethod.DefaultCredentials && (
+                      <div className="text-muted-foreground space-y-2 border-l-2 border-blue-200 pl-4 text-sm">
+                        <p>
+                          <strong>Default Azure credentials:</strong> Langfuse
+                          requests Microsoft Entra ID tokens with the identity
+                          of the Langfuse web and worker containers, checking in
+                          this order:
+                        </p>
+                        <ul className="ml-2 list-inside list-disc space-y-1">
+                          <li>
+                            Environment variables (AZURE_TENANT_ID,
+                            AZURE_CLIENT_ID, AZURE_CLIENT_SECRET)
+                          </li>
+                          <li>AKS workload identity</li>
+                          <li>
+                            Managed identity (set AZURE_CLIENT_ID for a
+                            user-assigned identity)
+                          </li>
+                          <li>Azure CLI login</li>
+                        </ul>
+                        <p>
+                          The base URL must be an Azure-hosted endpoint
+                          (*.openai.azure.com, *.cognitiveservices.azure.com, or
+                          *.services.ai.azure.com).
+                        </p>
+                        <p>
+                          <a
+                            href="https://learn.microsoft.com/en-us/javascript/api/overview/azure/identity-readme#defaultazurecredential"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 underline hover:text-blue-800"
+                          >
+                            Learn more about DefaultAzureCredential →
+                          </a>
+                        </p>
+                      </div>
+                    )}
+                </>
+              ) : (
+                renderSecretKeyField()
               )}
 
               {/* Azure Base URL - Always required for Azure */}
@@ -1299,7 +1557,9 @@ export function CreateLLMApiKeyForm({
                       <FormDescription>
                         Please add the base URL in the following format (or
                         compatible API):
-                        https://&#123;instanceName&#125;.openai.azure.com/openai/deployments
+                        https://&#123;instanceName&#125;.openai.azure.com/openai/deployments.
+                        For Azure AI Foundry, use
+                        https://&#123;resourceName&#125;.services.ai.azure.com/openai/deployments.
                       </FormDescription>
                       <FormControl>
                         <Input

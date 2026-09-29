@@ -9,7 +9,10 @@ import {
   transformDbLlmConnectionToAPI,
 } from "@/src/features/public-api/types/llm-connections";
 import { encrypt } from "@langfuse/shared/encryption";
-import { getDisplaySecretKey } from "@/src/features/llm-api-key/server/router";
+import {
+  getDisplaySecretKey,
+  validateAzureSecretKey,
+} from "@/src/features/llm-api-key/server/router";
 import { auditLog } from "@/src/features/audit-logs/server";
 import {
   InvalidRequestError,
@@ -117,6 +120,17 @@ export default withMiddlewares({
             "Default AWS credentials are only allowed for Bedrock in self-hosted deployments.",
           );
         }
+      }
+
+      try {
+        validateAzureSecretKey({
+          adapter: body.adapter,
+          secretKey: body.secretKey,
+        });
+      } catch (error) {
+        throw new InvalidRequestError(
+          error instanceof Error ? error.message : "Invalid Azure credentials.",
+        );
       }
 
       const llmConnectionBody = {

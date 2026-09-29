@@ -11,7 +11,11 @@ vi.mock("@langfuse/shared/src/server", async () => {
 
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
-import { BEDROCK_USE_DEFAULT_CREDENTIALS, LLMAdapter } from "@langfuse/shared";
+import {
+  AZURE_USE_DEFAULT_CREDENTIALS,
+  BEDROCK_USE_DEFAULT_CREDENTIALS,
+  LLMAdapter,
+} from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
 import {
@@ -595,6 +599,120 @@ describe("llmApiKey.all RPC", () => {
         (key) => key.secretKey === undefined && key.extraHeaders === undefined,
       ),
     ).toBe(true);
+  });
+
+  describe("Azure Entra ID credentials", () => {
+    const servicePrincipal = {
+      tenantId: "contoso.onmicrosoft.com",
+      clientId: "11111111-2222-3333-4444-555555555555",
+      clientSecret: "entra-client-secret-abcd",
+    };
+    const azureConnection = {
+      adapter: LLMAdapter.Azure,
+      baseURL: "https://my-instance.openai.azure.com/openai/deployments",
+      customModels: ["gpt-4o"],
+      withDefaultModels: false,
+    };
+
+    const withCloudRegion = async (
+      region: string | undefined,
+      run: () => Promise<void>,
+    ) => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = region;
+      try {
+        await run();
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    };
+
+    it("stores a service principal without revealing the client secret and derives each auth method", async () => {
+      await withCloudRegion(undefined, async () => {
+        await caller.llmApiKey.create({
+          ...azureConnection,
+          projectId,
+          provider: "azure-sp",
+          secretKey: JSON.stringify(servicePrincipal),
+        });
+        await caller.llmApiKey.create({
+          ...azureConnection,
+          projectId,
+          provider: "azure-mi",
+          secretKey: AZURE_USE_DEFAULT_CREDENTIALS,
+        });
+        await caller.llmApiKey.create({
+          ...azureConnection,
+          projectId,
+          provider: "azure-key",
+          secretKey: "azure-api-key-1234",
+        });
+      });
+
+      const { data } = await caller.llmApiKey.all({ projectId });
+      const byProvider = Object.fromEntries(
+        data.map((key) => [key.provider, key]),
+      );
+
+      expect(byProvider["azure-sp"]).toMatchObject({
+        authMethod: AuthMethod.EntraServicePrincipal,
+        displaySecretKey: "Entra ID app ...5555",
+      });
+      expect(byProvider["azure-mi"]).toMatchObject({
+        authMethod: AuthMethod.DefaultCredentials,
+        displaySecretKey: "Default Azure credentials (managed identity)",
+      });
+      expect(byProvider["azure-key"]).toMatchObject({
+        authMethod: AuthMethod.ApiKey,
+        displaySecretKey: "...1234",
+      });
+
+      const stored = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: "azure-sp" },
+      });
+      expect(JSON.parse(decrypt(stored.secretKey))).toEqual(servicePrincipal);
+    });
+
+    it("rejects malformed service principal JSON", async () => {
+      await expect(
+        caller.llmApiKey.create({
+          ...azureConnection,
+          projectId,
+          provider: "azure-bad",
+          secretKey: JSON.stringify({ tenantId: servicePrincipal.tenantId }),
+        }),
+      ).rejects.toThrow(/Invalid Azure Entra ID credentials/);
+    });
+
+    it("rejects default Azure credentials on Langfuse Cloud and for other adapters", async () => {
+      await withCloudRegion("EU", async () => {
+        await expect(
+          caller.llmApiKey.create({
+            ...azureConnection,
+            projectId,
+            provider: "azure-mi",
+            secretKey: AZURE_USE_DEFAULT_CREDENTIALS,
+          }),
+        ).rejects.toThrow(/only allowed for Azure in self-hosted deployments/);
+      });
+
+      await withCloudRegion(undefined, async () => {
+        await expect(
+          caller.llmApiKey.create({
+            projectId,
+            provider: "openai-mi",
+            adapter: LLMAdapter.OpenAI,
+            secretKey: AZURE_USE_DEFAULT_CREDENTIALS,
+          }),
+        ).rejects.toThrow(/only allowed for Azure in self-hosted deployments/);
+      });
+
+      expect(
+        await prisma.llmApiKeys.count({
+          where: { projectId, provider: { in: ["azure-mi", "openai-mi"] } },
+        }),
+      ).toBe(0);
+    });
   });
 
   it("should require llmApiKeys:create access for testing a new llm api key", async () => {
