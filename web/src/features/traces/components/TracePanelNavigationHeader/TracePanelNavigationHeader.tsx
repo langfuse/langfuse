@@ -321,7 +321,7 @@ function TracePanelNavigationHeaderExpanded({
                       {TRACE_VIEW_LABELS[activeView]}
                       <ChevronDown
                         className={cn(
-                          "h-3.5 w-3.5 transition-transform",
+                          "text-foreground-tertiary size-3.5 transition-transform",
                           isOpen && "rotate-180",
                         )}
                       />

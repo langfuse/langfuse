@@ -33,6 +33,7 @@ import {
   experimentTargetEvalVariableColumns,
 } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
 
 const TOOL_CALLS_COLUMN_ID = "toolCalls";
 
@@ -293,6 +294,7 @@ function VariableMappingRow({
   onDelete?: () => void;
 }) {
   const capture = usePostHogClientCapture();
+  const onboardingAnalytics = useEvalOnboardingAnalytics();
   const segments = useMemo(
     () =>
       fieldState.jsonSelector
@@ -343,6 +345,10 @@ function VariableMappingRow({
           capture("evaluators:variable_mapping_configured", {
             method: "tree",
           });
+          onboardingAnalytics?.completeStep({
+            stepName: "variable_mapping_updated",
+            method: "tree",
+          });
         }
         onChange({
           selectedColumnId: columnId,
@@ -355,6 +361,10 @@ function VariableMappingRow({
       onApplyJsonPath={(jsonSelector) => {
         if (jsonSelector !== fieldState.jsonSelector) {
           capture("evaluators:variable_mapping_configured", {
+            method: "json_path",
+          });
+          onboardingAnalytics?.completeStep({
+            stepName: "variable_mapping_updated",
             method: "json_path",
           });
         }
