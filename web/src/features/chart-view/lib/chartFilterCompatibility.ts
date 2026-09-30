@@ -1,4 +1,4 @@
-import { type FilterState } from "@langfuse/shared";
+import { type FilterCondition, type FilterState } from "@langfuse/shared";
 import { resolveField } from "@/src/features/search-bar";
 
 /**
@@ -6,11 +6,11 @@ import { resolveField } from "@/src/features/search-bar";
  * human reason for the ones it can't.
  *
  * The chart runs the observations aggregate query (`dashboard.executeQuery`,
- * v2 events read path — see `buildChartQuery`). That query accepts a subset of
- * the columns the events table exposes as filters: the dimensions the widget
- * builder also offers (LFE-10751). Everything else — measures, scores,
- * comments, metadata, and a few structural columns — has no dimension to filter
- * on, so it CANNOT be applied to the chart.
+ * v2 events read path — see `buildChartQuery`). That query accepts the columns
+ * the widget builder offers as dimensions, plus `metadata`, which the query
+ * builder takes as a keyed filter rather than a dimension. Measures, scores,
+ * comments and a few structural columns have nothing to filter on, so they
+ * CANNOT be applied to the chart.
  *
  * Rather than hide the chart when an unsupported filter is present (the old
  * all-or-nothing gate), we forward what we can and mark the rest as "not
@@ -21,10 +21,12 @@ import { resolveField } from "@/src/features/search-bar";
  */
 
 /**
- * Events-table filter columns whose values forward 1:1 onto an observations
- * query dimension. Keyed by the `column` string the events `FilterState` uses.
- * `traceTags` is the one whose query dimension name differs (`tags`) — see
- * {@link CHART_FILTER_COLUMN_RENAME}.
+ * Events-table filter columns the chart query honours. Keyed by the `column`
+ * string the events `FilterState` uses. Most forward 1:1 onto an observations
+ * query dimension; `traceTags` is renamed to its dimension name (`tags`, see
+ * {@link CHART_FILTER_COLUMN_RENAME}) and `metadata` is not a dimension at all
+ * (see {@link chartConditionExclusionReason}). Column membership alone is not
+ * sufficient — a condition also has to carry a shape the query accepts.
  */
 const FORWARDABLE_CHART_FILTER_COLUMNS: ReadonlySet<string> = new Set([
   "environment",
@@ -38,11 +40,7 @@ const FORWARDABLE_CHART_FILTER_COLUMNS: ReadonlySet<string> = new Set([
   "version",
   "release",
   "promptName",
-  // NOTE: promptVersion is intentionally NOT forwardable. The search-bar
-  // grammar registers it as a numeric field, so `promptVersion:>2` lowers to a
-  // `number` filter — but the observations-view dimension is typed `string`,
-  // which rejects numeric filters and errors the chart query. It shows as "not
-  // applied" instead.
+  "promptVersion",
   "traceTags",
   "toolNames",
   "calledToolNames",
@@ -50,6 +48,7 @@ const FORWARDABLE_CHART_FILTER_COLUMNS: ReadonlySet<string> = new Set([
   "experimentDatasetId",
   "experimentId",
   "isRootObservation",
+  "metadata",
 ]);
 
 /**
@@ -93,6 +92,19 @@ export const CHART_SEARCH_QUERY_REASON =
   "Charts can't apply text search at the moment — still narrows the table.";
 
 /**
+ * Reason for a presence check (`has:`/`-has:`, a `null`-type filter). The
+ * aggregate query reads the raw column, where an unset value is an empty string
+ * or an empty array rather than NULL, so a presence check there does not select
+ * the rows the table selects.
+ */
+const CHART_PRESENCE_FILTER_REASON =
+  "Charts can't filter by whether a field is set at the moment — still applies to the table.";
+
+/** Fallback for a column, or a filter shape, the chart query has no place for. */
+const CHART_UNSUPPORTED_FIELD_REASON =
+  "Charts can't filter by this field at the moment — still applies to the table.";
+
+/**
  * The reason a filter on `column` is NOT applied to the chart, or `null` if it
  * is forwarded. User-facing hover copy: plain "not at the moment" framing —
  * present-tense and polite, without claiming a hard impossibility (none of these
@@ -107,25 +119,38 @@ export function chartFilterExclusionReason(column: string): string | null {
     return "Charts can't filter by scores at the moment — still applies to the table.";
   if (COMMENT_COLUMNS.has(column))
     return "Charts can't filter by comments at the moment — still applies to the table.";
-  if (column === "metadata")
-    return "Charts can't filter by metadata at the moment — still applies to the table.";
-  return "Charts can't filter by this field at the moment — still applies to the table.";
+  return CHART_UNSUPPORTED_FIELD_REASON;
+}
+
+/**
+ * The reason a single condition is NOT applied to the chart, or `null` if it is
+ * forwarded. Condition-level, because a forwardable column can still carry a
+ * shape the aggregate query rejects or answers differently from the table:
+ *
+ * - a presence check on any column ({@link CHART_PRESENCE_FILTER_REASON});
+ * - `metadata` in anything but its keyed `stringObject` form — that is the only
+ *   metadata shape the query builder accepts, and forwarding another one would
+ *   error the whole chart rather than one filter.
+ */
+export function chartConditionExclusionReason(
+  filter: FilterCondition,
+): string | null {
+  const columnReason = chartFilterExclusionReason(filter.column);
+  if (columnReason) return columnReason;
+  if (filter.type === "null") return CHART_PRESENCE_FILTER_REASON;
+  if (filter.column === "metadata" && filter.type !== "stringObject")
+    return CHART_UNSUPPORTED_FIELD_REASON;
+  return null;
 }
 
 /**
  * Narrows a `FilterState` to the subset the chart query can honour, renaming
  * the few columns whose observations-view dimension name differs. The inverse
- * of {@link chartFilterExclusionReason} on the forwarding side.
+ * of {@link chartConditionExclusionReason} on the forwarding side.
  */
 export function toChartFilters(filterState: FilterState): FilterState {
   return filterState
-    .filter(
-      (f) =>
-        // Presence checks (`has:`/`-has:`, a `null` filter) aren't applied by
-        // the aggregate chart query — drop them so we never forward one and
-        // 422; the search bar marks them "not applied" (chartSearchFieldReason).
-        f.type !== "null" && FORWARDABLE_CHART_FILTER_COLUMNS.has(f.column),
-    )
+    .filter((f) => chartConditionExclusionReason(f) === null)
     .map((f) => {
       const renamed = CHART_FILTER_COLUMN_RENAME[f.column];
       return renamed ? { ...f, column: renamed } : f;
@@ -141,17 +166,18 @@ export function toChartFilters(filterState: FilterState): FilterState {
 export function chartSearchFieldReason(fieldName: string): string | null {
   const ref = resolveField(fieldName);
   if (!ref) return null;
+  // A metadata dot-path lowers to the keyed `stringObject` shape the chart
+  // query accepts, so it deactivates only if the column policy says so.
   if (ref.type === "metadata") return chartFilterExclusionReason("metadata");
   if (ref.type === "scores")
     return chartFilterExclusionReason(
       ref.level === "trace" ? "trace_scores_avg" : "scores_avg",
     );
-  // `has:`/`-has:` presence checks lower to a null-check filter, which the chart
-  // doesn't apply (dropped by toChartFilters) — so the pill is deactivated too.
   if (ref.type === "searchScope" || (ref.type === "pseudo" && ref.id === "in"))
     return CHART_SEARCH_QUERY_REASON;
-  if (ref.type === "pseudo")
-    return "Charts can't filter by whether a field is set at the moment — still applies to the table.";
+  // `has:`/`-has:` lowers to a presence check, which the chart doesn't apply
+  // (dropped by toChartFilters) — so the pill is deactivated too.
+  if (ref.type === "pseudo") return CHART_PRESENCE_FILTER_REASON;
   return chartFilterExclusionReason(ref.field.id);
 }
 
@@ -166,7 +192,7 @@ export function classifyChartFilters(filterState: FilterState): {
 } {
   const excluded = new Map<string, string>();
   for (const f of filterState) {
-    const reason = chartFilterExclusionReason(f.column);
+    const reason = chartConditionExclusionReason(f);
     if (reason) excluded.set(f.column, reason);
   }
   return { forwarded: toChartFilters(filterState), excluded };

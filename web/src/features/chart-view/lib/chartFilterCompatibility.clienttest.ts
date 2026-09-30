@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import {
+  chartConditionExclusionReason,
   chartFilterExclusionReason,
   chartSearchFieldReason,
   classifyChartFilters,
@@ -25,12 +26,14 @@ describe("chartFilterExclusionReason", () => {
       "toolNames",
       "experimentId",
       "isRootObservation",
+      "promptVersion",
+      "metadata",
     ]) {
       expect(chartFilterExclusionReason(col)).toBeNull();
     }
   });
 
-  it("groups measures, scores, comments, and metadata by reason", () => {
+  it("groups measures, scores, and comments by reason", () => {
     expect(chartFilterExclusionReason("latency")).toMatch(/latency, cost/i);
     expect(chartFilterExclusionReason("cachedInputTokens")).toMatch(
       /latency, cost/i,
@@ -43,11 +46,56 @@ describe("chartFilterExclusionReason", () => {
     expect(chartFilterExclusionReason("trace_score_categories")).toMatch(
       /scores/i,
     );
-    // promptVersion is a numeric field but the observations dimension is a
-    // string — forwarding it errors the query, so it is NOT forwardable.
-    expect(chartFilterExclusionReason("promptVersion")).not.toBeNull();
     expect(chartFilterExclusionReason("commentContent")).toMatch(/comments/i);
-    expect(chartFilterExclusionReason("metadata")).toMatch(/metadata/i);
+  });
+});
+
+describe("chartConditionExclusionReason", () => {
+  it("forwards a keyed metadata filter", () => {
+    expect(
+      chartConditionExclusionReason({
+        column: "metadata",
+        type: "stringObject",
+        key: "langfuse_user_email",
+        operator: "does not contain",
+        value: "@langfuse.com",
+      }),
+    ).toBeNull();
+  });
+
+  it("excludes a metadata condition that is not the keyed stringObject shape", () => {
+    // The query builder accepts metadata only as a keyed stringObject;
+    // forwarding another shape errors the whole chart, not just one filter.
+    expect(
+      chartConditionExclusionReason({
+        column: "metadata",
+        type: "null",
+        operator: "is not null",
+        value: "",
+      }),
+    ).not.toBeNull();
+  });
+
+  it("excludes a presence check on an otherwise forwardable column", () => {
+    expect(
+      chartConditionExclusionReason({
+        column: "userId",
+        type: "null",
+        operator: "is not null",
+        value: "",
+      }),
+    ).toMatch(/is set/i);
+  });
+
+  it("keeps the column reason for an unsupported column", () => {
+    expect(
+      chartConditionExclusionReason({
+        column: "latency",
+        type: "number",
+        operator: ">",
+        value: 2,
+      }),
+    ).toMatch(/latency, cost/i);
   });
 });
 
@@ -74,6 +122,14 @@ describe("toChartFilters", () => {
         value: true,
       },
       {
+        column: "metadata",
+        type: "stringObject",
+        key: "langfuse_user_email",
+        operator: "does not contain",
+        value: "@langfuse.com",
+      },
+      { column: "promptVersion", type: "number", operator: ">=", value: 2 },
+      {
         column: "scores_avg",
         type: "numberObject",
         operator: ">",
@@ -91,10 +147,19 @@ describe("toChartFilters", () => {
       "userId",
       "tags",
       "isRootObservation",
+      "metadata",
+      "promptVersion",
     ]);
     // the rename keeps the rest of the filter intact
     const tags = result.find((f) => f.column === "tags");
     expect(tags).toMatchObject({ operator: "all of", value: ["prod"] });
+    // metadata forwards with the key the query builder needs
+    expect(result.find((f) => f.column === "metadata")).toMatchObject({
+      type: "stringObject",
+      key: "langfuse_user_email",
+      operator: "does not contain",
+      value: "@langfuse.com",
+    });
   });
 });
 
@@ -105,6 +170,8 @@ describe("chartSearchFieldReason", () => {
     expect(chartSearchFieldReason("user")).toBeNull(); // alias -> userId
     expect(chartSearchFieldReason("tags")).toBeNull(); // alias -> traceTags
     expect(chartSearchFieldReason("model")).toBeNull(); // -> providedModelName
+    expect(chartSearchFieldReason("promptVersion")).toBeNull();
+    expect(chartSearchFieldReason("metadata.region")).toBeNull();
   });
 
   it("classifies unsupported grammar fields by group", () => {
@@ -114,7 +181,6 @@ describe("chartSearchFieldReason", () => {
     expect(chartSearchFieldReason("traceScores.helpfulness")).toMatch(
       /scores/i,
     );
-    expect(chartSearchFieldReason("metadata.region")).toMatch(/metadata/i);
     // a search-bar startTime bound the chart can't honour
     expect(chartSearchFieldReason("startTime")).toMatch(/this field/i);
   });
