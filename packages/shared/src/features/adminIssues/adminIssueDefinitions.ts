@@ -1,3 +1,4 @@
+import { deeplyNestedPromptsRule } from "./rules/deeplyNestedPrompts";
 import { observationsWithoutEvaluatorsRule } from "./rules/observationsWithoutEvaluators";
 
 export type RuleIssue = {
@@ -11,10 +12,11 @@ export type RuleIssue = {
 export type AdminIssueDefinition = {
   id: string;
   name: string;
-  group: "integration" | "sdks" | "evaluations";
+  group: "integration" | "sdks" | "evaluations" | "prompts";
   callback?: (projectId: string) => Promise<RuleIssue[]>;
 };
 
 export const adminIssueDefinitions: AdminIssueDefinition[] = [
   observationsWithoutEvaluatorsRule,
+  deeplyNestedPromptsRule,
 ];

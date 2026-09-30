@@ -8,6 +8,7 @@ import { experimentIoScenario } from "./experiment-io";
 import { incidentSessionScenario } from "./incident-session";
 import { longSessionScenario } from "./long-session";
 import { manyTracesScenario } from "./many-traces";
+import { nestedPromptsScenario } from "./nested-prompts";
 import { outlierTrafficScenario } from "./outlier-traffic";
 import { scoredTracesScenario } from "./scored-traces";
 import { sessionShapesScenario } from "./session-shapes";
@@ -30,6 +31,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "experiment-io": experimentIoScenario,
   "long-session": longSessionScenario,
   "many-traces": manyTracesScenario,
+  "nested-prompts": nestedPromptsScenario,
   "outlier-traffic": outlierTrafficScenario,
   "scored-traces": scoredTracesScenario,
   "session-shapes": sessionShapesScenario,

@@ -51,6 +51,7 @@ programmatic calls from the dx seed chain.
 | `annotation-queue`  | two human-annotation queues for the annotate UI: a "core types" queue with one of every score-field render path (categorical toggle/combobox, boolean, ranged/decimal/unranged numeric, text) over fresh trace items, and an "edge cases" queue adding archived/stale/partial scores, comments, and observation/session/deleted/completed items                          | `--core-items`, `--v4` (default true)                                                                                                                                                             |
 | `custom-models`     | project-level model definitions (one tiered with a condition-gated second tier and a usage type priced at 0, one single-tier) plus a trace whose generations link to them, and one generation whose model matches no definition so its badge opens the create dialog                                                                                                     | —                                                                                                                                                                                                 |
 | `evaluator-gallery` | project-owned code evaluators for gallery pagination and infinite-scroll testing; reconciles deterministic names through the seeded public API key so local and PR preview environments are supported                                                                                                                                                                    | `--count`                                                                                                                                                                                         |
+| `nested-prompts`    | a composed support-agent chat prompt whose dependency chain nests up to the API's maximum depth, plus a version-pinned side branch; reconciles through the public prompt API                                                                                                                                                                                             | `--depth`                                                                                                                                                                                         |
 | `support-agent`     | one demo-grade, fully handcrafted trace: a customer-support copilot resolving a duplicate-charge refund — input guardrail → intent classification → parallel context fan-out (CRM/billing/tickets) → 3-turn ReAct loop (llm.chat + Stripe tools) → drafted reply → output guardrail → send                                                                               | —                                                                                                                                                                                                 |
 | `incident-session`  | one demo-grade, fully handcrafted multi-user v4 session: an on-call copilot and four engineers work a checkout-latency incident over seven turns — parallel, untraced and failing tool calls, a nested sub-agent, reasoning, markdown answers, a guardrail-flagged refusal, typed session scores and comments                                                            | `--v4` (default true)                                                                                                                                                                             |
 | `timeline-shapes`   | a dozen SMALL traces (4-25 observations each), one per timeline morphology: rag answer, streamed chat, parallel fan-out, retry backoff with widening gaps, a 13-minute wait on a human, one slow tool dwarfing everything, an error cascade with failover, in-flight spans, zero-duration checkpoints, a ten-level ladder, 24 flat siblings, and a three-turn agent loop | `--shape all\|rag-answer\|streaming-chat\|parallel-fanout\|retry-backoff\|waiting-on-approval\|slow-tool\|error-cascade\|still-running\|checkpoint-marks\|deep-ladder\|flat-siblings\|mixed-loop` |
@@ -58,6 +59,30 @@ programmatic calls from the dx seed chain.
 Common flags: `--project` (defaults to the seeded example project),
 `--environment`, `--seed`, `--id-prefix`, `--dry-run` (instant, arithmetic
 counts, writes nothing), `--json` (machine mode: pure-JSON stdout).
+
+### Seed configs
+
+`pnpm run seed -- apply <config> [--dry-run] [--json]` runs several scenarios
+from one JSON file, so a demo is one file instead of a list of commands.
+`<config>` is a path or the name of a file in `configs/`:
+
+```json
+{
+  "description": "what this demo shows",
+  "defaults": { "project": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
+  "scenarios": [
+    { "name": "nested-prompts", "params": { "depth": 4 } },
+    { "name": "trace-tree", "params": { "observations": 500, "v4": true } }
+  ]
+}
+```
+
+`defaults` apply to every step; step `params` override them. Keys are the
+scenario's CLI flag names without `--`, validated like CLI values (booleans
+must be JSON booleans). All steps are validated before anything is
+written. The last stdout line is `{ config, dryRun, summaries }`, one
+`SeedSummary` per step. The seeder does not run migrations; apply them first
+with `pnpm --filter=shared run db:deploy`.
 
 Scenarios compose: e.g. a session where one trace has zero observations is
 two `long-session` runs sharing a `--session-id` with different
@@ -142,6 +167,7 @@ cost.
 ## Layout
 
 - `cli.ts` — env-precheck bootstrap; `cli-main.ts` — the actual CLI
+- `config.ts`, `configs/` — seed configs for `apply`
 - `doctor.ts` — stack checks (Postgres, migrations, project, ClickHouse +
   tables + memory pressure, Redis, MinIO, web app), each with a fix command
 - `scenarios/` — one file per scenario plus `rng.ts` (Rng/jitter/anchor),
