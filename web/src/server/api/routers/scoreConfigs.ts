@@ -7,6 +7,7 @@ import {
 } from "@/src/server/api/trpc";
 import {
   filterAndValidateDbScoreConfigList,
+  InternalServerError,
   InvalidRequestError,
   LangfuseNotFoundError,
   optionalPaginationZod,
@@ -16,7 +17,7 @@ import {
   validateDbScoreConfig,
   validateDbScoreConfigSafe,
 } from "@langfuse/shared";
-import { traceException } from "@langfuse/shared/src/server";
+import { logger, traceException } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { appendCategoryToExisting } from "@/src/features/scores/lib/annotationFormHelpers";
 
@@ -266,9 +267,24 @@ export const scoreConfigsRouter = createTRPCRouter({
       });
 
       if (!config) {
-        throw new Error("No score config with this id in this project.");
+        throw new LangfuseNotFoundError(
+          "No score config with this id in this project.",
+        );
       }
 
-      return validateDbScoreConfig(config);
+      const parsedConfig = validateDbScoreConfigSafe(config);
+      if (!parsedConfig.success) {
+        // traceException is a no-op without an active span, so log as well to
+        // keep corrupted rows diagnosable when tracing is not initialised.
+        logger.error("Failed to parse score config in scoreConfigs.byId", {
+          projectId: input.projectId,
+          scoreConfigId: input.id,
+          error: parsedConfig.error,
+        });
+        traceException(parsedConfig.error);
+        throw new InternalServerError("Requested score config is corrupted");
+      }
+
+      return parsedConfig.data;
     }),
 });
