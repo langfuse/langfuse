@@ -312,7 +312,12 @@ export function OrgOverviewGraph({
   initialZoom?: number;
   search?: string;
   activityFilter?: "active" | "inactive";
-  order?: "billable" | "observations" | "scores" | "name";
+  order?:
+    | "billable"
+    | "observations"
+    | "scores"
+    | "name"
+    | keyof OrganizationIngestionOverview["projects"][number]["features"];
 }) {
   const { nodes, edges } = useMemo(() => {
     const nodes: Node[] = [];
@@ -341,6 +346,18 @@ export function OrgOverviewGraph({
     if (order) {
       projects.sort((a, b) => {
         if (order === "name") return a.name.localeCompare(b.name);
+        if (
+          order === "activeEvaluationRules" ||
+          order === "datasets" ||
+          order === "datasetItems" ||
+          order === "activeMonitors" ||
+          order === "prompts"
+        ) {
+          return (
+            b.features[order] - a.features[order] ||
+            a.name.localeCompare(b.name)
+          );
+        }
         const left = volumes.get(a.id) ?? { observations: 0, scores: 0 };
         const right = volumes.get(b.id) ?? { observations: 0, scores: 0 };
         if (order === "observations")

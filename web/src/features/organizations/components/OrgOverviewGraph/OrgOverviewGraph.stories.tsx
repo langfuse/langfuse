@@ -151,6 +151,56 @@ const exampleData: OrganizationIngestionOverview = {
 
 export const Default = meta.story({ args: { data: exampleData } });
 
+export const SortByDatasets = meta.story({
+  name: "(Test) Sort by datasets with name tie-breaker",
+  args: {
+    order: "datasets",
+    data: {
+      ...exampleData,
+      projects: exampleData.projects.map((project) => ({
+        ...project,
+        features: {
+          ...project.features,
+          datasets: project.id === "porcini" ? 1 : 3,
+        },
+      })),
+      eventRows: [],
+      scoreRows: [],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByText("Chanterelle");
+    await waitFor(() => {
+      const centers = ["Chanterelle", "Shiitake", "Porcini"].map((name) => {
+        const node = canvas.getByText(name).closest(".react-flow__node");
+        expect(node).not.toBeNull();
+        const bounds = node!.getBoundingClientRect();
+        expect(bounds.height).toBeGreaterThan(0);
+        return bounds.top + bounds.height / 2;
+      });
+      expect(centers[0]!).toBeLessThan(centers[1]!);
+      expect(centers[1]!).toBeLessThan(centers[2]!);
+    });
+  },
+});
+
+export const SortByEvaluationRules = meta.story({
+  args: { data: exampleData, order: "activeEvaluationRules" },
+});
+
+export const SortByDatasetItems = meta.story({
+  args: { data: exampleData, order: "datasetItems" },
+});
+
+export const SortByActiveMonitors = meta.story({
+  args: { data: exampleData, order: "activeMonitors" },
+});
+
+export const SortByPrompts = meta.story({
+  args: { data: exampleData, order: "prompts" },
+});
+
 export const EmptyProjectBeforeClients = meta.story({
   args: {
     data: {

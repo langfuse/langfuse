@@ -1,4 +1,5 @@
 import { OrgOverviewGraph } from "./OrgOverviewGraph";
+import { type ComponentProps } from "react";
 import { useOrganizationIngestionOverview } from "../../hooks/useOrganizationIngestionOverview";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { ErrorPage } from "@/src/components/error-page";
@@ -12,7 +13,7 @@ export function ConnectedOrgOverviewGraph({
   organizationId: string;
   search: string;
   activityFilter: "all" | "active" | "inactive";
-  order: "billable" | "observations" | "scores" | "name";
+  order: NonNullable<ComponentProps<typeof OrgOverviewGraph>["order"]>;
 }) {
   const { data, error, isLoading } =
     useOrganizationIngestionOverview(organizationId);
