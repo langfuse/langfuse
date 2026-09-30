@@ -1,27 +1,37 @@
 import { prisma } from "../../db";
-import type { Prisma } from "@prisma/client";
+import { logger } from "../../server/logger";
 import { adminIssueDefinitions } from "./adminIssueDefinitions";
 
 export async function executeAdminIssueRules(projectId: string) {
-  const issues: Prisma.IssueLogCreateManyInput[] = [];
+  const counts = await Promise.all(
+    Object.values(adminIssueDefinitions).map(async (definition) => {
+      if (!definition.callback) return 0;
 
-  for (const definition of Object.values(adminIssueDefinitions)) {
-    if (!definition.callback) continue;
+      try {
+        const issues = await definition.callback(projectId);
+        if (issues.length === 0) return 0;
 
-    const detectedIssues = await definition.callback(projectId);
-    issues.push(
-      ...detectedIssues.map((issue) => ({
-        projectId,
-        issueDefinitionId: definition.id,
-        description: issue.description,
-        priority: issue.priority,
-        ctaLink: issue.ctaLink,
-      })),
-    );
-  }
+        const { count } = await prisma.issueLog.createMany({
+          data: issues.map((issue) => ({
+            projectId,
+            issueDefinitionId: definition.id,
+            description: issue.description,
+            priority: issue.priority,
+            ctaLink: issue.ctaLink,
+          })),
+        });
+        return count;
+      } catch (error) {
+        logger.error("Failed to execute admin issue rule", {
+          projectId,
+          issueDefinitionId: definition.id,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
+        });
+        return 0;
+      }
+    }),
+  );
 
-  if (issues.length === 0) return 0;
-
-  const { count } = await prisma.issueLog.createMany({ data: issues });
-  return count;
+  return counts.reduce((total, count) => total + count, 0);
 }

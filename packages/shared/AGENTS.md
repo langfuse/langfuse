@@ -28,7 +28,7 @@
   generation in the full thread.
 - Domain model types: `src/domain/*`
 - Admin issue definition and callback input types: `src/features/adminIssues/adminIssueDefinition.ts`, exported from `@langfuse/shared`.
-- Admin issue registry and project-scoped runner: `src/features/adminIssues/{adminIssueDefinitions,executeAdminIssueRules}.ts`, exported from `@langfuse/shared/src/server`. Callbacks receive `projectId`; the runner inserts their results only after all callbacks succeed and returns the inserted count.
+- Admin issue registry and project-scoped runner: `src/features/adminIssues/{adminIssueDefinitions,executeAdminIssueRules}.ts`, exported from `@langfuse/shared/src/server`. Optional callbacks receive `projectId`; the runner executes rules concurrently, isolates each rule and its writes on failure, and returns the total inserted count. Daily scheduling and per-project detection use `AdminIssueScheduleQueue` and `AdminIssueDetectionQueue` in `src/server/redis/`, with payload contracts in `src/server/queues.ts`. These queues are not registered for dead-letter retry.
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`

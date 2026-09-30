@@ -403,6 +403,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_DATA_RETENTION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_ADMIN_ISSUE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   QUEUE_CONSUMER_DEAD_LETTER_RETRY_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),

@@ -125,6 +125,8 @@ export * from "./redis/mixpanelIntegrationProcessingQueue";
 export * from "./redis/blobStorageIntegrationQueue";
 export * from "./redis/blobStorageIntegrationProcessingQueue";
 export * from "./redis/dataRetentionQueue";
+export * from "./redis/adminIssueScheduleQueue";
+export * from "./redis/adminIssueDetectionQueue";
 export * from "./redis/dataRetentionProcessingQueue";
 export * from "./redis/coreDataS3ExportQueue";
 export * from "./redis/meteringDataPostgresExportQueue";

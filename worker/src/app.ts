@@ -27,6 +27,7 @@ import { WorkerManager } from "./queues/workerManager";
 import {
   CoreDataS3ExportQueue,
   DataRetentionQueue,
+  AdminIssueScheduleQueue,
   MeteringDataPostgresExportQueue,
   PostHogIntegrationQueue,
   MixpanelIntegrationQueue,
@@ -82,6 +83,10 @@ import {
   dataRetentionProcessor,
 } from "./queues/dataRetentionQueue";
 import { batchActionQueueProcessor } from "./queues/batchActionQueue";
+import {
+  adminIssueScheduleProcessor,
+  adminIssueDetectionProcessor,
+} from "./queues/adminIssueQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
 import { DlqRetryService } from "./services/dlq/dlqRetryService";
 import { entityChangeQueueProcessor } from "./queues/entityChangeQueue";
@@ -647,6 +652,20 @@ if (env.QUEUE_CONSUMER_BLOB_STORAGE_INTEGRATION_QUEUE_IS_ENABLED === "true") {
       stalledInterval: 120000, // 120 seconds
       maxStalledCount: 3,
     },
+  );
+}
+
+if (env.QUEUE_CONSUMER_ADMIN_ISSUE_QUEUE_IS_ENABLED === "true") {
+  AdminIssueScheduleQueue.getInstance();
+  WorkerManager.register(
+    QueueName.AdminIssueScheduleQueue,
+    adminIssueScheduleProcessor,
+    { concurrency: 1 },
+  );
+  WorkerManager.register(
+    QueueName.AdminIssueDetectionQueue,
+    adminIssueDetectionProcessor,
+    { concurrency: 5 },
   );
 }
 

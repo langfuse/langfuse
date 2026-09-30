@@ -16,6 +16,10 @@
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
+- Admin issue detection: `src/features/adminIssues/handleAdminIssueSchedule.ts`
+  fans out daily jobs for active projects; `src/queues/adminIssueQueue.ts`
+  calls the shared rule runner per project. Both consumers use
+  `QUEUE_CONSUMER_ADMIN_ISSUE_QUEUE_IS_ENABLED`; neither participates in DLQ retries.
 - OTEL event processing:
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation

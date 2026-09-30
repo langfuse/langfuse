@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdminIssueDefinition } from "./adminIssueDefinition";
 
-const { createMany, firstRule, secondRule } = vi.hoisted(() => ({
+const { createMany, firstRule, secondRule, logError } = vi.hoisted(() => ({
   createMany: vi.fn(),
+  logError: vi.fn(),
   firstRule: vi.fn<NonNullable<AdminIssueDefinition["callback"]>>(),
   secondRule: vi.fn<NonNullable<AdminIssueDefinition["callback"]>>(),
 }));
@@ -10,6 +11,8 @@ const { createMany, firstRule, secondRule } = vi.hoisted(() => ({
 vi.mock("../../db", () => ({
   prisma: { issueLog: { createMany } },
 }));
+
+vi.mock("../../server/logger", () => ({ logger: { error: logError } }));
 
 vi.mock("./adminIssueDefinitions", () => ({
   adminIssueDefinitions: {
@@ -28,20 +31,29 @@ describe("executeAdminIssueRules", () => {
     secondRule.mockResolvedValue([]);
   });
 
-  it("skips rules without callbacks and attributes new results on every run", async () => {
-    firstRule.mockResolvedValue([{ description: "First issue", priority: 0 }]);
-    secondRule.mockResolvedValue([
-      { description: "Second issue", priority: 5, ctaLink: "/settings" },
-    ]);
-    createMany.mockResolvedValue({ count: 2 });
+  it("runs callbacks concurrently and saves their project-scoped results", async () => {
+    let releaseFirstRule!: () => void;
+    const firstRuleGate = new Promise<void>((resolve) => {
+      releaseFirstRule = resolve;
+    });
+    firstRule.mockImplementation(async () => {
+      await firstRuleGate;
+      return [{ description: "First issue", priority: 0 }];
+    });
+    secondRule.mockImplementation(async () => {
+      releaseFirstRule();
+      return [
+        { description: "Second issue", priority: 5, ctaLink: "/settings" },
+      ];
+    });
+    createMany.mockImplementation(async ({ data }) => ({ count: data.length }));
 
-    expect(await executeAdminIssueRules("project-a")).toBe(2);
     expect(await executeAdminIssueRules("project-a")).toBe(2);
 
     expect(firstRule).toHaveBeenCalledWith("project-a");
     expect(secondRule).toHaveBeenCalledWith("project-a");
     expect(createMany).toHaveBeenCalledTimes(2);
-    expect(createMany).toHaveBeenLastCalledWith({
+    expect(createMany).toHaveBeenCalledWith({
       data: [
         {
           projectId: "project-a",
@@ -50,6 +62,10 @@ describe("executeAdminIssueRules", () => {
           priority: 0,
           ctaLink: undefined,
         },
+      ],
+    });
+    expect(createMany).toHaveBeenCalledWith({
+      data: [
         {
           projectId: "project-a",
           issueDefinitionId: "second",
@@ -61,18 +77,34 @@ describe("executeAdminIssueRules", () => {
     });
   });
 
-  it("does not write when no rules detect issues", async () => {
-    expect(await executeAdminIssueRules("project-a")).toBe(0);
-    expect(createMany).not.toHaveBeenCalled();
-  });
-
-  it("propagates rule failures without persisting partial results", async () => {
+  it("isolates callback failures and saves successful rule results", async () => {
     firstRule.mockResolvedValue([{ description: "First issue", priority: 0 }]);
     secondRule.mockRejectedValue(new Error("Query failed"));
+    createMany.mockResolvedValue({ count: 1 });
 
-    await expect(executeAdminIssueRules("project-a")).rejects.toThrow(
-      "Query failed",
+    expect(await executeAdminIssueRules("project-a")).toBe(1);
+    expect(createMany).toHaveBeenCalledTimes(1);
+    expect(logError).toHaveBeenCalledWith(
+      "Failed to execute admin issue rule",
+      expect.objectContaining({
+        projectId: "project-a",
+        issueDefinitionId: "second",
+        errorMessage: "Query failed",
+        errorStack: expect.any(String),
+      }),
     );
-    expect(createMany).not.toHaveBeenCalled();
+  });
+
+  it("isolates persistence failures between rules", async () => {
+    firstRule.mockResolvedValue([{ description: "First issue", priority: 0 }]);
+    secondRule.mockResolvedValue([
+      { description: "Second issue", priority: 5 },
+    ]);
+    createMany.mockRejectedValueOnce(new Error("Write failed"));
+    createMany.mockResolvedValueOnce({ count: 1 });
+
+    expect(await executeAdminIssueRules("project-a")).toBe(1);
+    expect(createMany).toHaveBeenCalledTimes(2);
+    expect(logError).toHaveBeenCalledTimes(1);
   });
 });
