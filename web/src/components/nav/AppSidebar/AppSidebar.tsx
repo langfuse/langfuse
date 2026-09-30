@@ -24,7 +24,6 @@ import {
   ArrowUp,
   ArrowUp10,
   BadgeCheck,
-  ChevronDownIcon,
   ExternalLink,
   Grid2X2,
   HardDriveDownload,
@@ -33,6 +32,7 @@ import {
   Newspaper,
   X,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { SiGithub } from "react-icons/si";
 import { VERSION } from "@/src/constants";
 import {
@@ -291,7 +291,9 @@ function MobileNavSwitcher({
                   >
                     {organization.name}
                   </span>
-                  <ChevronDownIcon className="ml-auto size-3.5 shrink-0" />
+                  <span className="ml-auto flex shrink-0">
+                    <DropdownIndicator />
+                  </span>
                 </SidebarMenuButton>
               )}
             </OrganizationDropdownMenu>
@@ -320,7 +322,9 @@ function MobileNavSwitcher({
                     >
                       {project.name}
                     </span>
-                    <ChevronDownIcon className="ml-auto size-3.5 shrink-0" />
+                    <span className="ml-auto flex shrink-0">
+                      <DropdownIndicator />
+                    </span>
                   </SidebarMenuButton>
                 )}
               </ProjectDropdownMenu>

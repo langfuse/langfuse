@@ -48,7 +48,6 @@ import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import {
-  ChevronDown,
   EllipsisVertical,
   LockIcon,
   MessageSquare,
@@ -57,6 +56,7 @@ import {
   PlusIcon,
   SquarePen,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
@@ -375,7 +375,7 @@ export const ObservationDetailViewHeader = memo(
                     >
                       <PlusIcon className="h-3.5 w-3.5" />
                       <span>Add to</span>
-                      <ChevronDown className="h-3 w-3" />
+                      <DropdownIndicator size="sm" nudge />
                     </Button>
                   )}
                 </ConnectedTraceObservationAddToDropdownMenuController>

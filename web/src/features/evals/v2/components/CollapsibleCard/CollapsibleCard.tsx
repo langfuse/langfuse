@@ -32,7 +32,7 @@ export function CollapsibleCard({
     <>
       <ChevronDown
         className={cn(
-          "text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform",
+          "text-foreground-tertiary size-3.5 shrink-0 translate-y-px transition-transform",
           open ? "rotate-0" : "-rotate-90",
         )}
       />
