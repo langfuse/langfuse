@@ -1,9 +1,10 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { prisma } from "@langfuse/shared/src/db";
+import { env } from "@/src/env.mjs";
 import {
   createEvent,
   createEventsCh,
@@ -17,7 +18,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 const daysAgo = (days: number) => new Date(Date.now() - days * DAY_MS);
 
-async function setupOrganization() {
+async function setupOrganization({ admin = false }: { admin?: boolean } = {}) {
   const orgId = randomUUID();
   const userId = randomUUID();
   const organization = await prisma.organization.create({
@@ -69,7 +70,7 @@ async function setupOrganization() {
         },
       ],
       featureFlags: testFeatureFlags({ templateFlag: false }),
-      admin: false,
+      admin,
     },
     environment: {
       enableExperimentalFeatures: false,
@@ -88,7 +89,38 @@ async function setupOrganization() {
 }
 
 describe("organizationIngestion.overview", () => {
+  const testEnv = env as {
+    LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: typeof env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
+  };
+  const originalExperimental = env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
+  beforeEach(() => {
+    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "false";
+  });
+  afterEach(() => {
+    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = originalExperimental;
+  });
+
+  it("rejects callers without internal access", async () => {
+    const { orgId, caller } = await setupOrganization();
+
+    await expect(
+      caller.organizationIngestion.overview({ orgId }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("lets platform admins see every project in the organization", async () => {
+    const { orgId, busyProject, idleProject, inaccessibleProject, caller } =
+      await setupOrganization({ admin: true });
+
+    const overview = await caller.organizationIngestion.overview({ orgId });
+
+    expect(
+      overview.projects.map((project) => project.projectId).sort(),
+    ).toEqual([busyProject.id, idleProject.id, inaccessibleProject.id].sort());
+  });
+
   it("attributes events and scores to clients per project with week-over-week counts", async () => {
+    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "true";
     const { orgId, busyProject, idleProject, inaccessibleProject, caller } =
       await setupOrganization();
 
