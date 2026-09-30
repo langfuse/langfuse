@@ -8,6 +8,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import type { ProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { useQueryProject } from "@/src/features/projects";
+import { useTracelift } from "@/src/features/tracelift/TraceliftContext";
 
 export type V4MigrationTargetProject = {
   id: string;
@@ -45,6 +46,7 @@ export function V4MigrationPanelProvider({
   children,
   defaultOpen = false,
 }: V4MigrationPanelProviderProps) {
+  const { setOpen: setTraceliftOpen } = useTracelift();
   const { project: routeProject } = useQueryProject();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(routeProject?.id);
   const capture = usePostHogClientCapture();
@@ -54,6 +56,9 @@ export function V4MigrationPanelProvider({
 
   const open = v4UpgradeUiEnabled && requestedOpen;
   const setOpen = (nextOpen: boolean) => {
+    if (v4UpgradeUiEnabled && nextOpen) {
+      setTraceliftOpen(false);
+    }
     setRequestedOpen(v4UpgradeUiEnabled && nextOpen);
   };
   // Every open path goes through here (setOpen callers only ever close), so
@@ -65,6 +70,7 @@ export function V4MigrationPanelProvider({
     source: V4MigrationPanelOpenSource,
   ) => {
     if (!v4UpgradeUiEnabled) return;
+    setTraceliftOpen(false);
     if (!open || project.id !== targetProject?.id)
       capture("v4_migration:panel_opened", { source });
     // Entry points that only appear for actionable projects may omit readiness.
