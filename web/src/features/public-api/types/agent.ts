@@ -6,14 +6,16 @@ export const PostAgentRunBody = z
     message: z.string().trim().min(1).max(32_000),
     conversationId: z
       .string()
-      .regex(/^aconv_api_[a-f0-9]{64}$/)
+      .regex(/^aconv_api_[a-f0-9]{64}_[a-f0-9]{64}$/)
       .optional(),
     idempotencyKey: z.string().min(1).max(200),
+    connectionId: z.string().min(1).max(200),
   })
   .strict();
 
 export const AgentRunQuery = z.object({
   runId: z.string().regex(/^arun_api_[a-f0-9]{64}$/),
+  connectionId: z.string().min(1).max(200),
 });
 
 export const AgentRunReference = z.object({

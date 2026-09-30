@@ -39,23 +39,87 @@ info:
     - Self-hosted deployments: interactive API reference at `/api/docs` and
     OpenAPI spec at `/api/openapi.yaml`
 paths:
+  /api/public/agent/connections:
+    post:
+      description: >-
+        Resolve a Slack sender's account connection for the authenticated
+        project
+
+        API key. If unlinked, returns a single-use link valid for ten minutes.
+
+        Deliver the link privately to the Slack sender. The user must sign in to
+
+        Langfuse and explicitly confirm the connection before any run can start.
+
+        The bridge is trusted to obtain workspace and user IDs from Slack
+        events.
+
+        A confirmed connection delegates that user's identity to this API key;
+
+        keep bridge credentials private. Reissuing a pending link invalidates
+        the
+
+        previous link. Linked connections return userId and no linkUrl.
+      operationId: agentConnections_create
+      tags:
+        - AgentConnections
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentConnection'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: &ref_0
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentConnectionRequest'
   /api/public/agent/runs:
     post:
       description: >-
-        Experimental, opt-in API for a shared read-only agent demo. The instance
+        Experimental, opt-in API enabled for
+        LANGFUSE_IN_APP_AGENT_API_PROJECT_ID.
 
-        must bind one project to a non-admin Langfuse user with VIEWER access
-        using
+        Authenticate with the Slack bridge's project API key and provide a
+        verified
 
-        LANGFUSE_IN_APP_AGENT_API_PROJECT_ID and
-        LANGFUSE_IN_APP_AGENT_API_USER_ID.
+        user connection created through the account-linking flow. Connections
+        are
 
-        Authenticate with that project's API keys. All callers share the
-        configured
+        bound to that API key. Runs use the linked user's current project
+        permissions.
 
-        user's permissions; these endpoints do not impersonate individual users.
-
-        Only API-created conversations are accessible.
+        Only that user's API-created conversations are accessible.
 
 
         Queue a message for background execution. Reuse the same idempotencyKey
@@ -101,8 +165,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security: &ref_0
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -118,6 +181,11 @@ paths:
       parameters:
         - name: runId
           in: path
+          required: true
+          schema:
+            type: string
+        - name: connectionId
+          in: query
           required: true
           schema:
             type: string
@@ -163,6 +231,11 @@ paths:
       parameters:
         - name: runId
           in: path
+          required: true
+          schema:
+            type: string
+        - name: connectionId
+          in: query
           required: true
           schema:
             type: string
@@ -9300,10 +9373,48 @@ paths:
       security: *ref_0
 components:
   schemas:
+    CreateAgentConnectionRequest:
+      title: CreateAgentConnectionRequest
+      type: object
+      properties:
+        provider:
+          type: string
+          const: slack
+        workspaceId:
+          type: string
+          description: Slack workspace ID starting with T.
+        externalUserId:
+          type: string
+          description: Slack sender ID starting with U or W.
+      required:
+        - provider
+        - workspaceId
+        - externalUserId
+    AgentConnection:
+      title: AgentConnection
+      type: object
+      properties:
+        connectionId:
+          type: string
+        userId:
+          type: string
+          nullable: true
+        linkUrl:
+          type: string
+          nullable: true
+      required:
+        - connectionId
+        - userId
+        - linkUrl
     CreateAgentRunRequest:
       title: CreateAgentRunRequest
       type: object
       properties:
+        connectionId:
+          type: string
+          description: >-
+            Verified account connection belonging to the authenticated project
+            API key.
         message:
           type: string
           description: Nonempty message, up to 32000 characters after trimming.
@@ -9317,6 +9428,7 @@ components:
             Unique per message within the configured project and user; 1 to 200
             characters.
       required:
+        - connectionId
         - message
         - idempotencyKey
     AgentRunReference:

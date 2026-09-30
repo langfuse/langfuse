@@ -21,9 +21,11 @@ import {
 import { reconcileConversationRuns } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import { isInAppAgentInstanceEnabled } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { env } from "@/src/env.mjs";
+import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import type { PostAgentRunBody } from "@/src/features/public-api/types/agent";
 import { assertInAppAgentModelConfigured } from "./availability";
+import { resolveAgentUserConnection } from "./userConnectionService";
 import {
   cancelBackgroundRun,
   enqueueInAppAgentRun,
@@ -31,6 +33,9 @@ import {
 } from "./backgroundRunService";
 
 const API_CONVERSATION_PREFIX = "aconv_api_";
+function connectionConversationPrefix(connectionId: string) {
+  return `${API_CONVERSATION_PREFIX}${createHash("sha256").update(connectionId).digest("hex")}_`;
+}
 const SubmittedMessage = z.object({
   input: z.object({
     messages: z.array(
@@ -39,10 +44,12 @@ const SubmittedMessage = z.object({
   }),
 });
 
-async function resolvePublicAgentAccess(scope: ApiAccessScope) {
+async function resolvePublicAgentAccess(
+  scope: ApiAccessScope,
+  connectionId: string,
+) {
   const projectId = env.LANGFUSE_IN_APP_AGENT_API_PROJECT_ID;
-  const userId = env.LANGFUSE_IN_APP_AGENT_API_USER_ID;
-  if (!projectId || !userId || scope.projectId !== projectId) {
+  if (!projectId || scope.projectId !== projectId) {
     throw new LangfuseNotFoundError(
       "Agent API is not enabled for this project",
     );
@@ -66,6 +73,8 @@ async function resolvePublicAgentAccess(scope: ApiAccessScope) {
     );
   }
 
+  const { userId } = await resolveAgentUserConnection({ scope, connectionId });
+
   const [project, user, membership] = await Promise.all([
     prisma.project.findFirst({
       where: { id: projectId, orgId: scope.orgId, deletedAt: null },
@@ -77,7 +86,7 @@ async function resolvePublicAgentAccess(scope: ApiAccessScope) {
     }),
     prisma.user.findUnique({
       where: { id: userId },
-      select: { admin: true, v4BetaEnabled: true },
+      select: { admin: true, email: true, v4BetaEnabled: true },
     }),
     prisma.organizationMembership.findUnique({
       where: { orgId_userId: { orgId: scope.orgId, userId } },
@@ -96,22 +105,40 @@ async function resolvePublicAgentAccess(scope: ApiAccessScope) {
     );
   }
   const role = membership?.ProjectMemberships[0]?.role ?? membership?.role;
-  if (!user || user.admin || role !== "VIEWER") {
+  if (!user || (!user.admin && (!role || role === "NONE"))) {
     throw new ForbiddenError(
-      "Agent API requires a configured user with VIEWER access to this project",
+      "The linked user does not have access to this project",
     );
   }
-  return { projectId, userId, user, organization: project.organization };
+  if (user.admin) {
+    await sendAdminAccessWebhook({
+      email: user.email,
+      projectId,
+      orgId: scope.orgId,
+    });
+  }
+  return {
+    projectId,
+    userId,
+    connectionId,
+    user,
+    organization: project.organization,
+  };
 }
 
 export async function startPublicAgentRun(params: {
   scope: ApiAccessScope;
   input: z.infer<typeof PostAgentRunBody>;
 }) {
-  const access = await resolvePublicAgentAccess(params.scope);
+  const access = await resolvePublicAgentAccess(
+    params.scope,
+    params.input.connectionId,
+  );
   if (
     params.input.conversationId !== undefined &&
-    !params.input.conversationId.startsWith(API_CONVERSATION_PREFIX)
+    !params.input.conversationId.startsWith(
+      connectionConversationPrefix(access.connectionId),
+    )
   ) {
     throw new LangfuseNotFoundError("Agent conversation not found");
   }
@@ -120,13 +147,15 @@ export async function startPublicAgentRun(params: {
       JSON.stringify([
         access.projectId,
         access.userId,
+        access.connectionId,
         params.input.idempotencyKey,
       ]),
     )
     .digest("hex");
   const runId = `arun_api_${digest}`;
   const conversationId =
-    params.input.conversationId ?? `${API_CONVERSATION_PREFIX}${digest}`;
+    params.input.conversationId ??
+    `${connectionConversationPrefix(access.connectionId)}${digest}`;
   const submission = {
     ...access,
     runId,
@@ -191,6 +220,7 @@ async function replaySubmission(params: {
   runId: string;
   conversationId: string;
   message: string;
+  connectionId: string;
 }) {
   const run = await prisma.inAppAgentRun.findFirst({
     where: apiRunWhere(params),
@@ -234,13 +264,14 @@ function apiRunWhere(params: {
   projectId: string;
   userId: string;
   runId: string;
+  connectionId: string;
 }) {
   return {
     id: params.runId,
     projectId: params.projectId,
     triggeredByUserId: params.userId,
     conversation: {
-      id: { startsWith: API_CONVERSATION_PREFIX },
+      id: { startsWith: connectionConversationPrefix(params.connectionId) },
       createdByUserId: params.userId,
       deletedAt: null,
     },
@@ -250,8 +281,12 @@ function apiRunWhere(params: {
 export async function getPublicAgentRun(params: {
   scope: ApiAccessScope;
   runId: string;
+  connectionId: string;
 }) {
-  const access = await resolvePublicAgentAccess(params.scope);
+  const access = await resolvePublicAgentAccess(
+    params.scope,
+    params.connectionId,
+  );
   const where = apiRunWhere({ ...access, runId: params.runId });
   const ownedRun = await prisma.inAppAgentRun.findFirst({
     where,
@@ -307,8 +342,12 @@ export async function getPublicAgentRun(params: {
 export async function cancelPublicAgentRun(params: {
   scope: ApiAccessScope;
   runId: string;
+  connectionId: string;
 }) {
-  const access = await resolvePublicAgentAccess(params.scope);
+  const access = await resolvePublicAgentAccess(
+    params.scope,
+    params.connectionId,
+  );
   const run = await prisma.inAppAgentRun.findFirst({
     where: apiRunWhere({ ...access, runId: params.runId }),
     select: { id: true, conversationId: true },

@@ -8,10 +8,11 @@ Keep the laptop awake and the bot process running during the demo.
 For the request flow, infrastructure, code ownership, and scope, see the
 [in-app-agent PoC guide](../../web/src/features/in-app-agent/SLACK_POC.md).
 
-The demo uses one configured project and a dedicated non-admin Langfuse user
-with effective `VIEWER` access. Everyone in the allowed Slack channel shares
-that access. It does not link Slack users to individual Langfuse accounts.
-Use synthetic data in a dedicated demo channel.
+The demo uses one configured project. Each Slack user links their own Langfuse
+account before the agent can run, and each run uses that account's current
+project permissions. Account links and answers are ephemeral Slack messages
+visible only to the requesting user. Use synthetic data in a dedicated demo
+channel.
 
 ## Configure the Slack app
 
@@ -37,8 +38,8 @@ the native loading indicator with a regular chat message.
 
 ## Prepare Langfuse
 
-Start the regular local web and worker services, and run the repository's base
-seeder to create the demo identity:
+Apply the database migrations, start the regular local web and worker services,
+and run the repository's base seeder if you need a synthetic project:
 
 ```sh
 pnpm --filter @langfuse/shared run db:seed
@@ -48,15 +49,14 @@ For a fresh database, `db:seed:examples` additionally creates datasets and other
 synthetic project data. Existing worktree-pool slots already have example data;
 rerunning the example seeder can collide with existing dataset versions.
 
-The base seeder creates the execution-only `slack-agent-demo` user with `VIEWER`
-access to the synthetic project. Configure these values in the web process:
+Configure the project in the web process, then sign in to Langfuse with an
+account that belongs to that project:
 
 ```dotenv
 LANGFUSE_IN_APP_AGENT_API_PROJECT_ID=7a88fb47-b4e2-43b8-a06c-a5ce950dc53a
-LANGFUSE_IN_APP_AGENT_API_USER_ID=slack-agent-demo
 ```
 
-The API is disabled when these values are absent. Existing instance enablement,
+The API is disabled when this value is absent. Existing instance enablement,
 organization AI consent, entitlement, run limits, and model configuration still
 apply. Both web and worker need the existing agent configuration:
 
@@ -111,6 +111,18 @@ Edit the ignored `.env.local` file locally. Never paste tokens into chat:
 mise exec -- pnpm run slack:agent
 ```
 
+To load credentials from a 1Password Environment, use a CLI build that supports
+`--environment`:
+
+```sh
+op run --environment YOUR_ENVIRONMENT_ID -- pnpm run slack:agent
+```
+
+The local env file is optional when all seven settings are supplied by the
+process environment. If the Environment only contains Slack credentials, keep
+the Langfuse URL and project API keys in the ignored local env file. Process
+environment values take precedence over the file.
+
 The success message is `Slack agent connected. Listening in …`. Only one bot
 process should use this app and local state file at a time.
 
@@ -118,8 +130,13 @@ In the allowed channel, send:
 
 > @langfuse-hackathon What datasets exist in this project?
 
-Slack displays the native working indicator, then the answer appears in the
-same thread. For follow-ups, mention the bot again in that thread. Ordinary
+On your first mention, the bot privately prompts you to link your Langfuse
+account. Open the link, sign in if needed, and confirm the project and Slack
+identity. Links expire after ten minutes and can be used once. Then mention the
+bot again with your question. Slack displays the native working indicator,
+and the answer appears privately in the channel, or in the same thread when
+your mention is a thread reply. For follow-ups, mention the bot again in that
+thread. Each sender has a separate conversation. Ordinary
 unmentioned messages are not subscribed to. A concurrent question receives a
 private "still working" notice. The native stop button requests cancellation
 of the Langfuse run.
@@ -138,31 +155,40 @@ stop the bot and move the file aside before starting a separate demo.
 ## API contract
 
 All routes use the configured project's normal BasicAuth public/secret keys.
-Only API-created conversations owned by the configured demo user are accepted.
+Use a dedicated key for the bridge. Each confirmed connection delegates one
+Slack workspace/user identity to that specific key; another project key cannot
+reuse it. The bridge is trusted to report Slack's authenticated event identity.
+Only API-created conversations owned by the linked user are accepted.
 
-- `POST /api/public/agent/runs`: `{message, conversationId?, idempotencyKey}`
+- `POST /api/public/agent/connections`: `{provider: "slack", workspaceId,
+externalUserId}` returns `{connectionId, userId, linkUrl}`. A linked account
+  has a `userId` and no `linkUrl`; an unlinked account has a private confirmation
+  URL and no `userId`. Deliver the URL only to the requesting Slack user.
+- `POST /api/public/agent/runs`: `{connectionId, message, conversationId?, idempotencyKey}`
   returns HTTP 202 with `{runId, conversationId}`. Repeating the same request
   returns the same run. Reusing its key for another message is rejected.
-- `GET /api/public/agent/runs/{runId}`: returns `{runId, conversationId,
+- `GET /api/public/agent/runs/{runId}?connectionId=...`: returns `{runId, conversationId,
 status, text, errorCode, cancelRequested}`. Text contains only the requested
   run's assistant response, not reasoning or tool results.
-- `POST /api/public/agent/runs/{runId}/cancel`: requests cancellation.
+- `POST /api/public/agent/runs/{runId}/cancel?connectionId=...`: requests cancellation.
 
 The bot polls every two seconds. Streaming text and tool-progress cards are
 future additions; the native working indicator does not require either.
 
-## Individual permissions later
+## Account permissions
 
-Add an account-linking flow that verifies a Slack workspace/user pair against a
-signed-in Langfuse account. Resolve that user's current project membership on
-each request and execute as that user. A project API key alone does not identify
-the Slack user, so accepting an arbitrary `userId` in this API would not be a safe
-substitute. Keep conversations bound to their authenticated owner, and send
-private project results to a DM or another appropriately restricted surface.
+The connection is saved only after a signed-in Langfuse user explicitly confirms
+it and current project membership is checked. Langfuse stores a digest of the
+temporary link token, consumes it atomically, and records an audit event. The
+server resolves the linked user on every request, checks current permissions,
+and sets both the run owner and trusted `langfuse_user_id` message context.
+The worker checks current roles again before execution. A caller-supplied
+Langfuse user ID cannot authorize a run.
 
-The existing worker already checks the execution user's permissions. The new
-work would be verified account linking and user-scoped API authorization,
-replacing this demo's fixed VIEWER identity.
+Deleting the bridge API key removes its connections. A replacement key requires
+fresh account confirmation. There is no Slack tool-approval UI yet: the bridge
+cancels any run that requires approval. Private ephemeral replies are not a
+durable Slack conversation archive.
 
 ## Verification
 
@@ -171,6 +197,8 @@ pnpm run slack:agent:test
 ```
 
 The adapter tests cover repeated events, conversation continuity, scope
-restrictions, stopping during submission, restart recovery, failure cleanup,
-and refusing insecure remote credential destinations. Server tests cover the
-API's authentication, read-only identity, idempotency, and run output boundaries.
+restrictions, account-link prompts, per-user conversation isolation, private
+replies, stopping during submission, restart recovery, failure cleanup, and
+refusing insecure remote credential destinations. Server tests cover connection
+expiry and single use, API-key binding, current permissions, idempotency, and run
+output boundaries.

@@ -13,7 +13,8 @@ export function createBridge({
     console.error("Agent request failed:", error.code ?? error.name),
 }) {
   const active = new Map();
-  const threadKey = (channel, threadTs) => `${teamId}:${channel}:${threadTs}`;
+  const threadKey = (channel, threadTs, user) =>
+    `${teamId}:${channel}:${threadTs}:${user}`;
   const setStatus = (record, status) =>
     slack.apiCall("agents.sessions.setStatus", {
       channel_id: record.channel,
@@ -30,9 +31,10 @@ export function createBridge({
       .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, "<$2|$1>")
       .replace(/\*\*([^*\n]+)\*\*/g, "*$1*");
     for (let offset = 0; offset < formatted.length; offset += 3500) {
-      await slack.chat.postMessage({
+      await slack.chat.postEphemeral({
         channel: record.channel,
-        thread_ts: record.threadTs,
+        thread_ts: record.replyThreadTs,
+        user: record.slackUserId,
         text: formatted.slice(offset, offset + 3500),
         unfurl_links: false,
         unfurl_media: false,
@@ -43,23 +45,48 @@ export function createBridge({
 
   async function execute(record) {
     try {
+      if (!record.context) {
+        const connection = await langfuse.connect({
+          provider: "slack",
+          workspaceId: teamId,
+          externalUserId: record.slackUserId,
+        });
+        if (!connection.userId) {
+          await reply(
+            record,
+            `Please [link your Langfuse account](${connection.linkUrl}) first. Then mention me again with your question. This link expires in 10 minutes.`,
+          );
+          return;
+        }
+        record.context = {
+          userId: connection.userId,
+          connectionId: connection.connectionId,
+        };
+        await save();
+      }
       await setStatus(record, "processing");
+      const conversationKey = `${record.threadKey}:${record.context.userId}`;
       if (!record.runId) {
         const run = await langfuse.start({
           message: record.message,
-          conversationId: state.threads[record.threadKey],
+          connectionId: record.context.connectionId,
+          conversationId: state.threads[conversationKey],
           idempotencyKey: record.eventId,
         });
         record.runId = run.runId;
-        state.threads[record.threadKey] = run.conversationId;
+        state.threads[conversationKey] = run.conversationId;
         delete record.message;
         await save();
       }
-      if (record.cancelRequested) await langfuse.cancel(record.runId);
+      if (record.cancelRequested)
+        await langfuse.cancel(record.runId, record.context.connectionId);
 
       // Bound polling even if a worker or network fails to report completion.
       for (let attempt = 0; attempt < 480; attempt++) {
-        const run = await langfuse.get(record.runId);
+        const run = await langfuse.get(
+          record.runId,
+          record.context.connectionId,
+        );
         if (run.status === "SUCCEEDED") {
           const limitNotice = run.errorCode
             ? "\n\nThis answer reached an execution limit and may be incomplete."
@@ -81,33 +108,43 @@ export function createBridge({
           throw error;
         }
         if (run.status === "AWAITING_APPROVAL") {
-          await langfuse.cancel(record.runId);
+          await langfuse.cancel(record.runId, record.context.connectionId);
           await reply(
             record,
-            "This demo only supports read-only requests. Please ask a question that does not change project data.",
+            "This request needs approval, which this Slack demo does not support. Please make changes directly in Langfuse.",
           );
           return;
         }
         await wait(2000);
       }
-      await langfuse.cancel(record.runId);
+      await langfuse.cancel(record.runId, record.context.connectionId);
       await reply(
         record,
         "This request took too long, so I requested cancellation. Please try a smaller question.",
       );
     } catch (error) {
       reportError(error);
-      if (record.runId) {
-        await langfuse.cancel(record.runId).catch(reportError);
+      if (record.runId && record.context) {
+        await langfuse
+          .cancel(record.runId, record.context.connectionId)
+          .catch(reportError);
       }
       await reply(
         record,
         "I couldn't finish that request. Please try again.",
       ).catch(reportError);
     } finally {
-      await setStatus(record, "active").catch(reportError);
       record.done = true;
       record.finishedAt = Date.now();
+      const threadStillRunning = [...active.values()].some(
+        (other) =>
+          !other.done &&
+          other.context &&
+          other.channel === record.channel &&
+          other.threadTs === record.threadTs,
+      );
+      if (record.context && !threadStillRunning)
+        await setStatus(record, "active").catch(reportError);
       try {
         await save();
       } finally {
@@ -137,14 +174,19 @@ export function createBridge({
         .replaceAll(`<@${botUserId}>`, "")
         .trim();
       if (!message) return;
-      const key = threadKey(event.channel, event.thread_ts || event.ts);
+      const key = threadKey(
+        event.channel,
+        event.thread_ts || event.ts,
+        event.user,
+      );
       const existing = state.events[eventId];
       if (existing?.done) return;
+      if (existing && existing.slackUserId !== event.user) return;
       if (active.has(key)) {
         if (active.get(key).eventId !== eventId) {
           await slack.chat.postEphemeral({
             channel: event.channel,
-            thread_ts: event.thread_ts || event.ts,
+            thread_ts: event.thread_ts,
             user: event.user,
             text: "I'm still working on this thread. Please mention me again once the current answer is finished.",
           });
@@ -158,6 +200,8 @@ export function createBridge({
         threadKey: key,
         channel: event.channel,
         threadTs: event.thread_ts || event.ts,
+        replyThreadTs: event.thread_ts,
+        slackUserId: event.user,
         message,
         done: false,
       };
@@ -174,12 +218,16 @@ export function createBridge({
     },
 
     async stop({ event, eventTeamId }) {
-      if (eventTeamId !== teamId || event.channel !== channelId) return;
-      const record = active.get(threadKey(event.channel, event.thread_ts));
+      if (eventTeamId !== teamId || event.channel !== channelId || !event.user)
+        return;
+      const record = active.get(
+        threadKey(event.channel, event.thread_ts, event.user),
+      );
       if (!record) return;
       record.cancelRequested = true;
       await save();
-      if (record.runId) await langfuse.cancel(record.runId);
+      if (record.runId)
+        await langfuse.cancel(record.runId, record.context.connectionId);
     },
 
     async resume() {
@@ -188,6 +236,7 @@ export function createBridge({
           .filter(
             (record) =>
               !record.done &&
+              record.slackUserId &&
               record.channel === channelId &&
               record.threadKey.startsWith(`${teamId}:`),
           )
@@ -221,7 +270,7 @@ export function createLangfuseClient({ baseUrl, publicKey, secretKey }) {
     for (let attempt = 0; ; attempt++) {
       try {
         const response = await fetch(
-          new URL(`api/public/agent/runs${path}`, base),
+          new URL(`api/public/agent/${path}`, base),
           {
             method: body === undefined ? "GET" : "POST",
             headers: { authorization, "Content-Type": "application/json" },
@@ -246,8 +295,16 @@ export function createLangfuseClient({ baseUrl, publicKey, secretKey }) {
     }
   }
   return {
-    start: (body) => request("", body),
-    get: (runId) => request(`/${encodeURIComponent(runId)}`),
-    cancel: (runId) => request(`/${encodeURIComponent(runId)}/cancel`, {}),
+    connect: (body) => request("connections", body),
+    start: (body) => request("runs", body),
+    get: (runId, connectionId) =>
+      request(
+        `runs/${encodeURIComponent(runId)}?connectionId=${encodeURIComponent(connectionId)}`,
+      ),
+    cancel: (runId, connectionId) =>
+      request(
+        `runs/${encodeURIComponent(runId)}/cancel?connectionId=${encodeURIComponent(connectionId)}`,
+        {},
+      ),
   };
 }

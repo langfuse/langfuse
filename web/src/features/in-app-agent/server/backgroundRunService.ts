@@ -231,6 +231,7 @@ export async function startBackgroundRun(params: {
     projectId: params.projectId,
     isV4Enabled: params.isV4Enabled,
   });
+  context.push({ description: "langfuse_user_id", value: params.userId });
   const runId = params.runId ?? createInAppAgentRunId();
   const userMessage = {
     id: createInAppAgentMessageId(),

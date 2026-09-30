@@ -12,7 +12,6 @@ export default withMiddlewares({
     action: "project:read",
     querySchema: AgentRunQuery,
     responseSchema: GetAgentRunResponse,
-    fn: ({ query, auth }) =>
-      getPublicAgentRun({ runId: query.runId, scope: auth.scope }),
+    fn: ({ query, auth }) => getPublicAgentRun({ ...query, scope: auth.scope }),
   }),
 });

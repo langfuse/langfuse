@@ -13,6 +13,6 @@ export default withMiddlewares({
     querySchema: AgentRunQuery,
     responseSchema: AgentRunReference,
     fn: ({ query, auth }) =>
-      cancelPublicAgentRun({ runId: query.runId, scope: auth.scope }),
+      cancelPublicAgentRun({ ...query, scope: auth.scope }),
   }),
 });

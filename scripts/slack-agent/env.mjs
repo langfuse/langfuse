@@ -2,7 +2,9 @@ export function readConfig(source = process.env) {
   const required = (name) => {
     const value = source[name]?.trim();
     if (!value || value.includes("replace-me"))
-      throw new Error(`Set ${name} in scripts/slack-agent/.env.local first.`);
+      throw new Error(
+        `Set ${name} in the process environment or scripts/slack-agent/.env.local.`,
+      );
     return value;
   };
   const config = {

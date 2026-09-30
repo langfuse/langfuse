@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+service:
+  auth: true
+  base-path: /api/public/agent/connections
+  endpoints:
+    create:
+      method: POST
+      path: ""
+      docs: |
+        Resolve a Slack sender's account connection for the authenticated project
+        API key. If unlinked, returns a single-use link valid for ten minutes.
+        Deliver the link privately to the Slack sender. The user must sign in to
+        Langfuse and explicitly confirm the connection before any run can start.
+        The bridge is trusted to obtain workspace and user IDs from Slack events.
+        A confirmed connection delegates that user's identity to this API key;
+        keep bridge credentials private. Reissuing a pending link invalidates the
+        previous link. Linked connections return userId and no linkUrl.
+      request: CreateAgentConnectionRequest
+      response: AgentConnection
+
+types:
+  CreateAgentConnectionRequest:
+    properties:
+      provider:
+        type: literal<"slack">
+      workspaceId:
+        type: string
+        docs: Slack workspace ID starting with T.
+      externalUserId:
+        type: string
+        docs: Slack sender ID starting with U or W.
+  AgentConnection:
+    properties:
+      connectionId: string
+      userId: nullable<string>
+      linkUrl: nullable<string>
