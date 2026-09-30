@@ -1,3 +1,4 @@
+/* eslint-disable @repo/prefer-stories-over-client-tests */
 /** @vitest-environment jsdom */
 import {
   act,

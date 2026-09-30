@@ -1,4 +1,5 @@
 import { globalIgnores } from "eslint/config";
+import { globSync } from "node:fs";
 import boundaries from "eslint-plugin-boundaries";
 import checkFile from "eslint-plugin-check-file";
 import reactYouMightNotNeedAnEffect from "eslint-plugin-react-you-might-not-need-an-effect";
@@ -69,6 +70,17 @@ export default [
   globalIgnores(["**/storybook-static/"]),
 
   ...nextConfig,
+  {
+    name: "langfuse/web/client-test-story-cache-key",
+    files: ["src/**/*.clienttest.{ts,tsx}"],
+    settings: {
+      // ESLint caches unchanged client tests; changing the story set must invalidate them.
+      clientTestStoryFiles: [
+        ...globSync("src/**/*.stories.ts"),
+        ...globSync("src/**/*.stories.tsx"),
+      ].sort(),
+    },
+  },
   ...storybook.configs["flat/recommended"],
   {
     name: "langfuse/web/storybook-test-story-names",
