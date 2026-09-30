@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo, useState } from "react";
 import {
   ChevronDown,
@@ -37,6 +38,7 @@ import { type RouterOutputs } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { getLevelColors } from "@/src/components/level-colors";
+import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 
 type EventObservation = RouterOutputs["events"]["all"]["observations"][number];
 type EventObservationIO = RouterOutputs["events"]["batchIO"][number];
@@ -97,12 +99,15 @@ function SessionTimelineStatusIndicator({
 }: {
   observation: SessionObservation;
 }) {
-  const Icon =
-    observation.level === "ERROR"
-      ? CircleAlert
-      : observation.level === "WARNING"
-        ? TriangleAlert
-        : Info;
+  const Icon = (() => {
+    if (observation.level === "ERROR") {
+      return CircleAlert;
+    }
+    if (observation.level === "WARNING") {
+      return TriangleAlert;
+    }
+    return Info;
+  })();
   const colors = getLevelColors(observation.level);
 
   return (
@@ -127,10 +132,15 @@ function SessionTimelineStatusIndicator({
   );
 }
 
-const toPreviewText = (value: unknown) =>
-  typeof value === "string"
-    ? value
-    : (JSON.stringify(value, undefined, 2) ?? String(value));
+const toPreviewText = (value: unknown) => {
+  const text =
+    typeof value === "string"
+      ? value
+      : (JSON.stringify(value, undefined, 2) ?? String(value));
+  // Match PrettyJsonView / SessionObservationIO: decode \uXXXX so truncated
+  // previews show CJK and other non-ASCII characters instead of raw escapes.
+  return decodeUnicodeEscapesOnly(text, true);
+};
 
 const hasPreviewValue = (value: unknown) =>
   value !== null && value !== undefined && value !== "";
@@ -154,7 +164,7 @@ function SessionObservationActionsMenuContent({
         disabled={actions.comment.disabled}
         onSelect={() => actions.comment.onSelect(observation)}
       >
-        Add comment
+        Comments
       </DropdownMenuItem>
       <DropdownMenuItem
         disabled={actions.addToDataset.disabled}
@@ -243,12 +253,15 @@ function getNestedObservationSummary(
       }
 
       const names = count <= 3 ? Array.from(toolNames) : [];
-      const namesSummary =
-        names.length < 2
-          ? (names[0] ?? "")
-          : names.length === 2
-            ? `${names[0]} and ${names[1]}`
-            : `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`;
+      const namesSummary = (() => {
+        if (names.length < 2) {
+          return names[0] ?? "";
+        }
+        if (names.length === 2) {
+          return `${names[0]} and ${names[1]}`;
+        }
+        return `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`;
+      })();
       if (names.length === count) return `tools: ${namesSummary}`;
 
       return `${count} tool${count === 1 ? "" : "s"}${namesSummary ? ` using ${namesSummary}` : ""}`;
@@ -902,7 +915,8 @@ function LoadedSessionConversationTimeline({
                   }
                   onOpenInTraceView={() => onOpenObservation(observation.id)}
                 />
-              ) : !isToolStart && !isEmptyEnd ? (
+              ) : !isEmptyEnd &&
+                (observation.type !== "TOOL" || phase !== "end") ? (
                 <SessionTimelineObservation
                   observation={observation}
                   parsed={parsed}

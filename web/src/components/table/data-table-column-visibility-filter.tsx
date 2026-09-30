@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, {
   useCallback,
   useMemo,
@@ -12,7 +13,7 @@ import {
 } from "@tanstack/react-table";
 import { ChevronDown, ChevronRight, Menu } from "lucide-react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import {
   closestCenter,
@@ -262,9 +263,9 @@ function GroupVisibilityHeader<TData, TValue>({
             className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 text-left"
           >
             {isOpen ? (
-              <ChevronDown className="size-4 shrink-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100" />
+              <ChevronDown className="text-foreground-tertiary size-3.5 shrink-0 translate-y-px opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100" />
             ) : (
-              <ChevronRight className="size-4 shrink-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100" />
+              <ChevronRight className="text-foreground-tertiary size-3.5 shrink-0 translate-y-px opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100" />
             )}
             <span className="min-w-0 text-sm font-bold">
               {getColumnLabel(column)}

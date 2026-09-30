@@ -32,7 +32,14 @@ type CheckboxProps = Pick<
     React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>,
     "className"
   >,
-  "aria-label" | "checked" | "disabled" | "id" | "onCheckedChange" | "onClick"
+  | "aria-hidden"
+  | "aria-label"
+  | "checked"
+  | "disabled"
+  | "id"
+  | "onCheckedChange"
+  | "onClick"
+  | "tabIndex"
 > &
   VariantProps<typeof checkboxVariants>;
 

@@ -1,8 +1,5 @@
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+/* eslint-disable no-nested-ternary */
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
 export function EvaluatorExecutionHistory({
@@ -28,9 +25,13 @@ export function EvaluatorExecutionHistory({
         .join(", ")}
     >
       {[...traces].reverse().map((trace) => (
-        <Tooltip key={trace.id}>
-          <TooltipTrigger asChild>
+        <Tooltip
+          key={trace.id}
+          label={`${trace.level.toLowerCase()} at ${trace.timestamp.toLocaleString()}`}
+        >
+          {({ getTriggerProps }) => (
             <span
+              {...getTriggerProps()}
               className={cn(
                 "block h-4 w-1.5 rounded-full",
                 trace.level === "ERROR"
@@ -40,10 +41,7 @@ export function EvaluatorExecutionHistory({
                     : "bg-dark-green",
               )}
             />
-          </TooltipTrigger>
-          <TooltipContent>
-            {trace.level.toLowerCase()} at {trace.timestamp.toLocaleString()}
-          </TooltipContent>
+          )}
         </Tooltip>
       ))}
     </div>

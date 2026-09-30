@@ -404,6 +404,7 @@ export const RetryBaggage = z.object({
 export type RetryBaggage = z.infer<typeof RetryBaggage>;
 
 export enum QueueName {
+  TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
   ProjectDelete = "project-delete",
@@ -446,6 +447,7 @@ export enum QueueName {
 }
 
 export enum QueueJobs {
+  TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
   ProjectDelete = "project-delete",
@@ -484,7 +486,37 @@ export enum QueueJobs {
   V4LegacyApiUsageJob = "v4-legacy-api-usage-job",
 }
 
+export const TraceBatchTraceSchema = z.object({
+  projectId: z.string(),
+  traceId: z.string(),
+  minStart: z.number(),
+  maxStart: z.number(),
+  revision: z.string(),
+});
+
+export const TraceBatchEventSchema = z.object({
+  timestamp: z.coerce.date(),
+  id: z.string(),
+  name: z.literal(QueueJobs.TraceBatch),
+  payload: z.union([
+    z.object({ traces: z.array(TraceBatchTraceSchema).min(1) }).strict(),
+    // Persisted single-project jobs must remain readable while consumers drain.
+    z
+      .object({
+        projectId: z.string(),
+        traces: z
+          .array(TraceBatchTraceSchema.omit({ projectId: true }).strict())
+          .min(1),
+      })
+      .strict()
+      .transform(({ projectId, traces }) => ({
+        traces: traces.map((trace) => ({ ...trace, projectId })),
+      })),
+  ]),
+});
+
 export type TQueueJobTypes = {
+  [QueueName.TraceBatch]: z.infer<typeof TraceBatchEventSchema>;
   [QueueName.TraceUpsert]: {
     timestamp: Date;
     id: string;

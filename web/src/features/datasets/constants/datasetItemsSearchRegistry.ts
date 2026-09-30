@@ -1,5 +1,5 @@
 import { datasetItemFilterColumns } from "@langfuse/shared";
-import { fieldRegistryFromColumns } from "@/src/features/search-bar/lib/fields";
+import { fieldRegistryFromColumns } from "@/src/features/search-bar";
 
 export const DATASET_ITEMS_FIELD_REGISTRY = fieldRegistryFromColumns(
   datasetItemFilterColumns,

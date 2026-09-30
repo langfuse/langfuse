@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from "react";
-import { ChevronDown, Plus, TriangleAlert } from "lucide-react";
+import { Plus, TriangleAlert } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -68,16 +69,29 @@ function LabelWithTooltip({
   );
 }
 
+export type ScoreOutputConstraints = {
+  dataTypes?: ScoreOutputDataType[];
+  allowMultipleMatches?: boolean;
+};
+
 export function ScoreOutputSection({
   state,
   onChange,
   readOnly = false,
+  constraints,
 }: {
   state: ScoreOutputSelectorState;
   onChange: (next: ScoreOutputSelectorState) => void;
   readOnly?: boolean;
+  constraints?: ScoreOutputConstraints;
 }) {
   const boundsId = useId();
+  const dataTypeOptions = constraints?.dataTypes
+    ? DATA_TYPE_OPTIONS.filter((option) =>
+        constraints.dataTypes?.includes(option.value),
+      )
+    : DATA_TYPE_OPTIONS;
+  const allowMultipleMatches = constraints?.allowMultipleMatches ?? true;
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
   const [editingChoiceIndex, setEditingChoiceIndex] = useState<number | null>(
     null,
@@ -128,14 +142,18 @@ export function ScoreOutputSection({
 
   const minimum = state.minValue.trim();
   const maximum = state.maxValue.trim();
-  const numericBoundsLabel =
-    minimum && maximum
-      ? `between ${minimum} and ${maximum}`
-      : minimum
-        ? `of at least ${minimum}`
-        : maximum
-          ? `of at most ${maximum}`
-          : "without limits";
+  const numericBoundsLabel = (() => {
+    if (minimum && maximum) {
+      return `between ${minimum} and ${maximum}`;
+    }
+    if (minimum) {
+      return `of at least ${minimum}`;
+    }
+    if (maximum) {
+      return `of at most ${maximum}`;
+    }
+    return "without limits";
+  })();
 
   return (
     <div className="flex flex-col gap-2">
@@ -151,7 +169,8 @@ export function ScoreOutputSection({
       </LabelWithTooltip>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span>Return</span>
-        {state.dataType === ScoreDataTypeEnum.CATEGORICAL ? (
+        {state.dataType === ScoreDataTypeEnum.CATEGORICAL &&
+        allowMultipleMatches ? (
           <Select
             value={state.shouldAllowMultipleMatches ? "multiple" : "one"}
             disabled={readOnly}
@@ -174,11 +193,11 @@ export function ScoreOutputSection({
             </SelectContent>
           </Select>
         ) : (
-          <span>a</span>
+          <span>{allowMultipleMatches ? "a" : "one"}</span>
         )}
         <Select
           value={state.dataType}
-          disabled={readOnly}
+          disabled={readOnly || dataTypeOptions.length < 2}
           onValueChange={(value) =>
             handleDataTypeChange(value as ScoreOutputDataType)
           }
@@ -187,7 +206,7 @@ export function ScoreOutputSection({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {DATA_TYPE_OPTIONS.map((option) => (
+            {dataTypeOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.value === ScoreDataTypeEnum.CATEGORICAL &&
                 state.shouldAllowMultipleMatches
@@ -210,7 +229,7 @@ export function ScoreOutputSection({
                   disabled={readOnly}
                 >
                   {numericBoundsLabel}
-                  <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                  <DropdownIndicator />
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-72">
@@ -308,9 +327,7 @@ export function ScoreOutputSection({
                         </TooltipContent>
                       </Tooltip>
                     ) : null}
-                    {!readOnly ? (
-                      <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-                    ) : null}
+                    {!readOnly ? <DropdownIndicator /> : null}
                   </Button>
                 </PopoverTrigger>
               </CategoryEditorPopover>

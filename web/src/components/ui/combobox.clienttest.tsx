@@ -1,17 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { Combobox } from "@/src/components/ui/combobox";
-import { LAYER_ORDER } from "@/src/components/ui/layer";
-
-const installOverlayLayers = () => {
-  const overlayRoot = document.createElement("div");
-  overlayRoot.setAttribute("data-overlay-root", "");
-  for (const layer of LAYER_ORDER) {
-    const layerNode = document.createElement("div");
-    layerNode.setAttribute("data-layer", layer);
-    overlayRoot.appendChild(layerNode);
-  }
-  document.body.appendChild(overlayRoot);
-};
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 describe("Combobox footer", () => {
   beforeAll(() => {
@@ -26,14 +15,6 @@ describe("Combobox footer", () => {
     Element.prototype.scrollIntoView = vi.fn();
   });
 
-  beforeEach(() => {
-    installOverlayLayers();
-  });
-
-  afterEach(() => {
-    document.querySelector("[data-overlay-root]")?.remove();
-  });
-
   it("renders a footer action after the category list", async () => {
     render(
       <Combobox
@@ -45,6 +26,7 @@ describe("Combobox footer", () => {
           </button>
         )}
       />,
+      { wrapper: LayerProvider },
     );
 
     fireEvent.click(screen.getByRole("combobox"));

@@ -1,8 +1,9 @@
+/* eslint-disable no-nested-ternary */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useSession } from "next-auth/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
-import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
+import { featurePreviewLabels } from "@/src/features/feature-flags";
 import { api } from "@/src/utils/api";
 
 import {
@@ -78,19 +79,6 @@ export function ControlledFeaturePreviewModal({
             ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
             : undefined,
       onToggle: onToggle("sessionTimeline"),
-      isToggling: setFeaturePreviewEnabled.isPending,
-    },
-    normalizedIoPreview: {
-      enabled:
-        authSession.data?.user?.featureFlags.normalizedIoPreview === true ||
-        authSession.data?.environment.enableExperimentalFeatures === true,
-      disabled:
-        authSession.data?.environment.enableExperimentalFeatures === true,
-      warningReason:
-        authSession.data?.environment.enableExperimentalFeatures === true
-          ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
-          : undefined,
-      onToggle: onToggle("normalizedIoPreview"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
   };

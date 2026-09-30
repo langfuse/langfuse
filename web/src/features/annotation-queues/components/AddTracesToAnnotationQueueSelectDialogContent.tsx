@@ -1,5 +1,5 @@
 import { ActionButton } from "@/src/components/ActionButton";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Button } from "@/src/components/ui/button";
 import {

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import {
@@ -45,7 +46,7 @@ import {
 } from "./traceFilterUtils";
 import {
   Prisma,
-  singleFilter,
+  singleFilterList,
   variableMappingList,
   evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
@@ -397,7 +398,7 @@ export const createEvalJobs = async ({
         if (config.targetObject !== EvalTargetObject.TRACE) {
           return false;
         }
-        const parsedFilter = z.array(singleFilter).safeParse(config.filter);
+        const parsedFilter = singleFilterList.safeParse(config.filter);
         return (
           !parsedFilter.success ||
           inMemoryFilterRequiresMetadata(parsedFilter.data)
@@ -553,7 +554,7 @@ export const createEvalJobs = async ({
     }
 
     logger.debug("Creating eval job for config", config.id);
-    const validatedFilter = z.array(singleFilter).parse(config.filter);
+    const validatedFilter = singleFilterList.parse(config.filter);
 
     const maxTimeStamp =
       "timestamp" in event &&

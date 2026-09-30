@@ -10,6 +10,7 @@ export const [deleteDatasetItemTool, handleDeleteDatasetItem] = defineTool({
   name: "deleteDatasetItem",
   description:
     "Delete a dataset item, one example in a dataset, and all its run items.",
+  action: "datasets:CUD",
   baseSchema: DeleteDatasetItemV1Query,
   inputSchema: DeleteDatasetItemV1Query,
   handler: async (input, context) =>

@@ -109,7 +109,11 @@ export function SessionTimelineContentMessage({
             className={cn("flex w-full", presentation.wrapper)}
           >
             <article
-              className={cn("min-w-0 overflow-hidden", presentation.container)}
+              className={cn(
+                "min-w-0 overflow-hidden",
+                presentation.container,
+                isJsonOnly && isJsonExpanded && "w-full",
+              )}
             >
               {showSender && groupIndex === firstContentGroupIndex ? (
                 <div className="text-foreground mb-1 flex min-w-0 items-center gap-1.5 font-mono text-[11px]">
@@ -138,7 +142,7 @@ export function SessionTimelineContentMessage({
                 >
                   <ChevronDown
                     className={cn(
-                      "h-3 w-3 shrink-0 transition-transform",
+                      "text-foreground-tertiary size-3 shrink-0 translate-y-px transition-transform",
                       !isJsonExpanded && "-rotate-90",
                     )}
                     aria-hidden="true"
@@ -149,7 +153,7 @@ export function SessionTimelineContentMessage({
               {!isJsonOnly || isJsonExpanded ? (
                 <div
                   className={cn(
-                    "flex flex-col gap-2 text-sm leading-6",
+                    "flex flex-col gap-2 text-sm",
                     isJsonOnly && "mt-2",
                   )}
                 >

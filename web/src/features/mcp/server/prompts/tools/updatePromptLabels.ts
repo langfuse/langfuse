@@ -9,7 +9,7 @@
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { ParamPromptName, ParamNewLabels } from "../validation";
-import { updatePromptLabelsForApi } from "@/src/features/prompts/server/prompt-api-service";
+import { updatePromptLabelsForApi } from "@/src/features/prompts/server";
 import { buildPromptUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
@@ -69,6 +69,7 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
     "",
     "Accepts: name, version (required), newLabels (array, can be empty to remove all labels)",
   ].join("\n"),
+  action: "prompts:CUD",
   baseSchema: UpdatePromptLabelsBaseSchema,
   inputSchema: UpdatePromptLabelsInputSchema,
   handler: async (input, context) => {
@@ -85,6 +86,7 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
 
         const { updatedPrompt } = await updatePromptLabelsForApi({
           context,
+          ctx: context.auth,
           promptName: name,
           promptVersion: version,
           newLabels,

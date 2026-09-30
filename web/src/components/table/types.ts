@@ -30,6 +30,10 @@ declare module "@tanstack/react-table" {
     loadingCell?: React.ReactNode | (() => React.ReactNode);
     cellPadding?: DataTableCellPadding;
     cellBackground?: DataTableCellBackground;
+    cellClassName?: string;
+    sensitive?: boolean;
+    headerClassName?: string;
+    hideBelowMd?: boolean;
   }
 }
 

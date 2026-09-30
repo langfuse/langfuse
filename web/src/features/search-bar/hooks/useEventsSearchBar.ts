@@ -11,7 +11,16 @@
 // The draft sync never writes back to applied state. A commit acknowledgment
 // keeps separately updated host lanes from projecting a half-applied query.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  type Key,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import isEqual from "lodash/isEqual";
 
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
@@ -61,6 +70,31 @@ type PendingCommit = {
   next: AppliedSearchState;
   text: string;
 };
+
+type SearchBarDraftCacheSnapshot = {
+  committedText: string;
+  draft: string;
+};
+
+type SearchBarDraftCache = {
+  current: SearchBarDraftCacheSnapshot | null;
+  searchIdentity: Key | null;
+};
+
+export const SearchBarDraftCacheContext =
+  createContext<SearchBarDraftCache | null>(null);
+
+/**
+ * Keeps an unsubmitted draft alive while a responsive sheet unmounts its
+ * search input. A new React key represents a new search scope (for example a
+ * different table view), so it intentionally starts with an empty cache.
+ */
+export function useSearchBarDraftCache(searchIdentity: Key | null) {
+  return useMemo<SearchBarDraftCache>(
+    () => ({ current: null, searchIdentity }),
+    [searchIdentity],
+  );
+}
 
 function sameAppliedState(a: AppliedSearchState, b: AppliedSearchState) {
   return (
@@ -147,6 +181,7 @@ export function useEventsSearchBar({
   }) => void;
 } {
   const capture = usePostHogClientCapture();
+  const draftCache = useContext(SearchBarDraftCacheContext);
 
   // Latest observed options, read inside commit and by the store's draft
   // validation so both route `scores.<name>` by the same observed score type.
@@ -213,8 +248,26 @@ export function useEventsSearchBar({
   // commit's own echo settles immediately without clobbering the caret.
   useEffect(() => {
     if (!enabled) return;
+    const cachedDraft = draftCache?.current;
     store.getState().actions.resetTo(committedText);
-  }, [enabled, committedText, store]);
+    // Only restore a draft that belongs to the same applied search state.
+    // External query/filter changes must continue to reset the input.
+    if (cachedDraft?.committedText === committedText) {
+      store.getState().actions.setDraft(cachedDraft.draft);
+    }
+  }, [draftCache, enabled, committedText, store]);
+
+  useEffect(() => {
+    if (!enabled || !draftCache) return;
+    const persistDraft = () => {
+      draftCache.current = {
+        committedText,
+        draft: store.getState().draft,
+      };
+    };
+    persistDraft();
+    return store.subscribe(persistDraft);
+  }, [committedText, draftCache, enabled, store]);
 
   // Re-validate when observed options or the registry load: a draft typed
   // before score types or dynamic allowed values were known has stale

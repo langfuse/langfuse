@@ -59,6 +59,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_listDatasets: [],
   langfuse_getDataset: [],
   langfuse_upsertDatasetItem: ["datasets"],
+  langfuse_batchUpsertDatasetItems: ["datasets"],
   langfuse_listDatasetItems: [],
   langfuse_getDatasetItem: [],
   langfuse_deleteDatasetItem: ["datasets"],

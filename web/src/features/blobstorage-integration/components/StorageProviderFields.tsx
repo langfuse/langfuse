@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useWatch } from "react-hook-form";
 import {
   FormControl,
@@ -12,7 +13,7 @@ import { PasswordInput } from "@/src/components/design-system/PasswordInput/Pass
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { BlobStorageIntegrationType } from "@langfuse/shared";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
 
 // Provider selection plus the connection fields whose labels and visibility

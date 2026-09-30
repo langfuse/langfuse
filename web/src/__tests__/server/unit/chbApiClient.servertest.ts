@@ -237,6 +237,37 @@ describe("chbApiClient", () => {
       expect(generated).toMatch(/^[0-9a-f-]{36}$/);
     });
 
+    it("sends the organization name as CHB's checkout name field", async () => {
+      const session = {
+        checkoutUrl: "https://pay.example.com/c/1",
+        organizationId: CH_ORG_ID,
+      };
+      const checkout = (name?: string) =>
+        client().createCheckoutSession({
+          name,
+          email: "user@example.com",
+          planCode: "LANGFUSE_PRO",
+          returnUrl: "https://cloud.langfuse.com/back",
+        });
+
+      onChb(jsonResponse(200, session));
+      await checkout("Acme Inc");
+      expect(JSON.parse(lastChbCall().init.body as string).name).toBe(
+        "Acme Inc",
+      );
+
+      // CHB rejects a blank name with a 400 but falls back to its own default
+      // when the field is absent. Langfuse's org-name schema does not trim, so
+      // a whitespace-only name must be omitted rather than block checkout.
+      for (const name of [undefined, "", "   "]) {
+        onChb(jsonResponse(200, session));
+        await checkout(name);
+        expect(
+          JSON.parse(lastChbCall().init.body as string),
+        ).not.toHaveProperty("name");
+      }
+    });
+
     it("scopes org endpoints with CH-Organization-Id and omits it elsewhere", async () => {
       onChb(jsonResponse(200, { id: "plan_1" }));
       await client().getAttachedPlan({ chOrganizationId: CH_ORG_ID });

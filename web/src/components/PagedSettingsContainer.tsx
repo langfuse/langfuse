@@ -32,13 +32,15 @@ export const PagedSettingsContainer = ({
   fullHeight = false,
 }: SettingsProps) => {
   const router = useRouter();
-  const availablePages = pages.filter((page) =>
-    "show" in page
-      ? typeof page.show === "function"
-        ? page.show()
-        : page.show
-      : true,
-  );
+  const availablePages = pages.filter((page) => {
+    if ("show" in page) {
+      if (typeof page.show === "function") {
+        return page.show();
+      }
+      return page.show;
+    }
+    return true;
+  });
 
   const currentPage =
     availablePages.find((page) => page.slug === activeSlug) ??
@@ -99,7 +101,7 @@ export const PagedSettingsContainer = ({
         </nav>
         <nav
           className={cn(
-            "text-muted-foreground hidden text-sm md:sticky md:top-5 md:grid",
+            "text-muted-foreground hidden text-sm md:sticky md:top-5 md:grid md:gap-y-1",
             fullHeight && "md:top-0",
           )}
           x-chunk="dashboard-04-chunk-0"
