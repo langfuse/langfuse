@@ -1,4 +1,4 @@
-import { deleteDatasetRunByIdForApi } from "@/src/features/datasets/server/publicDatasetService";
+import { deleteDatasetRunByIdForApi } from "@/src/features/datasets/server";
 import { DeleteDatasetRunV1Response } from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -9,6 +9,7 @@ export const [deleteDatasetRunTool, handleDeleteDatasetRun] = defineTool({
   name: "deleteDatasetRun",
   description:
     "Delete a dataset run by dataset ID and run ID, and enqueue deletion of its run items.",
+  action: "datasets:CUD",
   baseSchema: DeleteDatasetRunMcpInput,
   inputSchema: DeleteDatasetRunMcpInput,
   handler: async (input, context) =>

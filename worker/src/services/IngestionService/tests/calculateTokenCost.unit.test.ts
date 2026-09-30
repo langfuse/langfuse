@@ -190,6 +190,40 @@ describe("Token Cost Calculation", () => {
     expect(costs.total_cost).toBe(9.0);
   });
 
+  it("should apply the configured cache-creation price", () => {
+    const costs = (IngestionService as any).calculateUsageCosts(
+      [
+        {
+          price: new Decimal(0.00000375),
+          usageType: "input_cache_creation",
+        },
+      ],
+      { provided_cost_details: {} },
+      { input_cache_creation: 25 },
+    );
+
+    expect(costs.cost_details.input_cache_creation).toBe(0.00009375);
+    expect(costs.total_cost).toBe(0.00009375);
+  });
+
+  it("prices TTL-split cache writes with the aggregate cache-write price when no TTL price exists", () => {
+    const costs = (IngestionService as any).calculateUsageCosts(
+      [
+        {
+          price: new Decimal(0.00000375),
+          usageType: "cache_creation_input_tokens",
+        },
+        { price: new Decimal(0.000006), usageType: "input_cache_creation_1h" },
+      ],
+      { provided_cost_details: {} },
+      { input_cache_creation_5m: 2000, input_cache_creation_1h: 10256 },
+    );
+
+    expect(costs.cost_details.input_cache_creation_5m).toBe(0.0075);
+    expect(costs.cost_details.input_cache_creation_1h).toBeCloseTo(0.061536, 9);
+    expect(costs.total_cost).toBeCloseTo(0.069036, 9);
+  });
+
   it("should correctly calculate token costs with user provided costs", async () => {
     const prices = await prisma.price.findMany({
       where: {
@@ -1328,6 +1362,147 @@ describe("Token Cost Calculation", () => {
     expect(generation.usage_details.total).toBeUndefined();
   });
 
+  describe("tokenizer inference on failed and cancelled generations", () => {
+    const gatewayScope = { name: "langfuse-ai-gateway", version: "0.1.0" };
+
+    beforeEach(() => {
+      tokenisationMocks.tokenCountAsyncOverride = async () => 7;
+    });
+
+    afterEach(() => {
+      tokenisationMocks.tokenCountAsyncOverride = null;
+    });
+
+    it("should tokenize a DEFAULT generation on the events table", async () => {
+      const eventRecord = await (mockIngestionService as any).createEventRecord(
+        {
+          spanId: generationId,
+          traceId: uuidv4(),
+          projectId,
+          startTimeISO: new Date().toISOString(),
+          type: "GENERATION",
+          modelName,
+          input: "hello world",
+          output: "hey whassup",
+        },
+        "testfile.txt",
+      );
+
+      expect(eventRecord.usage_details).toEqual({
+        input: 7,
+        output: 7,
+        total: 14,
+      });
+    });
+
+    it("should skip tokenization for ERROR generations written to the events table", async () => {
+      const eventRecord = await (mockIngestionService as any).createEventRecord(
+        {
+          spanId: generationId,
+          traceId: uuidv4(),
+          projectId,
+          startTimeISO: new Date().toISOString(),
+          type: "GENERATION",
+          modelName,
+          level: "ERROR",
+          input: "hello world",
+          output: "hey whassup",
+        },
+        "testfile.txt",
+      );
+
+      expect(eventRecord.level).toBe("ERROR");
+      expect(eventRecord.model_id).toBe(tokenModelData.id);
+      expect(eventRecord.usage_details).toEqual({});
+      expect(eventRecord.cost_details).toEqual({});
+    });
+
+    it("should not tokenize a cancelled gateway generation on the events table", async () => {
+      const eventRecord = await (mockIngestionService as any).createEventRecord(
+        {
+          spanId: generationId,
+          traceId: uuidv4(),
+          projectId,
+          startTimeISO: new Date().toISOString(),
+          type: "GENERATION",
+          modelName,
+          level: "WARNING",
+          statusMessage: "Client cancelled the response",
+          scopeName: gatewayScope.name,
+          metadata: { scope: gatewayScope },
+          input: "hello world",
+          output: "[]",
+        },
+        "testfile.txt",
+      );
+
+      expect(eventRecord.model_id).toBe(tokenModelData.id);
+      expect(eventRecord.usage_details).toEqual({});
+      expect(eventRecord.cost_details).toEqual({});
+    });
+
+    it("should cost provider-reported usage on a cancelled gateway generation", async () => {
+      const eventRecord = await (mockIngestionService as any).createEventRecord(
+        {
+          spanId: generationId,
+          traceId: uuidv4(),
+          projectId,
+          startTimeISO: new Date().toISOString(),
+          type: "GENERATION",
+          modelName,
+          level: "WARNING",
+          scopeName: gatewayScope.name,
+          metadata: { scope: gatewayScope },
+          providedUsageDetails: { input: 10, output: 5 },
+          input: "hello world",
+          output: "[]",
+        },
+        "testfile.txt",
+      );
+
+      expect(eventRecord.usage_details).toEqual({
+        input: 10,
+        output: 5,
+        total: 15,
+      });
+      expect(eventRecord.cost_details.input).toBe(0.1);
+      expect(eventRecord.cost_details.output).toBe(0.1);
+    });
+
+    it("should not tokenize a cancelled gateway generation on the observations table", async () => {
+      const events = [
+        {
+          id: uuidv4(),
+          type: "generation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            startTime: new Date().toISOString(),
+            model: modelName,
+            level: "WARNING",
+            statusMessage: "Client cancelled the response",
+            metadata: { scope: gatewayScope },
+            input: "hello world",
+            output: "[]",
+          },
+        },
+      ];
+
+      await (mockIngestionService as any).processObservationEventList({
+        projectId,
+        entityId: generationId,
+        createdAtTimestamp: new Date(),
+        observationEventList: events,
+      });
+
+      const [tableName, generation] = mockAddToClickhouseWriter.mock.calls[0];
+      expect(tableName).toBe("observations");
+      expect(generation.internal_model_id).toBe(tokenModelData.id);
+      expect(generation.usage_details).toEqual({});
+      expect(generation.cost_details).toEqual({});
+    });
+  });
+
   it("should skip tokenization and leave usage details blank when cost details are provided", async () => {
     const generationUsage1 = {
       model: modelName,
@@ -1540,7 +1715,7 @@ describe("Token Cost Calculation", () => {
 
     it("should warn when provided non-total buckets sum to more than the provided total", async () => {
       (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
-      const warnSpy = vi.spyOn(logger, "warn");
+      const debugSpy = vi.spyOn(logger, "debug");
       const generationId = uuidv4();
 
       const eventRecord = await (mockIngestionService as any).createEventRecord(
@@ -1560,7 +1735,7 @@ describe("Token Cost Calculation", () => {
         "testfile.txt",
       );
 
-      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+      const mismatchWarnings = debugSpy.mock.calls.filter(([message]) =>
         String(message).includes("exceeds provided total"),
       );
       expect(mismatchWarnings).toHaveLength(1);
@@ -1583,7 +1758,7 @@ describe("Token Cost Calculation", () => {
 
     it("should not warn when provided buckets are consistent with the provided total", async () => {
       (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
-      const warnSpy = vi.spyOn(logger, "warn");
+      const debugSpy = vi.spyOn(logger, "debug");
       const generationId = uuidv4();
 
       await (mockIngestionService as any).createEventRecord(
@@ -1603,7 +1778,7 @@ describe("Token Cost Calculation", () => {
         "testfile.txt",
       );
 
-      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+      const mismatchWarnings = debugSpy.mock.calls.filter(([message]) =>
         String(message).includes("exceeds provided total"),
       );
       expect(mismatchWarnings).toHaveLength(0);
@@ -1611,7 +1786,7 @@ describe("Token Cost Calculation", () => {
 
     it("should not warn when no total is provided", async () => {
       (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
-      const warnSpy = vi.spyOn(logger, "warn");
+      const debugSpy = vi.spyOn(logger, "debug");
       const generationId = uuidv4();
 
       await (mockIngestionService as any).createEventRecord(
@@ -1629,7 +1804,7 @@ describe("Token Cost Calculation", () => {
         "testfile.txt",
       );
 
-      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+      const mismatchWarnings = debugSpy.mock.calls.filter(([message]) =>
         String(message).includes("exceeds provided total"),
       );
       expect(mismatchWarnings).toHaveLength(0);
@@ -1637,7 +1812,7 @@ describe("Token Cost Calculation", () => {
 
     it("should warn on the direct event path even when no model is provided", async () => {
       (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
-      const warnSpy = vi.spyOn(logger, "warn");
+      const debugSpy = vi.spyOn(logger, "debug");
       const generationId = uuidv4();
 
       await (mockIngestionService as any).createEventRecord(
@@ -1655,7 +1830,7 @@ describe("Token Cost Calculation", () => {
         "testfile.txt",
       );
 
-      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+      const mismatchWarnings = debugSpy.mock.calls.filter(([message]) =>
         String(message).includes("exceeds provided total"),
       );
       expect(mismatchWarnings).toHaveLength(1);
@@ -1667,7 +1842,7 @@ describe("Token Cost Calculation", () => {
 
     it("should log the warning at most once per rate-limit interval", async () => {
       (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
-      const warnSpy = vi.spyOn(logger, "warn");
+      const debugSpy = vi.spyOn(logger, "debug");
 
       for (const spanId of [uuidv4(), uuidv4()]) {
         await (mockIngestionService as any).createEventRecord(
@@ -1687,7 +1862,7 @@ describe("Token Cost Calculation", () => {
         );
       }
 
-      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+      const mismatchWarnings = debugSpy.mock.calls.filter(([message]) =>
         String(message).includes("exceeds provided total"),
       );
       expect(mismatchWarnings).toHaveLength(1);
@@ -1695,7 +1870,7 @@ describe("Token Cost Calculation", () => {
 
     it("should warn on the legacy merge path when incoming events carry inconsistent usage", async () => {
       (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
-      const warnSpy = vi.spyOn(logger, "warn");
+      const debugSpy = vi.spyOn(logger, "debug");
       const generationId = uuidv4();
 
       const events = [
@@ -1724,7 +1899,7 @@ describe("Token Cost Calculation", () => {
         observationEventList: events,
       });
 
-      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+      const mismatchWarnings = debugSpy.mock.calls.filter(([message]) =>
         String(message).includes("exceeds provided total"),
       );
       expect(mismatchWarnings).toHaveLength(1);
@@ -1737,7 +1912,7 @@ describe("Token Cost Calculation", () => {
 
     it("should not warn on the legacy merge path when incoming events carry no usage", async () => {
       (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
-      const warnSpy = vi.spyOn(logger, "warn");
+      const debugSpy = vi.spyOn(logger, "debug");
       const generationId = uuidv4();
 
       // Partial update without usage: the guard must not fire even if merged
@@ -1763,7 +1938,7 @@ describe("Token Cost Calculation", () => {
         observationEventList: events,
       });
 
-      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+      const mismatchWarnings = debugSpy.mock.calls.filter(([message]) =>
         String(message).includes("exceeds provided total"),
       );
       expect(mismatchWarnings).toHaveLength(0);

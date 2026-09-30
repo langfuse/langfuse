@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 import {
   type default as React,
@@ -38,9 +39,6 @@ import { compactNumberFormatter } from "@/src/utils/numbers";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import {
   Check,
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
   FoldVertical,
   MoreVertical,
   PanelLeftClose,
@@ -53,6 +51,7 @@ import {
   WandSparkles,
   InfoIcon,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,7 +66,7 @@ import {
   InputCommandItem,
   InputCommandList,
 } from "@/src/components/ui/input-command";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Badge } from "@/src/components/ui/badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Button } from "@/src/components/ui/button";
@@ -83,6 +82,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import type {
   UIFilter,
+  NumericUIFilter,
   KeyScoreLevels,
   KeyValueFilterEntry,
   NumericKeyValueFilterEntry,
@@ -90,14 +90,14 @@ import type {
   StringKeyValueFilterEntry,
   TextFilterEntry,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
+import { KeyValueFilterBuilder } from "@/src/components/table/KeyValueFilterBuilder";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { DataTableAIFilters } from "@/src/components/table/data-table-ai-filters";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { type FilterState } from "@langfuse/shared";
 
 interface ControlsContextType {
@@ -173,6 +173,8 @@ export interface QueryFilter {
   expanded: string[];
   onExpandedChange: (value: string[]) => void;
   clearAll: () => void;
+  /** Explicit Clear all discards facet drafts even when applied values are unchanged. */
+  draftResetKey: number;
   isFiltered: boolean;
   setFilterState: (filters: FilterState) => void;
   /** v3-vs-v4 analytics dimension of the surface (see useSidebarFilterState). */
@@ -560,7 +562,7 @@ export function DataTableControls({
     if (filter.type === "numeric") {
       return (
         <NumericFacet
-          key={filter.column}
+          key={`${filter.column}:${filter.value === null ? "conditions" : "range"}`}
           filterKey={filter.column}
           label={filter.label}
           tooltip={filter.tooltip}
@@ -571,6 +573,8 @@ export function DataTableControls({
           min={filter.min}
           max={filter.max}
           value={filter.value}
+          conditions={filter.conditions}
+          onRemoveCondition={filter.onRemoveCondition}
           onChange={filter.onChange}
           unit={filter.unit}
           isActive={filter.isActive}
@@ -770,7 +774,7 @@ export function DataTableControls({
             }
             nodes.push(
               <div
-                key={filter.column}
+                key={`${filter.column}:${queryFilter.draftResetKey}`}
                 hidden={!visibleColumns.has(filter.column)}
               >
                 {renderFacet(filter)}
@@ -1102,11 +1106,8 @@ export function DataTableControls({
               </Tooltip>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem
-                  // Enabled also when only value-less added facets exist —
-                  // Clear all is the affordance that demotes them.
-                  disabled={
-                    !queryFilter.isFiltered && revealedColumns.length === 0
-                  }
+                  // Clear also resets unfinished drafts and selected views,
+                  // even when no filter values have been applied.
                   onClick={() => {
                     // Explicit adds are part of "everything" too: without
                     // this, a value-less added facet stays pinned after
@@ -1309,7 +1310,9 @@ interface CategoricalFacetProps extends BaseFacetProps {
 interface NumericFacetProps extends BaseFacetProps {
   min: number;
   max: number;
-  value: [number, number];
+  value: [number, number] | null;
+  conditions: NumericUIFilter["conditions"];
+  onRemoveCondition: (index: number) => void;
   onChange: (value: [number, number]) => void;
   unit?: string;
 }
@@ -1379,7 +1382,7 @@ const FilterAccordionTrigger = ({
       )}
       {...props}
     >
-      <ChevronRight className="text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform" />
+      <DropdownIndicator direction="right" nudge />
       {children}
     </AccordionPrimitive.Trigger>
   </AccordionPrimitive.Header>
@@ -2001,9 +2004,9 @@ function CategoricalSelectContent({
                       variant="ghost"
                       size="sm"
                       onClick={() => setVisibleCount(MAX_VISIBLE_OPTIONS)}
-                      className="mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
+                      className="mt-1 h-auto w-full justify-start gap-1 py-1 pl-7 text-xs"
                     >
-                      <ChevronUp className="mr-1 h-3 w-3" />
+                      <DropdownIndicator direction="up" size="sm" nudge />
                       Show fewer values
                     </Button>
                   )}
@@ -2016,9 +2019,9 @@ function CategoricalSelectContent({
                           (current) => current + SHOW_MORE_INCREMENT,
                         )
                       }
-                      className="mt-0.5 h-auto w-full justify-start py-1 pl-7 text-xs"
+                      className="mt-0.5 h-auto w-full justify-start gap-1 py-1 pl-7 text-xs"
                     >
-                      <ChevronDown className="mr-1 h-3 w-3" />
+                      <DropdownIndicator size="sm" nudge />
                       Show more values
                     </Button>
                   )}
@@ -2058,6 +2061,8 @@ function NumericFacet({
   min,
   max,
   value,
+  conditions,
+  onRemoveCondition,
   onChange,
   unit,
   isActive,
@@ -2065,26 +2070,32 @@ function NumericFacet({
   disabledReason,
   onReset,
 }: NumericFacetProps) {
-  const [localValue, setLocalValue] = useState<[number, number]>(value);
+  const [localValue, setLocalValue] = useState<[number, number]>(
+    value ?? [min, max],
+  );
   // Adopt external value changes (reset, URL navigation) during render — the
   // "adjust state when a prop changes" pattern — rather than via a mirror
   // effect. `lastValue` tracks the last adopted prop so pending local edits
   // (which lead the prop while the debounce runs) survive unrelated renders.
-  const [lastValue, setLastValue] = useState<[number, number]>(value);
-  if (lastValue[0] !== value[0] || lastValue[1] !== value[1]) {
+  const [lastValue, setLastValue] = useState(value);
+  if (lastValue?.[0] !== value?.[0] || lastValue?.[1] !== value?.[1]) {
     setLastValue(value);
-    setLocalValue(value);
+    setLocalValue(value ?? [min, max]);
   }
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const appliedMin = value?.[0];
+  const appliedMax = value?.[1];
 
-  // Cleanup timeout on unmount
+  // An external reset or replacement cancels the pending draft.
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, []);
+  }, [appliedMin, appliedMax]);
 
   const updateWithDebounce = (newValue: [number, number]) => {
     setLocalValue(newValue);
@@ -2096,7 +2107,7 @@ function NumericFacet({
 
     // Set new timeout
     timeoutRef.current = setTimeout(() => {
-      onChange(newValue);
+      onChangeRef.current(newValue);
     }, 120);
   };
 
@@ -2150,6 +2161,29 @@ function NumericFacet({
       <div className="px-4 py-2">
         {loading ? (
           <div className="text-muted-foreground text-sm">Loading...</div>
+        ) : value === null ? (
+          <div className="ph-no-capture flex flex-col gap-1">
+            {conditions.map((condition, index) => (
+              <div
+                key={index}
+                className="border-border/40 bg-muted/30 flex items-center gap-2 rounded border px-2 py-1 text-xs"
+              >
+                <span className="min-w-0 flex-1">
+                  {condition.operator} {condition.value}
+                  {unit ? ` ${unit}` : ""}
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`Remove ${label} ${condition.operator} ${condition.value}`}
+                  onClick={() => onRemoveCondition(index)}
+                  className="text-muted-foreground hover:text-foreground h-5 w-5 shrink-0 p-0"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="grid gap-4">
             <div className="flex items-center gap-4">
@@ -2241,15 +2275,17 @@ function StringFacet({
     setLocalValue(value);
   }
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
-  // Cleanup timeout on unmount
+  // An external reset or replacement cancels the pending draft.
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, []);
+  }, [value]);
 
   const updateWithDebounce = (newValue: string) => {
     setLocalValue(newValue);
@@ -2261,7 +2297,7 @@ function StringFacet({
 
     // Set new timeout
     timeoutRef.current = setTimeout(() => {
-      onChange(newValue);
+      onChangeRef.current(newValue);
     }, 500);
   };
 

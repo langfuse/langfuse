@@ -1,6 +1,5 @@
 import { api } from "@/src/utils/api";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
-import { useEventsTraceData } from "@/src/features/events/hooks/useEventsTraceData";
+import { useEventsTraceData, useReadPath } from "@/src/features/events";
 import { useSession } from "next-auth/react";
 
 /**

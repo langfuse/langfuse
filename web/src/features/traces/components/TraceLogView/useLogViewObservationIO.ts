@@ -9,7 +9,7 @@ import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, sendAsPostOption } from "@/src/utils/api";
 import { type FlatLogItem } from "./log-view-types";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 
 export interface UseLogViewObservationIOParams {
   observationId: string;

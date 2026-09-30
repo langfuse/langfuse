@@ -17,6 +17,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 
 export type IOTableCellVariant = "default" | "input" | "output";
 type IOTableCellSize = "default" | "compact";
@@ -144,14 +145,31 @@ export const IOTableCell = memo(function IOTableCell({
     stringifiedJson && stringifiedJson.length > IO_TABLE_CHAR_LIMIT;
   const singleLineText = stringifiedJson
     ? decodeUnicodeEscapesOnly(stringifiedJson, true)
-    : stringifiedJson;
+    : "";
 
   // The multi-line branches scroll inside the cell, so their scrollport is
   // marked `scrollbar-visible`: a region that scrolls without ever painting a
   // scrollbar is indistinguishable from one whose content was cut off, and
   // nobody reaches for the wheel on content they read as truncated.
   let content: ReactNode;
-  if (singleLine) {
+  if (!stringifiedJson) {
+    // The payload arrived and is empty. Handing that to the JSON viewer renders
+    // the word `null` (or a bare pair of quotes), which a reader takes for a
+    // value, and a blank cell says nothing at all — so it gets the shared
+    // empty treatment. A payload that is only PARTLY empty is untouched: a
+    // `null` nested in a document is content and still renders as `null`.
+    content = (
+      <div
+        className={cn(
+          "h-full w-full self-stretch rounded-sm",
+          paddingClassName,
+          variantClassName,
+        )}
+      >
+        <EmptyValue />
+      </div>
+    );
+  } else if (singleLine) {
     content = (
       <div
         className={cn(
@@ -175,12 +193,7 @@ export const IOTableCell = memo(function IOTableCell({
                 )
         }
       >
-        {singleLineText
-          ? renderStringWithMediaReferences(
-              singleLineText,
-              renderMediaReference,
-            )
-          : null}
+        {renderStringWithMediaReferences(singleLineText, renderMediaReference)}
       </div>
     );
   } else if (shouldTruncate) {
@@ -211,11 +224,7 @@ export const IOTableCell = memo(function IOTableCell({
   } else {
     content = (
       <JSONView
-        json={
-          stringifiedJson
-            ? decodeUnicodeEscapesOnly(stringifiedJson, true)
-            : data
-        }
+        json={decodeUnicodeEscapesOnly(stringifiedJson, true)}
         className={cn(
           "h-full w-full self-stretch overflow-hidden rounded-sm",
           variantClassName,
@@ -230,7 +239,10 @@ export const IOTableCell = memo(function IOTableCell({
     );
   }
 
-  if (!enableExpandOnHover) {
+  // The expand card renders `data` itself, so an empty payload would come back
+  // as `null` on hover even though the cell body shows the empty treatment.
+  // Nothing to expand, no card.
+  if (!enableExpandOnHover || !stringifiedJson) {
     return content;
   }
 

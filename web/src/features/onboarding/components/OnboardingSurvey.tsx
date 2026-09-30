@@ -3,7 +3,7 @@ import { ExternalLink } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import {
   Form,
   FormControl,
@@ -131,7 +131,7 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
                           <p className="text-muted-foreground text-sm">
                             Relevant project data can be sent to AWS Bedrock
                             within your Langfuse data region. Your data will not
-                            be used for training models.{" "}
+                            be used to train models.{" "}
                             <a
                               href="https://langfuse.com/security/ai-features"
                               target="_blank"

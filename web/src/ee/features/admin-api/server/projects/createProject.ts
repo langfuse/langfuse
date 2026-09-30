@@ -7,8 +7,8 @@ import {
 } from "@langfuse/shared/src/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import { emitChbProjectEvent } from "@/src/ee/features/billing/server";
 
 export async function handleCreateProject(
   req: NextApiRequest,

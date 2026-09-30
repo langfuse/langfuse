@@ -1,12 +1,13 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import {
-  type IOPreviewParserMode,
+  hasRenderableChatMessages,
   useIOPreviewParser,
 } from "../../hooks/useIOPreviewParser";
 import { ChatMessageList } from "../ChatMessageList";
@@ -16,7 +17,6 @@ import {
   type IOPreviewContentMode,
 } from "./IOPreview";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
-import { isOnlyJsonMessage } from "../../fns/chatMessageUtils";
 import { StatusMessageSection } from "./components/StatusMessageSection";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
 
@@ -57,7 +57,7 @@ function JsonInputOutputView({
   const showOutput = !hideOutput && !(hideIfNull && !parsedOutput);
 
   return (
-    <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+    <div className="space-y-2 [&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
       {showInput && (
         <PrettyJsonView
           title="Input"
@@ -97,7 +97,6 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   parsedOutput?: unknown;
   parsedMetadata?: unknown;
   chatMLParserResult?: ChatMLParserResult;
-  observationName?: string;
   isLoading?: boolean;
   isParsing?: boolean;
   hideIfNull?: boolean;
@@ -113,9 +112,6 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   showCorrections?: boolean;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
-  // Which parser produces the preview; the normalized parser is admin-only
-  // while it is being validated. Legacy remains the safe default.
-  parser?: IOPreviewParserMode;
 }
 
 /**
@@ -140,7 +136,6 @@ export function IOPreviewPretty({
   parsedOutput: preParsedOutput,
   parsedMetadata: preParsedMetadata,
   chatMLParserResult,
-  observationName,
   isLoading = false,
   isParsing = false,
   hideIfNull = false,
@@ -161,7 +156,6 @@ export function IOPreviewPretty({
   showCorrections = true,
   contentMode = "all",
   showSystemPrompt,
-  parser = "legacy",
 }: IOPreviewPrettyProps) {
   // Use pre-parsed data if available (from useParsedObservation hook),
   // otherwise parse with size/depth limits to prevent UI freeze
@@ -189,10 +183,18 @@ export function IOPreviewPretty({
     [projectId, observationId],
   );
 
-  // Parse into the shared preview contract. The normalized parser is opt-in
-  // while it is being rolled out; legacy remains the safe default.
+  // Parse into the shared preview contract.
+  const parserResult = useIOPreviewParser(
+    input,
+    output,
+    metadata,
+    parsedInput,
+    parsedOutput,
+    parsedMetadata,
+    chatMLParserResult,
+  );
+
   const {
-    canDisplayAsChat,
     allMessages,
     additionalInput,
     allTools,
@@ -201,17 +203,7 @@ export function IOPreviewPretty({
     messageToToolCallNumbers,
     toolNameToDefinitionNumber,
     inputMessageCount,
-  } = useIOPreviewParser(
-    parser,
-    input,
-    output,
-    metadata,
-    observationName,
-    parsedInput,
-    parsedOutput,
-    parsedMetadata,
-    chatMLParserResult,
-  );
+  } = parserResult;
 
   const characterLimit = useMarkdownRenderCharacterLimit();
 
@@ -278,16 +270,15 @@ export function IOPreviewPretty({
   // Determine if metadata should be shown
   const shouldShowMetadata = showMetadata && parsedMetadata !== undefined;
   const showData = contentMode !== "conversation";
-  const shouldRenderMessages =
-    canDisplayAsChat && !allMessages.every(isOnlyJsonMessage);
+  const shouldRenderMessages = hasRenderableChatMessages(parserResult);
 
   return (
-    <div>
+    <div className="space-y-2 pt-1">
       {showData && status ? (
         <StatusMessageSection status={status} currentView="pretty" />
       ) : null}
 
-      {showData ? (
+      {showData && allTools.length > 0 ? (
         <SectionToolDefinitions
           tools={allTools}
           toolCallCounts={toolCallCounts}
@@ -321,7 +312,7 @@ export function IOPreviewPretty({
           )}
         </div>
       ) : showData ? (
-        <>
+        <div>
           <JsonInputOutputView {...jsonViewProps} />
           <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
             {showCorrections && (
@@ -335,7 +326,7 @@ export function IOPreviewPretty({
               />
             )}
           </div>
-        </>
+        </div>
       ) : null}
 
       {/* Metadata Section */}

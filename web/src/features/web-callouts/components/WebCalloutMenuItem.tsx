@@ -2,10 +2,6 @@ import { Webhook } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/src/components/ui/dropdown-menu";
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -71,37 +67,6 @@ export function useWebCalloutAction(props: WebCalloutTarget, enabled: boolean) {
 
 type WebCalloutAction = NonNullable<ReturnType<typeof useWebCalloutAction>>;
 
-export function WebCalloutMenuItem({
-  action,
-  withSeparator,
-}: {
-  action: WebCalloutAction;
-  withSeparator?: boolean;
-}) {
-  return (
-    <>
-      <DropdownMenuItem
-        className="text-xs"
-        disabled={action.isLoading}
-        onSelect={(event) => {
-          event.preventDefault();
-          action.invokeCallout().catch(() => undefined);
-        }}
-      >
-        <Webhook className="mr-2 h-4 w-4" />
-        <span
-          className="max-w-[260px] min-w-0 truncate"
-          title={action.endpointName}
-        >
-          <span>Call </span>
-          <span className="font-bold">{action.endpointName}</span>
-        </span>
-      </DropdownMenuItem>
-      {withSeparator && <DropdownMenuSeparator />}
-    </>
-  );
-}
-
 export function WebCalloutButton({
   action,
   layout = "toolbar",
@@ -110,8 +75,6 @@ export function WebCalloutButton({
   /**
    * "toolbar" (default) is the inline icon button; "menu" renders the same
    * action as a full-width labeled row for the mobile header overflow popover.
-   * (WebCalloutMenuItem is a Radix DropdownMenuItem and only works inside a
-   * DropdownMenu, so the plain-popover mobile menu uses this row instead.)
    */
   layout?: "toolbar" | "menu";
 }) {

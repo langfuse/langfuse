@@ -1,0 +1,108 @@
+name: Langfuse Skills Sync
+
+on:
+  schedule:
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: langfuse-skills-sync
+  cancel-in-progress: true
+
+env:
+  BOT_BRANCH: langfuse-skills-sync-bot
+  GENERATED_FILE: packages/langfuse-skills/src/generated/skills.js
+
+jobs:
+  sync:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: |
+          corepack enable
+          pnpm --filter @repo/langfuse-skills install --frozen-lockfile
+
+      - name: Resolve upstream commit
+        id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          commit="$(gh api repos/langfuse/skills/commits/main --jq .sha)"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "short_commit=${commit:0:7}" >> "$GITHUB_OUTPUT"
+
+      - name: Refresh embedded skills
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          LANGFUSE_SKILLS_REF: ${{ steps.upstream.outputs.commit }}
+        run: pnpm --filter @repo/langfuse-skills run sync
+
+      - name: Validate changes
+        id: changes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          LANGFUSE_SKILLS_REF: ${{ steps.upstream.outputs.commit }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t changed_files < <(
+            {
+              git diff --name-only
+              git ls-files --others --exclude-standard
+            } | sort -u
+          )
+
+          if [ "${#changed_files[@]}" -eq 0 ]; then
+            echo "No skill changes detected."
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "${#changed_files[@]}" -ne 1 ] || [ "${changed_files[0]}" != "$GENERATED_FILE" ]; then
+            printf "::error::Skill sync changed unexpected files: %s\n" "${changed_files[*]}"
+            exit 1
+          fi
+
+          pnpm --filter @repo/langfuse-skills run sync:check
+          node --check "$GENERATED_FILE"
+          git diff --check -- "$GENERATED_FILE"
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update pull request
+        if: steps.changes.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        env:
+          HUSKY: "0"
+        with:
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          branch: ${{ env.BOT_BRANCH }}
+          base: main
+          add-paths: ${{ env.GENERATED_FILE }}
+          commit-message: "chore(assistant): refresh embedded Langfuse skills"
+          title: "chore(assistant): refresh embedded Langfuse skills"
+          body: |
+            Automated refresh of the embedded Langfuse skill catalog.
+
+            **Upstream commit:** [${{ steps.upstream.outputs.short_commit }}](https://github.com/langfuse/skills/commit/${{ steps.upstream.outputs.commit }})
+
+            ## Validation
+
+            - `pnpm --filter @repo/langfuse-skills run sync:check`
+            - `node --check packages/langfuse-skills/src/generated/skills.js`
+            - `git diff --check`

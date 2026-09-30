@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { AnnotationQueueObjectType, type Plan } from "@langfuse/shared";
@@ -50,14 +51,7 @@ describe("annotation queues trpc", () => {
             ],
           },
         ],
-        featureFlags: {
-          templateFlag: true,
-          excludeClickhouseRead: false,
-          experimentsV4Enabled: false,
-          observationEvals: false,
-          searchBar: false,
-          v4BetaToggleVisible: false,
-        },
+        featureFlags: testFeatureFlags(),
       },
       environment: {} as Session["environment"],
     };
@@ -224,6 +218,58 @@ describe("annotation queues trpc", () => {
         where: { projectId: setup.project.id },
       });
       expect(queueCount).toBe(2);
+    });
+  });
+
+  describe("annotationQueues.update", () => {
+    it("rejects a rename that collides with another queue in the project", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+      const { caller } = createCallerForProjectRole(
+        setup,
+        "ADMIN",
+        "cloud:pro",
+      );
+      const scoreConfig = await createScoreConfig(setup.project.id);
+
+      const first = await caller.annotationQueues.create({
+        projectId: setup.project.id,
+        name: "queue-alpha",
+        scoreConfigIds: [scoreConfig.id],
+      });
+      await caller.annotationQueues.create({
+        projectId: setup.project.id,
+        name: "queue-beta",
+        scoreConfigIds: [scoreConfig.id],
+      });
+
+      await expect(
+        caller.annotationQueues.update({
+          projectId: setup.project.id,
+          queueId: first.id,
+          name: "queue-beta",
+          scoreConfigIds: [scoreConfig.id],
+        }),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+        message: "A queue with this name already exists in the project",
+      });
+    });
+
+    it("returns not found when the queue does not exist in the project", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+      const { caller } = createCallerForProjectRole(setup);
+      const scoreConfig = await createScoreConfig(setup.project.id);
+
+      await expect(
+        caller.annotationQueues.update({
+          projectId: setup.project.id,
+          queueId: uuidv4(),
+          name: "missing-queue",
+          scoreConfigIds: [scoreConfig.id],
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
     });
   });
 });

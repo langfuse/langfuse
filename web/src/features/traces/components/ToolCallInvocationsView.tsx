@@ -109,7 +109,7 @@ export function ToolCallInvocationsView({
             {/* Response view: paired tool result. Only the normalized-parser
                 projection sets `response`, so this section is beta-only by
                 data presence — legacy messages never carry the field. */}
-            {toolCall.response !== undefined && (
+            {toolCall.response !== undefined && toolCall.response !== null && (
               <div className="py-2 [&_.io-message-content]:px-0">
                 <div className="text-muted-foreground mb-1.5 text-xs font-bold">
                   Response
@@ -117,17 +117,11 @@ export function ToolCallInvocationsView({
                     <span className="text-dark-red ml-1">(error)</span>
                   )}
                 </div>
-                {toolCall.response === null ? (
-                  <div className="text-muted-foreground text-xs">
-                    No response
-                  </div>
-                ) : (
-                  <PrettyJsonView
-                    json={parseIfJsonString(toolCall.response.output)}
-                    currentView="pretty"
-                    codeClassName="text-xs"
-                  />
-                )}
+                <PrettyJsonView
+                  json={parseIfJsonString(toolCall.response.output)}
+                  currentView="pretty"
+                  codeClassName="text-xs"
+                />
               </div>
             )}
           </div>

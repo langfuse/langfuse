@@ -3,8 +3,7 @@ import {
   type AnnotationQueueItem,
   AnnotationQueueObjectType,
 } from "@langfuse/shared";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
-import { useEventsTraceData } from "@/src/features/events/hooks/useEventsTraceData";
+import { useEventsTraceData, useReadPath } from "@/src/features/events";
 
 export interface ObjectDataHook<TData> {
   data: TData | undefined;

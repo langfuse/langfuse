@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { type Plan, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -19,10 +20,16 @@ import {
 
 // organizations.delete cancels Stripe before deleting; the test env has a cloud
 // region but no Stripe, so force the self-hosted path to reach the eviction.
-vi.mock("@/src/ee/features/billing/utils/isCloudBilling", () => ({
+vi.mock("@/src/ee/features/billing/utils/isCloudBillingEnabled", () => ({
   isCloudBillingEnabled: () => false,
-  useIsCloudBillingAvailable: () => false,
 }));
+vi.mock("@/src/ee/features/billing/server", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    isCloudBillingEnabled: () => false,
+  };
+});
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -167,14 +174,7 @@ function makeCaller({
             ]
           : [],
       })),
-      featureFlags: {
-        searchBar: false,
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin: false,
     },
     environment: {} as any,
@@ -241,6 +241,31 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     await caller.organizations.delete({ orgId });
 
     expect(await survivingKeys(keys)).toEqual([]);
+  });
+
+  it("admin project deletion keeps the ingestion project and its keys", async () => {
+    const orgId = await createOrg();
+    const projectId = await createProject(orgId);
+    const keys = await seedOrgScopedKey(orgId);
+    await prisma.gatewayConfig.create({
+      data: { organizationId: orgId, defaultIngestionProjectId: projectId },
+    });
+
+    const res = makeRes();
+    await handleDeleteProject({} as any, res, projectId, {
+      orgId,
+      apiKeyId: "ADMIN_KEY",
+    } as any);
+
+    expect(res.statusCode).toBe(409);
+    expect(res.body).toEqual({
+      message:
+        "This project is used as the AI Gateway ingestion project. Select another ingestion project before deleting it.",
+    });
+    expect(await survivingKeys(keys)).toEqual(keys);
+    await expect(
+      prisma.project.findUnique({ where: { id: projectId } }),
+    ).resolves.toMatchObject({ deletedAt: null });
   });
 
   it("admin handleDeleteProject evicts the org's cached keys", async () => {

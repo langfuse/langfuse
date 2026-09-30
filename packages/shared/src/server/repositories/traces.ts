@@ -502,16 +502,24 @@ export const getTraceByIdFromTracesTable = async ({
     tags: { projectId },
   };
 
-  const inputColumn = excludeInputOutput
-    ? "''"
-    : renderingProps.truncated
-      ? `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
-      : "input";
-  const outputColumn = excludeInputOutput
-    ? "''"
-    : renderingProps.truncated
-      ? `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
-      : "output";
+  const inputColumn = (() => {
+    if (excludeInputOutput) {
+      return "''";
+    }
+    if (renderingProps.truncated) {
+      return `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`;
+    }
+    return "input";
+  })();
+  const outputColumn = (() => {
+    if (excludeInputOutput) {
+      return "''";
+    }
+    if (renderingProps.truncated) {
+      return `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`;
+    }
+    return "output";
+  })();
   // map() (not a '{}' string literal) so the excluded column keeps the
   // Map type and converts to an empty object in the domain model.
   const metadataColumn = excludeMetadata ? "map()" : "metadata";
@@ -1385,6 +1393,7 @@ export const getTracesByIdsForAnyProject = async (traceIds: string[]) => {
     params: {
       traceIds,
     },
+    tags: { surface: "ssr", route: "trace_redirect" },
   });
 
   return records.map((record) => ({

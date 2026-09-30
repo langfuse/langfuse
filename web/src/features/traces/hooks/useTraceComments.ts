@@ -1,5 +1,5 @@
 import { api } from "@/src/utils/api";
-import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { castToNumberMap } from "@/src/utils/map-utils";
 
 export type UseTraceCommentsParams = {

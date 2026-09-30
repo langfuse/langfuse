@@ -2,7 +2,7 @@ import {
   GetDatasetItemV1Query,
   GetDatasetItemV1Response,
 } from "@/src/features/public-api/server";
-import { getDatasetItemForApi } from "@/src/features/datasets/server/publicDatasetService";
+import { getDatasetItemForApi } from "@/src/features/datasets/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildDatasetItemUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -11,6 +11,7 @@ export const [getDatasetItemTool, handleGetDatasetItem] = defineTool({
   name: "getDatasetItem",
   description:
     "Get a dataset item, one example in a dataset with input and optional expected output, by ID.",
+  action: "datasets:read",
   baseSchema: GetDatasetItemV1Query,
   inputSchema: GetDatasetItemV1Query,
   handler: async (input, context) =>

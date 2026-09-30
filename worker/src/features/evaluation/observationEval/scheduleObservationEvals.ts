@@ -19,11 +19,16 @@ import {
   type FilterState,
   type EvalExecutionMode,
   canRunEvalRule,
+  coerceLegacyEmptyMetadataFilters,
   mapEventEvalFilterColumnIdToField,
   observationVariableMappingList,
 } from "@langfuse/shared";
 import { createW3CTraceId } from "../../utils";
 import { isInternalEvalEnvironment } from "../isEvalTargetEnvironmentAllowed";
+
+const OBSERVATION_FILTER_EMPTY_EQUALS_NULL_COLUMNS = new Set([
+  "parentObservationId",
+]);
 
 interface ScheduleObservationEvalsParams {
   observation: ObservationForEval;
@@ -356,7 +361,9 @@ function evaluateFilter(
   observation: ObservationForEval,
   config: ObservationEvalRule,
 ): boolean {
-  const filterConditions = config.filter as FilterState;
+  const filterConditions = coerceLegacyEmptyMetadataFilters(
+    config.filter,
+  ) as FilterState;
 
   // Empty filter matches all (for filter purposes)
   const isEmptyFilter =
@@ -375,6 +382,9 @@ function evaluateFilter(
         observation,
         filterConditions,
         fieldMapper,
+        {
+          emptyEqualsNullColumns: OBSERVATION_FILTER_EMPTY_EQUALS_NULL_COLUMNS,
+        },
       );
 
   return isFilterMatch;

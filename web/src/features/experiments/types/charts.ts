@@ -48,6 +48,7 @@ export type ExperimentItemScoreFilterOptions = {
   score_name_levels_numeric?: ScoreNameLevels;
   score_name_levels_categorical?: ScoreNameLevels;
   score_name_levels_boolean?: ScoreNameLevels;
+  level?: string[];
 };
 
 /**

@@ -111,22 +111,17 @@ export function useExperimentResultsState() {
     setComparisonIds(comparisonIds.filter((existingId) => existingId !== id));
 
   // Layout and diff mode: the URL wins so a view stays shareable, then the
-  // user's remembered pick, then the default for the current selection.
+  // user's remembered pick, then the one-column-per-experiment default.
   const [storedLayout, setStoredLayout] =
     useLocalStorage<ExperimentResultsLayout | null>(
-      "experiment-results-layout",
+      "experiment-results-compare-layout",
       null,
     );
   const [storedDiffMode, setStoredDiffMode] =
     useLocalStorage<ExperimentDiffMode | null>("experiment-results-diff", null);
 
-  // With something to compare against, one row per item beats one wide column
-  // per experiment: a three-way comparison pushes the third experiment off a
-  // 1512px screen entirely.
   const layout: ExperimentResultsLayout =
-    asLayout(state.layout) ??
-    storedLayout ??
-    (comparisonIds.length > 0 ? "list" : "grid");
+    asLayout(state.layout) ?? storedLayout ?? "grid";
 
   const setLayout = (newLayout: ExperimentResultsLayout) => {
     setStoredLayout(newLayout);
@@ -181,6 +176,12 @@ export function useExperimentResultsState() {
     // All selected experiments, preserving URL order with an explicit baseline first.
     selectedExperimentIds,
     allExperimentIds: selectedExperimentIds,
+
+    // The list `getExperimentColorStyles` indexes into, so the cells and the run
+    // pickers cannot drift into two mappings. Empty without a baseline: colour
+    // separates comparisons from the run they are measured against, and with no
+    // baseline there is nothing to separate.
+    colorExperimentIds: hasBaseline ? selectedExperimentIds : [],
 
     // Layout
     layout,

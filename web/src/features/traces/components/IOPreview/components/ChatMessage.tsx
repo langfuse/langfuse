@@ -89,7 +89,7 @@ export function ChatMessage({
   // Placeholder message
   if (isPlaceholderMessage(message)) {
     return (
-      <div className="hover:bg-muted transition-colors">
+      <div className="transition-colors">
         <div style={{ display: shouldRenderMarkdown ? "block" : "none" }}>
           <MarkdownJsonView
             title="Placeholder"
@@ -110,7 +110,7 @@ export function ChatMessage({
   // JSON-only message (non-ChatML object)
   if (isOnlyJsonMessage(message)) {
     return (
-      <div className="hover:bg-muted transition-colors">
+      <div className="transition-colors">
         <PrettyJsonView
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={message.json}
@@ -123,7 +123,7 @@ export function ChatMessage({
   // User toggled to show passthrough JSON
   if (showTableView) {
     return (
-      <div className="hover:bg-muted transition-colors">
+      <div className="transition-colors">
         <PrettyJsonView
           title={title}
           json={message.json}
@@ -142,10 +142,9 @@ export function ChatMessage({
     toolCalls.length > 0
   ) {
     return (
-      <div className="hover:bg-muted transition-colors">
+      <div className="transition-colors">
         <MarkdownJsonViewHeader
           title={title}
-          handleOnValueChange={() => {}}
           handleOnCopy={() => {
             // Shared stringify (not raw JSON.stringify) so \uXXXX escapes in
             // string fields are copied as real characters, like the rendered
@@ -188,7 +187,7 @@ export function ChatMessage({
     );
 
     return (
-      <div className="hover:bg-muted transition-colors">
+      <div className="transition-colors">
         {/* Markdown view */}
         <div style={{ display: shouldRenderMarkdown ? "block" : "none" }}>
           <MarkdownJsonView
@@ -235,7 +234,7 @@ export function ChatMessage({
   // Fallback: message with additional data but no content
   if (hasAdditionalData(message)) {
     return (
-      <div className="hover:bg-muted transition-colors">
+      <div className="transition-colors">
         <PrettyJsonView
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={withoutUnsetFields(message)}

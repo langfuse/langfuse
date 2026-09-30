@@ -3,10 +3,12 @@ import { useMemo } from "react";
 import type { FilterState } from "@langfuse/shared";
 
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
-import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
-import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
-import type { QueryPresetSection } from "@/src/features/search-bar/lib/completions";
-import { validateQuery } from "@/src/features/search-bar/lib/validate";
+import {
+  type FieldRegistry,
+  filterStateToQueryText,
+  type QueryPresetSection,
+  validateQuery,
+} from "@/src/features/search-bar";
 import { api, type RouterOutputs } from "@/src/utils/api";
 
 const SECTION_TITLE = "Reuse rule filters";

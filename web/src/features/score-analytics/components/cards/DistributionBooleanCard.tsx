@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useState, useMemo } from "react";
 import {
   Card,
@@ -10,7 +11,7 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { ScoreDistributionBooleanChart } from "../charts/ScoreDistributionBooleanChart";
 import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 type DistributionTab = "score1" | "score2" | "all" | "matched";
 
@@ -162,11 +163,15 @@ export function DistributionBooleanCard() {
       ? `${score1.source} · ${score1.name}`
       : score1.name;
 
-  const score2FullLabel = score2
-    ? score2.name === score1.name
-      ? `${score2.source} · ${score2.name}`
-      : score2.name
-    : "Score 2";
+  const score2FullLabel = (() => {
+    if (score2) {
+      if (score2.name === score1.name) {
+        return `${score2.source} · ${score2.name}`;
+      }
+      return score2.name;
+    }
+    return "Score 2";
+  })();
 
   return (
     <Card>

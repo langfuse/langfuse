@@ -1,4 +1,4 @@
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 
 export function useExperimentAccess() {
   const { isV4: isV4BetaEnabled, isResolved } = useReadPath();

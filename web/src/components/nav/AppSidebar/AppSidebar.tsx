@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 "use client";
 
@@ -23,8 +24,6 @@ import {
   ArrowUp,
   ArrowUp10,
   BadgeCheck,
-  ChevronsUpDown,
-  ChevronDownIcon,
   ExternalLink,
   Grid2X2,
   HardDriveDownload,
@@ -33,6 +32,7 @@ import {
   Newspaper,
   X,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { SiGithub } from "react-icons/si";
 import { VERSION } from "@/src/constants";
 import {
@@ -62,7 +62,7 @@ import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownM
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 import { assertUnreachable } from "@/src/utils/types";
 import { SIDEBAR_NOTIFICATIONS, type SidebarNotification } from "./utils";
-import { useOrgProjectSwitchPaths } from "@/src/features/projects/hooks";
+import { useOrgProjectSwitchPaths } from "@/src/features/projects";
 import {
   APP_SHELL_CHROME_ROW_CLASS,
   APP_SHELL_CHROME_ROW_TEST_ID,
@@ -211,7 +211,7 @@ export function AppSidebar({
           data-testid={APP_SHELL_CHROME_ROW_TEST_ID}
           className={cn(
             APP_SHELL_CHROME_ROW_CLASS,
-            "min-w-0 gap-2 px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+            "min-w-0 gap-2 pr-3 pl-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
           )}
         >
           <Link href="/" className="flex items-center">
@@ -276,56 +276,58 @@ function MobileNavSwitcher({
       <SidebarGroupContent>
         <SidebarMenu>
           <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton>
+            <OrganizationDropdownMenu
+              {...(organizations
+                ? { state: "loaded", organizations }
+                : { state: "loading" })}
+              canCreateOrganizations={canCreateOrganizations}
+              getOrgPath={getOrgPath}
+            >
+              {({ getTriggerProps }) => (
+                <SidebarMenuButton {...getTriggerProps()}>
                   <span
                     className="min-w-0 flex-1 truncate text-left"
                     title={organization.name}
                   >
                     {organization.name}
                   </span>
-                  <ChevronDownIcon className="ml-auto h-4 w-4 shrink-0" />
+                  <span className="ml-auto flex shrink-0">
+                    <DropdownIndicator />
+                  </span>
                 </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <OrganizationDropdownMenu
-                {...(organizations
-                  ? { state: "loaded", organizations }
-                  : { state: "loading" })}
-                canCreateOrganizations={canCreateOrganizations}
-                getOrgPath={getOrgPath}
-              />
-            </DropdownMenu>
+              )}
+            </OrganizationDropdownMenu>
           </SidebarMenuItem>
           {project && (
             <SidebarMenuItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SidebarMenuButton>
+              <ProjectDropdownMenu
+                organizationId={organization.id}
+                {...(organizations
+                  ? {
+                      state: "loaded",
+                      projects:
+                        organizations.find(
+                          (item) => item.id === organization.id,
+                        )?.projects ?? [],
+                    }
+                  : { state: "loading" })}
+                canCreateProjects={canCreateProjects}
+                getProjectPath={getProjectPath}
+              >
+                {({ getTriggerProps }) => (
+                  <SidebarMenuButton {...getTriggerProps()}>
                     <span
                       className="min-w-0 flex-1 truncate text-left"
                       title={project.name}
                     >
                       {project.name}
                     </span>
-                    <ChevronDownIcon className="ml-auto h-4 w-4 shrink-0" />
+                    <span className="ml-auto flex shrink-0">
+                      <DropdownIndicator />
+                    </span>
                   </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <ProjectDropdownMenu
-                  organizationId={organization.id}
-                  {...(organizations
-                    ? {
-                        state: "loaded",
-                        projects:
-                          organizations.find(
-                            (item) => item.id === organization.id,
-                          )?.projects ?? [],
-                      }
-                    : { state: "loading" })}
-                  canCreateProjects={canCreateProjects}
-                  getProjectPath={getProjectPath}
-                />
-              </DropdownMenu>
+                )}
+              </ProjectDropdownMenu>
             </SidebarMenuItem>
           )}
         </SidebarMenu>
@@ -479,7 +481,7 @@ function NavUser({
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar
-                size="lg"
+                size="md"
                 shape="rounded"
                 src={user.avatar}
                 displayName={user.name}
@@ -492,7 +494,6 @@ function NavUser({
                   {user.email}
                 </span>
               </div>
-              <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -504,7 +505,7 @@ function NavUser({
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar
-                  size="lg"
+                  size="md"
                   shape="rounded"
                   src={user.avatar}
                   displayName={user.name}
@@ -596,7 +597,7 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
         <Button
           variant="ghost"
           size="xs"
-          className="h-5 max-w-full min-w-0 translate-y-0.5 py-0 text-[0.625rem] leading-none"
+          className="text-muted-foreground h-5 max-w-full min-w-0 translate-y-px py-0 text-[0.625rem] leading-none"
         >
           <span className="truncate" title={versionText}>
             {versionText}

@@ -4,8 +4,8 @@ import {
   invalidateCachedOrgApiKeys,
   logger,
 } from "@langfuse/shared/src/server";
-import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { organizationNameSchema } from "@/src/features/organizations/server";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { z } from "zod";
 
 const validateQueryAndExtractId = (query: unknown): string | null => {

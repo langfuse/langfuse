@@ -5,9 +5,11 @@ import {
   observationsTableCols,
   tracesTableCols,
 } from "@langfuse/shared";
-import { normalizeFilterColumnNames } from "@/src/features/filters/lib/filter-transform";
-import { observationFilterConfig } from "@/src/features/filters/config/observations-config";
-import { traceFilterConfig } from "@/src/features/filters/config/traces-config";
+import {
+  normalizeFilterColumnNames,
+  observationFilterConfig,
+  traceFilterConfig,
+} from "@/src/features/filters";
 import {
   getEventsColumnName,
   observationEventsFilterConfig,

@@ -3,11 +3,7 @@ import {
   shouldClosePeekAfterDelete,
 } from "@/src/components/table/peek";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
-import {
-  TraceDetailActions,
-  TraceDetailBody,
-  traceDetailTitle,
-} from "@/src/features/traces";
+import { TraceDetailActions, TraceDetailBody } from "@/src/features/traces";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { buildTracePath } from "@langfuse/shared";
 import { useRouter } from "next/router";
@@ -46,9 +42,8 @@ export const TablePeekViewObservationDetail = (
 
   const actionProps = trace.data
     ? {
-        traceId: trace.data.id,
-        projectId: trace.data.projectId,
-        isPublic: trace.data.public,
+        trace: trace.data,
+        traceContext: "peek" as const,
         shareUrl: buildTracePath({
           projectId: trace.data.projectId,
           traceId: trace.data.id,
@@ -59,7 +54,6 @@ export const TablePeekViewObservationDetail = (
           timestamp:
             typeof router.query.traceId === "string" ? undefined : timestamp,
         }),
-        name: trace.data.name,
         timestamp,
         onAfterDelete: (deletedTraceId: string) => {
           if (shouldClosePeekAfterDelete(traceIdRef.current, deletedTraceId)) {
@@ -72,7 +66,8 @@ export const TablePeekViewObservationDetail = (
   return (
     <TablePeekView
       {...props}
-      title={traceDetailTitle(trace.data, traceId)}
+      title={traceId}
+      hideExpandToggle
       actions={
         actionProps ? <TraceDetailActions {...actionProps} /> : undefined
       }

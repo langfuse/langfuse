@@ -27,10 +27,15 @@ function selectAdapter(ctx: NormalizerContext): ProviderAdapter {
     if (adapter) return adapter;
   }
 
-  // First adapter that matches wins
+  // First adapter that matches wins. Detection is best-effort: a throwing
+  // adapter is treated as a non-match so I/O preview can fall through.
   for (const adapter of adapters) {
-    if (adapter.detect(ctx)) {
-      return adapter;
+    try {
+      if (adapter.detect(ctx)) {
+        return adapter;
+      }
+    } catch {
+      continue;
     }
   }
 

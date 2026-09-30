@@ -1,9 +1,10 @@
+/* eslint-disable no-nested-ternary */
 import { type ReactNode, useState } from "react";
 import { ActionId, BatchExportTableName } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements";
 import { AddTracesToAnnotationQueueSelectDialogContent } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueSelectDialogContent";
 import { AnnotationQueueFormDialogController } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogController";
 
@@ -93,17 +94,21 @@ export function AddTracesToAnnotationQueueDialogController({
     typeof queueCountQuery.data === "number" &&
     queueCountQuery.data >= queueLimit;
 
-  const createQueueState = !hasQueueAccess
-    ? ({
+  const createQueueState = (() => {
+    if (!hasQueueAccess) {
+      return {
         status: "disabled",
         reason: "You don't have permission to create annotation queues.",
-      } as const)
-    : atQueueLimit
-      ? ({
-          status: "disabled",
-          reason: "Maximum number of annotation queues reached for your plan.",
-        } as const)
-      : ({ status: "enabled" } as const);
+      } as const;
+    }
+    if (atQueueLimit) {
+      return {
+        status: "disabled",
+        reason: "Maximum number of annotation queues reached for your plan.",
+      } as const;
+    }
+    return { status: "enabled" } as const;
+  })();
 
   const handleSelectSubmit = async (targetId: string) => {
     await onAddToQueue({ projectId, targetId });

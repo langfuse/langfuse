@@ -18,11 +18,13 @@ import {
   displayNameForFilterColumn,
   mapViewFilterToUiTableFilter,
   partitionWidgetUiTableFiltersToView,
-} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { useMetadataValueOptions } from "@/src/features/events/hooks/useMetadataValueOptions";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
-import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+} from "@/src/features/dashboard";
+import { useMetadataValueOptions } from "@/src/features/events";
+import {
+  InlineFilterBuilder,
+  normalizeSingleValueOptions,
+  sortOptionValues,
+} from "@/src/features/filters";
 import {
   getMetricsColumnsWithCustomSelect,
   getMetricsFilterColumns,

@@ -3,7 +3,7 @@ import type {
   MetricOption,
   ScoreCoverageByLevel,
 } from "@/src/features/experiments/types/charts";
-import { normalizeScoreName } from "@/src/features/scores/lib/aggregateScores";
+import { normalizeScoreName } from "@/src/features/scores";
 
 /** Score chart ids are `${level}-score-${dataType}:${scoreName}`. */
 const NUMERIC_SCORE_ID = /^(obs|trace|experiment)-score-numeric:/;

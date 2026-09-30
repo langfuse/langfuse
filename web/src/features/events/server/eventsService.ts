@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { type z } from "zod";
 import {
   type FilterCondition,
@@ -27,8 +28,7 @@ import {
   type EventBatchIOResult,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-
+import { aggregateScores } from "@/src/features/scores/server";
 type TimeFilter = z.infer<typeof timeFilter>;
 
 const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [
@@ -836,12 +836,15 @@ export async function getEventFilterOptions(
     score: { name: string; dataType: string },
     level: "observation" | "trace",
   ): void => {
-    const typeClass =
-      score.dataType === "NUMERIC"
-        ? "numeric"
-        : score.dataType === "BOOLEAN"
-          ? "boolean"
-          : "categorical"; // CATEGORICAL + TEXT
+    const typeClass = (() => {
+      if (score.dataType === "NUMERIC") {
+        return "numeric";
+      }
+      if (score.dataType === "BOOLEAN") {
+        return "boolean";
+      }
+      return "categorical";
+    })(); // CATEGORICAL + TEXT
     const levels = (scoreNameLevelsByType[typeClass][score.name] ??= []);
     if (!levels.includes(level)) levels.push(level);
   };
@@ -927,6 +930,7 @@ interface GetEventBatchIOParams<
   maxStartTime: Date;
   truncated?: boolean;
   ioCharLimit?: number;
+  sessionId?: string;
   includeExperimentFields?: TIncludeExperiment;
   /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
   includeToolCallFields?: TIncludeToolCalls;
@@ -948,6 +952,7 @@ export async function getEventBatchIO<
     maxStartTime: params.maxStartTime,
     truncated: params.truncated,
     ioCharLimit: params.ioCharLimit,
+    sessionId: params.sessionId,
     includeExperimentFields: params.includeExperimentFields,
     includeToolCallFields: params.includeToolCallFields,
   });

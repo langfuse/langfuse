@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 vi.mock("@langfuse/shared/src/server/llm/llmText", async () => {
   const actual = await vi.importActual(
     "@langfuse/shared/src/server/llm/llmText",
@@ -8,8 +9,8 @@ vi.mock("@langfuse/shared/src/server/llm/llmText", async () => {
   };
 });
 
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
-import type { Flags } from "@/src/features/feature-flags/types";
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 import { vi } from "vitest";
@@ -124,7 +125,7 @@ describe("in-app agent persistence", () => {
             ],
           },
         ],
-        featureFlags: {} as Flags,
+        featureFlags: testFeatureFlags({ templateFlag: false }),
         admin: false,
       },
       environment: {} as any,

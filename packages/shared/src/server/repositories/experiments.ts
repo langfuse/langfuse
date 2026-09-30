@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { EXPERIMENT_IO_TRUNCATE_LENGTH } from "../../constants";
 import { matchesUiColumnMapping } from "../../tableDefinitions";
 import { env } from "../../env";
@@ -24,6 +25,7 @@ import {
   eventsExperiments,
   eventsExperimentsAggregation,
   eventsTracesScoresAggregation,
+  experimentItemLevelsAggregation,
   scoreBooleansAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
 import {
@@ -144,12 +146,15 @@ const experimentScoreCTE = (params: {
   // The agnostic arrays carry the canonical column names the level-agnostic
   // filters target; the trace-only mode keeps its prefix so legacy
   // `trace_*` filters still resolve against a trace-only aggregate.
-  const prefix =
-    params.level === "any"
-      ? ""
-      : params.level === "observation"
-        ? "obs_"
-        : "trace_";
+  const prefix = (() => {
+    if (params.level === "any") {
+      return "";
+    }
+    if (params.level === "observation") {
+      return "obs_";
+    }
+    return "trace_";
+  })();
 
   const joinedEventScores = new CTEQueryBuilder()
     .withCTE("event_keys", {
@@ -984,12 +989,22 @@ type BuildQualificationPlanInput = {
   };
 };
 
+const EXPERIMENT_ITEM_LEVEL_FILTER_COLUMNS = [
+  "level",
+  "Status",
+  "Level",
+] as const;
+
+const isExperimentItemLevelFilter = (column: string) =>
+  (EXPERIMENT_ITEM_LEVEL_FILTER_COLUMNS as readonly string[]).includes(column);
+
 type QualificationPlan = {
   where: { query: string; params: Record<string, any> };
   having: { query: string; params: Record<string, any> } | null;
   orderBy: string | null;
   hasAgnosticScoreFilters: boolean;
   hasTraceScoreFilters: boolean;
+  hasLevelFilters: boolean;
 };
 
 function combineConditions(
@@ -1076,6 +1091,9 @@ const buildQualificationPlan = (
       "trace_score_booleans",
     ].includes(f.column),
   );
+  const hasLevelFilters = filters.some((f) =>
+    isExperimentItemLevelFilter(f.column),
+  );
 
   const allExperimentIds = [
     ...(baseExperimentId ? [baseExperimentId] : []),
@@ -1113,6 +1131,7 @@ const buildQualificationPlan = (
     orderBy: `ORDER BY e.experiment_item_id ASC`,
     hasAgnosticScoreFilters,
     hasTraceScoreFilters,
+    hasLevelFilters,
   };
 };
 
@@ -1148,6 +1167,7 @@ const getExperimentItemsFromEventsGeneric = (params: {
     orderBy,
     hasAgnosticScoreFilters,
     hasTraceScoreFilters,
+    hasLevelFilters,
   } = buildQualificationPlan({
     baseExperimentId,
     compExperimentIds,
@@ -1209,6 +1229,24 @@ const getExperimentItemsFromEventsGeneric = (params: {
       b.leftJoin(
         "trace_scores_agg AS ts",
         "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
+      ),
+    )
+    .when(hasLevelFilters, (b) =>
+      b.withCTE(
+        "item_levels",
+        experimentItemLevelsAggregation({
+          projectId,
+          experimentIds: [
+            ...(baseExperimentId ? [baseExperimentId] : []),
+            ...compExperimentIds,
+          ],
+        }),
+      ),
+    )
+    .when(hasLevelFilters, (b) =>
+      b.leftJoin(
+        "item_levels AS il",
+        "ON il.experiment_id = e.experiment_id AND il.experiment_item_id = e.experiment_item_id",
       ),
     )
     .where(where)
@@ -1465,6 +1503,16 @@ export const getExperimentItemsBatchIO = async (props: {
     const item = itemMap.get(row.item_id)!;
     const isBaseline =
       baseExperimentId && row.experiment_id === baseExperimentId;
+
+    // The stored text is passed through verbatim, deliberately. A payload that
+    // is the JSON literal `null` and a payload that is the four-character
+    // STRING "null" are byte-identical here: the native experiment path writes
+    // both through stringifyValue, which returns a string unchanged, while the
+    // dataset-run-item path JSON-encodes (so there a string arrives quoted).
+    // One column, two encodings, no way to tell them apart — so guessing would
+    // erase a real value, and in the fallback below it would go further and
+    // substitute a DIFFERENT run's value in its place. Absent payloads are
+    // handled where they are unambiguous, in the cell.
 
     // Use baseline value if available, otherwise first non-null
     if (row.input !== null && (isBaseline || item.input === null)) {

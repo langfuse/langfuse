@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { SelectInput } from "./SelectInput";
 
@@ -89,6 +89,67 @@ export const WithLongText = meta.story({
       <SelectInput {...args} />
     </div>
   ),
+});
+
+export const SearchableWithBadges = meta.story({
+  name: "(Test) Searchable with badges",
+  args: {
+    value: "quality",
+    placeholder: "Select a key",
+    search: { placeholder: "Search keys..." },
+    options: [
+      {
+        value: "quality",
+        label: "quality",
+        badges: [
+          { text: "Trace", color: "violet" },
+          { text: "Observation", color: "blue" },
+        ],
+      },
+      { value: "relevance", label: "relevance" },
+    ],
+    onValueChange: fn(),
+  },
+  render: (args) => {
+    const [value, setValue] = useState(args.value);
+    return (
+      <div className="w-64">
+        <SelectInput {...args} value={value} onValueChange={setValue} />
+      </div>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("combobox"));
+    await userEvent.type(
+      body.getByPlaceholderText("Search keys..."),
+      "relevance",
+    );
+    await expect(body.getByRole("option", { name: /relevance/ })).toBeVisible();
+    await userEvent.click(body.getByRole("option", { name: /relevance/ }));
+    await expect(canvas.getByRole("combobox")).toHaveTextContent("relevance");
+  },
+});
+
+export const Empty = meta.story({
+  name: "(Test) Empty",
+  args: {
+    value: "",
+    placeholder: "Select a model",
+    options: [],
+    emptyMessage: "No models available.",
+    onValueChange: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("combobox"));
+    await waitFor(() =>
+      expect(body.getByText("No models available.")).toBeVisible(),
+    );
+  },
 });
 
 export const TestKeyboardSelection = meta.story({

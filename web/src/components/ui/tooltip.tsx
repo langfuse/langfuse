@@ -5,9 +5,17 @@ import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 
 import { cn } from "@/src/utils/tailwind";
-import { useLayerContainer } from "@/src/components/ui/layer";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 
-const TooltipProvider = TooltipPrimitive.Provider;
+const TOOLTIP_DELAY_MS = 300;
+
+/** Nested providers reset the delay, so every provider carries the app default. */
+const TooltipProvider = ({
+  delayDuration = TOOLTIP_DELAY_MS,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Provider>) => (
+  <TooltipPrimitive.Provider delayDuration={delayDuration} {...props} />
+);
 
 const Tooltip = TooltipPrimitive.Root;
 

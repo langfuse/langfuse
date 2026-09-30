@@ -1,6 +1,7 @@
 import {
   EvalTargetObject,
   JobConfigState,
+  coerceLegacyEmptyMetadataFilters,
   normalizeEvaluationRuleTarget,
   type FilterState,
 } from "@langfuse/shared";
@@ -98,7 +99,7 @@ export async function fetchObservationEvalRules(
       targetObject: rule.targetObject as
         | typeof EvalTargetObject.EVENT
         | typeof EvalTargetObject.EXPERIMENT,
-      filter: rule.filter as FilterState,
+      filter: coerceLegacyEmptyMetadataFilters(rule.filter) as FilterState,
     });
     return {
       ...rule,

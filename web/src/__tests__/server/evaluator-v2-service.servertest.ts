@@ -302,6 +302,77 @@ describe("EvaluatorService", () => {
     );
   });
 
+  it("returns the existing evaluator when create is retried with the same id and content", async () => {
+    const audit = vi.fn();
+    const service = new EvaluatorService(prisma, audit);
+    const evaluatorId = crypto.randomUUID();
+    const input = { ...llmInput("Retry create"), evaluatorId };
+    const created = await service.create(input, null);
+
+    const retried = await service.create(input, null);
+
+    expect(retried).toMatchObject({
+      id: created.id,
+      projectId,
+      name: "Retry create",
+    });
+    expect(audit).toHaveBeenCalledTimes(1);
+    expect(mocks.invalidateProjectEvalConfigCaches).toHaveBeenCalledTimes(1);
+    await expect(
+      prisma.evaluator.count({ where: { id: evaluatorId } }),
+    ).resolves.toBe(1);
+  });
+
+  it.each([
+    ["name", (input: CreateEvaluatorInput) => ({ ...input, name: "Changed" })],
+    [
+      "description",
+      (input: CreateEvaluatorInput) => ({
+        ...input,
+        description: "Changed description",
+      }),
+    ],
+    [
+      "definition",
+      (input: CreateEvaluatorInput) => ({
+        ...input,
+        definition: {
+          ...input.definition,
+          promptMessages: [{ role: "user" as const, content: "Changed" }],
+        },
+      }),
+    ],
+  ])("rejects a same-project retry with changed %s", async (_field, change) => {
+    const service = createService();
+    const evaluatorId = crypto.randomUUID();
+    const input = { ...llmInput("Retry create"), evaluatorId };
+    await service.create(input, null);
+
+    await expect(service.create(change(input), null)).rejects.toThrow(
+      "An evaluator with this id already exists",
+    );
+  });
+
+  it("rejects a client id that already exists in another project", async () => {
+    const service = createService();
+    const evaluatorId = crypto.randomUUID();
+    await service.create(
+      {
+        ...llmInput("Other project evaluator"),
+        projectId: otherProjectId,
+        evaluatorId,
+      },
+      null,
+    );
+
+    await expect(
+      service.create(
+        { ...llmInput("This project evaluator"), evaluatorId },
+        null,
+      ),
+    ).rejects.toThrow("An evaluator with this id already exists");
+  });
+
   it("writes the canonical mapping when creating a code evaluator", async () => {
     const created = await createService().create(
       {
@@ -320,6 +391,64 @@ describe("EvaluatorService", () => {
     expect(created.versions[0]?.variableMapping).toEqual(
       getCodeEvalVariableMapping(),
     );
+  });
+
+  it("persists the state mapping and typed questions of a decision-model evaluator", async () => {
+    const questions = [
+      {
+        id: "readiness",
+        scoreName: "send_readiness",
+        type: "choice" as const,
+        instructions: "Is `reply` ready to send as an answer to `question`?",
+        options: [{ value: "ready" }, { value: "needs_revision" }],
+      },
+      {
+        id: "refund",
+        scoreName: "refund_requested",
+        type: "noul" as const,
+        instructions: "Does `question` request a refund?",
+      },
+    ];
+    const variableMapping = [
+      {
+        templateVariable: "question",
+        selectedColumnId: "input",
+        jsonSelector: "$.messages[-1].content",
+      },
+      {
+        templateVariable: "reply",
+        selectedColumnId: "output",
+        jsonSelector: null,
+      },
+    ];
+
+    const created = await createService().create(
+      {
+        projectId,
+        name: "Send readiness",
+        description: null,
+        definition: {
+          type: "DECISION_MODEL",
+          questions,
+          provider: "typesafe",
+          model: "jev-1.13.0",
+          vars: ["question", "reply"],
+          variableMapping,
+        },
+      },
+      null,
+    );
+
+    expect(created.type).toBe("DECISION_MODEL");
+    expect(created.versions[0]).toMatchObject({
+      provider: "typesafe",
+      model: "jev-1.13.0",
+      vars: ["question", "reply"],
+      variableMapping,
+      questions,
+      promptMessages: null,
+      outputDefinition: null,
+    });
   });
 
   it("returns the filter from the first assigned rule", async () => {
