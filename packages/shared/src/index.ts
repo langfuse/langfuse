@@ -59,6 +59,12 @@ export { BatchTableNames } from "./interfaces/tableNames";
 // in-app agent
 export * from "./features/inAppAgent/types";
 
+// admin issues
+export type {
+  AdminIssueDefinition,
+  RuleIssue,
+} from "./features/adminIssues/adminIssueDefinition";
+
 // rbac
 export * from "./features/rbac/projectAccessRights";
 

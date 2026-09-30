@@ -27,6 +27,8 @@
   generation after history is split off; it is not the depth of the first
   generation in the full thread.
 - Domain model types: `src/domain/*`
+- Admin issue definition and callback input types: `src/features/adminIssues/adminIssueDefinition.ts`, exported from `@langfuse/shared`.
+- Admin issue registry and project-scoped runner: `src/features/adminIssues/{adminIssueDefinitions,executeAdminIssueRules}.ts`, exported from `@langfuse/shared/src/server`. Callbacks receive `projectId`; the runner inserts their results only after all callbacks succeed and returns the inserted count.
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`

@@ -5,6 +5,8 @@ import {
 } from "./repositories/events";
 
 export * from "./services/StorageService";
+export { adminIssueDefinitions } from "../features/adminIssues/adminIssueDefinitions";
+export { executeAdminIssueRules } from "../features/adminIssues/executeAdminIssueRules";
 export * from "./media";
 export * from "./services/safeBlobKeySegment";
 export * from "./ingestion/eventBucketPath";
