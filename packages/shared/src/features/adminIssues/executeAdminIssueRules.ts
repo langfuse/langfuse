@@ -4,7 +4,7 @@ import { adminIssueDefinitions } from "./adminIssueDefinitions";
 
 export async function executeAdminIssueRules(projectId: string) {
   const counts = await Promise.all(
-    Object.values(adminIssueDefinitions).map(async (definition) => {
+    adminIssueDefinitions.map(async (definition) => {
       if (!definition.callback) return 0;
 
       try {

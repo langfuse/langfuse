@@ -63,7 +63,7 @@ export * from "./features/inAppAgent/types";
 export type {
   AdminIssueDefinition,
   RuleIssue,
-} from "./features/adminIssues/adminIssueDefinition";
+} from "./features/adminIssues/adminIssueDefinitions";
 
 // rbac
 export * from "./features/rbac/projectAccessRights";

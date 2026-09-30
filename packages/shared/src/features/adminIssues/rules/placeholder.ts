@@ -1,4 +1,4 @@
-import type { AdminIssueDefinition } from "../adminIssueDefinition";
+import type { AdminIssueDefinition } from "../adminIssueDefinitions";
 
 export const placeholderRule: AdminIssueDefinition = {
   id: "placeholder",

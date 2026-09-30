@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AdminIssueDefinition } from "./adminIssueDefinition";
+import type { AdminIssueDefinition } from "./adminIssueDefinitions";
 
 const { createMany, firstRule, secondRule, logError } = vi.hoisted(() => ({
   createMany: vi.fn(),
@@ -15,11 +15,11 @@ vi.mock("../../db", () => ({
 vi.mock("../../server/logger", () => ({ logger: { error: logError } }));
 
 vi.mock("./adminIssueDefinitions", () => ({
-  adminIssueDefinitions: {
-    first: { id: "first", callback: firstRule },
-    withoutCallback: { id: "without-callback" },
-    second: { id: "second", callback: secondRule },
-  },
+  adminIssueDefinitions: [
+    { id: "first", callback: firstRule },
+    { id: "without-callback" },
+    { id: "second", callback: secondRule },
+  ],
 }));
 
 import { executeAdminIssueRules } from "./executeAdminIssueRules";
