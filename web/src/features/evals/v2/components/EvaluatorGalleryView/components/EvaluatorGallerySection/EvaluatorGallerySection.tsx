@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { EvaluatorRecommendedCard } from "./components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
@@ -86,9 +86,9 @@ export function EvaluatorGallerySection({
           onClick={() => onExpandedChange(!expanded)}
         >
           {expanded ? (
-            <ChevronUp className="h-3.5 w-3.5" />
+            <DropdownIndicator direction="up" nudge />
           ) : (
-            <ChevronDown className="h-3.5 w-3.5" />
+            <DropdownIndicator nudge />
           )}
           {expanded ? "Show fewer" : `Show all ${totalCount} templates`}
         </button>

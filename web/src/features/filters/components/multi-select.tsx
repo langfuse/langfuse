@@ -1,6 +1,7 @@
 /* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import * as React from "react";
-import { Check, ChevronDown, Loader2 } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
@@ -191,12 +192,12 @@ export function MultiSelect({
               <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
                 {selectedBadges}
               </div>
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              <DropdownIndicator />
             </>
           ) : (
             <>
               {label ?? "Select"}
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              <DropdownIndicator />
               {selectedValues.size > 0 && (
                 <>
                   <Separator orientation="vertical" className="mr-auto h-4" />

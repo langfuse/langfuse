@@ -3,12 +3,12 @@ import { useRouter } from "next/router";
 import {
   ArrowUpRight,
   Bell,
-  ChevronDown,
   DollarSign,
   Gauge,
   LoaderCircle,
   Plus,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import type { EvalTemplateType } from "@langfuse/shared";
 
 import { Badge } from "@/src/components/ui/badge";
@@ -332,7 +332,9 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                 {alertCount}
               </Badge>
             ) : null}
-            <ChevronDown className="ml-1 h-4 w-4 shrink-0 opacity-50" />
+            <span className="ml-1 flex">
+              <DropdownIndicator />
+            </span>
           </Button>
         </Trigger>
       )}

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ChevronRight, Github, Plus, Slack, Webhook } from "lucide-react";
+import { Github, Plus, Slack, Webhook } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { ActionButton } from "@/src/components/ActionButton";
 import { Button } from "@/src/components/ui/button";
@@ -74,7 +75,7 @@ export function MonitorsOnboarding({
                         {channel.icon}
                         {channel.label}
                       </span>
-                      <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                      <DropdownIndicator direction="right" />
                     </Link>
                   </Button>
                 ))}

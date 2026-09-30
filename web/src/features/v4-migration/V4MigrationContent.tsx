@@ -190,7 +190,7 @@ function Section({
         </span>
         <span className="flex-1" />
         {meta && <span className="text-muted-foreground text-xs">{meta}</span>}
-        <ChevronRight className="text-muted-foreground h-4 w-4 shrink-0 transition-transform group-data-[state=open]:rotate-90" />
+        <ChevronRight className="text-foreground-tertiary size-3.5 shrink-0 transition-transform group-data-[state=open]:rotate-90" />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="pt-0.5 pb-4 pl-4.25">{children}</div>

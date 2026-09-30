@@ -22,7 +22,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import { ChevronDown, ChevronRight, Settings2 } from "lucide-react";
+import { Settings2 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
 import { getScoreDataTypeIcon } from "@/src/features/scores";
 import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
@@ -233,9 +234,9 @@ export function AnnotationQueueFormDialogContent({
                         >
                           <div className="flex items-center gap-2">
                             {isAdvancedOpen ? (
-                              <ChevronDown className="text-muted-foreground h-4 w-4" />
+                              <DropdownIndicator nudge />
                             ) : (
-                              <ChevronRight className="text-muted-foreground h-4 w-4" />
+                              <DropdownIndicator direction="right" nudge />
                             )}
                             <span className="text-sm font-bold">
                               User Assignment

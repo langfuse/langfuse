@@ -2,7 +2,8 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
@@ -155,7 +156,9 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
               {selectedOption.badge}
             </Badge>
           )}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <span className="ml-2 flex">
+            <DropdownIndicator direction="up-down" />
+          </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent

@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { cn } from "@/src/utils/tailwind";
 
 // Status dots shared across the v4-migration surfaces (badge, panel section
@@ -78,7 +78,9 @@ export function V4MigrationBadgeContent({
           {title}
           {description ? <>&nbsp;{description}.</> : null}
           {showChevron ? (
-            <ChevronRight className="ml-1 h-3 w-3 shrink-0" />
+            <span className="ml-1 flex">
+              <DropdownIndicator direction="right" size="sm" nudge />
+            </span>
           ) : null}
         </span>
       </span>
@@ -108,7 +110,9 @@ export function V4MigrationBadgeContent({
             </span>
           ) : null}
           {showChevron ? (
-            <ChevronRight className="ml-1 h-3 w-3 shrink-0" />
+            <span className="ml-1 flex">
+              <DropdownIndicator direction="right" size="sm" nudge />
+            </span>
           ) : null}
         </span>
       </button>

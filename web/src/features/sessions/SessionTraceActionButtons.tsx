@@ -8,13 +8,13 @@ import { CommentDrawerController } from "@/src/features/comments";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
 import { cn } from "@/src/utils/tailwind";
 import {
-  ChevronDown,
   LockIcon,
   MessageSquare,
   MessageSquareOff,
   PlusIcon,
   SquarePen,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 type TraceScores =
   RouterOutputs["sessions"]["byIdWithScores"]["traces"][number]["scores"];
@@ -81,7 +81,7 @@ export function SessionTraceActionButtons({
             >
               <PlusIcon className="h-4 w-4" />
               <span>Add to</span>
-              <ChevronDown className="h-3 w-3" />
+              <DropdownIndicator size="sm" nudge />
             </Button>
           )}
         </ConnectedTraceObservationAddToDropdownMenuController>

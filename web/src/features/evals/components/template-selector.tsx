@@ -3,12 +3,12 @@ import { type EvalTemplate } from "@langfuse/shared";
 
 import {
   CheckIcon,
-  ChevronDown,
   Cog,
   ExternalLink,
   AlertCircle,
   ExternalLinkIcon,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Badge } from "@/src/components/ui/badge";
 import {
   Popover,
@@ -164,14 +164,17 @@ export const TemplateSelector = ({
             variant="outline"
             role="combobox"
             aria-expanded={isPopoverOpen}
-            className={cn("w-full justify-between px-2 font-normal", className)}
+            className={cn(
+              "w-full justify-between gap-2 px-2 font-normal",
+              className,
+            )}
           >
             <div className="flex items-center gap-1 overflow-hidden">
               <span className="mr-1 truncate" title={triggerLabel}>
                 {triggerLabel}
               </span>
             </div>
-            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            <DropdownIndicator />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[300px] p-0" align="start">

@@ -2,7 +2,8 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, Search } from "lucide-react";
+import { Search } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import {
@@ -102,7 +103,7 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
                 </span>
                 {dropdown.labelAccessory}
               </span>
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              <DropdownIndicator />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">

@@ -1,6 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { useState } from "react";
-import { CheckIcon, ChevronDown } from "lucide-react";
+import { CheckIcon } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
@@ -100,10 +101,10 @@ export const RemoteExperimentDatasetStep = ({
                   variant="outline"
                   role="combobox"
                   aria-expanded={datasetPopoverOpen}
-                  className="w-full justify-between px-2 font-normal"
+                  className="w-full justify-between gap-2 px-2 font-normal"
                 >
                   {selectedDataset?.name ?? "Select a dataset"}
-                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  <DropdownIndicator />
                 </Button>
               </PopoverTrigger>
               <PopoverContent

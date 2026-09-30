@@ -35,8 +35,6 @@ import {
 import { useSession } from "next-auth/react";
 import {
   CheckIcon,
-  ChevronDown,
-  ChevronUp,
   CopyIcon,
   Download,
   ExternalLinkIcon,
@@ -46,6 +44,7 @@ import {
   Plus,
   SquarePen,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import Page from "@/src/components/layouts/page";
@@ -289,9 +288,9 @@ const SessionControlsBar = ({
       >
         <span className="flex min-w-0 items-center gap-2">{summary}</span>
         {isExpanded ? (
-          <ChevronUp className="h-4 w-4 shrink-0" />
+          <DropdownIndicator direction="up" />
         ) : (
-          <ChevronDown className="h-4 w-4 shrink-0" />
+          <DropdownIndicator />
         )}
       </Button>
       {/* Keep children MOUNTED when collapsed (hidden, not unmounted): the
@@ -749,7 +748,7 @@ export const SessionPage: React.FC<{
                         {totalCount > 0 && (
                           <ActionButtonCountBadge count={totalCount} />
                         )}
-                        <ChevronDown className="h-3 w-3" />
+                        <DropdownIndicator size="sm" nudge />
                       </Button>
                     )}
                   </ConnectedSessionAddToDropdownMenuController>
@@ -1731,7 +1730,7 @@ const LoadedSessionEventsPage: React.FC<{
                       {totalCount > 0 && (
                         <ActionButtonCountBadge count={totalCount} />
                       )}
-                      <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                      <DropdownIndicator size="sm" nudge />
                     </Button>
                   )}
                 </ConnectedSessionAddToDropdownMenuController>

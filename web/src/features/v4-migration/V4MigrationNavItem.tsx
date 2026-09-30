@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-null-render */
-import { ChevronRight } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -42,7 +42,9 @@ export function V4MigrationNavItem() {
       <span className="truncate font-bold" title={label}>
         {label}
       </span>
-      <ChevronRight className="text-muted-foreground ml-auto h-4 w-4 shrink-0" />
+      <span className="ml-auto flex shrink-0">
+        <DropdownIndicator direction="right" />
+      </span>
     </SidebarMenuButton>
   );
 }

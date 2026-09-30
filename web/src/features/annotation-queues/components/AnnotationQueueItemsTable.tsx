@@ -11,7 +11,8 @@ import {
 } from "@/src/features/column-visibility";
 import { type AnnotationQueueStatus } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { ChevronDown, ListTree, Trash } from "lucide-react";
+import { ListTree, Trash } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useState } from "react";
@@ -113,7 +114,7 @@ const QueueItemTableMultiSelectAction = ({
         {({ getTriggerProps }) => (
           <Button disabled={selectedItemIds.length < 1} {...getTriggerProps()}>
             Actions ({selectedItemIds.length} selected)
-            <ChevronDown className="h-5 w-5" />
+            <DropdownIndicator nudge />
           </Button>
         )}
       </DropdownMenu>

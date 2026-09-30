@@ -8,7 +8,8 @@ import {
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Fragment, useState } from "react";
-import { ChevronDownIcon, PlusIcon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Button } from "@/src/components/ui/button";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 import { env } from "@/src/env.mjs";
@@ -92,7 +93,7 @@ const BreadcrumbComponent = ({
                     {planLabels[organization.plan]}
                   </Badge>
                 )}
-              <ChevronDownIcon className="text-foreground-tertiary size-3 translate-y-px" />
+              <DropdownIndicator size="sm" nudge />
             </PopoverTrigger>
             <SwitcherMenuContent
               onClose={() => setOrgSwitcherOpen(false)}
@@ -133,7 +134,7 @@ const BreadcrumbComponent = ({
             >
               <PopoverTrigger className="text-primary flex h-5 items-center gap-1 p-0 leading-none">
                 {project?.name ?? "Project"}
-                <ChevronDownIcon className="text-foreground-tertiary size-3 translate-y-px" />
+                <DropdownIndicator size="sm" nudge />
               </PopoverTrigger>
               <SwitcherMenuContent
                 onClose={() => setProjectSwitcherOpen(false)}

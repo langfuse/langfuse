@@ -136,7 +136,7 @@ export function CreateGatewayApiKeyDialogController({
                         type="button"
                         className="group flex items-center gap-2 text-left text-sm"
                       >
-                        <ChevronRight className="text-muted-foreground size-3.5 transition-transform group-data-[state=open]:rotate-90" />
+                        <ChevronRight className="text-foreground-tertiary size-3.5 translate-y-px transition-transform group-data-[state=open]:rotate-90" />
                         <span>Metadata</span>
                         <span className="text-muted-foreground font-normal">
                           (optional)

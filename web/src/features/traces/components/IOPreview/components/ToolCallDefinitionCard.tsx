@@ -1,5 +1,6 @@
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
-import { ChevronRight, ChevronDown, Wrench } from "lucide-react";
+import { Wrench } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Badge } from "@/src/components/ui/badge";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
@@ -233,9 +234,9 @@ function ToolGroupSummary({
           {expanded ? "hide" : "show"}
         </Badge>
         {expanded ? (
-          <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
+          <DropdownIndicator />
         ) : (
-          <ChevronRight className="text-muted-foreground h-3.5 w-3.5" />
+          <DropdownIndicator direction="right" />
         )}
       </div>
     </button>
@@ -359,9 +360,9 @@ function ToolDefinitionRow({
           />
 
           {isExpanded ? (
-            <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
+            <DropdownIndicator />
           ) : (
-            <ChevronRight className="text-muted-foreground h-3.5 w-3.5" />
+            <DropdownIndicator direction="right" />
           )}
         </div>
       </button>
