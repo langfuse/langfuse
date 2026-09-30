@@ -489,6 +489,21 @@ export const LargeOrganization = meta.story({
   args: { initialZoom: 0.35, data: largeData },
 });
 
+export const LargeOrganizationDefaultZoom = meta.story({
+  name: "(Test) Large organization starts at readable zoom",
+  args: { data: largeData },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByText("Team Shiitake");
+    await waitFor(() => {
+      const viewport = canvasElement.querySelector(".react-flow__viewport");
+      expect(viewport).not.toBeNull();
+      const transform = new DOMMatrix(getComputedStyle(viewport!).transform);
+      expect(transform.a).toBeCloseTo(1);
+    });
+  },
+});
+
 export const IdleProject = meta.story({
   args: {
     data: {

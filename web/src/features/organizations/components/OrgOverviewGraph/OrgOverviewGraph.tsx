@@ -574,7 +574,8 @@ export function OrgOverviewGraph({
               edgeTypes={edgeTypes}
               fitView
               fitViewOptions={{
-                minZoom: 0.05,
+                minZoom:
+                  search?.trim() || activityFilter ? 0.05 : (initialZoom ?? 1),
                 maxZoom: initialZoom ?? 1,
               }}
               nodesDraggable={false}
