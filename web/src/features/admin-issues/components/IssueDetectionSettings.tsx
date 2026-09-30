@@ -2,7 +2,7 @@ import Header from "@/src/components/layouts/header";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 
 /** IssueDetectionSettings lists the project's detected issues and queues a detection run on demand. */
 export function IssueDetectionSettings({ projectId }: { projectId: string }) {
@@ -32,7 +32,7 @@ export function IssueDetectionSettings({ projectId }: { projectId: string }) {
             text="Refresh"
             variant="ghost"
             loading={issues.isFetching}
-            onClick={() => void issues.refetch()}
+            onClick={() => issues.refetch()}
           />
           <Button
             text="Run detection"
@@ -43,49 +43,72 @@ export function IssueDetectionSettings({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      {issues.isPending ? (
-        <p className="text-muted-foreground text-sm">Loading issues…</p>
-      ) : issues.isError ? (
-        <p className="text-muted-foreground text-sm">
-          Could not load issues: {issues.error.message}
-        </p>
-      ) : issues.data.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
-          No issues detected for this project yet.
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {issues.data.map((issue) => (
-            <li
-              key={issue.id}
-              className="flex flex-col gap-1 rounded-lg border p-4"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-bold">{issue.ruleName}</p>
-                <Badge
-                  label="priority"
-                  text={String(issue.priority)}
-                  color={issue.priority <= 1 ? "red" : "primary"}
-                />
-                {issue.doneAt && <Badge text="done" color="green" />}
-                {issue.ignoredAt && <Badge text="ignored" />}
-                <span className="text-muted-foreground text-xs">
-                  {issue.createdAt.toLocaleString()}
-                </span>
-              </div>
-              <p className="text-sm">{issue.description}</p>
-              {issue.ctaLink && (
-                <Button
-                  href={issue.ctaLink}
-                  text="Open"
-                  variant="ghost"
-                  size="sm"
-                />
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+      <IssueList
+        isPending={issues.isPending}
+        errorMessage={issues.error?.message}
+        issues={issues.data}
+      />
     </div>
+  );
+}
+
+function IssueList({
+  isPending,
+  errorMessage,
+  issues,
+}: {
+  isPending: boolean;
+  errorMessage?: string;
+  issues?: RouterOutputs["adminIssues"]["getIssues"];
+}) {
+  if (isPending) {
+    return <p className="text-muted-foreground text-sm">Loading issues…</p>;
+  }
+  if (errorMessage !== undefined || !issues) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        Could not load issues: {errorMessage}
+      </p>
+    );
+  }
+  if (issues.length === 0) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        No issues detected for this project yet.
+      </p>
+    );
+  }
+  return (
+    <ul className="flex flex-col gap-2">
+      {issues.map((issue) => (
+        <li
+          key={issue.id}
+          className="flex flex-col gap-1 rounded-lg border p-4"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-bold">{issue.ruleName}</p>
+            <Badge
+              label="priority"
+              text={String(issue.priority)}
+              color={issue.priority <= 1 ? "red" : "primary"}
+            />
+            {issue.doneAt && <Badge text="done" color="green" />}
+            {issue.ignoredAt && <Badge text="ignored" />}
+            <span className="text-muted-foreground text-xs">
+              {issue.createdAt.toLocaleString()}
+            </span>
+          </div>
+          <p className="text-sm">{issue.description}</p>
+          {issue.ctaLink && (
+            <Button
+              href={issue.ctaLink}
+              text="Open"
+              variant="ghost"
+              size="sm"
+            />
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }

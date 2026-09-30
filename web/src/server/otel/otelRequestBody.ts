@@ -63,6 +63,12 @@ export function handleOtelRequestBodyTooLarge(
       description: error.message,
       priority: 2,
     },
+  }).catch((issueError) => {
+    logger.error("Failed to log oversized OTEL request admin issue", {
+      projectId,
+      errorMessage:
+        issueError instanceof Error ? issueError.message : String(issueError),
+    });
   });
 
   return { error: error.message };

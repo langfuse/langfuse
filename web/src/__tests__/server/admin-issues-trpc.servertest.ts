@@ -82,7 +82,7 @@ describe("adminIssues.getIssues", () => {
       data: [
         {
           projectId: project.id,
-          issueDefinitionId: "placeholder",
+          issueDefinitionId: "observations-without-evaluators",
           description: "older",
           priority: 3,
           createdAt: new Date("2026-01-01T00:00:00Z"),
@@ -96,7 +96,7 @@ describe("adminIssues.getIssues", () => {
         },
         {
           projectId: otherProject.id,
-          issueDefinitionId: "placeholder",
+          issueDefinitionId: "observations-without-evaluators",
           description: "other project",
           priority: 1,
         },
@@ -111,7 +111,7 @@ describe("adminIssues.getIssues", () => {
       issues.map(({ description, ruleName }) => ({ description, ruleName })),
     ).toEqual([
       { description: "newer", ruleName: "removed-rule" },
-      { description: "older", ruleName: "Placeholder" },
+      { description: "older", ruleName: "Set up evaluators" },
     ]);
   });
 });

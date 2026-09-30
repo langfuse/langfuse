@@ -12,6 +12,9 @@ vi.mock("../../../db", () => ({
 vi.mock("../../../env", () => ({ env: config }));
 vi.mock("../../../server/repositories/clickhouse", () => ({ queryClickhouse }));
 
+// The rule's imports reach the server barrel, which re-exports the registry;
+// loading the registry first matches production module order.
+import "../adminIssueDefinitions";
 import { observationsWithoutEvaluatorsRule } from "./observationsWithoutEvaluators";
 
 describe("observationsWithoutEvaluatorsRule", () => {
