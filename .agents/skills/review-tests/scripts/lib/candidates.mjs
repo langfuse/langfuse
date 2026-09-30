@@ -9,18 +9,58 @@
 // tells a helper every test calls (`createOrgProjectAndApiKey`) apart from the
 // one function a test actually targets.
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { maskCode } from "./scan-tests.mjs";
 
 export const TEST_FILE_RE = /\.(test|servertest|clienttest)\.(ts|tsx)$/;
 const SOURCE_EXTENSIONS = ["", ".ts", ".tsx", ".mts", ".cts", ".js", ".jsx"];
 const INDEX_EXTENSIONS = ["/index.ts", "/index.tsx", "/index.js"];
 
-const ALIASES = [
-  { prefix: "@langfuse/shared/src/", to: "packages/shared/src/" },
-  { prefix: "@langfuse/shared", to: "packages/shared/src/index" },
-  { prefix: "@langfuse/ee/", to: "ee/src/" },
-  { prefix: "@langfuse/ee", to: "ee/src/index" },
+const REPO_ROOT = fileURLToPath(new URL("../../../../../", import.meta.url));
+const WORKSPACE_PACKAGES = [
+  { name: "@langfuse/shared", dir: "packages/shared" },
+  { name: "@langfuse/ee", dir: "ee" },
 ];
+const DIST = "./dist/";
+
+/**
+ * Maps each `exports` subpath of a workspace package to the extensionless
+ * source file its `dist` target is built from.
+ * @param {string} dir repo-relative package directory
+ * @param {object} exports the package.json `exports` field
+ * @returns {Map<string, string>} subpath (`.`, `./query`) → source base path
+ */
+export function sourceExports(dir, exports) {
+  const out = new Map();
+  for (const [subpath, value] of Object.entries(exports ?? {})) {
+    const target =
+      typeof value === "string" ? value : (value?.import ?? value?.require);
+    if (typeof target !== "string" || !target.startsWith(DIST)) continue;
+    out.set(
+      subpath,
+      `${dir}/${target.slice(DIST.length).replace(/\.js$/, "")}`,
+    );
+  }
+  return out;
+}
+
+function loadWorkspacePackages() {
+  return WORKSPACE_PACKAGES.map(({ name, dir }) => {
+    let exports = {};
+    try {
+      const manifest = join(REPO_ROOT, dir, "package.json");
+      exports = JSON.parse(readFileSync(manifest, "utf8")).exports;
+    } catch {
+      /* unreadable manifest: only `src/` deep imports resolve */
+    }
+    return { name, dir, exports: sourceExports(dir, exports) };
+  });
+}
+
+const PACKAGES = loadWorkspacePackages();
 
 /** The workspace root a repo-relative file belongs to, e.g. `web`. */
 export function packageRootOf(file) {
@@ -43,9 +83,11 @@ function normalize(path) {
  * @param {string} spec
  * @param {string} fromFile repo-relative importer
  * @param {(path: string) => boolean} exists
+ * @param {Array<{name: string, dir: string, exports: Map<string, string>}>} [packages]
+ *   workspace packages, resolved through their `exports`
  * @returns {string|null} null for node/third-party modules and unresolvable paths
  */
-export function resolveImport(spec, fromFile, exists) {
+export function resolveImport(spec, fromFile, exists, packages = PACKAGES) {
   let base = null;
 
   if (spec.startsWith(".")) {
@@ -54,11 +96,17 @@ export function resolveImport(spec, fromFile, exists) {
   } else if (spec.startsWith("@/")) {
     base = normalize(`${packageRootOf(fromFile)}/${spec.slice(2)}`);
   } else {
-    const alias = ALIASES.find(
-      (a) => spec === a.prefix || spec.startsWith(a.prefix),
+    const pkg = packages.find(
+      (p) => spec === p.name || spec.startsWith(`${p.name}/`),
     );
-    if (!alias) return null;
-    base = normalize(spec.replace(alias.prefix, alias.to));
+    if (!pkg) return null;
+    // A deep `src/` path not listed in `exports` maps straight to source.
+    const subpath = `.${spec.slice(pkg.name.length)}`;
+    base =
+      pkg.exports.get(subpath) ??
+      (subpath.startsWith("./src/") ? `${pkg.dir}/${subpath.slice(2)}` : null);
+    if (!base) return null;
+    base = normalize(base);
   }
 
   // A specifier may already carry an extension, need one, or name a directory.

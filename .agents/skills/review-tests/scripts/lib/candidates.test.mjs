@@ -7,6 +7,7 @@ import {
   packageRootOf,
   productionTargets,
   resolveImport,
+  sourceExports,
   symbolWeight,
 } from "./candidates.mjs";
 
@@ -70,6 +71,39 @@ test("resolves @langfuse/shared subpath and bare specifiers", () => {
     resolveImport("@langfuse/shared/src/db", "worker/src/a.test.ts", exists),
     "packages/shared/src/db.ts",
   );
+});
+
+test("resolves workspace subpaths through the package's exports map", () => {
+  const packages = [
+    {
+      name: "@langfuse/shared",
+      dir: "packages/shared",
+      exports: sourceExports("packages/shared", {
+        ".": { import: "./dist/src/index.js" },
+        "./query": { import: "./dist/src/features/query/index.js" },
+      }),
+    },
+    {
+      name: "@langfuse/ee",
+      dir: "ee",
+      exports: sourceExports("ee", { ".": "./dist/src/index.js" }),
+    },
+  ];
+  const files = new Set([
+    "packages/shared/src/index.ts",
+    "packages/shared/src/features/query/index.ts",
+    "ee/src/env.ts",
+  ]);
+  const resolve = (spec) =>
+    resolveImport(spec, "web/src/a.test.ts", (p) => files.has(p), packages);
+  assert.equal(
+    resolve("@langfuse/shared/query"),
+    "packages/shared/src/features/query/index.ts",
+  );
+  assert.equal(resolve("@langfuse/shared"), "packages/shared/src/index.ts");
+  assert.equal(resolve("@langfuse/ee/src/env"), "ee/src/env.ts");
+  assert.equal(resolve("@langfuse/shared/unexported"), null);
+  assert.equal(resolve("@langfuse/sharedx"), null);
 });
 
 test("returns null for third-party and unresolvable specifiers", () => {
