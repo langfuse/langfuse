@@ -1,6 +1,7 @@
 import {
   classifyIngestionSdkVersion,
   convertDateToClickhouseDateTime,
+  logger,
   queryClickhouse,
   UNKNOWN_INGESTION_SDK_VALUE,
   type IngestionSdkCanonicalName,
@@ -256,7 +257,15 @@ export const getOrganizationIngestionOverview = async ({
         tags: { route: "organization-ingestion-overview-scores" },
         preferredClickhouseService: "ReadOnly",
       }),
-      getSdkUsageSeriesByProject({ projectIds: params.projectIds, nowMs }),
+      getSdkUsageSeriesByProject({
+        projectIds: params.projectIds,
+        nowMs,
+      }).catch((error: unknown) => {
+        logger.warn("Failed to load organization ingestion migration status", {
+          error,
+        });
+        return new Map<string, never>();
+      }),
     ]);
 
   const migrationByClient = new Map<string, "required" | "not_required">();

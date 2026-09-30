@@ -4,10 +4,12 @@ import { prisma } from "@langfuse/shared/src/db";
 const mocks = vi.hoisted(() => ({
   queryClickhouse: vi.fn(),
   getSdkUsageSeriesByProject: vi.fn(),
+  warn: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/src/server", () => ({
   queryClickhouse: mocks.queryClickhouse,
+  logger: { warn: mocks.warn },
   UNKNOWN_INGESTION_SDK_VALUE: "unknown",
   convertDateToClickhouseDateTime: (date: Date) => date.toISOString(),
   classifyIngestionSdkVersion: () => ({
@@ -76,5 +78,31 @@ describe("organization ingestion migration attributes", () => {
     await getOrganizationIngestionOverview({ prisma, projects: [] });
     expect(mocks.getSdkUsageSeriesByProject).not.toHaveBeenCalled();
     expect(mocks.queryClickhouse).not.toHaveBeenCalled();
+  });
+
+  it("preserves analytics when migration evidence fails", async () => {
+    const error = new Error("SDK usage query timed out");
+    mocks.getSdkUsageSeriesByProject.mockRejectedValue(error);
+
+    const result = await getOrganizationIngestionOverview({
+      prisma,
+      projects: [{ id: "project", name: "Project" }],
+      nowMs: Date.parse("2026-09-30T12:00:00Z"),
+    });
+
+    expect(result.projects).toHaveLength(1);
+    expect(result.projects[0]?.features.datasets).toBe(0);
+    expect(result.eventRows[0]).toMatchObject({
+      current: 10,
+      v4Migration: "unknown",
+    });
+    expect(result.scoreRows[0]).toMatchObject({
+      current: 10,
+      v4Migration: "unknown",
+    });
+    expect(mocks.warn).toHaveBeenCalledWith(
+      "Failed to load organization ingestion migration status",
+      { error },
+    );
   });
 });
