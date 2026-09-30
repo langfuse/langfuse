@@ -1,4 +1,5 @@
 import { deeplyNestedPromptsRule } from "./rules/deeplyNestedPrompts";
+import { llmJudgeWithoutDecisionModelRule } from "./rules/llmJudgeWithoutDecisionModel";
 import { observationsWithoutEvaluatorsRule } from "./rules/observationsWithoutEvaluators";
 
 export type RuleIssue = {
@@ -19,4 +20,5 @@ export type AdminIssueDefinition = {
 export const adminIssueDefinitions: AdminIssueDefinition[] = [
   observationsWithoutEvaluatorsRule,
   deeplyNestedPromptsRule,
+  llmJudgeWithoutDecisionModelRule,
 ];
