@@ -591,6 +591,13 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
     return assertUnreachable(update.updateType);
   }, [update]);
 
+  // Radix returns focus to the trigger when the menu closes, and the browser
+  // treats that programmatic focus as `:focus-visible`, so the Button's
+  // `focus-visible:ring-2` ring is left showing on the badge after a
+  // mouse-driven open/close. Keyboard users must keep that ring, so suppress
+  // the focus restore only when the menu was opened by a pointer.
+  const openedByPointer = React.useRef(false);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -598,6 +605,12 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
           variant="ghost"
           size="xs"
           className="text-muted-foreground h-5 max-w-full min-w-0 translate-y-px py-0 text-[0.625rem] leading-none"
+          onPointerDown={() => {
+            openedByPointer.current = true;
+          }}
+          onKeyDown={() => {
+            openedByPointer.current = false;
+          }}
         >
           <span className="truncate" title={versionText}>
             {versionText}
@@ -614,7 +627,14 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent onClick={(e) => e.stopPropagation()}>
+      <DropdownMenuContent
+        onClick={(e) => e.stopPropagation()}
+        onCloseAutoFocus={(event) => {
+          if (!openedByPointer.current) return;
+          openedByPointer.current = false;
+          event.preventDefault();
+        }}
+      >
         {update ? (
           <>
             <DropdownMenuLabel>
