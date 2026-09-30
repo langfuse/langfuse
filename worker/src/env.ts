@@ -500,6 +500,9 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(2 * 1024 * 1024),
+  LANGFUSE_METADATA_LONG_VALUE_TRACKING_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
 
   // Metering data Postgres export - Langfuse Cloud
   LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z

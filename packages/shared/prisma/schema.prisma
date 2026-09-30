@@ -197,9 +197,26 @@ model Project {
   InAppAgentRun                     InAppAgentRun[]
   InAppAgentPendingToolApproval     InAppAgentPendingToolApproval[]
   gatewayConfigs                    GatewayConfig[]                     @relation("GatewayDefaultIngestionProject")
+  MetadataLongValueKey              MetadataLongValueKey[]
 
   @@index([orgId])
   @@map("projects")
+}
+
+// Metadata keys whose flattened values exceeded the events_core truncation
+// limit. Written by the ingestion worker; capped per project.
+model MetadataLongValueKey {
+  projectId            String   @map("project_id")
+  project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  key                  String
+  maxValueLength       Int      @map("max_value_length")
+  exampleTraceId       String   @map("example_trace_id")
+  exampleObservationId String   @map("example_observation_id")
+  firstSeenAt          DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt           DateTime @default(now()) @map("last_seen_at")
+
+  @@id([projectId, key])
+  @@map("metadata_long_value_keys")
 }
 
 enum ApiKeyScope {
