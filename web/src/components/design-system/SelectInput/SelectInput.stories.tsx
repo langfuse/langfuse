@@ -280,8 +280,8 @@ export const TestKeepsBadgedLabelReadable = meta.story({
       name: /answer_relevancy/,
     });
     // The pills wrap beneath the name rather than squeezing it, so the name is
-    // laid out at its full width instead of being ellipsised to a few
-    // characters.
+    // laid out at its full width instead of being cut down to a few
+    // characters and an ellipsis.
     const label = within(option).getByTitle("answer_relevancy");
     await waitFor(() => {
       // `scrollWidth <= clientWidth` alone is also satisfied by 0 <= 0, which
@@ -290,8 +290,8 @@ export const TestKeepsBadgedLabelReadable = meta.story({
       expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth + 1);
       // The pills survive the wrap intact — the name must not be won back by
       // dropping the level information, nor by crushing the pills instead.
-      // Visibility alone would not catch that: Badge ellipsises its own text,
-      // so a squeezed "Observation" renders as a visible "O…".
+      // Visibility alone would not catch that: Badge clips its own text with
+      // an ellipsis, so a squeezed "Observation" still renders a visible "O…".
       for (const level of ["Trace", "Observation"]) {
         const pill = within(option).getByText(level);
         expect(pill).toBeVisible();
