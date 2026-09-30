@@ -230,7 +230,10 @@ export const getOrganizationIngestionOverview = async ({
     getProjectFeatureCounts({ prisma, projectIds: params.projectIds }),
     queryClickhouse<ClickhouseClientRow & { ingestionPath: IngestionPath }>({
       query: EVENT_ROWS_QUERY,
-      params,
+      params: {
+        ...params,
+        ingressSources: [...MIGRATION_INGRESS_EVENT_SOURCES],
+      },
       tags: { route: "organization-ingestion-overview-events" },
       preferredClickhouseService: "EventsReadOnly",
     }),
