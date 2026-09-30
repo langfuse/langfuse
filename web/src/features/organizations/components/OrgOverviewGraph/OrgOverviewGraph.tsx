@@ -49,6 +49,7 @@ type ClientNode = Node<
     version: string;
     status: IngestionActivityStatus;
     lastSeen: string | null;
+    v4Migration: OrganizationIngestionOverview["eventRows"][number]["v4Migration"];
   },
   "client"
 >;
@@ -61,6 +62,12 @@ type ProjectNode = Node<
   "project"
 >;
 type FlowEdge = Edge<{ events: WeekOverWeekCount }, "flow">;
+
+const migrationLabels = {
+  required: "Required",
+  not_required: "Not required",
+  unknown: "Unknown",
+} satisfies Record<ClientNode["data"]["v4Migration"], string>;
 
 function ChangeIndicator({ change }: { change: number | null }) {
   if (change === null) {
@@ -122,8 +129,8 @@ function FlowConnection({
 
 function ClientCard({ data }: NodeProps<ClientNode>) {
   return (
-    <div className="border-border bg-card text-card-foreground dark:bg-muted w-64 rounded-lg border px-4 py-3 shadow-sm">
-      <div className="text-muted-foreground border-border dark:border-border-contrast flex items-center justify-between gap-3 border-b pb-3 text-xs">
+    <div className="border-border bg-card text-card-foreground dark:bg-muted w-64 rounded-lg border px-3 py-2 shadow-sm">
+      <div className="text-muted-foreground border-border dark:border-border-contrast flex items-center justify-between gap-2 border-b pb-2 text-xs">
         <span className="flex shrink-0 items-center gap-1.5">
           <Code2 className="size-3" />
           Client
@@ -135,20 +142,32 @@ function ClientCard({ data }: NodeProps<ClientNode>) {
           {data.name}
         </span>
       </div>
-      <div className="text-muted-foreground mt-2 flex items-center justify-between text-xs">
+      <div className="text-muted-foreground mt-1.5 flex items-center justify-between text-xs">
         <span>SDK version</span>
         <span className="text-foreground">{data.version}</span>
       </div>
-      <div className="text-muted-foreground mt-1.5 flex items-center justify-between text-xs">
+      <div className="text-muted-foreground mt-1 flex items-center justify-between text-xs">
         <span>Status</span>
         <span className="text-foreground capitalize">{data.status}</span>
       </div>
-      <div className="text-muted-foreground mt-1.5 flex items-center justify-between text-xs">
+      <div className="text-muted-foreground mt-1 flex items-center justify-between text-xs">
         <span>Last seen</span>
         <span className="text-foreground">
           {data.lastSeen
             ? new Date(data.lastSeen).toLocaleDateString()
             : "Never"}
+        </span>
+      </div>
+      <div className="text-muted-foreground mt-1 flex items-center justify-between text-xs">
+        <span>V4 migration</span>
+        <span
+          className={
+            data.v4Migration === "required"
+              ? "text-amber-600 dark:text-amber-400"
+              : "text-foreground"
+          }
+        >
+          {migrationLabels[data.v4Migration]}
         </span>
       </div>
       <Handle
@@ -162,8 +181,8 @@ function ClientCard({ data }: NodeProps<ClientNode>) {
 
 function ProjectCard({ data }: NodeProps<ProjectNode>) {
   return (
-    <div className="border-border bg-card text-card-foreground dark:bg-muted w-64 rounded-lg border px-4 py-3 shadow-sm">
-      <div className="text-muted-foreground border-border dark:border-border-contrast flex items-center justify-between gap-3 border-b pb-3 text-xs">
+    <div className="border-border bg-card text-card-foreground dark:bg-muted w-64 rounded-lg border px-3 py-2 shadow-sm">
+      <div className="text-muted-foreground border-border dark:border-border-contrast flex items-center justify-between gap-2 border-b pb-2 text-xs">
         <span className="flex shrink-0 items-center gap-1.5">
           <FolderClosed className="size-3" />
           Project
@@ -175,7 +194,7 @@ function ProjectCard({ data }: NodeProps<ProjectNode>) {
           {data.name}
         </span>
       </div>
-      <div className="text-muted-foreground mt-2 flex items-center justify-between text-xs">
+      <div className="text-muted-foreground mt-1.5 flex items-center justify-between text-xs">
         <span>Observations (7d)</span>
         <span className="flex items-center gap-2">
           <span className="text-foreground font-bold tabular-nums">
@@ -184,7 +203,7 @@ function ProjectCard({ data }: NodeProps<ProjectNode>) {
           <ChangeIndicator change={data.events.changePct} />
         </span>
       </div>
-      <div className="text-muted-foreground mt-1.5 flex items-center justify-between text-xs">
+      <div className="text-muted-foreground mt-1 flex items-center justify-between text-xs">
         <span>Scores (7d)</span>
         <span className="flex items-center gap-2">
           <span className="text-foreground font-bold tabular-nums">
@@ -193,7 +212,7 @@ function ProjectCard({ data }: NodeProps<ProjectNode>) {
           <ChangeIndicator change={data.scores.changePct} />
         </span>
       </div>
-      <div className="border-border dark:border-border-contrast text-muted-foreground mt-2 flex items-center justify-between border-t pt-2 text-xs">
+      <div className="border-border dark:border-border-contrast text-muted-foreground mt-1.5 flex items-center justify-between border-t pt-1.5 text-xs">
         <span>Billable units (7d)</span>
         <span className="text-foreground font-bold tabular-nums">
           {(data.events.current + data.scores.current).toLocaleString()}
@@ -210,6 +229,7 @@ function ProjectCard({ data }: NodeProps<ProjectNode>) {
 
 const nodeTypes = { client: ClientCard, project: ProjectCard };
 const edgeTypes = { flow: FlowConnection };
+const rowSpacing = 160;
 
 export function OrgOverviewGraph({
   data,
@@ -274,6 +294,7 @@ export function OrgOverviewGraph({
           scoreCurrent: number;
           scorePrevious: number;
           lastSeen: string | null;
+          v4Migration: ClientNode["data"]["v4Migration"];
         }
       >();
       let eventCurrent = 0;
@@ -306,6 +327,7 @@ export function OrgOverviewGraph({
           scoreCurrent: 0,
           scorePrevious: 0,
           lastSeen: null,
+          v4Migration: entry.v4Migration,
         };
         if (isEvent) {
           client.current += entry.current;
@@ -356,8 +378,9 @@ export function OrgOverviewGraph({
             version: client.sdkVersion ?? "Unknown",
             status,
             lastSeen: client.lastSeen,
+            v4Migration: client.v4Migration,
           },
-          position: { x: 0, y: row * 200 },
+          position: { x: 0, y: row * rowSpacing },
         });
 
         edges.push({
@@ -380,11 +403,11 @@ export function OrgOverviewGraph({
           scores: weekOverWeek(scoreCurrent, scorePrevious),
         },
         position: {
-          x: 600,
+          x: 456,
           y:
             visibleClients.length > 0
-              ? ((firstRow + row - 1) / 2) * 200
-              : row * 200,
+              ? ((firstRow + row - 1) / 2) * rowSpacing
+              : row * rowSpacing,
         },
       });
       if (visibleClients.length === 0) row++;
@@ -408,8 +431,7 @@ export function OrgOverviewGraph({
           edgeTypes={edgeTypes}
           fitView
           fitViewOptions={{
-            minZoom:
-              search?.trim() || activityFilter ? 0.05 : (initialZoom ?? 1),
+            minZoom: 0.05,
             maxZoom: initialZoom ?? 1,
           }}
           nodesDraggable={false}

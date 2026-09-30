@@ -21,6 +21,7 @@ const clientFields = {
   sdkVersion: "4.0.0",
   canonicalSdkName: "javascript",
   sdkUpgradeStatus: "current",
+  v4Migration: "not_required",
   publicKey: "pk-js",
   isInternal: false,
   lastSeen: "2026-09-29T23:00:00Z",
@@ -81,6 +82,7 @@ const exampleData: OrganizationIngestionOverview = {
       sdkVersion: "3.9.0",
       canonicalSdkName: "python",
       sdkUpgradeStatus: "outdated_major",
+      v4Migration: "required",
       publicKey: "pk-python",
       current: 4000,
       previous: 4000,
@@ -147,6 +149,17 @@ const exampleData: OrganizationIngestionOverview = {
 };
 
 export const Default = meta.story({ args: { data: exampleData } });
+
+export const CompactViewport = meta.story({
+  args: { data: exampleData },
+  decorators: [
+    (Story) => (
+      <div className="h-[480px] w-[720px]">
+        <Story />
+      </div>
+    ),
+  ],
+});
 
 export const SingleProjectThreeClients = meta.story({
   args: {
@@ -264,6 +277,7 @@ export const UnknownSdk = meta.story({
           sdkVersion: null,
           canonicalSdkName: null,
           sdkUpgradeStatus: "unknown",
+          v4Migration: "unknown",
         },
       ],
       scoreRows: [],
