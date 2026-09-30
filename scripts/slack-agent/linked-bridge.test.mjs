@@ -15,6 +15,7 @@ function fixture(overrides = {}) {
     starts: [],
     gets: [],
     connects: [],
+    connections: [],
     cancellations: [],
     replies: [],
     notices: [],
@@ -34,6 +35,13 @@ function fixture(overrides = {}) {
   const langfuse = {
     async projects() {
       return structuredClone(account);
+    },
+    async connection(input) {
+      calls.connections.push(input);
+      return {
+        linkUrl: `http://localhost:3004/slack-agent?token=${"a".repeat(64)}`,
+        expiresAt: new Date(Date.now() + 600_000).toISOString(),
+      };
     },
     async connect(input) {
       calls.connects.push(input);
@@ -149,6 +157,53 @@ function fixture(overrides = {}) {
   };
 }
 
+test("delivers browser confirmation links only to the requesting user", async () => {
+  const f = fixture();
+  f.account.linked = false;
+  await f.mention("unlinked-channel", "<@UBOT> Find errors");
+  assert.equal(f.calls.replies.length, 0);
+  assert.equal(f.calls.notices.length, 1);
+  assert.equal(f.calls.notices[0].user, "UOWNER");
+  assert.equal(f.calls.notices[0].thread_ts, undefined);
+  assert.ok(
+    f.calls.notices[0].text.includes(
+      `https://demo.example.com/slack-agent?token=${"a".repeat(64)}`,
+    ),
+  );
+  await f.message("unlinked-followup", "Try again", {
+    channel: "CPUBLIC",
+    channel_type: "channel",
+    ts: "123.002",
+    thread_ts: "123.001",
+  });
+  assert.equal(f.calls.notices[1].thread_ts, "123.001");
+  await f.message("unlinked-dm", "Find errors");
+  assert.equal(f.calls.replies.length, 1);
+  assert.ok(f.calls.replies[0].text.includes(`token=${"a".repeat(64)}`));
+  assert.deepEqual(
+    f.calls.connections,
+    Array.from({ length: 3 }, () => ({
+      teamId: "TDEMO",
+      slackUserId: "UOWNER",
+    })),
+  );
+  assert.ok(f.calls.saved.every((value) => !value.includes("a".repeat(64))));
+  assert.equal(f.calls.starts.length, 0);
+  f.account.linked = true;
+  await f.message("connected-followup", "Find errors", {
+    channel: "CPUBLIC",
+    channel_type: "channel",
+    ts: "123.003",
+    thread_ts: "123.001",
+  });
+  assert.equal(
+    f.calls.replies.at(-1).blocks[0].accessory.type,
+    "external_select",
+  );
+  await f.choose("connected-followup");
+  assert.equal(f.calls.starts.length, 1);
+});
+
 test("keeps connection codes private and ignores unrelated messages", async () => {
   const f = fixture();
   f.account.linked = false;
@@ -199,12 +254,9 @@ test("keeps connection codes private and ignores unrelated messages", async () =
       text: "<@UBOT> secret question",
     },
   });
-  assert.equal(f.calls.notices.length, 0);
-  assert.equal(f.calls.replies.at(-1).thread_ts, "123.001");
-  assert.match(
-    f.calls.replies.at(-1).text,
-    /slack:\/\/user\?team=TDEMO&id=UBOT/,
-  );
+  assert.equal(f.calls.notices.length, 1);
+  assert.equal(f.calls.notices.at(-1).thread_ts, undefined);
+  assert.match(f.calls.notices.at(-1).text, /slack-agent\?token=/);
   await f.mention("channel-code", "<@UBOT> connect public-code", {
     ts: "125.003",
   });
@@ -513,7 +565,7 @@ test("answers channel questions when Slack does not support the working indicato
   assert.ok(f.state.events.root.done);
 });
 
-test("sends linked identity with the service credential and refuses redirected credential delivery", async () => {
+test("waits for cold project lookups, sends linked identity, and refuses redirected credentials", async () => {
   const requests = [];
   const server = createServer(async (req, res) => {
     let body = "";
@@ -526,6 +578,7 @@ test("sends linked identity with the service credential and refuses redirected c
     if (requests.length > 1) {
       res.writeHead(302, { Location: "/unexpected" });
     } else {
+      await new Promise((resolve) => setTimeout(resolve, 1900));
       res.writeHead(200, { "Content-Type": "application/json" });
       res.write(
         JSON.stringify({ linked: true, linkId: "link-one", projects: [] }),
@@ -547,9 +600,14 @@ test("sends linked identity with the service credential and refuses redirected c
       body: { operation: "projects", teamId: "TDEMO", slackUserId: "UOWNER" },
     });
     await assert.rejects(
-      client.projects({ teamId: "TDEMO", slackUserId: "UOWNER" }),
+      client.connection({ teamId: "TDEMO", slackUserId: "UOWNER" }),
     );
     assert.equal(requests.length, 2);
+    assert.deepEqual(requests[1].body, {
+      operation: "connection",
+      teamId: "TDEMO",
+      slackUserId: "UOWNER",
+    });
     for (const baseUrl of [
       "http://example.com",
       "https://user:password@example.com",

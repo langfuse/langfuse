@@ -17,12 +17,12 @@ sequenceDiagram
   participant Web as Langfuse web
   participant Bot as Slack bot
   participant Worker as Existing worker
-  User->>Web: Sign in and generate connection code
-  Web-->>User: One-time code, expires in five minutes
-  User->>Bot: Send code in private DM
-  Bot->>Web: Redeem code for verified Slack workspace/user
-  Web-->>Bot: Persisted account link
   User->>Bot: Ask in DM or start a channel thread with @mention
+  Bot->>Web: Request connection for verified Slack workspace/user
+  Bot-->>User: Private one-time browser link
+  User->>Web: Sign in and explicitly confirm account connection
+  Web-->>User: Connected; return to Slack
+  User->>Bot: Send question again in the thread
   Bot->>Web: List currently accessible projects
   Bot-->>User: Searchable project dropdown
   User->>Bot: Choose a project
@@ -32,15 +32,17 @@ sequenceDiagram
   Bot-->>User: Answer in the same DM or channel thread
 ```
 
-**Identity and authorization.** A signed-in Langfuse user generates a random
-connection code with a same-origin, authenticated mutation. Redis stores its
-hash for five minutes and consumes it once. The bot redeems it through
-`POST /api/slack-agent`, authenticated with a dedicated service secret and
-restricted to the configured workspace. The server stores the verified mapping
+**Identity and authorization.** The bot requests a browser connection challenge
+through `POST /api/slack-agent` with `operation: "connection"`, authenticated
+with a dedicated service secret and restricted to the configured workspace.
+The challenge binds the verified Slack workspace/user, stores only a token
+hash in Redis for ten minutes, and is consumed once after a signed-in Langfuse
+user explicitly confirms in the browser. The server stores the verified mapping
 in `SlackAgentUserLink`; it never accepts a caller-supplied Langfuse user ID.
 The trusted bot credential can act for linked users in that workspace, so it
 must be held only by the bot operator. Project API keys use separate,
 project-bound account connections and cannot access these workspace-wide links.
+The older five-minute manual-code flow remains compatible and DM-only.
 
 **Project selection.** The bot offers only projects allowed by the linked
 user's current membership and the agent's normal feature eligibility checks.
@@ -55,8 +57,9 @@ thread replies need no further mention; messages received during an active run
 are queued. The optional `SLACK_CHANNEL_ID` restricts channel use without
 disabling DMs.
 
-**Privacy and revocation.** Connection codes are accepted only in DMs. In linked
-channel threads, project names and answers are visible to everyone who can read
+**Privacy and revocation.** Browser connection links are delivered only to the
+requesting user: private ephemeral messages in channels and ordinary messages
+in DMs. Legacy connection codes are accepted only in DMs. In linked channel threads, project names and answers are visible to everyone who can read
 the channel. Channel membership does not authorize anyone to act as the thread
 owner or access Langfuse; choose a channel whose audience may see the selected
 project's data. The server rechecks membership on
@@ -66,8 +69,8 @@ reconnecting uses a new link identity. Previously delivered Slack messages are
 not deleted. Slack does not provide tool-approval controls; runs awaiting
 approval are cancelled, and changes should use Langfuse's in-app flow.
 
-**Storage.** Verified links live in Postgres; expiring code hashes live in
-Redis. Agent events and runs use the existing Postgres tables. Thread bindings,
+**Storage.** Verified links live in Postgres; expiring browser-token and legacy
+code hashes live in Redis. Agent events and runs use the existing Postgres tables. Thread bindings,
 project preferences, pending questions, and delivery progress live in the
 bot's ignored `state.linked.local.json`. This supports one local bot process
 and restart recovery; multiple replicas need shared routing/delivery storage.
@@ -75,7 +78,8 @@ The new link table requires the included Postgres migration. The worker, queue
 contract, model runtime, and MCP tools are unchanged.
 
 **Browser surface.** `/slack-agent` uses the existing signed-in session and
-tRPC. Connection codes are excluded from client logging and replay capture.
+tRPC. A private token link opens the account-confirmation UI. Connection
+credentials are excluded from client logging and replay capture.
 No product analytics event is added for this opt-in credential setup flow.
 Expected connection/configuration failures are rendered in the UI; no new
 client-side Sentry capture is added. `LANGFUSE_PUBLIC_URL` selects the origin of
@@ -262,8 +266,9 @@ Finish build/lint checks first: local file watchers can restart the
 worker during a run. The first request after a cold web start can time out while
 Next.js compiles MCP; warm the route or send a new message after compilation.
 
-For linked mode, connect by sending the one-time code in a DM. Start a channel
-thread with a top-level @mention, select a project, and verify that its name and
+For linked mode, start a channel thread with a top-level @mention. Verify that
+an unlinked user receives a private browser link, sign in and confirm the
+account, then send the question again in the thread. Select a project, and verify that its name and
 answer appear in the channel. Reply as the thread owner without mentioning the
 bot; send another reply during an active run to check queueing. Verify that
 another member cannot select the project or continue that owner's thread, and

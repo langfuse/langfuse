@@ -16,6 +16,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { isInAppAgentInstanceEnabled } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { env } from "@/src/env.mjs";
+import { getProductBaseUrl } from "@/src/utils/base-url";
 import {
   getOrganizationPlanServerSide,
   hasEntitlementBasedOnPlan,
@@ -28,6 +29,7 @@ import {
 import { assertInAppAgentRateLimit } from "@/src/features/in-app-agent/server/rateLimit";
 
 const CODE_TTL_SECONDS = 5 * 60;
+const CONNECTION_TTL_SECONDS = 10 * 60;
 const SlackIdentity = z.object({
   teamId: z.string().regex(/^T[A-Z0-9]+$/),
   slackUserId: z.string().regex(/^[UW][A-Z0-9]+$/),
@@ -43,6 +45,7 @@ export const SlackAgentRequest = z.discriminatedUnion("operation", [
     code: z.string().regex(/^[a-f0-9]{32}$/),
   }).strict(),
   SlackIdentity.extend({ operation: z.literal("projects") }).strict(),
+  SlackIdentity.extend({ operation: z.literal("connection") }).strict(),
   RunIdentity.extend({
     operation: z.literal("start"),
     message: z.string().trim().min(1).max(32_000),
@@ -110,15 +113,112 @@ export async function createSlackAgentCode(userId: string) {
   };
 }
 
+const PendingConnection = SlackIdentity.extend({
+  expiresAt: z.iso.datetime(),
+});
+
+function connectionStore() {
+  if (!redis) {
+    throw new BaseError(
+      "ServiceUnavailableError",
+      503,
+      "Account connections are temporarily unavailable",
+      true,
+    );
+  }
+  return redis;
+}
+
+function connectionLatestKey(identity: z.infer<typeof SlackIdentity>) {
+  return `slack-agent:connection-latest:${identity.teamId}:${identity.slackUserId}`;
+}
+
+async function createConnection(identity: z.infer<typeof SlackIdentity>) {
+  const store = connectionStore();
+  const token = randomBytes(32).toString("hex");
+  const digest = createHash("sha256").update(token).digest("hex");
+  const expiresAt = new Date(
+    Date.now() + CONNECTION_TTL_SECONDS * 1_000,
+  ).toISOString();
+  await store.eval(
+    `local previous = redis.call('GET', KEYS[1])
+     if previous then redis.call('DEL', ARGV[1] .. previous) end
+     redis.call('SET', KEYS[2], ARGV[2], 'EX', ARGV[3])
+     redis.call('SET', KEYS[1], ARGV[4], 'EX', ARGV[3])
+     return 1`,
+    2,
+    connectionLatestKey(identity),
+    `slack-agent:connection:${digest}`,
+    "slack-agent:connection:",
+    JSON.stringify({ ...identity, expiresAt }),
+    CONNECTION_TTL_SECONDS,
+    digest,
+  );
+  const linkUrl = new URL("slack-agent", getProductBaseUrl());
+  linkUrl.searchParams.set("token", token);
+  return { linkUrl: linkUrl.toString(), expiresAt };
+}
+
+export async function inspectSlackAgentConnection(token: string) {
+  const teamId = configuredTeam();
+  const store = connectionStore();
+  const digest = createHash("sha256").update(token).digest("hex");
+  const stored = await store.get(`slack-agent:connection:${digest}`);
+  const pending = stored ? PendingConnection.parse(JSON.parse(stored)) : null;
+  if (
+    !pending ||
+    pending.teamId !== teamId ||
+    new Date(pending.expiresAt).getTime() <= Date.now() ||
+    (await store.get(connectionLatestKey(pending))) !== digest
+  ) {
+    throw new LangfuseNotFoundError(
+      "This connection link is invalid or expired. Ask Halo for a new link.",
+    );
+  }
+  return pending;
+}
+
+export async function confirmSlackAgentConnection(params: {
+  token: string;
+  userId: string;
+}) {
+  const pending = await inspectSlackAgentConnection(params.token);
+  const store = connectionStore();
+  const digest = createHash("sha256").update(params.token).digest("hex");
+  const consumed = await store.eval(
+    `if redis.call('GET', KEYS[1]) == ARGV[1] and redis.call('EXISTS', KEYS[2]) == 1 then
+       redis.call('DEL', KEYS[1], KEYS[2])
+       return 1
+     end
+     return 0`,
+    2,
+    connectionLatestKey(pending),
+    `slack-agent:connection:${digest}`,
+    digest,
+  );
+  if (consumed !== 1) {
+    throw new ForbiddenError("This connection link is invalid or expired");
+  }
+  await linkAccount(
+    { teamId: pending.teamId, slackUserId: pending.slackUserId },
+    params.userId,
+  );
+  return { success: true };
+}
+
 export async function disconnectSlackAgent(userId: string, linkId: string) {
   const link = await prisma.slackAgentUserLink.findFirst({
     where: { id: linkId, userId },
-    select: { id: true, teamId: true },
+    select: { id: true, teamId: true, slackUserId: true },
   });
   if (!link) {
     throw new LangfuseNotFoundError("Slack connection not found");
   }
   if (redis) {
+    const connectionDigest = await redis.getdel(connectionLatestKey(link));
+    if (connectionDigest) {
+      await redis.del(`slack-agent:connection:${connectionDigest}`);
+    }
     const digest = await redis.getdel(
       `slack-agent:latest:${link.teamId}:${userId}`,
     );
@@ -164,17 +264,26 @@ async function connectAccount(
   if (consumed !== 1) {
     throw new ForbiddenError("Connection code is invalid or expired");
   }
-  const identity = { teamId: input.teamId, slackUserId: input.slackUserId };
+  return linkAccount(
+    { teamId: input.teamId, slackUserId: input.slackUserId },
+    pending.userId,
+  );
+}
+
+async function linkAccount(
+  identity: z.infer<typeof SlackIdentity>,
+  userId: string,
+) {
   // A concurrent connect cannot replace the account behind an existing identity.
   await prisma.slackAgentUserLink.createMany({
-    data: { ...identity, userId: pending.userId },
+    data: { ...identity, userId },
     skipDuplicates: true,
   });
   const link = await prisma.slackAgentUserLink.findUnique({
     where: { teamId_slackUserId: identity },
     select: { id: true, userId: true },
   });
-  if (!link || link.userId !== pending.userId) {
+  if (!link || link.userId !== userId) {
     throw new LangfuseConflictError(
       "This Slack account is already connected. Disconnect it in Langfuse first.",
     );
@@ -271,6 +380,12 @@ export async function handleSlackAgentRequest(
   }
   if (input.operation === "connect") {
     return connectAccount(input);
+  }
+  if (input.operation === "connection") {
+    return createConnection({
+      teamId: input.teamId,
+      slackUserId: input.slackUserId,
+    });
   }
   const { link, projects } = await linkedProjects({
     teamId: input.teamId,

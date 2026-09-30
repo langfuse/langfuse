@@ -19,6 +19,7 @@ import cancelRun from "@/src/pages/api/public/agent/runs/[runId]/cancel";
 import { startPublicAgentRun } from "@/src/features/in-app-agent/server/publicAgentService";
 import slackAgentRoute from "@/src/pages/api/slack-agent/index";
 import { slackAgentRouter } from "@/src/features/slack-agent/server/router";
+import { inspectSlackAgentConnection } from "@/src/features/slack-agent/server/service";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
@@ -784,6 +785,123 @@ describe("linked Slack agent", () => {
       identity: { teamId, slackUserId, linkId, projectId: f.projectId },
     };
   }
+
+  it("links the authenticated browser account only after explicit confirmation of a private Slack challenge", async () => {
+    const f = await fixture();
+    const identity = {
+      teamId,
+      slackUserId: `U${randomUUID().replaceAll("-", "").toUpperCase()}`,
+    };
+    const challenge = await bridge({ operation: "connection", ...identity });
+    expect(challenge.status).toBe(200);
+    const token = new URL(
+      z.string().parse(challenge.body.linkUrl),
+    ).searchParams.get("token")!;
+    expect(token).toMatch(/^[a-f0-9]{64}$/);
+    expect((await browser(f.userId).status()).links).toHaveLength(0);
+    await expect(browser(null).confirmConnection({ token })).rejects.toThrow();
+    await expect(
+      browser(f.userId, "https://attacker.example").confirmConnection({
+        token,
+      }),
+    ).rejects.toThrow("Request must originate from Langfuse");
+    await browser(f.userId).confirmConnection({ token });
+    expect((await browser(f.userId).status()).links).toEqual([
+      { id: expect.any(String), slackUserId: identity.slackUserId },
+    ]);
+    await expect(
+      browser(f.userId).confirmConnection({ token }),
+    ).rejects.toThrow("invalid or expired");
+  });
+
+  it("rejects superseded, expired, and wrong-workspace browser links", async () => {
+    const f = await fixture();
+    const identity = {
+      teamId,
+      slackUserId: `U${randomUUID().replaceAll("-", "").toUpperCase()}`,
+    };
+    async function challenge() {
+      const response = await bridge({ operation: "connection", ...identity });
+      expect(response.status).toBe(200);
+      return new URL(z.string().parse(response.body.linkUrl)).searchParams.get(
+        "token",
+      )!;
+    }
+    const old = await challenge();
+    const token = await challenge();
+    await expect(inspectSlackAgentConnection(old)).rejects.toThrow(
+      "invalid or expired",
+    );
+    await expect(
+      browser(f.userId).confirmConnection({ token: old }),
+    ).rejects.toThrow("invalid or expired");
+    const digest = createHash("sha256").update(token).digest("hex");
+    expect(await redis?.get(`slack-agent:connection:${token}`)).toBeNull();
+    expect(
+      JSON.parse((await redis?.get(`slack-agent:connection:${digest}`))!),
+    ).toMatchObject(identity);
+    await expect(inspectSlackAgentConnection(token)).resolves.toMatchObject(
+      identity,
+    );
+    expect(
+      (await bridge({ operation: "connection", ...identity, teamId: "TOTHER" }))
+        .status,
+    ).toBe(403);
+    Object.assign(env, { LANGFUSE_SLACK_TEAM_ID: "TOTHER" });
+    await expect(
+      browser(f.userId).confirmConnection({ token }),
+    ).rejects.toThrow("invalid or expired");
+    Object.assign(env, { LANGFUSE_SLACK_TEAM_ID: teamId });
+    await redis?.expire(`slack-agent:connection:${digest}`, 0);
+    await expect(
+      browser(f.userId).confirmConnection({ token }),
+    ).rejects.toThrow("invalid or expired");
+    expect((await browser(f.userId).status()).links).toHaveLength(0);
+  });
+
+  it("consumes browser links once across concurrent accounts and rejects rebinding and disconnected challenges", async () => {
+    const f = await fixture();
+    const other = await fixture();
+    const identity = {
+      teamId,
+      slackUserId: `U${randomUUID().replaceAll("-", "").toUpperCase()}`,
+    };
+    async function challenge() {
+      const response = await bridge({ operation: "connection", ...identity });
+      expect(response.status).toBe(200);
+      return new URL(z.string().parse(response.body.linkUrl)).searchParams.get(
+        "token",
+      )!;
+    }
+    const token = await challenge();
+    const results = await Promise.allSettled([
+      browser(f.userId).confirmConnection({ token }),
+      browser(other.userId).confirmConnection({ token }),
+    ]);
+    expect(
+      results.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    expect(
+      results.filter((result) => result.status === "rejected"),
+    ).toHaveLength(1);
+    const link = await prisma.slackAgentUserLink.findUniqueOrThrow({
+      where: { teamId_slackUserId: identity },
+    });
+    const loserId = link.userId === f.userId ? other.userId : f.userId;
+    await expect(
+      browser(loserId).confirmConnection({ token: await challenge() }),
+    ).rejects.toThrow("already connected");
+    const pending = await challenge();
+    await browser(link.userId).disconnect({ linkId: link.id });
+    await expect(
+      browser(link.userId).confirmConnection({ token: pending }),
+    ).rejects.toThrow("invalid or expired");
+    expect(
+      await prisma.slackAgentUserLink.findUnique({
+        where: { teamId_slackUserId: identity },
+      }),
+    ).toBeNull();
+  });
 
   it("requires browser authentication and same origin, and consumes only the newest unexpired code without replacing another account", async () => {
     const f = await fixture();

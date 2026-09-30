@@ -202,13 +202,16 @@ durable Slack conversation archive.
 [Linked mode](./LINKED_SETUP.md) implements verified account linking, current
 user permissions, and one-project-per-thread routing in DMs and channels. It uses a separate
 trusted integration credential; the shared project's public API does not accept
-arbitrary user IDs. A user connects once with a short-lived code from Langfuse,
-then chooses a project from a searchable Slack dropdown. The original question
+arbitrary user IDs. Halo privately sends an unlinked user a short-lived browser
+link. The user signs in and explicitly confirms their account, then sends their
+question again and chooses a project from a searchable Slack dropdown. The original question
 continues automatically after selection. In a channel, start with a top-level
 @mention. The thread owner can then reply without another mention; questions
 arriving during an active run are queued. The project is fixed for the thread,
 and other members cannot act as its owner. Project names and answers are
-visible to everyone who can read the channel. Connection codes remain DM-only.
+visible to everyone who can read the channel. Account-link prompts are private
+ephemeral messages in channels or normal messages in DMs. Legacy connection
+codes remain DM-only.
 
 Linked mode requires `channels:history` and `groups:history`, plus
 `message.channels` and `message.groups` events. Apply `manifest.linked.json`

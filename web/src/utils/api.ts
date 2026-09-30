@@ -684,6 +684,7 @@ export const api = createTRPCNext<AppRouter>({
             process.env.NODE_ENV === "development" &&
             "path" in operation &&
             operation.path !== "agentUserConnections.confirm" &&
+            operation.path !== "slackAgent.confirmConnection" &&
             operation.path !== "slackAgent.createCode",
         }),
         splitLink({

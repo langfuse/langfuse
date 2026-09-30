@@ -106,17 +106,18 @@ Run one bot process per state file. The laptop must stay awake and connected.
 
 ## Connect and ask a question
 
-1. Open **`<LANGFUSE_PUBLIC_URL>/slack-agent`** (or `LANGFUSE_BASE_URL` when the
-   public URL is unset) and sign in to the Langfuse account
-   whose projects you want to use.
-2. Choose **Generate connection code**, copy the command, and send it in a
-   **direct message to Halo**. The code expires after five minutes, works once,
-   and is stored only as a hash on the server.
-3. Send a question in a DM, or start a channel thread with a top-level
-   **@Halo mention**, such as “@Halo Which datasets exist?”. Both use the same
-   searchable project picker. Choose a project; Halo submits the original
-   question automatically. In channels, the project name and answer are visible
-   to everyone who can read the channel.
+1. Send Halo a question in a DM, or start a channel thread with a top-level
+   **@Halo mention**, such as “@Halo Which datasets exist?”. If your account is
+   not linked, Halo sends you a private **Connect Langfuse** link. In channels,
+   this prompt is visible only to you.
+2. Open the link, sign in to the Langfuse account whose projects you want to use,
+   and choose **Link my account** in the browser. Check the Slack workspace and
+   user shown before confirming. The link expires after ten minutes and works
+   once; no connection command needs to be copied into Slack.
+3. Send your question again in the same thread. DMs and channels use the same
+   searchable project picker. Choose a project; Halo submits the question
+   automatically. In channels, the project name and answer are visible to
+   everyone who can read the channel.
 4. As the person who started the thread, reply there for follow-ups; another
    mention is unnecessary. Messages sent during an active run are queued. The
    selected project stays fixed for that thread. Start a new top-level DM
@@ -130,8 +131,9 @@ consent details are masked):
 
 ![Connected Slack account in Langfuse](./docs/linked-account-page.png)
 
-Connection codes must be sent in a **DM**, never in a channel. In channel
-threads, only the owner can select the project or continue the conversation;
+Connection links are private bearer credentials; never share them. The older
+manual-code flow remains compatible: codes must be sent in a **DM**, never in a
+channel. In channel threads, only the owner can select the project or continue the conversation;
 other channel members cannot act as that owner. Channel visibility does not
 grant Langfuse access, but everyone in the channel can read the posted project
 names and answers. Use a channel whose audience may see that project's data.
@@ -143,8 +145,9 @@ for approval. Perform changes through Langfuse's normal in-app approval flow.
 
 - **Postgres** stores verified workspace/user/account links, plus the existing
   agent conversations, runs, and event log.
-- **Redis** stores expiring connection-code hashes and runs the existing BullMQ
-  queue. Losing a code requires generating another; it does not lose links.
+- **Redis** stores expiring browser-link and legacy connection-code hashes and
+  runs the existing BullMQ queue. Losing a link requires requesting another;
+  it does not lose confirmed connections.
 - **The bot's ignored local state file** stores project/thread/owner/link
   bindings, pending questions, and delivery progress. Keep this file private
   and preserve it across restarts. Do not share it between Langfuse instances.

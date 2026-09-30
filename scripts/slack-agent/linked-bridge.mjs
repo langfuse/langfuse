@@ -19,7 +19,10 @@ export function createLinkedBridge({
   save,
   wait = sleep,
   reportError = (error) =>
-    console.error("Linked agent request failed:", error.code ?? error.name),
+    console.error(
+      "Linked agent request failed:",
+      typeof error.code === "string" ? error.code : error.name,
+    ),
 }) {
   state.threads ??= {};
   state.events ??= {};
@@ -58,11 +61,28 @@ export function createLinkedBridge({
     record.finishedAt = Date.now();
     await save();
   };
-  const connectNotice = (record) =>
-    post(
-      record,
-      `Connect your Langfuse account at <${new URL("slack-agent", `${publicUrl.replace(/\/$/, "")}/`)}|Connect Langfuse>, then send the connection command ${isDm(record.channel) ? "here in this private DM" : `in a <slack://user?team=${teamId}&id=${botUserId}|private DM with me>. Return to this thread with your question after connecting`}.`,
+  const connectNotice = async (record) => {
+    const connection = await langfuse.connection(identity(record));
+    const token = new URL(connection.linkUrl, baseUrl).searchParams.get(
+      "token",
     );
+    if (!token || !/^[a-f0-9]{64}$/.test(token))
+      throw new Error("Invalid account connection link");
+    const link = new URL("slack-agent", `${publicUrl.replace(/\/$/, "")}/`);
+    link.searchParams.set("token", token);
+    const text = `First, <${link}|connect your Langfuse account>. Sign in and confirm in your browser, then send your question again in this thread.`;
+    if (isDm(record.channel)) return post(record, text);
+    return slack.chat.postEphemeral({
+      channel: record.channel,
+      user: record.slackUserId,
+      thread_ts:
+        record.messageTs === record.threadTs ? undefined : record.threadTs,
+      text,
+      unfurl_links: false,
+      unfurl_media: false,
+      parse: "none",
+    });
+  };
 
   async function execute(record) {
     try {
@@ -557,7 +577,7 @@ export function createLinkedLangfuseClient({ baseUrl, serviceSecret }) {
           },
           body: JSON.stringify({ ...body, operation }),
           redirect: "error",
-          signal: AbortSignal.timeout(operation === "projects" ? 1800 : 30_000),
+          signal: AbortSignal.timeout(30_000),
         });
         if (!response.ok) {
           const error = new Error(
@@ -573,6 +593,7 @@ export function createLinkedLangfuseClient({ baseUrl, serviceSecret }) {
           attempt >= 2 ||
           operation === "projects" ||
           operation === "connect" ||
+          operation === "connection" ||
           error.retryable === false
         )
           throw error;
@@ -581,9 +602,8 @@ export function createLinkedLangfuseClient({ baseUrl, serviceSecret }) {
     }
   }
   return Object.fromEntries(
-    ["connect", "projects", "start", "get", "cancel"].map((operation) => [
-      operation,
-      (body) => request(operation, body),
-    ]),
+    ["connection", "connect", "projects", "start", "get", "cancel"].map(
+      (operation) => [operation, (body) => request(operation, body)],
+    ),
   );
 }
