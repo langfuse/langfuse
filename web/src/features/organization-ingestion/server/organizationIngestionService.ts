@@ -7,6 +7,7 @@ import {
   type IngestionSdkUpgradeStatus,
 } from "@langfuse/shared/src/server";
 import { type ScoreSourceType } from "@langfuse/shared";
+import { MIGRATION_INGRESS_EVENT_SOURCES } from "@/src/features/v4/server/v4TransitionCache";
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const MINUTE_MS = 60 * 1_000;
@@ -149,7 +150,10 @@ export const getOrganizationIngestionOverview = async ({
   const [eventRows, scoreRows] = await Promise.all([
     queryClickhouse<ClickhouseClientRow & { ingestionPath: IngestionPath }>({
       query: EVENT_ROWS_QUERY,
-      params,
+      params: {
+        ...params,
+        ingressSources: [...MIGRATION_INGRESS_EVENT_SOURCES],
+      },
       tags: { route: "organization-ingestion-overview-events" },
       preferredClickhouseService: "EventsReadOnly",
     }),
