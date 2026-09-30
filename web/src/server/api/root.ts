@@ -63,6 +63,7 @@ import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
 import { aiGatewayRouter } from "@/src/features/ai-gateway/server";
 import { skillRouter } from "@/src/features/skills/server/skill-router";
+import { traceliftRouter } from "@/src/features/tracelift/server/traceliftRouter";
 
 /**
  * This is the primary router for your server.
@@ -134,6 +135,7 @@ export const appRouter = createTRPCRouter({
   v4Transition: v4TransitionRouter,
   aiGateway: aiGatewayRouter,
   skills: skillRouter,
+  tracelift: traceliftRouter,
 });
 
 // export type definition of API

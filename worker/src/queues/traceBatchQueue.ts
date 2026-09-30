@@ -14,10 +14,27 @@ import {
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
+import { processTraceliftTrace } from "../features/tracelift/processTrace";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
 
 const JOB_MAX_AGE_MS = 2 * 60 * 60_000;
 let activeReads = 0;
+
+async function processTraceBatch(observations: Observation[]): Promise<void> {
+  const first = observations[0];
+  await Promise.all([
+    recordTraceBatchTranscript(observations),
+    Promise.resolve()
+      .then(() => processTraceliftTrace(observations))
+      .catch((error: unknown) => {
+        logger.warn("Tracelift processing failed", {
+          projectId: first?.projectId,
+          traceId: first?.traceId,
+          error,
+        });
+      }),
+  ]);
+}
 
 export function recordTraceBatchActiveReads(): void {
   recordGauge("langfuse.trace_batch.active_reads", activeReads);
@@ -157,7 +174,7 @@ export const traceBatchQueueProcessor: Processor<
           // Overlap tokenization with reading the next trace, but allow only
           // one pending estimate per batch so queued payloads stay bounded.
           await pendingTokenization;
-          pendingTokenization = recordTraceBatchTranscript(traceObservations);
+          pendingTokenization = processTraceBatch(traceObservations);
           traceObservations = [];
         }
         traceObservations.push(
@@ -180,7 +197,7 @@ export const traceBatchQueueProcessor: Processor<
       // Reaching EOF completes the last trace; a failed stream must not flush it.
       if (traceObservations.length) {
         await pendingTokenization;
-        pendingTokenization = recordTraceBatchTranscript(traceObservations);
+        pendingTokenization = processTraceBatch(traceObservations);
       }
     } catch (error) {
       // Only rows consumed before the failure; never count these as successful throughput.
