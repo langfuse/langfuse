@@ -15,16 +15,18 @@ use the session column's container width.
 Trace peek is a sibling outside the session review provider. Its review context
 and mobile overlays remain independent of the underlying session.
 
-## Internal transcript timeline
+## Transcript timeline
 
 `ConnectedModernSessionBodyTimeline` owns the shared sidebar and activates
-20-trace chunks from sidebar visibility and the timeline viewport. Internal mode mounts `ConnectedSessionTranscriptTimeline`
-instead of the observation I/O connector. `useSessionTraceTranscripts` calls
+20-trace chunks from sidebar visibility and the timeline viewport. The existing
+conversation timeline uses `useSessionTraceTranscripts` to call
 the existing per-trace transcript endpoint with at most four requests running
 at once; results stay in the query cache and pending requests are cancelled
-when no longer observed. Sidebar metadata pagination does not gate these reads.
+when no longer observed. Sidebar metadata controls loading and filtering of the
+displayed messages.
 
-`SessionTranscriptTrace` renders every thread's history and current turn using
-the existing timeline message/part components. Current-turn times describe
+`SessionConversationTimelineTrace` renders transcript content for every thread
+using the existing timeline message/part components. Current-turn times describe
 the source observation. It does not normalize or deduplicate again. Navigation
-and observation-filter parity are not implemented in this internal view.
+opens the trace or source observation from the feed, retains sidebar navigation
+to source observations, and exposes observation actions for matched messages.

@@ -18,8 +18,6 @@ import {
   type ModernSessionSidebarTrace,
 } from "@/src/features/sessions/ModernSessionSidebar";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { ConnectedSessionTranscriptTimeline } from "./SessionConversationTimeline/ConnectedSessionTranscriptTimeline";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 
 const SIDEBAR_TRACE_CHUNK_SIZE = 20;
 const SIDEBAR_OBSERVATION_PAGE_SIZE = 100;
@@ -61,6 +59,9 @@ export function ConnectedModernSessionBodyTimeline({
 }: ConnectedModernSessionBodyTimelineProps) {
   const traces =
     tracesState.type === "loaded" ? tracesState.traces : EMPTY_TRACES;
+  const timelineController = useSessionConversationTimelineController(
+    traces.map((trace) => ({ trace })),
+  );
   const [search, setSearch] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSetSearchQuery = useDebounce(setSearchQuery, 500, false);
@@ -86,7 +87,6 @@ export function ConnectedModernSessionBodyTimeline({
       .filter((trace) => !collapsedTraceIds.has(trace.id))
       .map((trace) => trace.id),
   );
-  const transcriptEnabled = useInternalFeaturesEnabled();
 
   const baseFilters: FilterState = [
     ...filterState,
@@ -126,6 +126,12 @@ export function ConnectedModernSessionBodyTimeline({
       highestChunkIndex = Math.max(
         highestChunkIndex,
         Math.floor(traceIndex / SIDEBAR_TRACE_CHUNK_SIZE),
+      );
+    }
+    for (const item of timelineController.virtualItems) {
+      highestChunkIndex = Math.max(
+        highestChunkIndex,
+        Math.floor(item.index / SIDEBAR_TRACE_CHUNK_SIZE),
       );
     }
     for (let chunkIndex = 0; chunkIndex <= highestChunkIndex; chunkIndex++) {
@@ -400,8 +406,6 @@ export function ConnectedModernSessionBodyTimeline({
       };
     },
   );
-  const timelineController =
-    useSessionConversationTimelineController(timelineTraces);
   const transcriptChunkIndices = new Set(activeChunkIndices);
   for (const item of timelineController.virtualItems) {
     transcriptChunkIndices.add(
@@ -450,43 +454,34 @@ export function ConnectedModernSessionBodyTimeline({
         />
       )}
       <div className="bg-card dark:bg-background session-review-stack:min-w-0 relative min-h-0 min-w-[320px]">
-        {transcriptEnabled ? (
-          <ConnectedSessionTranscriptTimeline
-            traces={timelineTraces}
-            projectId={projectId}
-            activeTraceIds={
-              new Set(
-                traces
-                  .filter((_, index) =>
-                    transcriptChunkIndices.has(
-                      Math.floor(index / SIDEBAR_TRACE_CHUNK_SIZE),
-                    ),
-                  )
-                  .map((trace) => trace.id),
-              )
-            }
-            controller={timelineController}
-          />
-        ) : (
-          <ConnectedSessionConversationTimeline
-            traces={timelineTraces}
-            projectId={projectId}
-            sessionId={sessionId}
-            filterState={filterState}
-            filterMeasurementKey={filterMeasurementKey}
-            viewLabel={viewLabel}
-            openPeek={openPeek}
-            controller={timelineController}
-            scrollTarget={scrollTarget}
-            onClearFilters={sidebarFilterControls.onClearFilters}
-            onFilterObservationByName={onFilterObservationByName}
-            onLoadMoreObservations={
-              hasMoreObservations && !isLoadingMoreObservations
-                ? loadMoreObservations
-                : undefined
-            }
-          />
-        )}
+        <ConnectedSessionConversationTimeline
+          traces={timelineTraces}
+          projectId={projectId}
+          filterState={filterState}
+          filterMeasurementKey={filterMeasurementKey}
+          viewLabel={viewLabel}
+          openPeek={openPeek}
+          controller={timelineController}
+          activeTraceIds={
+            new Set(
+              traces
+                .filter((_, index) =>
+                  transcriptChunkIndices.has(
+                    Math.floor(index / SIDEBAR_TRACE_CHUNK_SIZE),
+                  ),
+                )
+                .map((trace) => trace.id),
+            )
+          }
+          scrollTarget={scrollTarget}
+          onClearFilters={sidebarFilterControls.onClearFilters}
+          onFilterObservationByName={onFilterObservationByName}
+          onLoadMoreObservations={
+            hasMoreObservations && !isLoadingMoreObservations
+              ? loadMoreObservations
+              : undefined
+          }
+        />
       </div>
     </div>
   );

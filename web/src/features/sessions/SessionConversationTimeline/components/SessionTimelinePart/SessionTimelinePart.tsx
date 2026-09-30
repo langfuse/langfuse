@@ -3,10 +3,9 @@ import { FileIcon, Wrench } from "lucide-react";
 import { assertUnreachable } from "@langfuse/shared";
 import {
   type FilePart,
+  type NormalizedMessage,
   type ReasoningPart,
 } from "@langfuse/shared/src/utils/normalized-io";
-
-import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 import { SessionTimelineCollapsiblePart } from "@/src/features/sessions/SessionConversationTimeline/components/SessionTimelineCollapsiblePart/SessionTimelineCollapsiblePart";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";

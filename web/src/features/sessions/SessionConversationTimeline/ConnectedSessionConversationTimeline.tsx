@@ -1,48 +1,40 @@
-import { useCallback, useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
-
-import {
-  SessionConversationTimeline,
-  type SessionConversationTimelineController,
-  type SessionConversationTimelineScrollTarget,
-} from "@/src/features/sessions/SessionConversationTimeline/SessionConversationTimeline";
-import { type SessionObservation } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
+import { api, type RouterOutputs } from "@/src/utils/api";
 import { AnnotateDrawerController } from "@/src/features/scores";
 import { CommentDrawerController } from "@/src/features/comments";
 import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets";
-import { showErrorToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
-
-const BATCH_IO_SIZE = 50;
-
-type EventObservation =
-  RouterOutputs["events"]["sessionAll"]["observations"][number];
-type SessionBatchIOQueryResult = {
-  data: RouterOutputs["events"]["sessionBatchIO"] | undefined;
-  isError: boolean;
-  isPending: boolean;
-};
-
-const getObservationKey = (traceId: string, observationId: string) =>
-  `${traceId}\0${observationId}`;
+import { showErrorToast } from "@/src/features/notifications";
+import { SessionConversationTimelineFeed } from "./SessionConversationTimelineFeed";
+import {
+  type SessionConversationTimelineController,
+  type SessionConversationTimelineScrollTarget,
+} from "./SessionConversationTimeline";
+import {
+  SessionConversationTimelineTrace,
+  type SessionObservationActions,
+} from "./components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
+import { useSessionTraceTranscripts } from "./useSessionTraceTranscripts";
 
 export type ConnectedSessionConversationTimelineItem = {
   trace: EventSessionTrace;
   turnNumber: number;
-  observations: EventObservation[] | null | undefined;
+  observations:
+    | RouterOutputs["events"]["sessionAll"]["observations"]
+    | null
+    | undefined;
 };
 
 export function ConnectedSessionConversationTimeline({
   traces,
   projectId,
-  sessionId,
-  filterState,
   filterMeasurementKey,
   viewLabel,
+  filterState,
   openPeek,
   controller,
+  activeTraceIds,
   scrollTarget,
   onClearFilters,
   onFilterObservationByName,
@@ -50,7 +42,6 @@ export function ConnectedSessionConversationTimeline({
 }: {
   traces: readonly ConnectedSessionConversationTimelineItem[];
   projectId: string;
-  sessionId: string;
   filterState: FilterState;
   filterMeasurementKey: string;
   viewLabel: string | null;
@@ -59,6 +50,7 @@ export function ConnectedSessionConversationTimeline({
     row: EventSessionTrace & { observationId?: string },
   ) => void;
   controller: SessionConversationTimelineController;
+  activeTraceIds: ReadonlySet<string>;
   scrollTarget: SessionConversationTimelineScrollTarget | null;
   onClearFilters: () => void;
   onFilterObservationByName: (
@@ -67,146 +59,16 @@ export function ConnectedSessionConversationTimeline({
   ) => void;
   onLoadMoreObservations?: () => void;
 }) {
+  const resultsByTraceId = useSessionTraceTranscripts({
+    projectId,
+    traces,
+    activeTraceIds,
+  });
   const utils = api.useUtils();
   const hasDatasetAccess = useHasProjectAccess({
     projectId,
     scope: "datasets:CUD",
   });
-  const observationRefs = useMemo(
-    () =>
-      traces.flatMap(
-        ({ trace, observations }) =>
-          observations?.map((observation) => ({
-            observation,
-            traceId: trace.id,
-          })) ?? [],
-      ),
-    [traces],
-  );
-  const batches = useMemo(() => {
-    const nextBatches: (typeof observationRefs)[] = [];
-    for (
-      let index = 0;
-      index < observationRefs.length;
-      index += BATCH_IO_SIZE
-    ) {
-      nextBatches.push(observationRefs.slice(index, index + BATCH_IO_SIZE));
-    }
-    return nextBatches;
-  }, [observationRefs]);
-
-  const combineIOQueries = useCallback(
-    (results: readonly SessionBatchIOQueryResult[]) =>
-      results.map(({ data, isError, isPending }) => ({
-        data,
-        isError,
-        isPending,
-      })),
-    [],
-  );
-
-  const ioQueries = api.useQueries(
-    (t) =>
-      batches.map((batch) => {
-        const timestamps = batch.map(({ observation }) =>
-          observation.startTime.getTime(),
-        );
-        return t.events.sessionBatchIO(
-          {
-            projectId,
-            sessionId,
-            observations: batch.map(({ observation, traceId }) => ({
-              id: observation.id,
-              traceId,
-            })),
-            minStartTime: new Date(Math.min(...timestamps)),
-            maxStartTime: new Date(Math.max(...timestamps)),
-            truncated: false,
-          },
-          {
-            ...sendAsPostOption,
-            staleTime: 60 * 1000,
-            refetchOnWindowFocus: false,
-          },
-        );
-      }),
-    { combine: combineIOQueries },
-  );
-
-  const hydratedObservationGroups = useMemo(() => {
-    const ioByObservationKey = new Map<
-      string,
-      RouterOutputs["events"]["sessionBatchIO"][number]
-    >();
-    const queryIndexByObservationKey = new Map<string, number>();
-    batches.forEach((batch, queryIndex) => {
-      batch.forEach(({ observation, traceId }) => {
-        const observationKey = getObservationKey(traceId, observation.id);
-        queryIndexByObservationKey.set(observationKey, queryIndex);
-      });
-      for (const io of ioQueries[queryIndex]?.data ?? []) {
-        ioByObservationKey.set(getObservationKey(io.traceId, io.id), io);
-      }
-    });
-
-    return traces.map(({ trace, observations }) => {
-      if (observations === undefined || observations === null)
-        return observations;
-
-      const queryIndices = new Set(
-        observations.flatMap((observation) => {
-          const queryIndex = queryIndexByObservationKey.get(
-            getObservationKey(trace.id, observation.id),
-          );
-          return queryIndex === undefined ? [] : [queryIndex];
-        }),
-      );
-      if (
-        Array.from(queryIndices).some(
-          (queryIndex) => ioQueries[queryIndex]?.isError,
-        )
-      ) {
-        return null;
-      }
-      if (
-        Array.from(queryIndices).some(
-          (queryIndex) =>
-            !ioQueries[queryIndex] || ioQueries[queryIndex].isPending,
-        )
-      ) {
-        return undefined;
-      }
-
-      return observations.map((observation) => {
-        const io = ioByObservationKey.get(
-          getObservationKey(trace.id, observation.id),
-        );
-        return {
-          ...observation,
-          traceId: trace.id,
-          input: io?.input ?? null,
-          output: io?.output ?? null,
-          metadata: io?.metadata ?? null,
-        } satisfies SessionObservation;
-      });
-    });
-  }, [batches, ioQueries, traces]);
-  const timelineTraces = useMemo(
-    () =>
-      traces.map((timelineTrace, traceIndex) => ({
-        ...timelineTrace,
-        observations: hydratedObservationGroups[traceIndex],
-      })),
-    [hydratedObservationGroups, traces],
-  );
-  const emptyState =
-    filterState.length === 0
-      ? ({ type: "empty" } as const)
-      : ({
-          type: "filtered-empty",
-          viewLabel,
-          onClearFilters,
-        } as const);
 
   return (
     <AnnotateDrawerController projectId={projectId}>
@@ -217,85 +79,131 @@ export function ConnectedSessionConversationTimeline({
               projectId={projectId}
             >
               {({ openDialog: openDatasetDialog }) => (
-                <SessionConversationTimeline
-                  traces={timelineTraces}
-                  filterMeasurementKey={filterMeasurementKey}
-                  emptyState={emptyState}
-                  onOpenTrace={(trace) => openPeek(trace.id, trace)}
-                  onOpenObservation={(trace, observationId) =>
-                    openPeek(trace.id, { ...trace, observationId })
-                  }
-                  controller={controller}
-                  scrollTarget={scrollTarget}
-                  observationActions={{
-                    onFilterByName: onFilterObservationByName,
-                    annotate: {
-                      disabled: annotateDisabled,
-                      onSelect: (observation) =>
-                        openAnnotateDrawer({
-                          scoreTarget: {
-                            type: "trace",
-                            traceId: observation.traceId,
-                            observationId: observation.id,
-                          },
-                          analyticsData: {
-                            type: "trace",
-                            source: "SessionDetail",
-                            isV4: true,
-                          },
-                          scoreMetadata: {
-                            projectId,
-                            environment: observation.environment,
-                          },
-                        }),
-                    },
-                    comment: {
-                      disabled: commentDisabled,
-                      onSelect: (observation) =>
-                        openCommentDrawer({
-                          type: "comments",
-                          objectId: observation.id,
-                          objectType: "OBSERVATION",
-                          objectStartTime: observation.startTime,
-                        }),
-                    },
-                    addToDataset: {
-                      disabled: !hasDatasetAccess,
-                      onSelect: async (observation) => {
-                        try {
-                          // Remove this fetch if the timeline starts loading full IO upfront.
-                          const [fullObservation] =
-                            await utils.events.batchIO.fetch({
-                              projectId,
-                              traceId: observation.traceId,
-                              observations: [
-                                {
-                                  id: observation.id,
+                <SessionConversationTimelineFeed
+                  traces={traces.map(({ trace, turnNumber, observations }) => {
+                    const result = resultsByTraceId.get(trace.id);
+                    const state = (() => {
+                      if (observations === null) {
+                        return { type: "error" as const };
+                      }
+                      if (observations === undefined) {
+                        return { type: "loading" as const };
+                      }
+                      if (observations.length === 0) {
+                        if (filterState.length === 0)
+                          return { type: "empty" as const };
+                        return {
+                          type: "filtered-empty" as const,
+                          viewLabel,
+                          onClearFilters,
+                        };
+                      }
+                      if (result?.state === "error")
+                        return { type: "error" as const };
+                      if (!result || result.state === "loading")
+                        return { type: "loading" as const };
+                      return {
+                        type: "transcript" as const,
+                        result,
+                        observations,
+                        filtered: filterState.length > 0,
+                        observationActions: {
+                          onFilterByName: onFilterObservationByName,
+                          annotate: {
+                            disabled: annotateDisabled,
+                            onSelect: (
+                              observation: Parameters<
+                                SessionObservationActions["annotate"]["onSelect"]
+                              >[0],
+                            ) =>
+                              openAnnotateDrawer({
+                                scoreTarget: {
+                                  type: "trace",
                                   traceId: observation.traceId,
+                                  observationId: observation.id,
                                 },
-                              ],
-                              minStartTime: observation.startTime,
-                              maxStartTime: observation.startTime,
-                              truncated: false,
-                            });
-                          if (!fullObservation) throw new Error();
-
-                          openDatasetDialog({
-                            traceId: observation.traceId,
-                            observationId: observation.id,
-                            input: fullObservation.input,
-                            output: fullObservation.output,
-                            metadata: fullObservation.metadata,
-                          });
-                        } catch {
-                          showErrorToast(
-                            "Failed to load observation",
-                            "Could not fetch the observation's full I/O. Please try again.",
-                          );
-                        }
-                      },
-                    },
-                  }}
+                                analyticsData: {
+                                  type: "trace",
+                                  source: "SessionDetail",
+                                  isV4: true,
+                                },
+                                scoreMetadata: {
+                                  projectId,
+                                  environment: observation.environment,
+                                },
+                              }),
+                          },
+                          comment: {
+                            disabled: commentDisabled,
+                            onSelect: (
+                              observation: Parameters<
+                                SessionObservationActions["comment"]["onSelect"]
+                              >[0],
+                            ) =>
+                              openCommentDrawer({
+                                type: "comments",
+                                objectId: observation.id,
+                                objectType: "OBSERVATION",
+                                objectStartTime: observation.startTime,
+                              }),
+                          },
+                          addToDataset: {
+                            disabled: !hasDatasetAccess,
+                            onSelect: async (
+                              observation: Parameters<
+                                SessionObservationActions["addToDataset"]["onSelect"]
+                              >[0],
+                            ) => {
+                              try {
+                                const [fullObservation] =
+                                  await utils.events.batchIO.fetch({
+                                    projectId,
+                                    traceId: observation.traceId,
+                                    observations: [
+                                      {
+                                        id: observation.id,
+                                        traceId: observation.traceId,
+                                      },
+                                    ],
+                                    minStartTime: observation.startTime,
+                                    maxStartTime: observation.startTime,
+                                    truncated: false,
+                                  });
+                                if (!fullObservation) throw new Error();
+                                openDatasetDialog({
+                                  traceId: observation.traceId,
+                                  observationId: observation.id,
+                                  input: fullObservation.input,
+                                  output: fullObservation.output,
+                                  metadata: fullObservation.metadata,
+                                });
+                              } catch {
+                                showErrorToast(
+                                  "Failed to load observation",
+                                  "Could not fetch the observation's full I/O. Please try again.",
+                                );
+                              }
+                            },
+                          },
+                        },
+                      };
+                    })();
+                    return {
+                      trace,
+                      turnNumber,
+                      state,
+                      onOpenTrace: () => openPeek(trace.id, trace),
+                      onOpenObservation: (observationId: string) =>
+                        openPeek(trace.id, { ...trace, observationId }),
+                      scrollTarget:
+                        scrollTarget?.traceId === trace.id
+                          ? scrollTarget
+                          : null,
+                    };
+                  })}
+                  TraceComponent={SessionConversationTimelineTrace}
+                  filterMeasurementKey={`${filterMeasurementKey}:transcript`}
+                  controller={controller}
                   onLoadMoreObservations={onLoadMoreObservations}
                 />
               )}

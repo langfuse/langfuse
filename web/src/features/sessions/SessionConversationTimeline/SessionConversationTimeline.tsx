@@ -1,43 +1,11 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
-import {
-  prepareSessionTimelineObservations,
-  type PreparedSessionTimelineItem,
-} from "@/src/features/sessions/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
-import {
-  SessionConversationTimelineTrace,
-  type PreparedSessionConversationTimelineTraceState,
-  type SessionObservation,
-  type SessionObservationActions,
-} from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
-import { SessionConversationTimelineFeed } from "./SessionConversationTimelineFeed";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { useVirtualizedScrollSpy } from "@/src/hooks/useVirtualizedScrollSpy";
 
 const SESSION_TIMELINE_OVERSCAN = 5;
-const observationIdentityByReference = new WeakMap<object, number>();
-let nextObservationIdentity = 0;
-
-const getObservationIdentity = (observation: SessionObservation) => {
-  const existingIdentity = observationIdentityByReference.get(observation);
-  if (existingIdentity !== undefined) return existingIdentity;
-
-  const identity = nextObservationIdentity++;
-  observationIdentityByReference.set(observation, identity);
-  return identity;
-};
-
-export type SessionConversationTimelineItem = {
-  trace: EventSessionTrace;
-  turnNumber: number;
-  observations: readonly SessionObservation[] | null | undefined;
-};
-
-export type SessionConversationTimelineObservationActions =
-  SessionObservationActions;
-
 export type SessionConversationTimelineScrollTarget = {
   traceId: string;
   observationId: string;
@@ -45,7 +13,7 @@ export type SessionConversationTimelineScrollTarget = {
 };
 
 export function useSessionConversationTimelineController(
-  traces: readonly Pick<SessionConversationTimelineItem, "trace">[],
+  traces: readonly { trace: EventSessionTrace }[],
 ) {
   const items = traces.map(({ trace }) => trace);
   const [feedRef, feedSize] = useElementSize<HTMLDivElement>();
@@ -137,98 +105,3 @@ export function useSessionConversationTimelineController(
 export type SessionConversationTimelineController = ReturnType<
   typeof useSessionConversationTimelineController
 >;
-
-export function SessionConversationTimeline({
-  traces,
-  filterMeasurementKey,
-  emptyState,
-  onOpenTrace,
-  onOpenObservation,
-  controller,
-  observationActions,
-  scrollTarget,
-  onLoadMoreObservations,
-}: {
-  traces: readonly SessionConversationTimelineItem[];
-  filterMeasurementKey: string;
-  emptyState:
-    | { type: "empty" }
-    | {
-        type: "filtered-empty";
-        viewLabel: string | null;
-        onClearFilters: () => void;
-      };
-  onOpenTrace: (trace: EventSessionTrace) => void;
-  onOpenObservation: (trace: EventSessionTrace, observationId: string) => void;
-  controller: SessionConversationTimelineController;
-  observationActions?: SessionConversationTimelineObservationActions;
-  scrollTarget?: SessionConversationTimelineScrollTarget | null;
-  onLoadMoreObservations?: () => void;
-}) {
-  const observationFingerprint = traces
-    .flatMap(({ observations }) => observations ?? [])
-    .map(getObservationIdentity)
-    .join(",");
-  const { states } = useMemo(() => {
-    const preparedObservations = prepareSessionTimelineObservations(
-      traces.flatMap(({ observations }) => observations ?? []),
-    );
-    const traceIndexByObservation = new Map<SessionObservation, number>();
-    traces.forEach(({ observations }, traceIndex) => {
-      observations?.forEach((observation) => {
-        traceIndexByObservation.set(observation, traceIndex);
-      });
-    });
-    const preparedObservationGroups: Array<
-      PreparedSessionTimelineItem<SessionObservation>[] | null | undefined
-    > = traces.map(({ observations }) =>
-      observations === undefined || observations === null ? observations : [],
-    );
-    preparedObservations.forEach((preparedObservation) => {
-      const traceIndex = traceIndexByObservation.get(
-        preparedObservation.observation,
-      );
-      if (traceIndex === undefined) return;
-
-      preparedObservationGroups[traceIndex]?.push(preparedObservation);
-    });
-
-    return {
-      observationFingerprint,
-      states: traces.map(
-        (
-          { observations },
-          traceIndex,
-        ): PreparedSessionConversationTimelineTraceState => {
-          if (observations === undefined) return { type: "loading" };
-          if (observations === null) return { type: "error" };
-          if (observations.length === 0) return emptyState;
-
-          return {
-            type: "loaded",
-            observations: preparedObservationGroups[traceIndex] ?? [],
-          };
-        },
-      ),
-    };
-  }, [emptyState, observationFingerprint, traces]);
-
-  return (
-    <SessionConversationTimelineFeed
-      traces={traces.map(({ trace, turnNumber }, index) => ({
-        trace,
-        turnNumber,
-        state: states[index]!,
-        onOpenTrace: () => onOpenTrace(trace),
-        onOpenObservation: (observationId: string) =>
-          onOpenObservation(trace, observationId),
-        observationActions,
-        scrollTarget: scrollTarget?.traceId === trace.id ? scrollTarget : null,
-      }))}
-      TraceComponent={SessionConversationTimelineTrace}
-      filterMeasurementKey={filterMeasurementKey}
-      controller={controller}
-      onLoadMoreObservations={onLoadMoreObservations}
-    />
-  );
-}
