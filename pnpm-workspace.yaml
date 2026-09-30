@@ -129,6 +129,11 @@ overrides:
   # and ^4.8.3, which the vulnerable 4.13.5 already satisfies, so only an
   # override moves it to the patched release.
   hono: 4.13.7
+  # CVE-2026-101916 (certificate validation) and CVE-2026-101915 (sensitive
+  # data in server errors), fixed in 1.14.5. The OpenTelemetry gRPC exporters,
+  # @a2a-js/sdk and dockerode all declare ^1 ranges the vulnerable 1.14.4
+  # already satisfies, so only an override moves it.
+  "@grpc/grpc-js": 1.14.5
   # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
