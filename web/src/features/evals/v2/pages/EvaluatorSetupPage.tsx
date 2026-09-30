@@ -70,6 +70,42 @@ import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFil
 import { createEvalOnboardingAnalytics } from "@/src/features/evals/v2/fns/createEvalOnboardingAnalytics";
 import { EvalOnboardingAnalyticsProvider } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
 
+type EvaluatorSamplePeekObservation = {
+  id: string;
+  traceId?: string | null;
+  startTime: Date;
+};
+
+export function getEvaluatorSamplePeekConfig(projectId: string) {
+  return {
+    queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: "evaluators-v2",
+    isV4: true,
+    paramsToMirrorPeekValue: ["observation"],
+    extractParamsValuesFromRow: (
+      observation: EvaluatorSamplePeekObservation,
+    ) => ({
+      traceId: observation.traceId ?? "",
+      timestamp: observation.startTime.toISOString(),
+    }),
+    expandConfig: {
+      basePath: `/project/${projectId}/traces`,
+      reader: "trace" as const,
+    },
+  };
+}
+
+export function openEvaluatorSamplePeek(
+  navigation: {
+    openPeek: (id?: string, row?: unknown) => void;
+  },
+  observation: EvaluatorSamplePeekObservation,
+) {
+  if (observation.traceId) {
+    navigation.openPeek(observation.id, observation);
+  }
+}
+
 type InitialEvaluator = {
   id: string;
   name: string;
@@ -294,15 +330,9 @@ export function EvaluatorSetupPage(
     () => toAbsoluteTimeRange(timeRange),
     [timeRange],
   );
-  const sampleTracePeekNavigation = usePeekNavigation({
-    queryParams: ["observation", "display", "timestamp", "traceId"],
-    tableName: "evaluators-v2",
-    isV4: true,
-    expandConfig: {
-      basePath: `/project/${projectId}/traces`,
-      reader: "trace",
-    },
-  });
+  const sampleTracePeekNavigation = usePeekNavigation(
+    getEvaluatorSamplePeekConfig(projectId),
+  );
   const sampleTracePeekConfig = {
     itemType: "TRACE" as const,
     detailNavigationKey: detailPageListKeys.traces,
@@ -753,9 +783,7 @@ export function EvaluatorSetupPage(
               "eval:onboarding_sample_observation_previewed",
               {},
             );
-            if (observation.traceId) {
-              sampleTracePeekNavigation.openPeek(observation.traceId);
-            }
+            openEvaluatorSamplePeek(sampleTracePeekNavigation, observation);
           }}
         />
       }

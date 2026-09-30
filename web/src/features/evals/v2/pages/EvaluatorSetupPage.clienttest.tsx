@@ -1,13 +1,70 @@
-import { describe, expect, it, vi } from "vitest";
+import { renderHook } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/evaluatorSetupSteps";
 import {
   applyEvaluatorSuggestion,
+  getEvaluatorSamplePeekConfig,
   getEvaluatorVersionDefinition,
+  openEvaluatorSamplePeek,
   restoreEvaluatorVersion,
   shouldOfferRuleAttachment,
 } from "./EvaluatorSetupPage";
+
+const { mockPush } = vi.hoisted(() => ({
+  mockPush: vi.fn(),
+}));
+
+vi.mock("next/router", () => ({
+  useRouter: () => ({
+    push: mockPush,
+    pathname: "/project/[projectId]/evals/new",
+  }),
+}));
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
+  usePostHogClientCapture: () => vi.fn(),
+}));
+
+describe("evaluator sample peek navigation", () => {
+  beforeEach(() => {
+    mockPush.mockReset();
+    window.history.replaceState(
+      {},
+      "",
+      "/project/project-1/evals/new?template=scratch",
+    );
+  });
+
+  it("opens the trace peek focused on the clicked observation", () => {
+    const observation = {
+      id: "observation-child",
+      traceId: "trace-1",
+      startTime: new Date("2026-09-30T12:00:00.000Z"),
+    };
+    const { result } = renderHook(() =>
+      usePeekNavigation(getEvaluatorSamplePeekConfig("project-1")),
+    );
+
+    openEvaluatorSamplePeek(result.current, observation);
+
+    expect(mockPush).toHaveBeenCalledWith(
+      {
+        pathname: "/project/project-1/evals/new",
+        query: {
+          template: "scratch",
+          peek: "observation-child",
+          observation: "observation-child",
+          traceId: "trace-1",
+          timestamp: "2026-09-30T12:00:00.000Z",
+        },
+      },
+      undefined,
+      { shallow: true },
+    );
+  });
+});
 
 describe("shouldOfferRuleAttachment", () => {
   it("does not offer rule attachment for a blocked evaluator", () => {
