@@ -62,21 +62,19 @@ const NON_TOKEN_PRICE_KEYS = new Set([
 ]);
 const TOKEN_PRICE_LITERAL = /^(0|[0-9]+(\.[0-9]+)?e-6)$/;
 
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
+const MODEL_NAME_KEY = /"modelName"\s*:\s*("(?:[^"\\]|\\.)*")/g;
 
 // JSON.parse drops number notation, so this reads the raw source text.
 function validatePriceNotation(rawText, modelName) {
-  const start = rawText.search(
-    new RegExp(
-      `"modelName"\\s*:\\s*${escapeRegExp(JSON.stringify(modelName))}`,
-    ),
+  const modelNameMatches = [...rawText.matchAll(MODEL_NAME_KEY)];
+  const index = modelNameMatches.findIndex(
+    (match) => JSON.parse(match[1]) === modelName,
   );
-  if (start === -1) return;
-  const rest = rawText.slice(start + 1);
-  const next = rest.search(/"modelName"\s*:/);
-  const block = next === -1 ? rest : rest.slice(0, next);
+  if (index === -1) return;
+  const block = rawText.slice(
+    modelNameMatches[index].index,
+    modelNameMatches[index + 1]?.index ?? rawText.length,
+  );
 
   for (const pricesMatch of block.matchAll(/"prices"\s*:\s*\{([^}]*)\}/g)) {
     for (const [, key, literal] of pricesMatch[1].matchAll(
