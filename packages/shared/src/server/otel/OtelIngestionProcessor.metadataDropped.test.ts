@@ -202,6 +202,146 @@ describe("OTLP empty attribute values", () => {
     ]);
   });
 
+  it.each([
+    ["ai.operationId", "ai"],
+    ["ai.toolCall.name", "ai"],
+    ["genkit:name", "genkit-tracer"],
+  ])("uses the span name when %s is valueless", async (key, scope) => {
+    const batch = buildBatch([{ key, value: undefined }]);
+    batch[0].scopeSpans![0].scope!.name = scope;
+
+    const events = await createProcessor().processToIngestionEvents(batch);
+    const trace = events.find((event) => event.type === "trace-create");
+    const observation = events.find((event) => event.type !== "trace-create");
+
+    expect(trace?.body).toMatchObject({ name: "test-span" });
+    expect(observation?.body).toMatchObject({ name: "test-span" });
+  });
+
+  it("omits a valueless name from a child span's trace update", async () => {
+    const batch = buildBatch([
+      { key: "langfuse.trace.name", value: undefined },
+      { key: "langfuse.user.id", value: { stringValue: "user-test" } },
+    ]);
+    batch[0].scopeSpans![0].spans![0].parentSpanId = Buffer.from(
+      "fedcba9876543210",
+      "hex",
+    );
+
+    const events = await createProcessor().processToIngestionEvents(batch);
+    const trace = events.find((event) => event.type === "trace-create");
+
+    expect(trace?.body).toMatchObject({ userId: "user-test" });
+    expect(trace?.body.name).toBeUndefined();
+  });
+
+  it("keeps the legacy Python SDK span type when generation attributes are valueless", () => {
+    const batch = buildBatch([
+      { key: "langfuse.observation.model.name", value: undefined },
+      { key: "langfuse.observation.usage_details", value: null },
+    ]);
+    batch[0].scopeSpans![0].scope!.version = "3.3.0";
+    batch[0].resource!.attributes!.push({
+      key: "telemetry.sdk.language",
+      value: { stringValue: "python" },
+    });
+
+    expect(createProcessor().processToEvent(batch)[0]).toMatchObject({
+      type: "SPAN",
+    });
+  });
+
+  it.each([
+    {
+      valueless: "ai.prompt.messages",
+      fallback: "ai.prompt",
+      field: "input",
+    },
+    {
+      valueless: "ai.result.text",
+      fallback: "ai.response.object",
+      field: "output",
+    },
+    {
+      valueless: "ai.toolCall.result",
+      fallback: "ai.response.object",
+      field: "output",
+    },
+    {
+      valueless: "ai.response.text",
+      fallback: "ai.response.object",
+      field: "output",
+      companion: { key: "ai.response.toolCalls", value: { stringValue: "[]" } },
+    },
+  ])(
+    "uses the AI SDK fallback when %s is valueless",
+    ({ valueless, fallback, field, companion }) => {
+      const batch = buildBatch([
+        { key: valueless, value: undefined },
+        { key: fallback, value: { stringValue: "fallback-value" } },
+        ...(companion ? [companion] : []),
+      ]);
+      batch[0].scopeSpans![0].scope!.name = "ai";
+
+      const event = createProcessor().processToEvent(batch)[0];
+
+      expect(event).toMatchObject({ [field]: "fallback-value" });
+    },
+  );
+
+  it("uses AI SDK compatibility fallbacks for valueless finish reason and provider", () => {
+    const batch = buildBatch([
+      { key: "gen_ai.response.finish_reasons", value: undefined },
+      { key: "gen_ai.finishReason", value: { stringValue: "stop" } },
+      { key: "gen_ai.system", value: null },
+      { key: "ai.model.provider", value: { stringValue: "openai" } },
+    ]);
+    batch[0].scopeSpans![0].scope!.name = "ai";
+
+    expect(createProcessor().processToEvent(batch)[0]).toMatchObject({
+      modelParameters: { finishReason: "stop", system: "openai" },
+    });
+  });
+
+  it("drops valueless prefixed model parameters while preserving falsy values", () => {
+    const batch = buildBatch([
+      { key: "gen_ai.request.temperature", value: undefined },
+      { key: "gen_ai.request.max_tokens", value: { intValue: "0" } },
+      { key: "llm.invocation_parameters.stream", value: { boolValue: false } },
+      { key: "llm.invocation_parameters.empty", value: { stringValue: "" } },
+    ]);
+
+    expect(createProcessor().processToEvent(batch)[0].modelParameters).toEqual({
+      max_tokens: 0,
+      stream: "false",
+      empty: "",
+    });
+  });
+
+  it.each([
+    "gen_ai.prompt.0.content",
+    "gen_ai.completion.0.content",
+    "llm.input_messages.0.content",
+    "llm.output_messages.0.content",
+  ])("ignores valueless %s and uses modern GenAI input/output", (valueless) => {
+    const batch = buildBatch([
+      { key: valueless, value: undefined },
+      {
+        key: "gen_ai.input.messages",
+        value: { stringValue: "modern-input" },
+      },
+      {
+        key: "gen_ai.output.messages",
+        value: { stringValue: "modern-output" },
+      },
+    ]);
+
+    expect(createProcessor().processToEvent(batch)[0]).toMatchObject({
+      input: "modern-input",
+      output: "modern-output",
+    });
+  });
+
   it.each(["v3", "v4"])(
     "retains both spans with missing and null attribute values on %s",
     async (path) => {

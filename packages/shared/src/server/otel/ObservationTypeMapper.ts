@@ -201,8 +201,8 @@ export class ObservationTypeMapperRegistry {
           LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION,
         ];
 
-        const hasGenerationAttributes = Object.keys(attributes).some((key) =>
-          generationKeys.includes(key as any),
+        const hasGenerationAttributes = generationKeys.some(
+          (key) => attributes[key] != null,
         );
 
         if (hasGenerationAttributes) {

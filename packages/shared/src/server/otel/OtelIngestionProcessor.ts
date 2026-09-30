@@ -1113,7 +1113,9 @@ export class OtelIngestionProcessor {
     if (hasTraceUpdates && !isRootSpan) {
       trace = {
         ...trace,
-        name: attributes[LangfuseOtelSpanAttributes.TRACE_NAME] as string,
+        name:
+          (attributes[LangfuseOtelSpanAttributes.TRACE_NAME] as string) ??
+          undefined,
         metadata: {
           ...resourceAttributeMetadata,
           ...this.extractMetadata(attributes, "trace", span),
@@ -1967,17 +1969,17 @@ export class OtelIngestionProcessor {
     // Vercel AI SDK
     if (instrumentationScopeName === "ai") {
       input =
-        "ai.prompt.messages" in attributes
+        attributes["ai.prompt.messages"] != null
           ? attributes["ai.prompt.messages"]
-          : "ai.prompt" in attributes
+          : attributes["ai.prompt"] != null
             ? attributes["ai.prompt"]
-            : "ai.toolCall.args" in attributes
+            : attributes["ai.toolCall.args"] != null
               ? attributes["ai.toolCall.args"]
               : undefined;
 
       if (
-        "ai.response.text" in attributes &&
-        "ai.response.toolCalls" in attributes
+        attributes["ai.response.text"] != null &&
+        attributes["ai.response.toolCalls"] != null
       ) {
         output = JSON.stringify({
           role: "assistant",
@@ -1986,20 +1988,20 @@ export class OtelIngestionProcessor {
         });
       } else {
         output =
-          "ai.response.text" in attributes &&
+          attributes["ai.response.text"] != null &&
           Boolean(attributes["ai.response.text"])
             ? attributes["ai.response.text"]
-            : "ai.result.text" in attributes // Legacy support for ai SDK versions < 4.0.0
+            : attributes["ai.result.text"] != null // Legacy support for ai SDK versions < 4.0.0
               ? attributes["ai.result.text"]
-              : "ai.toolCall.result" in attributes
+              : attributes["ai.toolCall.result"] != null
                 ? attributes["ai.toolCall.result"]
-                : "ai.response.object" in attributes
+                : attributes["ai.response.object"] != null
                   ? attributes["ai.response.object"]
-                  : "ai.result.object" in attributes // Legacy support for ai SDK versions < 4.0.0
+                  : attributes["ai.result.object"] != null // Legacy support for ai SDK versions < 4.0.0
                     ? attributes["ai.result.object"]
-                    : "ai.response.toolCalls" in attributes
+                    : attributes["ai.response.toolCalls"] != null
                       ? attributes["ai.response.toolCalls"]
-                      : "ai.result.toolCalls" in attributes // Legacy support for ai SDK versions < 4.0.0
+                      : attributes["ai.result.toolCalls"] != null // Legacy support for ai SDK versions < 4.0.0
                         ? attributes["ai.result.toolCalls"]
                         : undefined;
       }
@@ -2302,11 +2304,11 @@ export class OtelIngestionProcessor {
     }
 
     // TraceLoop uses attributes property
-    const inputAttributes = Object.keys(attributes).filter((key) =>
-      key.startsWith("gen_ai.prompt"),
+    const inputAttributes = Object.keys(attributes).filter(
+      (key) => attributes[key] != null && key.startsWith("gen_ai.prompt"),
     );
-    const outputAttributes = Object.keys(attributes).filter((key) =>
-      key.startsWith("gen_ai.completion"),
+    const outputAttributes = Object.keys(attributes).filter(
+      (key) => attributes[key] != null && key.startsWith("gen_ai.completion"),
     );
     if (inputAttributes.length > 0 || outputAttributes.length > 0) {
       input = inputAttributes.reduce((acc: any, key) => {
@@ -2325,11 +2327,11 @@ export class OtelIngestionProcessor {
     }
 
     // OpenInference llm.input_messages and llm.output_messages (used by Agno, BeeAI, etc.)
-    const llmInputAttributes = Object.keys(attributes).filter((key) =>
-      key.startsWith("llm.input_messages"),
+    const llmInputAttributes = Object.keys(attributes).filter(
+      (key) => attributes[key] != null && key.startsWith("llm.input_messages"),
     );
-    const llmOutputAttributes = Object.keys(attributes).filter((key) =>
-      key.startsWith("llm.output_messages"),
+    const llmOutputAttributes = Object.keys(attributes).filter(
+      (key) => attributes[key] != null && key.startsWith("llm.output_messages"),
     );
     if (llmInputAttributes.length > 0 || llmOutputAttributes.length > 0) {
       const llmInput = llmInputAttributes.reduce((acc: any, key) => {
@@ -2515,7 +2517,7 @@ export class OtelIngestionProcessor {
     }
 
     // Genkit
-    if ("genkit:name" in attributes) {
+    if (attributes["genkit:name"] != null) {
       return attributes["genkit:name"] as string;
     }
 
@@ -2530,14 +2532,14 @@ export class OtelIngestionProcessor {
     }
 
     // Vercel AI SDK
-    if ("ai.toolCall.name" in attributes) {
+    if (attributes["ai.toolCall.name"] != null) {
       return attributes["ai.toolCall.name"] as string;
     }
 
     const functionIdAttribute = "ai.telemetry.functionId";
     const operationIdAttribute = "ai.operationId";
 
-    if (operationIdAttribute in attributes) {
+    if (attributes[operationIdAttribute] != null) {
       const prefix = attributes[functionIdAttribute]
         ? attributes[functionIdAttribute] + ":"
         : "";
@@ -2696,15 +2698,15 @@ export class OtelIngestionProcessor {
             ? (attributes["gen_ai.request.max_tokens"]?.toString() ?? null)
             : null,
         finishReason:
-          "gen_ai.response.finish_reasons" in attributes
+          attributes["gen_ai.response.finish_reasons"] != null
             ? (attributes["gen_ai.response.finish_reasons"]?.toString() ?? null)
-            : "gen_ai.finishReason" in attributes //  Legacy support for ai SDK versions < 4.0.0
+            : attributes["gen_ai.finishReason"] != null //  Legacy support for ai SDK versions < 4.0.0
               ? (attributes["gen_ai.finishReason"]?.toString() ?? null)
               : null,
         system:
-          "gen_ai.system" in attributes
+          attributes["gen_ai.system"] != null
             ? (attributes["gen_ai.system"]?.toString() ?? null)
-            : "ai.model.provider" in attributes
+            : attributes["ai.model.provider"] != null
               ? (attributes["ai.model.provider"]?.toString() ?? null)
               : null,
         maxRetries:
@@ -2764,7 +2766,7 @@ export class OtelIngestionProcessor {
     return this.sanitizeModelParams(
       modelParameters.reduce((acc: any, { key, prefix }) => {
         const modelParamKey = key.replace(prefix, "");
-        if (modelParamKey !== "model") {
+        if (modelParamKey !== "model" && attributes[key] != null) {
           acc[modelParamKey] = attributes[key];
         }
         return acc;
