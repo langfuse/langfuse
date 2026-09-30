@@ -12,11 +12,23 @@ audit date.
 
 ## Latest useful snapshot
 
-**Audit date:** 2026-09-22
+**Audit date:** 2026-09-29
 
 All prices listed as `$X / MTok` (per million tokens). Per-token JSON values: divide by 1,000,000.
 
-The 2026-09-22 run re-fetched the full Anthropic pricing page, the Anthropic
+The 2026-09-29 run re-fetched the full Anthropic pricing page (model table,
+cache-hits footnote, Fast mode and Batch tables), the Anthropic models-overview
+comparison table, the OpenAI aggregate Standard/Fast-mode/Flex pricing summary,
+the full OpenAI model catalog, a dedicated re-fetch of `gpt-5-chat-latest`'s own
+model page, and both Gemini pricing pages (3.x and 2.5 families) plus the
+Gemini models catalog. This run found one new model, released the day before
+the audit: **Claude Sonnet 5.5** (`claude-sonnet-5-5`), Anthropic's new
+Sonnet-tier flagship (Sonnet 5 demoted to legacy), priced identically to
+`claude-sonnet-5` ($2/$10 input/output, standard 0.1x cache-read multiplier, no
+Fast mode, flat 1M context) — see `provider-sources-and-price-keys.md`'s
+"September 29 2026" entry for full detail. Every other price checked this run —
+including every existing Anthropic, OpenAI, and Gemini row below — matched
+verbatim. The 2026-09-22 run before it re-fetched the full Anthropic pricing page, the Anthropic
 models-overview comparison table, the OpenAI aggregate Standard/Batch/Flex/Fast-mode
 pricing tables plus the full model catalog, and both Gemini pricing pages (3.x and
 2.5 families) plus the Gemini models catalog, with a follow-up verbatim-quote fetch
@@ -78,7 +90,8 @@ to have siblings `gpt-5.5-cyber`/`gpt-5.4-cyber`, see provider-sources-and-price
 | Anthropic | claude-opus-4-5-20251101 | Same as Opus 5 | Yes | Single Standard tier in file (no separate Large Context tier); page wording on the 1M-flat-context list is ambiguous for 4.5 specifically but the main pricing table shows no separate rate, so the file's single-tier treatment is correct either way | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged. |
 | Anthropic | claude-opus-4-1-20250805 | Input $15/MTok, Output $75/MTok, 5m $18.75/MTok, 1h $30/MTok, read $1.50/MTok | Yes | Deprecated — no tiering | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing https://platform.claude.com/docs/en/about-claude/model-deprecations | Still "retired, except on Bedrock and Google Cloud"; deprecations page now shows a firm retirement date of August 5, 2026 (previously open-ended). |
 | Anthropic | claude-opus-4-20250514 | Input $15/MTok, Output $75/MTok, 5m $18.75/MTok, 1h $30/MTok, read $1.50/MTok | Yes | Retired except Google Cloud — no tiering | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing https://platform.claude.com/docs/en/about-claude/model-deprecations | Re-confirmed present; deprecations page shows firm retirement date June 15, 2026. |
-| Anthropic | claude-sonnet-5 | Input $2/MTok, Output $10/MTok; 5m $2.50/MTok, 1h $4/MTok, read $0.20/MTok | Yes | Flat 1M context; permanent pricing (no Sep 1 2026 increase) | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged; the $2/$10 permanent-pricing note is still on the page verbatim. |
+| Anthropic | claude-sonnet-5 | Input $2/MTok, Output $10/MTok; 5m $2.50/MTok, 1h $4/MTok, read $0.20/MTok | Yes | Flat 1M context; permanent pricing (no Sep 1 2026 increase) | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged; the $2/$10 permanent-pricing note is still on the page verbatim. Now "legacy (still available)" behind Sonnet 5.5. |
+| Anthropic | claude-sonnet-5-5 | Input $2/MTok, Output $10/MTok; 5m $2.50/MTok, 1h $4/MTok, read $0.20/MTok (standard 0.1x multiplier) | Yes | Flat 1M context; no Fast mode (only Opus 5.5/5/4.8 have it) | Yes | Added | https://platform.claude.com/docs/en/about-claude/pricing https://platform.claude.com/docs/en/models/overview https://platform.claude.com/docs/en/models/sonnet-5-5/overview | New model, released 2026-09-28, now the current Sonnet-tier flagship (Sonnet 5 demoted to legacy). Pricing numerically identical to claude-sonnet-5. matchPattern mirrors claude-sonnet-5 with a `-5` suffix, verified not to collide with it via the match-pattern tester. |
 | Anthropic | claude-sonnet-4-6 | Input $3/MTok, Output $15/MTok, 5m $3.75/MTok, 1h $6/MTok, read $0.30/MTok | Yes | Flat 1M context | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged. |
 | Anthropic | claude-sonnet-4-5-20250929 | Input $3/MTok, Output $15/MTok, 5m $3.75/MTok, 1h $6/MTok, read $0.30/MTok | Yes | No large-context tier (200k hard cap) | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged. |
 | Anthropic | claude-sonnet-4-20250514 | Input $3/MTok, Output $15/MTok, 5m $3.75/MTok, 1h $6/MTok, read $0.30/MTok | Yes | Retired except Bedrock/Google Cloud — no tiering | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed present on current page's main table, unchanged. |
