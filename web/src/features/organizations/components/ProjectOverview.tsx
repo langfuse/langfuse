@@ -5,6 +5,7 @@ import {
   Settings,
   Users,
   PlusIcon,
+  ChartNoAxesCombined,
 } from "lucide-react";
 import {
   Card,
@@ -211,19 +212,29 @@ const OrganizationActionButtons = ({
   });
 
   return (
-    <>
-      <Button asChild variant="ghost">
-        <Link href={`/organization/${orgId}/settings`}>
-          <Settings size={14} />
-        </Link>
-      </Button>
-      {membersViewAccess && (
-        <Button asChild variant="ghost">
-          <Link href={`/organization/${orgId}/settings/members`}>
-            <Users size={14} />
+    <div className="flex items-center gap-4">
+      <div className="flex items-center gap-0">
+        <Button asChild variant="ghost" size="icon">
+          <Link
+            href={`/organization/${orgId}/settings/analytics`}
+            aria-label="Organization analytics"
+          >
+            <ChartNoAxesCombined size={14} />
           </Link>
         </Button>
-      )}
+        <Button asChild variant="ghost" size="icon">
+          <Link href={`/organization/${orgId}/settings`}>
+            <Settings size={14} />
+          </Link>
+        </Button>
+        {membersViewAccess && (
+          <Button asChild variant="ghost" size="icon">
+            <Link href={`/organization/${orgId}/settings/members`}>
+              <Users size={14} />
+            </Link>
+          </Button>
+        )}
+      </div>
       {createProjectAccess ? (
         <Button asChild variant={primaryButtonVariant}>
           <Link href={createProjectRoute(orgId)}>
@@ -237,7 +248,7 @@ const OrganizationActionButtons = ({
           New project
         </Button>
       )}
-    </>
+    </div>
   );
 };
 

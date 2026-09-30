@@ -33,6 +33,7 @@ import {
 } from "@/src/features/ai-gateway";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
+import { OrganizationAnalyticsPage } from "./components/OrganizationAnalyticsPage/OrganizationAnalyticsPage";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -201,6 +202,13 @@ export const getOrganizationSettingsPages = ({
     cmdKKeywords: ["payment", "subscription", "plan", "invoice"],
     content: <BillingSettings />,
     show: showBillingSettings,
+  },
+  {
+    title: "Analytics",
+    slug: "analytics",
+    section: "Organization",
+    cmdKKeywords: ["ingestion", "observations", "scores", "usage"],
+    content: <OrganizationAnalyticsPage organizationId={organization.id} />,
   },
   {
     title: "SSO",
