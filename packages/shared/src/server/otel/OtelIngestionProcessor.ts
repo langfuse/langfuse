@@ -1360,6 +1360,9 @@ export class OtelIngestionProcessor {
   ): Record<string, unknown> {
     return (
       resourceSpan?.resource?.attributes?.reduce((acc: any, attr: any) => {
+        if (attr?.value == null) {
+          return acc;
+        }
         acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
         return acc;
       }, {}) ?? {}
@@ -1369,6 +1372,9 @@ export class OtelIngestionProcessor {
   private extractScopeAttributes(scopeSpan: any): Record<string, unknown> {
     return (
       scopeSpan?.scope?.attributes?.reduce((acc: any, attr: any) => {
+        if (attr?.value == null) {
+          return acc;
+        }
         acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
         return acc;
       }, {}) ?? {}
@@ -1378,6 +1384,9 @@ export class OtelIngestionProcessor {
   private extractSpanAttributes(span: any): Record<string, unknown> {
     return (
       span?.attributes?.reduce((acc: any, attr: any) => {
+        if (attr?.value == null) {
+          return acc;
+        }
         acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
         return acc;
       }, {}) ?? {}
@@ -1544,10 +1553,12 @@ export class OtelIngestionProcessor {
     if (value.boolValue !== undefined) {
       return value.boolValue;
     }
-    if (value.arrayValue && value.arrayValue.values !== undefined) {
-      return value.arrayValue.values.map((v: any) =>
-        this.convertValueToPlainJavascript(v),
-      );
+    if (value.arrayValue) {
+      // An empty OTLP array arrives without `values` (protobuf omits empty
+      // repeated fields), and array elements may be empty values.
+      return (value.arrayValue.values ?? [])
+        .filter((v: any) => v != null)
+        .map((v: any) => this.convertValueToPlainJavascript(v));
     }
     if (value.intValue !== undefined) {
       const parsedInt = this.convertOtelIntValue(value.intValue);
@@ -2046,6 +2057,9 @@ export class OtelIngestionProcessor {
       const eventAttributes: Record<string, unknown> =
         event.attributes?.reduce(
           (acc: Record<string, unknown>, attr: any) => {
+            if (attr?.value == null) {
+              return acc;
+            }
             acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
             return acc;
           },
@@ -2077,6 +2091,9 @@ export class OtelIngestionProcessor {
           ? inputEvents.map((event: any) => {
               const eventAttributes =
                 event.attributes?.reduce((acc: any, attr: any) => {
+                  if (attr?.value == null) {
+                    return acc;
+                  }
                   acc[attr.key] = this.convertValueToPlainJavascript(
                     attr.value,
                   );
@@ -2095,6 +2112,9 @@ export class OtelIngestionProcessor {
           ? outputEvents.map((event: any) => {
               const eventAttributes =
                 event.attributes?.reduce((acc: any, attr: any) => {
+                  if (attr?.value == null) {
+                    return acc;
+                  }
                   acc[attr.key] = this.convertValueToPlainJavascript(
                     attr.value,
                   );
@@ -2129,11 +2149,17 @@ export class OtelIngestionProcessor {
     if (input || output) {
       input =
         input?.reduce((acc: any, attr: any) => {
+          if (attr?.value == null) {
+            return acc;
+          }
           acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
           return acc;
         }, {}) ?? {};
       output =
         output?.reduce((acc: any, attr: any) => {
+          if (attr?.value == null) {
+            return acc;
+          }
           acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
           return acc;
         }, {}) ?? {};

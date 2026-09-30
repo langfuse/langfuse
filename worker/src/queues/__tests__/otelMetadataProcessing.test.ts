@@ -207,6 +207,36 @@ describe("OTel metadata processing", () => {
     });
   });
 
+  describe("attribute value shapes", () => {
+    it("skips attributes without a value and keeps empty arrays as arrays", async () => {
+      const { nameToValue } = await processAndCreateEvent(
+        buildOtelSpan({
+          scopeVersion: "4.0.0",
+          resourceAttrKey: "service.name",
+          resourceAttrValue: "svc-a",
+          scopeAttrKey: "public_key",
+          scopeAttrValue: "pk-test",
+          metadataAttrs: [
+            { key: "env", value: { stringValue: "prod" } },
+            // A KeyValue with no value is valid OTLP (protobuf leaves the
+            // field unset).
+            { key: "empty", value: undefined as any },
+            { key: "tags_empty", value: { arrayValue: {} } },
+            {
+              key: "tags",
+              value: { arrayValue: { values: [{ stringValue: "a" }] } },
+            },
+          ],
+        }),
+      );
+
+      expect(nameToValue["env"]).toBe("prod");
+      expect(nameToValue["empty"]).toBeUndefined();
+      expect(nameToValue["tags_empty"]).toBe("[]");
+      expect(nameToValue["tags"]).toBe('["a"]');
+    });
+  });
+
   describe("experiment metadata", () => {
     it("extracts serialized and flattened experiment metadata attributes", async () => {
       const otelSpan = {
