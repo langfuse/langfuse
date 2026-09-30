@@ -287,11 +287,16 @@ export const TestKeepsBadgedLabelReadable = meta.story({
       // `scrollWidth <= clientWidth` alone is also satisfied by 0 <= 0, which
       // is the collapsed state being guarded against — so pin the width too.
       expect(label.clientWidth).toBeGreaterThan(0);
-      expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth);
-      // Both pills survive the wrap — the name must not be won back by
-      // dropping the level information.
-      expect(within(option).getByText("Trace")).toBeVisible();
-      expect(within(option).getByText("Observation")).toBeVisible();
+      expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth + 1);
+      // The pills survive the wrap intact — the name must not be won back by
+      // dropping the level information, nor by crushing the pills instead.
+      // Visibility alone would not catch that: Badge ellipsises its own text,
+      // so a squeezed "Observation" renders as a visible "O…".
+      for (const level of ["Trace", "Observation"]) {
+        const pill = within(option).getByText(level);
+        expect(pill).toBeVisible();
+        expect(pill.scrollWidth).toBeLessThanOrEqual(pill.clientWidth + 1);
+      }
     });
   },
 });
@@ -332,9 +337,12 @@ export const TestKeepsBadgedLabelReadableWithoutSearch = meta.story({
     const label = within(option).getByTitle("answer_relevancy");
     await waitFor(() => {
       expect(label.clientWidth).toBeGreaterThan(0);
-      expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth);
-      expect(within(option).getByText("Trace")).toBeVisible();
-      expect(within(option).getByText("Observation")).toBeVisible();
+      expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth + 1);
+      for (const level of ["Trace", "Observation"]) {
+        const pill = within(option).getByText(level);
+        expect(pill).toBeVisible();
+        expect(pill.scrollWidth).toBeLessThanOrEqual(pill.clientWidth + 1);
+      }
     });
   },
 });

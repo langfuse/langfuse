@@ -149,7 +149,15 @@ function OptionContent({
   return (
     <>
       <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="truncate" title={title}>
+        {/*
+          `flex-auto`, not `flex-1`: the basis must stay `auto` so the label's
+          own width is what decides whether the badges still fit on this line
+          (a `flex-1` basis of 0 would let everything share one line forever,
+          which is the bug). Growing from that basis keeps the label filling
+          the row when it does fit, which is what holds the badges against the
+          right edge and keeps `title` hoverable across the whole row.
+        */}
+        <span className="flex-auto truncate" title={title}>
           {label}
           {secondaryLabel && (
             <span className="text-muted-foreground ml-1">{secondaryLabel}</span>
