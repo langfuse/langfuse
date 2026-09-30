@@ -60,6 +60,30 @@ Common flags: `--project` (defaults to the seeded example project),
 `--environment`, `--seed`, `--id-prefix`, `--dry-run` (instant, arithmetic
 counts, writes nothing), `--json` (machine mode: pure-JSON stdout).
 
+### Seed configs
+
+`pnpm run seed -- apply <config> [--dry-run] [--json]` runs several scenarios
+from one JSON file, so a demo is one file instead of a list of commands.
+`<config>` is a path or the name of a file in `configs/`:
+
+```json
+{
+  "description": "what this demo shows",
+  "defaults": { "project": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
+  "scenarios": [
+    { "name": "nested-prompts", "params": { "depth": 4 } },
+    { "name": "trace-tree", "params": { "observations": 500, "v4": true } }
+  ]
+}
+```
+
+`defaults` apply to every step; step `params` override them. Keys are the
+scenario's CLI flag names without `--`, validated like CLI values (booleans
+must be JSON booleans). All steps are validated before anything is
+written. The last stdout line is `{ config, dryRun, summaries }`, one
+`SeedSummary` per step. The seeder does not run migrations; apply them first
+with `pnpm --filter=shared run db:deploy`.
+
 Scenarios compose: e.g. a session where one trace has zero observations is
 two `long-session` runs sharing a `--session-id` with different
 `--id-prefix` values.
@@ -143,6 +167,7 @@ cost.
 ## Layout
 
 - `cli.ts` — env-precheck bootstrap; `cli-main.ts` — the actual CLI
+- `config.ts`, `configs/` — seed configs for `apply`
 - `doctor.ts` — stack checks (Postgres, migrations, project, ClickHouse +
   tables + memory pressure, Redis, MinIO, web app), each with a fix command
 - `scenarios/` — one file per scenario plus `rng.ts` (Rng/jitter/anchor),
