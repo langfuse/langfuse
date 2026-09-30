@@ -13,6 +13,7 @@ export const REPORT_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const MAX_KEYS_PER_ISSUE = 50;
 const MAX_TRACKED_PROJECTS = 10_000;
 const FLUSH_INTERVAL_MS = 10_000;
+const SHUTDOWN_FLUSH_TIMEOUT_MS = 5_000;
 
 export type PendingLongMetadataValues = {
   projectId: string;
@@ -159,10 +160,22 @@ export class LongMetadataValueTracker {
     this.intervalId.unref();
   }
 
+  /** Flushes pending reports for at most `SHUTDOWN_FLUSH_TIMEOUT_MS`. */
   async shutdown(): Promise<void> {
     if (this.intervalId) clearInterval(this.intervalId);
     this.intervalId = null;
-    await this.flush();
+    let timeoutId: NodeJS.Timeout | undefined;
+    const timeout = new Promise<void>((resolve) => {
+      timeoutId = setTimeout(() => {
+        logger.warn("Timed out flushing long metadata values on shutdown");
+        resolve();
+      }, SHUTDOWN_FLUSH_TIMEOUT_MS);
+    });
+    try {
+      await Promise.race([this.flush(), timeout]);
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   private now(): number {

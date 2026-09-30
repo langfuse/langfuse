@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
@@ -142,6 +142,21 @@ describe("LongMetadataValueTracker", () => {
     await tracker.flush();
 
     expect(attempts).toEqual(["1", "2", "3"]);
+  });
+
+  it("does not let a stuck report block shutdown", async () => {
+    vi.useFakeTimers();
+    try {
+      const tracker = createTracker(() => new Promise(() => {}));
+      tracker.record(eventRecord("p1", { a: long() }));
+
+      const shutdown = tracker.shutdown();
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      await expect(shutdown).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("resumes when the window reported by another worker ends", async () => {
