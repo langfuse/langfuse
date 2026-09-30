@@ -24,6 +24,7 @@ export const integrationDisabledAfterErrorRule = {
   id: "integration-disabled-after-error",
   name: "Fix disabled integrations",
   group: "integration",
+  ctaLabel: "Configure integration",
   callback: async (projectId) => {
     const where = { projectId, enabled: false, lastError: { not: null } };
     const select = { lastError: true } as const;

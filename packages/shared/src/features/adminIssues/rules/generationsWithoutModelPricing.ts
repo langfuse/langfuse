@@ -19,6 +19,7 @@ export const generationsWithoutModelPricingRule = {
   id: "generations-without-model-pricing",
   name: "Add pricing for unpriced generations",
   group: "integration",
+  ctaLabel: "View generation",
   callback: async (projectId): Promise<RuleIssue[]> => {
     const now = Date.now();
     const params = {

@@ -8,6 +8,7 @@ export const blobStorageExportTimeoutRule = {
   id: "blob-storage-export-timeout",
   name: "Export blob storage as Parquet",
   group: "integration",
+  ctaLabel: "Configure export",
   callback: async (projectId) => {
     const integration = await prisma.blobStorageIntegration.findUnique({
       where: { projectId },
