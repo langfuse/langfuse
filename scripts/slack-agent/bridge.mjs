@@ -1,4 +1,5 @@
 import { setTimeout as sleep } from "node:timers/promises";
+import { createMessageReactions } from "./reactions.mjs";
 
 /** The adapter keeps Slack routing separate from Langfuse's agent execution. */
 export function createBridge({
@@ -13,6 +14,7 @@ export function createBridge({
     console.error("Agent request failed:", error.code ?? error.name),
 }) {
   const active = new Map();
+  const reactions = createMessageReactions(slack, reportError);
   const threadKey = (channel, threadTs, user) =>
     `${teamId}:${channel}:${threadTs}:${user}`;
   const setStatus = (record, status) =>
@@ -44,6 +46,7 @@ export function createBridge({
   }
 
   async function execute(record) {
+    let succeeded = false;
     try {
       if (!record.context) {
         const connection = await langfuse.connect({
@@ -64,6 +67,7 @@ export function createBridge({
         };
         await save();
       }
+      await reactions.start(record);
       await setStatus(record, "processing");
       const conversationKey = `${record.threadKey}:${record.context.userId}`;
       if (!record.runId) {
@@ -96,6 +100,7 @@ export function createBridge({
             (run.text || "The run completed without a text response.") +
               limitNotice,
           );
+          succeeded = true;
           return;
         }
         if (run.status === "CANCELLED") {
@@ -134,6 +139,7 @@ export function createBridge({
         "I couldn't finish that request. Please try again.",
       ).catch(reportError);
     } finally {
+      if (record.context) await reactions.finish(record, succeeded);
       record.done = true;
       record.finishedAt = Date.now();
       const threadStillRunning = [...active.values()].some(
@@ -200,6 +206,7 @@ export function createBridge({
         threadKey: key,
         channel: event.channel,
         threadTs: event.thread_ts || event.ts,
+        messageTs: event.ts,
         replyThreadTs: event.thread_ts,
         slackUserId: event.user,
         message,

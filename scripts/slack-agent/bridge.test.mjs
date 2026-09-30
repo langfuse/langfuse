@@ -13,6 +13,7 @@ function fixture(overrides = {}) {
     connections: [],
     reads: [],
     errors: [],
+    reactions: [],
   };
   const langfuse = {
     async connect(input) {
@@ -41,6 +42,22 @@ function fixture(overrides = {}) {
   };
   const bridge = createBridge({
     slack: {
+      reactions: {
+        async add(input) {
+          calls.reactions.push({
+            method: "add",
+            ...input,
+            replyCount: calls.replies.length,
+          });
+        },
+        async remove(input) {
+          calls.reactions.push({
+            method: "remove",
+            ...input,
+            replyCount: calls.replies.length,
+          });
+        },
+      },
       async apiCall(_method, input) {
         calls.statuses.push(input.status);
       },
@@ -186,6 +203,7 @@ test("resumes a persisted run without submitting it again and clears failed load
   await f.bridge.resume();
   assert.equal(f.calls.starts.length, 0);
   assert.equal(f.state.events.Ev1.done, true);
+  assert.deepEqual(f.calls.reactions, []);
   assert.deepEqual(f.calls.cancellations, [
     { runId: "run-before-restart", connectionId: "connection-UPERSON" },
   ]);
@@ -229,6 +247,7 @@ test("prompts an unlinked sender privately without starting an agent run", async
   );
   assert.match(f.calls.replies[0].text, /link your Langfuse account/);
   assert.equal(JSON.stringify(f.state).includes("secret"), false);
+  assert.deepEqual(f.calls.reactions, []);
 });
 
 test("different senders in the same Slack thread get separate conversations", async () => {
@@ -353,4 +372,47 @@ test("keeps the shared thread working status until every user's run finishes", a
     f.calls.replies.map((reply) => reply.user),
     ["UPERSON", "UOTHER"],
   );
+});
+
+test("reacts to the shared-mode question rather than its thread root, after delivering the answer", async () => {
+  const f = fixture();
+  await f.mention("reaction", "Find errors", {
+    thread_ts: "123.001",
+    ts: "123.002",
+  });
+  await f.mention("reaction", "Find errors", {
+    thread_ts: "123.001",
+    ts: "123.002",
+  });
+  assert.deepEqual(f.calls.reactions, [
+    {
+      method: "add",
+      channel: "CDEMO",
+      timestamp: "123.002",
+      name: "halo-looking-into-it",
+      replyCount: 0,
+    },
+    {
+      method: "remove",
+      channel: "CDEMO",
+      timestamp: "123.002",
+      name: "halo-looking-into-it",
+      replyCount: 1,
+    },
+    {
+      method: "remove",
+      channel: "CDEMO",
+      timestamp: "123.002",
+      name: "eyes",
+      replyCount: 1,
+    },
+    {
+      method: "add",
+      channel: "CDEMO",
+      timestamp: "123.002",
+      name: "halo-done-sitting-check",
+      replyCount: 1,
+    },
+  ]);
+  assert.equal(f.state.events.reaction.messageTs, "123.002");
 });

@@ -1,4 +1,5 @@
 import { setTimeout as sleep } from "node:timers/promises";
+import { createMessageReactions } from "./reactions.mjs";
 
 export const PROJECT_ACTION = "langfuse_linked_project";
 const PROJECT_BLOCK = "langfuse_project:";
@@ -28,6 +29,7 @@ export function createLinkedBridge({
   state.events ??= {};
   state.preferences ??= {};
   const active = new Map();
+  const reactions = createMessageReactions(slack, reportError);
   const isChannel = (channel) =>
     /^[CG][A-Z0-9]+$/.test(channel ?? "") &&
     (!channelId || channel === channelId);
@@ -85,6 +87,7 @@ export function createLinkedBridge({
   };
 
   async function execute(record) {
+    let succeeded = false;
     try {
       await status(record, "processing").catch(reportError);
       const thread = state.threads[record.threadKey];
@@ -95,6 +98,7 @@ export function createLinkedBridge({
         thread.projectId !== record.projectId
       )
         throw new Error("Thread binding no longer matches");
+      await reactions.start(record);
       if (!record.runId) {
         const run = await langfuse.start({
           ...access(record),
@@ -125,6 +129,7 @@ export function createLinkedBridge({
             .replace(/\*\*([^*\n]+)\*\*/g, "*$1*");
           for (let offset = 0; offset < formatted.length; offset += 3500)
             await post(record, formatted.slice(offset, offset + 3500));
+          succeeded = true;
           return;
         }
         if (run.status === "CANCELLED") {
@@ -162,6 +167,7 @@ export function createLinkedBridge({
         "I couldn't finish that request. If your linked account or access changed, start a new thread.",
       ).catch(reportError);
     } finally {
+      await reactions.finish(record, succeeded);
       await status(record, "active").catch(reportError);
       await finish(record);
     }

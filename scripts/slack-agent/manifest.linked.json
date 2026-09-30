@@ -26,7 +26,8 @@
         "assistant:write",
         "im:history",
         "channels:history",
-        "groups:history"
+        "groups:history",
+        "reactions:write"
       ]
     }
   },

@@ -17,14 +17,20 @@ name and branding if different. It enables:
 
 - **Socket Mode**, using the existing `xapp-` token with `connections:write`.
 - Bot scopes `app_mentions:read`, `chat:write`, `assistant:write`, `im:history`,
-  **`channels:history`**, and **`groups:history`**.
+  **`channels:history`**, **`groups:history`**, and **`reactions:write`**.
 - Bot events `app_mention`, `message.im`, **`message.channels`**,
   **`message.groups`**, `app_home_opened`, and `agent_session_stopped`.
 - **Interactivity & Shortcuts → On** for the project picker.
 - **App Home → Messages tab → Allow users to send messages**.
 - The **Agent** feature for Slack's native animated working status and stop button.
 
-Save and **reinstall to the workspace** after adding the channel history scopes
+Optionally upload `halo-looking-into-it` and `halo-done-sitting-check` to the
+workspace. If either is missing, Halo uses `eyes` or `white_check_mark`
+instead. It reacts to each question while it runs, then replaces the working
+reaction with done after delivering the answer. See
+[reaction behavior](./README.md#halo-reactions).
+
+Save and **reinstall to the workspace** after adding scopes
 and events, then invite the bot to each channel you want to use. Copy the current
 Bot User OAuth Token from **OAuth & Permissions** into your local bot
 configuration. Restart the bot after changing tokens. Renaming the app or

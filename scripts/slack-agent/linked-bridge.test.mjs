@@ -22,6 +22,7 @@ function fixture(overrides = {}) {
     updates: [],
     statuses: [],
     errors: [],
+    reactions: [],
     saved: [],
   };
   const account = {
@@ -64,6 +65,14 @@ function fixture(overrides = {}) {
     ...overrides,
   };
   const slack = {
+    reactions: {
+      async add(input) {
+        calls.reactions.push({ method: "add", ...input });
+      },
+      async remove(input) {
+        calls.reactions.push({ method: "remove", ...input });
+      },
+    },
     async apiCall(_method, input) {
       calls.statuses.push(input);
     },
@@ -415,6 +424,7 @@ for (const channel of ["DDIRECT", "CPUBLIC"]) {
     assert.equal(f.calls.starts.length, 0);
     assert.equal(f.calls.replies.at(-1).text, "Stopped.");
     assert.equal(f.state.events.Ev1.done, true);
+    assert.deepEqual(f.calls.reactions, []);
   });
 }
 
@@ -625,4 +635,264 @@ test("waits for cold project lookups, sends linked identity, and refuses redirec
     server.close();
     await once(server, "close");
   }
+});
+
+test("marks each DM and channel question only while running and after its answer is delivered", async () => {
+  for (const channel of ["DDIRECT", "CPUBLIC"]) {
+    const f = fixture();
+    const answerStarted = Promise.withResolvers();
+    const allowAnswer = Promise.withResolvers();
+    const post = f.slack.chat.postMessage;
+    f.slack.chat.postMessage = async (input) => {
+      if (!input.blocks) {
+        answerStarted.resolve();
+        await allowAnswer.promise;
+      }
+      return post(input);
+    };
+    if (channel === "DDIRECT") await f.message("root", "Find errors");
+    else await f.mention("root", "<@UBOT> Find errors");
+    assert.deepEqual(
+      f.calls.reactions,
+      [],
+      "Project selection is not a running question",
+    );
+    const run = f.choose("root");
+    await answerStarted.promise;
+    const whilePosting = [...f.calls.reactions];
+    allowAnswer.resolve();
+    await run;
+    assert.deepEqual(whilePosting, [
+      {
+        method: "add",
+        channel,
+        timestamp: "123.001",
+        name: "halo-looking-into-it",
+      },
+    ]);
+    assert.deepEqual(f.calls.reactions, [
+      ...whilePosting,
+      {
+        method: "remove",
+        channel,
+        timestamp: "123.001",
+        name: "halo-looking-into-it",
+      },
+      {
+        method: "remove",
+        channel,
+        timestamp: "123.001",
+        name: "eyes",
+      },
+      {
+        method: "add",
+        channel,
+        timestamp: "123.001",
+        name: "halo-done-sitting-check",
+      },
+    ]);
+    f.calls.reactions.length = 0;
+    await f.message("followup", "Explain more", {
+      channel,
+      thread_ts: "123.001",
+      ts: "123.002",
+    });
+    await f.message("followup", "Explain more", {
+      channel,
+      thread_ts: "123.001",
+      ts: "123.002",
+    });
+    assert.deepEqual(f.calls.reactions, [
+      {
+        method: "add",
+        channel,
+        timestamp: "123.002",
+        name: "halo-looking-into-it",
+      },
+      {
+        method: "remove",
+        channel,
+        timestamp: "123.002",
+        name: "halo-looking-into-it",
+      },
+      {
+        method: "remove",
+        channel,
+        timestamp: "123.002",
+        name: "eyes",
+      },
+      {
+        method: "add",
+        channel,
+        timestamp: "123.002",
+        name: "halo-done-sitting-check",
+      },
+    ]);
+  }
+});
+
+test("clears working without a done reaction for failed, stopped, timed-out, approval, or undelivered answers", async () => {
+  for (const outcome of [
+    "FAILED",
+    "CANCELLED",
+    "AWAITING_APPROVAL",
+    "RUNNING",
+    "delivery-failed",
+  ]) {
+    const f = fixture({
+      get: async () => ({
+        status: outcome === "delivery-failed" ? "SUCCEEDED" : outcome,
+        text: "Answer",
+      }),
+    });
+    await f.message("root", "Find errors");
+    if (outcome === "delivery-failed")
+      f.slack.chat.postMessage = async () => {
+        throw new Error("Message delivery failed");
+      };
+    await f.choose("root");
+    assert.deepEqual(
+      f.calls.reactions,
+      [
+        {
+          method: "add",
+          channel: "DDIRECT",
+          timestamp: "123.001",
+          name: "halo-looking-into-it",
+        },
+        {
+          method: "remove",
+          channel: "DDIRECT",
+          timestamp: "123.001",
+          name: "halo-looking-into-it",
+        },
+        {
+          method: "remove",
+          channel: "DDIRECT",
+          timestamp: "123.001",
+          name: "eyes",
+        },
+      ],
+      outcome,
+    );
+    assert.equal(f.state.events.root.done, true);
+  }
+});
+
+test("reaction API failures never interrupt an answer and replayed reaction changes are harmless", async () => {
+  for (const code of ["missing_scope", "invalid_name", "already_reacted"]) {
+    const f = fixture();
+    f.slack.reactions.add = async (input) => {
+      f.calls.reactions.push({ method: "add", ...input });
+      throw Object.assign(new Error(code), {
+        code: "slack_webapi_platform_error",
+        data: { error: code },
+      });
+    };
+    f.slack.reactions.remove = async (input) => {
+      f.calls.reactions.push({ method: "remove", ...input });
+      throw Object.assign(new Error("no_reaction"), {
+        code: "slack_webapi_platform_error",
+        data: { error: "no_reaction" },
+      });
+    };
+    await f.message("root", "Find errors");
+    await f.choose("root");
+    assert.equal(
+      f.calls.replies.at(-1).text,
+      "Found *two* traces. &lt;!channel&gt;",
+    );
+    assert.equal(f.calls.cancellations.length, 0);
+    assert.equal(f.state.events.root.done, true);
+    assert.equal(f.calls.reactions.length, code === "invalid_name" ? 6 : 4);
+    assert.equal(f.calls.errors.length, code === "already_reacted" ? 0 : 2);
+  }
+});
+
+function workspaceReactions(f, customEmojis) {
+  const present = new Set();
+  const available = new Set(["eyes", "white_check_mark", ...customEmojis]);
+  for (const method of ["add", "remove"]) {
+    f.slack.reactions[method] = async (input) => {
+      f.calls.reactions.push({ method, ...input });
+      const code = !available.has(input.name)
+        ? "invalid_name"
+        : method === "add" && present.has(input.name)
+          ? "already_reacted"
+          : method === "remove" && !present.has(input.name)
+            ? "no_reaction"
+            : undefined;
+      if (code)
+        throw Object.assign(new Error(code), {
+          code: "slack_webapi_platform_error",
+          data: { error: code },
+        });
+      if (method === "add") present.add(input.name);
+      else present.delete(input.name);
+    };
+  }
+  return present;
+}
+
+test("falls back independently for missing working and done emojis in each workspace", async () => {
+  for (const customEmojis of [
+    [],
+    ["halo-looking-into-it"],
+    ["halo-done-sitting-check"],
+  ]) {
+    const f = fixture();
+    const present = workspaceReactions(f, customEmojis);
+    const working = customEmojis.includes("halo-looking-into-it")
+      ? "halo-looking-into-it"
+      : "eyes";
+    const done = customEmojis.includes("halo-done-sitting-check")
+      ? "halo-done-sitting-check"
+      : "white_check_mark";
+    let whileRunning;
+    f.langfuse.get = async () => {
+      whileRunning = [...present];
+      return { status: "SUCCEEDED", text: "Answer" };
+    };
+    await f.message("root", "Find errors");
+    await f.choose("root");
+    assert.deepEqual(whileRunning, [working]);
+    assert.deepEqual([...present], [done]);
+    assert.equal(f.calls.replies.at(-1).text, "Answer");
+    assert.deepEqual(f.calls.errors, []);
+  }
+});
+
+test("cleans up fallback eyes after restart even if custom emojis have since been installed", async () => {
+  const f = fixture({ get: async () => ({ status: "CANCELLED" }) });
+  const present = workspaceReactions(f, [
+    "halo-looking-into-it",
+    "halo-done-sitting-check",
+  ]);
+  present.add("eyes");
+  const threadKey = "TDEMO:DDIRECT:123.001";
+  f.state.threads[threadKey] = {
+    slackUserId: "UOWNER",
+    linkId: "link-one",
+    projectId: "project-one",
+    conversationId: "existing-conversation",
+  };
+  f.state.events.recovery = {
+    eventId: "recovery",
+    teamId: "TDEMO",
+    threadKey,
+    channel: "DDIRECT",
+    threadTs: "123.001",
+    messageTs: "123.002",
+    slackUserId: "UOWNER",
+    linkId: "link-one",
+    projectId: "project-one",
+    runId: "existing-run",
+    phase: "running",
+    done: false,
+  };
+  await f.restart().resume();
+  assert.deepEqual([...present], []);
+  assert.equal(f.calls.starts.length, 0);
+  assert.equal(f.calls.replies.at(-1).text, "Stopped.");
+  assert.deepEqual(f.calls.errors, []);
 });

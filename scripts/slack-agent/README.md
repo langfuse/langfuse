@@ -29,7 +29,7 @@ channel.
    the Agent feature enabled.
 2. Install the app to the workspace under **OAuth & Permissions**. Copy the
    **Bot User OAuth Token** (`xoxb-…`). The requested bot scopes are
-   `app_mentions:read`, `chat:write`, and `assistant:write`.
+   `app_mentions:read`, `chat:write`, `assistant:write`, and `reactions:write`.
 3. Under **Basic Information → App-Level Tokens**, generate a token with the
    `connections:write` scope. Copy this **App Token** (`xapp-…`).
 4. Invite the app to your demo channel. Record the workspace ID (`T…`) and
@@ -42,6 +42,33 @@ Some Agent features require a paid Slack workspace or a developer sandbox.
 The current native loading API is `agents.sessions.setStatus`. A missing Agent
 feature or scope is a configuration error; this demo does not silently replace
 the native loading indicator with a regular chat message.
+
+## Halo reactions
+
+Halo first tries `halo-looking-into-it` while working and
+`halo-done-sitting-check` when done. If Slack returns `invalid_name` for a
+missing custom emoji, it retries with the built-in `eyes` or
+`white_check_mark`, independently for each reaction. No emoji listing scope
+or workspace-wide availability cache is needed. Both manifests include the
+`reactions:write` bot scope; for an existing app, add that scope in **OAuth &
+Permissions → Bot Token Scopes** and reinstall the app to the workspace.
+
+Uploading the custom emojis is optional. Slack app manifests do not bundle
+workspace emojis; add them separately in each workspace. Slack's
+[emoji upload API](https://docs.slack.dev/reference/methods/admin.emoji.add/)
+requires an Enterprise organization and admin installation.
+
+When a run starts, the bot adds the working emoji to the user's question.
+After the full answer is delivered, it removes the working reaction and adds
+the done emoji. Each follow-up gets reactions on its own message. Failed,
+cancelled, timed-out, approval-blocked, or undelivered answers clear the working
+reaction without showing done. These reactions supplement the native status;
+missing scopes or other reaction API errors do not prevent answers. Cleanup
+tries both working emoji names, so recovery also removes an earlier fallback
+reaction if custom emojis were installed while the bot was stopped.
+In linked mode, runs start after account linking and project selection, so
+connection commands and questions awaiting a project do not receive reactions.
+Older saved runs without the original message timestamp skip reactions.
 
 ## Prepare Langfuse
 
