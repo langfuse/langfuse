@@ -3224,117 +3224,69 @@ export class OtelIngestionProcessor {
 
   /**
    * Extract Anthropic cache tokens from `ai.response.providerMetadata` and
-   * merge them into `usageDetails`.  Skipped when the caller already populated
-   * these fields (e.g. the `ai` instrumentation-scope path handles its own
-   * provider-metadata extraction).
+   * merge them into `usageDetails` without subtracting tokens already counted
+   * by the generic `gen_ai.usage.*` parser.
    */
   private extractAnthropicCacheFromProviderMetadata(
     attributes: Record<string, unknown>,
     usageDetails: Record<string, number>,
   ): void {
-    const providerMetadata = attributes["ai.response.providerMetadata"];
-    if (!providerMetadata) return;
+    const anthropicUsage = this.parseJsonPayload(
+      attributes["ai.response.providerMetadata"],
+    )?.anthropic?.usage;
+    if (!anthropicUsage || typeof anthropicUsage !== "object") return;
 
-    try {
-      const parsed =
-        typeof providerMetadata === "string"
-          ? JSON.parse(providerMetadata)
-          : providerMetadata;
+    const count = (value: unknown) =>
+      typeof value === "number" && Number.isFinite(value) ? value : undefined;
+    let notYetSubtracted = 0;
 
-      if (!("anthropic" in parsed) || !("usage" in parsed["anthropic"])) {
-        return;
+    const cacheRead = count(anthropicUsage["cache_read_input_tokens"]);
+    if (
+      cacheRead !== undefined &&
+      usageDetails.input_cached_tokens === undefined
+    ) {
+      usageDetails.input_cached_tokens = cacheRead;
+      notYetSubtracted += cacheRead;
+    }
+
+    const cacheCreation = count(anthropicUsage["cache_creation_input_tokens"]);
+    if (
+      cacheCreation !== undefined &&
+      usageDetails.input_cache_creation === undefined
+    ) {
+      usageDetails.input_cache_creation = cacheCreation;
+      notYetSubtracted += cacheCreation;
+    }
+
+    const fiveMinutes = count(
+      anthropicUsage["cache_creation"]?.["ephemeral_5m_input_tokens"],
+    );
+    const oneHour = count(
+      anthropicUsage["cache_creation"]?.["ephemeral_1h_input_tokens"],
+    );
+    const split = (fiveMinutes ?? 0) + (oneHour ?? 0);
+    const total = usageDetails.input_cache_creation;
+    // The split is part of the total. If it exceeds the reported total, keep
+    // that total at the generic cache-write rate rather than overcounting it.
+    if (
+      (fiveMinutes !== undefined || oneHour !== undefined) &&
+      (total === undefined || split <= total)
+    ) {
+      if (fiveMinutes !== undefined) {
+        usageDetails.input_cache_creation_5m = fiveMinutes;
       }
-
-      const anthropicUsage = parsed["anthropic"]["usage"] as Record<
-        string,
-        unknown
-      >;
-
-      // Track which cache fields this function freshly populates so we only
-      // re-derive `input` for fields we actually added (avoids double-subtracting
-      // when extractGenericGenAiUsageDetails already computed input as
-      // inputTokens − cacheReadTokens − cacheCreationTokens).
-      let addedCacheRead = false;
-      let addedCacheCreation = false;
-      let addedCacheCreation5m = false;
-      let addedCacheCreation1h = false;
-
-      // cache_read_input_tokens → input_cached_tokens
-      if (
-        anthropicUsage["cache_read_input_tokens"] !== undefined &&
-        usageDetails["input_cached_tokens"] === undefined
-      ) {
-        usageDetails["input_cached_tokens"] = Number(
-          anthropicUsage["cache_read_input_tokens"],
-        );
-        addedCacheRead = true;
+      if (oneHour !== undefined) {
+        usageDetails.input_cache_creation_1h = oneHour;
       }
-
-      // cache_creation_input_tokens → input_cache_creation
-      if (
-        anthropicUsage["cache_creation_input_tokens"] !== undefined &&
-        usageDetails["input_cache_creation"] === undefined
-      ) {
-        usageDetails["input_cache_creation"] = Number(
-          anthropicUsage["cache_creation_input_tokens"],
-        );
-        addedCacheCreation = true;
+      if (total !== undefined) {
+        usageDetails.input_cache_creation = total - split;
+      } else {
+        notYetSubtracted += split;
       }
+    }
 
-      // Duration-specific cache creation breakdown (5m / 1h TTLs)
-      if (
-        typeof anthropicUsage["cache_creation"] === "object" &&
-        anthropicUsage["cache_creation"] !== null
-      ) {
-        const cacheCreation = anthropicUsage["cache_creation"] as Record<
-          string,
-          number
-        >;
-
-        if (
-          typeof cacheCreation["ephemeral_5m_input_tokens"] === "number" &&
-          usageDetails["input_cache_creation_5m"] === undefined
-        ) {
-          usageDetails["input_cache_creation_5m"] =
-            cacheCreation["ephemeral_5m_input_tokens"];
-          addedCacheCreation5m = true;
-        }
-        if (
-          typeof cacheCreation["ephemeral_1h_input_tokens"] === "number" &&
-          usageDetails["input_cache_creation_1h"] === undefined
-        ) {
-          usageDetails["input_cache_creation_1h"] =
-            cacheCreation["ephemeral_1h_input_tokens"];
-          addedCacheCreation1h = true;
-        }
-
-        // Subtract duration-specific counts from total to avoid double counting
-        if (addedCacheCreation) {
-          usageDetails["input_cache_creation"] = Math.max(
-            usageDetails["input_cache_creation"] -
-              (usageDetails["input_cache_creation_5m"] ?? 0) -
-              (usageDetails["input_cache_creation_1h"] ?? 0),
-            0,
-          );
-        }
-      }
-
-      // Re-derive `input` as uncached remainder for fields this function added
-      if (
-        usageDetails["input"] !== undefined &&
-        (addedCacheRead || addedCacheCreation || addedCacheCreation5m || addedCacheCreation1h)
-      ) {
-        usageDetails["input"] = Math.max(
-          usageDetails["input"] -
-            (addedCacheRead ? (usageDetails["input_cached_tokens"] ?? 0) : 0) -
-            (addedCacheCreation ? (usageDetails["input_cache_creation"] ?? 0) : 0) -
-            (addedCacheCreation5m ? (usageDetails["input_cache_creation_5m"] ?? 0) : 0) -
-            (addedCacheCreation1h ? (usageDetails["input_cache_creation_1h"] ?? 0) : 0),
-          0,
-        );
-      }
-    } catch {
-      // Ignore parse errors — provider metadata is optional
+    if (usageDetails.input !== undefined && notYetSubtracted > 0) {
+      usageDetails.input = Math.max(usageDetails.input - notYetSubtracted, 0);
     }
   }
 
