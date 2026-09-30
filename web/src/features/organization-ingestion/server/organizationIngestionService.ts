@@ -84,7 +84,6 @@ WHERE
   project_id IN {projectIds: Array(String)}
   AND start_time >= {previousFrom: DateTime64(3)}
   AND start_time < {to: DateTime64(3)}
-  AND source IN {ingressSources: Array(String)}
   AND is_deleted = 0
 GROUP BY projectId, ingestionPath, sdkName, sdkVersion, publicKey, isInternal
 `;
