@@ -97,7 +97,7 @@ export const findDeeplyNestedPrompts = (
     }));
 };
 
-export const deeplyNestedPromptsRule: AdminIssueDefinition = {
+export const deeplyNestedPromptsRule = {
   id: "deeply-nested-prompts",
   name: "Deeply nested prompts",
   group: "prompts",
@@ -126,4 +126,4 @@ export const deeplyNestedPromptsRule: AdminIssueDefinition = {
       }),
     );
   },
-};
+} as const satisfies AdminIssueDefinition;

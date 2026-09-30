@@ -33,20 +33,24 @@ export const adminIssuesRouter = createTRPCRouter({
         take: ISSUE_LIST_LIMIT,
       });
 
-      return issues.map((issue) => ({
-        id: issue.id,
-        issueDefinitionId: issue.issueDefinitionId,
-        // Rows can outlive the rule that created them, so fall back to the stored id.
-        ruleName:
-          adminIssueDefinitions[issue.issueDefinitionId]?.name ??
-          issue.issueDefinitionId,
-        description: issue.description,
-        priority: issue.priority,
-        ctaLink: issue.ctaLink,
-        createdAt: issue.createdAt,
-        doneAt: issue.doneAt,
-        ignoredAt: issue.ignoredAt,
-      }));
+      return issues.map((issue) => {
+        const definition = Object.values(adminIssueDefinitions).find(
+          (definition) => definition.id === issue.issueDefinitionId,
+        );
+
+        return {
+          id: issue.id,
+          issueDefinitionId: issue.issueDefinitionId,
+          // Rows can outlive the rule that created them, so fall back to the stored id.
+          ruleName: definition?.name ?? issue.issueDefinitionId,
+          description: issue.description,
+          priority: issue.priority,
+          ctaLink: issue.ctaLink,
+          createdAt: issue.createdAt,
+          doneAt: issue.doneAt,
+          ignoredAt: issue.ignoredAt,
+        };
+      });
     }),
 
   runDetection: protectedProjectProcedure

@@ -6,7 +6,7 @@ import { EventsQueryBuilder } from "../../../server/queries/clickhouse-sql/event
 import { queryClickhouse } from "../../../server/repositories/clickhouse";
 import type { AdminIssueDefinition } from "../adminIssueDefinitions";
 
-export const observationsWithoutEvaluatorsRule: AdminIssueDefinition = {
+export const observationsWithoutEvaluatorsRule = {
   id: "observations-without-evaluators",
   name: "Set up evaluators",
   group: "evaluations",
@@ -64,4 +64,4 @@ export const observationsWithoutEvaluatorsRule: AdminIssueDefinition = {
       },
     ];
   },
-};
+} as const satisfies AdminIssueDefinition;

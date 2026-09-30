@@ -15,11 +15,11 @@ vi.mock("../../db", () => ({
 vi.mock("../../server/logger", () => ({ logger: { error: logError } }));
 
 vi.mock("./adminIssueDefinitions", () => ({
-  adminIssueDefinitions: [
-    { id: "first", callback: firstRule },
-    { id: "without-callback" },
-    { id: "second", callback: secondRule },
-  ],
+  adminIssueDefinitions: {
+    First: { id: "first", callback: firstRule },
+    "Without callback": { id: "without-callback" },
+    Second: { id: "second", callback: secondRule },
+  },
 }));
 
 import { executeAdminIssueRules } from "./executeAdminIssueRules";

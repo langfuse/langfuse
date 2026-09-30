@@ -2,7 +2,7 @@ import { prisma } from "../../../db";
 import { buildEvalsPath } from "../../../utils/productUrl";
 import type { AdminIssueDefinition } from "../adminIssueDefinitions";
 
-export const llmJudgeWithoutDecisionModelRule: AdminIssueDefinition = {
+export const llmJudgeWithoutDecisionModelRule = {
   id: "llm-judge-without-decision-model",
   name: "Try a decision model",
   group: "evaluations",
@@ -28,4 +28,4 @@ export const llmJudgeWithoutDecisionModelRule: AdminIssueDefinition = {
       },
     ];
   },
-};
+} as const satisfies AdminIssueDefinition;

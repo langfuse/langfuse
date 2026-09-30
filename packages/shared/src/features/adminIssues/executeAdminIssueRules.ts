@@ -1,10 +1,16 @@
 import { prisma } from "../../db";
 import { logger } from "../../server/logger";
-import { adminIssueDefinitions } from "./adminIssueDefinitions";
+import {
+  adminIssueDefinitions,
+  type AdminIssueDefinition,
+} from "./adminIssueDefinitions";
 
 export async function executeAdminIssueRules(projectId: string) {
+  const definitions: AdminIssueDefinition[] = Object.values(
+    adminIssueDefinitions,
+  );
   const counts = await Promise.all(
-    adminIssueDefinitions.map(async (definition) => {
+    definitions.map(async (definition) => {
       if (!definition.callback) return 0;
 
       try {

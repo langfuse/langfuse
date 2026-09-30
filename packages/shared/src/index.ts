@@ -62,6 +62,7 @@ export * from "./features/inAppAgent/types";
 // admin issues
 export type {
   AdminIssueDefinition,
+  AdminIssueName,
   RuleIssue,
 } from "./features/adminIssues/adminIssueDefinitions";
 
