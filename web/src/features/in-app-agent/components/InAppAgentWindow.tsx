@@ -910,6 +910,7 @@ export type InAppAgentWindowProps = {
   /** Titles the window. Null until the server has named the conversation,
    * which is when the product name shows instead. */
   selectedConversationTitle: string | null;
+  headerActions?: ReactNode;
 } & InAppAgentWindowCloseButtonProps;
 
 function InAppAgentRateLimitError({
@@ -1002,6 +1003,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     screenContextDescription,
     selectedConversationId,
     selectedConversationTitle,
+    headerActions,
   } = props;
   const screenContextNotice = formatScreenContextNotice(
     screenContextDescription,
@@ -1204,6 +1206,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </TooltipTrigger>
             <TooltipContent>Start new conversation</TooltipContent>
           </Tooltip>
+          {headerActions}
           <DropdownMenu
             open={isConversationHistoryOpen}
             onOpenChange={(nextOpen) => {

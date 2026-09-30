@@ -399,6 +399,8 @@ const events = {
     "new_chat_turn",
     "quick_action_started",
     "tool_approval_decided",
+    "routine_created",
+    "routine_run_now",
   ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],

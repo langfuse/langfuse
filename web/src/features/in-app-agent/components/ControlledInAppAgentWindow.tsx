@@ -24,6 +24,8 @@ import {
   InAppAgentRunStatus,
   isUnsettledInAppAgentRunStatus,
 } from "@langfuse/shared/in-app-agent";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import { InAppAgentRoutinesControl } from "./InAppAgentRoutinesDialog";
 
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
@@ -48,6 +50,7 @@ export function ControlledInAppAgentWindow(
   props: ControlledInAppAgentWindowProps,
 ) {
   const router = useRouter();
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const {
     activityByConversationId,
     conversations,
@@ -204,6 +207,9 @@ export function ControlledInAppAgentWindow(
       onAlwaysAllowToolCall={alwaysAllowToolCall}
       onRejectToolCall={rejectToolCall}
       onSubmitFeedback={submitFeedback}
+      headerActions={
+        internalFeaturesEnabled ? <InAppAgentRoutinesControl /> : undefined
+      }
       {...closeButtonProps}
     />
   );

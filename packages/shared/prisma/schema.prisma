@@ -79,6 +79,7 @@ model User {
   notificationPreferences   NotificationPreference[]
   defaultViews              DefaultView[]               @relation("DefaultViewUser")
   inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
+  inAppAgentRoutines        InAppAgentRoutine[]         @relation("InAppAgentRoutineCreatedByUser")
   inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
   apiKeysCreated            ApiKey[]                    @relation("ApiKeyCreatedByUser")
   evaluatorsCreated         Evaluator[]                 @relation("EvaluatorCreatedByUser")
@@ -195,6 +196,7 @@ model Project {
   InAppAgentConversation            InAppAgentConversation[]
   InAppAgentEvent                   InAppAgentEvent[]
   InAppAgentRun                     InAppAgentRun[]
+  InAppAgentRoutine                 InAppAgentRoutine[]
   InAppAgentPendingToolApproval     InAppAgentPendingToolApproval[]
   gatewayConfigs                    GatewayConfig[]                     @relation("GatewayDefaultIngestionProject")
 
@@ -299,12 +301,45 @@ enum InAppAgentConversationVisibilityScope {
   PROJECT
 }
 
+enum InAppAgentRoutineStatus {
+  ACTIVE
+  PAUSED
+}
+
+model InAppAgentRoutine {
+  id                 String
+  projectId          String                  @map("project_id")
+  project            Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdByUserId    String                  @map("created_by_user_id")
+  createdByUser      User                    @relation("InAppAgentRoutineCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  name               String
+  prompt             String
+  status             InAppAgentRoutineStatus @default(PAUSED)
+  cron               String
+  timezone           String
+  nextRunAt          DateTime                @map("next_run_at")
+  lastFiredAt        DateTime?               @map("last_fired_at")
+  lastConversationId String?                 @map("last_conversation_id")
+  lastSkipReason     String?                 @map("last_skip_reason")
+  createdAt          DateTime                @default(now()) @map("created_at")
+  updatedAt          DateTime                @default(now()) @updatedAt @map("updated_at")
+
+  conversations InAppAgentConversation[]
+
+  @@id([id, projectId])
+  @@index([status, nextRunAt], map: "in_app_agent_routines_status_next_run_at_idx")
+  @@index([projectId, createdByUserId], map: "in_app_agent_routines_project_user_idx")
+  @@map("in_app_agent_routines")
+}
+
 model InAppAgentConversation {
   id                 String
   projectId          String                                @map("project_id")
   project            Project                               @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdByUserId    String?                               @map("created_by_user_id")
   createdByUser      User?                                 @relation("InAppAgentConversationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  routineId          String?                               @map("routine_id")
+  routine            InAppAgentRoutine?                    @relation(fields: [routineId, projectId], references: [id, projectId], onDelete: SetNull)
   title              String?
   renamedByUserAt    DateTime?                             @map("renamed_by_user_at")
   visibilityScope    InAppAgentConversationVisibilityScope @default(PERSONAL) @map("visibility_scope")
@@ -322,6 +357,7 @@ model InAppAgentConversation {
   @@id([id, projectId])
   @@index([projectId, createdByUserId, deletedAt, updatedAt, id], map: "in_app_agent_conversations_project_user_list_idx")
   @@index([projectId, updatedAt], map: "in_app_agent_conversations_project_updated_at_idx")
+  @@index([projectId, routineId], map: "in_app_agent_conversations_project_routine_idx")
   @@map("in_app_agent_conversations")
 }
 

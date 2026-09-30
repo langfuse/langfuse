@@ -601,6 +601,15 @@ export async function executeInAppAgentRun(params: {
           projectId,
           isV4Enabled: access.v4BetaEnabled,
         },
+        ...(run.triggeredByUserId
+          ? {
+              createRoutine: {
+                prisma,
+                projectId,
+                userId: run.triggeredByUserId,
+              },
+            }
+          : {}),
         useLocalPrompt: useBundledPrompt,
         ...(useBundledPrompt
           ? {}

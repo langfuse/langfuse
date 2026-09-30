@@ -30,6 +30,7 @@ import {
 } from "./mcpRateLimitWait";
 import {
   createSandboxTools,
+  createAndTestRoutineTool,
   createRedirectActionTool,
   getToolCallId,
   hasCallableExecute,
@@ -51,8 +52,10 @@ import {
 import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./skills";
 import type { InAppAgentSandbox } from "./sandbox";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@langfuse/shared";
+import type { PrismaClient } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import {
+  IN_APP_AGENT_CREATE_ROUTINE_TOOL_NAME,
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
@@ -309,6 +312,11 @@ type CreateAgUiStreamOptions = {
     projectId: string;
     isV4Enabled: boolean;
   };
+  createRoutine?: {
+    prisma: PrismaClient;
+    projectId: string;
+    userId: string;
+  };
   langfuseClient?: Langfuse;
   useLocalPrompt: boolean;
   langfuseTracing?: InAppAgentTracingConfig;
@@ -333,6 +341,7 @@ export async function createAgUiStream(params: {
     useLocalPrompt: params.options.useLocalPrompt,
     variables: {
       redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+      createRoutineToolName: IN_APP_AGENT_CREATE_ROUTINE_TOOL_NAME,
       sandboxFilesystem: formatSandboxContext(params.options.sandbox),
       sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
         (environment) => `"${environment}"`,
@@ -1235,6 +1244,12 @@ async function createMastraAdapter(params: {
             projectId: params.options.redirectAction.projectId,
             isV4Enabled: params.options.redirectAction.isV4Enabled,
           }),
+          ...(params.options.createRoutine
+            ? {
+                [IN_APP_AGENT_CREATE_ROUTINE_TOOL_NAME]:
+                  createAndTestRoutineTool(params.options.createRoutine),
+              }
+            : {}),
           ...(params.options.sandbox
             ? createSandboxTools(params.options.sandbox)
             : {}),
@@ -1580,6 +1595,7 @@ async function getSystemPromptInstructions(params: {
   variables: {
     currentDate: string;
     redirectToolName: string;
+    createRoutineToolName: string;
     sandboxFilesystem: string;
     screenContext: string;
     userContext: string;

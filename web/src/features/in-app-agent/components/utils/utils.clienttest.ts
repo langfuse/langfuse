@@ -1,4 +1,5 @@
 import {
+  IN_APP_AGENT_CREATE_ROUTINE_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   type AgUiMessage,
 } from "@langfuse/shared/in-app-agent";
@@ -34,6 +35,7 @@ const KNOWN_IN_APP_AGENT_PROGRESS_TOOLS = [
   ),
   ...IN_APP_AGENT_SANDBOX_TOOL_NAMES,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_CREATE_ROUTINE_TOOL_NAME,
   "langfuseDocs_search",
   "langfuseDocs_fetch",
   "skill",
