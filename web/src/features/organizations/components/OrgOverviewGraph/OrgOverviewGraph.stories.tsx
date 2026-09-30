@@ -1,4 +1,5 @@
 import preview from "../../../../../.storybook/preview";
+import { expect, userEvent, within } from "storybook/test";
 import {
   OrgOverviewGraph,
   type OrganizationIngestionOverview,
@@ -149,6 +150,69 @@ const exampleData: OrganizationIngestionOverview = {
 };
 
 export const Default = meta.story({ args: { data: exampleData } });
+
+export const MixedInternalExternalTraffic = meta.story({
+  name: "(Test) Mixed internal and external traffic",
+  args: {
+    data: {
+      ...exampleData,
+      projects: [exampleData.projects[0]!],
+      eventRows: [
+        {
+          ...exampleData.eventRows[0]!,
+          current: 8000,
+          previous: 6000,
+          v4Migration: "required",
+        },
+        {
+          ...exampleData.eventRows[0]!,
+          isInternal: true,
+          current: 2000,
+          previous: 1000,
+          lastSeen: "2026-09-30T00:00:00Z",
+          v4Migration: "unknown",
+        },
+      ],
+      scoreRows: [],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findAllByText("langfuse-js")).toHaveLength(1);
+    await expect(await canvas.findByText("External")).toBeVisible();
+    await expect(await canvas.findByText("Internal")).toBeVisible();
+    await expect(canvas.getByText("8,000")).toBeVisible();
+    await expect(canvas.getByText("2,000")).toBeVisible();
+    await expect(canvas.getByText("Required")).toBeVisible();
+    await userEvent.hover(
+      canvas.getByRole("button", {
+        name: "Explain internal and external traffic",
+      }),
+    );
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(await body.findByRole("tooltip")).toHaveTextContent(
+      "Internal observations use an environment starting with langfuse-",
+    );
+  },
+});
+
+export const ExternalTrafficOnly = meta.story({
+  name: "(Test) External traffic only",
+  args: {
+    data: {
+      ...exampleData,
+      projects: [exampleData.projects[0]!],
+      eventRows: [exampleData.eventRows[0]!],
+      scoreRows: [],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findAllByText("8,000")).toHaveLength(3);
+    await expect(canvas.queryByText("External")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("Internal")).not.toBeInTheDocument();
+  },
+});
 
 export const CompactViewport = meta.story({
   args: { data: exampleData },

@@ -17,9 +17,11 @@ import {
   ArrowUpRight,
   Code2,
   FolderClosed,
+  Info,
 } from "lucide-react";
 import "@xyflow/react/dist/style.css";
 import { type RouterOutputs } from "@/src/utils/api";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 type WeekOverWeekCount = {
   current: number;
@@ -61,7 +63,10 @@ type ProjectNode = Node<
   },
   "project"
 >;
-type FlowEdge = Edge<{ events: WeekOverWeekCount }, "flow">;
+type FlowEdge = Edge<
+  { externalEvents: WeekOverWeekCount; internalEvents: WeekOverWeekCount },
+  "flow"
+>;
 
 const migrationLabels = {
   required: "Required",
@@ -104,6 +109,9 @@ function FlowConnection({
     sourcePosition,
     targetPosition,
   });
+  const hasInternalUsage =
+    data &&
+    (data.internalEvents.current > 0 || data.internalEvents.previous > 0);
 
   return (
     <>
@@ -111,15 +119,43 @@ function FlowConnection({
       {data && (
         <EdgeLabelRenderer>
           <div
-            className="border-border bg-card text-foreground absolute flex items-center gap-2 rounded-md border px-2 py-1 text-xs shadow-sm"
+            className={`border-border bg-card text-foreground absolute grid items-center gap-x-2 gap-y-1 rounded-md border px-2 py-1 text-xs whitespace-nowrap shadow-sm ${hasInternalUsage ? "grid-cols-[auto_auto_auto]" : "grid-cols-[auto_auto]"}`}
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
             }}
           >
-            <span className="font-bold tabular-nums">
-              {data.events.current.toLocaleString()}
+            {hasInternalUsage && (
+              <span className="text-muted-foreground">External</span>
+            )}
+            <span className="text-right font-bold tabular-nums">
+              {data.externalEvents.current.toLocaleString()}
             </span>
-            <ChangeIndicator change={data.events.changePct} />
+            <ChangeIndicator change={data.externalEvents.changePct} />
+            {hasInternalUsage && (
+              <>
+                <span className="text-muted-foreground flex items-center gap-1">
+                  Internal
+                  <Tooltip label="Internal observations use an environment starting with langfuse- (typically Langfuse-generated traffic). External observations use any other environment. Counts compare the last 7 days with the preceding 7 days.">
+                    {({ getTriggerProps }) => (
+                      <button
+                        type="button"
+                        aria-label="Explain internal and external traffic"
+                        className="pointer-events-auto inline-flex"
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onDoubleClick={(event) => event.stopPropagation()}
+                        {...getTriggerProps()}
+                      >
+                        <Info className="size-3" />
+                      </button>
+                    )}
+                  </Tooltip>
+                </span>
+                <span className="text-right font-bold tabular-nums">
+                  {data.internalEvents.current.toLocaleString()}
+                </span>
+                <ChangeIndicator change={data.internalEvents.changePct} />
+              </>
+            )}
           </div>
         </EdgeLabelRenderer>
       )}
@@ -291,6 +327,8 @@ export function OrgOverviewGraph({
           sdkVersion: string | null;
           current: number;
           previous: number;
+          internalCurrent: number;
+          internalPrevious: number;
           scoreCurrent: number;
           scorePrevious: number;
           lastSeen: string | null;
@@ -317,13 +355,14 @@ export function OrgOverviewGraph({
           entry.sdkName,
           entry.sdkVersion,
           entry.publicKey,
-          entry.isInternal,
         ]);
         const client = clients.get(key) ?? {
           sdkName: entry.sdkName,
           sdkVersion: entry.sdkVersion,
           current: 0,
           previous: 0,
+          internalCurrent: 0,
+          internalPrevious: 0,
           scoreCurrent: 0,
           scorePrevious: 0,
           lastSeen: null,
@@ -332,9 +371,21 @@ export function OrgOverviewGraph({
         if (isEvent) {
           client.current += entry.current;
           client.previous += entry.previous;
+          if (entry.isInternal) {
+            client.internalCurrent += entry.current;
+            client.internalPrevious += entry.previous;
+          }
         } else {
           client.scoreCurrent += entry.current;
           client.scorePrevious += entry.previous;
+        }
+        if (entry.v4Migration === "required") {
+          client.v4Migration = "required";
+        } else if (
+          entry.v4Migration === "not_required" &&
+          client.v4Migration === "unknown"
+        ) {
+          client.v4Migration = "not_required";
         }
         if (
           !client.lastSeen ||
@@ -388,7 +439,16 @@ export function OrgOverviewGraph({
           source: clientNodeId,
           target: projectNodeId,
           type: "flow",
-          data: { events: weekOverWeek(client.current, client.previous) },
+          data: {
+            externalEvents: weekOverWeek(
+              client.current - client.internalCurrent,
+              client.previous - client.internalPrevious,
+            ),
+            internalEvents: weekOverWeek(
+              client.internalCurrent,
+              client.internalPrevious,
+            ),
+          },
           markerEnd: { type: MarkerType.ArrowClosed },
         });
         row++;
@@ -403,7 +463,7 @@ export function OrgOverviewGraph({
           scores: weekOverWeek(scoreCurrent, scorePrevious),
         },
         position: {
-          x: 456,
+          x: 536,
           y:
             visibleClients.length > 0
               ? ((firstRow + row - 1) / 2) * rowSpacing
