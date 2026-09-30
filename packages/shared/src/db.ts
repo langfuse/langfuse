@@ -4,7 +4,7 @@
 
 import { Prisma, PrismaClient } from "@prisma/client";
 import { env } from "process";
-import { logger } from "./server";
+import { logger } from "./server/logger";
 
 export class PrismaClientSingleton {
   private static instance: PrismaClient;
