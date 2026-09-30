@@ -48,6 +48,57 @@ const severityFormat = function () {
   })();
 };
 
+/**
+ * Render one `text`-format line: `<timestamp> <level> <message>`, then any
+ * structured metadata the caller attached, then the stack when present.
+ *
+ * Callers supply that metadata as a second argument —
+ * `logger.error("msg", { projectId, error })` — and winston merges those keys
+ * onto `info`, so they belong on the line. `text` is the default
+ * `LANGFUSE_LOG_FORMAT`; the `json` format carries the same keys through
+ * `winston.format.json()`.
+ *
+ * Exported so the rendering can be asserted directly, without going through
+ * the console transport.
+ */
+export const formatTextLogLine = (info: winston.Logform.TransformableInfo) => {
+  // `splat` is winston's positional-args carrier and is never meant for
+  // output; destructuring it here drops it from `meta`.
+  const { timestamp, level, message, stack, splat, ...meta } = info;
+
+  const line = `${timestamp} ${level} ${message}`;
+  const rendered = Object.keys(meta).length
+    ? ` ${safeStringifyMeta(meta)}`
+    : "";
+  const withMeta = `${line}${rendered}`;
+  return stack ? `${withMeta}\n${stack}` : withMeta;
+};
+
+/**
+ * Metadata is arbitrary caller-supplied data, so it can be circular or hold a
+ * BigInt — both of which make `JSON.stringify` throw. A logger that throws
+ * while reporting an error destroys the diagnostic it was called to emit, so
+ * degrade to a marker instead. `Error` values are unwrapped by hand because
+ * they serialise to `{}`.
+ */
+const safeStringifyMeta = (meta: Record<string, unknown>) => {
+  const replacer = (_key: string, value: unknown) => {
+    if (value instanceof Error) {
+      return { name: value.name, message: value.message, stack: value.stack };
+    }
+    if (typeof value === "bigint") {
+      return value.toString();
+    }
+    return value;
+  };
+
+  try {
+    return JSON.stringify(meta, replacer);
+  } catch {
+    return "[unserialisable log metadata]";
+  }
+};
+
 const getWinstonLogger = (
   nodeEnv: "development" | "production" | "test",
   minLevel = "info",
@@ -56,10 +107,7 @@ const getWinstonLogger = (
     winston.format.errors({ stack: true }),
     winston.format.timestamp(),
     winston.format.align(),
-    winston.format.printf((info) => {
-      const logMessage = `${info.timestamp} ${info.level} ${info.message}`;
-      return info.stack ? `${logMessage}\n${info.stack}` : logMessage;
-    }),
+    winston.format.printf(formatTextLogLine),
   );
 
   const jsonLoggerFormat = winston.format.combine(
