@@ -79,6 +79,8 @@ function fixture(overrides = {}) {
       state,
       teamId: "TDEMO",
       botUserId: "UBOT",
+      channelId: "CPUBLIC",
+      publicUrl: "https://demo.example.com",
       baseUrl: "http://localhost:3004",
       save: async () => {
         calls.saved.push(JSON.stringify(state));
@@ -103,7 +105,7 @@ function fixture(overrides = {}) {
   const payload = (eventId, user = "UOWNER") => ({
     team: { id: "TDEMO" },
     user: { id: user },
-    channel: { id: "DDIRECT" },
+    channel: { id: state.events[eventId].channel },
     message: { ts: state.events[eventId].pickerTs },
     block_id: `langfuse_project:${eventId}`,
   });
@@ -121,7 +123,20 @@ function fixture(overrides = {}) {
     calls,
     account,
     langfuse,
+    slack,
     message,
+    mention: (eventId, text, extra = {}) =>
+      bridge.mention({
+        eventId,
+        eventTeamId: "TDEMO",
+        event: {
+          channel: "CPUBLIC",
+          user: "UOWNER",
+          ts: "123.001",
+          text,
+          ...extra,
+        },
+      }),
     choose,
     payload,
     get bridge() {
@@ -134,11 +149,14 @@ function fixture(overrides = {}) {
   };
 }
 
-test("keeps linked execution in DMs and connection codes out of persistent/model state", async () => {
+test("keeps connection codes private and ignores unrelated messages", async () => {
   const f = fixture();
   f.account.linked = false;
   await f.message("unlinked", "Find errors");
-  assert.match(f.calls.replies[0].text, /http:\/\/localhost:3004\/slack-agent/);
+  assert.match(
+    f.calls.replies[0].text,
+    /https:\/\/demo.example.com\/slack-agent/,
+  );
   await f.message("connect", "connect private-code", { ts: "124.001" });
   await f.message("connect", "connect private-code", { ts: "124.001" });
   await f.message("malformed", "connect private-code please", {
@@ -181,21 +199,17 @@ test("keeps linked execution in DMs and connection codes out of persistent/model
       text: "<@UBOT> secret question",
     },
   });
-  assert.equal(f.calls.notices.length, 1);
-  assert.equal(f.calls.notices[0].thread_ts, undefined);
-  assert.match(f.calls.notices[0].text, /slack:\/\/user\?team=TDEMO&id=UBOT/);
-  await f.bridge.mention({
-    eventId: "thread-mention",
-    eventTeamId: "TDEMO",
-    event: {
-      channel: "CPUBLIC",
-      user: "UOWNER",
-      ts: "123.002",
-      thread_ts: "123.001",
-      text: "<@UBOT> secret follow-up",
-    },
+  assert.equal(f.calls.notices.length, 0);
+  assert.equal(f.calls.replies.at(-1).thread_ts, "123.001");
+  assert.match(
+    f.calls.replies.at(-1).text,
+    /slack:\/\/user\?team=TDEMO&id=UBOT/,
+  );
+  await f.mention("channel-code", "<@UBOT> connect public-code", {
+    ts: "125.003",
   });
-  assert.equal(f.calls.notices[1].thread_ts, "123.001");
+  assert.ok(f.calls.saved.every((value) => !value.includes("public-code")));
+  assert.equal(f.calls.connects.length, 1);
   assert.equal(f.calls.starts.length, 0);
   assert.equal(
     readConfig({
@@ -288,67 +302,69 @@ test("rejects other actors, changed account links, and revoked project selection
   assert.equal(f.state.threads["TDEMO:DDIRECT:123.001"].projectId, undefined);
 });
 
-test("resumes a persisted run without resubmitting and permits only its owner to stop", async () => {
-  let releasePoll;
-  let signalPolling;
-  const polling = new Promise((resolve) => {
-    signalPolling = resolve;
-  });
-  const f = fixture({
-    get: async (input) => {
-      f.calls.gets.push(input);
-      signalPolling();
-      await new Promise((resolve) => {
-        releasePoll = resolve;
-      });
-      return { status: "CANCELLED" };
-    },
-  });
-  f.state.threads["TDEMO:DDIRECT:123.001"] = {
-    slackUserId: "UOWNER",
-    linkId: "link-one",
-    projectId: "project-one",
-    conversationId: "conversation-before-restart",
-  };
-  f.state.events.Ev1 = {
-    eventId: "Ev1",
-    teamId: "TDEMO",
-    threadKey: "TDEMO:DDIRECT:123.001",
-    channel: "DDIRECT",
-    threadTs: "123.001",
-    slackUserId: "UOWNER",
-    linkId: "link-one",
-    projectId: "project-one",
-    runId: "existing-run",
-    phase: "running",
-    done: false,
-  };
-  const resumed = f.bridge.resume();
-  await polling;
-  await f.bridge.stop({
-    eventTeamId: "TDEMO",
-    event: { channel: "DDIRECT", thread_ts: "123.001", user: "UOTHER" },
-  });
-  assert.equal(f.calls.cancellations.length, 0);
-  await f.bridge.stop({
-    eventTeamId: "TDEMO",
-    event: { channel: "DDIRECT", thread_ts: "123.001", user: "UOWNER" },
-  });
-  assert.deepEqual(f.calls.cancellations, [
-    {
+for (const channel of ["DDIRECT", "CPUBLIC"]) {
+  test(`resumes a ${channel} run without resubmitting and permits only its owner to stop`, async () => {
+    let releasePoll;
+    let signalPolling;
+    const polling = new Promise((resolve) => {
+      signalPolling = resolve;
+    });
+    const f = fixture({
+      get: async (input) => {
+        f.calls.gets.push(input);
+        signalPolling();
+        await new Promise((resolve) => {
+          releasePoll = resolve;
+        });
+        return { status: "CANCELLED" };
+      },
+    });
+    f.state.threads[`TDEMO:${channel}:123.001`] = {
+      slackUserId: "UOWNER",
+      linkId: "link-one",
+      projectId: "project-one",
+      conversationId: "conversation-before-restart",
+    };
+    f.state.events.Ev1 = {
+      eventId: "Ev1",
       teamId: "TDEMO",
+      threadKey: `TDEMO:${channel}:123.001`,
+      channel: channel,
+      threadTs: "123.001",
       slackUserId: "UOWNER",
       linkId: "link-one",
       projectId: "project-one",
       runId: "existing-run",
-    },
-  ]);
-  releasePoll();
-  await resumed;
-  assert.equal(f.calls.starts.length, 0);
-  assert.equal(f.calls.replies.at(-1).text, "Stopped.");
-  assert.equal(f.state.events.Ev1.done, true);
-});
+      phase: "running",
+      done: false,
+    };
+    const resumed = f.bridge.resume();
+    await polling;
+    await f.bridge.stop({
+      eventTeamId: "TDEMO",
+      event: { channel: channel, thread_ts: "123.001", user: "UOTHER" },
+    });
+    assert.equal(f.calls.cancellations.length, 0);
+    await f.bridge.stop({
+      eventTeamId: "TDEMO",
+      event: { channel: channel, thread_ts: "123.001", user: "UOWNER" },
+    });
+    assert.deepEqual(f.calls.cancellations, [
+      {
+        teamId: "TDEMO",
+        slackUserId: "UOWNER",
+        linkId: "link-one",
+        projectId: "project-one",
+        runId: "existing-run",
+      },
+    ]);
+    releasePoll();
+    await resumed;
+    assert.equal(f.calls.starts.length, 0);
+    assert.equal(f.calls.replies.at(-1).text, "Stopped.");
+    assert.equal(f.state.events.Ev1.done, true);
+  });
+}
 
 test("restores a pending project picker after interruption before Slack delivery", async () => {
   const f = fixture();
@@ -360,6 +376,141 @@ test("restores a pending project picker after interruption before Slack delivery
   assert.equal(f.calls.replies[0].blocks[0].accessory.type, "external_select");
   await f.choose("Ev1");
   assert.equal(f.calls.starts[0].message, "Find errors");
+});
+
+test("answers channel mentions publicly and keeps owner followups on the selected project", async () => {
+  const f = fixture();
+  await f.mention("root", "<@UBOT> Find errors");
+  assert.equal(f.calls.replies[0]?.thread_ts, "123.001");
+  assert.equal(f.calls.replies[0]?.blocks[0].accessory.type, "external_select");
+  assert.equal(f.calls.notices.length, 0);
+  await f.mention("duplicate", "<@UBOT> Find errors");
+  await f.message("duplicate-message", "<@UBOT> Find errors", {
+    channel: "CPUBLIC",
+    channel_type: "channel",
+  });
+  assert.equal(f.calls.replies.length, 1);
+  assert.deepEqual(
+    await f.bridge.options({ body: f.payload("root", "UOTHER") }),
+    { options: [] },
+  );
+  await f.choose("root", "project-one", "UOTHER");
+  assert.equal(f.calls.starts.length, 0);
+  await f.message("queued", "Explain the second one", {
+    channel: "CPUBLIC",
+    channel_type: "channel",
+    ts: "123.002",
+    thread_ts: "123.001",
+  });
+  f.restart();
+  await f.bridge.resume();
+  await f.choose("root", "project-two");
+  assert.deepEqual(
+    f.calls.starts.map((r) => r.message),
+    ["Find errors", "Explain the second one"],
+  );
+  assert.equal(f.calls.starts[1].conversationId, "conversation-project-two");
+  f.restart();
+  await f.message("followup", "What about yesterday?", {
+    channel: "CPUBLIC",
+    channel_type: "channel",
+    ts: "123.003",
+    thread_ts: "123.001",
+  });
+  assert.equal(f.calls.starts[2].projectId, "project-two");
+  await f.message("outsider", "Tell me secrets", {
+    channel: "CPUBLIC",
+    channel_type: "channel",
+    user: "UOTHER",
+    ts: "123.004",
+    thread_ts: "123.001",
+  });
+  await f.mention("outsider-mention", "<@UBOT> Tell me secrets", {
+    user: "UOTHER",
+    ts: "123.005",
+    thread_ts: "123.001",
+  });
+  await f.mention("wrong-channel", "<@UBOT> Find errors", {
+    channel: "COTHER",
+  });
+  await f.message("noise", "Just chatting", {
+    channel: "CPUBLIC",
+    channel_type: "channel",
+    ts: "124.001",
+  });
+  assert.equal(f.calls.starts.length, 3);
+  assert.equal(f.calls.replies.length, 4);
+});
+
+test("reserves channel ownership before account lookup and serializes followups during a run", async () => {
+  let releaseProjects;
+  const f = fixture();
+  const originalProjects = f.langfuse.projects;
+  f.langfuse.projects = () =>
+    new Promise((resolve) => {
+      releaseProjects = async () => resolve(await originalProjects());
+    });
+  const root = f.mention("root", "<@UBOT> First question");
+  await new Promise((resolve) => setImmediate(resolve));
+  await f.mention("intruder", "<@UBOT> Steal thread", {
+    user: "UOTHER",
+    ts: "123.002",
+    thread_ts: "123.001",
+  });
+  assert.equal(f.state.threads["TDEMO:CPUBLIC:123.001"]?.slackUserId, "UOWNER");
+  await releaseProjects();
+  await root;
+  f.langfuse.projects = originalProjects;
+  let releaseRun;
+  let signalRun;
+  const running = new Promise((resolve) => {
+    signalRun = resolve;
+  });
+  f.langfuse.get = async () => {
+    signalRun();
+    await new Promise((resolve) => {
+      releaseRun = resolve;
+    });
+    return { status: "SUCCEEDED", text: "First answer" };
+  };
+  const choosing = f.choose("root");
+  await running;
+  await f.message("followup", "Second question", {
+    channel: "CPUBLIC",
+    channel_type: "channel",
+    ts: "123.003",
+    thread_ts: "123.001",
+  });
+  assert.equal(f.calls.starts.length, 1);
+  f.langfuse.get = async () => ({ status: "SUCCEEDED", text: "Second answer" });
+  releaseRun();
+  await choosing;
+  assert.deepEqual(
+    f.calls.starts.map((r) => r.message),
+    ["First question", "Second question"],
+  );
+  assert.equal(f.calls.starts[1].conversationId, "conversation-project-one");
+  assert.ok(f.state.events.followup.done);
+});
+
+test("answers channel questions when Slack does not support the working indicator", async () => {
+  const f = fixture();
+  f.slack.apiCall = async () => {
+    throw Object.assign(new Error("Status unsupported"), {
+      code: "unsupported_channel_type",
+    });
+  };
+  await f.mention("root", "<@UBOT> Find errors");
+  await f.choose("root");
+  assert.equal(f.calls.starts.length, 1);
+  assert.equal(f.calls.gets.length, 1);
+  assert.equal(f.calls.cancellations.length, 0);
+  assert.equal(
+    f.calls.replies.at(-1).text,
+    "Found *two* traces. &lt;!channel&gt;",
+  );
+  assert.equal(f.calls.replies.at(-1).thread_ts, "123.001");
+  assert.ok(f.state.events.root.done);
 });
 
 test("sends linked identity with the service credential and refuses redirected credential delivery", async () => {

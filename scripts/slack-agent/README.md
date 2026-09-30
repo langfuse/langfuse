@@ -8,10 +8,12 @@ Keep the laptop awake and the bot process running during the demo.
 For the request flow, infrastructure, code ownership, and scope, see the
 [in-app-agent PoC guide](../../web/src/features/in-app-agent/SLACK_POC.md).
 
-For **individual accounts, DMs, and a remembered project picker**, follow
+For **individual accounts, DMs or channel threads, and a project picker**, follow
 [the linked-account setup guide](./LINKED_SETUP.md) and use
 `manifest.linked.json`. This adds a verified connection to each user's Langfuse
-account and checks their current project permissions.
+account and checks their current project permissions. Linked channel threads
+start with a top-level @mention and post project names and answers visibly to
+the channel; only the thread owner can choose the project or send follow-ups.
 
 The default channel demo (`SLACK_AGENT_MODE=shared`) uses one configured project. Each Slack user links their own Langfuse
 account before the agent can run, and each run uses that account's current
@@ -198,11 +200,22 @@ durable Slack conversation archive.
 ## Individual permissions and multiple projects
 
 [Linked mode](./LINKED_SETUP.md) implements verified account linking, current
-user permissions, and one-project-per-DM-thread routing. It uses a separate
+user permissions, and one-project-per-thread routing in DMs and channels. It uses a separate
 trusted integration credential; the shared project's public API does not accept
 arbitrary user IDs. A user connects once with a short-lived code from Langfuse,
 then chooses a project from a searchable Slack dropdown. The original question
-continues automatically after selection.
+continues automatically after selection. In a channel, start with a top-level
+@mention. The thread owner can then reply without another mention; questions
+arriving during an active run are queued. The project is fixed for the thread,
+and other members cannot act as its owner. Project names and answers are
+visible to everyone who can read the channel. Connection codes remain DM-only.
+
+Linked mode requires `channels:history` and `groups:history`, plus
+`message.channels` and `message.groups` events. Apply `manifest.linked.json`
+and reinstall the app after adding these permissions. `SLACK_CHANNEL_ID` is an
+optional channel restriction in linked mode. `LANGFUSE_PUBLIC_URL` optionally
+sets the human-facing account-link origin separately from the bot's
+`LANGFUSE_BASE_URL` API address; it defaults to that base URL.
 
 ## Verification
 

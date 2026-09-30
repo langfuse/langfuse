@@ -6,13 +6,15 @@ const isDm = (channel) => /^D[A-Z0-9]+$/.test(channel ?? "");
 const escapeSlack = (text) =>
   text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 
-/** Each private Slack thread belongs to one linked user and one project. */
+/** Each Slack thread belongs to one linked user and one project. */
 export function createLinkedBridge({
   slack,
   langfuse,
   teamId,
   botUserId,
+  channelId,
   baseUrl,
+  publicUrl = baseUrl,
   state,
   save,
   wait = sleep,
@@ -23,6 +25,10 @@ export function createLinkedBridge({
   state.events ??= {};
   state.preferences ??= {};
   const active = new Map();
+  const isChannel = (channel) =>
+    /^[CG][A-Z0-9]+$/.test(channel ?? "") &&
+    (!channelId || channel === channelId);
+  const allowed = (channel) => isDm(channel) || isChannel(channel);
   const keyFor = (channel, threadTs) => `${teamId}:${channel}:${threadTs}`;
   const identity = (record) => ({ teamId, slackUserId: record.slackUserId });
   const access = (record) => ({
@@ -55,12 +61,12 @@ export function createLinkedBridge({
   const connectNotice = (record) =>
     post(
       record,
-      `Connect your Langfuse account at <${new URL("slack-agent", `${baseUrl.replace(/\/$/, "")}/`)}|Connect Langfuse>, then send the connection command here in this private DM.`,
+      `Connect your Langfuse account at <${new URL("slack-agent", `${publicUrl.replace(/\/$/, "")}/`)}|Connect Langfuse>, then send the connection command ${isDm(record.channel) ? "here in this private DM" : `in a <slack://user?team=${teamId}&id=${botUserId}|private DM with me>. Return to this thread with your question after connecting`}.`,
     );
 
   async function execute(record) {
     try {
-      await status(record, "processing");
+      await status(record, "processing").catch(reportError);
       const thread = state.threads[record.threadKey];
       if (
         !thread ||
@@ -133,7 +139,7 @@ export function createLinkedBridge({
           .catch(reportError);
       await post(
         record,
-        "I couldn't finish that request. If your linked account or access changed, start a new DM thread.",
+        "I couldn't finish that request. If your linked account or access changed, start a new thread.",
       ).catch(reportError);
     } finally {
       await status(record, "active").catch(reportError);
@@ -149,14 +155,14 @@ export function createLinkedBridge({
       return;
     }
     const thread = state.threads[record.threadKey];
-    if (thread) {
+    if (thread?.linkId) {
       if (
         thread.slackUserId !== record.slackUserId ||
         thread.linkId !== projects.linkId
       ) {
         await post(
           record,
-          "This thread belongs to a previous account connection. Start a new DM thread.",
+          "This thread belongs to a previous account connection. Start a new thread.",
         );
         await finish(record);
         return;
@@ -174,7 +180,7 @@ export function createLinkedBridge({
       ) {
         await post(
           record,
-          "You no longer have access to this thread's project. Start a new DM thread to choose another.",
+          "You no longer have access to this thread's project. Start a new thread to choose another.",
         );
         await finish(record);
         return;
@@ -233,7 +239,7 @@ export function createLinkedBridge({
               },
             },
           },
-          ...(previous
+          ...(previous && isDm(record.channel)
             ? [
                 {
                   type: "context",
@@ -259,7 +265,7 @@ export function createLinkedBridge({
   function selectionRecord(body, blockId) {
     if (
       body.team?.id !== teamId ||
-      !isDm(body.channel?.id) ||
+      !allowed(body.channel?.id) ||
       !blockId?.startsWith(PROJECT_BLOCK)
     )
       return;
@@ -278,101 +284,133 @@ export function createLinkedBridge({
     return record;
   }
 
-  return {
-    async mention({ event, eventId, eventTeamId }) {
-      if (
-        eventTeamId !== teamId ||
-        !/^[CG][A-Z0-9]+$/.test(event.channel ?? "") ||
-        event.bot_id ||
-        event.subtype ||
-        !event.user ||
-        !eventId ||
-        state.events[eventId]
-      )
-        return;
-      const record = { done: true, finishedAt: Date.now() };
-      state.events[eventId] = record;
-      await save();
-      await slack.chat.postEphemeral({
-        channel: event.channel,
-        thread_ts: event.thread_ts,
-        user: event.user,
-        text: `Ask me privately: <slack://user?team=${teamId}&id=${botUserId}|Open a DM with Langfuse>.`,
-      });
-    },
-
-    async message({ event, eventId, eventTeamId }) {
-      if (
-        eventTeamId !== teamId ||
-        event.channel_type !== "im" ||
-        !isDm(event.channel) ||
-        event.bot_id ||
-        event.subtype ||
-        !event.user ||
-        !event.ts ||
-        !eventId ||
-        state.events[eventId]
-      )
-        return;
-      const message = (event.text || "").trim();
-      if (!message) return;
-      const threadKey = keyFor(event.channel, event.thread_ts || event.ts);
-      const record = {
-        eventId,
-        threadKey,
-        teamId,
-        channel: event.channel,
-        threadTs: event.thread_ts || event.ts,
-        slackUserId: event.user,
-        done: false,
-      };
-      if (active.has(threadKey)) {
-        state.events[eventId] = { done: true, finishedAt: Date.now() };
-        await save();
+  async function drain(threadKey) {
+    if (active.has(threadKey)) return;
+    let record;
+    try {
+      while (
+        (record = Object.values(state.events).find(
+          (event) => !event.done && event.threadKey === threadKey,
+        ))
+      ) {
+        active.set(threadKey, record);
+        if (record.phase === "selection") {
+          if (!record.pickerTs) {
+            const projects = await langfuse.projects(identity(record));
+            if (projects.linked && projects.linkId === record.linkId) {
+              await offerProjects(record, projects);
+            } else {
+              await post(
+                record,
+                "Your account connection changed. Start a new thread to choose a project.",
+              );
+              await finish(record);
+              continue;
+            }
+          }
+          return;
+        }
+        if (record.phase === "running") await execute(record);
+        else await prepareQuestion(record);
+        if (!record.done) return;
+      }
+    } catch (error) {
+      reportError(error);
+      if (record) {
         await post(
           record,
-          "I'm still working on this thread. Please wait for the answer before asking a follow-up.",
+          "I couldn't process that request. Please try again.",
+        ).catch(reportError);
+        await finish(record);
+      }
+    } finally {
+      active.delete(threadKey);
+    }
+    if (
+      Object.values(state.events).some(
+        (event) => !event.done && event.threadKey === threadKey,
+      )
+    )
+      await drain(threadKey);
+  }
+
+  async function receive({ event, eventId, eventTeamId }, mention = false) {
+    if (
+      eventTeamId !== teamId ||
+      !allowed(event.channel) ||
+      (mention && !isChannel(event.channel)) ||
+      (!mention && isDm(event.channel) && event.channel_type !== "im") ||
+      event.bot_id ||
+      event.subtype ||
+      event.user === botUserId ||
+      !event.user ||
+      !event.ts ||
+      !eventId ||
+      state.events[eventId] ||
+      Object.values(state.events).some(
+        (record) =>
+          record.channel === event.channel && record.messageTs === event.ts,
+      )
+    )
+      return;
+    const threadKey = keyFor(event.channel, event.thread_ts || event.ts);
+    const thread = state.threads[threadKey];
+    if (thread && thread.slackUserId !== event.user) return;
+    if (!mention && !isDm(event.channel) && (!event.thread_ts || !thread))
+      return;
+    const message = (event.text || "").replaceAll(`<@${botUserId}>`, "").trim();
+    if (!message) return;
+    const record = {
+      eventId,
+      threadKey,
+      teamId,
+      channel: event.channel,
+      threadTs: event.thread_ts || event.ts,
+      messageTs: event.ts,
+      slackUserId: event.user,
+      done: false,
+    };
+    state.threads[threadKey] ??= { slackUserId: event.user };
+    state.events[eventId] = record;
+    // Connection codes never enter persistent state or model input.
+    if (/^connect(?:\s|$)/i.test(message)) {
+      await finish(record);
+      if (!isDm(event.channel)) {
+        await connectNotice(record);
+        return;
+      }
+      const connection = message.match(/^connect\s+(\S+)$/i);
+      if (!connection) {
+        await post(
+          record,
+          "Send only connect followed by your one-time code, with no other text.",
         );
         return;
       }
-      active.set(threadKey, record);
-      state.events[eventId] = record;
       try {
-        // The one-time code is never included in persistent state or model input.
-        const connection = message.match(/^connect\s+(\S+)$/i);
-        if (/^connect(?:\s|$)/i.test(message)) {
-          await save();
-          if (!connection) {
-            await post(
-              record,
-              "Send only connect followed by your one-time code, with no other text.",
-            );
-            await finish(record);
-            return;
-          }
-          await langfuse.connect({ ...identity(record), code: connection[1] });
-          await post(
-            record,
-            "Your Langfuse account is connected. Send a new question in this DM to choose a project.",
-          );
-          await finish(record);
-          return;
-        }
-        record.message = message;
-        record.phase = "question";
-        await save();
-        await prepareQuestion(record);
+        await langfuse.connect({ ...identity(record), code: connection[1] });
+        await post(
+          record,
+          "Your Langfuse account is connected. Send a new question in this DM or mention me in a channel to choose a project.",
+        );
       } catch (error) {
         reportError(error);
         await post(
           record,
-          "I couldn't process that request. Try again, or create a new connection code if you were connecting your account.",
-        ).catch(reportError);
-        await finish(record);
-      } finally {
-        active.delete(threadKey);
+          "I couldn't connect your account. Create a new connection code and try again.",
+        );
       }
-    },
+      return;
+    }
+    record.message = message;
+    record.phase = "question";
+    await save();
+    await drain(threadKey);
+  }
+
+  return {
+    mention: (input) => receive(input, true),
+    message: (input) => receive(input),
 
     async options({ body }) {
       const record = selectionRecord(body, body.block_id);
@@ -412,7 +450,7 @@ export function createLinkedBridge({
         if (!result.linked || result.linkId !== record.linkId) {
           await post(
             record,
-            "Your account connection changed. Start a new DM thread to choose a project.",
+            "Your account connection changed. Start a new thread to choose a project.",
           );
           await finish(record);
           return;
@@ -456,11 +494,12 @@ export function createLinkedBridge({
         ).catch(reportError);
       } finally {
         active.delete(record.threadKey);
+        await drain(record.threadKey);
       }
     },
 
     async stop({ event, eventTeamId }) {
-      if (eventTeamId !== teamId || !isDm(event.channel)) return;
+      if (eventTeamId !== teamId || !allowed(event.channel)) return;
       const record = active.get(keyFor(event.channel, event.thread_ts));
       if (
         !record ||
@@ -475,41 +514,17 @@ export function createLinkedBridge({
     },
 
     async resume() {
-      await Promise.all(
+      const threads = new Set(
         Object.values(state.events)
           .filter(
             (record) =>
               !record.done &&
               record.teamId === teamId &&
-              isDm(record.channel) &&
-              (record.phase === "running" ||
-                record.phase === "question" ||
-                (record.phase === "selection" && !record.pickerTs)),
+              allowed(record.channel),
           )
-          .map(async (record) => {
-            if (active.has(record.threadKey)) return;
-            active.set(record.threadKey, record);
-            try {
-              if (record.phase === "running") await execute(record);
-              else if (record.phase === "selection") {
-                const projects = await langfuse.projects(identity(record));
-                if (projects.linked && projects.linkId === record.linkId) {
-                  await offerProjects(record, projects);
-                } else {
-                  await post(
-                    record,
-                    "Your account connection changed. Start a new DM thread to choose a project.",
-                  );
-                  await finish(record);
-                }
-              } else await prepareQuestion(record);
-            } catch (error) {
-              reportError(error);
-            } finally {
-              active.delete(record.threadKey);
-            }
-          }),
+          .map((record) => record.threadKey),
       );
+      await Promise.all([...threads].map(drain));
     },
   };
 }

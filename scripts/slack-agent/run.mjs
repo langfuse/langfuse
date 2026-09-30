@@ -60,6 +60,7 @@ const bridge = (linked ? createLinkedBridge : createBridge)({
   teamId: config.teamId,
   channelId: config.channelId,
   baseUrl: config.baseUrl,
+  publicUrl: config.publicUrl,
   botUserId: identity.user_id,
   state,
   save,
@@ -112,7 +113,7 @@ app.error(async (error) => {
 
 await app.start();
 console.log(
-  `Slack agent connected. ${linked ? "Linked account mode: private DMs" : `Listening in ${config.channelId}`}; Langfuse at ${config.baseUrl}.`,
+  `Slack agent connected. ${linked ? "Linked account mode: DMs and channel threads" : `Listening in ${config.channelId}`}; Langfuse at ${config.baseUrl}.`,
 );
 void bridge
   .resume()

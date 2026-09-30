@@ -1,7 +1,7 @@
 {
   "display_information": {
     "name": "Halo",
-    "description": "Ask Langfuse about your projects in a private conversation.",
+    "description": "Ask Langfuse about your projects in DMs or channel threads.",
     "background_color": "#111827"
   },
   "features": {
@@ -15,7 +15,7 @@
       "messages_tab_read_only_enabled": false
     },
     "agent_view": {
-      "agent_description": "Connect your Langfuse account, choose a project, and ask questions in a direct message. Each thread remembers its project."
+      "agent_description": "Connect your Langfuse account, choose a project, and ask questions in a DM or channel thread. Each thread remembers its project."
     }
   },
   "oauth_config": {
@@ -24,7 +24,9 @@
         "app_mentions:read",
         "chat:write",
         "assistant:write",
-        "im:history"
+        "im:history",
+        "channels:history",
+        "groups:history"
       ]
     }
   },
@@ -35,6 +37,8 @@
       "bot_events": [
         "app_mention",
         "message.im",
+        "message.channels",
+        "message.groups",
         "app_home_opened",
         "agent_session_stopped"
       ]

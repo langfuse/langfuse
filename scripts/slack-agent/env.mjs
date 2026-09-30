@@ -15,8 +15,13 @@ export function readConfig(source = process.env) {
     botToken: required("SLACK_BOT_TOKEN"),
     appToken: required("SLACK_APP_TOKEN"),
     teamId: required("SLACK_TEAM_ID"),
-    ...(mode === "shared" ? { channelId: required("SLACK_CHANNEL_ID") } : {}),
+    channelId:
+      mode === "shared"
+        ? required("SLACK_CHANNEL_ID")
+        : source.SLACK_CHANNEL_ID?.trim() || undefined,
     baseUrl: required("LANGFUSE_BASE_URL"),
+    publicUrl:
+      source.LANGFUSE_PUBLIC_URL?.trim() || required("LANGFUSE_BASE_URL"),
     ...(mode === "linked"
       ? { serviceSecret: required("LANGFUSE_SLACK_AGENT_SECRET") }
       : {
@@ -34,7 +39,7 @@ export function readConfig(source = process.env) {
   }
   if (
     !/^T[A-Z0-9]+$/.test(config.teamId) ||
-    (mode === "shared" && !/^[CG][A-Z0-9]+$/.test(config.channelId))
+    (config.channelId && !/^[CG][A-Z0-9]+$/.test(config.channelId))
   ) {
     throw new Error(
       "Use Slack IDs for SLACK_TEAM_ID (T…) and SLACK_CHANNEL_ID (C… or G…), not names.",

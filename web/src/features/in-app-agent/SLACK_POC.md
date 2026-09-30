@@ -2,7 +2,7 @@
 
 This hackathon prototype connects Slack to the existing project-scoped agent.
 It has two opt-in modes: a single-project channel demo with private ephemeral
-replies, and a project picker in private DMs. Both require individual Langfuse
+replies, and a project picker in DMs or channel threads. Both require individual Langfuse
 account linking, check current user permissions, and use Slack's native working
 indicator and stop button.
 
@@ -22,14 +22,14 @@ sequenceDiagram
   User->>Bot: Send code in private DM
   Bot->>Web: Redeem code for verified Slack workspace/user
   Web-->>Bot: Persisted account link
-  User->>Bot: Ask a question
+  User->>Bot: Ask in DM or start a channel thread with @mention
   Bot->>Web: List currently accessible projects
   Bot-->>User: Searchable project dropdown
   User->>Bot: Choose a project
   Bot->>Web: Start retained question as linked user
   Web->>Worker: Existing durable background run
   Bot->>Web: Poll, checking current access
-  Bot-->>User: Answer in the same private thread
+  Bot-->>User: Answer in the same DM or channel thread
 ```
 
 **Identity and authorization.** A signed-in Langfuse user generates a random
@@ -48,10 +48,18 @@ It retains the question while the user chooses. A thread is bound to one
 Slack owner, one account-link ID, one project, and one Langfuse conversation.
 Changing projects means starting a new thread. A remembered last project is
 only a suggestion. Stale dropdowns, another user, or a replacement account
-link cannot move an existing conversation into another scope.
+link cannot move an existing conversation into another scope. Channel threads
+start with a top-level @mention and use the same project picker as DMs. Only
+the thread owner can select the project or continue the conversation. Their
+thread replies need no further mention; messages received during an active run
+are queued. The optional `SLACK_CHANNEL_ID` restricts channel use without
+disabling DMs.
 
-**Privacy and revocation.** Linked-mode project names and answers stay in DMs;
-channel mentions direct the requester there. The server rechecks membership on
+**Privacy and revocation.** Connection codes are accepted only in DMs. In linked
+channel threads, project names and answers are visible to everyone who can read
+the channel. Channel membership does not authorize anyone to act as the thread
+owner or access Langfuse; choose a channel whose audience may see the selected
+project's data. The server rechecks membership on
 submission, polling, and cancellation, and the worker applies its existing
 permission checks. Disconnecting on `/slack-agent` revokes further access and
 reconnecting uses a new link identity. Previously delivered Slack messages are
@@ -70,7 +78,16 @@ contract, model runtime, and MCP tools are unchanged.
 tRPC. Connection codes are excluded from client logging and replay capture.
 No product analytics event is added for this opt-in credential setup flow.
 Expected connection/configuration failures are rendered in the UI; no new
-client-side Sentry capture is added.
+client-side Sentry capture is added. `LANGFUSE_PUBLIC_URL` selects the origin of
+links people open and defaults to `LANGFUSE_BASE_URL`; the bot continues using
+`LANGFUSE_BASE_URL` for API requests. Set the public origin to Langfuse's
+canonical `NEXTAUTH_URL` when the local API address is not reachable by users.
+
+**Slack configuration.** The linked manifest includes `channels:history` and
+`groups:history` scopes with `message.channels` and `message.groups` events,
+in addition to DMs and mentions. Reinstall the app after adding those scopes,
+and invite it to the channels you want to use. Connection-code messages remain
+DM-only.
 
 ## Shared-project quick setup
 
@@ -207,9 +224,11 @@ because Slack has no approval UI. Replies are ephemeral and visible only to the
 requesting user, so channel membership does not reveal another user's results.
 
 Shared mode supports mentions in one channel and one bot process. Linked mode
-supports private DMs and unmentioned thread follow-ups. Token streaming,
-tool-progress cards, OAuth installation across workspaces, authorized shared
-channel answers, and production hosting are outside this PoC. The animated
+supports DMs and channel threads with owner-only unmentioned follow-ups and a
+fixed project per thread. Linked channel project names and answers are public
+to the channel; other members cannot operate the owner's conversation. Token
+streaming, tool-progress cards, OAuth installation across workspaces, shared
+thread ownership, and production hosting are outside this PoC. The animated
 working indicator uses Slack's native agent-session API and does not require
 token streaming. A normal PR preview does not run the Slack bot or opt into this
 API configuration; use the local setup to reproduce the integration.
@@ -242,3 +261,11 @@ Repeat as another Slack user to verify a separate linking prompt and conversatio
 Finish build/lint checks first: local file watchers can restart the
 worker during a run. The first request after a cold web start can time out while
 Next.js compiles MCP; warm the route or send a new message after compilation.
+
+For linked mode, connect by sending the one-time code in a DM. Start a channel
+thread with a top-level @mention, select a project, and verify that its name and
+answer appear in the channel. Reply as the thread owner without mentioning the
+bot; send another reply during an active run to check queueing. Verify that
+another member cannot select the project or continue that owner's thread, and
+that a new thread offers a fresh project choice. Repeat the picker and follow-up
+flow in a DM.

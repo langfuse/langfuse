@@ -2,8 +2,9 @@
 
 Linked mode lets each Slack user connect their own Langfuse account and choose
 among their accessible projects. A question always runs in one project. The
-choice belongs to the Slack DM thread, so follow-ups keep the same context;
-a new top-level message starts a fresh thread and project selection.
+choice belongs to the Slack thread, in a DM or channel, so follow-ups keep the
+same context. A new top-level DM message or channel @mention starts a fresh
+thread and project selection.
 
 This is an opt-in, single-workspace hackathon implementation. The existing
 shared-project channel demo remains the default (`SLACK_AGENT_MODE=shared`).
@@ -15,13 +16,16 @@ and use [manifest.linked.json](./manifest.linked.json). Keep your existing app
 name and branding if different. It enables:
 
 - **Socket Mode**, using the existing `xapp-` token with `connections:write`.
-- Bot scopes `app_mentions:read`, `chat:write`, `assistant:write`, and **`im:history`**.
-- Bot events `app_mention`, **`message.im`**, `app_home_opened`, and `agent_session_stopped`.
+- Bot scopes `app_mentions:read`, `chat:write`, `assistant:write`, `im:history`,
+  **`channels:history`**, and **`groups:history`**.
+- Bot events `app_mention`, `message.im`, **`message.channels`**,
+  **`message.groups`**, `app_home_opened`, and `agent_session_stopped`.
 - **Interactivity & Shortcuts → On** for the project picker.
 - **App Home → Messages tab → Allow users to send messages**.
 - The **Agent** feature for Slack's native animated working status and stop button.
 
-Save and **reinstall to the workspace** after adding scopes. Copy the current
+Save and **reinstall to the workspace** after adding the channel history scopes
+and events, then invite the bot to each channel you want to use. Copy the current
 Bot User OAuth Token from **OAuth & Permissions** into your local bot
 configuration. Restart the bot after changing tokens. Renaming the app or
 channel does not require a code change: routing uses Slack IDs.
@@ -62,8 +66,10 @@ project-bound account connections are not used in linked mode.
 
 With the local worktree pool, use an ignored `mise.local.toml` or the supported
 slot-local overrides and `lf-wt` restart commands; do not edit generated slot
-environment files. Set the same canonical local web origin in `NEXTAUTH_URL`
-and `LANGFUSE_BASE_URL`, including the correct port.
+environment files. `LANGFUSE_BASE_URL` is the API address reachable by the bot.
+Set `NEXTAUTH_URL` to the canonical web origin people use to sign in. When that
+address differs from the bot's API address, set `LANGFUSE_PUBLIC_URL` on the bot
+to the same human-facing origin, including the correct port.
 
 ## Bot configuration
 
@@ -72,12 +78,19 @@ Keep the existing Slack tokens in `scripts/slack-agent/.env.local` and set:
 ```dotenv
 SLACK_AGENT_MODE=linked
 SLACK_TEAM_ID=T_YOUR_WORKSPACE_ID
-LANGFUSE_BASE_URL=http://langfuse-wt4.localhost:3004
+LANGFUSE_BASE_URL=http://localhost:3004
+LANGFUSE_PUBLIC_URL=https://YOUR_ACCESSIBLE_DEVELOPMENT_HOST
 LANGFUSE_SLACK_AGENT_SECRET=THE_SAME_SECRET_AS_LANGFUSE_WEB
 ```
 
-`SLACK_CHANNEL_ID`, `LANGFUSE_PUBLIC_KEY`, and `LANGFUSE_SECRET_KEY` are not
-required in linked mode. Stop the previous bot before starting the new one:
+`LANGFUSE_PUBLIC_URL` is optional and defaults to `LANGFUSE_BASE_URL`. It controls
+links people open; API requests still use `LANGFUSE_BASE_URL`. For a laptop-only
+demo, both can use the local web URL.
+
+`SLACK_CHANNEL_ID` optionally limits channel use to one channel; DMs remain
+available. Omit it to allow channels the bot has joined. `LANGFUSE_PUBLIC_KEY`
+and `LANGFUSE_SECRET_KEY` are not required in linked mode. Stop the previous bot
+before starting the new one:
 
 ```sh
 mise exec -- pnpm run slack:agent
@@ -93,15 +106,22 @@ Run one bot process per state file. The laptop must stay awake and connected.
 
 ## Connect and ask a question
 
-1. Open **`<LANGFUSE_BASE_URL>/slack-agent`** and sign in to the Langfuse account
+1. Open **`<LANGFUSE_PUBLIC_URL>/slack-agent`** (or `LANGFUSE_BASE_URL` when the
+   public URL is unset) and sign in to the Langfuse account
    whose projects you want to use.
 2. Choose **Generate connection code**, copy the command, and send it in a
    **direct message to Halo**. The code expires after five minutes, works once,
    and is stored only as a hash on the server.
-3. Send a question, such as “Which datasets exist?”. Choose a project from the
-   searchable dropdown. Halo submits the original question automatically.
-4. Reply in that thread for follow-ups. Start a new top-level message to choose
-   another project. A previous choice is a suggestion, never authorization.
+3. Send a question in a DM, or start a channel thread with a top-level
+   **@Halo mention**, such as “@Halo Which datasets exist?”. Both use the same
+   searchable project picker. Choose a project; Halo submits the original
+   question automatically. In channels, the project name and answer are visible
+   to everyone who can read the channel.
+4. As the person who started the thread, reply there for follow-ups; another
+   mention is unnecessary. Messages sent during an active run are queued. The
+   selected project stays fixed for that thread. Start a new top-level DM
+   message or channel @mention to choose another project. A previous choice is
+   a suggestion, never authorization.
 5. Return to `/slack-agent` to disconnect. Reconnecting cannot reuse old thread
    history. Answers already posted in Slack remain there.
 
@@ -110,10 +130,14 @@ consent details are masked):
 
 ![Connected Slack account in Langfuse](./docs/linked-account-page.png)
 
-Channel mentions only direct the user to a private conversation; project names
-and answers are not posted to the channel. Slack cannot approve a tool's write
-request; the adapter cancels runs waiting for approval. Perform changes through
-Langfuse's normal in-app approval flow.
+Connection codes must be sent in a **DM**, never in a channel. In channel
+threads, only the owner can select the project or continue the conversation;
+other channel members cannot act as that owner. Channel visibility does not
+grant Langfuse access, but everyone in the channel can read the posted project
+names and answers. Use a channel whose audience may see that project's data.
+
+Slack cannot approve a tool's write request; the adapter cancels runs waiting
+for approval. Perform changes through Langfuse's normal in-app approval flow.
 
 ## Infrastructure and limits
 
@@ -129,7 +153,7 @@ Langfuse's normal in-app approval flow.
   the worker checks permissions again for execution.
 
 This does not add a public OAuth provider, cross-workspace installation flow,
-shared channel authorization policy, streamed answer text, or multiple bot
+collaborative thread ownership, streamed answer text, or multiple bot
 replicas. Before scaling, move bot routing/delivery state to shared storage and
 add durable delivery handling. A crash after Slack accepts a reply can still
 cause a duplicate reply on recovery.
