@@ -24,6 +24,9 @@
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation
   scheduling, direct events-table writes, and trace-batch accounting.
+- Long metadata values: `IngestionService.writeEventRecord` hands each event to
+  `src/features/metadata-long-values`, which raises one "Long metadata values"
+  admin issue per project per 24h. Keep the per-event cost to a length check.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
   `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads

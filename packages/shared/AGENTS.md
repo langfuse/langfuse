@@ -29,6 +29,7 @@
 - Domain model types: `src/domain/*`
 - Admin issue definition, available name, and callback input types: `src/features/adminIssues/adminIssueDefinitions.ts`, exported from `@langfuse/shared`.
 - Direct issue logging: `createAdminIssue({ projectId, name, issue })` from `@langfuse/shared/src/server` writes one log using a registered issue name. Repeated calls create repeated logs.
+- Event-triggered rules have no callback; their caller builds the issue, e.g. `buildLongMetadataValuesIssue` in `src/features/adminIssues/rules/longMetadataValues.ts`, raised from the ingestion worker.
 - Admin issue registry and project-scoped runner: `src/features/adminIssues/{adminIssueDefinitions,executeAdminIssueRules}.ts`, exported from `@langfuse/shared/src/server`. Optional callbacks receive `projectId`; the runner executes rules concurrently, isolates each rule and its writes on failure, and returns the total inserted count. Daily scheduling and per-project detection use `AdminIssueScheduleQueue` and `AdminIssueDetectionQueue` in `src/server/redis/`, with payload contracts in `src/server/queues.ts`. These queues are not registered for dead-letter retry.
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`

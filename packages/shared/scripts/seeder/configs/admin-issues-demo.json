@@ -19,6 +19,10 @@
     {
       "name": "unpriced-generations",
       "params": { "id-prefix": "admin-issues-demo" }
+    },
+    {
+      "name": "long-metadata-values",
+      "params": { "id-prefix": "admin-issues-demo" }
     }
   ]
 }

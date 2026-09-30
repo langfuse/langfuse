@@ -2,6 +2,7 @@ import { ClickHouseClientManager, logger } from "@langfuse/shared/src/server";
 import { disconnectAllRedisInstances } from "@langfuse/shared/src/server";
 
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
+import { longMetadataValueTracker } from "../features/metadata-long-values";
 import { setSigtermReceived } from "../features/health";
 import { server } from "../index";
 import { freeAllTokenizers } from "../features/tokenisation/usage";
@@ -113,6 +114,8 @@ const runDrainAndClose = async () => {
   // Flush all pending writes to Clickhouse AFTER closing ingestion queue worker that is writing to it
   await ClickhouseWriter.shutdownAll();
   logger.info("Clickhouse writer has been shut down.");
+
+  await longMetadataValueTracker.shutdown();
 
   // Closes the shared client and every per-queue client in one pass. Each
   // queue holds its own client; without this they stay connected, retry

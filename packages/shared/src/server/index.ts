@@ -8,6 +8,11 @@ export * from "./services/StorageService";
 export { adminIssueDefinitions } from "../features/adminIssues/adminIssueDefinitions";
 export type { AdminIssueDefinition } from "../features/adminIssues/adminIssueDefinitions";
 export { createAdminIssue } from "../features/adminIssues/createAdminIssue";
+export {
+  buildLongMetadataValuesIssue,
+  LONG_METADATA_VALUE_THRESHOLD,
+  type LongMetadataValueKey,
+} from "../features/adminIssues/rules/longMetadataValues";
 export { executeAdminIssueRules } from "../features/adminIssues/executeAdminIssueRules";
 export * from "./media";
 export * from "./services/safeBlobKeySegment";
