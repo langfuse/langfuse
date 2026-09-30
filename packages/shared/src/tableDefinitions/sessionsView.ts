@@ -97,26 +97,6 @@ export const sessionsViewCols: ColumnDefinition[] = [
     options: [], // to be filled in at runtime
   },
   {
-    name: "Available Tool Names",
-    id: "toolNames",
-    type: "arrayOptions",
-    internal: "s.tool_names",
-    options: [],
-  },
-  {
-    name: "Called Tool Names",
-    id: "calledToolNames",
-    type: "arrayOptions",
-    internal: "s.called_tool_names",
-    options: [],
-  },
-  {
-    name: "Tool Calls",
-    id: "toolCalls",
-    type: "number",
-    internal: "s.tool_calls_count",
-  },
-  {
     name: "Scores (numeric)",
     id: "scores_avg",
     type: "numberObject",
@@ -152,19 +132,39 @@ export const sessionsViewCols: ColumnDefinition[] = [
 ];
 
 export const sessionsEventsViewCols: ColumnDefinition[] =
-  sessionsViewCols.concat({
-    name: "Metadata",
-    id: "metadata",
-    type: "stringObject",
-    internal: 's."metadata"',
-  });
+  sessionsViewCols.concat(
+    {
+      name: "Available Tool Names",
+      id: "toolNames",
+      type: "arrayOptions",
+      internal: "st.tool_names",
+      options: [],
+    },
+    {
+      name: "Called Tool Names",
+      id: "calledToolNames",
+      type: "arrayOptions",
+      internal: "st.called_tool_names",
+      options: [],
+    },
+    {
+      name: "Tool Calls",
+      id: "toolCalls",
+      type: "number",
+      internal: "st.tool_calls_count",
+    },
+    {
+      name: "Metadata",
+      id: "metadata",
+      type: "stringObject",
+      internal: 's."metadata"',
+    },
+  );
 
 export type SessionOptions = {
   userIds: Array<SingleValueOption>;
   environment: Array<SingleValueOption>;
   tags: Array<SingleValueOption>;
-  toolNames?: Array<SingleValueOption>;
-  calledToolNames?: Array<SingleValueOption>;
   scores_avg?: Array<string>;
   score_categories?: Array<MultiValueOption>;
   score_booleans?: Array<string>;
@@ -182,12 +182,6 @@ export function sessionsTableColsWithOptions(
     }
     if (col.id === "tags") {
       return formatColumnOptions(col, options?.tags ?? []);
-    }
-    if (col.id === "toolNames") {
-      return formatColumnOptions(col, options?.toolNames ?? []);
-    }
-    if (col.id === "calledToolNames") {
-      return formatColumnOptions(col, options?.calledToolNames ?? []);
     }
     if (col.id === "scores_avg") {
       return formatColumnOptions(col, options?.scores_avg ?? []);

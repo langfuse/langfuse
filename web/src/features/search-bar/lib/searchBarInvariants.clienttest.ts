@@ -822,6 +822,10 @@ describe("search bar invariants — sessions registry", () => {
       "totalTokens",
       "userIds",
     ]);
+    const v3Registry = sessionsFieldRegistry(getSessionFilterConfig([], false));
+    for (const column of ["toolNames", "calledToolNames", "toolCalls"]) {
+      expect(v3Registry.resolveField(column)).toBeNull();
+    }
     // Events-only fields and columns the sidebar never offers stay unresolvable,
     // so a stray token is a diagnostic rather than a filter the sidebar cannot
     // show or remove.

@@ -281,14 +281,8 @@ export default function SessionsTable({
         })) ?? undefined,
       // tags don't have counts; they read A→Z
       tags: sortOptionValues(filterOptions.data?.tags.map((t) => t.value)),
-      toolNames: isV4
-        ? eventToolOptions.filterOptions.toolNames
-        : sortOptionValues(filterOptions.data?.toolNames?.map((t) => t.value)),
-      calledToolNames: isV4
-        ? eventToolOptions.filterOptions.calledToolNames
-        : sortOptionValues(
-            filterOptions.data?.calledToolNames?.map((t) => t.value),
-          ),
+      toolNames: eventToolOptions.filterOptions.toolNames,
+      calledToolNames: eventToolOptions.filterOptions.calledToolNames,
       sessionDuration: [],
       countTraces: [],
       inputTokens: [],
@@ -304,7 +298,6 @@ export default function SessionsTable({
   }, [
     environmentOptions,
     filterOptions.data,
-    isV4,
     eventToolOptions.filterOptions.toolNames,
     eventToolOptions.filterOptions.calledToolNames,
   ]);
