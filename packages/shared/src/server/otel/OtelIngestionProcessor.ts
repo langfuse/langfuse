@@ -2562,7 +2562,7 @@ export class OtelIngestionProcessor {
     // reaches the parser: count it here, emission-only. Falsy compat values
     // survive the fallback and are counted by the parser itself.
     const primaryValue = attributes[metadataKeyPrefix];
-    if (primaryValue !== undefined && primaryValue !== null && !primaryValue) {
+    if (primaryValue !== undefined && !primaryValue) {
       const isString = typeof primaryValue === "string";
       this.recordMetadataDropped(
         isString ? "parse_failure" : "primitive",
@@ -3394,7 +3394,7 @@ export class OtelIngestionProcessor {
     value: unknown,
     context: MetadataDropContext,
   ): Record<string, unknown> {
-    if (value === undefined || value === null) {
+    if (value === undefined) {
       return {};
     }
 
@@ -3416,7 +3416,7 @@ export class OtelIngestionProcessor {
       }
     }
 
-    if (typeof value === "object") {
+    if (value !== null && typeof value === "object") {
       return value as Record<string, unknown>;
     }
 

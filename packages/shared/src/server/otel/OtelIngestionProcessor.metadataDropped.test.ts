@@ -5,7 +5,7 @@
  * Spec under test:
  * - Counter name: langfuse.ingestion.metadata_dropped
  * - Tags: reason ∈ {non_object_top_level, parse_failure, primitive},
- *   source = otel, domain ∈ {trace, observation}, projectId (low
+ *   source = otel, domain ∈ {trace, observation, experiment, experiment_item}, projectId (low
  *   cardinality: only projects emitting malformed metadata appear),
  *   attributeKey (closed set of Langfuse constants), sdkName, sdkVersion,
  *   and — for parse_failure only — kind (value-shape sub-classification)
@@ -561,6 +561,49 @@ describe("OTel metadata_dropped metric", () => {
   // processor instance, and across domain extractions of a shared attribute
   // key. Domain tag of a shared key is the first-seen domain.
   describe("exactly-once semantics across pipelines and domains", () => {
+    it.each([
+      "langfuse.observation.metadata",
+      "langfuse.trace.metadata",
+      "langfuse.metadata",
+      "langfuse.experiment.metadata",
+    ])("counts valueless %s once across both pipelines", async (key) => {
+      const batch = buildBatch([
+        { key, value: undefined },
+        {
+          key: "langfuse.observation.metadata.empty",
+          value: null,
+        },
+        ...(key === "langfuse.metadata"
+          ? []
+          : [
+              {
+                key: "langfuse.metadata",
+                value: { stringValue: '{"env":"compat-prod"}' },
+              },
+            ]),
+      ]);
+      const processor = createProcessor();
+      const ingestionEvents = await processor.processToIngestionEvents(batch);
+      const events = processor.processToEvent(batch);
+
+      expect(ingestionEvents.length).toBeGreaterThan(0);
+      expect(events).toMatchObject([
+        {
+          metadata: {
+            empty: null,
+            ...(key === "langfuse.metadata" ? {} : { env: "compat-prod" }),
+          },
+        },
+      ]);
+      const calls = droppedCalls();
+      expect(calls).toHaveLength(1);
+      expect(calls[0][2]).toMatchObject({
+        attributeKey: key,
+        reason: "primitive",
+        source: "otel",
+      });
+    });
+
     const expectSingleDrop = (expectedReason: string) => {
       const calls = droppedCalls();
       expect(calls).toHaveLength(1);
