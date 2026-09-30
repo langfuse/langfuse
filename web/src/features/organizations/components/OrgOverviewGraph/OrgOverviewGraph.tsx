@@ -22,6 +22,8 @@ import {
 import "@xyflow/react/dist/style.css";
 import { type RouterOutputs } from "@/src/utils/api";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+import { ErrorPage } from "@/src/components/error-page";
 
 type WeekOverWeekCount = {
   current: number;
@@ -303,12 +305,16 @@ const projectSpacing = 288;
 
 export function OrgOverviewGraph({
   data,
+  error,
+  isLoading,
   initialZoom,
   search,
   activityFilter,
   order,
 }: {
-  data: OrganizationIngestionOverview;
+  data: OrganizationIngestionOverview | undefined;
+  error?: { message: string } | null;
+  isLoading?: boolean;
   initialZoom?: number;
   search?: string;
   activityFilter?: "active" | "inactive";
@@ -322,6 +328,7 @@ export function OrgOverviewGraph({
   const { nodes, edges } = useMemo(() => {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
+    if (!data) return { nodes, edges };
     let row = 0;
     let previousProjectY: number | null = null;
     const query = search?.trim().toLowerCase() ?? "";
@@ -536,29 +543,47 @@ export function OrgOverviewGraph({
   }, [data, search, activityFilter, order]);
 
   return (
-    <div className="h-full w-full">
-      {nodes.length === 0 ? (
+    <div className="border-border h-full min-h-0 overflow-hidden rounded-lg border">
+      {error ? (
+        <ErrorPage title="Unable to load analytics" message={error.message} />
+      ) : !data ? (
+        <div className="flex h-full items-center justify-center">
+          {isLoading ? (
+            <Spinner size="xl" variant="muted" />
+          ) : (
+            <p className="text-muted-foreground">No data</p>
+          )}
+        </div>
+      ) : data.projects.length === 0 ? (
         <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
-          No matching projects or clients.
+          No projects in this organization.
         </div>
       ) : (
-        <ReactFlow
-          key={JSON.stringify([search, activityFilter])}
-          nodes={nodes}
-          nodeOrigin={[0, 0.5]}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          fitView
-          fitViewOptions={{
-            minZoom: 0.05,
-            maxZoom: initialZoom ?? 1,
-          }}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable={false}
-          proOptions={{ hideAttribution: true }}
-        />
+        <div className="h-full">
+          {nodes.length === 0 ? (
+            <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
+              No matching projects or clients.
+            </div>
+          ) : (
+            <ReactFlow
+              key={JSON.stringify([search, activityFilter])}
+              nodes={nodes}
+              nodeOrigin={[0, 0.5]}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              fitView
+              fitViewOptions={{
+                minZoom: 0.05,
+                maxZoom: initialZoom ?? 1,
+              }}
+              nodesDraggable={false}
+              nodesConnectable={false}
+              elementsSelectable={false}
+              proOptions={{ hideAttribution: true }}
+            />
+          )}
+        </div>
       )}
     </div>
   );

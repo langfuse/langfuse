@@ -86,12 +86,14 @@ export function OrganizationAnalyticsPage({
           </div>
         </div>
       </div>
-      <ConnectedOrgOverviewGraph
-        organizationId={organizationId}
-        search={search}
-        activityFilter={activityFilter}
-        order={order}
-      />
+      <div className="h-[70vh]">
+        <ConnectedOrgOverviewGraph
+          organizationId={organizationId}
+          search={search}
+          activityFilter={activityFilter}
+          order={order}
+        />
+      </div>
     </div>
   );
 }

@@ -151,6 +151,37 @@ const exampleData: OrganizationIngestionOverview = {
 
 export const Default = meta.story({ args: { data: exampleData } });
 
+export const Loading = meta.story({
+  args: { data: undefined, isLoading: true },
+});
+
+export const Error = meta.story({
+  args: { data: undefined, error: { message: "Failed to fetch analytics." } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByText("Unable to load analytics"),
+    ).toBeVisible();
+    await expect(canvas.getByText("Failed to fetch analytics.")).toBeVisible();
+  },
+});
+
+export const NoData = meta.story({
+  args: { data: undefined, isLoading: false },
+});
+
+export const NoProjects = meta.story({
+  args: {
+    data: { ...exampleData, projects: [], eventRows: [], scoreRows: [] },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByText("No projects in this organization."),
+    ).toBeVisible();
+  },
+});
+
 export const SortByDatasets = meta.story({
   name: "(Test) Sort by datasets with name tie-breaker",
   args: {
