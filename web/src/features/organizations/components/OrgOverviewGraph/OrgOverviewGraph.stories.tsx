@@ -151,6 +151,33 @@ const exampleData: OrganizationIngestionOverview = {
 
 export const Default = meta.story({ args: { data: exampleData } });
 
+export const EmptyProjectBeforeClients = meta.story({
+  args: {
+    data: {
+      ...exampleData,
+      projects: [
+        {
+          id: "empty",
+          name: "Empty project",
+          features: {
+            activeEvaluationRules: 0,
+            datasets: 0,
+            datasetItems: 0,
+            activeMonitors: 0,
+            prompts: 0,
+          },
+        },
+        exampleData.projects[0]!,
+      ],
+      eventRows: exampleData.eventRows.map((row) => ({
+        ...row,
+        projectId: "shiitake",
+      })),
+      scoreRows: [],
+    },
+  },
+});
+
 export const SeparatedProjectCards = meta.story({
   name: "(Test) Separated project cards",
   args: { data: exampleData },

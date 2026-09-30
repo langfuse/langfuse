@@ -513,7 +513,6 @@ export function OrgOverviewGraph({
         },
       });
       previousProjectY = projectY;
-      if (visibleClients.length === 0) row++;
     }
 
     return { nodes, edges };
