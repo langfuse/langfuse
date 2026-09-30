@@ -149,7 +149,7 @@ function OptionContent({
   return (
     <>
       <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="max-w-full min-w-0 truncate" title={title}>
+        <span className="truncate" title={title}>
           {label}
           {secondaryLabel && (
             <span className="text-muted-foreground ml-1">{secondaryLabel}</span>
@@ -159,7 +159,12 @@ function OptionContent({
       </span>
       <span
         className={cn(
-          "pointer-events-none flex size-3.5 shrink-0 items-center justify-center",
+          "pointer-events-none flex w-3.5 shrink-0 items-center justify-center",
+          // A badged row can wrap to two or three lines. Centring the indicator
+          // against the whole block would float it down level with the badges,
+          // away from the label it marks — so pin it to the first line's box
+          // (h-5 matches the row's text-sm line height) instead.
+          badges ? "h-5 self-start" : "h-3.5",
           (type === "checkbox" || type === "radio") && "order-first",
         )}
       >

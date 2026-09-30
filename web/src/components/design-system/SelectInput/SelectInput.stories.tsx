@@ -266,7 +266,7 @@ export const TestKeepsBadgedLabelReadable = meta.story({
     onValueChange: fn(),
   },
   render: (args) => (
-    <div className="w-[200px]">
+    <div className="w-50">
       <SelectInput {...args} />
     </div>
   ),
@@ -284,9 +284,55 @@ export const TestKeepsBadgedLabelReadable = meta.story({
     // characters.
     const label = within(option).getByTitle("answer_relevancy");
     await waitFor(() => {
+      // `scrollWidth <= clientWidth` alone is also satisfied by 0 <= 0, which
+      // is the collapsed state being guarded against — so pin the width too.
+      expect(label.clientWidth).toBeGreaterThan(0);
       expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth);
       // Both pills survive the wrap — the name must not be won back by
       // dropping the level information.
+      expect(within(option).getByText("Trace")).toBeVisible();
+      expect(within(option).getByText("Observation")).toBeVisible();
+    });
+  },
+});
+
+export const TestKeepsBadgedLabelReadableWithoutSearch = meta.story({
+  name: "(Test) Keeps Badged Label Readable Without Search",
+  args: {
+    // Same case as above through the plain SelectPrimitive branch, which takes
+    // a different code path for badges and was otherwise untested.
+    value: "answer_relevancy",
+    placeholder: "Select a key",
+    options: [
+      {
+        value: "answer_relevancy",
+        label: "answer_relevancy",
+        badges: [
+          { text: "Trace", color: "violet" },
+          { text: "Observation", color: "blue" },
+        ],
+      },
+    ],
+    onValueChange: fn(),
+  },
+  render: (args) => (
+    <div className="w-50">
+      <SelectInput {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("combobox"));
+
+    const option = await body.findByRole("option", {
+      name: /answer_relevancy/,
+    });
+    const label = within(option).getByTitle("answer_relevancy");
+    await waitFor(() => {
+      expect(label.clientWidth).toBeGreaterThan(0);
+      expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth);
       expect(within(option).getByText("Trace")).toBeVisible();
       expect(within(option).getByText("Observation")).toBeVisible();
     });
