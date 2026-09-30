@@ -1,25 +1,15 @@
-/**
- * Organization-level ingestion overview: raw event and score volume per
- * project and ingesting client for the trailing 7 days compared to the 7 days
- * before. Totals, change rates, statuses and grouping are left to the client.
- *
- * Event attribution mirrors the project-level v4 migration SDK breakdown
- * (same `events_core` sources and SDK columns) so both views agree.
- */
 import {
   classifyIngestionSdkVersion,
   convertDateToClickhouseDateTime,
-  INTERNAL_INGESTION_SDK_NAMES,
   queryClickhouse,
   UNKNOWN_INGESTION_SDK_VALUE,
   type IngestionSdkCanonicalName,
   type IngestionSdkUpgradeStatus,
 } from "@langfuse/shared/src/server";
-import { ScoreSourceArray, type ScoreSourceType } from "@langfuse/shared";
-import { MIGRATION_INGRESS_EVENT_SOURCES } from "@/src/features/v4/server/v4TransitionCache";
+import { type ScoreSourceType } from "@langfuse/shared";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-const MINUTE_MS = 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1_000;
+const MINUTE_MS = 60 * 1_000;
 const ORGANIZATION_INGESTION_WINDOW_MS = 7 * DAY_MS;
 
 type IngestionPath = "otel" | "ingestion_api";
@@ -65,11 +55,6 @@ type ClickhouseClientRow = {
   lastSeen: string;
 };
 
-const INTERNAL_CLIENT_CONDITION = `(
-    startsWith(environment, 'langfuse-')
-    OR ingestion_sdk_name IN {internalSdkNames: Array(String)}
-  )`;
-
 const EVENT_ROWS_QUERY = `
 SELECT
   project_id AS projectId,
@@ -77,7 +62,7 @@ SELECT
   ingestion_sdk_name AS sdkName,
   ingestion_sdk_version AS sdkVersion,
   ingestion_api_key AS publicKey,
-  ${INTERNAL_CLIENT_CONDITION} AS isInternal,
+  startsWith(environment, 'langfuse-') AS isInternal,
   countIf(start_time >= {currentFrom: DateTime64(3)}) AS currentCount,
   countIf(start_time < {currentFrom: DateTime64(3)}) AS previousCount,
   formatDateTime(max(start_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen
@@ -98,7 +83,7 @@ SELECT
   ingestion_sdk_name AS sdkName,
   ingestion_sdk_version AS sdkVersion,
   ingestion_api_key AS publicKey,
-  ${INTERNAL_CLIENT_CONDITION} AS isInternal,
+  startsWith(environment, 'langfuse-') AS isInternal,
   countIf(timestamp >= {currentFrom: DateTime64(3)}) AS currentCount,
   countIf(timestamp < {currentFrom: DateTime64(3)}) AS previousCount,
   formatDateTime(max(timestamp), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen
@@ -118,6 +103,7 @@ const toClientFields = (row: ClickhouseClientRow): IngestionClientFields => {
   const sdkName = toNullableSdkValue(row.sdkName);
   const sdkVersion = toNullableSdkValue(row.sdkVersion);
   const classification = classifyIngestionSdkVersion({ sdkName, sdkVersion });
+
   return {
     sdkName,
     sdkVersion,
@@ -131,9 +117,6 @@ const toClientFields = (row: ClickhouseClientRow): IngestionClientFields => {
     lastSeen: row.lastSeen,
   };
 };
-
-const isScoreSource = (value: string): value is ScoreSourceType =>
-  (ScoreSourceArray as readonly string[]).includes(value);
 
 export const getOrganizationIngestionOverview = async ({
   projects,
@@ -162,16 +145,12 @@ export const getOrganizationIngestionOverview = async ({
     previousFrom: convertDateToClickhouseDateTime(previousFrom),
     currentFrom: convertDateToClickhouseDateTime(currentFrom),
     to: convertDateToClickhouseDateTime(to),
-    internalSdkNames: [...INTERNAL_INGESTION_SDK_NAMES],
   };
 
   const [eventRows, scoreRows] = await Promise.all([
     queryClickhouse<ClickhouseClientRow & { ingestionPath: IngestionPath }>({
       query: EVENT_ROWS_QUERY,
-      params: {
-        ...params,
-        ingressSources: [...MIGRATION_INGRESS_EVENT_SOURCES],
-      },
+      params,
       tags: { route: "organization-ingestion-overview-events" },
       preferredClickhouseService: "EventsReadOnly",
     }),
@@ -191,16 +170,12 @@ export const getOrganizationIngestionOverview = async ({
       ingestionPath: row.ingestionPath,
       ...toClientFields(row),
     })),
-    scoreRows: scoreRows.flatMap((row) =>
-      isScoreSource(row.source)
-        ? [
-            {
-              projectId: row.projectId,
-              source: row.source,
-              ...toClientFields(row),
-            },
-          ]
-        : [],
-    ),
+    scoreRows: scoreRows.flatMap((row) => [
+      {
+        projectId: row.projectId,
+        source: row.source as ScoreSourceType,
+        ...toClientFields(row),
+      },
+    ]),
   };
 };
