@@ -36,6 +36,7 @@ import { ScoreConfigSettings } from "@/src/features/score-configs";
 import { env } from "@/src/env.mjs";
 import { PersonalNotificationSettings } from "@/src/features/notifications/components/PersonalNotificationSettings";
 import { ProjectNotificationChannels } from "@/src/features/notifications/components/ProjectNotificationChannels";
+import { IssueDetectionSettings } from "@/src/features/admin-issues/components/IssueDetectionSettings";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { WebCalloutIntegrationCard } from "@/src/features/web-callouts";
 import { DeveloperToolsSettings } from "@/src/features/developer-tools";
@@ -293,6 +294,13 @@ const getProjectSettingsPages = ({
         )}
       </div>
     ),
+  },
+  {
+    title: "Issue Detection",
+    slug: "issue-detection",
+    cmdKKeywords: ["issues", "rules", "detection"],
+    show: showProjectNotificationChannels,
+    content: <IssueDetectionSettings projectId={project.id} />,
   },
   {
     title: "Billing",
