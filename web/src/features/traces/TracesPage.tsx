@@ -53,7 +53,7 @@ export default function TracesPage() {
         <TracesOnboarding projectId={projectId} />
         {/* Must stay the last of exactly two children here and in the branch
             below — see the note there. */}
-        <Confetti />
+        {projectId && <Confetti key={projectId} />}
       </Page>
     );
   }
@@ -107,12 +107,13 @@ export default function TracesPage() {
       ) : (
         <TracesTable projectId={projectId} showControlsInPageHeader />
       )}
-      {/* Kept as the last of exactly two children in both branches so React
-          reconciles it to the same position when the onboarding state
-          resolves, reuses the instance, and the burst plays once per visit
-          rather than again on that transition. Adding a sibling to either
-          branch without adding one to the other breaks that silently. */}
-      <Confetti />
+      {/* Keyed on the project so the burst replays when the project switcher
+          moves to another project without leaving this route, and so React
+          reuses the same instance — rather than re-running it — when the
+          onboarding state resolves and swaps the sibling above. Rendered only
+          once the router has filled in the id: mounting on an undefined id
+          first would replay the burst as soon as the real one arrived. */}
+      {projectId && <Confetti key={projectId} />}
     </Page>
   );
 }
