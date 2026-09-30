@@ -50,7 +50,7 @@ const Avatar = React.forwardRef<
   AvatarProps
 >(({ src, displayName, email, size, shape, ...props }, ref) => {
   const hoverLabel = avatarHoverLabel(displayName, email);
-  const accessibleName = hoverLabel.replace("\n", ", ");
+  const accessibleName = hoverLabel.split("\n").join(", ");
   const normalizedDisplayName = displayName.trim() || email?.trim() || "User";
   const initials = normalizedDisplayName
     .split(/\s+/)
