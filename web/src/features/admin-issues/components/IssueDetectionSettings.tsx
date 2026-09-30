@@ -2,7 +2,6 @@ import { useState } from "react";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { IssueDetectionView } from "@/src/features/admin-issues/components/IssueDetectionView/IssueDetectionView";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 
 export function IssueDetectionSettings({ projectId }: { projectId: string }) {
@@ -15,10 +14,6 @@ export function IssueDetectionSettings({ projectId }: { projectId: string }) {
   const refresh = () => utils.adminIssues.getIssues.invalidate({ projectId });
   const runDetection = api.adminIssues.runDetection.useMutation({
     onSuccess: () => {
-      showSuccessToast({
-        title: "Issue detection queued",
-        description: "Refresh the list once the run completes.",
-      });
       setPollAfterRun(true);
       return refresh();
     },
