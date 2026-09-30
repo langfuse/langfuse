@@ -50,8 +50,9 @@ import { countRows, sessionLink, traceLink } from "./verify";
  *  - three models with usage/cost including `total`, short follow-ups next to
  *    5-20 minute idle gaps
  *  - typed session scores (numeric/categorical/boolean; API, EVAL and
- *    ANNOTATION sources, comments, metadata), trace feedback scores, and
- *    session + trace comments
+ *    ANNOTATION sources, comments, metadata; the ANNOTATION one backed by a
+ *    project score config), trace feedback scores, and session + trace
+ *    comments
  *
  * Deterministic: no randomness; ids derive from --id-prefix (the prefix IS the
  * session id) and every timestamp is a fixed offset from 22:00 UTC of the
@@ -137,6 +138,17 @@ const USERS = {
   priya: { id: "priya.raman", sender: "priya" },
   alex: { id: "alex.kim", sender: "alex" },
 } as const;
+
+const SEVERITY_CONFIG = {
+  name: "incident-severity",
+  categories: [
+    { label: "SEV-1", value: 1 },
+    { label: "SEV-2", value: 2 },
+    { label: "SEV-3", value: 3 },
+  ],
+  description:
+    "Incident severity assigned in review; SEV-1 is the most severe.",
+};
 
 const SESSION_METADATA = {
   scenario: "incident-session",
@@ -1237,6 +1249,13 @@ const run = async (
     });
   });
 
+  // Postgres ids are global rather than per project, so they carry the project
+  // id: the same --id-prefix seeded into two projects must not share rows.
+  const postgresId = (suffix: string) => `${ctx.projectId}-${suffix}`;
+  // One project-level config, as for real annotation scores: the Annotate
+  // panel only renders ANNOTATION scores whose config_id resolves.
+  const severityConfigId = postgresId("incident-severity-config");
+
   const scoreTimestamp = sessionStart + 57 * MINUTE;
   const scores: ScoreRecordInsertType[] = [
     createSessionScore({
@@ -1244,11 +1263,12 @@ const run = async (
       project_id: ctx.projectId,
       session_id: sessionId,
       environment: ctx.environment,
-      name: "incident-severity",
+      name: SEVERITY_CONFIG.name,
       value: 2,
       string_value: "SEV-2",
       data_type: "CATEGORICAL",
       source: "ANNOTATION",
+      config_id: severityConfigId,
       comment: "Customer-facing checkout degradation for 18 min; no data loss.",
       metadata: { reviewer: "maya.okafor" },
       timestamp: scoreTimestamp,
@@ -1327,7 +1347,7 @@ const run = async (
 
   const comments = [
     {
-      id: `${sessionId}-comment-1`,
+      id: postgresId(`${sessionId}-comment-1`),
       objectType: "SESSION" as const,
       objectId: sessionId,
       authorUserId: "user-1",
@@ -1335,7 +1355,7 @@ const run = async (
         "Great example for the on-call training deck: the copilot named the causal deploy in its first reply.",
     },
     {
-      id: `${sessionId}-comment-2`,
+      id: postgresId(`${sessionId}-comment-2`),
       objectType: "SESSION" as const,
       objectId: sessionId,
       authorUserId: "user-2",
@@ -1343,7 +1363,7 @@ const run = async (
         "Turn 6 is exactly the behavior we want — refusal plus a concrete change-request path. Adding it to the eval dataset.",
     },
     {
-      id: `${sessionId}-comment-3`,
+      id: postgresId(`${sessionId}-comment-3`),
       objectType: "TRACE" as const,
       objectId: traceIds[2],
       authorUserId: "user-1",
@@ -1380,6 +1400,22 @@ const run = async (
       projectId: ctx.projectId,
       environment: ctx.environment,
       createdAt: new Date(sessionStart),
+    },
+  });
+  const severityConfig = {
+    name: SEVERITY_CONFIG.name,
+    dataType: "CATEGORICAL" as const,
+    categories: SEVERITY_CONFIG.categories,
+    description: SEVERITY_CONFIG.description,
+    isArchived: false,
+  };
+  await prisma.scoreConfig.upsert({
+    where: { id: severityConfigId },
+    update: severityConfig,
+    create: {
+      id: severityConfigId,
+      projectId: ctx.projectId,
+      ...severityConfig,
     },
   });
   for (const comment of comments) {
@@ -1456,6 +1492,7 @@ const run = async (
       observations: observations.length,
       scores: scores.length,
       comments: comments.length,
+      scoreConfigs: 1,
       events: events.length,
     },
     verified,
