@@ -126,6 +126,11 @@ overrides:
   # and ^4.8.3, which the vulnerable 4.13.5 already satisfies, so only an
   # override moves it to the patched release.
   hono: 4.13.7
+  # A batch of SSRF, prototype-pollution, ReDoS and proxy-confusion fixes
+  # (CVE-2026-101898 through -101909) all land in 1.20.0. @slack/web-api and
+  # @vueuse/integrations declare ^1 ranges the vulnerable 1.18.0 already
+  # satisfies, so only an override moves it.
+  axios: 1.20.0
   # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
