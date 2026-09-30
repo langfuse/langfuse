@@ -48,6 +48,32 @@ describe("formatTextLogLine", () => {
     expect(line).not.toContain('"cause":{}');
   });
 
+  it("keeps an Error's cause chain", () => {
+    const err = new Error("outer", { cause: new Error("root reason") });
+
+    const line = formatTextLogLine(info({ err }));
+
+    // The cause is non-enumerable when set via the constructor, so it only
+    // survives if carried explicitly.
+    expect(line).toContain('"message":"outer"');
+    expect(line).toContain('"message":"root reason"');
+  });
+
+  it("keeps fields an SDK attached to its error", () => {
+    // Provider SDKs hang the identifying detail off the error object; dropping
+    // it leaves a log line that says something failed but not what.
+    const err = Object.assign(new Error("request failed"), {
+      statusCode: 429,
+      Details: "rate limited by provider",
+    });
+
+    const line = formatTextLogLine(info({ err }));
+
+    expect(line).toContain('"statusCode":429');
+    expect(line).toContain('"Details":"rate limited by provider"');
+    expect(line).toContain('"message":"request failed"');
+  });
+
   it("serialises a BigInt rather than throwing", () => {
     // JSON.stringify throws a TypeError on BigInt. A logger that throws while
     // reporting an error destroys the diagnostic it was called to emit.
