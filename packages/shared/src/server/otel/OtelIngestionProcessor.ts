@@ -2874,29 +2874,29 @@ export class OtelIngestionProcessor {
       try {
         const usageDetails: Record<string, number | undefined> = {
           input:
-            "gen_ai.usage.prompt_tokens" in attributes // Backward compat, input_tokens used in latest ai SDK versions
+            attributes["gen_ai.usage.prompt_tokens"] != null // Backward compat, input_tokens used in latest ai SDK versions
               ? parseInt(
                   attributes["gen_ai.usage.prompt_tokens"]?.toString() ?? "0",
                 )
-              : "gen_ai.usage.input_tokens" in attributes
+              : attributes["gen_ai.usage.input_tokens"] != null
                 ? parseInt(
                     attributes["gen_ai.usage.input_tokens"]?.toString() ?? "0",
                   )
                 : undefined,
 
           output:
-            "gen_ai.usage.completion_tokens" in attributes // Backward compat, output_tokens used in latest ai SDK versions
+            attributes["gen_ai.usage.completion_tokens"] != null // Backward compat, output_tokens used in latest ai SDK versions
               ? parseInt(
                   attributes["gen_ai.usage.completion_tokens"]?.toString() ??
                     "0",
                 )
-              : "gen_ai.usage.output_tokens" in attributes
+              : attributes["gen_ai.usage.output_tokens"] != null
                 ? parseInt(
                     attributes["gen_ai.usage.output_tokens"]?.toString() ?? "0",
                   )
                 : undefined,
           total:
-            "ai.usage.tokens" in attributes
+            attributes["ai.usage.tokens"] != null
               ? parseInt(attributes["ai.usage.tokens"]?.toString() ?? "0")
               : undefined,
         };
@@ -2905,18 +2905,18 @@ export class OtelIngestionProcessor {
 
         // Try reading token details from ai.usage
         if (
-          ["ai.usage.cachedInputTokens", "ai.usage.reasoningTokens"].some((k) =>
-            Object.keys(attributes).includes(k),
+          ["ai.usage.cachedInputTokens", "ai.usage.reasoningTokens"].some(
+            (k) => attributes[k] != null,
           )
         ) {
-          if ("ai.usage.cachedInputTokens" in attributes) {
+          if (attributes["ai.usage.cachedInputTokens"] != null) {
             const value = attributes["ai.usage.cachedInputTokens"] as string;
             const parsed = JSON.parse(value);
 
             usageDetails["input_cached_tokens"] =
               typeof parsed === "number" ? parsed : JSON.parse(value).intValue;
           }
-          if ("ai.usage.reasoningTokens" in attributes) {
+          if (attributes["ai.usage.reasoningTokens"] != null) {
             const value = attributes["ai.usage.reasoningTokens"] as string;
             const parsed = JSON.parse(value);
 
@@ -3089,6 +3089,8 @@ export class OtelIngestionProcessor {
 
     const rawUsageDetails = usageDetails.reduce(
       (acc: Record<string, number>, key) => {
+        if (attributes[key] == null) return acc;
+
         const usageDetailKey = key
           .replace("gen_ai.usage.", "")
           .replace("llm.token_count.", "");

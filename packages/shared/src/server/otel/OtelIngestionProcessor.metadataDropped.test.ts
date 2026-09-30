@@ -123,6 +123,85 @@ const expectDropTags = (
 };
 
 describe("OTLP empty attribute values", () => {
+  it.each([
+    ["v3", "opentelemetry.instrumentation.openai"],
+    ["v4", "opentelemetry.instrumentation.openai"],
+    ["v3", "ai"],
+    ["v4", "ai"],
+  ])(
+    "falls back to measured usage for valueless attributes on %s with %s",
+    async (path, scope) => {
+      const batch = buildBatch([
+        { key: "gen_ai.usage.prompt_tokens", value: undefined },
+        { key: "gen_ai.usage.input_tokens", value: { intValue: "42" } },
+        { key: "gen_ai.usage.completion_tokens", value: null },
+        { key: "gen_ai.usage.output_tokens", value: { intValue: "7" } },
+      ]);
+      batch[0].scopeSpans![0].scope!.name = scope;
+      const processor = createProcessor();
+      const observations =
+        path === "v3"
+          ? (await processor.processToIngestionEvents(batch))
+              .filter((event) => event.type === "span-create")
+              .map((event) => event.body)
+          : processor.processToEvent(batch);
+
+      expect(observations).toHaveLength(1);
+      expect(observations[0]).toMatchObject({
+        [path === "v3" ? "usageDetails" : "providedUsageDetails"]: {
+          input: 42,
+          output: 7,
+        },
+      });
+    },
+  );
+
+  it.each(["opentelemetry.instrumentation.openai", "ai"])(
+    "keeps explicit zero usage ahead of fallback counts with %s",
+    (scope) => {
+      const batch = buildBatch([
+        { key: "gen_ai.usage.prompt_tokens", value: { intValue: "0" } },
+        { key: "gen_ai.usage.input_tokens", value: { intValue: "42" } },
+        { key: "gen_ai.usage.completion_tokens", value: { doubleValue: 0 } },
+        { key: "gen_ai.usage.output_tokens", value: { intValue: "7" } },
+      ]);
+      batch[0].scopeSpans![0].scope!.name = scope;
+
+      expect(createProcessor().processToEvent(batch)).toMatchObject([
+        { providedUsageDetails: { input: 0, output: 0 } },
+      ]);
+    },
+  );
+
+  it("uses provider token details when AI SDK cache/reasoning attributes are valueless", () => {
+    const batch = buildBatch([
+      { key: "gen_ai.usage.input_tokens", value: { intValue: "42" } },
+      { key: "gen_ai.usage.output_tokens", value: { intValue: "7" } },
+      { key: "ai.usage.cachedInputTokens", value: undefined },
+      { key: "ai.usage.reasoningTokens", value: null },
+      {
+        key: "ai.response.providerMetadata",
+        value: {
+          stringValue: JSON.stringify({
+            openai: { cachedPromptTokens: 2, reasoningTokens: 1 },
+          }),
+        },
+      },
+    ]);
+    batch[0].scopeSpans![0].scope!.name = "ai";
+
+    expect(createProcessor().processToEvent(batch)).toMatchObject([
+      {
+        providedUsageDetails: {
+          input: 40,
+          output: 6,
+          input_cached_tokens: 2,
+          output_reasoning_tokens: 1,
+        },
+      },
+    ]);
+  });
+
   it.each(["v3", "v4"])(
     "retains both spans with missing and null attribute values on %s",
     async (path) => {
