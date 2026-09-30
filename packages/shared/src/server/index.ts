@@ -93,6 +93,7 @@ export * from "../server/ingestion/validateAndInflateScore";
 export * from "./ingestion/extractToolsBackend";
 export * from "./normalized-io";
 export * from "./transcript";
+export * from "./tracelift/detectTraceIssues";
 export * from "../server/queries/public-api-filter-builder";
 export * from "../server/pricing-tiers";
 export * from "./redis/redis";

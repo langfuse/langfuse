@@ -6,7 +6,6 @@ export enum TraceIssue {
   INFRASTRUCTURE_SPANS = "INFRASTRUCTURE_SPANS",
   EMPTY_GENERATION_IO = "EMPTY_GENERATION_IO",
   EMPTY_ROOT_IO = "EMPTY_ROOT_IO",
-  MISSING_PARENT = "MISSING_PARENT",
 }
 
 export type TraceIssueObservation = Pick<

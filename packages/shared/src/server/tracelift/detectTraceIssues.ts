@@ -9,7 +9,6 @@ export function detectTraceIssues(
 ): TraceIssue[] {
   if (observations.length === 0) return [];
   const issues = new Set<TraceIssue>();
-  const ids = new Set(observations.map(({ id }) => id));
   let hasGeneration = false;
   let hasParent = false;
 
@@ -20,10 +19,7 @@ export function detectTraceIssues(
       hasGeneration = true;
       if (emptyIO) issues.add(TraceIssue.EMPTY_GENERATION_IO);
     }
-    if (parentObservationId) {
-      hasParent = true;
-      if (!ids.has(parentObservationId)) issues.add(TraceIssue.MISSING_PARENT);
-    }
+    if (parentObservationId) hasParent = true;
     if (
       emptyIO &&
       isRootObservation({

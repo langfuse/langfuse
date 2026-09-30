@@ -165,7 +165,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(600_000),
+    .default(60_000), // 1 minute
   LANGFUSE_TRACE_BATCH_PENDING_TTL_MS: z.coerce
     .number()
     .int()
