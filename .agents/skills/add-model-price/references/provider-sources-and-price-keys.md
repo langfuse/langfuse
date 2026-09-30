@@ -394,6 +394,16 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
     not individually re-quoted during the audit; all were re-read from the live table
     before implementation). The pricing file now represents these with
     `modelParameters.service_tier in ["flex"]`.
+  - **Ultrafast** (`service_tier: "ultrafast"`, documented September 30 2026) —
+    OpenAI's fastest tier, guide at
+    `https://developers.openai.com/api/docs/guides/ultrafast-mode`. The pricing
+    page's "Ultrafast" tab lists only `gpt-6-astra`: $60/$6/$75/$300 short-context
+    and $120/$12/$150/$450 long-context (>272K) per MTok input / cached input /
+    cache writes / output, i.e. 6x Standard. `gpt-6-astra` carries an `Ultrafast`
+    tier and an `Ultrafast · Large context (>272K)` tier, ordered with the other
+    combined service-tier + large-context tiers ahead of the single-condition
+    tiers. `gpt-5.6-sol` has preview-only Ultrafast access with no published
+    price; do not add a tier for it until the pricing page lists one.
   - **Anthropic has the same class of gap**: the pricing page's "Fast mode pricing"
     section documents Claude Opus 5 / Claude Opus 4.8 Fast mode at $10/$50 per MTok
     input/output (`speed: "fast"` request parameter), but neither `claude-opus-5` nor
