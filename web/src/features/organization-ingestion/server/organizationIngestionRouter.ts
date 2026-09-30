@@ -11,7 +11,7 @@ import { getOrganizationIngestionOverview } from "@/src/features/organization-in
 
 export const organizationIngestionRouter = createTRPCRouter({
   /**
-   * Per-project ingestion flows (clients, event and score counts) for the
+   * Raw event and score counts per project and ingesting client for the
    * trailing 7 days vs the 7 days before. Scoped to the projects the caller
    * can access within the organization. Internal preview only.
    */

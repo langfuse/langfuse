@@ -114,12 +114,12 @@ describe("organizationIngestion.overview", () => {
 
     const overview = await caller.organizationIngestion.overview({ orgId });
 
-    expect(
-      overview.projects.map((project) => project.projectId).sort(),
-    ).toEqual([busyProject.id, idleProject.id, inaccessibleProject.id].sort());
+    expect(overview.projects.map((project) => project.id).sort()).toEqual(
+      [busyProject.id, idleProject.id, inaccessibleProject.id].sort(),
+    );
   });
 
-  it("attributes events and scores to clients per project with week-over-week counts", async () => {
+  it("returns per-project event and score rows per client with week-over-week counts", async () => {
     testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "true";
     const { orgId, busyProject, idleProject, inaccessibleProject, caller } =
       await setupOrganization();
@@ -205,66 +205,79 @@ describe("organizationIngestion.overview", () => {
 
     const overview = await caller.organizationIngestion.overview({ orgId });
 
-    expect(overview.projects.map((project) => project.projectId)).toEqual([
-      busyProject.id,
-      idleProject.id,
-    ]);
+    expect(overview.projects.map((project) => project.id).sort()).toEqual(
+      [busyProject.id, idleProject.id].sort(),
+    );
+    expect(
+      new Date(overview.window.to).getTime() -
+        new Date(overview.window.currentFrom).getTime(),
+    ).toBe(7 * DAY_MS);
+    expect(
+      new Date(overview.window.currentFrom).getTime() -
+        new Date(overview.window.previousFrom).getTime(),
+    ).toBe(7 * DAY_MS);
 
-    const busy = overview.projects[0]!;
-    expect(busy.status).toBe("active");
-    expect(busy.events).toEqual({
-      current: 4,
-      previous: 3,
-      changePct: (1 / 3) * 100,
-    });
-    expect(busy.scores).toMatchObject({ current: 3, previous: 1 });
-    expect(busy.scores.bySource).toEqual({
-      API: { current: 2, previous: 0, changePct: null },
-      EVAL: { current: 1, previous: 0, changePct: null },
-      ANNOTATION: { current: 0, previous: 1, changePct: -100 },
-    });
+    expect(overview.eventRows).toHaveLength(3);
+    expect(overview.eventRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          projectId: busyProject.id,
+          ingestionPath: "otel",
+          sdkName: "python",
+          sdkVersion: "4.1.0",
+          canonicalSdkName: "python",
+          sdkUpgradeStatus: "current",
+          publicKey: "pk-lf-python",
+          isInternal: false,
+          current: 3,
+          previous: 1,
+        }),
+        expect.objectContaining({
+          projectId: busyProject.id,
+          ingestionPath: "otel",
+          sdkName: null,
+          sdkVersion: null,
+          canonicalSdkName: null,
+          sdkUpgradeStatus: "unknown",
+          publicKey: "pk-lf-custom",
+          isInternal: false,
+          current: 0,
+          previous: 2,
+        }),
+        expect.objectContaining({
+          projectId: busyProject.id,
+          ingestionPath: "ingestion_api",
+          isInternal: true,
+          current: 1,
+          previous: 0,
+        }),
+      ]),
+    );
 
-    expect(busy.clients).toEqual([
-      expect.objectContaining({
-        clientType: "langfuse_sdk",
-        sdkName: "python",
-        sdkVersion: "4.1.0",
-        canonicalSdkName: "python",
-        sdkUpgradeStatus: "current",
-        ingestionPaths: ["ingestion_api", "otel"],
-        publicKey: "pk-lf-python",
-        status: "active",
-        events: { current: 3, previous: 1, changePct: 200 },
-        scores: { current: 2, previous: 0, changePct: null },
-      }),
-      expect.objectContaining({
-        clientType: "langfuse_internal",
-        ingestionPaths: ["ingestion_api"],
-        status: "new",
-        events: { current: 1, previous: 0, changePct: null },
-      }),
-      expect.objectContaining({
-        clientType: "custom_otel",
-        sdkName: "unknown",
-        sdkUpgradeStatus: "unknown",
-        publicKey: "pk-lf-custom",
-        status: "stopped",
-        events: { current: 0, previous: 2, changePct: -100 },
-      }),
-    ]);
-
-    expect(overview.projects[1]).toMatchObject({
-      projectId: idleProject.id,
-      status: "idle",
-      events: { current: 0, previous: 0, changePct: 0 },
-      lastSeen: null,
-      clients: [],
-    });
-
-    expect(overview.totals).toEqual({
-      events: { current: 4, previous: 3, changePct: (1 / 3) * 100 },
-      scores: { current: 3, previous: 1, changePct: 200 },
-      projectsByStatus: { new: 0, stopped: 0, active: 1, idle: 1 },
-    });
+    expect(overview.scoreRows).toHaveLength(3);
+    expect(overview.scoreRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          projectId: busyProject.id,
+          source: "API",
+          sdkName: "python",
+          publicKey: "pk-lf-python",
+          current: 2,
+          previous: 0,
+        }),
+        expect.objectContaining({
+          projectId: busyProject.id,
+          source: "EVAL",
+          current: 1,
+          previous: 0,
+        }),
+        expect.objectContaining({
+          projectId: busyProject.id,
+          source: "ANNOTATION",
+          current: 0,
+          previous: 1,
+        }),
+      ]),
+    );
   });
 });
