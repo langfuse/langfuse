@@ -1,18 +1,18 @@
 export type TraceliftFinding = {
   id: string;
   title: string;
-  description: string;
-  /** Affected observations in the last 30 days. */
-  observationCount: number;
+  description: string | null;
+  /** Stored findings in the last 30 days. */
+  issueCount: number;
   /** Combined Langfuse ingestion cost in USD over the same 30 days, excluding model costs. */
-  langfuseIngestionCostUsd: number;
+  langfuseIngestionCostUsd: number | null;
   observationIds: string[];
-  prompt: string;
+  prompt: string | null;
   observationNames: string[];
 };
 
-/** Distinct affected observations across all conditions, counted and billed once. */
+/** Total stored findings across all categories; cost is null when unavailable. */
 export type TraceliftSummary = Pick<
   TraceliftFinding,
-  "observationCount" | "langfuseIngestionCostUsd"
+  "issueCount" | "langfuseIngestionCostUsd"
 >;

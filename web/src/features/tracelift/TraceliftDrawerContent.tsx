@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { subDays } from "date-fns";
+import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { toast } from "sonner";
 import { rangeToString } from "@langfuse/shared";
@@ -5,19 +8,25 @@ import { useInAppAiAgent } from "@/src/features/in-app-agent";
 import { buildEventsTablePathForObservationIds } from "@/src/features/events/lib/eventsTablePaths";
 import { TraceliftPanelContent } from "./TraceliftPanelContent";
 import { useTracelift } from "./TraceliftContext";
-import {
-  createTraceliftPreviewFindings,
-  traceliftPreviewSummary,
-} from "./fixtures/previewFindings";
 import type { TraceliftFinding } from "./types";
 
 export function TraceliftDrawerContent() {
   const router = useRouter();
   const { setOpen } = useTracelift();
   const { isAvailable, openAssistantWithPrompt } = useInAppAiAgent();
-  const projectId = router.query.projectId as string;
+  const projectId =
+    typeof router.query.projectId === "string" ? router.query.projectId : "";
+  const [timeRange] = useState(() => {
+    const toTimestamp = new Date();
+    return { fromTimestamp: subDays(toTimestamp, 30), toTimestamp };
+  });
+  const issues = api.tracelift.issueCounts.useQuery(
+    { projectId, ...timeRange },
+    { enabled: !!projectId },
+  );
 
   const openAssistant = (finding: TraceliftFinding) => {
+    if (!finding.prompt) return;
     if (!isAvailable) {
       toast.info("The assistant is unavailable in this environment.", {
         description: "Copy the prompt to use it with your coding agent.",
@@ -42,11 +51,39 @@ export function TraceliftDrawerContent() {
     );
   };
 
+  const contentProps = (() => {
+    if (issues.isError) {
+      return {
+        status: "error" as const,
+        onRetry: () => {
+          issues.refetch();
+        },
+      };
+    }
+    if (!issues.data) return { status: "loading" as const };
+    return {
+      status: "success" as const,
+      findings: issues.data.counts.map(({ issue, count }) => ({
+        id: issue,
+        title: issue,
+        issueCount: count,
+        description: null,
+        prompt: null,
+        observationIds: [],
+        observationNames: [],
+        langfuseIngestionCostUsd: null,
+      })),
+      summary: {
+        issueCount: issues.data.totalCount,
+        langfuseIngestionCostUsd: null,
+      },
+    };
+  })();
+
   return (
     <TraceliftPanelContent
       key={projectId}
-      findings={createTraceliftPreviewFindings()}
-      summary={traceliftPreviewSummary}
+      {...contentProps}
       onClose={() => setOpen(false)}
       onOpenAssistant={openAssistant}
       onViewObservations={viewObservations}

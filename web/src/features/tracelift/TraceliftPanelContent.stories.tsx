@@ -16,7 +16,7 @@ const callbacks = {
   onViewObservations: fn(),
 };
 
-const summary = { observationCount: 5, langfuseIngestionCostUsd: 0.0005 };
+const summary = { issueCount: 5, langfuseIngestionCostUsd: 0.0005 };
 
 const additionalFindings: TraceliftFinding[] = [
   {
@@ -24,7 +24,7 @@ const additionalFindings: TraceliftFinding[] = [
     title: "Spans with little context",
     description:
       "A useful span explains what happened. Review whether these examples would benefit from clearer inputs, outputs, or metadata.",
-    observationCount: 1,
+    issueCount: 1,
     langfuseIngestionCostUsd: 0.0001,
     observationIds: ["tracelift-support-obs-2"],
     observationNames: ["classify-intent"],
@@ -36,7 +36,7 @@ const additionalFindings: TraceliftFinding[] = [
     title: "Names that are hard to distinguish",
     description:
       "Specific operation names can help people scan a trace. Check whether the current names explain the work without needing to open every span.",
-    observationCount: 3,
+    issueCount: 3,
     langfuseIngestionCostUsd: 0.0003,
     observationIds: [
       "tracelift-support-obs-8",
@@ -52,7 +52,7 @@ const additionalFindings: TraceliftFinding[] = [
     title: "Spans to check for missing parents",
     description:
       "Disconnected work can make the execution path hard to follow. Verify the complete trace before changing context propagation.",
-    observationCount: 1,
+    issueCount: 1,
     langfuseIngestionCostUsd: 0.0001,
     observationIds: ["tracelift-support-obs-7"],
     observationNames: ["tickets.search"],
@@ -64,7 +64,7 @@ const additionalFindings: TraceliftFinding[] = [
     title: "Spans without an end time",
     description:
       "Some work may still be running. For completed requests, check that instrumentation closes spans on both success and failure.",
-    observationCount: 1,
+    issueCount: 1,
     langfuseIngestionCostUsd: 0.0001,
     observationIds: ["tracelift-support-obs-15"],
     observationNames: ["zendesk.send-reply"],
@@ -74,37 +74,52 @@ const additionalFindings: TraceliftFinding[] = [
 ];
 
 export const ThreeConditions = meta.story({
-  args: { findings: createTraceliftPreviewFindings(), summary, ...callbacks },
+  args: {
+    status: "success",
+    findings: createTraceliftPreviewFindings(),
+    summary,
+    ...callbacks,
+  },
 });
 
 export const TwoConditions = meta.story({
   args: {
+    status: "success",
     findings: createTraceliftPreviewFindings().slice(0, 2),
-    summary: { observationCount: 4, langfuseIngestionCostUsd: 0.0004 },
+    summary: { issueCount: 4, langfuseIngestionCostUsd: 0.0004 },
     ...callbacks,
   },
 });
 
 export const SevenConditions = meta.story({
   args: {
+    status: "success",
     findings: [...createTraceliftPreviewFindings(), ...additionalFindings],
-    summary: { observationCount: 8, langfuseIngestionCostUsd: 0.0008 },
+    summary: { issueCount: 8, langfuseIngestionCostUsd: 0.0008 },
     ...callbacks,
   },
 });
 
 export const Empty = meta.story({
   args: {
+    status: "success",
     findings: [],
-    summary: { observationCount: 0, langfuseIngestionCostUsd: 0 },
+    summary: { issueCount: 0, langfuseIngestionCostUsd: 0 },
     ...callbacks,
   },
 });
 
 export const ReviewAnotherCondition = meta.story({
   name: "(Test) Review Another Condition",
-  args: { findings: createTraceliftPreviewFindings(), summary, ...callbacks },
+  args: {
+    status: "success",
+    findings: createTraceliftPreviewFindings(),
+    summary,
+    ...callbacks,
+  },
   play: async ({ canvasElement, args }) => {
+    if (args.status !== "success")
+      throw new Error("This story requires findings");
     const canvas = within(canvasElement);
     const first = canvas.getByRole("button", {
       name: /Unnecessary wrapper spans/,
@@ -141,8 +156,15 @@ export const ReviewAnotherCondition = meta.story({
 
 export const CopyPromptAfterRetry = meta.story({
   name: "(Test) Copy Prompt After Retry",
-  args: { findings: createTraceliftPreviewFindings(), summary, ...callbacks },
+  args: {
+    status: "success",
+    findings: createTraceliftPreviewFindings(),
+    summary,
+    ...callbacks,
+  },
   play: async ({ canvasElement, args }) => {
+    if (args.status !== "success")
+      throw new Error("This story requires findings");
     const canvas = within(canvasElement);
     const copy = spyOn(navigator.clipboard, "writeText")
       .mockRejectedValueOnce(new DOMException("Clipboard access denied"))
@@ -175,8 +197,15 @@ export const CopyPromptAfterRetry = meta.story({
 
 export const InspectObservationIds = meta.story({
   name: "(Test) Inspect Observation IDs",
-  args: { findings: createTraceliftPreviewFindings(), summary, ...callbacks },
+  args: {
+    status: "success",
+    findings: createTraceliftPreviewFindings(),
+    summary,
+    ...callbacks,
+  },
   play: async ({ canvasElement, args }) => {
+    if (args.status !== "success")
+      throw new Error("This story requires findings");
     const canvas = within(canvasElement);
     await userEvent.click(
       canvas.getByRole("button", { name: /Repeated generation calls/ }),
@@ -211,7 +240,12 @@ export const InspectObservationIds = meta.story({
 
 export const SummaryAcrossConditions = meta.story({
   name: "(Test) Summary Across Conditions",
-  args: { findings: createTraceliftPreviewFindings(), summary, ...callbacks },
+  args: {
+    status: "success",
+    findings: createTraceliftPreviewFindings(),
+    summary,
+    ...callbacks,
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const overview = within(canvas.getByRole("region", { name: "Summary" }));

@@ -29,6 +29,7 @@ export function TraceliftFindingSection({
   >("idle");
 
   const copyPrompt = async () => {
+    if (!finding.prompt) return;
     setCopyState("copying");
     try {
       await copyTextToClipboard(finding.prompt);
@@ -38,6 +39,23 @@ export function TraceliftFindingSection({
     }
   };
 
+  if (
+    !finding.description &&
+    !finding.prompt &&
+    !finding.observationIds.length
+  ) {
+    return (
+      <div className="ph-no-capture flex items-center justify-between gap-3 border-b py-3 text-sm">
+        <span className="min-w-0 break-words">{finding.title}</span>
+        <Badge
+          text={finding.issueCount.toLocaleString("en-US")}
+          size="sm"
+          color="primary"
+        />
+      </div>
+    );
+  }
+
   return (
     <Accordion.Item value={finding.id}>
       <Accordion.Trigger size="sm">
@@ -46,9 +64,9 @@ export function TraceliftFindingSection({
             aria-hidden
             className="bg-dark-yellow size-1.75 shrink-0 rounded-full"
           />
-          <span>{finding.title}</span>
+          <span className="ph-no-capture">{finding.title}</span>
           <Badge
-            text={finding.observationCount.toLocaleString("en-US")}
+            text={finding.issueCount.toLocaleString("en-US")}
             size="sm"
             color="primary"
           />
@@ -56,61 +74,69 @@ export function TraceliftFindingSection({
       </Accordion.Trigger>
       <Accordion.Content>
         <div className="flex flex-col gap-3 pt-1 pb-4 pl-4">
-          <p className="text-muted-foreground leading-relaxed">
-            {finding.description}
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            <Button
-              text={
-                copyState === "copied" ? "Prompt copied" : "Copy agent prompt"
-              }
-              icon={copyState === "copied" ? Check : Copy}
-              size="sm"
-              variant="secondary"
-              loading={copyState === "copying"}
-              onClick={copyPrompt}
-            />
-            <Button
-              text="Open assistant"
-              icon={Sparkles}
-              size="sm"
-              variant="ghost"
-              onClick={() => onOpenAssistant(finding)}
-            />
-          </div>
-          <Collapsible>
-            <div className="flex items-center gap-1">
+          {finding.description && (
+            <p className="ph-no-capture text-muted-foreground leading-relaxed">
+              {finding.description}
+            </p>
+          )}
+          {finding.prompt && (
+            <div className="flex flex-wrap gap-1.5">
               <Button
-                text="View observations"
-                icon={ListFilter}
+                text={
+                  copyState === "copied" ? "Prompt copied" : "Copy agent prompt"
+                }
+                icon={copyState === "copied" ? Check : Copy}
+                size="sm"
+                variant="secondary"
+                loading={copyState === "copying"}
+                onClick={copyPrompt}
+              />
+              <Button
+                text="Open assistant"
+                icon={Sparkles}
                 size="sm"
                 variant="ghost"
-                onClick={() => onViewObservations(finding)}
+                onClick={() => onOpenAssistant(finding)}
               />
-              <span aria-hidden className="h-3 border-l" />
-              <CollapsibleTrigger className="group text-muted-foreground hover:text-foreground focus-visible:outline-ring inline-flex h-7 items-center gap-1 rounded px-2 text-xs focus-visible:outline-2 focus-visible:outline-offset-2 [&[data-state=open]>svg]:rotate-180">
-                <span className="group-data-[state=open]:hidden">Show IDs</span>
-                <span className="hidden group-data-[state=open]:inline">
-                  Hide IDs
-                </span>
-                <DropdownIndicator size="sm" />
-              </CollapsibleTrigger>
             </div>
-            <CollapsibleContent>
-              <div className="pt-2">
-                <ul
-                  aria-label="Observation IDs"
-                  className="ph-no-capture bg-muted/50 flex max-h-24 flex-col gap-1 overflow-y-auto rounded-md px-3 py-2"
-                >
-                  {finding.observationIds.map((id) => (
-                    <li key={id} className="text-muted-foreground break-all">
-                      <code className="font-mono text-xs">{id}</code>
-                    </li>
-                  ))}
-                </ul>
+          )}
+          {finding.observationIds.length > 0 && (
+            <Collapsible>
+              <div className="flex items-center gap-1">
+                <Button
+                  text="View observations"
+                  icon={ListFilter}
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onViewObservations(finding)}
+                />
+                <span aria-hidden className="h-3 border-l" />
+                <CollapsibleTrigger className="group text-muted-foreground hover:text-foreground focus-visible:outline-ring inline-flex h-7 items-center gap-1 rounded px-2 text-xs focus-visible:outline-2 focus-visible:outline-offset-2 [&[data-state=open]>svg]:rotate-180">
+                  <span className="group-data-[state=open]:hidden">
+                    Show IDs
+                  </span>
+                  <span className="hidden group-data-[state=open]:inline">
+                    Hide IDs
+                  </span>
+                  <DropdownIndicator size="sm" />
+                </CollapsibleTrigger>
               </div>
-            </CollapsibleContent>
-          </Collapsible>
+              <CollapsibleContent>
+                <div className="pt-2">
+                  <ul
+                    aria-label="Observation IDs"
+                    className="ph-no-capture bg-muted/50 flex max-h-24 flex-col gap-1 overflow-y-auto rounded-md px-3 py-2"
+                  >
+                    {finding.observationIds.map((id) => (
+                      <li key={id} className="text-muted-foreground break-all">
+                        <code className="font-mono text-xs">{id}</code>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
           {copyState === "failed" && (
             <p role="status" className="text-muted-foreground text-xs">
               Could not copy the prompt. Allow clipboard access and try again.

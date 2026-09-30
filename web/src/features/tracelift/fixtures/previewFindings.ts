@@ -1,9 +1,4 @@
-import { type TraceliftFinding, type TraceliftSummary } from "../types";
-
-export const traceliftPreviewSummary: TraceliftSummary = {
-  observationCount: 5,
-  langfuseIngestionCostUsd: 0.0005,
-};
+import { type TraceliftFinding } from "../types";
 
 /** Sample findings with illustrative ingestion costs, independent of billing data. */
 export function createTraceliftPreviewFindings(): TraceliftFinding[] {
@@ -13,7 +8,7 @@ export function createTraceliftPreviewFindings(): TraceliftFinding[] {
       title: "Unnecessary wrapper spans",
       description:
         "These spans may wrap other work without adding context. Review their inputs, outputs, and children before simplifying the instrumentation.",
-      observationCount: 1,
+      issueCount: 1,
       langfuseIngestionCostUsd: 0.0001,
       observationIds: ["tracelift-support-obs-4"],
       observationNames: ["load-context"],
@@ -25,7 +20,7 @@ export function createTraceliftPreviewFindings(): TraceliftFinding[] {
       title: "Repeated generation calls",
       description:
         "Check whether similar requests are intentional agent turns or avoidable duplicates before changing retries or caching.",
-      observationCount: 3,
+      issueCount: 3,
       langfuseIngestionCostUsd: 0.0003,
       observationIds: [
         "tracelift-support-obs-8",
@@ -41,7 +36,7 @@ export function createTraceliftPreviewFindings(): TraceliftFinding[] {
       title: "Repeated tool spans",
       description:
         "Check whether these spans record separate attempts or the same tool call more than once.",
-      observationCount: 1,
+      issueCount: 1,
       langfuseIngestionCostUsd: 0.0001,
       observationIds: ["tracelift-support-obs-11"],
       observationNames: ["stripe.create-refund"],
@@ -56,7 +51,7 @@ export function createTraceliftPreviewFindings(): TraceliftFinding[] {
       finding.prompt,
       "",
       "Sample evidence from the last 30 days:",
-      `Observation count: ${finding.observationCount}`,
+      `Issue count: ${finding.issueCount}`,
       `Combined Langfuse ingestion cost (USD, illustrative): ${finding.langfuseIngestionCostUsd}`,
       `Observation IDs: ${finding.observationIds.join(", ")}`,
     ].join("\n"),
