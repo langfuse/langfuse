@@ -594,9 +594,18 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
   // Radix returns focus to the trigger when the menu closes, and the browser
   // treats that programmatic focus as `:focus-visible`, so the Button's
   // `focus-visible:ring-2` ring is left showing on the badge after a
-  // mouse-driven open/close. Keyboard users must keep that ring, so suppress
-  // the focus restore only when the menu was opened by a pointer.
-  const openedByPointer = React.useRef(false);
+  // mouse-driven open/close. Keyboard users must keep that ring, so the focus
+  // restore is suppressed only for an interaction that never used the keyboard.
+  //
+  // `pointerOnly` therefore has to be cleared by a key press anywhere in the
+  // interaction, not only on the trigger: the menu is portalled, so once it is
+  // open every key event lands on the content instead. A mouse-opened menu
+  // closed with Escape or Enter is a keyboard interaction and must get focus
+  // back on the trigger.
+  const pointerOnly = React.useRef(false);
+  const noteKeyboardUse = () => {
+    pointerOnly.current = false;
+  };
 
   return (
     <DropdownMenu>
@@ -606,11 +615,9 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
           size="xs"
           className="text-muted-foreground h-5 max-w-full min-w-0 translate-y-px py-0 text-[0.625rem] leading-none"
           onPointerDown={() => {
-            openedByPointer.current = true;
+            pointerOnly.current = true;
           }}
-          onKeyDown={() => {
-            openedByPointer.current = false;
-          }}
+          onKeyDown={noteKeyboardUse}
         >
           <span className="truncate" title={versionText}>
             {versionText}
@@ -629,9 +636,14 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         onClick={(e) => e.stopPropagation()}
+        // Both hooks are needed: Radix's DismissableLayer handles Escape before
+        // it reaches the content's own onKeyDown, while onKeyDown covers the
+        // arrow/Enter/typeahead keys used to pick an item.
+        onKeyDown={noteKeyboardUse}
+        onEscapeKeyDown={noteKeyboardUse}
         onCloseAutoFocus={(event) => {
-          if (!openedByPointer.current) return;
-          openedByPointer.current = false;
+          if (!pointerOnly.current) return;
+          pointerOnly.current = false;
           event.preventDefault();
         }}
       >
