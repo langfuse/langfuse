@@ -1,5 +1,5 @@
 import preview from "../../../../../.storybook/preview";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import {
   OrgOverviewGraph,
   type OrganizationIngestionOverview,
@@ -151,6 +151,50 @@ const exampleData: OrganizationIngestionOverview = {
 
 export const Default = meta.story({ args: { data: exampleData } });
 
+export const SeparatedProjectCards = meta.story({
+  name: "(Test) Separated project cards",
+  args: { data: exampleData },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByText("Shiitake");
+    await waitFor(() => {
+      const cards = ["Shiitake", "Porcini", "Chanterelle"].map((name) => {
+        const node = canvas.getByText(name).closest(".react-flow__node");
+        expect(node).not.toBeNull();
+        const bounds = node!.getBoundingClientRect();
+        expect(bounds.height).toBeGreaterThan(0);
+        return bounds;
+      });
+      expect(cards[1]!.top).toBeGreaterThan(cards[0]!.bottom);
+      expect(cards[2]!.top).toBeGreaterThan(cards[1]!.bottom);
+    });
+  },
+});
+
+export const ProjectMetadata = meta.story({
+  name: "(Test) Project metadata",
+  args: {
+    data: {
+      ...exampleData,
+      projects: [exampleData.projects[0]!],
+      eventRows: [],
+      scoreRows: [],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByText("Active evaluation rules"),
+    ).toBeVisible();
+    await expect(canvas.getByText("Datasets")).toBeVisible();
+    await expect(canvas.getByText("Dataset items")).toBeVisible();
+    await expect(canvas.getByText("1,250")).toBeVisible();
+    await expect(canvas.getByText("Active monitors")).toBeVisible();
+    await expect(canvas.getByText("Prompts")).toBeVisible();
+    await expect(canvas.getByText("Observations (7d)")).toBeVisible();
+  },
+});
+
 export const MixedInternalExternalTraffic = meta.story({
   name: "(Test) Mixed internal and external traffic",
   args: {
@@ -179,6 +223,25 @@ export const MixedInternalExternalTraffic = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(await canvas.findAllByText("langfuse-js")).toHaveLength(1);
+    await waitFor(() => {
+      const client = canvas
+        .getByText("langfuse-js")
+        .closest(".react-flow__node");
+      const project = canvas.getByText("Shiitake").closest(".react-flow__node");
+      expect(client).not.toBeNull();
+      expect(project).not.toBeNull();
+      const clientBounds = client!.getBoundingClientRect();
+      const projectBounds = project!.getBoundingClientRect();
+      expect(clientBounds.height).toBeGreaterThan(0);
+      expect(projectBounds.height).toBeGreaterThan(0);
+      expect(
+        Math.abs(
+          clientBounds.top +
+            clientBounds.height / 2 -
+            (projectBounds.top + projectBounds.height / 2),
+        ),
+      ).toBeLessThan(1);
+    });
     await expect(await canvas.findByText("External")).toBeVisible();
     await expect(await canvas.findByText("Internal")).toBeVisible();
     await expect(canvas.getByText("8,000")).toBeVisible();

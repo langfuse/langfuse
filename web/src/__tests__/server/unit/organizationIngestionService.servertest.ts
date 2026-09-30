@@ -1,4 +1,5 @@
 import { getOrganizationIngestionOverview } from "@/src/features/organization-ingestion/server/organizationIngestionService";
+import { prisma } from "@langfuse/shared/src/db";
 
 const mocks = vi.hoisted(() => ({
   queryClickhouse: vi.fn(),
@@ -35,6 +36,11 @@ const client = {
 describe("organization ingestion migration attributes", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.spyOn(prisma.evaluationRule, "groupBy").mockResolvedValue([]);
+    vi.spyOn(prisma.dataset, "groupBy").mockResolvedValue([]);
+    vi.spyOn(prisma.datasetItem, "groupBy").mockResolvedValue([]);
+    vi.spyOn(prisma.monitor, "groupBy").mockResolvedValue([]);
+    vi.spyOn(prisma, "$queryRaw").mockResolvedValue([]);
     mocks.queryClickhouse
       .mockResolvedValueOnce([{ ...client, ingestionPath: "otel" }])
       .mockResolvedValueOnce([{ ...client, source: "API" }]);
@@ -57,6 +63,7 @@ describe("organization ingestion migration attributes", () => {
         ]),
       );
       const result = await getOrganizationIngestionOverview({
+        prisma,
         projects: [{ id: "project", name: "Project" }],
         nowMs: Date.parse("2026-09-30T12:00:00Z"),
       });
@@ -66,7 +73,7 @@ describe("organization ingestion migration attributes", () => {
   );
 
   it("does not query migration evidence for an empty organization", async () => {
-    await getOrganizationIngestionOverview({ projects: [] });
+    await getOrganizationIngestionOverview({ prisma, projects: [] });
     expect(mocks.getSdkUsageSeriesByProject).not.toHaveBeenCalled();
     expect(mocks.queryClickhouse).not.toHaveBeenCalled();
   });

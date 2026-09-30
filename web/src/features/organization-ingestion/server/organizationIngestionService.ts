@@ -241,22 +241,23 @@ export const getOrganizationIngestionOverview = async ({
     to: convertDateToClickhouseDateTime(to),
   };
 
-  const [featureCounts, eventRows, scoreRows, migrationSeriesByProject] = await Promise.all([
-    getProjectFeatureCounts({ prisma, projectIds: params.projectIds }),
-    queryClickhouse<ClickhouseClientRow & { ingestionPath: IngestionPath }>({
-      query: EVENT_ROWS_QUERY,
-      params,
-      tags: { route: "organization-ingestion-overview-events" },
-      preferredClickhouseService: "EventsReadOnly",
-    }),
-    queryClickhouse<ClickhouseClientRow & { source: string }>({
-      query: SCORE_ROWS_QUERY,
-      params,
-      tags: { route: "organization-ingestion-overview-scores" },
-      preferredClickhouseService: "ReadOnly",
-    }),
-    getSdkUsageSeriesByProject({ projectIds: params.projectIds, nowMs }),
-  ]);
+  const [featureCounts, eventRows, scoreRows, migrationSeriesByProject] =
+    await Promise.all([
+      getProjectFeatureCounts({ prisma, projectIds: params.projectIds }),
+      queryClickhouse<ClickhouseClientRow & { ingestionPath: IngestionPath }>({
+        query: EVENT_ROWS_QUERY,
+        params,
+        tags: { route: "organization-ingestion-overview-events" },
+        preferredClickhouseService: "EventsReadOnly",
+      }),
+      queryClickhouse<ClickhouseClientRow & { source: string }>({
+        query: SCORE_ROWS_QUERY,
+        params,
+        tags: { route: "organization-ingestion-overview-scores" },
+        preferredClickhouseService: "ReadOnly",
+      }),
+      getSdkUsageSeriesByProject({ projectIds: params.projectIds, nowMs }),
+    ]);
 
   const migrationByClient = new Map<string, "required" | "not_required">();
   for (const [projectId, series] of migrationSeriesByProject) {

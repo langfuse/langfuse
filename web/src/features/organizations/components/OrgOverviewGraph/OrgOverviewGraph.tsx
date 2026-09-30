@@ -58,6 +58,7 @@ type ClientNode = Node<
 type ProjectNode = Node<
   {
     name: string;
+    features: OrganizationIngestionOverview["projects"][number]["features"];
     events: WeekOverWeekCount;
     scores: WeekOverWeekCount;
   },
@@ -230,6 +231,38 @@ function ProjectCard({ data }: NodeProps<ProjectNode>) {
           {data.name}
         </span>
       </div>
+      <div className="text-muted-foreground border-border dark:border-border-contrast mt-1.5 flex flex-col gap-1 border-b pb-1.5 text-xs">
+        <div className="flex items-center justify-between">
+          <span>Active evaluation rules</span>
+          <span className="text-foreground font-bold tabular-nums">
+            {data.features.activeEvaluationRules.toLocaleString()}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span>Datasets</span>
+          <span className="text-foreground font-bold tabular-nums">
+            {data.features.datasets.toLocaleString()}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span>Dataset items</span>
+          <span className="text-foreground font-bold tabular-nums">
+            {data.features.datasetItems.toLocaleString()}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span>Active monitors</span>
+          <span className="text-foreground font-bold tabular-nums">
+            {data.features.activeMonitors.toLocaleString()}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span>Prompts</span>
+          <span className="text-foreground font-bold tabular-nums">
+            {data.features.prompts.toLocaleString()}
+          </span>
+        </div>
+      </div>
       <div className="text-muted-foreground mt-1.5 flex items-center justify-between text-xs">
         <span>Observations (7d)</span>
         <span className="flex items-center gap-2">
@@ -266,6 +299,7 @@ function ProjectCard({ data }: NodeProps<ProjectNode>) {
 const nodeTypes = { client: ClientCard, project: ProjectCard };
 const edgeTypes = { flow: FlowConnection };
 const rowSpacing = 160;
+const projectSpacing = 288;
 
 export function OrgOverviewGraph({
   data,
@@ -284,6 +318,7 @@ export function OrgOverviewGraph({
     const nodes: Node[] = [];
     const edges: Edge[] = [];
     let row = 0;
+    let previousProjectY: number | null = null;
     const query = search?.trim().toLowerCase() ?? "";
     const volumes = new Map<string, { observations: number; scores: number }>();
     for (const entry of data.eventRows) {
@@ -319,7 +354,6 @@ export function OrgOverviewGraph({
 
     for (const project of projects) {
       const projectNodeId = `project-${project.id}`;
-      const firstRow = row;
       const clients = new Map<
         string,
         {
@@ -413,6 +447,16 @@ export function OrgOverviewGraph({
         continue;
       if (!projectMatches && visibleClients.length === 0) continue;
 
+      const projectRowOffset = Math.max(visibleClients.length - 1, 0) / 2;
+      if (previousProjectY !== null) {
+        row = Math.max(
+          row,
+          (previousProjectY + projectSpacing) / rowSpacing - projectRowOffset,
+        );
+      }
+      const firstRow = row;
+      const projectY = (firstRow + projectRowOffset) * rowSpacing;
+
       for (const [key, client] of visibleClients) {
         const clientNodeId = `client-${project.id}-${key}`;
         const current = client.current + client.scoreCurrent;
@@ -459,17 +503,16 @@ export function OrgOverviewGraph({
         type: "project",
         data: {
           name: project.name,
+          features: project.features,
           events: weekOverWeek(eventCurrent, eventPrevious),
           scores: weekOverWeek(scoreCurrent, scorePrevious),
         },
         position: {
           x: 536,
-          y:
-            visibleClients.length > 0
-              ? ((firstRow + row - 1) / 2) * rowSpacing
-              : row * rowSpacing,
+          y: projectY,
         },
       });
+      previousProjectY = projectY;
       if (visibleClients.length === 0) row++;
     }
 
@@ -486,6 +529,7 @@ export function OrgOverviewGraph({
         <ReactFlow
           key={JSON.stringify([search, activityFilter])}
           nodes={nodes}
+          nodeOrigin={[0, 0.5]}
           edges={edges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
