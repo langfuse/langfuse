@@ -144,6 +144,25 @@ export function chartConditionExclusionReason(
 }
 
 /**
+ * The reason a sidebar FACET is not applied to the chart, or `null` if it is.
+ * A facet stands for a column but displays the conditions on it, so it reads
+ * blocked as soon as one of them is not forwarded — otherwise a facet whose
+ * column is forwardable would look applied while the chart quietly ignored the
+ * condition it holds. With no condition yet, the column policy decides.
+ */
+export function chartFacetExclusionReason(
+  filterState: FilterState,
+  column: string,
+): string | null {
+  for (const filter of filterState) {
+    if (filter.column !== column) continue;
+    const reason = chartConditionExclusionReason(filter);
+    if (reason) return reason;
+  }
+  return chartFilterExclusionReason(column);
+}
+
+/**
  * Narrows a `FilterState` to the subset the chart query can honour, renaming
  * the few columns whose observations-view dimension name differs. The inverse
  * of {@link chartConditionExclusionReason} on the forwarding side.

@@ -2,6 +2,7 @@
 
 import {
   chartConditionExclusionReason,
+  chartFacetExclusionReason,
   chartFilterExclusionReason,
   chartSearchFieldReason,
   classifyChartFilters,
@@ -96,6 +97,74 @@ describe("chartConditionExclusionReason", () => {
         value: 2,
       }),
     ).toMatch(/latency, cost/i);
+  });
+});
+
+describe("chartFacetExclusionReason", () => {
+  const metadataFilter = (type: "stringObject" | "string"): FilterState =>
+    type === "stringObject"
+      ? [
+          {
+            column: "metadata",
+            type: "stringObject",
+            key: "tier",
+            operator: "=",
+            value: "gold",
+          },
+        ]
+      : // the shape a hand-edited URL can still decode into
+        [{ column: "metadata", type: "string", operator: "=", value: "gold" }];
+
+  it("leaves a facet live when its conditions forward", () => {
+    expect(
+      chartFacetExclusionReason(metadataFilter("stringObject"), "metadata"),
+    ).toBeNull();
+  });
+
+  it("blocks a facet holding a condition the chart drops", () => {
+    // Column-level policy says metadata is fine; this condition is not, and the
+    // facet must say so rather than look applied.
+    expect(chartFilterExclusionReason("metadata")).toBeNull();
+    expect(
+      chartFacetExclusionReason(metadataFilter("string"), "metadata"),
+    ).not.toBeNull();
+  });
+
+  it("blocks a facet holding a presence check", () => {
+    expect(
+      chartFacetExclusionReason(
+        [
+          {
+            column: "userId",
+            type: "null",
+            operator: "is not null",
+            value: "",
+          },
+        ],
+        "userId",
+      ),
+    ).toMatch(/is set/i);
+  });
+
+  it("falls back to the column policy for a facet with no condition", () => {
+    expect(chartFacetExclusionReason([], "metadata")).toBeNull();
+    expect(chartFacetExclusionReason([], "latency")).toMatch(/latency, cost/i);
+  });
+
+  it("ignores conditions on other columns", () => {
+    expect(
+      chartFacetExclusionReason(
+        [
+          {
+            column: "userId",
+            type: "null",
+            operator: "is not null",
+            value: "",
+          },
+        ],
+        "metadata",
+      ),
+    ).toBeNull();
   });
 });
 
