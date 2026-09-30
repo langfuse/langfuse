@@ -143,7 +143,7 @@ const mushroomNames = [
   "Morel",
   "Oyster",
   "Enoki",
-  "Lion’s Mane",
+  "Truffle",
   "Maitake",
   "Reishi",
   "Portobello",
