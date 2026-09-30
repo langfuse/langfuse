@@ -8873,8 +8873,8 @@ paths:
     get:
       description: >-
         Resolve a skill's metadata and file manifest by version or label.
-        Defaults to the production label. Use each file's id with getFileContent
-        to read its text content.
+        Defaults to the production label. Use each file's sha256Hash with
+        getFileContents, individually or in batches across manifests.
       operationId: unstable_skills_get
       tags:
         - UnstableSkills
@@ -8982,18 +8982,20 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/unstableUpdateSkillRequest'
-  /api/public/unstable/skills/files/{fileId}/content:
+  /api/public/unstable/skills/files/content:
     get:
       description: >-
-        Read one text file from a persisted skill version using its file id, not
-        its blob id. Returns JSON containing the text content with Cache-Control
-        no-store.
-      operationId: unstable_skills_getFileContent
+        Read a batch of text contents by canonical base64-encoded SHA-256 hashes.
+      operationId: unstable_skills_getFileContents
       tags:
         - UnstableSkills
       parameters:
-        - name: fileId
-          in: path
+        - name: sha256Hashes
+          in: query
+          description: >-
+            Comma-separated list of one to 50 canonical base64-encoded SHA-256
+            hashes from skill file manifests. URL-encode the value, including +,
+            /, and = characters.
           required: true
           schema:
             type: string
@@ -9003,7 +9005,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/unstableSkillFileContentResponse'
+                $ref: '#/components/schemas/unstableSkillFileContentsResponse'
         '400':
           description: ''
           content:
@@ -17893,13 +17895,26 @@ components:
         - sha256Hash
         - contentType
         - contentLength
-    unstableSkillFileContentResponse:
-      title: unstableSkillFileContentResponse
+    unstableSkillFileContentsResponse:
+      title: unstableSkillFileContentsResponse
       type: object
       properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableSkillFileContent'
+      required:
+        - data
+    unstableSkillFileContent:
+      title: unstableSkillFileContent
+      type: object
+      properties:
+        sha256Hash:
+          type: string
         content:
           type: string
       required:
+        - sha256Hash
         - content
     unstableSkillVersion:
       title: unstableSkillVersion

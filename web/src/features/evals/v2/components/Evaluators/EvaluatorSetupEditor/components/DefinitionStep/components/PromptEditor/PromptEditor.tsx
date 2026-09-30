@@ -58,6 +58,7 @@ import {
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
 import { cn } from "@/src/utils/tailwind";
 import type { EvaluatorPromptMessage } from "@langfuse/shared";
 
@@ -107,6 +108,7 @@ export function PromptEditorContent({
     promptPreviewEnabled: state.promptPreviewEnabled,
     sampleObject,
   });
+  const onboardingAnalytics = useEvalOnboardingAnalytics();
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const activeMessageIndex = activeMessageId
     ? state.promptMessageIds.indexOf(activeMessageId)
@@ -130,6 +132,9 @@ export function PromptEditorContent({
     const toIndex = state.promptMessageIds.indexOf(String(over.id));
     if (fromIndex < 0 || toIndex < 0) return;
     state.actions.reorderPromptMessage(fromIndex, toIndex);
+    onboardingAnalytics?.track("eval:onboarding_prompt_modified", {
+      modification: "messages_reordered",
+    });
   };
 
   return (
@@ -161,9 +166,26 @@ export function PromptEditorContent({
                 sampleObject,
               })}
               previewEnabled={state.promptPreviewEnabled}
-              onPreviewEnabledChange={state.actions.setPromptPreviewEnabled}
-              onChange={(next) => state.actions.setPromptMessage(index, next)}
-              onRemove={() => state.actions.removePromptMessage(index)}
+              onPreviewEnabledChange={(isEnabled) => {
+                state.actions.setPromptPreviewEnabled(isEnabled);
+                onboardingAnalytics?.track("eval:onboarding_preview_toggled", {
+                  isEnabled,
+                });
+              }}
+              onChange={(next) => {
+                state.actions.setPromptMessage(index, next);
+                onboardingAnalytics?.track(
+                  "eval:onboarding_prompt_modified",
+                  { modification: "message_edited" },
+                  { onceKey: "prompt_message_edited" },
+                );
+              }}
+              onRemove={() => {
+                state.actions.removePromptMessage(index);
+                onboardingAnalytics?.track("eval:onboarding_prompt_modified", {
+                  modification: "message_removed",
+                });
+              }}
             />
           ))}
         </SortableContext>
@@ -175,6 +197,9 @@ export function PromptEditorContent({
           onClick={() => {
             state.actions.setPromptPreviewEnabled(false);
             state.actions.addPromptMessage();
+            onboardingAnalytics?.track("eval:onboarding_prompt_modified", {
+              modification: "message_added",
+            });
           }}
         >
           <Plus className="h-3.5 w-3.5 shrink-0" />

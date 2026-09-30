@@ -248,10 +248,6 @@ export const SkillFileSchema = z.object({
   contentLength: z.number().int(),
 });
 
-export const SkillFileContentResponseSchema = z.object({
-  content: z.string(),
-});
-
 export const SkillVersionSchema = z.object({
   id: z.string(),
   createdAt: z.coerce.date(),

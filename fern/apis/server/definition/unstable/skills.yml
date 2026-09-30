@@ -42,7 +42,7 @@ service:
         type: SkillVersion
 
     get:
-      docs: Resolve a skill's metadata and file manifest by version or label. Defaults to the production label. Use each file's id with getFileContent to read its text content.
+      docs: Resolve a skill's metadata and file manifest by version or label. Defaults to the production label. Use each file's sha256Hash with getFileContents, individually or in batches across manifests.
       method: GET
       path: /skills/{skillName}
       path-parameters:
@@ -63,13 +63,21 @@ service:
       request: UpdateSkillRequest
       response: SkillVersion
 
-    getFileContent:
-      docs: Read one text file from a persisted skill version using its file id, not its blob id. Returns JSON containing the text content with Cache-Control no-store.
+    getFileContents:
+      docs: |
+        Read a batch of text contents by canonical base64-encoded SHA-256 hashes.
       method: GET
-      path: /skills/files/{fileId}/content
-      path-parameters:
-        fileId: string
-      response: SkillFileContentResponse
+      path: /skills/files/content
+      request:
+        name: GetSkillFileContentsRequest
+        query-parameters:
+          sha256Hashes:
+            type: string
+            docs: >
+              Comma-separated list of one to 50 canonical base64-encoded SHA-256
+              hashes from skill file manifests. URL-encode the value, including
+              +, /, and = characters.
+      response: SkillFileContentsResponse
 
     setLabels:
       docs: Replace the labels on a skill version and atomically move them from other versions.
@@ -148,8 +156,13 @@ types:
       contentType: string
       contentLength: long
 
-  SkillFileContentResponse:
+  SkillFileContentsResponse:
     properties:
+      data: list<SkillFileContent>
+
+  SkillFileContent:
+    properties:
+      sha256Hash: string
       content: string
 
   SkillVersion:

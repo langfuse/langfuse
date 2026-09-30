@@ -27,11 +27,13 @@ export function EvaluatorGallerySection({
   section: GallerySection;
   expanded: boolean;
   onExpandedChange?: (expanded: boolean) => void;
-  onSelectTemplate: (template: GalleryTemplate) => void;
+  onSelectTemplate: (template: GalleryTemplate, sectionKey: string) => void;
 }) {
   const isRecommended =
     section.key === EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY;
   const isSafety = section.key === EVALUATOR_GALLERY_SAFETY_SECTION_KEY;
+  const selectTemplate = (template: GalleryTemplate) =>
+    onSelectTemplate(template, section.key);
   const shownTemplates = expanded
     ? section.templates
     : section.templates.slice(0, EVALUATOR_GALLERY_PREVIEW_SIZE);
@@ -48,7 +50,7 @@ export function EvaluatorGallerySection({
             <EvaluatorRecommendedCard
               key={getGalleryTemplateId(template)}
               template={template}
-              onSelect={onSelectTemplate}
+              onSelect={selectTemplate}
             />
           ))}
         </EvaluatorRecommendedCards>
@@ -73,7 +75,7 @@ export function EvaluatorGallerySection({
               <EvaluatorTemplateRow
                 key={getGalleryTemplateId(template)}
                 template={template}
-                onSelect={onSelectTemplate}
+                onSelect={selectTemplate}
               />
             ))}
           </div>

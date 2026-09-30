@@ -66,7 +66,7 @@ export function EvaluatorGalleryView({
   sections: GallerySection[];
   expandedSections: ReadonlySet<string>;
   onExpandedChange: (key: string, expanded: boolean) => void;
-  onSelectTemplate: (template: GalleryTemplate) => void;
+  onSelectTemplate: (template: GalleryTemplate, sectionKey: string) => void;
   onCreateFromScratch: (type: EvalTemplateType) => void;
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
   isLoading: boolean;

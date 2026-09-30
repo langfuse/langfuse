@@ -13,8 +13,8 @@ export async function createSkillVersionFromDraft(params: {
   const files = Object.values(draft.files);
   const input = CreateSkillVersionBodySchema.parse({
     files: files.map((file) =>
-      file.source
-        ? { path: file.path, sha256Hash: file.source.sha256Hash }
+      file.sourceSha !== null && file.currentSha === file.sourceSha
+        ? { path: file.path, sha256Hash: file.sourceSha }
         : { path: file.path, content: file.content },
     ),
     commitMessage: draft.commitMessage.trim() || null,

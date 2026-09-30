@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from "react";
 import { useStore } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import {
   DndContext,
   KeyboardSensor,
@@ -17,12 +18,15 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   ChevronRight,
   Check,
+  Circle,
+  CircleDashed,
   File,
   FileCode2,
   FilePlus2,
   Folder,
   FolderOpen,
   FolderPlus,
+  Plus,
   Trash2,
   Upload,
   X,
@@ -37,6 +41,7 @@ import { Input } from "@/src/components/ui/input";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { DropzoneController } from "@/src/components/design-system/DropzoneController/DropzoneController";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { showErrorToast } from "@/src/features/notifications";
 import { importSkillFiles } from "@/src/features/skills/actions/importSkillFiles";
 import {
@@ -44,7 +49,10 @@ import {
   getParentFolderPaths,
   type SkillFileTreeNode,
 } from "@/src/features/skills/components/skillFileTree";
-import { type SkillEditorStore } from "@/src/features/skills/components/skillEditorStore";
+import {
+  createSkillDraftFile,
+  type SkillEditorStore,
+} from "@/src/features/skills/components/skillEditorStore";
 import { cn } from "@/src/utils/tailwind";
 
 type PendingEntry = {
@@ -62,7 +70,10 @@ export function SkillFileExplorer({
   disabled?: boolean;
   readOnly?: boolean;
 }) {
-  const files = useStore(store, (state) => state.files);
+  const filePaths = useStore(
+    store,
+    useShallow((state) => Object.keys(state.files)),
+  );
   const folders = useStore(store, (state) => state.folders);
   const activePath = useStore(store, (state) => state.activePath);
   const actions = useStore(store, (state) => state.actions);
@@ -72,7 +83,7 @@ export function SkillFileExplorer({
   );
   const [pendingEntry, setPendingEntry] = useState<PendingEntry | null>(null);
   const isImporting = useStore(store, (state) => state.isImporting);
-  const tree = buildSkillFileTree(Object.keys(files), folders);
+  const tree = buildSkillFileTree(filePaths, folders);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor),
@@ -159,10 +170,7 @@ export function SkillFileExplorer({
       return;
     }
 
-    if (
-      pendingEntry.kind === "file" &&
-      Object.keys(files).length >= MAX_SKILL_FILES
-    ) {
+    if (pendingEntry.kind === "file" && filePaths.length >= MAX_SKILL_FILES) {
       showErrorToast(
         "Could not add file",
         `A skill can contain at most ${MAX_SKILL_FILES} files.`,
@@ -173,11 +181,7 @@ export function SkillFileExplorer({
     const created =
       pendingEntry.kind === "folder"
         ? actions.addFolder(path)
-        : actions.addFile({
-            path,
-            content: "",
-            contentType: getContentType(path),
-          });
+        : actions.addFile(createSkillDraftFile(path, ""));
     if (!created) {
       showErrorToast(
         `${pendingEntry.kind === "folder" ? "Folder" : "File"} already exists`,
@@ -266,6 +270,7 @@ export function SkillFileExplorer({
           return (
             <DraggableSkillFile
               key={node.path}
+              store={store}
               path={node.path}
               name={node.name}
               disabled={moveDisabled}
@@ -460,7 +465,26 @@ const skillMoveCollisionDetection: CollisionDetection = (args) => {
     : rectIntersection(candidates);
 };
 
+const fileChangeIndicators = {
+  new: {
+    label: "New file",
+    icon: Plus,
+    className: "text-dark-green h-3.5 w-3.5",
+  },
+  edited: {
+    label: "Edited file",
+    icon: Circle,
+    className: "text-dark-yellow h-2 w-2 fill-current",
+  },
+  pending: {
+    label: "Checking for changes",
+    icon: CircleDashed,
+    className: "text-muted-foreground h-3.5 w-3.5",
+  },
+};
+
 function DraggableSkillFile({
+  store,
   path,
   name,
   disabled,
@@ -468,6 +492,7 @@ function DraggableSkillFile({
   onSelect,
   onDelete,
 }: {
+  store: SkillEditorStore;
   path: string;
   name: string;
   disabled: boolean;
@@ -475,6 +500,16 @@ function DraggableSkillFile({
   onSelect: () => void;
   onDelete: () => void;
 }) {
+  const changeStatusId = useId();
+  const changeStatus = useStore(store, (state) => {
+    const file = state.files[path];
+    if (!file) return null;
+    if (file.sourceSha === null) return "new";
+    if (file.currentSha === null) return "pending";
+    return file.currentSha !== file.sourceSha ? "edited" : null;
+  });
+  const indicator = changeStatus ? fileChangeIndicators[changeStatus] : null;
+  const IndicatorIcon = indicator?.icon;
   const movable = path !== "SKILL.md";
   const draggable = movable && !disabled;
   const {
@@ -505,6 +540,15 @@ function DraggableSkillFile({
         type="button"
         {...(draggable ? attributes : {})}
         {...(draggable ? listeners : {})}
+        aria-label={name}
+        aria-describedby={
+          [
+            draggable ? attributes["aria-describedby"] : undefined,
+            indicator ? changeStatusId : undefined,
+          ]
+            .filter(Boolean)
+            .join(" ") || undefined
+        }
         onClick={onSelect}
         className={cn(
           "flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1.5 text-left",
@@ -519,6 +563,25 @@ function DraggableSkillFile({
         <span className="min-w-0 flex-1 truncate" title={path}>
           {name}
         </span>
+        {indicator && IndicatorIcon ? (
+          <Tooltip label={indicator.label}>
+            {({ getTriggerProps }) => (
+              <span
+                {...getTriggerProps()}
+                id={changeStatusId}
+                role="img"
+                aria-label={indicator.label}
+                className="flex h-4 w-4 shrink-0 items-center justify-center"
+              >
+                <IndicatorIcon
+                  aria-hidden="true"
+                  className={indicator.className}
+                />
+                <span className="sr-only">{indicator.label}</span>
+              </span>
+            )}
+          </Tooltip>
+        ) : null}
       </button>
       {movable && !disabled ? (
         <Button
@@ -662,10 +725,4 @@ function joinPath(parentPath: string, name: string): string {
 function parentFolder(path: string): string {
   const separator = path.lastIndexOf("/");
   return separator === -1 ? "" : path.slice(0, separator);
-}
-
-function getContentType(path: string): string {
-  if (path.endsWith(".md")) return "text/markdown";
-  if (path.endsWith(".json")) return "application/json";
-  return "text/plain";
 }

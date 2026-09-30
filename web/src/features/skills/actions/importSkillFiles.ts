@@ -7,6 +7,7 @@ import { unzipSync } from "fflate";
 import { type FileWithPath } from "react-dropzone";
 import { getParentFolderPaths } from "../components/skillFileTree";
 import {
+  createSkillDraftFile,
   type SkillDraftFile,
   type SkillEditorStore,
 } from "../components/skillEditorStore";
@@ -44,7 +45,7 @@ export async function importSkillFiles(
     if (!result.success) {
       throw new Error(`${path}: ${result.error.issues[0]!.message}`);
     }
-    imports.push({ ...result.data, contentType: "text/plain" });
+    imports.push(createSkillDraftFile(result.data.path, result.data.content));
   };
   for (const file of files) {
     // file-selector prefixes dropped paths with "/" or "./".
@@ -108,7 +109,12 @@ export async function importSkillFiles(
         `A file or folder already exists at ${file.path}. No files were added.`,
       );
     }
-    nextFiles[file.path] = file;
+    const existing = nextFiles[file.path];
+    nextFiles[file.path] = {
+      ...file,
+      sourceSha: existing?.sourceSha ?? null,
+      sourceContentLength: existing?.sourceContentLength ?? null,
+    };
   }
   if (Object.keys(nextFiles).length > MAX_SKILL_FILES) {
     throw new Error(`A skill can contain at most ${MAX_SKILL_FILES} files.`);
@@ -116,8 +122,9 @@ export async function importSkillFiles(
   const totalBytes = Object.values(nextFiles).reduce(
     (total, file) =>
       total +
-      (file.source?.contentLength ??
-        new TextEncoder().encode(file.content).byteLength),
+      (file.content === undefined
+        ? (file.sourceContentLength ?? 0)
+        : new TextEncoder().encode(file.content).byteLength),
     0,
   );
   if (totalBytes > MAX_SKILL_BYTES) {
@@ -132,5 +139,6 @@ export async function importSkillFiles(
     activePath: imports[0]!.path,
     dirty: true,
   });
+  store.getState().actions.hashPendingFiles();
   return paths;
 }

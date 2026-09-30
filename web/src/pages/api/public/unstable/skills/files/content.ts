@@ -1,24 +1,26 @@
-import { SkillFileContentResponseSchema } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { z } from "zod/v4";
 import {
   createAuthedProjectAPIRoute,
   withMiddlewares,
 } from "@/src/features/public-api/server";
+import {
+  GetSkillFileContentsQuerySchema,
+  GetSkillFileContentsResponseSchema,
+} from "@/src/features/public-api/types/unstable-skills";
 import { SkillService } from "@/src/features/skills/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
-    name: "Get Skill File Content",
+    name: "Get Skill File Contents",
     action: "skills:read",
-    querySchema: z.object({ fileId: z.string().min(1) }),
-    responseSchema: SkillFileContentResponseSchema,
+    querySchema: GetSkillFileContentsQuerySchema,
+    responseSchema: GetSkillFileContentsResponseSchema,
     rateLimitResource: "public-api",
     fn: async ({ query, auth, res }) => {
       res.setHeader("Cache-Control", "no-store");
-      return new SkillService(prisma).getFileContent({
+      return new SkillService(prisma).getFileContents({
         projectId: auth.scope.projectId,
-        fileId: query.fileId,
+        sha256Hashes: query.sha256Hashes,
       });
     },
   }),

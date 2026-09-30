@@ -67,6 +67,8 @@ import {
   type EvaluatorCreationSource,
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
+import { createEvalOnboardingAnalytics } from "@/src/features/evals/v2/fns/createEvalOnboardingAnalytics";
+import { EvalOnboardingAnalyticsProvider } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
 
 type InitialEvaluator = {
   id: string;
@@ -225,6 +227,14 @@ export function EvaluatorSetupPage(
       mode: props.mode,
     }),
   );
+  const [onboardingAnalytics] = useState(() =>
+    props.mode === "create"
+      ? createEvalOnboardingAnalytics({
+          capture,
+          getEvaluatorType: () => evaluatorSetupStore.getState().type,
+        })
+      : null,
+  );
   useEffect(() => {
     evaluatorSetupStore
       .getState()
@@ -369,6 +379,9 @@ export function EvaluatorSetupPage(
     onSuccess: (result) => {
       setTestResult(result);
       if ("executionTraceId" in result) setHasCompletedTestCall(true);
+      if ("success" in result && result.success) {
+        onboardingAnalytics?.completeStep({ stepName: "evaluator_tested" });
+      }
       setLastTestRunCostUsd(
         "estimatedCostUsd" in result &&
           typeof result.estimatedCostUsd === "number"
@@ -566,6 +579,10 @@ export function EvaluatorSetupPage(
         definition,
       });
       hasCreatedRef.current = true;
+      onboardingAnalytics?.completeStep({
+        stepName: "evaluator_saved",
+        isBlocked: !shouldOfferRuleAttachment(evaluator),
+      });
       capture("evaluators:create", {
         ...getEvaluatorCreationAnalyticsProperties({
           evaluatorType: state.type,
@@ -674,7 +691,13 @@ export function EvaluatorSetupPage(
       providerGroups={projectDefaultModel.providerGroups}
       providerAdapters={projectDefaultModel.providerAdapters}
       canSetProjectDefault={projectDefaultModel.canUpdate}
-      onConfigureProviders={projectDefaultModel.openProviderSettings}
+      onConfigureProviders={() => {
+        onboardingAnalytics?.track(
+          "eval:onboarding_llm_connection_tab_opened",
+          {},
+        );
+        projectDefaultModel.openProviderSettings();
+      }}
       onSetProjectDefault={projectDefaultModel.update.requestUpdate}
       codeValidationResult={
         codeValidation.isPending ? null : codeValidation.validationResult
@@ -687,8 +710,13 @@ export function EvaluatorSetupPage(
             ? { state: "generating" }
             : {
                 state: "idle",
-                onGenerate: () =>
-                  requestNameSuggestion(true).catch(trpcErrorToast),
+                onGenerate: () => {
+                  onboardingAnalytics?.track(
+                    "eval:onboarding_ai_generate_requested",
+                    { field: "name" },
+                  );
+                  requestNameSuggestion(true).catch(trpcErrorToast);
+                },
               }
       }
       descriptionAIAssistance={
@@ -700,6 +728,10 @@ export function EvaluatorSetupPage(
                 state: "idle",
                 // requestDescriptionSuggestion reports its own failures.
                 onGenerate: () => {
+                  onboardingAnalytics?.track(
+                    "eval:onboarding_ai_generate_requested",
+                    { field: "description" },
+                  );
                   requestDescriptionSuggestion();
                 },
               }
@@ -717,6 +749,10 @@ export function EvaluatorSetupPage(
           projectId={projectId}
           timeRange={absoluteTimeRange}
           onOpenTrace={(observation) => {
+            onboardingAnalytics?.track(
+              "eval:onboarding_sample_observation_previewed",
+              {},
+            );
             if (observation.traceId) {
               sampleTracePeekNavigation.openPeek(observation.traceId);
             }
@@ -786,81 +822,84 @@ export function EvaluatorSetupPage(
         ) : undefined,
       }}
     >
-      <div className="flex min-h-0 flex-1 flex-col">
-        <TableHeaderControls
-          timeRange={timeRange}
-          setTimeRange={setTimeRange}
-        />
-        {initialEvaluator?.blockedAt ? (
-          <div className="mx-3 mt-3">
-            <EvaluatorBlockedBanner
-              projectId={projectId}
-              blockedAt={initialEvaluator.blockedAt}
-              blockReason={initialEvaluator.blockReason}
-              blockMessage={initialEvaluator.blockMessage}
-              canReactivate={canReactivate}
-              reactivationPending={reactivate.isPending}
-              onReactivate={() => {
-                capture("evaluators:reactivate", {
-                  blockReason:
-                    initialEvaluator.blockReason ?? "EVAL_MODEL_CONFIG_INVALID",
-                });
-                reactivate.mutate({
-                  projectId,
-                  evaluatorId: initialEvaluator.id,
-                });
-              }}
-            />
-          </div>
-        ) : null}
-        {isMobile ? (
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <div>{evaluatorEditor}</div>
-            <div className="border-t [&>aside]:h-auto">
-              {evaluatorTestPanel}
-            </div>
-          </div>
-        ) : (
-          <ResizableSplitLayout
-            className="h-auto min-h-0 flex-1"
-            primaryContent={evaluatorEditor}
-            secondaryContent={evaluatorTestPanel}
-            open={testPanelOpen}
-            defaultPrimarySize={60}
-            defaultSecondarySize={40}
-            minPrimarySize={30}
-            minSecondarySize="360px"
-            collapsedSecondarySize="48px"
-            onOpenChange={
-              evaluatorSetupStore.getState().actions.setTestPanelOpen
-            }
-            persistId="evaluator-test-panel"
+      <EvalOnboardingAnalyticsProvider value={onboardingAnalytics}>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <TableHeaderControls
+            timeRange={timeRange}
+            setTimeRange={setTimeRange}
           />
-        )}
-        <EvaluatorSetupFooter
-          store={evaluatorSetupStore}
-          initialSnapshot={initialSnapshot.current}
-          isEditing={Boolean(initialEvaluator)}
-          isSaving={
-            saveInFlight ||
-            create.isPending ||
-            update.isPending ||
-            suggestName.isPending ||
-            suggestDescription.isPending
-          }
-          nameAIAssistanceAvailable={nameAIAssistanceAvailable}
-          codeValidation={
-            codeDraft.type === "CODE"
-              ? {
-                  isValid: codeValidation.isValid,
-                  isPending: codeValidation.isPending,
-                }
-              : null
-          }
-          onClose={requestClose}
-          onSave={save}
-        />
-      </div>
+          {initialEvaluator?.blockedAt ? (
+            <div className="mx-3 mt-3">
+              <EvaluatorBlockedBanner
+                projectId={projectId}
+                blockedAt={initialEvaluator.blockedAt}
+                blockReason={initialEvaluator.blockReason}
+                blockMessage={initialEvaluator.blockMessage}
+                canReactivate={canReactivate}
+                reactivationPending={reactivate.isPending}
+                onReactivate={() => {
+                  capture("evaluators:reactivate", {
+                    blockReason:
+                      initialEvaluator.blockReason ??
+                      "EVAL_MODEL_CONFIG_INVALID",
+                  });
+                  reactivate.mutate({
+                    projectId,
+                    evaluatorId: initialEvaluator.id,
+                  });
+                }}
+              />
+            </div>
+          ) : null}
+          {isMobile ? (
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <div>{evaluatorEditor}</div>
+              <div className="border-t [&>aside]:h-auto">
+                {evaluatorTestPanel}
+              </div>
+            </div>
+          ) : (
+            <ResizableSplitLayout
+              className="h-auto min-h-0 flex-1"
+              primaryContent={evaluatorEditor}
+              secondaryContent={evaluatorTestPanel}
+              open={testPanelOpen}
+              defaultPrimarySize={60}
+              defaultSecondarySize={40}
+              minPrimarySize={30}
+              minSecondarySize="360px"
+              collapsedSecondarySize="48px"
+              onOpenChange={
+                evaluatorSetupStore.getState().actions.setTestPanelOpen
+              }
+              persistId="evaluator-test-panel"
+            />
+          )}
+          <EvaluatorSetupFooter
+            store={evaluatorSetupStore}
+            initialSnapshot={initialSnapshot.current}
+            isEditing={Boolean(initialEvaluator)}
+            isSaving={
+              saveInFlight ||
+              create.isPending ||
+              update.isPending ||
+              suggestName.isPending ||
+              suggestDescription.isPending
+            }
+            nameAIAssistanceAvailable={nameAIAssistanceAvailable}
+            codeValidation={
+              codeDraft.type === "CODE"
+                ? {
+                    isValid: codeValidation.isValid,
+                    isPending: codeValidation.isPending,
+                  }
+                : null
+            }
+            onClose={requestClose}
+            onSave={save}
+          />
+        </div>
+      </EvalOnboardingAnalyticsProvider>
       {initialEvaluator ? (
         <EvaluatorVersionHistorySheet
           open={historyOpen}
@@ -934,6 +973,7 @@ export function EvaluatorSetupPage(
         <EvaluatorSavedDialogContainer
           projectId={projectId}
           evaluator={savedEvaluator}
+          onboardingAnalytics={onboardingAnalytics}
           onDismiss={async () => {
             await router.push(
               `/project/${projectId}/evals/${savedEvaluator.id}`,

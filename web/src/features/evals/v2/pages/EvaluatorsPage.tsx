@@ -287,6 +287,13 @@ export default function EvaluatorsPage() {
     evaluators.data.totalItems === 0 &&
     !searchQuery &&
     filterState.length === 0;
+  const openGalleryFromNewEvaluatorButton = () => {
+    capture("eval:onboarding_started", {
+      entryPoint: "new_evaluator_button",
+      hasExistingEvaluators: evaluators.isSuccess ? !showOnboarding : undefined,
+    });
+    setGalleryOpen(true);
+  };
   const hasExecutionReadAccess = useHasProjectAccess({
     projectId,
     scope: "evalJobExecution:read",
@@ -527,11 +534,15 @@ export default function EvaluatorsPage() {
               onEdit={() =>
                 router.push(`/project/${projectId}/evals/${row.original.id}`)
               }
-              onClone={() =>
-                router.push(
+              onClone={() => {
+                capture("eval:onboarding_started", {
+                  entryPoint: "clone_evaluator",
+                  hasExistingEvaluators: true,
+                });
+                return router.push(
                   `/project/${projectId}/evals/new?evaluatorId=${encodeURIComponent(row.original.id)}`,
-                )
-              }
+                );
+              }}
               onDelete={() => setDeleteIds([row.original.id])}
             />
           </div>
@@ -539,6 +550,7 @@ export default function EvaluatorsPage() {
       },
     ],
     [
+      capture,
       costs.data,
       costs.isPending,
       hasExecutionReadAccess,
@@ -620,7 +632,7 @@ export default function EvaluatorsPage() {
             "Create reusable evaluator definitions and test them before activation.",
         },
         mobileActionButtons: showOnboarding ? (
-          <Button size="sm" onClick={() => setGalleryOpen(true)}>
+          <Button size="sm" onClick={openGalleryFromNewEvaluatorButton}>
             <Plus className="mr-2 h-4 w-4" />
             New evaluator
           </Button>
@@ -678,7 +690,7 @@ export default function EvaluatorsPage() {
                 {...evaluatorAlerts}
               />
             )}
-            <Button onClick={() => setGalleryOpen(true)}>
+            <Button onClick={openGalleryFromNewEvaluatorButton}>
               <Plus className="mr-2 h-4 w-4" />
               New evaluator
             </Button>

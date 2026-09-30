@@ -7,6 +7,7 @@ import { DETECT_TOPICS_ASSISTANT_PROMPT } from "@/src/features/evals/v2/constant
 import { EvaluatorsEmptyStateView } from "./components/EvaluatorsEmptyStateView/EvaluatorsEmptyStateView";
 import { prepareEvaluatorEmptyState } from "@/src/features/evals/v2/fns/templateGallery/prepareEvaluatorEmptyState";
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
+import { getTemplateSelectionAnalyticsProperties } from "@/src/features/evals/v2/fns/templateGallery/getTemplateSelectionAnalyticsProperties";
 
 export function EvaluatorsEmptyState({
   onSelectTemplate,
@@ -29,6 +30,15 @@ export function EvaluatorsEmptyState({
         templateKey: template.key,
       });
     }
+    capture("eval:onboarding_started", {
+      entryPoint: "empty_state_starting_point",
+      hasExistingEvaluators: false,
+    });
+    capture("eval:onboarding_step_completed", {
+      stepName: "suggestion_selected",
+      surface: "empty_state",
+      ...getTemplateSelectionAnalyticsProperties(template),
+    });
     onSelectTemplate(template);
   };
 
@@ -62,6 +72,10 @@ export function EvaluatorsEmptyState({
         }
         onBrowseLibrary={() => {
           capture("evaluators:empty_state_browse_library");
+          capture("eval:onboarding_started", {
+            entryPoint: "empty_state_browse_templates",
+            hasExistingEvaluators: false,
+          });
           onBrowseLibrary();
         }}
       />
