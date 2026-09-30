@@ -34,6 +34,7 @@ updates in `packages/shared/`.
 - Generate a lowercase UUID for the model entry.
 - Create a `matchPattern` that covers supported provider formats.
 - Add at least one default pricing tier.
+- Write every per-token price as `<USD per MTok>e-6` (`0.1e-6`, not `1e-7`).
 - Map every supported semantic usage bucket to the provider aliases Langfuse
   may persist.
 - Insert the pricing entry into `worker/src/constants/default-model-prices.json`.

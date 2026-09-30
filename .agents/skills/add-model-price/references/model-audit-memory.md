@@ -12,11 +12,25 @@ audit date.
 
 ## Latest useful snapshot
 
-**Audit date:** 2026-09-29
+**Audit date:** 2026-09-30
 
 All prices listed as `$X / MTok` (per million tokens). Per-token JSON values: divide by 1,000,000.
 
-The 2026-09-29 run re-fetched the full Anthropic pricing page (model table,
+The 2026-09-30 run re-fetched the full Anthropic pricing page (model table,
+cache-hits footnote, Fast mode and Batch tables), the Anthropic models-overview
+comparison table, the OpenAI aggregate Standard/Long-Context/Fast-mode/Flex
+pricing tables, the full OpenAI model catalog, both Gemini pricing pages (3.x
+and 2.5 families, with explicit Free/Paid column separation), the Gemini
+models catalog, the AWS Bedrock pricing page, and the TypeSafe Jev models
+page. This run found one new model: **GPT-6.1 Sol** (`gpt-6.1-sol`), a new
+sibling alongside the still-active `gpt-6-sol` — same $2/$10 input/output and
+$2.50 cache-write rate, but half the cached-input price ($0.10/MTok vs.
+$0.20/MTok). See `provider-sources-and-price-keys.md`'s "September 30 2026"
+entry for the full six-tier pricing and matchPattern detail. Every other price
+checked this run — including every existing Anthropic, OpenAI, and Gemini row
+below, the AWS Bedrock Public Extended Access limitation, and the TypeSafe Jev
+`jev-1.13.0` pricing — matched verbatim; no other updates were needed. The
+2026-09-29 run before it re-fetched the full Anthropic pricing page (model table,
 cache-hits footnote, Fast mode and Batch tables), the Anthropic models-overview
 comparison table, the OpenAI aggregate Standard/Fast-mode/Flex pricing summary,
 the full OpenAI model catalog, a dedicated re-fetch of `gpt-5-chat-latest`'s own
@@ -72,8 +86,9 @@ to have siblings `gpt-5.5-cyber`/`gpt-5.4-cyber`, see provider-sources-and-price
 
 | Provider | Model / pricing entry | Pricing checked | Price confirmed | Tiering checked | Tiering correct | Change | Official source(s) | Comments |
 | -------- | --------------------- | --------------- | --------------- | --------------- | --------------- | ------ | ------------------- | -------- |
-| OpenAI | gpt-6-astra | Input $10/MTok, Cached $1/MTok, Cache write $12.50/MTok, Output $50/MTok | Yes | Large Context (>272K) 2x/2x/2x/1.5x; Fast mode 2x base; Flex 0.5x base | Yes | None | https://developers.openai.com/api/docs/pricing https://developers.openai.com/api/docs/models/gpt-6-astra | Added 2026-09-03, re-confirmed unchanged 2026-09-10, 2026-09-14, and 2026-09-22. Six-tier gpt-5.6-sol-style key set. |
-| OpenAI | gpt-6-sol | Input $2/MTok, Cached $0.20/MTok, Cache write $2.50/MTok, Output $10/MTok | Yes | Large Context (>272K) 2x/2x/2x/1.5x; Fast mode 2x applicable tier; Flex 0.5x applicable tier | Yes | Added | https://developers.openai.com/api/docs/pricing https://developers.openai.com/api/docs/models/gpt-6-sol | Added 2026-09-22. Six-tier gpt-6-astra-style key set; same 1,050,000-token context window and 272K large-context threshold as gpt-6-astra. |
+| OpenAI | gpt-6-astra | Input $10/MTok, Cached $1/MTok, Cache write $12.50/MTok, Output $50/MTok | Yes | Large Context (>272K) 2x/2x/2x/1.5x; Fast mode 2x base; Flex 0.5x base; Ultrafast 6x base ($60/$6/$75/$300, long-context $120/$12/$150/$450) | Yes | Updated | https://developers.openai.com/api/docs/pricing https://developers.openai.com/api/docs/models/gpt-6-astra https://developers.openai.com/api/docs/guides/ultrafast-mode | Added 2026-09-03, re-confirmed unchanged 2026-09-10, 2026-09-14, and 2026-09-22. Ultrafast (`service_tier: "ultrafast"`) and Ultrafast · Large context tiers added 2026-09-30; it is the only model on the Ultrafast pricing tab. Eight-tier gpt-5.6-sol-style key set. |
+| OpenAI | gpt-6-sol | Input $2/MTok, Cached $0.20/MTok, Cache write $2.50/MTok, Output $10/MTok | Yes | Large Context (>272K) 2x/2x/2x/1.5x; Fast mode 2x applicable tier; Flex 0.5x applicable tier | Yes | None | https://developers.openai.com/api/docs/pricing https://developers.openai.com/api/docs/models/gpt-6-sol | Added 2026-09-22, re-confirmed unchanged 2026-09-30. Six-tier gpt-6-astra-style key set; same 1,050,000-token context window and 272K large-context threshold as gpt-6-astra. Still a distinct, separately-priced model ID from the newer gpt-6.1-sol. |
+| OpenAI | gpt-6.1-sol | Input $2/MTok, Cached $0.10/MTok, Cache write $2.50/MTok, Output $10/MTok | Yes | Large Context (>272K) 2x/2x/2x/1.5x; Fast mode 2x applicable tier (large-context Fast row directly quoted); Flex 0.5x applicable tier (Flex·Large-Context derived, not separately published) | Yes | Added | https://developers.openai.com/api/docs/pricing https://developers.openai.com/api/docs/models/gpt-6.1-sol | Added 2026-09-30. Six-tier gpt-6-sol-style key set; same context window and threshold as gpt-6-sol/gpt-6-astra. Cached-input price is half of gpt-6-sol's ($0.10 vs $0.20/MTok); every other base rate is identical. |
 | OpenAI | gpt-6-luna | Input $0.10/MTok, Cached $0.01/MTok, Cache write $0.125/MTok, Output $0.50/MTok | Yes | Large Context (>272K) 2x/2x/2x/1.5x; Fast mode 2x applicable tier; Flex 0.5x applicable tier | Yes | Added | https://developers.openai.com/api/docs/pricing https://developers.openai.com/api/docs/models/gpt-6-luna | Added 2026-09-22. Six-tier gpt-6-astra-style key set; same context window and threshold as gpt-6-astra/gpt-6-sol. |
 
 | Provider | Model / pricing entry | Pricing checked | Price confirmed | Tiering checked | Tiering correct | Change | Official source(s) | Comments |
@@ -98,7 +113,7 @@ to have siblings `gpt-5.5-cyber`/`gpt-5.4-cyber`, see provider-sources-and-price
 | Anthropic | claude-haiku-4-5-20251001 | Input $1/MTok, Output $5/MTok, 5m $1.25/MTok, 1h $2/MTok, read $0.10/MTok | Yes | No large-context tier | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged. |
 | Anthropic | claude-3-5-haiku-20241022 | Input $0.80/MTok, Output $4/MTok, 5m $1/MTok, 1h $1.60/MTok, read $0.08/MTok | Yes | Retired except Bedrock/Google Cloud | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed present, unchanged. |
 | Anthropic | claude-3.7-sonnet-20250219 / claude-3.5-sonnet-20241022 / claude-3-5-sonnet-20240620 / claude-3-opus-20240229 / claude-3-sonnet-20240229 / claude-3-haiku-20240307 | Legacy prices retained | No | Not on current page | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing | Not re-verified this run; retired, out of "flagship" scope. |
-| AWS Bedrock | claude-3-5-sonnet-20240620 / claude-3.5-sonnet-20241022 (Public Extended Access SKU) | $6.00/MTok input, $30.00/MTok output, $7.50/MTok cache write, $0.60/MTok cache read | Yes (confirmed real Aug 4 2026) | Distinct dated SKU, not a context-length tier | Not applicable | Unresolved | https://aws.amazon.com/bedrock/pricing/ | Not re-verified this run; permanent documented limitation (model-ID string match cannot distinguish billing SKU). |
+| AWS Bedrock | claude-3-5-sonnet-20240620 / claude-3.5-sonnet-20241022 (Public Extended Access SKU) | $6.00/MTok input, $30.00/MTok output, $7.50/MTok cache write, $0.60/MTok cache read | Yes (re-confirmed 2026-09-30) | Distinct dated SKU, not a context-length tier | Not applicable | Unresolved | https://aws.amazon.com/bedrock/pricing/ | Re-confirmed unchanged 2026-09-30; permanent documented limitation (model-ID string match cannot distinguish billing SKU). |
 | OpenAI | gpt-5.6-sol | Input $4/MTok, Cached $0.40/MTok, Cache write $5.00/MTok, Output $20/MTok | Yes | Large Context (>272K): $8/$0.80/$10.00/$30; Fast mode 2x base; Flex 0.5x base | Yes | None | https://developers.openai.com/api/docs/pricing https://developers.openai.com/api/docs/models/gpt-5.6-sol | Promotional price cut from Aug 24 2026 reconfirmed still active, still "available at least through November 21, 2026" — re-verify after that date. |
 | OpenAI | gpt-5.6-terra | Input $2/MTok, Cached $0.20/MTok, Cache write $2.50/MTok, Output $12/MTok | Yes | Large Context (>272K): $4/$0.40/$5.00/$18 | Yes | None | https://developers.openai.com/api/docs/pricing | Re-confirmed unchanged. |
 | OpenAI | gpt-5.6-luna | Input $0.20/MTok, Cached $0.02/MTok, Cache write $0.25/MTok, Output $1.20/MTok | Yes | Large Context (>272K): $0.40/$0.04/$0.50/$1.80 | Yes | None | https://developers.openai.com/api/docs/pricing | Re-confirmed unchanged. |

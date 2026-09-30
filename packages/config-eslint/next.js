@@ -197,4 +197,11 @@ export default [
       "@repo/no-tailwind-overflow-scroll": "off",
     },
   },
+  {
+    name: "langfuse/next/prefer-stories-over-client-tests",
+    files: ["**/*.clienttest.{ts,tsx}"],
+    rules: {
+      "@repo/prefer-stories-over-client-tests": "warn",
+    },
+  },
 ];

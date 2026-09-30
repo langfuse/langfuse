@@ -1,3 +1,4 @@
+/* eslint-disable @repo/prefer-stories-over-client-tests */
 import { render } from "@testing-library/react";
 import {
   MarkdownView,
