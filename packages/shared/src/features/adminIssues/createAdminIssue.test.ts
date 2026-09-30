@@ -1,16 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { create } = vi.hoisted(() => ({ create: vi.fn() }));
+const { create, findFirst } = vi.hoisted(() => ({
+  create: vi.fn(),
+  findFirst: vi.fn(),
+}));
 
 vi.mock("../../db", () => ({
-  prisma: { issueLog: { create } },
+  prisma: { issueLog: { create, findFirst } },
 }));
 
 import { createAdminIssue } from "./createAdminIssue";
 
 describe("createAdminIssue", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    findFirst.mockResolvedValue(null);
   });
 
   it("writes each oversized request under its registered issue ID", async () => {
@@ -31,7 +35,32 @@ describe("createAdminIssue", () => {
         description: "Request exceeded 4 MiB",
         priority: 2,
         ctaLink: undefined,
+        ignoredAt: null,
+        ignoreReason: null,
       },
+    });
+  });
+
+  it("keeps event-driven issues ignored when their latest occurrence was ignored", async () => {
+    const ignoredAt = new Date("2026-01-01T00:00:00Z");
+    findFirst.mockResolvedValue({ ignoredAt, ignoreReason: "Expected" });
+
+    await createAdminIssue({
+      projectId: "project-a",
+      name: "Oversized ingestion request",
+      issue: { description: "Another oversized request", priority: 2 },
+    });
+
+    expect(findFirst).toHaveBeenCalledExactlyOnceWith({
+      where: {
+        projectId: "project-a",
+        issueDefinitionId: "oversized-ingestion-request",
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { ignoredAt: true, ignoreReason: true },
+    });
+    expect(create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ ignoredAt, ignoreReason: "Expected" }),
     });
   });
 

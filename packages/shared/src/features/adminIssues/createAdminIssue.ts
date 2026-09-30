@@ -22,6 +22,12 @@ export async function createAdminIssue({
   const definition = adminIssueDefinitions[name];
 
   try {
+    const previousIssue = await prisma.issueLog.findFirst({
+      where: { projectId, issueDefinitionId: definition.id },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { ignoredAt: true, ignoreReason: true },
+    });
+
     return await prisma.issueLog.create({
       data: {
         projectId,
@@ -29,6 +35,8 @@ export async function createAdminIssue({
         description: issue.description,
         priority: issue.priority,
         ctaLink: issue.ctaLink,
+        ignoredAt: previousIssue?.ignoredAt ?? null,
+        ignoreReason: previousIssue?.ignoreReason ?? null,
       },
     });
   } catch (error) {

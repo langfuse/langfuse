@@ -29,10 +29,23 @@ export const adminIssuesRouter = createTRPCRouter({
         scope: "automations:CUD",
       });
 
+      // Deduplicate before limiting so recurring rules cannot crowd out other issues.
+      const latestIssues = await ctx.prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM (
+          SELECT DISTINCT ON (issue_definition_id) id, created_at
+          FROM issue_logs
+          WHERE project_id = ${input.projectId}
+          ORDER BY issue_definition_id, created_at DESC, id DESC
+        ) AS latest
+        ORDER BY created_at DESC, id DESC
+        LIMIT ${ISSUE_LIST_LIMIT}
+      `;
       const issues = await ctx.prisma.issueLog.findMany({
-        where: { projectId: input.projectId },
-        orderBy: { createdAt: "desc" },
-        take: ISSUE_LIST_LIMIT,
+        where: {
+          projectId: input.projectId,
+          id: { in: latestIssues.map(({ id }) => id) },
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       });
 
       return issues.map((issue) => {

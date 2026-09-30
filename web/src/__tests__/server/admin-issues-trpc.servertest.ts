@@ -75,7 +75,7 @@ describe("adminIssues.getIssues", () => {
     await prisma.organization.deleteMany({ where: { id: { in: __orgIds } } });
   });
 
-  it("returns only the project's issues, newest first, labelled by rule", async () => {
+  it("returns only the latest issue per rule in the project, newest first", async () => {
     const { caller, project } = await prepare({ projectRole: "ADMIN" });
     const { project: otherProject } = await prepare({ projectRole: "ADMIN" });
     await prisma.issueLog.createMany({
@@ -87,6 +87,14 @@ describe("adminIssues.getIssues", () => {
           priority: 3,
           createdAt: new Date("2026-01-01T00:00:00Z"),
         },
+        ...Array.from({ length: 101 }, (_, index) => ({
+          projectId: project.id,
+          issueDefinitionId: "observations-without-evaluators",
+          description: index === 100 ? "latest" : "duplicate",
+          priority: 3,
+          createdAt: new Date(Date.UTC(2026, 0, 3, 0, 0, index)),
+          ignoredAt: index === 100 ? new Date("2026-01-04T00:00:00Z") : null,
+        })),
         {
           projectId: project.id,
           issueDefinitionId: "removed-rule",
@@ -115,16 +123,17 @@ describe("adminIssues.getIssues", () => {
       })),
     ).toEqual([
       {
+        description: "latest",
+        ruleName: "Set up evaluators",
+        ctaLabel: "Create evaluator",
+      },
+      {
         description: "newer",
         ruleName: "removed-rule",
         ctaLabel: "View details",
       },
-      {
-        description: "older",
-        ruleName: "Set up evaluators",
-        ctaLabel: "Create evaluator",
-      },
     ]);
+    expect(issues[0]?.ignoredAt).toEqual(new Date("2026-01-04T00:00:00Z"));
   });
 });
 

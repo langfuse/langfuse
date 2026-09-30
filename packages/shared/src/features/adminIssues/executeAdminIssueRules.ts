@@ -17,6 +17,12 @@ export async function executeAdminIssueRules(projectId: string) {
         const issues = await definition.callback(projectId);
         if (issues.length === 0) return 0;
 
+        const previousIssue = await prisma.issueLog.findFirst({
+          where: { projectId, issueDefinitionId: definition.id },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          select: { ignoredAt: true, ignoreReason: true },
+        });
+
         const { count } = await prisma.issueLog.createMany({
           data: issues.map((issue) => ({
             projectId,
@@ -24,6 +30,8 @@ export async function executeAdminIssueRules(projectId: string) {
             description: issue.description,
             priority: issue.priority,
             ctaLink: issue.ctaLink,
+            ignoredAt: previousIssue?.ignoredAt ?? null,
+            ignoreReason: previousIssue?.ignoreReason ?? null,
           })),
         });
         return count;

@@ -1,15 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdminIssueDefinition } from "./adminIssueDefinitions";
 
-const { createMany, firstRule, secondRule, logError } = vi.hoisted(() => ({
-  createMany: vi.fn(),
-  logError: vi.fn(),
-  firstRule: vi.fn<NonNullable<AdminIssueDefinition["callback"]>>(),
-  secondRule: vi.fn<NonNullable<AdminIssueDefinition["callback"]>>(),
-}));
+const { createMany, findFirst, firstRule, secondRule, logError } = vi.hoisted(
+  () => ({
+    createMany: vi.fn(),
+    findFirst: vi.fn(),
+    logError: vi.fn(),
+    firstRule: vi.fn<NonNullable<AdminIssueDefinition["callback"]>>(),
+    secondRule: vi.fn<NonNullable<AdminIssueDefinition["callback"]>>(),
+  }),
+);
 
 vi.mock("../../db", () => ({
-  prisma: { issueLog: { createMany } },
+  prisma: { issueLog: { createMany, findFirst } },
 }));
 
 vi.mock("../../server/logger", () => ({ logger: { error: logError } }));
@@ -27,6 +30,7 @@ import { executeAdminIssueRules } from "./executeAdminIssueRules";
 describe("executeAdminIssueRules", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    findFirst.mockResolvedValue(null);
     firstRule.mockResolvedValue([]);
     secondRule.mockResolvedValue([]);
   });
@@ -61,6 +65,8 @@ describe("executeAdminIssueRules", () => {
           description: "First issue",
           priority: 0,
           ctaLink: undefined,
+          ignoredAt: null,
+          ignoreReason: null,
         },
       ],
     });
@@ -72,8 +78,42 @@ describe("executeAdminIssueRules", () => {
           description: "Second issue",
           priority: 5,
           ctaLink: "/settings",
+          ignoredAt: null,
+          ignoreReason: null,
         },
       ],
+    });
+  });
+
+  it("keeps recreated issues ignored using the latest project-scoped rule state", async () => {
+    const ignoredAt = new Date("2026-01-01T00:00:00Z");
+    firstRule.mockResolvedValue([{ description: "Recreated", priority: 0 }]);
+    findFirst.mockResolvedValue({ ignoredAt, ignoreReason: "Not relevant" });
+    createMany.mockResolvedValue({ count: 1 });
+
+    expect(await executeAdminIssueRules("project-a")).toBe(1);
+
+    expect(findFirst).toHaveBeenCalledExactlyOnceWith({
+      where: { projectId: "project-a", issueDefinitionId: "first" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { ignoredAt: true, ignoreReason: true },
+    });
+    expect(createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({ ignoredAt, ignoreReason: "Not relevant" }),
+      ],
+    });
+  });
+
+  it("does not revive an older ignore after the latest issue was unignored", async () => {
+    firstRule.mockResolvedValue([{ description: "Recreated", priority: 0 }]);
+    findFirst.mockResolvedValue({ ignoredAt: null, ignoreReason: null });
+    createMany.mockResolvedValue({ count: 1 });
+
+    await executeAdminIssueRules("project-a");
+
+    expect(createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ ignoredAt: null, ignoreReason: null })],
     });
   });
 
