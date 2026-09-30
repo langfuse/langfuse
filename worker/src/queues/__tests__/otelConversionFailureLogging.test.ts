@@ -27,7 +27,7 @@ const expectedContext = {
   instrumentationScopes: ["opentelemetry.instrumentation.openai"],
 };
 
-// Crash site: convertValueToPlainJavascript reads `value.stringValue` on undefined
+// OTLP permits KeyValue entries without a value.
 const batchWithAttributeWithoutValue = [
   {
     scopeSpans: [
@@ -73,21 +73,19 @@ describe("OtelIngestionProcessor conversion failure logging", () => {
     vi.restoreAllMocks();
   });
 
-  it("logs attribution context when processToIngestionEvents fails on an attribute without value", async () => {
+  it("converts an attribute without value without logging a failure", () => {
     const errorSpy = vi.spyOn(logger, "error");
 
-    const result = await createProcessor().processToIngestionEvents(
+    const result = createProcessor().processToEvent(
       batchWithAttributeWithoutValue,
     );
 
-    expect(result).toEqual([]);
-    expect(errorSpy).toHaveBeenCalledWith(
-      "Error processing OTEL spans:",
-      expect.objectContaining({
-        ...expectedContext,
-        error: expect.any(Error),
-      }),
-    );
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      spanId: "0123456789abcdef",
+      metadata: { attributes: { "gen_ai.system": "null" } },
+    });
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 
   it("logs attribution context when processToIngestionEvents fails on a span without traceId", async () => {

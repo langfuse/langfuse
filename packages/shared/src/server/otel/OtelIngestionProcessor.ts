@@ -1525,7 +1525,12 @@ export class OtelIngestionProcessor {
     });
   }
 
-  private convertValueToPlainJavascript(value: Record<string, any>): any {
+  private convertValueToPlainJavascript(
+    value: Record<string, any> | null | undefined,
+  ): any {
+    if (value == null) {
+      return null;
+    }
     if (value.stringValue !== undefined) {
       return value.stringValue;
     }
@@ -1544,8 +1549,8 @@ export class OtelIngestionProcessor {
     if (value.boolValue !== undefined) {
       return value.boolValue;
     }
-    if (value.arrayValue && value.arrayValue.values !== undefined) {
-      return value.arrayValue.values.map((v: any) =>
+    if (value.arrayValue) {
+      return (value.arrayValue.values ?? []).map((v: any) =>
         this.convertValueToPlainJavascript(v),
       );
     }

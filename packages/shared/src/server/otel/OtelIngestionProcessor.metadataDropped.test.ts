@@ -58,7 +58,10 @@ const createProcessor = () =>
     sdkVersion: "3.8.1",
   });
 
-type OtelAttribute = { key: string; value: Record<string, unknown> };
+type OtelAttribute = {
+  key: string;
+  value: Record<string, unknown> | null | undefined;
+};
 
 const buildBatch = (attributes: OtelAttribute[]): ResourceSpan[] => [
   {
@@ -118,6 +121,94 @@ const expectDropTags = (
   expect(tags?.sdkName).toBe("python");
   expect(tags?.sdkVersion).toBe("3.8.1");
 };
+
+describe("OTLP empty attribute values", () => {
+  it.each(["v3", "v4"])(
+    "retains both spans with missing and null attribute values on %s",
+    async (path) => {
+      const batch = buildBatch([
+        { key: "langfuse.observation.metadata.empty", value: undefined },
+        { key: "langfuse.observation.metadata.null", value: null },
+      ]);
+      batch[0].resource!.attributes!.push({
+        key: "resource.empty",
+        value: undefined,
+      });
+      const scopeSpan = batch[0].scopeSpans![0];
+      scopeSpan.scope!.attributes!.push({
+        key: "scope.empty",
+        value: undefined,
+      });
+      scopeSpan.spans!.unshift({
+        ...scopeSpan.spans![0],
+        spanId: Buffer.from("fedcba9876543210", "hex"),
+        name: "sibling-span",
+        attributes: [],
+      });
+
+      const processor = createProcessor();
+      const observations =
+        path === "v3"
+          ? (await processor.processToIngestionEvents(batch))
+              .filter((event) => event.type === "span-create")
+              .map((event) => event.body)
+          : processor.processToEvent(batch);
+
+      expect(observations).toHaveLength(2);
+      expect(observations[0]).toMatchObject({
+        [path === "v3" ? "id" : "spanId"]: "fedcba9876543210",
+        name: "sibling-span",
+      });
+      expect(observations[1]).toMatchObject({
+        [path === "v3" ? "id" : "spanId"]: "0123456789abcdef",
+        metadata: {
+          empty: null,
+          null: null,
+          resourceAttributes: { "resource.empty": null },
+          scope: { attributes: { "scope.empty": null } },
+        },
+      });
+    },
+  );
+
+  it.each(["v3", "v4"])(
+    "preserves empty arrays and falsy array elements on %s",
+    async (path) => {
+      const batch = buildBatch([
+        {
+          key: "langfuse.observation.metadata.emptyArray",
+          value: { arrayValue: {} },
+        },
+        {
+          key: "langfuse.observation.metadata.values",
+          value: {
+            arrayValue: {
+              values: [
+                { stringValue: "" },
+                { boolValue: false },
+                { intValue: "0" },
+                { doubleValue: 0 },
+                { arrayValue: {} },
+              ],
+            },
+          },
+        },
+      ]);
+      const processor = createProcessor();
+      const observations =
+        path === "v3"
+          ? (await processor.processToIngestionEvents(batch))
+              .filter((event) => event.type === "span-create")
+              .map((event) => event.body)
+          : processor.processToEvent(batch);
+
+      expect(observations).toHaveLength(1);
+      expect(observations[0]).toMatchObject({
+        metadata: { emptyArray: [], values: ["", false, 0, 0, []] },
+      });
+    },
+  );
+});
 
 describe("gateway metadata", () => {
   it.each([
