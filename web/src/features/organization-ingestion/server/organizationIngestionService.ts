@@ -8,7 +8,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { type ScoreSourceType } from "@langfuse/shared";
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
-import { MIGRATION_INGRESS_EVENT_SOURCES } from "@/src/features/v4/server/v4TransitionCache";
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const MINUTE_MS = 60 * 1_000;
@@ -231,10 +230,7 @@ export const getOrganizationIngestionOverview = async ({
     getProjectFeatureCounts({ prisma, projectIds: params.projectIds }),
     queryClickhouse<ClickhouseClientRow & { ingestionPath: IngestionPath }>({
       query: EVENT_ROWS_QUERY,
-      params: {
-        ...params,
-        ingressSources: [...MIGRATION_INGRESS_EVENT_SOURCES],
-      },
+      params,
       tags: { route: "organization-ingestion-overview-events" },
       preferredClickhouseService: "EventsReadOnly",
     }),
