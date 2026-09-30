@@ -65,10 +65,18 @@ service:
 
     getFileContents:
       docs: |
-        Read text contents by canonical base64-encoded SHA-256 hashes.
-      method: POST
+        Read a batch of text contents by canonical base64-encoded SHA-256 hashes.
+      method: GET
       path: /skills/files/content
-      request: GetSkillFileContentsRequest
+      request:
+        name: GetSkillFileContentsRequest
+        query-parameters:
+          sha256Hashes:
+            type: string
+            docs: >
+              Comma-separated list of one to 50 canonical base64-encoded SHA-256
+              hashes from skill file manifests. URL-encode the value, including
+              +, /, and = characters.
       response: SkillFileContentsResponse
 
     setLabels:
@@ -147,12 +155,6 @@ types:
       sha256Hash: string
       contentType: string
       contentLength: long
-
-  GetSkillFileContentsRequest:
-    properties:
-      sha256Hashes:
-        type: list<string>
-        docs: One to 50 canonical base64-encoded SHA-256 hashes from skill file manifests.
 
   SkillFileContentsResponse:
     properties:

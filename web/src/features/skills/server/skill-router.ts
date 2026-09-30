@@ -16,7 +16,7 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { SkillService } from "./index";
 
-import { GetSkillFileContentsBodySchema } from "@/src/features/public-api/types/unstable-skills";
+import { GetSkillFileContentsInputSchema } from "@/src/features/public-api/types/unstable-skills";
 
 const projectInput = z.object({ projectId: z.string() });
 
@@ -89,7 +89,7 @@ export const skillRouter = createTRPCRouter({
     }),
 
   fileContents: protectedProjectProcedure
-    .input(projectInput.and(GetSkillFileContentsBodySchema))
+    .input(projectInput.and(GetSkillFileContentsInputSchema))
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,

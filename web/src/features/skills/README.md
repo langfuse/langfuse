@@ -4,7 +4,7 @@
 - `POST /api/public/unstable/skills`
 - `GET /api/public/unstable/skills/{skillName}`
 - `PATCH /api/public/unstable/skills/{skillName}`
-- `POST /api/public/unstable/skills/files/content`
+- `GET /api/public/unstable/skills/files/content?sha256Hashes=hash1,hash2`
 - `PATCH /api/public/unstable/skills/{skillName}/versions/{skillVersion}`
 - `DELETE /api/public/unstable/skills/{skillName}/versions/{skillVersion}`
 

@@ -8983,12 +8983,22 @@ paths:
             schema:
               $ref: '#/components/schemas/unstableUpdateSkillRequest'
   /api/public/unstable/skills/files/content:
-    post:
-      description: Read text contents by canonical base64-encoded SHA-256 hashes.
+    get:
+      description: >-
+        Read a batch of text contents by canonical base64-encoded SHA-256 hashes.
       operationId: unstable_skills_getFileContents
       tags:
         - UnstableSkills
-      parameters: []
+      parameters:
+        - name: sha256Hashes
+          in: query
+          description: >-
+            Comma-separated list of one to 50 canonical base64-encoded SHA-256
+            hashes from skill file manifests. URL-encode the value, including +,
+            /, and = characters.
+          required: true
+          schema:
+            type: string
       responses:
         '200':
           description: ''
@@ -9022,12 +9032,6 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/unstableGetSkillFileContentsRequest'
   /api/public/unstable/skills/{skillName}/versions/{skillVersion}:
     patch:
       description: >-
@@ -17891,19 +17895,6 @@ components:
         - sha256Hash
         - contentType
         - contentLength
-    unstableGetSkillFileContentsRequest:
-      title: unstableGetSkillFileContentsRequest
-      type: object
-      properties:
-        sha256Hashes:
-          type: array
-          items:
-            type: string
-          description: >-
-            One to 50 canonical base64-encoded SHA-256 hashes from skill file
-            manifests.
-      required:
-        - sha256Hashes
     unstableSkillFileContentsResponse:
       title: unstableSkillFileContentsResponse
       type: object
