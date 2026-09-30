@@ -15,6 +15,10 @@
         "posthog": "disabled",
         "id-prefix": "admin-issues-demo"
       }
+    },
+    {
+      "name": "unpriced-generations",
+      "params": { "id-prefix": "admin-issues-demo" }
     }
   ]
 }

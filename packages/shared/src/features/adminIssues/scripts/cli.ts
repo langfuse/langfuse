@@ -7,12 +7,12 @@ import { DEFAULT_SEED_API_KEY } from "../../../../scripts/seeder/utils/postgres-
 
 const BASE_URL = "http://localhost:3000";
 const BODY_LIMIT_BYTES = 512 * 1024 * 1024;
+const authorization = `Basic ${Buffer.from(
+  `${DEFAULT_SEED_API_KEY.public}:${DEFAULT_SEED_API_KEY.secret}`,
+).toString("base64")}`;
 
 const sendOversizedOtelRequest = async (): Promise<void> => {
   const url = new URL(`${BASE_URL}/api/public/otel/v1/traces`);
-  const authorization = Buffer.from(
-    `${DEFAULT_SEED_API_KEY.public}:${DEFAULT_SEED_API_KEY.secret}`,
-  ).toString("base64");
   const requestClient = url.protocol === "https:" ? https : http;
 
   return new Promise<void>((resolve, reject) => {
@@ -21,7 +21,7 @@ const sendOversizedOtelRequest = async (): Promise<void> => {
       {
         method: "POST",
         headers: {
-          Authorization: `Basic ${authorization}`,
+          Authorization: authorization,
           "Content-Length": String(BODY_LIMIT_BYTES + 1),
           "Content-Type": "application/x-protobuf",
           Connection: "close",
@@ -59,15 +59,60 @@ const sendOversizedOtelRequest = async (): Promise<void> => {
   });
 };
 
+const exceedRateLimit = async (): Promise<void> => {
+  const url = `${BASE_URL}/api/public/v2/metrics?query=invalid`;
+  const maxRequests = 150;
+  const batchSize = 10;
+
+  for (let sent = 0; sent < maxRequests; sent += batchSize) {
+    const responses = await Promise.all(
+      Array.from({ length: Math.min(batchSize, maxRequests - sent) }, () =>
+        fetch(url, { headers: { Authorization: authorization } }),
+      ),
+    );
+    const limited = responses.find((response) => response.status === 429);
+    await Promise.all(responses.map((response) => response.body?.cancel()));
+    if (limited) {
+      stdout.write(
+        `HTTP 429 after at most ${sent + responses.length} requests\n`,
+      );
+      stdout.write(
+        `Retry-After: ${limited.headers.get("retry-after")} seconds\n`,
+      );
+      return;
+    }
+
+    const unexpected = responses.find((response) => response.status !== 400);
+    if (unexpected) {
+      throw new Error(
+        `Expected validation or rate-limit response, received HTTP ${unexpected.status} from ${url}`,
+      );
+    }
+  }
+
+  throw new Error(
+    `No HTTP 429 after ${maxRequests} requests. Check the local rate-limit setup in README.md.`,
+  );
+};
+
 const demoIssues: Array<{
   name: AdminIssueName;
   description: string;
+  warning: string;
   run: () => Promise<void>;
 }> = [
   {
     name: "Oversized ingestion request",
     description: "Send an OTEL request above the configured body limit",
+    warning:
+      "This sends only an oversized Content-Length header. No large body is uploaded.",
     run: sendOversizedOtelRequest,
+  },
+  {
+    name: "Rate limit exceeded",
+    description: "Request the metrics API until it returns 429",
+    warning: "This sends up to 150 local GET requests in batches of 10.",
+    run: exceedRateLimit,
   },
 ];
 
@@ -96,9 +141,7 @@ async function main() {
         continue;
       }
 
-      stdout.write(
-        "This sends only the oversized Content-Length header. The server rejects the request before receiving a large body.\n",
-      );
+      stdout.write(`${selectedIssue.warning}\n`);
       try {
         await selectedIssue.run();
       } catch (error) {
