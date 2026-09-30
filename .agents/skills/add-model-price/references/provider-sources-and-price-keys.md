@@ -881,17 +881,29 @@ Capture:
 
 Values in `default-model-prices.json` are per token, not per million tokens.
 
-| Provider Price | JSON Value |
-| -------------- | ---------- |
-| `$5 / MTok`    | `5e-6`     |
-| `$25 / MTok`   | `25e-6`    |
-| `$0.50 / MTok` | `0.5e-6`   |
-| `$6.25 / MTok` | `6.25e-6`  |
+Always write per-token prices as `<USD per MTok>e-6`, so the mantissa reads
+directly as the provider's per-million-token price. Keep the `e-6` exponent even
+for sub-dollar and sub-cent prices; never normalize to `1e-7`, `5e-8`, `1.5e-5`,
+or plain decimals like `0.000001`. `0` is fine for free usage types. The only
+exception is non-token usage (Gemini `grounding_queries` / `web_search_queries`
+per-query prices, written as `14e-3` for $14 per 1K queries). The validator
+enforces this on changed and selected entries; older entries may still use other
+notation and are rewritten only when that entry changes for another reason.
+
+| Provider Price  | JSON Value | Not         |
+| --------------- | ---------- | ----------- |
+| `$5 / MTok`     | `5e-6`     |             |
+| `$25 / MTok`    | `25e-6`    | `2.5e-5`    |
+| `$0.50 / MTok`  | `0.5e-6`   | `5e-7`      |
+| `$0.10 / MTok`  | `0.1e-6`   | `1e-7`      |
+| `$0.05 / MTok`  | `0.05e-6`  | `5e-8`      |
+| `$6.25 / MTok`  | `6.25e-6`  | `0.00000625` |
 
 Formula:
 
 ```text
 price_per_token = price_per_mtok / 1_000_000
+json_literal    = "<price_per_mtok>e-6"
 ```
 
 - **TypeSafe Jev pricing (documented September 24 2026)** — `jev` is

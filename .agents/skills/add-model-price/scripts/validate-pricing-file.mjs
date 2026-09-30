@@ -52,6 +52,46 @@ function compileMatchPattern(rawPattern, label) {
   }
 }
 
+// Per-query prices (e.g. $14 per 1K grounding queries) are not per-token and
+// keep their natural notation.
+const NON_TOKEN_PRICE_KEYS = new Set([
+  "grounding_queries",
+  "groundingQueries",
+  "web_search_queries",
+  "webSearchQueries",
+]);
+const TOKEN_PRICE_LITERAL = /^(0|[0-9]+(\.[0-9]+)?e-6)$/;
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// JSON.parse drops number notation, so this reads the raw source text.
+function validatePriceNotation(rawText, modelName) {
+  const start = rawText.search(
+    new RegExp(
+      `"modelName"\\s*:\\s*${escapeRegExp(JSON.stringify(modelName))}`,
+    ),
+  );
+  if (start === -1) return;
+  const rest = rawText.slice(start + 1);
+  const next = rest.search(/"modelName"\s*:/);
+  const block = next === -1 ? rest : rest.slice(0, next);
+
+  for (const pricesMatch of block.matchAll(/"prices"\s*:\s*\{([^}]*)\}/g)) {
+    for (const [, key, literal] of pricesMatch[1].matchAll(
+      /"([^"]+)"\s*:\s*([^,\s}]+)/g,
+    )) {
+      if (NON_TOKEN_PRICE_KEYS.has(key)) continue;
+      if (!TOKEN_PRICE_LITERAL.test(literal)) {
+        failures.push(
+          `${modelName}: price for ${key} must be written as <USD per 1M tokens>e-6 (got ${literal})`,
+        );
+      }
+    }
+  }
+}
+
 function keysOfPrices(prices) {
   return Object.keys(prices).sort();
 }
@@ -415,6 +455,7 @@ for (const model of models) {
 
   if (usageKeyModels.has(model.modelName)) {
     validateUsageKeyCoverage(model);
+    validatePriceNotation(raw, model.modelName);
   }
 }
 
