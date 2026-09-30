@@ -67,6 +67,8 @@ import {
 } from "@/src/features/in-app-agent/context";
 import type { InAppAgentSubmitOptions } from "@/src/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useTracelift } from "@/src/features/tracelift/TraceliftContext";
+import { createComposerStore } from "@/src/features/in-app-agent/lib/composerStore";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
 import {
@@ -119,6 +121,8 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   open: false,
   setOpen: () => undefined,
   openAssistant: () => false,
+  openAssistantWithPrompt: () => false,
+  composerStore: createComposerStore(),
   isExpanded: false,
   setIsExpanded: () => undefined,
   isRunning: false,
@@ -177,6 +181,9 @@ type InAppAiAgentContextType = {
   setOpen: Dispatch<SetStateAction<boolean>>;
   /** Returns false and opens the disabled dialog when AI features are off. */
   openAssistant: (source: InAppAgentEntryPoint) => boolean;
+  /** Opens a new, editable draft without starting an assistant run. */
+  openAssistantWithPrompt: (prompt: string) => boolean;
+  composerStore: ReturnType<typeof createComposerStore>;
   isExpanded: boolean;
   setIsExpanded: Dispatch<SetStateAction<boolean>>;
   isRunning: boolean;
@@ -290,12 +297,14 @@ function InAppAiAgentProviderInner({
   open,
   setOpen,
 }: InAppAiAgentProviderInnerProps) {
+  const { setOpen: setTraceliftOpen } = useTracelift();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const session = useSession();
   const canUseAssistant = useCanUseInAppAgent();
   const { organization } = useQueryProjectOrOrganization();
   const [enableDialogOpen, setEnableDialogOpen] = useState(false);
+  const [composerStore] = useState(createComposerStore);
   const [_selectedConversationId, setSelectedConversationId] =
     useSessionStorage<string | null>(
       `${SELECTED_CONVERSATION_STORAGE_KEY_PREFIX}:${projectId}`,
@@ -943,6 +952,8 @@ function InAppAiAgentProviderInner({
         return;
       }
 
+      composerStore.getState().setInput("");
+
       setError((currentError) =>
         isInAppAgentRateLimited(currentError) ? currentError : null,
       );
@@ -959,6 +970,7 @@ function InAppAiAgentProviderInner({
     },
     [
       _selectedConversationId,
+      composerStore,
       activityByConversationId,
       markConversationHandled,
       open,
@@ -1224,6 +1236,9 @@ function InAppAiAgentProviderInner({
   const setAgentOpen = useCallback<Dispatch<SetStateAction<boolean>>>(
     (action) => {
       const nextOpen = evaluateSetStateAction(action, open);
+      if (nextOpen) {
+        setTraceliftOpen(false);
+      }
 
       if (!nextOpen) {
         // Collapse the drawer when closing
@@ -1245,6 +1260,7 @@ function InAppAiAgentProviderInner({
       releaseSubmitLock,
       selectedConversationId,
       setOpen,
+      setTraceliftOpen,
     ],
   );
 
@@ -1261,6 +1277,28 @@ function InAppAiAgentProviderInner({
       return true;
     },
     [capture, organization, setAgentOpen],
+  );
+
+  const openAssistantWithPrompt = useCallback(
+    (prompt: string) => {
+      if (organization && !organization.aiFeaturesEnabled) {
+        setEnableDialogOpen(true);
+        return false;
+      }
+
+      selectConversation(null);
+      composerStore.getState().setInput(prompt);
+      setTraceliftOpen(false);
+      setOpen(true);
+      return true;
+    },
+    [
+      composerStore,
+      organization,
+      selectConversation,
+      setOpen,
+      setTraceliftOpen,
+    ],
   );
 
   const isCancellingRun = Boolean(
@@ -1436,6 +1474,8 @@ function InAppAiAgentProviderInner({
       open,
       setOpen: setAgentOpen,
       openAssistant,
+      openAssistantWithPrompt,
+      composerStore,
       isExpanded,
       setIsExpanded,
       isRunning,
@@ -1486,6 +1526,8 @@ function InAppAiAgentProviderInner({
       messagesWithUiState,
       open,
       openAssistant,
+      openAssistantWithPrompt,
+      composerStore,
       execution,
       effectivePendingToolApprovals,
       rejectToolCall,

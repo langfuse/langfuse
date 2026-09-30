@@ -7,6 +7,7 @@ import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 const mocks = vi.hoisted(() => ({
   supportOpen: true,
   migrationOpen: false,
+  traceliftOpen: false,
   isDesktop: true,
 }));
 
@@ -57,10 +58,19 @@ vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
   useV4MigrationTitle: () => "Ensure compatibility after November 16",
 }));
 
+vi.mock("@/src/features/tracelift/TraceliftContext", () => ({
+  useTracelift: () => ({ open: mocks.traceliftOpen, setOpen: vi.fn() }),
+}));
+
+vi.mock("@/src/features/tracelift/TraceliftDrawerContent", () => ({
+  TraceliftDrawerContent: () => <div>Tracelift preview</div>,
+}));
+
 describe("MobileRightDrawer", () => {
   beforeEach(() => {
     mocks.supportOpen = true;
     mocks.migrationOpen = false;
+    mocks.traceliftOpen = false;
     mocks.isDesktop = true;
   });
 
@@ -81,6 +91,29 @@ describe("MobileRightDrawer", () => {
     expect(
       screen.getByText("Ensure compatibility after November 16"),
     ).toBeInTheDocument();
+  });
+
+  it("moves focus from the Tracelift badge into the mobile drawer when opened", async () => {
+    mocks.supportOpen = false;
+    mocks.isDesktop = false;
+    const page = () => (
+      <>
+        <button>Tracelift badge</button>
+        <MobileRightDrawer />
+      </>
+    );
+    const { rerender } = render(page(), { wrapper: LayerProvider });
+    screen.getByRole("button", { name: "Tracelift badge" }).focus();
+
+    mocks.traceliftOpen = true;
+    rerender(page());
+
+    const drawer = await screen.findByRole("dialog", {
+      name: "Trace fixes",
+    });
+    await waitFor(() =>
+      expect(drawer.contains(document.activeElement)).toBe(true),
+    );
   });
 
   it("preserves routed page state across breakpoints and shows each drawer once", async () => {
@@ -129,5 +162,16 @@ describe("MobileRightDrawer", () => {
     );
     expect(screen.getByLabelText("Page draft")).toBe(draft);
     expect(draft).toHaveValue("Unsent review");
+
+    mocks.migrationOpen = false;
+    mocks.traceliftOpen = true;
+    rerender(page());
+    expect(await screen.findByText("Tracelift preview")).toBeVisible();
+    mocks.isDesktop = false;
+    rerender(page());
+    await waitFor(() =>
+      expect(screen.getAllByText("Tracelift preview")).toHaveLength(1),
+    );
+    expect(screen.getByLabelText("Page draft")).toBe(draft);
   });
 });

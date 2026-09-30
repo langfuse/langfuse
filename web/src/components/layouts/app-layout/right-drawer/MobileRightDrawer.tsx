@@ -10,12 +10,16 @@ import { SupportDrawer } from "@/src/features/support-chat/SupportDrawer";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { V4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanel";
 import { useV4MigrationTitle } from "@/src/features/v4-migration/V4MigrationContent";
+import { useTracelift } from "@/src/features/tracelift/TraceliftContext";
+import { TraceliftDrawerContent } from "@/src/features/tracelift/TraceliftDrawerContent";
+import { TRACELIFT_TITLE } from "@/src/features/tracelift/constants";
 
 export function MobileRightDrawer() {
   const { open: supportOpen, setOpen: setSupportOpen } = useSupportDrawer();
   const { open: migrationOpen, setOpen: setMigrationOpen } =
     useV4MigrationPanel();
   const migrationTitle = useV4MigrationTitle();
+  const { open: traceliftOpen, setOpen: setTraceliftOpen } = useTracelift();
 
   return (
     <>
@@ -71,6 +75,25 @@ export function MobileRightDrawer() {
             showCloseButton={false}
             className="min-h-0 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
           />
+        </DrawerContent>
+      </Drawer>
+      <Drawer
+        open={traceliftOpen}
+        onOpenChange={setTraceliftOpen}
+        forceDirection="bottom"
+        autoFocus
+      >
+        <DrawerContent id="tracelift-drawer" size="full">
+          <DrawerHeader className="p-0 text-left">
+            <div className="flex w-full items-center justify-center pt-3">
+              <div className="bg-muted h-2 w-20 rounded-full" />
+            </div>
+            <DrawerTitle className="sr-only">{TRACELIFT_TITLE}</DrawerTitle>
+            <DrawerDescription className="sr-only">
+              Preview suggestions for improving your instrumentation.
+            </DrawerDescription>
+          </DrawerHeader>
+          <TraceliftDrawerContent />
         </DrawerContent>
       </Drawer>
     </>

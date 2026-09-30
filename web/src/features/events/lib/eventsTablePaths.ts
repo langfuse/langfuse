@@ -23,16 +23,18 @@ function buildEventsTablePathForStringFilter({
   currentPath,
   projectId,
   column,
-  value,
+  values,
+  dateRange: requestedDateRange,
 }: {
   currentPath: string;
   projectId: string;
-  column: "name" | "type";
-  value: string;
+  column: "name" | "type" | "id";
+  values: string[];
+  dateRange?: string;
 }) {
   const url = new URL(currentPath, "https://langfuse.local");
   const params = new URLSearchParams();
-  const dateRange = url.searchParams.get("dateRange");
+  const dateRange = requestedDateRange ?? url.searchParams.get("dateRange");
 
   if (dateRange) {
     params.set("dateRange", dateRange);
@@ -43,7 +45,7 @@ function buildEventsTablePathForStringFilter({
       column,
       type: "stringOptions",
       operator: "any of",
-      value: [value],
+      value: values,
     },
   ];
 
@@ -63,7 +65,27 @@ export function buildEventsTablePathForSpanName({
     currentPath,
     projectId,
     column: "name",
-    value: spanName,
+    values: [spanName],
+  });
+}
+
+export function buildEventsTablePathForObservationIds({
+  currentPath,
+  projectId,
+  observationIds,
+  dateRange,
+}: {
+  currentPath: string;
+  projectId: string;
+  observationIds: string[];
+  dateRange: string;
+}) {
+  return buildEventsTablePathForStringFilter({
+    currentPath,
+    projectId,
+    column: "id",
+    values: observationIds,
+    dateRange,
   });
 }
 
@@ -76,7 +98,7 @@ export function buildEventsTablePathForObservationType({
     currentPath,
     projectId,
     column: "type",
-    value: observationType,
+    values: [observationType],
   });
 }
 

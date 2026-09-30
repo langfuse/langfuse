@@ -90,6 +90,7 @@ import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownRenderCharacterLimitProvider } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { SupportDrawerProvider } from "@/src/features/support-chat";
 import { V4MigrationPanelProvider } from "@/src/features/v4-migration/V4MigrationPanelProvider";
+import { TraceliftProvider } from "@/src/features/tracelift";
 import { installStaleChunkReloadListener } from "@/src/features/version-update/reloadOnStaleChunk";
 import { InAppAiAgentProvider } from "@/src/features/in-app-agent";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
@@ -214,17 +215,19 @@ const MyApp: AppType<{ session: Session | null }> = ({
                         >
                           <ScoreCacheProvider>
                             <CorrectionCacheProvider>
-                              <SupportDrawerProvider defaultOpen={false}>
-                                <V4MigrationPanelProvider defaultOpen={false}>
-                                  <InAppAiAgentProvider defaultOpen={false}>
-                                    {skipAppLayout ? (
-                                      page
-                                    ) : (
-                                      <AppLayout>{page}</AppLayout>
-                                    )}
-                                  </InAppAiAgentProvider>
-                                </V4MigrationPanelProvider>
-                              </SupportDrawerProvider>
+                              <TraceliftProvider>
+                                <SupportDrawerProvider defaultOpen={false}>
+                                  <V4MigrationPanelProvider defaultOpen={false}>
+                                    <InAppAiAgentProvider defaultOpen={false}>
+                                      {skipAppLayout ? (
+                                        page
+                                      ) : (
+                                        <AppLayout>{page}</AppLayout>
+                                      )}
+                                    </InAppAiAgentProvider>
+                                  </V4MigrationPanelProvider>
+                                </SupportDrawerProvider>
+                              </TraceliftProvider>
                             </CorrectionCacheProvider>
                           </ScoreCacheProvider>
                         </ThemeProvider>

@@ -70,6 +70,7 @@ import {
 import { useReadPath } from "@/src/features/events";
 import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
 import { TraceDetailTabMenu } from "../TraceDetailTabMenu";
+import { TraceIssues } from "@/src/features/tracelift/TraceIssues";
 
 export interface TraceDetailViewProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -447,6 +448,15 @@ export function TraceDetailView({
                     <TagList selectedTags={trace.tags} isLoading={false} />
                   </div>
                 )}
+                {internalFeaturesEnabled &&
+                  isAuthenticatedAndProjectMember &&
+                  !isAnnotationMode && (
+                    <TraceIssues
+                      key={`${projectId}:${trace.id}`}
+                      projectId={projectId}
+                      traceId={trace.id}
+                    />
+                  )}
                 {/* I/O Preview (includes metadata in both views) */}
                 <IOPreview
                   key={trace.id + "-io"}
