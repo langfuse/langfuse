@@ -15,6 +15,9 @@ The opt-in [Slack PoC guide](./SLACK_POC.md) explains how a local Slack bot call
 this agent through an asynchronous public API, including setup, infrastructure,
 permissions, and the limits of the hackathon implementation. The bot reuses the
 existing worker runtime and MCP tools; it does not run a separate agent loop.
+The [linked-account setup](../../../../scripts/slack-agent/LINKED_SETUP.md)
+adds individual permissions and a private Slack project picker, with account
+connection and disconnection at `/slack-agent`.
 
 ## Core Model
 

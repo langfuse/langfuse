@@ -8,7 +8,12 @@ Keep the laptop awake and the bot process running during the demo.
 For the request flow, infrastructure, code ownership, and scope, see the
 [in-app-agent PoC guide](../../web/src/features/in-app-agent/SLACK_POC.md).
 
-The demo uses one configured project and a dedicated non-admin Langfuse user
+For **individual accounts, DMs, and a remembered project picker**, follow
+[the linked-account setup guide](./LINKED_SETUP.md) and use
+`manifest.linked.json`. This adds a verified connection to each user's Langfuse
+account and checks their current project permissions.
+
+The default shared demo described below uses one configured project and a dedicated non-admin Langfuse user
 with effective `VIEWER` access. Everyone in the allowed Slack channel shares
 that access. It does not link Slack users to individual Langfuse accounts.
 Use synthetic data in a dedicated demo channel.
@@ -151,18 +156,14 @@ status, text, errorCode, cancelRequested}`. Text contains only the requested
 The bot polls every two seconds. Streaming text and tool-progress cards are
 future additions; the native working indicator does not require either.
 
-## Individual permissions later
+## Individual permissions and multiple projects
 
-Add an account-linking flow that verifies a Slack workspace/user pair against a
-signed-in Langfuse account. Resolve that user's current project membership on
-each request and execute as that user. A project API key alone does not identify
-the Slack user, so accepting an arbitrary `userId` in this API would not be a safe
-substitute. Keep conversations bound to their authenticated owner, and send
-private project results to a DM or another appropriately restricted surface.
-
-The existing worker already checks the execution user's permissions. The new
-work would be verified account linking and user-scoped API authorization,
-replacing this demo's fixed VIEWER identity.
+[Linked mode](./LINKED_SETUP.md) implements verified account linking, current
+user permissions, and one-project-per-DM-thread routing. It uses a separate
+trusted integration credential; the shared project's public API does not accept
+arbitrary user IDs. A user connects once with a short-lived code from Langfuse,
+then chooses a project from a searchable Slack dropdown. The original question
+continues automatically after selection.
 
 ## Verification
 

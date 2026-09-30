@@ -84,6 +84,7 @@ model User {
   evaluatorsCreated         Evaluator[]                 @relation("EvaluatorCreatedByUser")
   evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
   evaluationRulesCreated    EvaluationRule[]            @relation("EvaluationRuleCreatedByUser")
+  slackAgentLinks           SlackAgentUserLink[]
 
   @@map("users")
 }
@@ -1935,6 +1936,20 @@ model Monitor {
   @@index([schedulerBatchId])
   @@index([nextRunAt, schedulerBatchId], map: "monitors_scheduler_tick_idx")
   @@map("monitors")
+}
+
+model SlackAgentUserLink {
+  id          String   @id @default(cuid())
+  teamId      String   @map("team_id")
+  slackUserId String   @map("slack_user_id")
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([teamId, slackUserId])
+  @@index([userId])
+  @@map("slack_agent_user_links")
 }
 
 // Slack Integration: Stores centralized Slack workspace connection for each project
