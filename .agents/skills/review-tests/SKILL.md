@@ -101,10 +101,8 @@ ensure-services (optional)
 ```
 
 `gather.mjs` is deterministic: the same diff always produces the same
-clusters. The judges and the reviewer are the only stages that cost tokens;
-there is no confirm, defend, or gate stage in this version — those belonged to
-an earlier design that ran tests to confirm coverage claims. Judge from source
-alone.
+clusters. The judges and the reviewer are the only stages that cost tokens.
+No stage runs tests: judge from source alone.
 
 ## Running the review
 
