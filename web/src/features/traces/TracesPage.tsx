@@ -51,6 +51,8 @@ export default function TracesPage() {
         scrollable
       >
         <TracesOnboarding projectId={projectId} />
+        {/* Must stay the last of exactly two children here and in the branch
+            below — see the note there. */}
         <Confetti />
       </Page>
     );
@@ -105,9 +107,11 @@ export default function TracesPage() {
       ) : (
         <TracesTable projectId={projectId} showControlsInPageHeader />
       )}
-      {/* Kept as the last child in both branches so React reuses the same
-          instance when the onboarding state resolves: the burst plays once
-          per visit to the page, not again on that transition. */}
+      {/* Kept as the last of exactly two children in both branches so React
+          reconciles it to the same position when the onboarding state
+          resolves, reuses the instance, and the burst plays once per visit
+          rather than again on that transition. Adding a sibling to either
+          branch without adding one to the other breaks that silently. */}
       <Confetti />
     </Page>
   );

@@ -1,5 +1,9 @@
+/* Rendered into an overlay layer container, which is already fixed to the
+   viewport. `pointer-events: none` re-asserts the layer root's default that
+   `[data-overlay-root] > [data-layer] > *` opts direct children out of: this
+   overlay covers the whole screen and must never take a click. */
 .overlay {
-  position: fixed;
+  position: absolute;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
@@ -18,7 +22,6 @@
   animation-delay: var(--confetti-delay);
   animation-timing-function: cubic-bezier(0.25, 0.65, 0.55, 1);
   animation-fill-mode: forwards;
-  will-change: transform, opacity;
 }
 
 .round {
