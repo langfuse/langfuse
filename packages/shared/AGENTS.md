@@ -27,6 +27,9 @@
   generation after history is split off; it is not the depth of the first
   generation in the full thread.
 - Domain model types: `src/domain/*`
+- Tracelift contracts: `src/features/tracelift/types.ts` exports client-safe
+  insert, persisted finding and read schemas. `src/server/repositories/tracelift.ts`
+  owns project-scoped trace findings and time-window category counts.
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`

@@ -101,6 +101,9 @@ export * from "./features/prompts/constants";
 export * from "./features/skills/types";
 export * from "./features/skills/constants";
 
+// tracelift
+export * from "./features/tracelift/types";
+
 export {
   compileChatMessages,
   compileChatMessagesWithIds,
