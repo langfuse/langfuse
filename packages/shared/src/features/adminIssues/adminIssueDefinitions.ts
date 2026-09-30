@@ -1,4 +1,6 @@
+import { blobStorageExportTimeoutRule } from "./rules/blobStorageExportTimeout";
 import { deeplyNestedPromptsRule } from "./rules/deeplyNestedPrompts";
+import { integrationDisabledAfterErrorRule } from "./rules/integrationDisabledAfterError";
 import { llmJudgeWithoutDecisionModelRule } from "./rules/llmJudgeWithoutDecisionModel";
 import { observationsWithoutEvaluatorsRule } from "./rules/observationsWithoutEvaluators";
 import { oversizedIngestionRequestRule } from "./rules/oversizedIngestionRequest";
@@ -23,6 +25,8 @@ export const adminIssueDefinitions = {
   [deeplyNestedPromptsRule.name]: deeplyNestedPromptsRule,
   [llmJudgeWithoutDecisionModelRule.name]: llmJudgeWithoutDecisionModelRule,
   [oversizedIngestionRequestRule.name]: oversizedIngestionRequestRule,
+  [blobStorageExportTimeoutRule.name]: blobStorageExportTimeoutRule,
+  [integrationDisabledAfterErrorRule.name]: integrationDisabledAfterErrorRule,
 } as const satisfies Record<string, AdminIssueDefinition>;
 
 export type AdminIssueName = keyof typeof adminIssueDefinitions;
