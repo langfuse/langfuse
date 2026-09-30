@@ -119,7 +119,7 @@ export const deeplyNestedPromptsRule: AdminIssueDefinition = {
 
     return findDeeplyNestedPrompts(prompts, dependencies, DEPTH_THRESHOLD).map(
       ({ name, version, depth }) => ({
-        description: `Prompt "${name}" (version ${version}) nests ${depth} levels of prompt references; the limit is ${MAX_RESOLVABLE_DEPTH}, so adding a reference anywhere in this chain will fail. Flatten the chain or inline short snippets.`,
+        description: `Prompt "${name}" (version ${version}) nests ${depth} levels of prompt references. Each level is resolved one after another when the prompt is fetched, so deep nesting slows down prompt fetches in your application, especially on cache misses. Flatten the chain or inline short snippets to keep fetches fast.`,
         priority: depth >= MAX_RESOLVABLE_DEPTH ? 2 : 3,
         ctaLink: `/project/${projectId}/prompts/${encodeURIComponent(name)}`,
       }),
