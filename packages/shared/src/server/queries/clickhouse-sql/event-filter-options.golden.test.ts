@@ -30,6 +30,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { env } from "../../../env";
 import type { EventFilterOptionColumn } from "./event-filter-options";
+import { buildEventsExactFilterOptionsForColumnsQuery } from "./event-filter-options";
 import {
   capturedQueries,
   clickhouseFormatAvailable,
@@ -120,3 +121,34 @@ describeWithClickhouse(
     });
   },
 );
+
+// Facet-offering behavior for the trace-name column: an unnamed trace (computed
+// name NULL) must surface as the "" -> "(empty)" option, unlike observation
+// `name`, which hides empty values as noise (issue #1198). Asserts the built
+// SQL, so it runs without a `clickhouse format` binary (unlike the snapshot).
+describe("trace name facet offers the empty option", () => {
+  const facetSql = (columns: EventFilterOptionColumn[]): string => {
+    const built = buildEventsExactFilterOptionsForColumnsQuery({
+      projectId: "facet-project",
+      filter: [],
+      columns,
+      limit: 20,
+    });
+    if (!built) throw new Error("expected a query");
+    return built.query;
+  };
+
+  it("counts every row for trace name (plain sumMap, empty included)", () => {
+    // sumMap (not sumMapIf) over ifNull(<trace name>, '') -> the empty bucket
+    // is counted and emitted as "".
+    expect(facetSql(["traceName"])).toContain(
+      "sumMap([toString(ifNull(COALESCE(nullIf(e.trace_name",
+    );
+  });
+
+  it("still excludes empty observation names as noise", () => {
+    const sql = facetSql(["name"]);
+    expect(sql).toContain("length(e.name) > 0");
+    expect(sql).toContain("sumMapIf(");
+  });
+});
