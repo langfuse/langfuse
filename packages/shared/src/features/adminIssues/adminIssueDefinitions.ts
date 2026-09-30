@@ -4,6 +4,7 @@ import { integrationDisabledAfterErrorRule } from "./rules/integrationDisabledAf
 import { llmJudgeWithoutDecisionModelRule } from "./rules/llmJudgeWithoutDecisionModel";
 import { observationsWithoutEvaluatorsRule } from "./rules/observationsWithoutEvaluators";
 import { oversizedIngestionRequestRule } from "./rules/oversizedIngestionRequest";
+import { outdatedSdkVersionsRule } from "./rules/outdatedSdkVersions";
 
 export type RuleIssue = {
   /** User-facing Markdown describing the issue and next step. */
@@ -28,6 +29,7 @@ export const adminIssueDefinitions = {
   [oversizedIngestionRequestRule.name]: oversizedIngestionRequestRule,
   [blobStorageExportTimeoutRule.name]: blobStorageExportTimeoutRule,
   [integrationDisabledAfterErrorRule.name]: integrationDisabledAfterErrorRule,
+  [outdatedSdkVersionsRule.name]: outdatedSdkVersionsRule,
 } as const satisfies Record<string, AdminIssueDefinition>;
 
 export type AdminIssueName = keyof typeof adminIssueDefinitions;
