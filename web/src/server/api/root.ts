@@ -63,6 +63,7 @@ import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
 import { aiGatewayRouter } from "@/src/features/ai-gateway/server";
 import { skillRouter } from "@/src/features/skills/server/skill-router";
+import { organizationIngestionRouter } from "@/src/features/organization-ingestion/server/organizationIngestionRouter";
 
 /**
  * This is the primary router for your server.
@@ -84,6 +85,7 @@ export const appRouter = createTRPCRouter({
   dashboard: dashboardRouter,
   organizations: organizationsRouter,
   organizationApiKeys: organizationApiKeysRouter,
+  organizationIngestion: organizationIngestionRouter,
   verifiedDomain: verifiedDomainRouter,
   ssoConfig: ssoConfigRouter,
   projects: projectsRouter,
