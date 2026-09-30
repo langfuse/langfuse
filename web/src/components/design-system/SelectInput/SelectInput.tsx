@@ -12,11 +12,18 @@ import { Badge } from "../Badge/Badge";
 import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
 import { InputControl } from "../internal/InputControl/InputControl";
 import { InputDropdown } from "../internal/InputDropdown/InputDropdown";
+import { CustomTooltip } from "../CustomTooltip/CustomTooltip";
 
 type SelectOption<V> =
   | {
       value: V;
       label: string;
+      icon?: React.ElementType<{ className?: string }>;
+      explanation?: {
+        title: string;
+        description?: string;
+        badges?: { label: string; value: string }[];
+      };
       badges?: Array<
         Pick<React.ComponentProps<typeof Badge>, "text" | "color" | "title">
       >;
@@ -26,6 +33,12 @@ type SelectOption<V> =
   | {
       value: V;
       label: string;
+      icon?: React.ElementType<{ className?: string }>;
+      explanation?: {
+        title: string;
+        description?: string;
+        badges?: { label: string; value: string }[];
+      };
       badges?: Array<
         Pick<React.ComponentProps<typeof Badge>, "text" | "color" | "title">
       >;
@@ -209,29 +222,68 @@ function SelectInputInner<V extends string>(
       );
     }
 
+    const item = (
+      <InputDropdown.Option highlight="focus">
+        <SelectPrimitive.SelectItem value={node.value} disabled={node.disabled}>
+          <InputDropdown.OptionContent
+            type="radio"
+            checked={value === node.value}
+            label={
+              <SelectPrimitive.ItemText>
+                <span className="flex items-center gap-2">
+                  {node.icon && <node.icon className="size-4 shrink-0" />}
+                  {node.label}
+                </span>
+              </SelectPrimitive.ItemText>
+            }
+            title={node.disabled ? node.disabledReason : node.label}
+          />
+          {node.badges?.map((badge, index) => (
+            <Badge key={index} {...badge} />
+          ))}
+        </SelectPrimitive.SelectItem>
+      </InputDropdown.Option>
+    );
+
     return (
       <React.Fragment key={node.value}>
         {hasPreviousGroup && <div aria-hidden="true" className="h-4" />}
-        <InputDropdown.Option highlight="focus">
-          <SelectPrimitive.SelectItem
-            value={node.value}
-            disabled={node.disabled}
+        {node.explanation ? (
+          <CustomTooltip
+            delay={0}
+            placement="right-start"
+            content={
+              <div>
+                <div className="mb-1 text-sm font-bold">
+                  {node.explanation.title}
+                </div>
+                {node.explanation.badges?.length ? (
+                  <div className="mb-2 flex flex-wrap gap-2 text-xs">
+                    {node.explanation.badges.map((badge) => (
+                      <span
+                        key={badge.label}
+                        className="bg-muted text-muted-foreground rounded px-1.5 py-0.5"
+                      >
+                        {badge.label}: {badge.value}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                {node.explanation.description && (
+                  <p className="text-xs leading-snug">
+                    {node.explanation.description}
+                  </p>
+                )}
+              </div>
+            }
           >
-            <InputDropdown.OptionContent
-              type="radio"
-              checked={value === node.value}
-              label={
-                <SelectPrimitive.ItemText>
-                  {node.label}
-                </SelectPrimitive.ItemText>
-              }
-              title={node.disabled ? node.disabledReason : node.label}
-            />
-            {node.badges?.map((badge, index) => (
-              <Badge key={index} {...badge} />
-            ))}
-          </SelectPrimitive.SelectItem>
-        </InputDropdown.Option>
+            {({ getTriggerProps }) =>
+              React.cloneElement(item, getTriggerProps())
+            }
+          </CustomTooltip>
+        ) : (
+          item
+        )}
       </React.Fragment>
     );
   };

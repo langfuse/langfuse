@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BarChart3, LineChart } from "lucide-react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { SelectInput } from "./SelectInput";
@@ -52,6 +53,50 @@ export const Default = meta.story({
           { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
           { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
         ],
+      },
+    ],
+    onValueChange: fn(),
+  },
+  render: (args) => {
+    const [value, setValue] = useState(args.value);
+
+    return (
+      <SelectInput
+        {...args}
+        value={value}
+        onValueChange={(newValue) => {
+          setValue(newValue);
+          args.onValueChange(newValue);
+        }}
+      />
+    );
+  },
+});
+
+export const WithIconsAndExplanations = meta.story({
+  args: {
+    value: "line",
+    placeholder: "Select a chart type",
+    options: [
+      {
+        value: "line",
+        label: "Line chart",
+        icon: LineChart,
+        explanation: {
+          title: "Line chart",
+          description: "Show how a value changes over time.",
+          badges: [{ label: "Category", value: "Time series" }],
+        },
+      },
+      {
+        value: "bar",
+        label: "Bar chart",
+        icon: BarChart3,
+        explanation: {
+          title: "Bar chart",
+          description: "Compare values across categories.",
+          badges: [{ label: "Category", value: "Comparison" }],
+        },
       },
     ],
     onValueChange: fn(),

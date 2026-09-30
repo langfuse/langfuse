@@ -37,5 +37,6 @@ export type {
   WidgetImport,
 } from "@/src/features/widgets/utils/import-export-utils";
 export { DashboardWidget } from "@/src/features/widgets/components/DashboardWidget";
+export { ConnectedWidgetForm } from "@/src/features/widgets/components/ConnectedWidgetForm";
 export { WidgetForm } from "@/src/features/widgets/components/WidgetForm";
 export { ConnectedDashboardWidgetTable } from "@/src/features/widgets/components/WidgetTable/ConnectedWidgetTable";

@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
-import { WidgetForm } from "@/src/features/widgets/components/WidgetForm";
+import { ConnectedWidgetForm } from "@/src/features/widgets/components/ConnectedWidgetForm";
 import { type WidgetSavePayload } from "@/src/features/widgets/components/widgetFormSchema";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { type metricAggregations, type views } from "@langfuse/shared/query";
@@ -99,7 +99,7 @@ export default function EditWidgetPage() {
       }}
     >
       {!isWidgetLoading && widgetData && isResolved ? (
-        <WidgetForm
+        <ConnectedWidgetForm
           // Remount when the edited widget changes so its loaded values seed
           // the form defaults once, rather than syncing via an effect.
           key={widgetId}
