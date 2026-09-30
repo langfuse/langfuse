@@ -24,10 +24,7 @@ import { env } from "@/src/env.mjs";
 import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
-import {
-  useIsFeatureEnabled,
-  useInternalFeaturesEnabled,
-} from "@/src/features/feature-flags";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import {
   GatewayApiKeysPage,
   GatewayConfigurationPage,
@@ -36,7 +33,6 @@ import {
 } from "@/src/features/ai-gateway";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
-import { OrganizationAnalyticsPage } from "./components/OrganizationAnalyticsPage/OrganizationAnalyticsPage";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -47,7 +43,6 @@ type OrganizationSettingsPage = {
 } & ({ content: React.ReactNode } | { href: string });
 
 export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const { organization } = useQueryProjectOrOrganization();
   const showBillingSettings = useHasEntitlement("cloud-billing");
   const hasAdminApiEntitlement = useHasEntitlement("admin-api");
@@ -81,7 +76,6 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     showBillingSettings: showBillingSettings && isCloudBillingAvailable,
     showOrgApiKeySettings,
     showAuditLogs,
-    showAnalytics: internalFeaturesEnabled,
     isLangfuseCloud,
     showV4Migration,
     showAiGateway: canManageGateway && isAiGatewayEnabled,
@@ -99,7 +93,6 @@ export const getOrganizationSettingsPages = ({
   showV4Migration,
   showAiGateway,
   showFeaturePreviews,
-  showAnalytics,
 }: {
   organization: {
     id: string;
@@ -118,7 +111,6 @@ export const getOrganizationSettingsPages = ({
   showV4Migration: boolean;
   showAiGateway: boolean;
   showFeaturePreviews: boolean;
-  showAnalytics: boolean;
 }): OrganizationSettingsPage[] => [
   {
     title: "General",
@@ -209,14 +201,6 @@ export const getOrganizationSettingsPages = ({
     cmdKKeywords: ["payment", "subscription", "plan", "invoice"],
     content: <BillingSettings />,
     show: showBillingSettings,
-  },
-  {
-    title: "Analytics",
-    slug: "analytics",
-    show: showAnalytics,
-    section: "Organization",
-    cmdKKeywords: ["ingestion", "observations", "scores", "usage"],
-    content: <OrganizationAnalyticsPage organizationId={organization.id} />,
   },
   {
     title: "SSO",

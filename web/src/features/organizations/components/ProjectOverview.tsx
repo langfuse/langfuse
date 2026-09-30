@@ -5,7 +5,6 @@ import {
   Settings,
   Users,
   PlusIcon,
-  ChartNoAxesCombined,
 } from "lucide-react";
 import {
   Card,
@@ -46,7 +45,6 @@ import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeU
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { ErrorPage } from "@/src/components/error-page";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 
 const OrganizationProjectTiles = ({
   org,
@@ -203,7 +201,6 @@ const OrganizationActionButtons = ({
   orgId: string;
   primaryButtonVariant?: "default" | "secondary";
 }) => {
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const membersViewAccess = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "organizationMembers:read",
@@ -214,31 +211,19 @@ const OrganizationActionButtons = ({
   });
 
   return (
-    <div className="flex items-center gap-4">
-      <div className="flex items-center gap-0">
-        {internalFeaturesEnabled && (
-          <Button asChild variant="ghost" size="icon">
-            <Link
-              href={`/organization/${orgId}/settings/analytics`}
-              aria-label="Organization analytics"
-            >
-              <ChartNoAxesCombined size={14} />
-            </Link>
-          </Button>
-        )}
-        <Button asChild variant="ghost" size="icon">
-          <Link href={`/organization/${orgId}/settings`}>
-            <Settings size={14} />
+    <>
+      <Button asChild variant="ghost">
+        <Link href={`/organization/${orgId}/settings`}>
+          <Settings size={14} />
+        </Link>
+      </Button>
+      {membersViewAccess && (
+        <Button asChild variant="ghost">
+          <Link href={`/organization/${orgId}/settings/members`}>
+            <Users size={14} />
           </Link>
         </Button>
-        {membersViewAccess && (
-          <Button asChild variant="ghost" size="icon">
-            <Link href={`/organization/${orgId}/settings/members`}>
-              <Users size={14} />
-            </Link>
-          </Button>
-        )}
-      </div>
+      )}
       {createProjectAccess ? (
         <Button asChild variant={primaryButtonVariant}>
           <Link href={createProjectRoute(orgId)}>
@@ -252,7 +237,7 @@ const OrganizationActionButtons = ({
           New project
         </Button>
       )}
-    </div>
+    </>
   );
 };
 
