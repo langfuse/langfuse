@@ -1,16 +1,9 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import Link from "next/link";
-import {
-  EyeOff,
-  Eye,
-  Check,
-  ArrowUpRight,
-  createLucideIcon,
-} from "lucide-react";
+import { EyeOff, Eye, Check, createLucideIcon } from "lucide-react";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { IssueStatusTabs } from "@/src/features/admin-issues/components/IssueStatusTabs/IssueStatusTabs";
@@ -112,22 +105,24 @@ export function IssueDetectionView({
                           className="flex flex-wrap items-start gap-3 p-4 sm:flex-nowrap"
                         >
                           <div className="min-w-0 flex-1 space-y-2">
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex flex-wrap items-baseline gap-2">
                               <Badge text={label} color={color} />
-                              <span className="font-bold">
-                                {issue.ruleName}
-                              </span>
-                              <time
-                                className="text-muted-foreground text-xs"
-                                dateTime={issue.createdAt.toISOString()}
-                                title={
-                                  buildLocalIsoDatePresentation({
-                                    date: issue.createdAt,
-                                  })?.title
-                                }
-                              >
-                                {getRelativeTimestampFromNow(issue.createdAt)}
-                              </time>
+                              <div className="flex flex-wrap items-baseline gap-2">
+                                <span className="font-bold">
+                                  {issue.ruleName}
+                                </span>
+                                <time
+                                  className="text-muted-foreground text-xs"
+                                  dateTime={issue.createdAt.toISOString()}
+                                  title={
+                                    buildLocalIsoDatePresentation({
+                                      date: issue.createdAt,
+                                    })?.title
+                                  }
+                                >
+                                  {getRelativeTimestampFromNow(issue.createdAt)}
+                                </time>
+                              </div>
                             </div>
                             <div className="text-muted-foreground [&_a]:text-primary-accent text-sm [&_a]:underline [&_p]:inline">
                               <ReactMarkdown>{issue.description}</ReactMarkdown>
@@ -168,33 +163,14 @@ export function IssueDetectionView({
                               />
                             )}
                             {issue.ctaLink && (
-                              <Button asChild size="sm" variant="secondary">
-                                {/^https?:\/\//.test(issue.ctaLink) ? (
-                                  <a
-                                    href={issue.ctaLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="gap-1.5"
-                                  >
-                                    {issue.ctaLabel}{" "}
-                                    <ArrowUpRight
-                                      aria-hidden
-                                      className="size-3.5"
-                                    />
-                                  </a>
-                                ) : (
-                                  <Link
-                                    href={issue.ctaLink}
-                                    className="gap-1.5"
-                                  >
-                                    {issue.ctaLabel}{" "}
-                                    <ArrowUpRight
-                                      aria-hidden
-                                      className="size-3.5"
-                                    />
-                                  </Link>
-                                )}
-                              </Button>
+                              <div className="ml-1">
+                                <Button
+                                  href={issue.ctaLink}
+                                  text={issue.ctaLabel}
+                                  size="sm"
+                                  variant="secondary"
+                                />
+                              </div>
                             )}
                           </div>
                         </li>
