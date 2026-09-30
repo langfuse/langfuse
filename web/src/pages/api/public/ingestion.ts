@@ -148,6 +148,7 @@ export default async function handler(
             await RateLimitService.getInstance().rateLimitRequest(
               authCheck.scope,
               "ingestion",
+              "POST /api/public/ingestion",
             );
 
           if (rateLimitCheck?.isRateLimited()) {

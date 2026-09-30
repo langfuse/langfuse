@@ -121,6 +121,7 @@ export default async function handler(
       await RateLimitService.getInstance().rateLimitRequest(
         scope,
         "public-api",
+        "POST /api/public/mcp",
       );
 
     if (rateLimitCheck?.isRateLimited()) {

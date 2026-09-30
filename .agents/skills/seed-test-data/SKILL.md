@@ -62,6 +62,10 @@ this.
 | See all scenarios and flags                                                                                                                      | `pnpm run seed -- list --json`                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Predict without writing                                                                                                                          | add `--dry-run`                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
+For the daily admin issue callback, run
+`pnpm run seed -- unpriced-generations`. It writes v4 events for two unmatched
+model names, with four token-using generations per name.
+
 For a v4 experiment with chat messages and nested JSON input/output, run
 `pnpm run seed -- experiment-io`. It creates one dataset, one experiment, and
 three items, then prints the experiment results link. Set `NEXTAUTH_URL` to

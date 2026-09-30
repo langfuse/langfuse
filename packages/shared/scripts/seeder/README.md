@@ -57,6 +57,10 @@ programmatic calls from the dx seed chain.
 | `incident-session`     | one demo-grade, fully handcrafted multi-user v4 session: an on-call copilot and four engineers work a checkout-latency incident over seven turns — parallel, untraced and failing tool calls, a nested sub-agent, reasoning, markdown answers, a guardrail-flagged refusal, typed session scores and comments                                                            | `--v4` (default true)                                                                                                                                                                             |
 | `timeline-shapes`      | a dozen SMALL traces (4-25 observations each), one per timeline morphology: rag answer, streamed chat, parallel fan-out, retry backoff with widening gaps, a 13-minute wait on a human, one slow tool dwarfing everything, an error cascade with failover, in-flight spans, zero-duration checkpoints, a ten-level ladder, 24 flat siblings, and a three-turn agent loop | `--shape all\|rag-answer\|streaming-chat\|parallel-fanout\|retry-backoff\|waiting-on-approval\|slow-tool\|error-cascade\|still-running\|checkpoint-marks\|deep-ladder\|flat-siblings\|mixed-loop` |
 
+`unpriced-generations` writes v4 events for two unmatched model names, each
+with four token-using generations and no cost. Run it with
+`pnpm run seed -- unpriced-generations`; v4 is required and enabled by default.
+
 Common flags: `--project` (defaults to the seeded example project),
 `--environment`, `--seed`, `--id-prefix`, `--dry-run` (instant, arithmetic
 counts, writes nothing), `--json` (machine mode: pure-JSON stdout).
