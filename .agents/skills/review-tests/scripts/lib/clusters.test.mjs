@@ -27,8 +27,8 @@ test("parseHunks maps each file to its added line ranges", () => {
     [10, 12],
     [42, 42],
   ]);
-  // A pure deletion (+n,0) contributes no range.
-  assert.equal(hunks.has("y.test.ts"), false);
+  // A pure deletion (+n,0) is the point between new lines n and n+1.
+  assert.deepEqual(hunks.get("y.test.ts"), [[1.5, 1.5]]);
 });
 
 test("inHunks is true without ranges and on any overlap", () => {
@@ -40,6 +40,14 @@ test("inHunks is true without ranges and on any overlap", () => {
     "a change inside the test block counts",
   );
   assert.equal(inHunks(t, [[25, 30]]), false);
+});
+
+test("inHunks counts a deletion only strictly inside the test block", () => {
+  const t = { line: 10, endLine: 20 };
+  assert.equal(inHunks(t, [[15.5, 15.5]]), true);
+  // Lines deleted just before or after the block belong to neither side.
+  assert.equal(inHunks(t, [[9.5, 9.5]]), false);
+  assert.equal(inHunks(t, [[20.5, 20.5]]), false);
 });
 
 test("seedSymbols unions the in-scope tests' symbols, deduped and sorted", () => {

@@ -6,8 +6,9 @@
 // which symbols are worth stubbing and which files reference each.
 
 /**
- * Parses `git diff -U0` output into each file's added line ranges. A pure
- * deletion (`+n,0`) contributes no range.
+ * Parses `git diff -U0` output into each file's changed line ranges. A pure
+ * deletion (`+n,0`) is the point `n + 0.5` between new lines n and n+1, so it
+ * overlaps only a test block that spans both sides of it.
  *
  * @param {string} diffText
  * @returns {Map<string, Array<[number, number]>>}
@@ -25,9 +26,12 @@ export function parseHunks(diffText) {
     if (hunk && current) {
       const start = Number(hunk[1]);
       const count = hunk[2] === undefined ? 1 : Number(hunk[2]);
-      if (count === 0) continue;
       if (!hunks.has(current)) hunks.set(current, []);
-      hunks.get(current).push([start, start + count - 1]);
+      hunks
+        .get(current)
+        .push(
+          count === 0 ? [start + 0.5, start + 0.5] : [start, start + count - 1],
+        );
     }
   }
   return hunks;
