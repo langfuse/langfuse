@@ -1,5 +1,6 @@
 import { prisma } from "../../../db";
 import { MAX_PROMPT_NESTING_DEPTH } from "../../../server/services/PromptService";
+import { buildProjectPath } from "../../../utils/productUrl";
 import type { AdminIssueDefinition, RuleIssue } from "../adminIssueDefinitions";
 
 /** Deepest graph the API accepts: the root is level 0, level MAX is rejected. */
@@ -119,9 +120,9 @@ export const deeplyNestedPromptsRule: AdminIssueDefinition = {
 
     return findDeeplyNestedPrompts(prompts, dependencies, DEPTH_THRESHOLD).map(
       ({ name, version, depth }) => ({
-        description: `Prompt "${name}" (version ${version}) nests ${depth} levels of prompt references. Each level is resolved one after another when the prompt is fetched, so deep nesting slows down prompt fetches in your application, especially on cache misses. Flatten the chain or inline short snippets to keep fetches fast.`,
+        description: `Prompt \`${name}\` (version ${version}) nests ${depth} levels of prompt references. Each level is resolved one after another when the prompt is fetched, so deep nesting slows down prompt fetches in your application, especially on cache misses. Flatten the chain or inline short snippets to keep fetches fast. [Learn more](https://langfuse.com/docs/prompt-management/features/composability).`,
         priority: depth >= MAX_RESOLVABLE_DEPTH ? 2 : 3,
-        ctaLink: `/project/${projectId}/prompts/${encodeURIComponent(name)}`,
+        ctaLink: `${buildProjectPath({ projectId })}/prompts/${encodeURIComponent(name)}`,
       }),
     );
   },
