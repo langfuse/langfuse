@@ -79,12 +79,25 @@ export const formatTextLogLine = (info: winston.Logform.TransformableInfo) => {
  * BigInt — both of which make `JSON.stringify` throw. A logger that throws
  * while reporting an error destroys the diagnostic it was called to emit, so
  * degrade to a marker instead. `Error` values are unwrapped by hand because
- * they serialise to `{}`.
+ * they serialise to `{}` — including their `cause` chain and any fields an SDK
+ * attached, since those are frequently the diagnostic part.
  */
 const safeStringifyMeta = (meta: Record<string, unknown>) => {
   const replacer = (_key: string, value: unknown) => {
     if (value instanceof Error) {
-      return { name: value.name, message: value.message, stack: value.stack };
+      // Spread first so the canonical three always win, and carry `cause`
+      // explicitly because the constructor sets it non-enumerable. The spread
+      // keeps provider-specific fields an SDK attaches to its errors, which is
+      // often the only part that identifies the failure. Nested errors unwrap
+      // too: `JSON.stringify` walks what a replacer returns, so it re-enters
+      // here for a `cause` that is itself an Error.
+      return {
+        ...value,
+        name: value.name,
+        message: value.message,
+        stack: value.stack,
+        ...(value.cause === undefined ? {} : { cause: value.cause }),
+      };
     }
     if (typeof value === "bigint") {
       return value.toString();
