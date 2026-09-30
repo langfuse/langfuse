@@ -19,6 +19,8 @@
 - tRPC router registry: `src/server/api/root.ts`
 - tRPC routers: `src/server/api/routers/*`, `src/features/*/server/*`
 - Public REST API routes: `src/pages/api/public/*`
+- Opt-in shared agent API: `src/pages/api/public/agent/runs/*`, with project and
+  VIEWER identity enforcement in `src/features/in-app-agent/server/publicAgentService.ts`
 - Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
 - Reusable UI components: `src/components/*`

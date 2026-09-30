@@ -1,0 +1,74 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+service:
+  auth: true
+  base-path: /api/public/agent/runs
+  endpoints:
+    create:
+      method: POST
+      path: ""
+      docs: |
+        Experimental, opt-in API for a shared read-only agent demo. The instance
+        must bind one project to a non-admin Langfuse user with VIEWER access using
+        LANGFUSE_IN_APP_AGENT_API_PROJECT_ID and LANGFUSE_IN_APP_AGENT_API_USER_ID.
+        Authenticate with that project's API keys. All callers share the configured
+        user's permissions; these endpoints do not impersonate individual users.
+        Only API-created conversations are accessible.
+
+        Queue a message for background execution. Reuse the same idempotencyKey
+        when retrying a message; a different message or conversation with the
+        same key returns 409. A new conversation is created when conversationId
+        is omitted. At most one run may execute in a conversation at a time.
+      request: CreateAgentRunRequest
+      response:
+        status-code: 202
+        type: AgentRunReference
+    get:
+      method: GET
+      path: /{runId}
+      path-parameters:
+        runId: string
+      docs: Get a run's status and assistant text. Poll until a terminal status.
+      response: AgentRun
+    cancel:
+      method: POST
+      path: /{runId}/cancel
+      path-parameters:
+        runId: string
+      docs: Request cancellation. Poll the run to observe its final status.
+      response: AgentRunReference
+
+types:
+  CreateAgentRunRequest:
+    properties:
+      message:
+        type: string
+        docs: Nonempty message, up to 32000 characters after trimming.
+      conversationId:
+        type: optional<string>
+        docs: An existing API-created conversation to continue.
+      idempotencyKey:
+        type: string
+        docs: Unique per message within the configured project and user; 1 to 200 characters.
+  AgentRunReference:
+    properties:
+      runId: string
+      conversationId: string
+  AgentRunStatus:
+    enum:
+      - QUEUED
+      - RUNNING
+      - AWAITING_APPROVAL
+      - SUCCEEDED
+      - FAILED
+      - CANCELLED
+  AgentRun:
+    extends: AgentRunReference
+    properties:
+      status: AgentRunStatus
+      text:
+        type: nullable<string>
+        docs: Assistant text produced so far; excludes tool results and reasoning.
+      errorCode:
+        type: nullable<string>
+        docs: Failure or truncation code. A succeeded run may have step_limit or output_limit when its answer was truncated.
+      cancelRequested: boolean

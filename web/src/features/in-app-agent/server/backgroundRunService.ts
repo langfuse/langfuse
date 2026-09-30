@@ -191,6 +191,7 @@ export async function startBackgroundRun(params: {
   isV4Enabled: boolean;
   model: string | undefined;
   aiTelemetryEnabled: boolean;
+  runId?: string;
 }) {
   const conversation = await ensureOwnedConversation({
     prisma: params.prisma,
@@ -230,7 +231,7 @@ export async function startBackgroundRun(params: {
     projectId: params.projectId,
     isV4Enabled: params.isV4Enabled,
   });
-  const runId = createInAppAgentRunId();
+  const runId = params.runId ?? createInAppAgentRunId();
   const userMessage = {
     id: createInAppAgentMessageId(),
     role: "user" as const,
@@ -443,7 +444,7 @@ function getPendingToolApprovals(
   });
 }
 
-async function enqueueInAppAgentRun(params: {
+export async function enqueueInAppAgentRun(params: {
   prisma: PrismaClient;
   projectId: string;
   runId: string;

@@ -568,6 +568,8 @@ export const env = createEnv({
     LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
     LANGFUSE_AI_VERTEX_LOCATION: z.string().optional(),
     LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
+    LANGFUSE_IN_APP_AGENT_API_PROJECT_ID: z.string().min(1).optional(),
+    LANGFUSE_IN_APP_AGENT_API_USER_ID: z.string().min(1).optional(),
     LANGFUSE_EVALUATOR_MEDIA_TRANSPORT: z
       .enum(["url", "inline", "disabled"])
       .optional(),
@@ -1174,6 +1176,10 @@ export const env = createEnv({
     LANGFUSE_AI_AWS_BEDROCK_REGION: process.env.LANGFUSE_AI_AWS_BEDROCK_REGION,
     LANGFUSE_AI_VERTEX_LOCATION: process.env.LANGFUSE_AI_VERTEX_LOCATION,
     LANGFUSE_IN_APP_AGENT_ENABLED: process.env.LANGFUSE_IN_APP_AGENT_ENABLED,
+    LANGFUSE_IN_APP_AGENT_API_PROJECT_ID:
+      process.env.LANGFUSE_IN_APP_AGENT_API_PROJECT_ID,
+    LANGFUSE_IN_APP_AGENT_API_USER_ID:
+      process.env.LANGFUSE_IN_APP_AGENT_API_USER_ID,
     LANGFUSE_EVALUATOR_MEDIA_TRANSPORT:
       process.env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT,
     LANGFUSE_EVALUATOR_MEDIA_INLINE_MAX_BYTES:
