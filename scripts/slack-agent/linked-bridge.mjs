@@ -1,5 +1,6 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import { createMessageReactions } from "./reactions.mjs";
+import { formatSlackMessages } from "./markdown.mjs";
 
 export const PROJECT_ACTION = "langfuse_linked_project";
 const PROJECT_BLOCK = "langfuse_project:";
@@ -124,11 +125,8 @@ export function createLinkedBridge({
             (run.errorCode
               ? "\n\nThis answer reached an execution limit and may be incomplete."
               : "");
-          const formatted = escapeSlack(text)
-            .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, "<$2|$1>")
-            .replace(/\*\*([^*\n]+)\*\*/g, "*$1*");
-          for (let offset = 0; offset < formatted.length; offset += 3500)
-            await post(record, formatted.slice(offset, offset + 3500));
+          for (const formatted of formatSlackMessages(text))
+            await post(record, formatted.text, formatted);
           succeeded = true;
           return;
         }

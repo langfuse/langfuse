@@ -96,6 +96,42 @@ function fixture(overrides = {}) {
   return { bridge, state, calls, mention };
 }
 
+test("delivers Markdown tables as native Slack blocks in private answers", async () => {
+  const f = fixture({
+    get: async () => ({
+      status: "SUCCEEDED",
+      text: "Results\n\n| Name | Count |\n| --- | ---: |\n| Trace | 2 |\n\nDone.",
+    }),
+  });
+  await f.mention("EvTable", "Show a table");
+  const tableReply = f.calls.replies.find(
+    (reply) => reply.blocks?.[0]?.type === "table",
+  );
+  assert.ok(tableReply);
+  assert.equal(tableReply.user, "UPERSON");
+  assert.equal(tableReply.blocks[0].rows[1][0].text, "Trace");
+  assert.equal(f.calls.replies[0].text.trim(), "Results");
+  assert.equal(f.calls.replies.at(-1).text.trim(), "Done.");
+});
+
+test("formats agent Markdown only when delivering a Slack answer", async () => {
+  const answer = Object.freeze({
+    status: "SUCCEEDED",
+    text: "# Results\n\n```js\nconst label = '**literal**';\n```",
+  });
+  const f = fixture({ get: async () => answer });
+  await f.mention("EvMarkdown", "Explain **this**");
+  const delivered = f.calls.replies.map((reply) => reply.text).join("\n");
+  assert.match(delivered, /^\*Results\*/);
+  assert.ok(delivered.includes("const label = '**literal**';"));
+  assert.ok(!delivered.includes("```js"));
+  assert.equal(
+    answer.text,
+    "# Results\n\n```js\nconst label = '**literal**';\n```",
+  );
+  assert.equal(f.calls.starts[0].message, "Explain **this**");
+});
+
 test("delivers one answer per event, preserves thread context, and escapes output mentions", async () => {
   const f = fixture();
   await Promise.all([

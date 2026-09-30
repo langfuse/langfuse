@@ -94,6 +94,9 @@ importers:
       dotenv-cli:
         specifier: ^7.4.4
         version: 7.4.4
+      entities:
+        specifier: 7.0.1
+        version: 7.0.1
       eslint-scope:
         specifier: ^9.1.2
         version: 9.1.2
@@ -109,6 +112,9 @@ importers:
       knip:
         specifier: ^6.22.0
         version: 6.22.0
+      marked:
+        specifier: 17.0.6
+        version: 17.0.6
       prettier:
         specifier: ^3.8.3
         version: 3.8.3

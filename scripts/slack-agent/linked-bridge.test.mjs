@@ -166,6 +166,46 @@ function fixture(overrides = {}) {
   };
 }
 
+test("delivers native Slack tables in the selected channel thread", async () => {
+  const f = fixture({
+    get: async () => ({
+      status: "SUCCEEDED",
+      text: "| Name | Count |\n| --- | ---: |\n| Trace | 2 |",
+    }),
+  });
+  await f.mention("EvTable", "<@UBOT> Show a table");
+  await f.choose("EvTable");
+  const tableReply = f.calls.replies.find(
+    (reply) => reply.blocks?.[0]?.type === "table",
+  );
+  assert.ok(tableReply);
+  assert.equal(tableReply.channel, "CPUBLIC");
+  assert.equal(tableReply.thread_ts, "123.001");
+  assert.equal(tableReply.blocks[0].rows[1][0].text, "Trace");
+});
+
+test("formats linked agent output at delivery without changing the run or prompt", async () => {
+  const answer = Object.freeze({
+    status: "SUCCEEDED",
+    text: "# Results\n\n```js\nconst label = '**literal**';\n```",
+  });
+  const f = fixture({ get: async () => answer });
+  await f.mention("EvMarkdown", "<@UBOT> Explain **this**");
+  await f.choose("EvMarkdown");
+  const delivered = f.calls.replies
+    .slice(1)
+    .map((reply) => reply.text)
+    .join("\n");
+  assert.match(delivered, /^\*Results\*/);
+  assert.ok(delivered.includes("const label = '**literal**';"));
+  assert.ok(!delivered.includes("```js"));
+  assert.equal(
+    answer.text,
+    "# Results\n\n```js\nconst label = '**literal**';\n```",
+  );
+  assert.equal(f.calls.starts[0].message, "Explain **this**");
+});
+
 test("delivers browser confirmation links only to the requesting user", async () => {
   const f = fixture();
   f.account.linked = false;

@@ -21,6 +21,14 @@ project permissions. Account links and answers are ephemeral Slack messages
 visible only to the requesting user. Use synthetic data in a dedicated demo
 channel.
 
+Both modes convert the agent's Markdown to Slack `mrkdwn` at message delivery.
+Headings, emphasis, lists, links, quotes, and code render for Slack. Markdown
+tables use native Block Kit table blocks, with text fallback for notifications.
+Large tables split across messages with repeated headers. Long answers split
+into bounded messages without breaking code blocks or links.
+The agent's stored answer and in-app display are unchanged. Model-generated
+Slack mentions are escaped so answers cannot notify users or channels.
+
 ## Configure the Slack app
 
 1. Open [Slack app management](https://api.slack.com/apps), choose **Create New

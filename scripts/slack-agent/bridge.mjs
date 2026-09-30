@@ -1,5 +1,6 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import { createMessageReactions } from "./reactions.mjs";
+import { formatSlackMessages } from "./markdown.mjs";
 
 /** The adapter keeps Slack routing separate from Langfuse's agent execution. */
 export function createBridge({
@@ -25,19 +26,12 @@ export function createBridge({
     });
 
   async function reply(record, text) {
-    // Escape Slack mentions in model output, then render ordinary Markdown links.
-    const formatted = text
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, "<$2|$1>")
-      .replace(/\*\*([^*\n]+)\*\*/g, "*$1*");
-    for (let offset = 0; offset < formatted.length; offset += 3500) {
+    for (const formatted of formatSlackMessages(text)) {
       await slack.chat.postEphemeral({
         channel: record.channel,
         thread_ts: record.replyThreadTs,
         user: record.slackUserId,
-        text: formatted.slice(offset, offset + 3500),
+        ...formatted,
         unfurl_links: false,
         unfurl_media: false,
         parse: "none",
