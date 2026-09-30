@@ -1,6 +1,6 @@
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
-import type { LLMAdapter } from "@langfuse/shared";
+import type { EvalTemplateType, LLMAdapter } from "@langfuse/shared";
 
 import { DefinitionStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/DefinitionStep";
 import { CodeEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/CodeEditor/CodeEditor";
@@ -12,6 +12,7 @@ import { PromptEditor } from "@/src/features/evals/v2/components/Evaluators/Eval
 import { ScoreOutputEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/ScoreOutputEditor/ScoreOutputEditor";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
 import type { ProjectDefaultModelConfig } from "@/src/features/evals/v2/types/ProjectDefaultModelConfig";
 import type { CodeEvalValidationResult } from "@/src/features/evals/utils/code-eval-template-validation";
 
@@ -40,6 +41,7 @@ export function DefinitionStepContainer({
   onSetProjectDefault: (model: ProjectDefaultModelConfig) => void;
   codeValidationResult: CodeEvalValidationResult | null;
 }) {
+  const onboardingAnalytics = useEvalOnboardingAnalytics();
   const state = useStore(
     store,
     useShallow((state) => ({
@@ -48,11 +50,20 @@ export function DefinitionStepContainer({
       actions: state.actions,
     })),
   );
+  const changeType = (type: EvalTemplateType) => {
+    const previousEvaluatorType = store.getState().type;
+    state.actions.setType(type);
+    if (type !== previousEvaluatorType) {
+      onboardingAnalytics?.track("eval:onboarding_evaluator_type_changed", {
+        previousEvaluatorType,
+      });
+    }
+  };
 
   const stepProps = {
     open: state.open,
     onOpenChange: (open: boolean) => onStepOpenChange(1, open),
-    onTypeChange: state.actions.setType,
+    onTypeChange: changeType,
     isEditing,
   };
 
