@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { type RouterOutputs } from "@/src/utils/api";
 import {
   groupTranscriptMessages,
@@ -17,9 +17,10 @@ import { Button } from "@/src/components/ui/button";
 import { MoreHorizontal } from "lucide-react";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 import { type SessionTraceTranscriptState } from "../../useSessionTraceTranscripts";
-import { formatIntervalSeconds } from "@/src/utils/dates";
 import { SessionTimelineContentMessage } from "./components/SessionTimelineContentMessage/SessionTimelineContentMessage";
 import { SessionTimelineSystemMessage } from "./components/SessionTimelineSystemMessage/SessionTimelineSystemMessage";
+import { cn } from "@/src/utils/tailwind";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 
 export function SessionTranscriptContent({
   result,
@@ -105,13 +106,6 @@ function SessionTranscriptThread({
   observationActions?: SessionObservationActions;
 }) {
   const messages: DisplayMessage[] = [
-    ...(allowedObservationIds ? [] : thread.conversationHistory).map(
-      (message) => ({
-        ...message,
-        timing: null,
-        observationId: null,
-      }),
-    ),
     ...thread.currentTurn.messages
       .filter(
         (message) =>
@@ -127,34 +121,26 @@ function SessionTranscriptThread({
   const rows = groupTranscriptMessages(messages);
   return rows.map((row, index) => {
     const timing = row.message.timing;
+    const isTool = row.type === "tool";
     const observation = observations.find(
       (item) => item.id === row.message.observationId,
     );
-    const showSection =
-      index === 0 ||
-      Boolean(timing) !== Boolean(rows[index - 1]?.message.timing);
-    return (
-      <div
-        key={index}
-        className="space-y-1"
-        data-session-observation-id={row.message.observationId ?? undefined}
-        data-scroll-request-id={
-          scrollTarget?.observationId === row.message.observationId
-            ? scrollTarget.requestId
-            : undefined
-        }
-      >
-        {showSection && thread.conversationHistory.length > 0 && (
-          <div className="text-muted-foreground mb-3 text-xs">
-            {timing ? "Current turn" : "Conversation history"}
-          </div>
-        )}
-        {timing && (
-          <div
-            className="text-muted-foreground flex items-center gap-2 font-mono text-xs"
-            title="Source observation timing"
-          >
-            {row.message.observationId && (
+    const metadata = timing &&
+      (isTool ||
+        row.message.role === "system" ||
+        (observationActions && observation?.traceId)) && (
+        <div
+          className={cn(
+            "text-muted-foreground flex items-center gap-2 font-mono text-xs",
+            !isTool &&
+              "invisible group-focus-within:visible group-hover:visible",
+            !isTool && row.message.role === "user" && "justify-end",
+          )}
+          title="Source observation timing"
+        >
+          {!isTool &&
+            row.message.role === "system" &&
+            row.message.observationId && (
               <button
                 type="button"
                 className="hover:text-foreground underline"
@@ -163,54 +149,68 @@ function SessionTranscriptThread({
                 Open observation
               </button>
             )}
-            {observationActions && observation?.traceId && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label={`Actions for ${observation.name ?? observation.id}`}
-                  >
-                    <MoreHorizontal className="h-3.5 w-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <SessionObservationActionsMenuContent
-                  observation={{
-                    id: observation.id,
-                    traceId: observation.traceId,
-                    name: observation.name,
-                    startTime: observation.startTime,
-                    environment: observation.environment,
-                  }}
-                  actions={observationActions}
-                />
-              </DropdownMenu>
-            )}
+          {observationActions && observation?.traceId && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={`Actions for ${observation.name ?? observation.id}`}
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <SessionObservationActionsMenuContent
+                observation={{
+                  id: observation.id,
+                  traceId: observation.traceId,
+                  name: observation.name,
+                  startTime: observation.startTime,
+                  environment: observation.environment,
+                }}
+                actions={observationActions}
+              />
+            </DropdownMenu>
+          )}
+          {(isTool || row.message.role === "system") && (
             <time dateTime={timing.startTime.toISOString()}>
               {timing.startTime.toLocaleTimeString()}
             </time>
-            {timing.endTime !== null && (
-              <>
-                <span>–</span>
-                <time dateTime={timing.endTime.toISOString()}>
-                  {timing.endTime.toLocaleTimeString()}
-                </time>
-                <span>
-                  {formatIntervalSeconds(
-                    (timing.endTime.getTime() - timing.startTime.getTime()) /
-                      1000,
-                  )}
-                </span>
-              </>
-            )}
-          </div>
-        )}
+          )}
+          {isTool && timing.endTime !== null && (
+            <span>
+              {formatIntervalSeconds(
+                (timing.endTime.getTime() - timing.startTime.getTime()) / 1000,
+              )}
+            </span>
+          )}
+        </div>
+      );
+    return (
+      <div
+        key={index}
+        className="group space-y-1"
+        data-session-observation-id={row.message.observationId ?? undefined}
+        data-scroll-request-id={
+          scrollTarget?.observationId === row.message.observationId
+            ? scrollTarget.requestId
+            : undefined
+        }
+      >
         {row.type === "tool" ? (
-          <SessionTranscriptTool row={row} />
+          <SessionTranscriptTool
+            row={row}
+            trailingContent={metadata}
+            onOpenObservation={onOpenObservation}
+          />
         ) : (
-          <SessionTranscriptMessage message={row.message} />
+          <SessionTranscriptMessage
+            message={row.message}
+            onOpenObservation={onOpenObservation}
+          />
         )}
+        {row.type !== "tool" && metadata}
       </div>
     );
   });
@@ -218,8 +218,12 @@ function SessionTranscriptThread({
 
 function SessionTranscriptTool({
   row,
+  trailingContent,
+  onOpenObservation,
 }: {
   row: Extract<TranscriptMessageGroup<DisplayMessage>, { type: "tool" }>;
+  trailingContent: ReactNode;
+  onOpenObservation: (observationId: string) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   return (
@@ -230,11 +234,23 @@ function SessionTranscriptTool({
       isError={row.result.isError}
       isExpanded={isExpanded}
       onExpandedChange={setIsExpanded}
+      onOpenObservation={
+        row.message.observationId
+          ? () => onOpenObservation(row.message.observationId!)
+          : undefined
+      }
+      trailingContent={trailingContent}
     />
   );
 }
 
-function SessionTranscriptMessage({ message }: { message: NormalizedMessage }) {
+function SessionTranscriptMessage({
+  message,
+  onOpenObservation,
+}: {
+  message: DisplayMessage;
+  onOpenObservation: (observationId: string) => void;
+}) {
   if (message.role === "system") {
     return (
       <SessionTimelineSystemMessage
@@ -248,6 +264,12 @@ function SessionTranscriptMessage({ message }: { message: NormalizedMessage }) {
       role={message.role}
       parts={message.parts}
       senderName={message.senderName}
+      timestamp={message.timing?.startTime ?? null}
+      onOpenObservation={
+        message.observationId
+          ? () => onOpenObservation(message.observationId!)
+          : undefined
+      }
     />
   );
 }

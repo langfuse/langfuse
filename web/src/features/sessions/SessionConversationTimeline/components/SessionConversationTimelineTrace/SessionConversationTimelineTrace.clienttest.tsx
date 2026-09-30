@@ -81,13 +81,14 @@ describe("SessionConversationTimelineTrace", () => {
     expect(onOpenObservation).toHaveBeenCalledWith("generation-1");
   });
 
-  it("preserves history and multiple threads, renders tool payloads and source timing, and blocks replay capture", () => {
+  it("hides history, preserves multiple threads, renders tool payloads and source timing, and blocks replay capture", () => {
+    const onOpenObservation = vi.fn();
     const { container } = render(
       <SessionConversationTimelineTrace
         trace={trace}
         turnNumber={1}
         onOpenTrace={vi.fn()}
-        onOpenObservation={vi.fn()}
+        onOpenObservation={onOpenObservation}
         scrollTarget={null}
         state={{
           type: "transcript",
@@ -169,12 +170,13 @@ describe("SessionConversationTimelineTrace", () => {
     );
 
     const text = container.textContent!;
-    expect(text.indexOf("Earlier question")).toBeLessThan(
-      text.indexOf("Checking weather"),
-    );
+    expect(text).not.toContain("Earlier question");
     expect(text.indexOf("Checking weather")).toBeLessThan(
       text.indexOf("Other thread"),
     );
+    fireEvent.click(screen.getByRole("button", { name: "weather" }));
+    expect(onOpenObservation).toHaveBeenCalledWith("generation-1");
+    expect(screen.queryByText("Input")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Expand weather" }));
     expect(screen.queryByText("weather · Result")).toBeNull();
     expect(screen.getByText("Input")).toBeTruthy();
@@ -187,15 +189,9 @@ describe("SessionConversationTimelineTrace", () => {
     ).toHaveLength(3);
     expect(
       container.querySelectorAll('time[datetime="2026-09-24T12:00:01.000Z"]'),
-    ).toHaveLength(2);
-    expect(screen.getAllByText("1.00s")).toHaveLength(2);
+    ).toHaveLength(0);
+    expect(screen.getByText("1.00s")).toBeTruthy();
     expect(screen.getByRole("status")).toBeTruthy();
-    expect(
-      screen
-        .getByText("Earlier question")
-        .closest(".ph-no-capture")
-        ?.classList.contains("ph-no-capture"),
-    ).toBe(true);
     expect(
       screen
         .getByText(/"temperature": 12/)

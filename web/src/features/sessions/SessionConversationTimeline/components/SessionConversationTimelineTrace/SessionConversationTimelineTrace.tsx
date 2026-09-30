@@ -1,4 +1,5 @@
 import { ChevronDown, CircleAlert } from "lucide-react";
+import { type ReactNode } from "react";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { Button } from "@/src/components/ui/button";
@@ -117,14 +118,18 @@ export function SessionTimelineToolRow({
   output,
   isExpanded,
   onExpandedChange,
+  onOpenObservation,
   isError,
+  trailingContent,
 }: {
   name: string;
   input: unknown;
   output: unknown;
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
+  onOpenObservation?: () => void;
   isError?: boolean;
+  trailingContent?: ReactNode;
 }) {
   return (
     <section
@@ -133,7 +138,7 @@ export function SessionTimelineToolRow({
       <div className="flex w-full min-w-0 items-center gap-0.5">
         <button
           type="button"
-          onClick={() => onExpandedChange(!isExpanded)}
+          onClick={onOpenObservation ?? (() => onExpandedChange(!isExpanded))}
           className="group flex min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
         >
           <span className="bg-background relative z-[1] flex shrink-0 rounded-full">
@@ -162,6 +167,7 @@ export function SessionTimelineToolRow({
           />
         </button>
         <span className="ml-auto flex shrink-0 items-center gap-2">
+          {trailingContent}
           {isError ? (
             <CircleAlert
               className="text-destructive h-3 w-3"
