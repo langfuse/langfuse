@@ -1,4 +1,4 @@
-import { expect, fn, userEvent } from "storybook/test";
+import { expect, fn, mocked, userEvent } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { Dropzone } from "./Dropzone";
 
@@ -134,10 +134,17 @@ export const AcceptsFile = meta.story({
     const file = new File(["content"], "example.txt", {
       type: "text/plain",
     });
+    const upload = Promise.withResolvers<void>();
+    mocked(args.onDrop).mockReturnValueOnce(upload.promise);
     await userEvent.upload(input, file);
 
-    await expect(args.onDrop).toHaveBeenCalledWith([file]);
-    await expect(args.onError).not.toHaveBeenCalled();
+    try {
+      await expect(args.onDrop).toHaveBeenCalledWith([file]);
+      await expect(input.closest("button")).not.toBeDisabled();
+      await expect(args.onError).not.toHaveBeenCalled();
+    } finally {
+      upload.resolve();
+    }
   },
 });
 
