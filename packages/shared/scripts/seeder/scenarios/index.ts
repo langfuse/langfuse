@@ -7,6 +7,7 @@ import { evaluatorGalleryScenario } from "./evaluator-gallery";
 import { experimentIoScenario } from "./experiment-io";
 import { failingIntegrationsScenario } from "./failing-integrations";
 import { incidentSessionScenario } from "./incident-session";
+import { longMetadataValuesScenario } from "./long-metadata-values";
 import { longSessionScenario } from "./long-session";
 import { manyTracesScenario } from "./many-traces";
 import { nestedPromptsScenario } from "./nested-prompts";
@@ -32,6 +33,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "evaluator-gallery": evaluatorGalleryScenario,
   "experiment-io": experimentIoScenario,
   "failing-integrations": failingIntegrationsScenario,
+  "long-metadata-values": longMetadataValuesScenario,
   "long-session": longSessionScenario,
   "many-traces": manyTracesScenario,
   "nested-prompts": nestedPromptsScenario,

@@ -35,6 +35,7 @@ NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- evaluator-gall
 pnpm run seed -- nested-prompts  # composed chat prompt nested 4 levels deep (API max) via the public prompt API
 pnpm run seed -- failing-integrations  # CSV blob export that last hit a ClickHouse timeout + PostHog disabled after a config error (admin issue checks)
 pnpm run seed -- failing-integrations --blob-storage disabled --posthog none --project <other-project>  # blob export disabled after a credentials error (one blob integration per project)
+pnpm run seed -- long-metadata-values  # one OTel span with metadata values over 200 characters; the worker raises the "Long metadata values" admin issue
 pnpm run seed -- apply admin-issues-demo  # every scenario listed in configs/admin-issues-demo.json, in order (one config per demo)
 ```
 
