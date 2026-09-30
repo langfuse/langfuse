@@ -28,6 +28,6 @@ export const organizationIngestionRouter = createTRPCRouter({
         session: ctx.session,
       });
 
-      return getOrganizationIngestionOverview({ projects });
+      return getOrganizationIngestionOverview({ prisma: ctx.prisma, projects });
     }),
 });

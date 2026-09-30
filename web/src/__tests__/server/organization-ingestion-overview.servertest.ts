@@ -99,4 +99,88 @@ describe("organizationIngestion.overview", () => {
       }),
     ]);
   });
+
+  it("returns feature activation counts per project", async () => {
+    const { orgId, project, caller } = await setupOrganization();
+    const projectId = project.id;
+
+    const evaluationRule = (status: "ACTIVE" | "INACTIVE") => ({
+      projectId,
+      name: `rule-${randomUUID()}`,
+      targetObject: "trace",
+      status,
+      filter: [],
+      sampling: 1,
+      delay: 0,
+    });
+    await prisma.evaluationRule.createMany({
+      data: [evaluationRule("ACTIVE"), evaluationRule("INACTIVE")],
+    });
+
+    const monitor = (status: "ACTIVE" | "PAUSED") => ({
+      projectId,
+      name: `monitor-${randomUUID()}`,
+      status,
+      view: "OBSERVATIONS" as const,
+      filters: [],
+      metric: {},
+      windowMs: 60_000,
+      cadenceMs: 60_000,
+      thresholdOperator: "GT" as const,
+      alertThreshold: 1,
+      noData: {},
+      renotify: {},
+      schedulerBatchId: 0,
+    });
+    await prisma.monitor.createMany({
+      data: [monitor("ACTIVE"), monitor("PAUSED")],
+    });
+
+    const [dataset] = await Promise.all(
+      ["dataset-a", "dataset-b"].map((name) =>
+        prisma.dataset.create({ data: { projectId, name } }),
+      ),
+    );
+    await prisma.datasetItem.createMany({
+      data: [
+        { id: "current", projectId, datasetId: dataset!.id },
+        {
+          id: "superseded",
+          projectId,
+          datasetId: dataset!.id,
+          validTo: new Date(),
+        },
+        { id: "deleted", projectId, datasetId: dataset!.id, isDeleted: true },
+      ],
+    });
+
+    await prisma.prompt.createMany({
+      data: [
+        { name: "prompt-a", version: 1 },
+        { name: "prompt-a", version: 2 },
+        { name: "prompt-b", version: 1 },
+      ].map((prompt) => ({
+        ...prompt,
+        projectId,
+        createdBy: "test",
+        prompt: "hello",
+      })),
+    });
+
+    const overview = await caller.organizationIngestion.overview({ orgId });
+
+    expect(overview.projects).toEqual([
+      {
+        id: projectId,
+        name: project.name,
+        features: {
+          activeEvaluationRules: 1,
+          datasets: 2,
+          datasetItems: 1,
+          activeMonitors: 1,
+          prompts: 2,
+        },
+      },
+    ]);
+  });
 });
