@@ -1,5 +1,6 @@
 import { useSupportDrawer } from "@/src/features/support-chat";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
+import { useTracelift } from "@/src/features/tracelift/TraceliftContext";
 import { type PropsWithChildren } from "react";
 import { useMediaQuery } from "react-responsive";
 import dynamic from "next/dynamic";
@@ -38,6 +39,17 @@ const DynamicV4MigrationPanel = dynamic(
   },
 );
 
+const DynamicTraceliftPanel = dynamic(
+  () =>
+    import("@/src/features/tracelift/TraceliftDrawerContent").then((mod) => ({
+      default: mod.TraceliftDrawerContent,
+    })),
+  {
+    ssr: false,
+    loading: () => <RightDrawerLoadingFallback />,
+  },
+);
+
 function RightDrawerLoadingFallback() {
   return (
     <div className="flex h-full w-full items-center justify-center">
@@ -56,6 +68,7 @@ export function AppContentWithRightDrawer({ children }: PropsWithChildren) {
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
   const { open: supportOpen } = useSupportDrawer();
   const { open: migrationOpen } = useV4MigrationPanel();
+  const { open: traceliftOpen } = useTracelift();
 
   const rightDrawerContent = (() => {
     if (supportOpen) {
@@ -63,6 +76,9 @@ export function AppContentWithRightDrawer({ children }: PropsWithChildren) {
     }
     if (migrationOpen) {
       return <DynamicV4MigrationPanel />;
+    }
+    if (traceliftOpen) {
+      return <DynamicTraceliftPanel />;
     }
     return null;
   })();
@@ -72,7 +88,7 @@ export function AppContentWithRightDrawer({ children }: PropsWithChildren) {
       <ResizableSplitLayout
         primaryContent={children}
         secondaryContent={rightDrawerContent}
-        open={isDesktop && (supportOpen || migrationOpen)}
+        open={isDesktop && (supportOpen || migrationOpen || traceliftOpen)}
         defaultPrimarySize={supportOpen ? 70 : 60}
         // The migration panel carries denser content than the support drawer,
         // so it opens wider by default.

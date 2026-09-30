@@ -6,6 +6,7 @@ import {
   type PropsWithChildren,
 } from "react";
 import { type Topic } from "@/src/features/support-chat/formConstants";
+import { useTracelift } from "@/src/features/tracelift/TraceliftContext";
 
 export type SupportDrawerMode = "intro" | "form";
 
@@ -38,6 +39,7 @@ export function SupportDrawerProvider({
   children,
   defaultOpen = false,
 }: SupportDrawerProviderProps) {
+  const { setOpen: setTraceliftOpen } = useTracelift();
   const [open, setOpenState] = useState(defaultOpen);
   const [initialMode, setInitialMode] = useState<SupportDrawerMode>("intro");
   const [initialTopic, setInitialTopic] = useState<Topic | null>(null);
@@ -45,6 +47,9 @@ export function SupportDrawerProvider({
 
   const setOpen = useCallback(
     (v: boolean) => {
+      if (v) {
+        setTraceliftOpen(false);
+      }
       // Reseed only on a closed→open transition: a redundant setOpen(true)
       // while open (support button, "Report issue") must not remount the
       // drawer and wipe an in-progress draft. openWithMode always reseeds.
@@ -55,17 +60,18 @@ export function SupportDrawerProvider({
       }
       setOpenState(v);
     },
-    [open],
+    [open, setTraceliftOpen],
   );
 
   const openWithMode = useCallback(
     (mode: SupportDrawerMode, options?: { topic?: Topic }) => {
+      setTraceliftOpen(false);
       setInitialMode(mode);
       setInitialTopic(options?.topic ?? null);
       setOpenEpoch((e) => e + 1);
       setOpenState(true);
     },
-    [],
+    [setTraceliftOpen],
   );
 
   return (
