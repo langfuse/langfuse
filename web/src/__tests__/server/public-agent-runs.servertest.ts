@@ -1,10 +1,12 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { z } from "zod";
+import type { Session } from "next-auth";
 import { EventType } from "@ag-ui/core";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { createOrgProjectAndApiKey, redis } from "@langfuse/shared/src/server";
 import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 import { env } from "@/src/env.mjs";
 import {
@@ -15,6 +17,11 @@ import createRun from "@/src/pages/api/public/agent/runs/index";
 import getRun from "@/src/pages/api/public/agent/runs/[runId]/index";
 import cancelRun from "@/src/pages/api/public/agent/runs/[runId]/cancel";
 import { startPublicAgentRun } from "@/src/features/in-app-agent/server/publicAgentService";
+import slackAgentRoute from "@/src/pages/api/slack-agent/index";
+import { slackAgentRouter } from "@/src/features/slack-agent/server/router";
+import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { getProductBaseUrl } from "@/src/utils/base-url";
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type * as SharedServerModule from "@langfuse/shared/src/server";
 import type * as PersistenceModule from "@langfuse/shared/in-app-agent/server/persistence";
 import type * as ModelProviderModule from "@langfuse/shared/in-app-agent/server/modelProvider";
@@ -683,5 +690,364 @@ describe("public agent runs", () => {
     expect(
       await prisma.inAppAgentRun.count({ where: { projectId: f.projectId } }),
     ).toBe(0);
+  });
+});
+
+describe("linked Slack agent", () => {
+  const bridgeSecret = "test-slack-bridge-secret-at-least-32-characters";
+  const teamId = "TTESTAGENT";
+  const original = {
+    LANGFUSE_SLACK_AGENT_SECRET: env.LANGFUSE_SLACK_AGENT_SECRET,
+    LANGFUSE_SLACK_TEAM_ID: env.LANGFUSE_SLACK_TEAM_ID,
+    LANGFUSE_IN_APP_AGENT_API_PROJECT_ID:
+      env.LANGFUSE_IN_APP_AGENT_API_PROJECT_ID,
+  };
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.enabled = true;
+    mocks.modelConfigured = true;
+    Object.assign(env, {
+      LANGFUSE_SLACK_AGENT_SECRET: bridgeSecret,
+      LANGFUSE_SLACK_TEAM_ID: teamId,
+    });
+  });
+  afterEach(() => Object.assign(env, original));
+
+  function browser(userId: string | null, origin = getProductBaseUrl().origin) {
+    const session: Session | null = userId
+      ? {
+          expires: "1",
+          user: {
+            id: userId,
+            canCreateOrganizations: true,
+            organizations: [],
+            featureFlags: testFeatureFlags(),
+            admin: false,
+          },
+          environment: {
+            enableExperimentalFeatures: false,
+            selfHostedInstancePlan: "oss",
+          },
+        }
+      : null;
+    return slackAgentRouter.createCaller(
+      createInnerTRPCContext({ session, headers: { origin } }),
+    );
+  }
+
+  async function bridge(
+    body: Record<string, unknown>,
+    options?: { authorization?: string; chunks?: Buffer[] },
+  ) {
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "POST",
+      headers: {
+        authorization: options?.authorization ?? `Bearer ${bridgeSecret}`,
+      },
+    });
+    let bodyRead = false;
+    req[Symbol.asyncIterator] = async function* () {
+      bodyRead = true;
+      for (const chunk of options?.chunks ?? [
+        Buffer.from(JSON.stringify(body)),
+      ]) {
+        yield chunk;
+      }
+      return undefined;
+    };
+    await slackAgentRoute(req, res);
+    return {
+      status: res.statusCode,
+      body: res._getJSONData() as Record<string, unknown>,
+      bodyRead,
+    };
+  }
+
+  async function linkedFixture() {
+    const f = await fixture();
+    const slackUserId = `U${randomUUID().replaceAll("-", "").toUpperCase()}`;
+    const caller = browser(f.userId);
+    const { code } = await caller.createCode();
+    const connected = await bridge({
+      operation: "connect",
+      teamId,
+      slackUserId,
+      code,
+    });
+    expect(connected.status).toBe(200);
+    const linkId = z.string().parse(connected.body.linkId);
+    return {
+      ...f,
+      caller,
+      slackUserId,
+      linkId,
+      identity: { teamId, slackUserId, linkId, projectId: f.projectId },
+    };
+  }
+
+  it("requires browser authentication and same origin, and consumes only the newest unexpired code without replacing another account", async () => {
+    const f = await fixture();
+    await expect(browser(null).createCode()).rejects.toThrow();
+    await expect(
+      browser(f.userId, "https://attacker.example").createCode(),
+    ).rejects.toThrow("Request must originate from Langfuse");
+    const caller = browser(f.userId);
+    const identity = {
+      teamId,
+      slackUserId: `U${randomUUID().replaceAll("-", "").toUpperCase()}`,
+    };
+    const old = await caller.createCode();
+    const newest = await caller.createCode();
+    expect(
+      (await bridge({ operation: "connect", ...identity, code: old.code }))
+        .status,
+    ).toBe(403);
+    expect(
+      (await bridge({ operation: "connect", ...identity, code: newest.code }))
+        .status,
+    ).toBe(200);
+    expect(
+      (await bridge({ operation: "connect", ...identity, code: newest.code }))
+        .status,
+    ).toBe(403);
+    const other = await fixture();
+    const otherCode = await browser(other.userId).createCode();
+    expect(
+      (
+        await bridge({
+          operation: "connect",
+          ...identity,
+          code: otherCode.code,
+        })
+      ).status,
+    ).toBe(409);
+    expect((await caller.status()).links).toHaveLength(1);
+    expect((await browser(other.userId).status()).links).toHaveLength(0);
+    const expired = await caller.createCode();
+    await redis?.expire(
+      `slack-agent:code:${createHash("sha256").update(expired.code).digest("hex")}`,
+      0,
+    );
+    expect(
+      (await bridge({ operation: "connect", ...identity, code: expired.code }))
+        .status,
+    ).toBe(403);
+  });
+
+  it("authenticates the private transport before consuming its body and preserves split Unicode messages", async () => {
+    const denied = await bridge(
+      {},
+      { authorization: "Bearer invalid", chunks: [Buffer.from("not json")] },
+    );
+    expect(denied.status).toBe(401);
+    expect(denied.bodyRead).toBe(false);
+    const f = await linkedFixture();
+    expect(
+      (
+        await bridge({
+          operation: "projects",
+          teamId: "TOTHER",
+          slackUserId: f.slackUserId,
+        })
+      ).status,
+    ).toBe(403);
+    const input = {
+      operation: "start",
+      ...f.identity,
+      message: "Check latency 🔎",
+      idempotencyKey: "unicode",
+    };
+    const encoded = Buffer.from(JSON.stringify(input));
+    const split = encoded.indexOf(Buffer.from("🔎")) + 2;
+    const created = await bridge(input, {
+      chunks: [encoded.subarray(0, split), encoded.subarray(split)],
+    });
+    expect(created.status).toBe(202);
+    const reference = AgentRunReference.parse(created.body);
+    const stored = await prisma.inAppAgentRun.findUniqueOrThrow({
+      where: { id_projectId: { id: reference.runId, projectId: f.projectId } },
+    });
+    expect(stored.triggeredByUserId).toBe(f.userId);
+    expect(stored.request).toMatchObject({
+      context: expect.arrayContaining([
+        { description: "langfuse_user_id", value: f.userId },
+      ]),
+    });
+    const event = await prisma.inAppAgentEvent.findFirst({
+      where: {
+        projectId: f.projectId,
+        runId: reference.runId,
+        type: EventType.RUN_STARTED,
+      },
+    });
+    expect(event?.event).toMatchObject({
+      input: { messages: [{ content: input.message }] },
+    });
+    expect((await bridge(input)).body).toEqual(created.body);
+    expect(
+      (await bridge({ ...input, message: "Different question" })).status,
+    ).toBe(409);
+  });
+
+  it("lists eligible projects from current memberships and rejects access revoked after selection", async () => {
+    const f = await linkedFixture();
+    const second = await prisma.project.create({
+      data: { name: "Second allowed project", orgId: f.orgId },
+    });
+    const hidden = await prisma.project.create({
+      data: {
+        name: "No access",
+        orgId: f.orgId,
+        projectMembers: {
+          create: {
+            userId: f.userId,
+            orgMembershipId: f.membership.id,
+            role: "NONE",
+          },
+        },
+      },
+    });
+    await prisma.project.create({
+      data: { name: "Deleted", orgId: f.orgId, deletedAt: new Date() },
+    });
+    const list = await bridge({
+      operation: "projects",
+      teamId,
+      slackUserId: f.slackUserId,
+    });
+    expect(list.body.projects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: f.projectId }),
+        expect.objectContaining({ id: second.id }),
+      ]),
+    );
+    expect(list.body.projects).toHaveLength(2);
+    const input = {
+      operation: "start",
+      ...f.identity,
+      message: "Inspect traces",
+      idempotencyKey: "membership",
+    };
+    expect((await bridge({ ...input, projectId: hidden.id })).status).toBe(403);
+    expect((await bridge({ ...input, projectId: second.id })).status).toBe(202);
+    const created = await bridge(input);
+    expect(created.status).toBe(202);
+    const reference = AgentRunReference.parse(created.body);
+    await prisma.organizationMembership.delete({
+      where: { id: f.membership.id },
+    });
+    expect(
+      (
+        await bridge({
+          operation: "projects",
+          teamId,
+          slackUserId: f.slackUserId,
+        })
+      ).body.projects,
+    ).toEqual([]);
+    expect((await bridge(input)).status).toBe(403);
+    for (const operation of ["get", "cancel"]) {
+      expect(
+        (await bridge({ operation, ...f.identity, runId: reference.runId }))
+          .status,
+      ).toBe(403);
+    }
+  });
+
+  it("isolates link generations and personal conversations, revokes pending codes, and cancels tool approvals", async () => {
+    const f = await linkedFixture();
+    const input = {
+      operation: "start",
+      ...f.identity,
+      message: "Inspect traces",
+      idempotencyKey: "isolation",
+    };
+    const created = await bridge(input);
+    const reference = AgentRunReference.parse(created.body);
+    await prisma.inAppAgentRun.update({
+      where: { id_projectId: { id: reference.runId, projectId: f.projectId } },
+      data: { status: "AWAITING_APPROVAL" },
+    });
+    const cancelled = await bridge({
+      operation: "get",
+      ...f.identity,
+      runId: reference.runId,
+    });
+    expect(GetAgentRunResponse.parse(cancelled.body).status).toBe("CANCELLED");
+    await prisma.inAppAgentConversation.update({
+      where: {
+        id_projectId: { id: reference.conversationId, projectId: f.projectId },
+      },
+      data: { alwaysAllowedTools: ["langfuse_createTextPrompt"] },
+    });
+    expect(
+      (
+        await bridge({
+          ...input,
+          conversationId: reference.conversationId,
+          idempotencyKey: "with-grants",
+        })
+      ).status,
+    ).toBe(403);
+    const privateChat = await prisma.inAppAgentConversation.create({
+      data: {
+        projectId: f.projectId,
+        createdByUserId: f.userId,
+        id: `personal-${randomUUID()}`,
+      },
+    });
+    expect(
+      (
+        await bridge({
+          ...input,
+          conversationId: privateChat.id,
+          idempotencyKey: "private",
+        })
+      ).status,
+    ).toBe(404);
+    const pending = await f.caller.createCode();
+    const intruder = await fixture();
+    await expect(
+      browser(intruder.userId).disconnect({ linkId: f.linkId }),
+    ).rejects.toThrow("Slack connection not found");
+    await f.caller.disconnect({ linkId: f.linkId });
+    expect(
+      (
+        await bridge({
+          operation: "connect",
+          teamId,
+          slackUserId: f.slackUserId,
+          code: pending.code,
+        })
+      ).status,
+    ).toBe(403);
+    const newCode = await f.caller.createCode();
+    const reconnected = await bridge({
+      operation: "connect",
+      teamId,
+      slackUserId: f.slackUserId,
+      code: newCode.code,
+    });
+    const newLinkId = z.string().parse(reconnected.body.linkId);
+    expect(newLinkId).not.toBe(f.linkId);
+    expect(
+      (
+        await bridge({
+          operation: "get",
+          ...f.identity,
+          runId: reference.runId,
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await bridge({
+          operation: "get",
+          ...f.identity,
+          linkId: newLinkId,
+          runId: reference.runId,
+        })
+      ).status,
+    ).toBe(404);
   });
 });

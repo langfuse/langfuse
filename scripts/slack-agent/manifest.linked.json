@@ -1,0 +1,45 @@
+{
+  "display_information": {
+    "name": "Halo",
+    "description": "Ask Langfuse about your projects in a private conversation.",
+    "background_color": "#111827"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "halo",
+      "always_online": false
+    },
+    "app_home": {
+      "home_tab_enabled": false,
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
+    "agent_view": {
+      "agent_description": "Connect your Langfuse account, choose a project, and ask questions in a direct message. Each thread remembers its project."
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "app_mentions:read",
+        "chat:write",
+        "assistant:write",
+        "im:history"
+      ]
+    }
+  },
+  "settings": {
+    "socket_mode_enabled": true,
+    "interactivity": { "is_enabled": true },
+    "event_subscriptions": {
+      "bot_events": [
+        "app_mention",
+        "message.im",
+        "app_home_opened",
+        "agent_session_stopped"
+      ]
+    },
+    "org_deploy_enabled": false,
+    "token_rotation_enabled": false
+  }
+}

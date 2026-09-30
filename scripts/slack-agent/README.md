@@ -8,7 +8,12 @@ Keep the laptop awake and the bot process running during the demo.
 For the request flow, infrastructure, code ownership, and scope, see the
 [in-app-agent PoC guide](../../web/src/features/in-app-agent/SLACK_POC.md).
 
-The demo uses one configured project. Each Slack user links their own Langfuse
+For **individual accounts, DMs, and a remembered project picker**, follow
+[the linked-account setup guide](./LINKED_SETUP.md) and use
+`manifest.linked.json`. This adds a verified connection to each user's Langfuse
+account and checks their current project permissions.
+
+The default channel demo (`SLACK_AGENT_MODE=shared`) uses one configured project. Each Slack user links their own Langfuse
 account before the agent can run, and each run uses that account's current
 project permissions. Account links and answers are ephemeral Slack messages
 visible only to the requesting user. Use synthetic data in a dedicated demo
@@ -189,6 +194,15 @@ Deleting the bridge API key removes its connections. A replacement key requires
 fresh account confirmation. There is no Slack tool-approval UI yet: the bridge
 cancels any run that requires approval. Private ephemeral replies are not a
 durable Slack conversation archive.
+
+## Individual permissions and multiple projects
+
+[Linked mode](./LINKED_SETUP.md) implements verified account linking, current
+user permissions, and one-project-per-DM-thread routing. It uses a separate
+trusted integration credential; the shared project's public API does not accept
+arbitrary user IDs. A user connects once with a short-lived code from Langfuse,
+then chooses a project from a searchable Slack dropdown. The original question
+continues automatically after selection.
 
 ## Verification
 

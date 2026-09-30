@@ -23,6 +23,9 @@
   `src/pages/api/public/agent/connections/*`; confirmed account connections are
   bound to the bridge API key in `src/features/in-app-agent/server/userConnectionService.ts`,
   with current user permissions enforced in `src/features/in-app-agent/server/publicAgentService.ts`.
+- Opt-in linked Slack agent: `/slack-agent` account connection page and private
+  `/api/slack-agent` bot transport; identity links and current user/project access
+  are owned by `src/features/slack-agent/server/service.ts`.
 - Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
 - Reusable UI components: `src/components/*`

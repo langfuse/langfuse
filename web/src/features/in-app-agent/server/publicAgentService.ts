@@ -36,6 +36,17 @@ const API_CONVERSATION_PREFIX = "aconv_api_";
 function connectionConversationPrefix(connectionId: string) {
   return `${API_CONVERSATION_PREFIX}${createHash("sha256").update(connectionId).digest("hex")}_`;
 }
+type ExternalAgentInput = Pick<
+  z.infer<typeof PostAgentRunBody>,
+  "message" | "conversationId" | "idempotencyKey"
+>;
+
+type ExternalAgentAccess = {
+  projectId: string;
+  userId: string;
+  user: { v4BetaEnabled: boolean };
+  organization: { aiTelemetryEnabled: boolean };
+};
 const SubmittedMessage = z.object({
   input: z.object({
     messages: z.array(
@@ -134,14 +145,6 @@ export async function startPublicAgentRun(params: {
     params.scope,
     params.input.connectionId,
   );
-  if (
-    params.input.conversationId !== undefined &&
-    !params.input.conversationId.startsWith(
-      connectionConversationPrefix(access.connectionId),
-    )
-  ) {
-    throw new LangfuseNotFoundError("Agent conversation not found");
-  }
   const digest = createHash("sha256")
     .update(
       JSON.stringify([
@@ -152,12 +155,58 @@ export async function startPublicAgentRun(params: {
       ]),
     )
     .digest("hex");
-  const runId = `arun_api_${digest}`;
-  const conversationId =
-    params.input.conversationId ??
-    `${connectionConversationPrefix(access.connectionId)}${digest}`;
+  const conversationPrefix = connectionConversationPrefix(access.connectionId);
+  return startAgentRun({
+    ...params,
+    access,
+    conversationPrefix,
+    runId: `arun_api_${digest}`,
+    conversationId:
+      params.input.conversationId ?? `${conversationPrefix}${digest}`,
+  });
+}
+
+export async function startExternalAgentRun(params: {
+  scope: ApiAccessScope;
+  access: ExternalAgentAccess;
+  namespace: string;
+  input: ExternalAgentInput;
+}) {
+  const { access } = params;
+  const digest = createHash("sha256")
+    .update(
+      JSON.stringify([
+        access.projectId,
+        access.userId,
+        params.input.idempotencyKey,
+      ]),
+    )
+    .digest("hex");
+  const conversationPrefix = `aconv_${params.namespace}_`;
+  return startAgentRun({
+    ...params,
+    conversationPrefix,
+    runId: `arun_${params.namespace}_${digest}`,
+    conversationId:
+      params.input.conversationId ?? `${conversationPrefix}${digest}`,
+  });
+}
+
+async function startAgentRun(params: {
+  scope: ApiAccessScope;
+  access: ExternalAgentAccess;
+  input: ExternalAgentInput;
+  conversationPrefix: string;
+  runId: string;
+  conversationId: string;
+}) {
+  const { access, conversationPrefix, runId, conversationId } = params;
+  if (!conversationId.startsWith(conversationPrefix)) {
+    throw new LangfuseNotFoundError("Agent conversation not found");
+  }
   const submission = {
     ...access,
+    conversationPrefix,
     runId,
     conversationId,
     message: params.input.message,
@@ -215,12 +264,12 @@ export async function startPublicAgentRun(params: {
 }
 
 async function replaySubmission(params: {
+  conversationPrefix: string;
   projectId: string;
   userId: string;
   runId: string;
   conversationId: string;
   message: string;
-  connectionId: string;
 }) {
   const run = await prisma.inAppAgentRun.findFirst({
     where: apiRunWhere(params),
@@ -261,17 +310,17 @@ async function replaySubmission(params: {
 }
 
 function apiRunWhere(params: {
+  conversationPrefix: string;
   projectId: string;
   userId: string;
   runId: string;
-  connectionId: string;
 }) {
   return {
     id: params.runId,
     projectId: params.projectId,
     triggeredByUserId: params.userId,
     conversation: {
-      id: { startsWith: connectionConversationPrefix(params.connectionId) },
+      id: { startsWith: params.conversationPrefix },
       createdByUserId: params.userId,
       deletedAt: null,
     },
@@ -287,7 +336,24 @@ export async function getPublicAgentRun(params: {
     params.scope,
     params.connectionId,
   );
-  const where = apiRunWhere({ ...access, runId: params.runId });
+  return getExternalAgentRun({
+    access,
+    runId: params.runId,
+    conversationPrefix: connectionConversationPrefix(access.connectionId),
+  });
+}
+
+export async function getExternalAgentRun(params: {
+  access: ExternalAgentAccess;
+  runId: string;
+  conversationPrefix: string;
+}) {
+  const { access } = params;
+  const where = apiRunWhere({
+    ...access,
+    runId: params.runId,
+    conversationPrefix: params.conversationPrefix,
+  });
   const ownedRun = await prisma.inAppAgentRun.findFirst({
     where,
     select: { conversationId: true },
@@ -348,8 +414,25 @@ export async function cancelPublicAgentRun(params: {
     params.scope,
     params.connectionId,
   );
+  return cancelExternalAgentRun({
+    access,
+    runId: params.runId,
+    conversationPrefix: connectionConversationPrefix(access.connectionId),
+  });
+}
+
+export async function cancelExternalAgentRun(params: {
+  access: ExternalAgentAccess;
+  runId: string;
+  conversationPrefix: string;
+}) {
+  const { access } = params;
   const run = await prisma.inAppAgentRun.findFirst({
-    where: apiRunWhere({ ...access, runId: params.runId }),
+    where: apiRunWhere({
+      ...access,
+      runId: params.runId,
+      conversationPrefix: params.conversationPrefix,
+    }),
     select: { id: true, conversationId: true },
   });
   if (!run) {

@@ -1,12 +1,78 @@
 # Slack / Public API PoC
 
-This hackathon prototype lets users mention a Slack bot and ask questions about
-one shared Langfuse project. Slack shows its native working indicator and stop
-button; answers are private ephemeral messages in the channel or existing thread. Each
-user first links their own Langfuse account. This is an experimental, opt-in API
-for a trusted Slack bridge.
+This hackathon prototype connects Slack to the existing project-scoped agent.
+It has two opt-in modes: a single-project channel demo with private ephemeral
+replies, and a project picker in private DMs. Both require individual Langfuse
+account linking, check current user permissions, and use Slack's native working
+indicator and stop button.
 
-## Quick setup
+## Linked accounts and multiple projects
+
+Follow [the linked-account setup guide](../../../../scripts/slack-agent/LINKED_SETUP.md)
+for the exact Slack manifest, server configuration, and connection steps.
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Web as Langfuse web
+  participant Bot as Slack bot
+  participant Worker as Existing worker
+  User->>Web: Sign in and generate connection code
+  Web-->>User: One-time code, expires in five minutes
+  User->>Bot: Send code in private DM
+  Bot->>Web: Redeem code for verified Slack workspace/user
+  Web-->>Bot: Persisted account link
+  User->>Bot: Ask a question
+  Bot->>Web: List currently accessible projects
+  Bot-->>User: Searchable project dropdown
+  User->>Bot: Choose a project
+  Bot->>Web: Start retained question as linked user
+  Web->>Worker: Existing durable background run
+  Bot->>Web: Poll, checking current access
+  Bot-->>User: Answer in the same private thread
+```
+
+**Identity and authorization.** A signed-in Langfuse user generates a random
+connection code with a same-origin, authenticated mutation. Redis stores its
+hash for five minutes and consumes it once. The bot redeems it through
+`POST /api/slack-agent`, authenticated with a dedicated service secret and
+restricted to the configured workspace. The server stores the verified mapping
+in `SlackAgentUserLink`; it never accepts a caller-supplied Langfuse user ID.
+The trusted bot credential can act for linked users in that workspace, so it
+must be held only by the bot operator. Project API keys use separate,
+project-bound account connections and cannot access these workspace-wide links.
+
+**Project selection.** The bot offers only projects allowed by the linked
+user's current membership and the agent's normal feature eligibility checks.
+It retains the question while the user chooses. A thread is bound to one
+Slack owner, one account-link ID, one project, and one Langfuse conversation.
+Changing projects means starting a new thread. A remembered last project is
+only a suggestion. Stale dropdowns, another user, or a replacement account
+link cannot move an existing conversation into another scope.
+
+**Privacy and revocation.** Linked-mode project names and answers stay in DMs;
+channel mentions direct the requester there. The server rechecks membership on
+submission, polling, and cancellation, and the worker applies its existing
+permission checks. Disconnecting on `/slack-agent` revokes further access and
+reconnecting uses a new link identity. Previously delivered Slack messages are
+not deleted. Slack does not provide tool-approval controls; runs awaiting
+approval are cancelled, and changes should use Langfuse's in-app flow.
+
+**Storage.** Verified links live in Postgres; expiring code hashes live in
+Redis. Agent events and runs use the existing Postgres tables. Thread bindings,
+project preferences, pending questions, and delivery progress live in the
+bot's ignored `state.linked.local.json`. This supports one local bot process
+and restart recovery; multiple replicas need shared routing/delivery storage.
+The new link table requires the included Postgres migration. The worker, queue
+contract, model runtime, and MCP tools are unchanged.
+
+**Browser surface.** `/slack-agent` uses the existing signed-in session and
+tRPC. Connection codes are excluded from client logging and replay capture.
+No product analytics event is added for this opt-in credential setup flow.
+Expected connection/configuration failures are rendered in the UI; no new
+client-side Sentry capture is added.
+
+## Shared-project quick setup
 
 1. Start a local Langfuse web and worker with the normal development services and
    a working in-app-agent model configuration. Use synthetic project data.
@@ -63,6 +129,8 @@ an account-confirmation page, and the `user_connections` Postgres table. It
 reuses the existing conversation/run tables, Redis/BullMQ queue, worker, MCP
 server, and project datastores such as ClickHouse. It adds no queue type, cloud
 deployment, or separate model runtime.
+Linked mode additionally adds the separate Slack identity link table, private
+bot transport, and account page described above.
 The worker must reach the web MCP endpoint through `LANGFUSE_MCP_BASE_URL` or
 `NEXTAUTH_URL`, as well as its configured model provider. Model credentials
 stay with Langfuse; Slack tokens stay with the bot.
@@ -112,6 +180,11 @@ existing shared agent contract.
   admission, durable run creation, queueing, and cancellation.
 - [scripts/slack-agent](../../../../scripts/slack-agent) owns Slack routing,
   statuses, polling, formatting, and local recovery state.
+- [slack-agent/server/service.ts](../slack-agent/server/service.ts) owns verified
+  account links, connection codes, and current linked-user access. Its router
+  serves the signed-in account page, and `/api/slack-agent` is the private
+  bot transport. Linked mode reuses the external-run helpers in
+  `publicAgentService.ts`, with conversations namespaced by account-link ID.
 - [executeInAppAgentRun.ts](../../../../worker/src/features/in-app-agent/executeInAppAgentRun.ts)
   owns model execution and temporary MCP credentials. Its runtime is unchanged
   by this PoC. [ARCHITECTURE.md](./ARCHITECTURE.md) covers the agent's existing
@@ -119,7 +192,7 @@ existing shared agent contract.
 - [agent.yml](../../../../fern/apis/server/definition/agent.yml) owns the
   public API specification; served OpenAPI is generated from it.
 
-## Scope and next steps
+## Shared-mode scope and deployment limits
 
 The bridge is trusted to report the Slack identity from authenticated events.
 Account confirmation delegates that identity only to the specific bridge API
@@ -133,16 +206,19 @@ permissions again at execution. The bot cancels any run awaiting approval
 because Slack has no approval UI. Replies are ephemeral and visible only to the
 requesting user, so channel membership does not reveal another user's results.
 
-The demo supports mentions in one channel and one bot process. Direct messages,
-unmentioned follow-ups, token streaming, tool-progress cards, OAuth installation
-across workspaces, and production hosting are outside this PoC. The animated
+Shared mode supports mentions in one channel and one bot process. Linked mode
+supports private DMs and unmentioned thread follow-ups. Token streaming,
+tool-progress cards, OAuth installation across workspaces, authorized shared
+channel answers, and production hosting are outside this PoC. The animated
 working indicator uses Slack's native agent-session API and does not require
 token streaming. A normal PR preview does not run the Slack bot or opt into this
 API configuration; use the local setup to reproduce the integration.
 
 Hosting the bot later requires a continuously running process and durable
-shared delivery state before adding replicas. Ephemeral replies are private but
-do not provide a durable Slack conversation archive.
+shared delivery state before adding replicas. Socket Mode needs no inbound
+access to the laptop, but users must be able to reach Langfuse's account-linking
+page. A localhost Langfuse URL only supports linking from that laptop.
+Ephemeral channel replies do not provide a durable Slack conversation archive.
 
 ## Verification
 

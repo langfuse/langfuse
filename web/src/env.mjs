@@ -569,6 +569,11 @@ export const env = createEnv({
     LANGFUSE_AI_VERTEX_LOCATION: z.string().optional(),
     LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
     LANGFUSE_IN_APP_AGENT_API_PROJECT_ID: z.string().min(1).optional(),
+    LANGFUSE_SLACK_AGENT_SECRET: z.string().min(32).optional(),
+    LANGFUSE_SLACK_TEAM_ID: z
+      .string()
+      .regex(/^T[A-Z0-9]+$/)
+      .optional(),
     LANGFUSE_EVALUATOR_MEDIA_TRANSPORT: z
       .enum(["url", "inline", "disabled"])
       .optional(),
@@ -1177,6 +1182,8 @@ export const env = createEnv({
     LANGFUSE_IN_APP_AGENT_ENABLED: process.env.LANGFUSE_IN_APP_AGENT_ENABLED,
     LANGFUSE_IN_APP_AGENT_API_PROJECT_ID:
       process.env.LANGFUSE_IN_APP_AGENT_API_PROJECT_ID,
+    LANGFUSE_SLACK_AGENT_SECRET: process.env.LANGFUSE_SLACK_AGENT_SECRET,
+    LANGFUSE_SLACK_TEAM_ID: process.env.LANGFUSE_SLACK_TEAM_ID,
     LANGFUSE_EVALUATOR_MEDIA_TRANSPORT:
       process.env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT,
     LANGFUSE_EVALUATOR_MEDIA_INLINE_MAX_BYTES:
