@@ -2,7 +2,7 @@ import { ConnectedOrgOverviewGraph } from "../OrgOverviewGraph/ConnectedOrgOverv
 import Header from "@/src/components/layouts/header";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { ErrorPage } from "@/src/components/error-page";
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 
@@ -16,9 +16,10 @@ export function OrganizationAnalyticsPage({
   const [activityFilter, setActivityFilter] = useState<
     "all" | "active" | "inactive"
   >("all");
-  const [order, setOrder] = useState<
-    "billable" | "observations" | "scores" | "name"
-  >("billable");
+  const [order, setOrder] =
+    useState<ComponentProps<typeof ConnectedOrgOverviewGraph>["order"]>(
+      "billable",
+    );
 
   if (!internalFeaturesEnabled) {
     return (
@@ -60,7 +61,9 @@ export function OrganizationAnalyticsPage({
             />
           </div>
           <div className="w-52">
-            <SelectInput<"billable" | "observations" | "scores" | "name">
+            <SelectInput<
+              ComponentProps<typeof ConnectedOrgOverviewGraph>["order"]
+            >
               value={order}
               onValueChange={setOrder}
               aria-label="Order projects"
@@ -69,6 +72,14 @@ export function OrganizationAnalyticsPage({
                 { value: "billable", label: "Most billable units" },
                 { value: "observations", label: "Most observations" },
                 { value: "scores", label: "Most scores" },
+                {
+                  value: "activeEvaluationRules",
+                  label: "Most active evaluation rules",
+                },
+                { value: "datasets", label: "Most datasets" },
+                { value: "datasetItems", label: "Most dataset items" },
+                { value: "activeMonitors", label: "Most active monitors" },
+                { value: "prompts", label: "Most prompts" },
                 { value: "name", label: "Project name A–Z" },
               ]}
             />

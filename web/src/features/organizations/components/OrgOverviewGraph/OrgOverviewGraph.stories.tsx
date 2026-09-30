@@ -1,4 +1,5 @@
 import preview from "../../../../../.storybook/preview";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import {
   OrgOverviewGraph,
   type OrganizationIngestionOverview,
@@ -21,6 +22,7 @@ const clientFields = {
   sdkVersion: "4.0.0",
   canonicalSdkName: "javascript",
   sdkUpgradeStatus: "current",
+  v4Migration: "not_required",
   publicKey: "pk-js",
   isInternal: false,
   lastSeen: "2026-09-29T23:00:00Z",
@@ -81,6 +83,7 @@ const exampleData: OrganizationIngestionOverview = {
       sdkVersion: "3.9.0",
       canonicalSdkName: "python",
       sdkUpgradeStatus: "outdated_major",
+      v4Migration: "required",
       publicKey: "pk-python",
       current: 4000,
       previous: 4000,
@@ -147,6 +150,220 @@ const exampleData: OrganizationIngestionOverview = {
 };
 
 export const Default = meta.story({ args: { data: exampleData } });
+
+export const SortByDatasets = meta.story({
+  name: "(Test) Sort by datasets with name tie-breaker",
+  args: {
+    order: "datasets",
+    data: {
+      ...exampleData,
+      projects: exampleData.projects.map((project) => ({
+        ...project,
+        features: {
+          ...project.features,
+          datasets: project.id === "porcini" ? 1 : 3,
+        },
+      })),
+      eventRows: [],
+      scoreRows: [],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByText("Chanterelle");
+    await waitFor(() => {
+      const centers = ["Chanterelle", "Shiitake", "Porcini"].map((name) => {
+        const node = canvas.getByText(name).closest(".react-flow__node");
+        expect(node).not.toBeNull();
+        const bounds = node!.getBoundingClientRect();
+        expect(bounds.height).toBeGreaterThan(0);
+        return bounds.top + bounds.height / 2;
+      });
+      expect(centers[0]!).toBeLessThan(centers[1]!);
+      expect(centers[1]!).toBeLessThan(centers[2]!);
+    });
+  },
+});
+
+export const SortByEvaluationRules = meta.story({
+  args: { data: exampleData, order: "activeEvaluationRules" },
+});
+
+export const SortByDatasetItems = meta.story({
+  args: { data: exampleData, order: "datasetItems" },
+});
+
+export const SortByActiveMonitors = meta.story({
+  args: { data: exampleData, order: "activeMonitors" },
+});
+
+export const SortByPrompts = meta.story({
+  args: { data: exampleData, order: "prompts" },
+});
+
+export const EmptyProjectBeforeClients = meta.story({
+  args: {
+    data: {
+      ...exampleData,
+      projects: [
+        {
+          id: "empty",
+          name: "Empty project",
+          features: {
+            activeEvaluationRules: 0,
+            datasets: 0,
+            datasetItems: 0,
+            activeMonitors: 0,
+            prompts: 0,
+          },
+        },
+        exampleData.projects[0]!,
+      ],
+      eventRows: exampleData.eventRows.map((row) => ({
+        ...row,
+        projectId: "shiitake",
+      })),
+      scoreRows: [],
+    },
+  },
+});
+
+export const SeparatedProjectCards = meta.story({
+  name: "(Test) Separated project cards",
+  args: { data: exampleData },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByText("Shiitake");
+    await waitFor(() => {
+      const cards = ["Shiitake", "Porcini", "Chanterelle"].map((name) => {
+        const node = canvas.getByText(name).closest(".react-flow__node");
+        expect(node).not.toBeNull();
+        const bounds = node!.getBoundingClientRect();
+        expect(bounds.height).toBeGreaterThan(0);
+        return bounds;
+      });
+      expect(cards[1]!.top).toBeGreaterThan(cards[0]!.bottom);
+      expect(cards[2]!.top).toBeGreaterThan(cards[1]!.bottom);
+    });
+  },
+});
+
+export const ProjectMetadata = meta.story({
+  name: "(Test) Project metadata",
+  args: {
+    data: {
+      ...exampleData,
+      projects: [exampleData.projects[0]!],
+      eventRows: [],
+      scoreRows: [],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByText("Active evaluation rules"),
+    ).toBeVisible();
+    await expect(canvas.getByText("Datasets")).toBeVisible();
+    await expect(canvas.getByText("Dataset items")).toBeVisible();
+    await expect(canvas.getByText("1,250")).toBeVisible();
+    await expect(canvas.getByText("Active monitors")).toBeVisible();
+    await expect(canvas.getByText("Prompts")).toBeVisible();
+    await expect(canvas.getByText("Observations (7d)")).toBeVisible();
+  },
+});
+
+export const MixedInternalExternalTraffic = meta.story({
+  name: "(Test) Mixed internal and external traffic",
+  args: {
+    data: {
+      ...exampleData,
+      projects: [exampleData.projects[0]!],
+      eventRows: [
+        {
+          ...exampleData.eventRows[0]!,
+          current: 8000,
+          previous: 6000,
+          v4Migration: "required",
+        },
+        {
+          ...exampleData.eventRows[0]!,
+          isInternal: true,
+          current: 2000,
+          previous: 1000,
+          lastSeen: "2026-09-30T00:00:00Z",
+          v4Migration: "unknown",
+        },
+      ],
+      scoreRows: [],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findAllByText("langfuse-js")).toHaveLength(1);
+    await waitFor(() => {
+      const client = canvas
+        .getByText("langfuse-js")
+        .closest(".react-flow__node");
+      const project = canvas.getByText("Shiitake").closest(".react-flow__node");
+      expect(client).not.toBeNull();
+      expect(project).not.toBeNull();
+      const clientBounds = client!.getBoundingClientRect();
+      const projectBounds = project!.getBoundingClientRect();
+      expect(clientBounds.height).toBeGreaterThan(0);
+      expect(projectBounds.height).toBeGreaterThan(0);
+      expect(
+        Math.abs(
+          clientBounds.top +
+            clientBounds.height / 2 -
+            (projectBounds.top + projectBounds.height / 2),
+        ),
+      ).toBeLessThan(1);
+    });
+    await expect(await canvas.findByText("External")).toBeVisible();
+    await expect(await canvas.findByText("Internal")).toBeVisible();
+    await expect(canvas.getByText("8,000")).toBeVisible();
+    await expect(canvas.getByText("2,000")).toBeVisible();
+    await expect(canvas.getByText("Required")).toBeVisible();
+    await userEvent.hover(
+      canvas.getByRole("button", {
+        name: "Explain internal and external traffic",
+      }),
+    );
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(await body.findByRole("tooltip")).toHaveTextContent(
+      "Internal observations use an environment starting with langfuse-",
+    );
+  },
+});
+
+export const ExternalTrafficOnly = meta.story({
+  name: "(Test) External traffic only",
+  args: {
+    data: {
+      ...exampleData,
+      projects: [exampleData.projects[0]!],
+      eventRows: [exampleData.eventRows[0]!],
+      scoreRows: [],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findAllByText("8,000")).toHaveLength(3);
+    await expect(canvas.queryByText("External")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("Internal")).not.toBeInTheDocument();
+  },
+});
+
+export const CompactViewport = meta.story({
+  args: { data: exampleData },
+  decorators: [
+    (Story) => (
+      <div className="h-[480px] w-[720px]">
+        <Story />
+      </div>
+    ),
+  ],
+});
 
 export const SingleProjectThreeClients = meta.story({
   args: {
@@ -264,6 +481,7 @@ export const UnknownSdk = meta.story({
           sdkVersion: null,
           canonicalSdkName: null,
           sdkUpgradeStatus: "unknown",
+          v4Migration: "unknown",
         },
       ],
       scoreRows: [],

@@ -8,6 +8,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { type ScoreSourceType } from "@langfuse/shared";
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
+import { getSdkUsageSeriesByProject } from "@/src/features/v4/server/v4TransitionSdkUsage";
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const MINUTE_MS = 60 * 1_000;
@@ -21,6 +22,7 @@ type IngestionClientFields = {
   sdkVersion: string | null;
   canonicalSdkName: IngestionSdkCanonicalName | null;
   sdkUpgradeStatus: IngestionSdkUpgradeStatus;
+  v4Migration: "required" | "not_required" | "unknown";
   publicKey: string | null;
   /** Written by Langfuse itself (`langfuse-*` environment or internal SDK). */
   isInternal: boolean;
@@ -110,19 +112,32 @@ GROUP BY projectId, source, sdkName, sdkVersion, publicKey, isInternal
 const toNullableSdkValue = (value: string): string | null =>
   value === "" || value === UNKNOWN_INGESTION_SDK_VALUE ? null : value;
 
-const toClientFields = (row: ClickhouseClientRow): IngestionClientFields => {
+const toClientFields = (
+  row: ClickhouseClientRow,
+  migrationByClient: Map<string, "required" | "not_required">,
+): IngestionClientFields => {
   const sdkName = toNullableSdkValue(row.sdkName);
   const sdkVersion = toNullableSdkValue(row.sdkVersion);
   const classification = classifyIngestionSdkVersion({ sdkName, sdkVersion });
+  const isInternal =
+    row.isInternal === true || row.isInternal === 1 || row.isInternal === "1";
+  let v4Migration: IngestionClientFields["v4Migration"] = "unknown";
+  // Migration detection excludes internal traffic and uses its own detection window.
+  if (!isInternal) {
+    v4Migration =
+      migrationByClient.get(
+        JSON.stringify([row.projectId, sdkName, sdkVersion, row.publicKey]),
+      ) ?? "unknown";
+  }
 
   return {
     sdkName,
     sdkVersion,
     canonicalSdkName: classification.canonicalSdkName,
     sdkUpgradeStatus: classification.status,
+    v4Migration,
     publicKey: row.publicKey === "" ? null : row.publicKey,
-    isInternal:
-      row.isInternal === true || row.isInternal === 1 || row.isInternal === "1",
+    isInternal,
     current: Number(row.currentCount),
     previous: Number(row.previousCount),
     lastSeen: row.lastSeen,
@@ -226,21 +241,40 @@ export const getOrganizationIngestionOverview = async ({
     to: convertDateToClickhouseDateTime(to),
   };
 
-  const [featureCounts, eventRows, scoreRows] = await Promise.all([
-    getProjectFeatureCounts({ prisma, projectIds: params.projectIds }),
-    queryClickhouse<ClickhouseClientRow & { ingestionPath: IngestionPath }>({
-      query: EVENT_ROWS_QUERY,
-      params,
-      tags: { route: "organization-ingestion-overview-events" },
-      preferredClickhouseService: "EventsReadOnly",
-    }),
-    queryClickhouse<ClickhouseClientRow & { source: string }>({
-      query: SCORE_ROWS_QUERY,
-      params,
-      tags: { route: "organization-ingestion-overview-scores" },
-      preferredClickhouseService: "ReadOnly",
-    }),
-  ]);
+  const [featureCounts, eventRows, scoreRows, migrationSeriesByProject] =
+    await Promise.all([
+      getProjectFeatureCounts({ prisma, projectIds: params.projectIds }),
+      queryClickhouse<ClickhouseClientRow & { ingestionPath: IngestionPath }>({
+        query: EVENT_ROWS_QUERY,
+        params,
+        tags: { route: "organization-ingestion-overview-events" },
+        preferredClickhouseService: "EventsReadOnly",
+      }),
+      queryClickhouse<ClickhouseClientRow & { source: string }>({
+        query: SCORE_ROWS_QUERY,
+        params,
+        tags: { route: "organization-ingestion-overview-scores" },
+        preferredClickhouseService: "ReadOnly",
+      }),
+      getSdkUsageSeriesByProject({ projectIds: params.projectIds, nowMs }),
+    ]);
+
+  const migrationByClient = new Map<string, "required" | "not_required">();
+  for (const [projectId, series] of migrationSeriesByProject) {
+    for (const client of series) {
+      const key = JSON.stringify([
+        projectId,
+        toNullableSdkValue(client.sdkName),
+        toNullableSdkValue(client.sdkVersion),
+        client.publicKey,
+      ]);
+      if (client.actionLevel === "required") {
+        migrationByClient.set(key, "required");
+      } else if (!migrationByClient.has(key)) {
+        migrationByClient.set(key, "not_required");
+      }
+    }
+  }
 
   return {
     window,
@@ -251,13 +285,13 @@ export const getOrganizationIngestionOverview = async ({
     eventRows: eventRows.map((row) => ({
       projectId: row.projectId,
       ingestionPath: row.ingestionPath,
-      ...toClientFields(row),
+      ...toClientFields(row, migrationByClient),
     })),
     scoreRows: scoreRows.flatMap((row) => [
       {
         projectId: row.projectId,
         source: row.source as ScoreSourceType,
-        ...toClientFields(row),
+        ...toClientFields(row, migrationByClient),
       },
     ]),
   };
