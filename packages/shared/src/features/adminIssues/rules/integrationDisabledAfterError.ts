@@ -5,7 +5,11 @@ import type { AdminIssueDefinition, RuleIssue } from "../adminIssueDefinitions";
 const MAX_ERROR_LENGTH = 300;
 
 const formatError = (error: string) => {
-  const singleLine = error.replace(/\s+/g, " ").replaceAll("`", "'").trim();
+  const singleLine = error
+    .replace(/\s+/g, " ")
+    .replaceAll("`", "'")
+    .trim()
+    .replace(/\.$/, "");
   return singleLine.length > MAX_ERROR_LENGTH
     ? `${singleLine.slice(0, MAX_ERROR_LENGTH)}…`
     : singleLine;

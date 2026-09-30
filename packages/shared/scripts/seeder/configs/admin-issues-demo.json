@@ -7,6 +7,14 @@
     {
       "name": "nested-prompts",
       "params": { "depth": 4, "id-prefix": "admin-issues-demo" }
+    },
+    {
+      "name": "failing-integrations",
+      "params": {
+        "blob-storage": "timeout",
+        "posthog": "disabled",
+        "id-prefix": "admin-issues-demo"
+      }
     }
   ]
 }
