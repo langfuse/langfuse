@@ -228,24 +228,45 @@ test("matches by ancestor titles when fullName is absent, sorted by file then li
   ]);
 });
 
-test("runCommandFor derives the runner from the file path, relative to its package", () => {
+test("runCommandFor derives the runner argv from the file path, relative to its package", () => {
   // pnpm --filter runs the script with the package directory as cwd, so the
   // path Vitest is given must drop the package's own prefix.
+  assert.deepEqual(runCommandFor("web/src/a.servertest.ts"), [
+    "pnpm",
+    "--filter",
+    "web",
+    "run",
+    "test",
+    "src/a.servertest.ts",
+  ]);
+  assert.deepEqual(runCommandFor("web/src/a.clienttest.tsx"), [
+    "pnpm",
+    "--filter",
+    "web",
+    "run",
+    "test-client",
+    "src/a.clienttest.tsx",
+  ]);
+  assert.deepEqual(runCommandFor("worker/src/a.test.ts"), [
+    "pnpm",
+    "--filter",
+    "worker",
+    "run",
+    "test",
+    "src/a.test.ts",
+  ]);
+  assert.deepEqual(runCommandFor("packages/shared/src/a.test.ts"), [
+    "pnpm",
+    "--filter",
+    "@langfuse/shared",
+    "run",
+    "test",
+    "src/a.test.ts",
+  ]);
+  // Shell syntax in a file name stays one literal argument.
   assert.equal(
-    runCommandFor("web/src/a.servertest.ts"),
-    "pnpm --filter web run test src/a.servertest.ts",
-  );
-  assert.equal(
-    runCommandFor("web/src/a.clienttest.tsx"),
-    "pnpm --filter web run test-client src/a.clienttest.tsx",
-  );
-  assert.equal(
-    runCommandFor("worker/src/a.test.ts"),
-    "pnpm --filter worker run test src/a.test.ts",
-  );
-  assert.equal(
-    runCommandFor("packages/shared/src/a.test.ts"),
-    "pnpm --filter @langfuse/shared run test src/a.test.ts",
+    runCommandFor("worker/src/a$(id);b.test.ts").at(-1),
+    "src/a$(id);b.test.ts",
   );
 });
 
@@ -306,7 +327,7 @@ test("measure stubs, runs, reports failures, and reverts the source", async () =
     // The runner ran the command derived from the file's path, not one
     // supplied, and that path is relative to the web package, not the repo.
     assert.deepEqual(commands, [
-      "pnpm --filter web run test src/x.servertest.ts",
+      ["pnpm", "--filter", "web", "run", "test", "src/x.servertest.ts"],
     ]);
     assert.equal(readFileSync(join(root, moduleFile), "utf8"), source);
   } finally {
@@ -345,12 +366,12 @@ test("measure lets a supplied runCommand override the derived one", async () => 
   try {
     const result = await measure({
       symbol: `${moduleFile}#getGenerations`,
-      tests: [{ file: testFile, runCommand: "pnpm custom runner" }],
+      tests: [{ file: testFile, runCommand: ["pnpm", "custom", "runner"] }],
       repoRoot: root,
       runFile,
     });
     assert.equal(result.ok, true);
-    assert.deepEqual(commands, ["pnpm custom runner"]);
+    assert.deepEqual(commands, [["pnpm", "custom", "runner"]]);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -329,44 +329,42 @@ const relativeToPackage = (file, root) =>
   file.startsWith(`${root}/`) ? file.slice(root.length + 1) : file;
 
 /**
- * The command that runs one test file, derived from its path so a caller need
- * not supply one: web files go through the web project (client tests through
- * its `test-client` script), worker and shared through theirs. The path is
- * rewritten relative to the package, since that is the runner's cwd.
+ * The argv that runs one test file, derived from its path so a caller need not
+ * supply one: web files go through the web project (client tests through its
+ * `test-client` script), worker and shared through theirs. The path is
+ * rewritten relative to the package, since that is the runner's cwd. It is
+ * never passed through a shell, so a file name cannot inject commands.
  *
  * @param {string} file repo-relative test file
- * @returns {string}
+ * @returns {string[]}
  */
 export function runCommandFor(file) {
   const root = packageRootOf(file);
   const rel = relativeToPackage(file, root);
+  const run = (pkg, script) => ["pnpm", "--filter", pkg, "run", script, rel];
   if (root === "web") {
-    const script = /\.clienttest\.tsx?$/.test(file) ? "test-client" : "test";
-    return `pnpm --filter web run ${script} ${rel}`;
+    return run(
+      "web",
+      /\.clienttest\.tsx?$/.test(file) ? "test-client" : "test",
+    );
   }
-  if (root === "worker") return `pnpm --filter worker run test ${rel}`;
-  if (root === "packages/shared") {
-    return `pnpm --filter @langfuse/shared run test ${rel}`;
-  }
-  return `pnpm --filter ${root.split("/").pop()} run test ${rel}`;
+  if (root === "packages/shared") return run("@langfuse/shared", "test");
+  return run(root.split("/").pop(), "test");
 }
 
 // Runs one test file with the JSON reporter and returns the parsed report.
-// Vitest exits non-zero when tests fail — expected, since the stub is meant to
-// fail them — so the exit code is ignored and the written report is the signal;
-// a missing or unparseable report throws, which the caller treats as a crash.
-function defaultRunFile(runCommand, repoRoot) {
+// Vitest exits non-zero when tests fail, which is expected since the stub is
+// meant to fail them, so the exit code is ignored and the written report is the
+// signal; a missing or unparseable report throws, which the caller treats as a
+// crash.
+function defaultRunFile([command, ...args], repoRoot) {
   const dir = mkdtempSync(join(tmpdir(), "review-tests-"));
   const outFile = join(dir, "report.json");
   try {
     spawnSync(
-      "bash",
-      ["-c", `${runCommand} --reporter=json --outputFile='${outFile}'`],
-      {
-        cwd: repoRoot,
-        encoding: "utf8",
-        maxBuffer: 1 << 28,
-      },
+      command,
+      [...args, "--reporter=json", `--outputFile=${outFile}`],
+      { cwd: repoRoot, encoding: "utf8", maxBuffer: 1 << 28, shell: false },
     );
     return JSON.parse(readFileSync(outFile, "utf8"));
   } finally {
@@ -385,10 +383,10 @@ function defaultRunFile(runCommand, repoRoot) {
  *
  * @param {object} args
  * @param {string} args.symbol `<module file>#<export>`
- * @param {Array<{file: string, runCommand?: string}>} args.tests referencing
- *   tests; each file's runner is derived from its path unless `runCommand` overrides it
+ * @param {Array<{file: string, runCommand?: string[]}>} args.tests referencing
+ *   tests; each file's runner argv is derived from its path unless `runCommand` overrides it
  * @param {string} [args.repoRoot]
- * @param {(runCommand: string, repoRoot: string) => object} [args.runFile] injectable runner
+ * @param {(runCommand: string[], repoRoot: string) => object} [args.runFile] injectable runner
  * @returns {Promise<object>} the measurement contract
  */
 export async function measure({
