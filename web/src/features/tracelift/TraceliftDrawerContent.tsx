@@ -9,7 +9,7 @@ import { buildEventsTablePathForObservationIds } from "@/src/features/events/lib
 import { TraceliftPanelContent } from "./TraceliftPanelContent";
 import { useTracelift } from "./TraceliftContext";
 import type { TraceliftFinding } from "./types";
-import { createTraceliftFinding } from "./issuePresentation";
+import { createTraceliftFinding, isTraceliftIssue } from "./issuePresentation";
 
 export function TraceliftDrawerContent() {
   const router = useRouter();
@@ -26,8 +26,7 @@ export function TraceliftDrawerContent() {
     { enabled: !!projectId },
   );
 
-  const openAssistant = (finding: TraceliftFinding) => {
-    if (!finding.prompt) return;
+  const openAssistant = (prompt: string) => {
     if (!isAvailable) {
       toast.info("The assistant is unavailable in this environment.", {
         description: "Copy the prompt to use it with your coding agent.",
@@ -35,7 +34,7 @@ export function TraceliftDrawerContent() {
       return;
     }
 
-    if (openAssistantWithPrompt(finding.prompt)) {
+    if (openAssistantWithPrompt(prompt)) {
       setOpen(false);
     }
   };
@@ -64,13 +63,16 @@ export function TraceliftDrawerContent() {
     if (!issues.data) return { status: "loading" as const };
     return {
       status: "success" as const,
-      findings: issues.data.counts.map((finding) =>
-        createTraceliftFinding(finding, { projectId, ...timeRange }),
+      findings: issues.data.counts.flatMap((finding) =>
+        isTraceliftIssue(finding.issue)
+          ? [
+              createTraceliftFinding(
+                { ...finding, issue: finding.issue },
+                { projectId, ...timeRange },
+              ),
+            ]
+          : [],
       ),
-      summary: {
-        issueCount: issues.data.totalCount,
-        langfuseIngestionCostUsd: null,
-      },
     };
   })();
 
@@ -79,7 +81,7 @@ export function TraceliftDrawerContent() {
       key={projectId}
       {...contentProps}
       onClose={() => setOpen(false)}
-      onOpenAssistant={openAssistant}
+      onOpenAssistant={isAvailable ? openAssistant : undefined}
       onViewObservations={viewObservations}
       onViewExample={() => setOpen(false)}
     />

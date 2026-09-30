@@ -38,22 +38,24 @@ using either endpoint.
 
 ## UI
 
-The internal **Trace fixes** drawer on Tracing and Observations reads
-`issueCounts` for the last 30 days. It displays stored issue counts, not distinct
-observations. Loading and query failures are separate from an empty result.
-Ingestion costs, fix prompts, and example-observation actions remain hidden when
-those values are unavailable. Illustrative findings are used only in Storybook.
+The internal **Instrumentation suggestions** drawer reads `issueCounts` for the
+last 30 days. The drawer and trace detail section only display categories in the
+shared `TraceIssue` enum. Counts represent stored findings, not distinct spans.
 
-The trace viewer's Preview tab reads `byTrace` with pagination and links
-observation-level findings to the selected observation. Trace-level findings
-are labeled separately. The section requires internal features and project
-membership, and is hidden in annotation mode and public trace views.
+`TraceliftDrawerContent` owns fetching, category filtering, and navigation.
+`issuePresentation` maps supported categories to suggestions and prompt context.
+`TraceliftPanelContent` owns the combined prompt and clipboard feedback;
+`TraceliftFindingSection` renders each suggestion and its example links.
+The assistant action prefills a draft and is hidden when unavailable.
 
-Enable `LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=true` locally and keep the user's
-internal features preference enabled. After applying the ClickHouse migration,
-open `http://localhost:3000`, choose a project, and open **Tracing → Trace fixes**
-or a trace's **Preview** tab. Reads work independently of worker enablement.
-Finding population is owned by the worker; the current dummy processor only logs.
+Only infrastructure suggestions show savings: an illustrative $6 per 100,000
+excluded observations. We do not multiply finding counts by this rate: the API
+does not provide the removable span volume needed for a project-specific total.
 
-Product analytics remain deferred for this internal feature. Issue categories
-and identifiers are excluded from session replay using `ph-no-capture`.
+Enable `LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=true` and the user's internal
+features preference. Open **Tracing → Instrumentation suggestions**. The trace
+viewer's Preview tab also shows supported suggestions, with pagination.
+Storybook uses illustrative examples only; no customer data is required.
+
+Product analytics remain deferred for this internal feature. Identifiers and
+prompt contents are excluded from session replay using `ph-no-capture`.

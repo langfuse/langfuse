@@ -1,5 +1,6 @@
 import {
   buildTracePath,
+  type TraceIssue,
   type TraceliftIssueCountsOutput,
 } from "@langfuse/shared";
 import type { TraceliftFinding } from "./types";
@@ -10,37 +11,37 @@ type IssuePresentation = {
   recommendation: string;
 };
 
-const catalog: Record<string, IssuePresentation> = {
+const catalog: Record<TraceIssue, IssuePresentation> = {
   NO_GENERATIONS: {
-    title: "No LLM calls captured",
+    title: "Capture LLM calls",
     description:
       "These traces contain no recorded generations. If the requests call an LLM, its inputs, outputs, and usage may be missing from your traces.",
     recommendation:
       "Check that your model integration records LLM calls as generations. Traces that do not call an LLM can legitimately have no generations.",
   },
   NO_NESTING: {
-    title: "Missing parent-child relationships",
+    title: "Connect related operations",
     description:
       "These traces contain multiple observations without parent IDs, making it harder to follow how operations relate to each other.",
     recommendation:
       "Review context propagation across async tasks and service boundaries. Attach child operations to their actual parent, while preserving intentionally independent roots.",
   },
   EMPTY_GENERATION_IO: {
-    title: "Missing generation inputs and outputs",
+    title: "Add context to LLM calls",
     description:
       "At least one generation in each example has both an empty input and an empty output, leaving little context for evaluating the model response.",
     recommendation:
       "Check input/output capture and completion updates in your model integration. Preserve intentional redaction and only capture data your privacy policy allows.",
   },
   EMPTY_ROOT_IO: {
-    title: "Missing trace inputs and outputs",
+    title: "Show the request and result",
     description:
       "At least one root observation in each example has both an empty input and an empty output, making the request and its outcome harder to understand.",
     recommendation:
       "Where appropriate, record the request and final result on the application root. Check root selection and preserve intentional privacy controls.",
   },
   INFRASTRUCTURE_SPANS: {
-    title: "Low-context infrastructure spans",
+    title: "Focus traces on application activity",
     description:
       "These traces contain spans with infrastructure-like names and empty inputs and outputs. They may add noise to the trace view.",
     recommendation:
@@ -48,30 +49,22 @@ const catalog: Record<string, IssuePresentation> = {
   },
 };
 
+export function isTraceliftIssue(issue: string): issue is TraceIssue {
+  return Object.hasOwn(catalog, issue);
+}
+
 export function getTraceliftIssuePresentation(
-  issue: string,
+  issue: TraceIssue,
 ): IssuePresentation {
-  const known = Object.hasOwn(catalog, issue) ? catalog[issue] : undefined;
-  return (
-    known ?? {
-      title: issue
-        .replace(/[_-]+/g, " ")
-        .toLowerCase()
-        .replace(/^./, (letter) => letter.toUpperCase()),
-      description:
-        "This issue was recorded in the selected time window. Inspect the example traces to understand the signal and its impact.",
-      recommendation:
-        "Review the affected instrumentation and confirm whether the finding is intentional before changing it.",
-    }
-  );
+  return catalog[issue];
 }
 
 export function createTraceliftFinding(
-  finding: TraceliftIssueCountsOutput["counts"][number],
+  finding: TraceliftIssueCountsOutput["counts"][number] & { issue: TraceIssue },
   context: { projectId: string; fromTimestamp: Date; toTimestamp: Date },
 ): TraceliftFinding {
   const presentation = getTraceliftIssuePresentation(finding.issue);
-  const examples = finding.examples.map((example) => ({
+  const examples = (finding.examples ?? []).map((example) => ({
     ...example,
     href: buildTracePath({
       projectId: context.projectId,
@@ -91,8 +84,6 @@ export function createTraceliftFinding(
         ),
       ),
     ],
-    observationNames: [],
-    langfuseIngestionCostUsd: null,
     prompt: [
       `Investigate this Tracelift finding: ${presentation.title}.`,
       presentation.description,

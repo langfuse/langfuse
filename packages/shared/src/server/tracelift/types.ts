@@ -1,12 +1,6 @@
 import type { Observation } from "../../domain";
 
-export enum TraceIssue {
-  NO_GENERATIONS = "NO_GENERATIONS",
-  NO_NESTING = "NO_NESTING",
-  INFRASTRUCTURE_SPANS = "INFRASTRUCTURE_SPANS",
-  EMPTY_GENERATION_IO = "EMPTY_GENERATION_IO",
-  EMPTY_ROOT_IO = "EMPTY_ROOT_IO",
-}
+export { TraceIssue } from "../../features/tracelift/types";
 
 export type TraceIssueObservation = Pick<
   Observation,

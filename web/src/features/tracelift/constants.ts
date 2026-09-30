@@ -1,1 +1,1 @@
-export const TRACELIFT_TITLE = "Trace fixes";
+export const TRACELIFT_TITLE = "Tracelift";

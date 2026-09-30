@@ -1,6 +1,14 @@
 import { z } from "zod";
 import { paginationLimitZod } from "../../utils/zod";
 
+export enum TraceIssue {
+  NO_GENERATIONS = "NO_GENERATIONS",
+  NO_NESTING = "NO_NESTING",
+  INFRASTRUCTURE_SPANS = "INFRASTRUCTURE_SPANS",
+  EMPTY_GENERATION_IO = "EMPTY_GENERATION_IO",
+  EMPTY_ROOT_IO = "EMPTY_ROOT_IO",
+}
+
 export const TraceliftIssueInsertSchema = z.object({
   id: z.string().min(1),
   traceId: z.string().min(1),

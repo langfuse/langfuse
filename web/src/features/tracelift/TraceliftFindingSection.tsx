@@ -1,5 +1,5 @@
-import { ArrowUpRight, Check, Copy, ListFilter, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { ArrowUpRight, ListFilter } from "lucide-react";
+import { TraceIssue } from "@langfuse/shared";
 import Link from "next/link";
 
 import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
@@ -11,37 +11,19 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type TraceliftFinding } from "./types";
 
 type TraceliftFindingSectionProps = {
   finding: TraceliftFinding;
-  onOpenAssistant: (finding: TraceliftFinding) => void;
   onViewObservations: (finding: TraceliftFinding) => void;
   onViewExample: () => void;
 };
 
 export function TraceliftFindingSection({
   finding,
-  onOpenAssistant,
   onViewObservations,
   onViewExample,
 }: TraceliftFindingSectionProps) {
-  const [copyState, setCopyState] = useState<
-    "idle" | "copying" | "copied" | "failed"
-  >("idle");
-
-  const copyPrompt = async () => {
-    if (!finding.prompt) return;
-    setCopyState("copying");
-    try {
-      await copyTextToClipboard(finding.prompt);
-      setCopyState("copied");
-    } catch {
-      setCopyState("failed");
-    }
-  };
-
   if (
     !finding.description &&
     !finding.prompt &&
@@ -49,7 +31,13 @@ export function TraceliftFindingSection({
   ) {
     return (
       <div className="ph-no-capture flex items-center justify-between gap-3 border-b py-3 text-sm">
-        <span className="min-w-0 break-words">{finding.title}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          <span
+            aria-hidden
+            className="bg-dark-yellow size-1.75 shrink-0 rounded-full"
+          />
+          <span className="min-w-0 break-words">{finding.title}</span>
+        </span>
         <Badge
           text={finding.issueCount.toLocaleString("en-US")}
           size="sm"
@@ -85,32 +73,23 @@ export function TraceliftFindingSection({
             </p>
           )}
           {finding.recommendation && (
-            <div className="bg-muted/50 flex flex-col gap-1 rounded-md p-3">
-              <h4 className="text-xs font-bold">What to check</h4>
+            <div className="flex flex-col gap-1">
+              <h4 className="text-xs font-bold">Suggested approach</h4>
               <p className="ph-no-capture text-muted-foreground text-sm leading-relaxed">
                 {finding.recommendation}
               </p>
             </div>
           )}
-          {finding.prompt && (
-            <div className="flex flex-wrap gap-1.5">
-              <Button
-                text={
-                  copyState === "copied" ? "Prompt copied" : "Copy agent prompt"
-                }
-                icon={copyState === "copied" ? Check : Copy}
-                size="sm"
-                variant="secondary"
-                loading={copyState === "copying"}
-                onClick={copyPrompt}
-              />
-              <Button
-                text="Open assistant"
-                icon={Sparkles}
-                size="sm"
-                variant="ghost"
-                onClick={() => onOpenAssistant(finding)}
-              />
+          {finding.id === TraceIssue.INFRASTRUCTURE_SPANS && (
+            <div className="bg-muted/50 rounded-md p-3 text-xs">
+              <p className="font-bold">
+                Estimated savings: $6 per 100,000 spans excluded
+              </p>
+              <p className="text-muted-foreground mt-1">
+                Based on $6 per 100,000 observations. The finding count is not a
+                span count; total savings depend on how many redundant spans you
+                exclude.
+              </p>
             </div>
           )}
           {finding.examples.length > 0 && (
@@ -186,11 +165,6 @@ export function TraceliftFindingSection({
                 </CollapsibleContent>
               </Collapsible>
             )}
-          {copyState === "failed" && (
-            <p role="status" className="text-muted-foreground text-xs">
-              Could not copy the prompt. Allow clipboard access and try again.
-            </p>
-          )}
         </div>
       </Accordion.Content>
     </Accordion.Item>

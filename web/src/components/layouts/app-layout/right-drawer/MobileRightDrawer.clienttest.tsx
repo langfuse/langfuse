@@ -109,7 +109,7 @@ describe("MobileRightDrawer", () => {
     rerender(page());
 
     const drawer = await screen.findByRole("dialog", {
-      name: "Trace fixes",
+      name: "Instrumentation suggestions",
     });
     await waitFor(() =>
       expect(drawer.contains(document.activeElement)).toBe(true),

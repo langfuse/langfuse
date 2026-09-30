@@ -3,7 +3,10 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { api } from "@/src/utils/api";
-import { getTraceliftIssuePresentation } from "./issuePresentation";
+import {
+  getTraceliftIssuePresentation,
+  isTraceliftIssue,
+} from "./issuePresentation";
 
 export function TraceIssues({
   projectId,
@@ -21,15 +24,27 @@ export function TraceIssues({
     limit: 20,
   });
 
+  const visibleIssues =
+    issues.data?.issues.flatMap((issue) =>
+      isTraceliftIssue(issue.issues)
+        ? [
+            {
+              ...issue,
+              title: getTraceliftIssuePresentation(issue.issues).title,
+            },
+          ]
+        : [],
+    ) ?? [];
+
   return (
     <section
-      aria-label="Trace issues"
+      aria-label="Instrumentation suggestions"
       className="flex shrink-0 flex-col gap-3 border-b p-3"
     >
-      <h3 className="text-sm font-bold">Trace issues</h3>
+      <h3 className="text-sm font-bold">Instrumentation suggestions</h3>
       {issues.isError && (
         <div role="alert" className="flex items-center gap-3 text-sm">
-          <span>Could not load issues.</span>
+          <span>Could not load suggestions.</span>
           <Button
             text="Retry"
             variant="secondary"
@@ -45,27 +60,23 @@ export function TraceIssues({
           role="status"
           className="text-muted-foreground flex items-center gap-2 text-sm"
         >
-          <Spinner size="sm" /> Loading issues…
+          <Spinner size="sm" /> Loading suggestions…
         </div>
       )}
       {!issues.isError && issues.data && (
         <>
-          {issues.data.issues.length === 0 ? (
+          {visibleIssues.length === 0 ? (
             <p className="text-muted-foreground text-sm">
-              {page === 0
-                ? "No issues recorded for this trace."
-                : "No more issues."}
+              No current suggestions on this page.
             </p>
           ) : (
             <ul className="ph-no-capture flex flex-col gap-2">
-              {issues.data.issues.map((issue, index) => (
+              {visibleIssues.map((issue, index) => (
                 <li
                   key={`${issue.id}-${index}`}
                   className="flex flex-wrap items-center justify-between gap-2 text-sm"
                 >
-                  <span className="min-w-0 break-words">
-                    {getTraceliftIssuePresentation(issue.issues).title}
-                  </span>
+                  <span className="min-w-0 break-words">{issue.title}</span>
                   {issue.observationId ? (
                     <Button
                       text={`Observation: ${issue.observationId}`}
