@@ -243,3 +243,52 @@ export const TestForwardsTriggerProps = meta.story({
     await expect(body.getByRole("option", { name: "GPT-4.1" })).toHaveFocus();
   },
 });
+
+export const TestKeepsBadgedLabelReadable = meta.story({
+  name: "(Test) Keeps Badged Label Readable",
+  args: {
+    // The geometry the score-key picker actually ships in: a filter-sidebar
+    // width popover, a score name long enough to matter, and both level pills
+    // because one name can be scored at trace *and* observation level.
+    value: "answer_relevancy",
+    placeholder: "Select a key",
+    search: { placeholder: "Search keys..." },
+    options: [
+      {
+        value: "answer_relevancy",
+        label: "answer_relevancy",
+        badges: [
+          { text: "Trace", color: "violet" },
+          { text: "Observation", color: "blue" },
+        ],
+      },
+    ],
+    onValueChange: fn(),
+  },
+  render: (args) => (
+    <div className="w-[200px]">
+      <SelectInput {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("combobox"));
+
+    const option = await body.findByRole("option", {
+      name: /answer_relevancy/,
+    });
+    // The pills wrap beneath the name rather than squeezing it, so the name is
+    // laid out at its full width instead of being ellipsised to a few
+    // characters.
+    const label = within(option).getByTitle("answer_relevancy");
+    await waitFor(() => {
+      expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth);
+      // Both pills survive the wrap — the name must not be won back by
+      // dropping the level information.
+      expect(within(option).getByText("Trace")).toBeVisible();
+      expect(within(option).getByText("Observation")).toBeVisible();
+    });
+  },
+});

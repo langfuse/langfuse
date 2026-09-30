@@ -105,12 +105,19 @@ function Option({
 function OptionContent({
   label,
   secondaryLabel,
+  badges,
   title,
   type,
   checked,
 }: {
   label: ReactNode;
   secondaryLabel?: string;
+  /**
+   * Trailing metadata pills. They share the label's line while it fits and wrap
+   * beneath it when it does not, so the label — the thing the option is picked
+   * by — is never the only item that can give up space.
+   */
+  badges?: ReactNode;
   title: string;
   type: "checkbox" | "checkmark" | "radio";
   checked: boolean;
@@ -141,11 +148,14 @@ function OptionContent({
 
   return (
     <>
-      <span className="min-w-0 flex-1 truncate" title={title}>
-        {label}
-        {secondaryLabel && (
-          <span className="text-muted-foreground ml-1">{secondaryLabel}</span>
-        )}
+      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="max-w-full min-w-0 truncate" title={title}>
+          {label}
+          {secondaryLabel && (
+            <span className="text-muted-foreground ml-1">{secondaryLabel}</span>
+          )}
+        </span>
+        {badges}
       </span>
       <span
         className={cn(
