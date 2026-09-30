@@ -214,16 +214,54 @@ const edgeTypes = { flow: FlowConnection };
 export function OrgOverviewGraph({
   data,
   initialZoom,
+  search,
+  activityFilter,
+  order,
 }: {
   data: OrganizationIngestionOverview;
   initialZoom?: number;
+  search?: string;
+  activityFilter?: "active" | "inactive";
+  order?: "billable" | "observations" | "scores" | "name";
 }) {
   const { nodes, edges } = useMemo(() => {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
     let row = 0;
+    const query = search?.trim().toLowerCase() ?? "";
+    const volumes = new Map<string, { observations: number; scores: number }>();
+    for (const entry of data.eventRows) {
+      const volume = volumes.get(entry.projectId) ?? {
+        observations: 0,
+        scores: 0,
+      };
+      volume.observations += entry.current;
+      volumes.set(entry.projectId, volume);
+    }
+    for (const entry of data.scoreRows) {
+      const volume = volumes.get(entry.projectId) ?? {
+        observations: 0,
+        scores: 0,
+      };
+      volume.scores += entry.current;
+      volumes.set(entry.projectId, volume);
+    }
+    const projects = [...data.projects];
+    if (order) {
+      projects.sort((a, b) => {
+        if (order === "name") return a.name.localeCompare(b.name);
+        const left = volumes.get(a.id) ?? { observations: 0, scores: 0 };
+        const right = volumes.get(b.id) ?? { observations: 0, scores: 0 };
+        if (order === "observations")
+          return right.observations - left.observations;
+        if (order === "scores") return right.scores - left.scores;
+        return (
+          right.observations + right.scores - left.observations - left.scores
+        );
+      });
+    }
 
-    for (const project of data.projects) {
+    for (const project of projects) {
       const projectNodeId = `project-${project.id}`;
       const firstRow = row;
       const clients = new Map<
@@ -284,7 +322,25 @@ export function OrgOverviewGraph({
         clients.set(key, client);
       }
 
-      for (const [key, client] of clients) {
+      const projectMatches = project.name.toLowerCase().includes(query);
+      const visibleClients = [...clients].filter(([, client]) => {
+        if (
+          !projectMatches &&
+          !(client.sdkName ?? "Unknown client").toLowerCase().includes(query)
+        )
+          return false;
+        const current = client.current + client.scoreCurrent;
+        if (activityFilter === "active" && current === 0) return false;
+        if (activityFilter === "inactive" && current > 0) return false;
+        return true;
+      });
+      if (activityFilter === "active" && eventCurrent + scoreCurrent === 0)
+        continue;
+      if (activityFilter === "inactive" && eventCurrent + scoreCurrent > 0)
+        continue;
+      if (!projectMatches && visibleClients.length === 0) continue;
+
+      for (const [key, client] of visibleClients) {
         const clientNodeId = `client-${project.id}-${key}`;
         const current = client.current + client.scoreCurrent;
         const previous = client.previous + client.scorePrevious;
@@ -325,32 +381,43 @@ export function OrgOverviewGraph({
         },
         position: {
           x: 600,
-          y: clients.size > 0 ? ((firstRow + row - 1) / 2) * 200 : row * 200,
+          y:
+            visibleClients.length > 0
+              ? ((firstRow + row - 1) / 2) * 200
+              : row * 200,
         },
       });
-      if (clients.size === 0) row++;
+      if (visibleClients.length === 0) row++;
     }
 
     return { nodes, edges };
-  }, [data]);
+  }, [data, search, activityFilter, order]);
 
   return (
     <div className="h-full w-full">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        fitView
-        fitViewOptions={{
-          minZoom: initialZoom ?? 1,
-          maxZoom: initialZoom ?? 1,
-        }}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        elementsSelectable={false}
-        proOptions={{ hideAttribution: true }}
-      />
+      {nodes.length === 0 ? (
+        <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
+          No matching projects or clients.
+        </div>
+      ) : (
+        <ReactFlow
+          key={JSON.stringify([search, activityFilter])}
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          fitView
+          fitViewOptions={{
+            minZoom:
+              search?.trim() || activityFilter ? 0.05 : (initialZoom ?? 1),
+            maxZoom: initialZoom ?? 1,
+          }}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable={false}
+          proOptions={{ hideAttribution: true }}
+        />
+      )}
     </div>
   );
 }

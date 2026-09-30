@@ -5,8 +5,14 @@ import { ErrorPage } from "@/src/components/error-page";
 
 export function ConnectedOrgOverviewGraph({
   organizationId,
+  search,
+  activityFilter,
+  order,
 }: {
   organizationId: string;
+  search: string;
+  activityFilter: "all" | "active" | "inactive";
+  order: "billable" | "observations" | "scores" | "name";
 }) {
   const { data, error, isLoading } =
     useOrganizationIngestionOverview(organizationId);
@@ -25,7 +31,14 @@ export function ConnectedOrgOverviewGraph({
         </p>
       ) : (
         <div className="border-border min-h-0 flex-1 overflow-hidden rounded-lg border">
-          <OrgOverviewGraph data={data} />
+          <OrgOverviewGraph
+            data={data}
+            search={search}
+            activityFilter={
+              activityFilter === "all" ? undefined : activityFilter
+            }
+            order={order}
+          />
         </div>
       )}
     </div>
