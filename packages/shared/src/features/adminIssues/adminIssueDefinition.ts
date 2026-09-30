@@ -9,5 +9,5 @@ export type AdminIssueDefinition = {
   id: string;
   name: string;
   group: "integration" | "sdks";
-  callback: (context: { projectId: string }) => Promise<RuleIssue[]>;
+  callback?: (projectId: string) => Promise<RuleIssue[]>;
 };

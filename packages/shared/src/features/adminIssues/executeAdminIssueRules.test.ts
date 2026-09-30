@@ -3,8 +3,8 @@ import type { AdminIssueDefinition } from "./adminIssueDefinition";
 
 const { createMany, firstRule, secondRule } = vi.hoisted(() => ({
   createMany: vi.fn(),
-  firstRule: vi.fn<AdminIssueDefinition["callback"]>(),
-  secondRule: vi.fn<AdminIssueDefinition["callback"]>(),
+  firstRule: vi.fn<NonNullable<AdminIssueDefinition["callback"]>>(),
+  secondRule: vi.fn<NonNullable<AdminIssueDefinition["callback"]>>(),
 }));
 
 vi.mock("../../db", () => ({
@@ -14,6 +14,7 @@ vi.mock("../../db", () => ({
 vi.mock("./adminIssueDefinitions", () => ({
   adminIssueDefinitions: {
     first: { id: "first", callback: firstRule },
+    withoutCallback: { id: "without-callback" },
     second: { id: "second", callback: secondRule },
   },
 }));
@@ -27,7 +28,7 @@ describe("executeAdminIssueRules", () => {
     secondRule.mockResolvedValue([]);
   });
 
-  it("attributes results to the project and rule and inserts again on repeated runs", async () => {
+  it("skips rules without callbacks and attributes new results on every run", async () => {
     firstRule.mockResolvedValue([{ description: "First issue", priority: 0 }]);
     secondRule.mockResolvedValue([
       { description: "Second issue", priority: 5, ctaLink: "/settings" },
@@ -37,8 +38,8 @@ describe("executeAdminIssueRules", () => {
     expect(await executeAdminIssueRules("project-a")).toBe(2);
     expect(await executeAdminIssueRules("project-a")).toBe(2);
 
-    expect(firstRule).toHaveBeenCalledWith({ projectId: "project-a" });
-    expect(secondRule).toHaveBeenCalledWith({ projectId: "project-a" });
+    expect(firstRule).toHaveBeenCalledWith("project-a");
+    expect(secondRule).toHaveBeenCalledWith("project-a");
     expect(createMany).toHaveBeenCalledTimes(2);
     expect(createMany).toHaveBeenLastCalledWith({
       data: [

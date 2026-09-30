@@ -6,7 +6,9 @@ export async function executeAdminIssueRules(projectId: string) {
   const issues: Prisma.IssueLogCreateManyInput[] = [];
 
   for (const definition of Object.values(adminIssueDefinitions)) {
-    const detectedIssues = await definition.callback({ projectId });
+    if (!definition.callback) continue;
+
+    const detectedIssues = await definition.callback(projectId);
     issues.push(
       ...detectedIssues.map((issue) => ({
         projectId,
