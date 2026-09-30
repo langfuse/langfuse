@@ -109,7 +109,7 @@ async function structuredCall<T>(
         "| cause:",
         String(
           (error as { cause?: { message?: string } }).cause?.message ?? "",
-        ).slice(0, 300),
+        ).slice(-1500),
       );
     logger.warn("Topics model request failed", {
       model,

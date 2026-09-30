@@ -39,6 +39,18 @@ export async function summarizeAssembledTrace(input: {
   topicsText?: string;
 }): Promise<"disabled" | "unchanged" | "summarized"> {
   if (!isTopicsProjectEnabled(input.projectId)) return "disabled";
+  // Experiment: write the exact model inputs for inspection.
+  if (process.env.EVAL_DUMP_DIR) {
+    const fs = await import("node:fs");
+    fs.writeFileSync(
+      `${process.env.EVAL_DUMP_DIR}/${input.traceId}.topics.txt`,
+      input.topicsText ?? "",
+    );
+    fs.writeFileSync(
+      `${process.env.EVAL_DUMP_DIR}/${input.traceId}.transcript.json`,
+      JSON.stringify(input.transcript, null, 1),
+    );
+  }
   // Experiment switch: the rendered Topics text instead of the JSON projection.
   const format: "json" | "text" =
     env.LANGFUSE_TOPICS_TRANSCRIPT_FORMAT === "text" &&
@@ -237,10 +249,13 @@ async function finalizeSummary(
       "Applicable facet summary must contain a concise summary.",
       "invalid_output",
     );
+  // Experiment: drop the stray text instead of failing the trace (pipeline-issues.md).
   if (!applicable && summary)
-    throw new TopicsProviderUnavailable(
-      "Non-applicable facet result contains a summary.",
-      "invalid_output",
+    console.log(
+      "EVAL_DEBUG dropped non-applicable summary",
+      base.traceId,
+      base.facetId,
+      JSON.stringify(summary),
     );
   if (!applicable) {
     return {

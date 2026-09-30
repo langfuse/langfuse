@@ -166,7 +166,13 @@ function recordTopicsRendering(
     const { text, stats } = renderTranscript(
       transcript,
       observations,
-      topicsTranscriptConfig,
+      // Experiment switch: a larger cap for system prompts.
+      env.LANGFUSE_TOPICS_SYSTEM_MAX_CHARS
+        ? {
+            ...topicsTranscriptConfig,
+            system: { maxChars: env.LANGFUSE_TOPICS_SYSTEM_MAX_CHARS },
+          }
+        : topicsTranscriptConfig,
     );
     const metric = (name: string, value: number) => {
       recordDistribution(`langfuse.trace_batch.${name}`, value);

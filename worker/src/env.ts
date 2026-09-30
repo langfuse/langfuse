@@ -314,6 +314,11 @@ const EnvSchema = z.object({
   // Experiment switches for Topics summaries; defaults match production.
   LANGFUSE_TOPICS_TRANSCRIPT_FORMAT: z.enum(["json", "text"]).default("json"),
   LANGFUSE_TOPICS_SUMMARY_MODEL_OVERRIDE: z.string().optional(),
+  LANGFUSE_TOPICS_SYSTEM_MAX_CHARS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional(),
   LANGFUSE_TOPICS_REASONING_EFFORT: z
     .enum(["none", "low", "medium", "high"])
     .default("none"),

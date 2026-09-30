@@ -62,6 +62,12 @@ async function summarizeTraceBatch(
         // One trace's failure must not stop the batch; the job re-enqueues it.
         const reason =
           error instanceof TopicsProviderUnavailable ? error.reason : "other";
+        // Experiment diagnostics for the eval runner.
+        console.log(
+          "EVAL_DEBUG trace failed",
+          traceId,
+          String((error as Error)?.message ?? error).slice(0, 400),
+        );
         outcome = {
           outcome: "failed",
           projectId: first.projectId,
