@@ -24,7 +24,8 @@ import {
   type Placement,
 } from "@floating-ui/react";
 import { cva } from "class-variance-authority";
-import { ChevronRight, type LucideIcon } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
 import * as React from "react";
 
@@ -121,6 +122,7 @@ type DropdownMenuItem = {
   id: string;
   title: string;
   tooltip?: string;
+  badge?: React.ReactNode;
   icon?: LucideIcon;
   searchBehavior?: SearchBehavior;
   type: "item";
@@ -457,10 +459,9 @@ function DropdownMenuNode({
                               <span className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap">
                                 {item.title}
                               </span>
-                              <ChevronRight
-                                className="ml-2 size-4"
-                                aria-hidden="true"
-                              />
+                              <span className="ml-2 flex">
+                                <DropdownIndicator direction="right" />
+                              </span>
                             </span>
                           </button>
                         )}
@@ -661,6 +662,9 @@ function DropdownMenuNode({
                           >
                             {item.title}
                           </span>
+                          {item.badge ? (
+                            <span className="ml-2 shrink-0">{item.badge}</span>
+                          ) : null}
                         </Link>
                       ) : (
                         <button
@@ -685,6 +689,9 @@ function DropdownMenuNode({
                           >
                             {item.title}
                           </span>
+                          {item.badge ? (
+                            <span className="ml-2 shrink-0">{item.badge}</span>
+                          ) : null}
                         </button>
                       )}
                       {renderedSecondaryAction}

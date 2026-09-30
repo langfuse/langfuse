@@ -104,7 +104,7 @@ describe("SkillService versions", () => {
           .mockResolvedValue({ id: "membership", role: "MEMBER" }),
       },
       projectMembership: { findFirst: vi.fn().mockResolvedValue(null) },
-      skillFile: { findFirst: vi.fn().mockResolvedValue(skill.files[0]) },
+      skillBlob: { findMany: vi.fn().mockResolvedValue(blobs) },
       $transaction: transaction,
       skill: {
         findFirst: vi.fn().mockResolvedValue(skill),
@@ -522,27 +522,33 @@ describe("SkillService versions", () => {
     expect(test.transaction).not.toHaveBeenCalled();
   });
 
-  it("returns persisted text only after a project-scoped file lookup", async () => {
+  it("loads a resource through the batch lookup using its manifest hash", async () => {
     const test = setup();
+    const getFileContents = vi
+      .spyOn(test.service, "getFileContents")
+      .mockResolvedValue({
+        data: [
+          {
+            sha256Hash: test.blobs[1]!.sha256Hash,
+            content: test.blobs[1]!.content,
+          },
+        ],
+      });
+    const input = {
+      projectId: "project",
+      name: "test-skill",
+      selector: { version: 1 },
+    };
     await expect(
-      test.service.getFileContent({ projectId: "project", fileId: "file-0" }),
-    ).resolves.toEqual({ content: test.blobs[0]!.content });
-    expect(test.db.skillFile.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { projectId: "project", id: "file-0" },
-      }),
-    );
-    test.db.skillFile.findFirst.mockResolvedValue(null);
+      test.service.loadResource({ ...input, path: "reference.txt" }),
+    ).resolves.toBe(test.blobs[1]!.content);
+    expect(getFileContents).toHaveBeenCalledExactlyOnceWith({
+      projectId: "project",
+      sha256Hashes: [test.blobs[1]!.sha256Hash],
+    });
     await expect(
-      test.service.getFileContent({
-        projectId: "other-project",
-        fileId: "file-0",
-      }),
-    ).rejects.toThrow("Skill file not found");
-    expect(test.db.skillFile.findFirst).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        where: { projectId: "other-project", id: "file-0" },
-      }),
-    );
+      test.service.loadResource({ ...input, path: "missing.txt" }),
+    ).rejects.toThrow("Skill resource not found");
+    expect(getFileContents).toHaveBeenCalledOnce();
   });
 });

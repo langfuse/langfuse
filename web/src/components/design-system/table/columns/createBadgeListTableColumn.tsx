@@ -104,7 +104,7 @@ export function createBadgeListTableColumn<
             aria-label={badge.ariaLabel}
           >
             {Icon && <Icon className="size-3 shrink-0" aria-hidden />}
-            <span className="truncate" title={badge.value}>
+            <span className="truncate leading-normal" title={badge.value}>
               {badge.value}
             </span>
           </Badge>
