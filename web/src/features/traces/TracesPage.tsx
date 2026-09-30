@@ -9,6 +9,7 @@ import { useReadPath } from "@/src/features/events";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects";
 import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+import { Confetti } from "@/src/components/ui/confetti";
 
 export default function TracesPage() {
   const router = useRouter();
@@ -50,6 +51,7 @@ export default function TracesPage() {
         scrollable
       >
         <TracesOnboarding projectId={projectId} />
+        <Confetti />
       </Page>
     );
   }
@@ -103,6 +105,10 @@ export default function TracesPage() {
       ) : (
         <TracesTable projectId={projectId} showControlsInPageHeader />
       )}
+      {/* Kept as the last child in both branches so React reuses the same
+          instance when the onboarding state resolves: the burst plays once
+          per visit to the page, not again on that transition. */}
+      <Confetti />
     </Page>
   );
 }

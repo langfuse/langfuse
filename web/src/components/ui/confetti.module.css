@@ -1,0 +1,54 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.piece {
+  position: absolute;
+  top: -10vh;
+  left: var(--confetti-left);
+  width: var(--confetti-size);
+  height: calc(var(--confetti-size) * 1.6);
+  background-color: var(--confetti-color);
+  opacity: 0;
+  animation-name: confetti-fall;
+  animation-duration: var(--confetti-duration);
+  animation-delay: var(--confetti-delay);
+  animation-timing-function: cubic-bezier(0.25, 0.65, 0.55, 1);
+  animation-fill-mode: forwards;
+  will-change: transform, opacity;
+}
+
+.round {
+  height: var(--confetti-size);
+  border-radius: 9999px;
+}
+
+@keyframes confetti-fall {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  8% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--confetti-drift), 115vh, 0)
+      rotate(var(--confetti-spin));
+  }
+}
+
+/* Decorative only: users who ask for reduced motion get nothing at all,
+   rather than a stationary row of coloured blocks. */
+@media (prefers-reduced-motion: reduce) {
+  .piece {
+    display: none;
+    animation: none;
+  }
+}
