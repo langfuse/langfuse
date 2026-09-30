@@ -7,7 +7,7 @@ import {
   type IngestionSdkUpgradeStatus,
 } from "@langfuse/shared/src/server";
 import { type ScoreSourceType } from "@langfuse/shared";
-import { MIGRATION_INGRESS_EVENT_SOURCES } from "@/src/features/v4/server/v4TransitionCache";
+import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const MINUTE_MS = 60 * 1_000;
@@ -32,9 +32,20 @@ type IngestionClientFields = {
   lastSeen: string;
 };
 
+/** Current configuration counts, not scoped to the ingestion windows. */
+type ProjectFeatureCounts = {
+  activeEvaluationRules: number;
+  datasets: number;
+  /** Latest, non-deleted dataset item versions. */
+  datasetItems: number;
+  activeMonitors: number;
+  /** Distinct prompt names, not versions. */
+  prompts: number;
+};
+
 type OrganizationIngestionOverview = {
   window: { previousFrom: string; currentFrom: string; to: string };
-  projects: { id: string; name: string }[];
+  projects: { id: string; name: string; features: ProjectFeatureCounts }[];
   eventRows: (IngestionClientFields & {
     projectId: string;
     ingestionPath: IngestionPath;
@@ -118,10 +129,78 @@ const toClientFields = (row: ClickhouseClientRow): IngestionClientFields => {
   };
 };
 
+const getProjectFeatureCounts = async ({
+  prisma,
+  projectIds,
+}: {
+  prisma: PrismaClient;
+  projectIds: string[];
+}): Promise<Map<string, ProjectFeatureCounts>> => {
+  const [evaluationRules, datasets, datasetItems, monitors, prompts] =
+    await Promise.all([
+      prisma.evaluationRule.groupBy({
+        by: ["projectId"],
+        where: { projectId: { in: projectIds }, status: "ACTIVE" },
+        _count: { _all: true },
+      }),
+      prisma.dataset.groupBy({
+        by: ["projectId"],
+        where: { projectId: { in: projectIds } },
+        _count: { _all: true },
+      }),
+      prisma.datasetItem.groupBy({
+        by: ["projectId"],
+        where: {
+          projectId: { in: projectIds },
+          isDeleted: false,
+          validTo: null,
+        },
+        _count: { _all: true },
+      }),
+      prisma.monitor.groupBy({
+        by: ["projectId"],
+        where: { projectId: { in: projectIds }, status: "ACTIVE" },
+        _count: { _all: true },
+      }),
+      prisma.$queryRaw<{ projectId: string; count: bigint }[]>(Prisma.sql`
+        SELECT project_id AS "projectId", COUNT(DISTINCT name) AS count
+        FROM prompts
+        WHERE project_id IN (${Prisma.join(projectIds)})
+        GROUP BY project_id
+      `),
+    ]);
+
+  const toCountMap = (
+    rows: { projectId: string; _count: { _all: number } }[],
+  ) => new Map(rows.map((row) => [row.projectId, row._count._all]));
+  const evaluationRuleCounts = toCountMap(evaluationRules);
+  const datasetCounts = toCountMap(datasets);
+  const datasetItemCounts = toCountMap(datasetItems);
+  const monitorCounts = toCountMap(monitors);
+  const promptCounts = new Map(
+    prompts.map((row) => [row.projectId, Number(row.count)]),
+  );
+
+  return new Map(
+    projectIds.map((projectId) => [
+      projectId,
+      {
+        activeEvaluationRules: evaluationRuleCounts.get(projectId) ?? 0,
+        datasets: datasetCounts.get(projectId) ?? 0,
+        datasetItems: datasetItemCounts.get(projectId) ?? 0,
+        activeMonitors: monitorCounts.get(projectId) ?? 0,
+        prompts: promptCounts.get(projectId) ?? 0,
+      },
+    ]),
+  );
+};
+
 export const getOrganizationIngestionOverview = async ({
+  prisma,
   projects,
   nowMs = Date.now(),
 }: {
+  prisma: PrismaClient;
   projects: { id: string; name: string }[];
   nowMs?: number;
 }): Promise<OrganizationIngestionOverview> => {
@@ -137,7 +216,7 @@ export const getOrganizationIngestionOverview = async ({
   };
 
   if (projects.length === 0) {
-    return { window, projects, eventRows: [], scoreRows: [] };
+    return { window, projects: [], eventRows: [], scoreRows: [] };
   }
 
   const params = {
@@ -147,13 +226,11 @@ export const getOrganizationIngestionOverview = async ({
     to: convertDateToClickhouseDateTime(to),
   };
 
-  const [eventRows, scoreRows] = await Promise.all([
+  const [featureCounts, eventRows, scoreRows] = await Promise.all([
+    getProjectFeatureCounts({ prisma, projectIds: params.projectIds }),
     queryClickhouse<ClickhouseClientRow & { ingestionPath: IngestionPath }>({
       query: EVENT_ROWS_QUERY,
-      params: {
-        ...params,
-        ingressSources: [...MIGRATION_INGRESS_EVENT_SOURCES],
-      },
+      params,
       tags: { route: "organization-ingestion-overview-events" },
       preferredClickhouseService: "EventsReadOnly",
     }),
@@ -167,7 +244,10 @@ export const getOrganizationIngestionOverview = async ({
 
   return {
     window,
-    projects,
+    projects: projects.map((project) => ({
+      ...project,
+      features: featureCounts.get(project.id)!,
+    })),
     eventRows: eventRows.map((row) => ({
       projectId: row.projectId,
       ingestionPath: row.ingestionPath,
