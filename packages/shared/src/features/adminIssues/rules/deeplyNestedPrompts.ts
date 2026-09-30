@@ -101,6 +101,7 @@ export const deeplyNestedPromptsRule = {
   id: "deeply-nested-prompts",
   name: "Deeply nested prompts",
   group: "prompts",
+  ctaLabel: "View prompt",
   callback: async (projectId): Promise<RuleIssue[]> => {
     const [prompts, dependencies] = await Promise.all([
       prisma.prompt.findMany({

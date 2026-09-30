@@ -10,6 +10,7 @@ export const observationsWithoutEvaluatorsRule = {
   id: "observations-without-evaluators",
   name: "Set up evaluators",
   group: "evaluations",
+  ctaLabel: "Create evaluator",
   callback: async (projectId) => {
     const evaluator = await prisma.evaluator.findFirst({
       where: { projectId },

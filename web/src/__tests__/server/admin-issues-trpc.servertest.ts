@@ -108,11 +108,150 @@ describe("adminIssues.getIssues", () => {
     });
 
     expect(
-      issues.map(({ description, ruleName }) => ({ description, ruleName })),
+      issues.map(({ description, ruleName, ctaLabel }) => ({
+        description,
+        ruleName,
+        ctaLabel,
+      })),
     ).toEqual([
-      { description: "newer", ruleName: "removed-rule" },
-      { description: "older", ruleName: "Set up evaluators" },
+      {
+        description: "newer",
+        ruleName: "removed-rule",
+        ctaLabel: "View details",
+      },
+      {
+        description: "older",
+        ruleName: "Set up evaluators",
+        ctaLabel: "Create evaluator",
+      },
     ]);
+  });
+});
+
+describe("adminIssues.setIgnored", () => {
+  afterAll(async () => {
+    await prisma.organization.deleteMany({ where: { id: { in: __orgIds } } });
+  });
+
+  it("ignores and restores only an issue in the current project", async () => {
+    const { caller, project } = await prepare({ projectRole: "ADMIN" });
+    const { project: otherProject } = await prepare({ projectRole: "ADMIN" });
+    const issue = await prisma.issueLog.create({
+      data: {
+        projectId: project.id,
+        issueDefinitionId: "rule",
+        description: "test",
+        priority: 0,
+      },
+    });
+    const foreignIssue = await prisma.issueLog.create({
+      data: {
+        projectId: otherProject.id,
+        issueDefinitionId: "rule",
+        description: "foreign",
+        priority: 0,
+      },
+    });
+
+    await caller.adminIssues.setIgnored({
+      projectId: project.id,
+      issueId: issue.id,
+      ignored: true,
+    });
+    expect(
+      (await prisma.issueLog.findUniqueOrThrow({ where: { id: issue.id } }))
+        .ignoredAt,
+    ).not.toBeNull();
+    await caller.adminIssues.setIgnored({
+      projectId: project.id,
+      issueId: issue.id,
+      ignored: false,
+    });
+    expect(
+      (await prisma.issueLog.findUniqueOrThrow({ where: { id: issue.id } }))
+        .ignoredAt,
+    ).toBeNull();
+    await expect(
+      caller.adminIssues.setIgnored({
+        projectId: project.id,
+        issueId: foreignIssue.id,
+        ignored: true,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(
+      (
+        await prisma.issueLog.findUniqueOrThrow({
+          where: { id: foreignIssue.id },
+        })
+      ).ignoredAt,
+    ).toBeNull();
+  });
+
+  it("rejects members without edit access", async () => {
+    const { caller, project } = await prepare({ projectRole: "MEMBER" });
+    await expect(
+      caller.adminIssues.setIgnored({
+        projectId: project.id,
+        issueId: "missing",
+        ignored: true,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("adminIssues.setDone", () => {
+  afterAll(async () => {
+    await prisma.organization.deleteMany({ where: { id: { in: __orgIds } } });
+  });
+
+  it("marks an issue done and undone without changing another project", async () => {
+    const { caller, project } = await prepare({ projectRole: "ADMIN" });
+    const { project: otherProject } = await prepare({ projectRole: "ADMIN" });
+    const issue = await prisma.issueLog.create({
+      data: {
+        projectId: project.id,
+        issueDefinitionId: "rule",
+        description: "test",
+        priority: 0,
+      },
+    });
+    const foreign = await prisma.issueLog.create({
+      data: {
+        projectId: otherProject.id,
+        issueDefinitionId: "rule",
+        description: "test",
+        priority: 0,
+      },
+    });
+    await caller.adminIssues.setDone({
+      projectId: project.id,
+      issueId: issue.id,
+      done: true,
+    });
+    expect(
+      (await prisma.issueLog.findUniqueOrThrow({ where: { id: issue.id } }))
+        .doneAt,
+    ).not.toBeNull();
+    await caller.adminIssues.setDone({
+      projectId: project.id,
+      issueId: issue.id,
+      done: false,
+    });
+    expect(
+      (await prisma.issueLog.findUniqueOrThrow({ where: { id: issue.id } }))
+        .doneAt,
+    ).toBeNull();
+    await expect(
+      caller.adminIssues.setDone({
+        projectId: project.id,
+        issueId: foreign.id,
+        done: true,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(
+      (await prisma.issueLog.findUniqueOrThrow({ where: { id: foreign.id } }))
+        .doneAt,
+    ).toBeNull();
   });
 });
 

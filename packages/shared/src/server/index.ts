@@ -6,6 +6,7 @@ import {
 
 export * from "./services/StorageService";
 export { adminIssueDefinitions } from "../features/adminIssues/adminIssueDefinitions";
+export type { AdminIssueDefinition } from "../features/adminIssues/adminIssueDefinitions";
 export { createAdminIssue } from "../features/adminIssues/createAdminIssue";
 export { executeAdminIssueRules } from "../features/adminIssues/executeAdminIssueRules";
 export * from "./media";

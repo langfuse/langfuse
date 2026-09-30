@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { InternalServerError } from "@langfuse/shared";
 
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
@@ -10,6 +11,7 @@ import {
 import {
   AdminIssueDetectionQueue,
   adminIssueDefinitions,
+  type AdminIssueDefinition,
   QueueJobs,
   type QueueName,
   type TQueueJobTypes,
@@ -34,15 +36,17 @@ export const adminIssuesRouter = createTRPCRouter({
       });
 
       return issues.map((issue) => {
-        const definition = Object.values(adminIssueDefinitions).find(
-          (definition) => definition.id === issue.issueDefinitionId,
-        );
+        const definition: AdminIssueDefinition | undefined = Object.values(
+          adminIssueDefinitions,
+        ).find((definition) => definition.id === issue.issueDefinitionId);
 
         return {
           id: issue.id,
           issueDefinitionId: issue.issueDefinitionId,
           // Rows can outlive the rule that created them, so fall back to the stored id.
           ruleName: definition?.name ?? issue.issueDefinitionId,
+          group: definition?.group ?? "other",
+          ctaLabel: definition?.ctaLabel ?? "View details",
           description: issue.description,
           priority: issue.priority,
           ctaLink: issue.ctaLink,
@@ -51,6 +55,60 @@ export const adminIssuesRouter = createTRPCRouter({
           ignoredAt: issue.ignoredAt,
         };
       });
+    }),
+
+  setIgnored: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        issueId: z.string(),
+        ignored: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
+      const result = await ctx.prisma.issueLog.updateMany({
+        where: { id: input.issueId, projectId: input.projectId },
+        data: {
+          ignoredAt: input.ignored ? new Date() : null,
+          ignoreReason: null,
+        },
+      });
+      if (result.count === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Issue not found" });
+      }
+      return { success: true };
+    }),
+
+  setDone: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        issueId: z.string(),
+        done: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+      const result = await ctx.prisma.issueLog.updateMany({
+        where: { id: input.issueId, projectId: input.projectId },
+        data: input.done
+          ? { doneAt: new Date(), ignoredAt: null, ignoreReason: null }
+          : { doneAt: null },
+      });
+      if (result.count === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Issue not found" });
+      }
+      return { success: true };
     }),
 
   runDetection: protectedProjectProcedure

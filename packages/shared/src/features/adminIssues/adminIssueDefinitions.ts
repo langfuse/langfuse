@@ -17,6 +17,7 @@ export type AdminIssueDefinition = {
   id: string;
   name: string;
   group: "integration" | "sdks" | "evaluations" | "prompts";
+  ctaLabel?: string;
   callback?: (projectId: string) => Promise<RuleIssue[]>;
 };
 

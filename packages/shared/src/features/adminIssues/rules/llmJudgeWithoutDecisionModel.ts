@@ -6,6 +6,7 @@ export const llmJudgeWithoutDecisionModelRule = {
   id: "llm-judge-without-decision-model",
   name: "Try a decision model",
   group: "evaluations",
+  ctaLabel: "Configure evaluator",
   callback: async (projectId) => {
     const judge = await prisma.evaluator.findFirst({
       where: { projectId, type: "LLM_AS_JUDGE" },
