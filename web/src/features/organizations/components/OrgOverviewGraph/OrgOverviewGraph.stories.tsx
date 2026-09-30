@@ -16,125 +16,104 @@ const meta = preview.meta({
   ],
 });
 
+const clientFields = {
+  sdkName: "langfuse-js",
+  sdkVersion: "4.0.0",
+  canonicalSdkName: "javascript",
+  sdkUpgradeStatus: "current",
+  publicKey: "pk-js",
+  isInternal: false,
+  lastSeen: "2026-09-29T23:00:00Z",
+} as const;
+
 const exampleData: OrganizationIngestionOverview = {
-  windows: {
-    current: { from: "2026-09-23T00:00:00Z", to: "2026-09-30T00:00:00Z" },
-    previous: { from: "2026-09-16T00:00:00Z", to: "2026-09-23T00:00:00Z" },
-  },
-  totals: {
-    events: { current: 14883, previous: 10200, changePct: 45.91 },
-    scores: { current: 43, previous: 30, changePct: 43.33 },
-    projectsByStatus: { active: 1, stopped: 1, new: 1, idle: 0 },
+  window: {
+    previousFrom: "2026-09-16T00:00:00Z",
+    currentFrom: "2026-09-23T00:00:00Z",
+    to: "2026-09-30T00:00:00Z",
   },
   projects: [
+    { id: "shiitake", name: "Shiitake" },
+    { id: "porcini", name: "Porcini" },
+    { id: "chanterelle", name: "Chanterelle" },
+  ],
+  eventRows: [
     {
-      projectId: "1231231",
-      projectName: "Shiitake",
-      status: "active",
-      events: { current: 12000, previous: 10000, changePct: 20 },
-      scores: {
-        current: 40,
-        previous: 30,
-        changePct: 33.33,
-        bySource: {
-          API: { current: 20, previous: 20, changePct: 0 },
-          EVAL: { current: 10, previous: 5, changePct: 100 },
-          ANNOTATION: { current: 10, previous: 5, changePct: 100 },
-        },
-      },
-      lastSeen: "2026-09-29T23:00:00Z",
-      clients: [
-        {
-          clientType: "langfuse_sdk",
-          sdkName: "langfuse-js",
-          sdkVersion: "4.0.0",
-          canonicalSdkName: "javascript",
-          sdkUpgradeStatus: "current",
-          ingestionPaths: ["otel"],
-          publicKey: "pk-js",
-          status: "active",
-          events: { current: 8000, previous: 6000, changePct: 33.33 },
-          scores: { current: 20, previous: 20, changePct: 0 },
-          lastSeen: "2026-09-29T23:00:00Z",
-        },
-        {
-          clientType: "langfuse_sdk",
-          sdkName: "langfuse-python",
-          sdkVersion: "3.9.0",
-          canonicalSdkName: "python",
-          sdkUpgradeStatus: "outdated_major",
-          ingestionPaths: ["otel"],
-          publicKey: "pk-python",
-          status: "active",
-          events: { current: 4000, previous: 4000, changePct: 0 },
-          scores: { current: 0, previous: 0, changePct: null },
-          lastSeen: "2026-09-29T22:00:00Z",
-        },
-      ],
+      ...clientFields,
+      projectId: "shiitake",
+      ingestionPath: "otel",
+      current: 8000,
+      previous: 6000,
     },
     {
-      projectId: "87987198273",
-      projectName: "Porcini",
-      status: "stopped",
-      events: { current: 0, previous: 200, changePct: -100 },
-      scores: {
-        current: 0,
-        previous: 0,
-        changePct: null,
-        bySource: {
-          API: { current: 0, previous: 0, changePct: null },
-          EVAL: { current: 0, previous: 0, changePct: null },
-          ANNOTATION: { current: 0, previous: 0, changePct: null },
-        },
-      },
+      ...clientFields,
+      projectId: "shiitake",
+      ingestionPath: "otel",
+      sdkName: "langfuse-python",
+      sdkVersion: "3.9.0",
+      canonicalSdkName: "python",
+      sdkUpgradeStatus: "outdated_major",
+      publicKey: "pk-python",
+      current: 4000,
+      previous: 4000,
+    },
+    {
+      ...clientFields,
+      projectId: "porcini",
+      ingestionPath: "otel",
+      publicKey: "pk-staging",
+      current: 0,
+      previous: 200,
       lastSeen: "2026-09-20T12:00:00Z",
-      clients: [
-        {
-          clientType: "langfuse_sdk",
-          sdkName: "langfuse-js",
-          sdkVersion: "4.0.0",
-          canonicalSdkName: "javascript",
-          sdkUpgradeStatus: "current",
-          ingestionPaths: ["otel"],
-          publicKey: "pk-staging",
-          status: "stopped",
-          events: { current: 0, previous: 200, changePct: -100 },
-          scores: { current: 0, previous: 0, changePct: null },
-          lastSeen: "2026-09-20T12:00:00Z",
-        },
-      ],
     },
     {
-      projectId: "73982891223",
-      projectName: "Chanterelle",
-      status: "new",
-      events: { current: 2883, previous: 0, changePct: null },
-      scores: {
-        current: 3,
-        previous: 0,
-        changePct: null,
-        bySource: {
-          API: { current: 3, previous: 0, changePct: null },
-          EVAL: { current: 0, previous: 0, changePct: null },
-          ANNOTATION: { current: 0, previous: 0, changePct: null },
-        },
-      },
-      lastSeen: "2026-09-29T23:30:00Z",
-      clients: [
-        {
-          clientType: "custom_otel",
-          sdkName: "custom-js",
-          sdkVersion: "1.0.0",
-          canonicalSdkName: null,
-          sdkUpgradeStatus: "unsupported_sdk",
-          ingestionPaths: ["otel"],
-          publicKey: null,
-          status: "new",
-          events: { current: 2883, previous: 0, changePct: null },
-          scores: { current: 3, previous: 0, changePct: null },
-          lastSeen: "2026-09-29T23:30:00Z",
-        },
-      ],
+      ...clientFields,
+      projectId: "chanterelle",
+      ingestionPath: "otel",
+      sdkName: "custom-js",
+      sdkVersion: "1.0.0",
+      canonicalSdkName: null,
+      sdkUpgradeStatus: "unsupported_sdk",
+      publicKey: null,
+      current: 2883,
+      previous: 0,
+    },
+  ],
+  scoreRows: [
+    {
+      ...clientFields,
+      projectId: "shiitake",
+      source: "API",
+      current: 20,
+      previous: 20,
+    },
+    {
+      ...clientFields,
+      projectId: "shiitake",
+      source: "EVAL",
+      isInternal: true,
+      current: 10,
+      previous: 5,
+    },
+    {
+      ...clientFields,
+      projectId: "shiitake",
+      source: "ANNOTATION",
+      isInternal: true,
+      current: 10,
+      previous: 5,
+    },
+    {
+      ...clientFields,
+      projectId: "chanterelle",
+      source: "API",
+      sdkName: "custom-js",
+      sdkVersion: "1.0.0",
+      canonicalSdkName: null,
+      sdkUpgradeStatus: "unsupported_sdk",
+      publicKey: null,
+      current: 3,
+      previous: 0,
     },
   ],
 };
@@ -145,31 +124,14 @@ export const SingleProjectThreeClients = meta.story({
   args: {
     data: {
       ...exampleData,
-      totals: {
-        events: { current: 14883, previous: 10000, changePct: 48.83 },
-        scores: { current: 43, previous: 30, changePct: 43.33 },
-        projectsByStatus: { active: 1, stopped: 0, new: 0, idle: 0 },
-      },
-      projects: [
-        {
-          ...exampleData.projects[0]!,
-          events: { current: 14883, previous: 10000, changePct: 48.83 },
-          scores: {
-            ...exampleData.projects[0]!.scores,
-            current: 43,
-            changePct: 43.33,
-            bySource: {
-              ...exampleData.projects[0]!.scores.bySource,
-              API: { current: 23, previous: 20, changePct: 15 },
-            },
-          },
-          lastSeen: "2026-09-29T23:30:00Z",
-          clients: [
-            ...exampleData.projects[0]!.clients,
-            ...exampleData.projects[2]!.clients,
-          ],
-        },
-      ],
+      projects: [exampleData.projects[0]!],
+      eventRows: exampleData.eventRows
+        .filter((row) => row.projectId !== "porcini")
+        .map((row) => ({ ...row, projectId: "shiitake" })),
+      scoreRows: exampleData.scoreRows.map((row) => ({
+        ...row,
+        projectId: "shiitake",
+      })),
     },
   },
 });
@@ -200,86 +162,78 @@ const mushroomNames = [
   "Blewit",
   "Matsutake",
 ];
-
-const largeProjects = mushroomNames.map((projectName, index) => {
-  const project = exampleData.projects[index % 3]!;
-  // Seeded variation keeps screenshots stable across story renders.
+const largeData: OrganizationIngestionOverview = {
+  ...exampleData,
+  projects: [],
+  eventRows: [],
+  scoreRows: [],
+};
+for (const [index, name] of mushroomNames.entries()) {
+  const projectId = `mushroom-${index}`;
+  const templateId = exampleData.projects[index % 3]!.id;
   const factor = 0.4 + ((index * 37 + 13) % 100) / 40;
-  const clients = project.clients.map((client, clientIndex) => {
-    const current = Math.round(
-      client.events.current * factor * (1 + clientIndex * 0.2),
-    );
-    const previous = Math.round(
-      client.events.previous *
-        (0.5 + ((index * 19 + clientIndex * 7) % 80) / 40),
-    );
-    return {
-      ...client,
-      publicKey: `pk-project-${index}-client-${clientIndex}`,
-      events: {
-        current,
-        previous,
-        changePct:
-          previous === 0 ? null : ((current - previous) / previous) * 100,
-      },
-    };
-  });
-  const current = clients.reduce(
-    (sum, client) => sum + client.events.current,
-    0,
-  );
-  const previous = clients.reduce(
-    (sum, client) => sum + client.events.previous,
-    0,
-  );
-  return {
-    ...project,
-    projectId: `mushroom-${index}`,
-    projectName: `Team ${projectName}`,
-    clients,
-    events: {
-      current,
-      previous,
-      changePct:
-        previous === 0 ? null : ((current - previous) / previous) * 100,
-    },
-  };
-});
-// Seeded shuffle keeps the varied layout reproducible for screenshots.
+  largeData.projects.push({ id: projectId, name: `Team ${name}` });
+  for (const row of exampleData.eventRows.filter(
+    (entry) => entry.projectId === templateId,
+  )) {
+    largeData.eventRows.push({
+      ...row,
+      projectId,
+      current: Math.round(row.current * factor),
+      previous: Math.round(row.previous * (0.5 + ((index * 19) % 80) / 40)),
+    });
+  }
+  for (const row of exampleData.scoreRows.filter(
+    (entry) => entry.projectId === templateId,
+  )) {
+    largeData.scoreRows.push({
+      ...row,
+      projectId,
+      current: Math.round(row.current * factor),
+      previous: Math.round(row.previous * factor),
+    });
+  }
+}
 let shuffleSeed = 42;
-for (let index = largeProjects.length - 1; index > 0; index--) {
+for (let index = largeData.projects.length - 1; index > 0; index--) {
   shuffleSeed = (shuffleSeed * 1664525 + 1013904223) % 4294967296;
   const swapIndex = shuffleSeed % (index + 1);
-  [largeProjects[index], largeProjects[swapIndex]] = [
-    largeProjects[swapIndex]!,
-    largeProjects[index]!,
+  [largeData.projects[index], largeData.projects[swapIndex]] = [
+    largeData.projects[swapIndex]!,
+    largeData.projects[index]!,
   ];
 }
 
-const largeCurrent = largeProjects.reduce(
-  (sum, project) => sum + project.events.current,
-  0,
-);
-const largePrevious = largeProjects.reduce(
-  (sum, project) => sum + project.events.previous,
-  0,
-);
-
 export const LargeOrganization = meta.story({
+  args: { initialZoom: 0.35, data: largeData },
+});
+
+export const IdleProject = meta.story({
   args: {
-    initialZoom: 0.35,
     data: {
       ...exampleData,
-      totals: {
-        events: {
-          current: largeCurrent,
-          previous: largePrevious,
-          changePct: ((largeCurrent - largePrevious) / largePrevious) * 100,
+      projects: [{ id: "morel", name: "Morel" }],
+      eventRows: [],
+      scoreRows: [],
+    },
+  },
+});
+
+export const UnknownSdk = meta.story({
+  args: {
+    data: {
+      ...exampleData,
+      projects: [exampleData.projects[0]!],
+      eventRows: [
+        {
+          ...exampleData.eventRows[0]!,
+          sdkName: null,
+          sdkVersion: null,
+          canonicalSdkName: null,
+          sdkUpgradeStatus: "unknown",
         },
-        scores: { current: 344, previous: 240, changePct: 43.33 },
-        projectsByStatus: { active: 8, stopped: 8, new: 8, idle: 0 },
-      },
-      projects: largeProjects,
+      ],
+      scoreRows: [],
     },
   },
 });

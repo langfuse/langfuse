@@ -1,21 +1,24 @@
 import { OrgOverviewGraph } from "./OrgOverviewGraph";
 import { useOrganizationIngestionOverview } from "../../hooks/useOrganizationIngestionOverview";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { ErrorPage } from "@/src/components/error-page";
 
 export function ConnectedOrgOverviewGraph({
   organizationId,
 }: {
   organizationId: string;
 }) {
-  const data = useOrganizationIngestionOverview(organizationId);
+  const { data, error, isLoading } =
+    useOrganizationIngestionOverview(organizationId);
 
-  if (!data) return <NoDataOrLoading isLoading />;
+  if (error)
+    return (
+      <ErrorPage title="Unable to load analytics" message={error.message} />
+    );
+  if (!data) return <NoDataOrLoading isLoading={isLoading} />;
 
   return (
     <div className="flex h-[70vh] flex-col gap-2">
-      <p className="text-muted-foreground text-xs">
-        Preview — synthetic ingestion metrics, not live data.
-      </p>
       {data.projects.length === 0 ? (
         <p className="text-muted-foreground text-sm">
           No projects in this organization.

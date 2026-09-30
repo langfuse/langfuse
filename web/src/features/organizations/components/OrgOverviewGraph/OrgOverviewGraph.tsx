@@ -19,6 +19,7 @@ import {
   FolderClosed,
 } from "lucide-react";
 import "@xyflow/react/dist/style.css";
+import { type RouterOutputs } from "@/src/utils/api";
 
 type WeekOverWeekCount = {
   current: number;
@@ -28,49 +29,19 @@ type WeekOverWeekCount = {
 
 type IngestionActivityStatus = "new" | "stopped" | "active" | "idle";
 
-export type OrganizationIngestionOverview = {
-  windows: {
-    current: { from: string; to: string };
-    previous: { from: string; to: string };
+export type OrganizationIngestionOverview =
+  RouterOutputs["organizationIngestion"]["overview"];
+
+function weekOverWeek(current: number, previous: number): WeekOverWeekCount {
+  if (previous === 0) {
+    return { current, previous, changePct: current === 0 ? 0 : null };
+  }
+  return {
+    current,
+    previous,
+    changePct: ((current - previous) / previous) * 100,
   };
-  totals: {
-    events: WeekOverWeekCount;
-    scores: WeekOverWeekCount;
-    projectsByStatus: Record<IngestionActivityStatus, number>;
-  };
-  projects: Array<{
-    projectId: string;
-    projectName: string;
-    status: IngestionActivityStatus;
-    events: WeekOverWeekCount;
-    scores: WeekOverWeekCount & {
-      bySource: Record<"API" | "EVAL" | "ANNOTATION", WeekOverWeekCount>;
-    };
-    lastSeen: string | null;
-    clients: Array<{
-      clientType:
-        | "langfuse_sdk"
-        | "custom_otel"
-        | "custom_ingestion_api"
-        | "langfuse_internal";
-      sdkName: string;
-      sdkVersion: string;
-      canonicalSdkName: "python" | "javascript" | null;
-      sdkUpgradeStatus:
-        | "current"
-        | "outdated_major"
-        | "unknown"
-        | "unsupported_sdk"
-        | "invalid_version";
-      ingestionPaths: ("otel" | "ingestion_api")[];
-      publicKey: string | null;
-      status: IngestionActivityStatus;
-      events: WeekOverWeekCount;
-      scores: WeekOverWeekCount;
-      lastSeen: string | null;
-    }>;
-  }>;
-};
+}
 
 type ClientNode = Node<
   {
@@ -205,7 +176,7 @@ function ProjectCard({ data }: NodeProps<ProjectNode>) {
         </span>
       </div>
       <div className="text-muted-foreground mt-2 flex items-center justify-between text-xs">
-        <span>Observations</span>
+        <span>Observations (7d)</span>
         <span className="flex items-center gap-2">
           <span className="text-foreground font-bold tabular-nums">
             {data.events.current.toLocaleString()}
@@ -214,7 +185,7 @@ function ProjectCard({ data }: NodeProps<ProjectNode>) {
         </span>
       </div>
       <div className="text-muted-foreground mt-1.5 flex items-center justify-between text-xs">
-        <span>Scores</span>
+        <span>Scores (7d)</span>
         <span className="flex items-center gap-2">
           <span className="text-foreground font-bold tabular-nums">
             {data.scores.current.toLocaleString()}
@@ -223,7 +194,7 @@ function ProjectCard({ data }: NodeProps<ProjectNode>) {
         </span>
       </div>
       <div className="border-border dark:border-border-contrast text-muted-foreground mt-2 flex items-center justify-between border-t pt-2 text-xs">
-        <span>Billable units</span>
+        <span>Billable units (7d)</span>
         <span className="text-foreground font-bold tabular-nums">
           {(data.events.current + data.scores.current).toLocaleString()}
         </span>
@@ -253,18 +224,81 @@ export function OrgOverviewGraph({
     let row = 0;
 
     for (const project of data.projects) {
-      const projectNodeId = `project-${project.projectId}`;
+      const projectNodeId = `project-${project.id}`;
       const firstRow = row;
+      const clients = new Map<
+        string,
+        {
+          sdkName: string | null;
+          sdkVersion: string | null;
+          current: number;
+          previous: number;
+          scoreCurrent: number;
+          scorePrevious: number;
+          lastSeen: string | null;
+        }
+      >();
+      let eventCurrent = 0;
+      let eventPrevious = 0;
+      let scoreCurrent = 0;
+      let scorePrevious = 0;
+      for (const entry of [...data.eventRows, ...data.scoreRows]) {
+        if (entry.projectId !== project.id) continue;
+        const isEvent = "ingestionPath" in entry;
+        if (isEvent) {
+          eventCurrent += entry.current;
+          eventPrevious += entry.previous;
+        } else {
+          scoreCurrent += entry.current;
+          scorePrevious += entry.previous;
+          // Evaluator and annotation scores contribute to project totals, not API client traffic.
+          if (entry.source !== "API") continue;
+        }
+        const key = JSON.stringify([
+          entry.sdkName,
+          entry.sdkVersion,
+          entry.publicKey,
+          entry.isInternal,
+        ]);
+        const client = clients.get(key) ?? {
+          sdkName: entry.sdkName,
+          sdkVersion: entry.sdkVersion,
+          current: 0,
+          previous: 0,
+          scoreCurrent: 0,
+          scorePrevious: 0,
+          lastSeen: null,
+        };
+        if (isEvent) {
+          client.current += entry.current;
+          client.previous += entry.previous;
+        } else {
+          client.scoreCurrent += entry.current;
+          client.scorePrevious += entry.previous;
+        }
+        if (
+          !client.lastSeen ||
+          Date.parse(entry.lastSeen) > Date.parse(client.lastSeen)
+        )
+          client.lastSeen = entry.lastSeen;
+        clients.set(key, client);
+      }
 
-      for (const [index, client] of project.clients.entries()) {
-        const clientNodeId = `client-${project.projectId}-${index}`;
+      for (const [key, client] of clients) {
+        const clientNodeId = `client-${project.id}-${key}`;
+        const current = client.current + client.scoreCurrent;
+        const previous = client.previous + client.scorePrevious;
+        let status: IngestionActivityStatus = "idle";
+        if (current > 0 && previous > 0) status = "active";
+        else if (current > 0) status = "new";
+        else if (previous > 0) status = "stopped";
         nodes.push({
           id: clientNodeId,
           type: "client",
           data: {
-            name: client.sdkName,
-            version: client.sdkVersion,
-            status: client.status,
+            name: client.sdkName ?? "Unknown client",
+            version: client.sdkVersion ?? "Unknown",
+            status,
             lastSeen: client.lastSeen,
           },
           position: { x: 0, y: row * 200 },
@@ -275,7 +309,7 @@ export function OrgOverviewGraph({
           source: clientNodeId,
           target: projectNodeId,
           type: "flow",
-          data: { events: client.events },
+          data: { events: weekOverWeek(client.current, client.previous) },
           markerEnd: { type: MarkerType.ArrowClosed },
         });
         row++;
@@ -285,19 +319,16 @@ export function OrgOverviewGraph({
         id: projectNodeId,
         type: "project",
         data: {
-          name: project.projectName,
-          events: project.events,
-          scores: project.scores,
+          name: project.name,
+          events: weekOverWeek(eventCurrent, eventPrevious),
+          scores: weekOverWeek(scoreCurrent, scorePrevious),
         },
         position: {
           x: 600,
-          y:
-            project.clients.length > 0
-              ? ((firstRow + row - 1) / 2) * 200
-              : row * 200,
+          y: clients.size > 0 ? ((firstRow + row - 1) / 2) * 200 : row * 200,
         },
       });
-      if (project.clients.length === 0) row++;
+      if (clients.size === 0) row++;
     }
 
     return { nodes, edges };
