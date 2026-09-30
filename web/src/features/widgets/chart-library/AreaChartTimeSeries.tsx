@@ -40,7 +40,7 @@ export function AreaChartTimeSeries({
   missingValue = "gap",
   connectNulls = false,
   hideXAxisLabels = false,
-}: Omit<ChartProps, "subtleFill">) {
+}: ChartProps) {
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
   const groupedData = useMemo(
     () =>
@@ -152,8 +152,6 @@ export function AreaChartTimeSeries({
         legend={chartLegend}
         xAxis={{
           type: "time",
-          tickFormatter: (value) => timeAxis.formatTick(value.getTime()),
-          tooltipFormatter: (value) => timeAxis.formatTooltip(value.getTime()),
         }}
       />
     );

@@ -95,6 +95,7 @@ export type FieldRegistry = {
     | "legacyEvaluators"
     | "evalLogs"
     | "prompts"
+    | "skills"
     | "monitors"
     | "gatewayModels"
     | "experimentItems"

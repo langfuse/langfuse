@@ -35,7 +35,6 @@ import { CollapsibleBadgeRow } from "@/src/features/traces/components/Collapsibl
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { Button } from "@/src/components/ui/button";
 import {
-  ChevronDown,
   EllipsisVertical,
   LockIcon,
   MessageSquare,
@@ -44,6 +43,7 @@ import {
   PlusIcon,
   SquarePen,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { cn } from "@/src/utils/tailwind";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
@@ -98,7 +98,10 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         <div className="flex w-full min-w-0 flex-row items-center gap-1">
           <ItemBadge type="TRACE" isSmall />
           <span
-            className={cn("min-w-0 truncate font-bold", isMobile && "flex-1")}
+            className={cn(
+              "min-w-0 truncate text-lg leading-7 font-bold",
+              isMobile && "flex-1",
+            )}
             title={trace.name || trace.id}
           >
             {trace.name || trace.id}
@@ -266,7 +269,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                 >
                   <PlusIcon className="h-3.5 w-3.5" />
                   <span>Add to</span>
-                  <ChevronDown className="h-3 w-3" />
+                  <DropdownIndicator size="sm" nudge />
                 </Button>
               )}
             </ConnectedTraceObservationAddToDropdownMenuController>

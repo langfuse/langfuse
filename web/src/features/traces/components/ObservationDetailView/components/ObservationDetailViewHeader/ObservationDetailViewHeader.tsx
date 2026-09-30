@@ -20,6 +20,7 @@ import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { AnnotateDrawerController } from "@/src/features/scores";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
@@ -47,7 +48,6 @@ import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import {
-  ChevronDown,
   EllipsisVertical,
   LockIcon,
   MessageSquare,
@@ -56,6 +56,7 @@ import {
   PlusIcon,
   SquarePen,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
@@ -170,6 +171,14 @@ export const ObservationDetailViewHeader = memo(
           }
         : undefined;
 
+    const timestampBadge = preparedDate && (
+      <Badge
+        color="ghost"
+        text={preparedDate.display}
+        title={preparedDate.title}
+      />
+    );
+
     return (
       <div className="@container shrink-0 space-y-2 border-b p-2">
         {/* Title row with actions */}
@@ -178,7 +187,7 @@ export const ObservationDetailViewHeader = memo(
             <ItemBadge type={observation.type as ObservationType} isSmall />
             <span
               className={cn(
-                "mb-0 min-w-0 truncate font-bold",
+                "mb-0 min-w-0 truncate text-lg leading-7 font-bold",
                 isMobile && "flex-1",
               )}
               title={observation.name || observation.id}
@@ -366,7 +375,7 @@ export const ObservationDetailViewHeader = memo(
                     >
                       <PlusIcon className="h-3.5 w-3.5" />
                       <span>Add to</span>
-                      <ChevronDown className="h-3 w-3" />
+                      <DropdownIndicator size="sm" nudge />
                     </Button>
                   )}
                 </ConnectedTraceObservationAddToDropdownMenuController>
@@ -475,80 +484,76 @@ export const ObservationDetailViewHeader = memo(
           )}
         </div>
 
-        {/* Metadata badges */}
-
-        <div className="flex flex-col gap-2">
-          {/* Timestamp */}
-          {preparedDate ? (
-            <div className="flex flex-wrap items-center gap-1 text-sm">
-              <span title={preparedDate.title}>{preparedDate.display}</span>
-            </div>
-          ) : null}
-
-          {/* Other badges */}
-          {!isAnnotationMode && (
-            <CollapsibleBadgeRow>
-              <LatencyBadge latencySeconds={latencySeconds} />
-              <TimeToFirstTokenBadge
-                timeToFirstToken={observation.timeToFirstToken}
+        {/* Metadata line */}
+        {isAnnotationMode ? (
+          timestampBadge && (
+            <div className="flex items-center">{timestampBadge}</div>
+          )
+        ) : (
+          <CollapsibleBadgeRow>
+            {timestampBadge}
+            <LatencyBadge latencySeconds={latencySeconds} />
+            <TimeToFirstTokenBadge
+              timeToFirstToken={observation.timeToFirstToken}
+            />
+            {evaluatorId &&
+              (observation.environment ===
+                LangfuseInternalTraceEnvironment.LLMJudge ||
+                observation.environment ===
+                  LangfuseInternalTraceEnvironment.CodeEval) &&
+              !evaluatorId.startsWith("managed:") && (
+                <EvaluatorBadge
+                  evaluatorId={evaluatorId}
+                  evaluatorName={evaluator.data?.name}
+                  projectId={projectId}
+                />
+              )}
+            {displayedTotalCost != null && displayedCostDetails && (
+              <CostBadge
+                totalCost={displayedTotalCost}
+                costDetails={displayedCostDetails}
+                costSource={costSource}
+                priceSource={priceSource}
               />
-              {evaluatorId &&
-                (observation.environment ===
-                  LangfuseInternalTraceEnvironment.LLMJudge ||
-                  observation.environment ===
-                    LangfuseInternalTraceEnvironment.CodeEval) &&
-                !evaluatorId.startsWith("managed:") && (
-                  <EvaluatorBadge
-                    evaluatorId={evaluatorId}
-                    evaluatorName={evaluator.data?.name}
-                    projectId={projectId}
+            )}
+            {subtreeMetrics
+              ? subtreeMetrics.hasGenerationLike &&
+                subtreeMetrics.totalUsage > 0 &&
+                subtreeMetrics.usageDetails &&
+                hasBreakdown(subtreeMetrics.usageDetails) && (
+                  <UsageBadge
+                    totalUsage={subtreeMetrics.totalUsage}
+                    usageDetails={subtreeMetrics.usageDetails}
+                  />
+                )
+              : isGenerationLike(observation.type) &&
+                totalUsage > 0 &&
+                observation.usageDetails &&
+                hasBreakdown(observation.usageDetails) && (
+                  <UsageBadge
+                    totalUsage={totalUsage}
+                    usageDetails={observation.usageDetails}
                   />
                 )}
-              {displayedTotalCost != null && displayedCostDetails && (
-                <CostBadge
-                  totalCost={displayedTotalCost}
-                  costDetails={displayedCostDetails}
-                  costSource={costSource}
-                  priceSource={priceSource}
-                />
-              )}
-              {subtreeMetrics
-                ? subtreeMetrics.hasGenerationLike &&
-                  subtreeMetrics.usageDetails &&
-                  hasBreakdown(subtreeMetrics.usageDetails) && (
-                    <UsageBadge
-                      totalUsage={subtreeMetrics.totalUsage}
-                      usageDetails={subtreeMetrics.usageDetails}
-                    />
-                  )
-                : isGenerationLike(observation.type) &&
-                  observation.usageDetails &&
-                  hasBreakdown(observation.usageDetails) && (
-                    <UsageBadge
-                      totalUsage={totalUsage}
-                      usageDetails={observation.usageDetails}
-                    />
-                  )}
-              {observation.model && (
-                <ModelBadge
-                  model={observation.model}
-                  internalModelId={observation.internalModelId}
-                  projectId={projectId}
-                  usageDetails={observation.usageDetails}
-                />
-              )}
-              {observation.level !== "DEFAULT" && (
-                <ObservationLevelBadge level={observation.level} />
-              )}
-              {observation.promptId && (
-                <PromptBadge
-                  promptId={observation.promptId}
-                  projectId={projectId}
-                />
-              )}
-            </CollapsibleBadgeRow>
-          )}
-        </div>
+            {observation.model && (
+              <ModelBadge
+                model={observation.model}
+                internalModelId={observation.internalModelId}
+                projectId={projectId}
+                usageDetails={observation.usageDetails}
+              />
+            )}
+            {observation.level !== "DEFAULT" && (
+              <ObservationLevelBadge level={observation.level} />
+            )}
+            {observation.promptId && (
+              <PromptBadge
+                promptId={observation.promptId}
+                projectId={projectId}
+              />
+            )}
+          </CollapsibleBadgeRow>
+        )}
       </div>
     );
   },

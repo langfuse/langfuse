@@ -13,7 +13,6 @@ import {
 import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
 import { SearchProvider } from "@/src/features/traces/contexts/SearchContext";
 import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionContext";
-import { PlayheadProvider } from "@/src/features/traces/contexts/PlayheadContext";
 import {
   TraceGraphDataProvider,
   useTraceGraphData,
@@ -180,9 +179,7 @@ function TraceWithSelection({
       >
         <SearchProvider>
           <JsonExpansionProvider>
-            <PlayheadProvider>
-              <TraceContent desktopLayout={desktopLayout} />
-            </PlayheadProvider>
+            <TraceContent desktopLayout={desktopLayout} />
           </JsonExpansionProvider>
         </SearchProvider>
       </TraceGraphDataProvider>

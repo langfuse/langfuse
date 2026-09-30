@@ -1,3 +1,4 @@
+/* eslint-disable @repo/prefer-stories-over-client-tests */
 /** @vitest-environment jsdom */
 import {
   act,
@@ -15,7 +16,6 @@ const { navigationContext } = vi.hoisted(() => ({
   navigationContext: {
     isNavigationPanelCollapsed: false,
     handleTogglePanel: vi.fn(),
-    shouldPulseToggle: false,
   },
 }));
 
