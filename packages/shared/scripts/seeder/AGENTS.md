@@ -32,6 +32,8 @@ pnpm run seed -- custom-models --v4  # project-level model definitions (tiered +
 pnpm run seed -- experiment-io  # one v4 experiment with three chat/nested JSON items for the Formatted/JSON switch
 NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- evaluator-gallery --count 200  # project-owned evaluators via the seeded public API key
 pnpm run seed -- nested-prompts  # composed chat prompt nested 4 levels deep (API max) via the public prompt API
+pnpm run seed -- failing-integrations  # CSV blob export that last hit a ClickHouse timeout + PostHog disabled after a config error (admin issue checks)
+pnpm run seed -- failing-integrations --blob-storage disabled --posthog none --project <other-project>  # blob export disabled after a credentials error (one blob integration per project)
 pnpm run seed -- apply admin-issues-demo  # every scenario listed in configs/admin-issues-demo.json, in order (one config per demo)
 ```
 

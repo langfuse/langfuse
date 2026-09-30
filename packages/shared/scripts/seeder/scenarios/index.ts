@@ -5,6 +5,7 @@ import { customModelsScenario } from "./custom-models";
 import { deepChainScenario } from "./deep-chain";
 import { evaluatorGalleryScenario } from "./evaluator-gallery";
 import { experimentIoScenario } from "./experiment-io";
+import { failingIntegrationsScenario } from "./failing-integrations";
 import { incidentSessionScenario } from "./incident-session";
 import { longSessionScenario } from "./long-session";
 import { manyTracesScenario } from "./many-traces";
@@ -29,6 +30,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "deep-chain": deepChainScenario,
   "evaluator-gallery": evaluatorGalleryScenario,
   "experiment-io": experimentIoScenario,
+  "failing-integrations": failingIntegrationsScenario,
   "long-session": longSessionScenario,
   "many-traces": manyTracesScenario,
   "nested-prompts": nestedPromptsScenario,
