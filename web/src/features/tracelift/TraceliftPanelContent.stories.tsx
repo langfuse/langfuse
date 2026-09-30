@@ -14,6 +14,7 @@ const callbacks = {
   onClose: fn(),
   onOpenAssistant: fn(),
   onViewObservations: fn(),
+  onViewExample: fn(),
 };
 
 const summary = { issueCount: 5, langfuseIngestionCostUsd: 0.0005 };
@@ -21,6 +22,8 @@ const summary = { issueCount: 5, langfuseIngestionCostUsd: 0.0005 };
 const additionalFindings: TraceliftFinding[] = [
   {
     id: "missing-context",
+    recommendation: null,
+    examples: [],
     title: "Spans with little context",
     description:
       "A useful span explains what happened. Review whether these examples would benefit from clearer inputs, outputs, or metadata.",
@@ -33,6 +36,8 @@ const additionalFindings: TraceliftFinding[] = [
   },
   {
     id: "generic-names",
+    recommendation: null,
+    examples: [],
     title: "Names that are hard to distinguish",
     description:
       "Specific operation names can help people scan a trace. Check whether the current names explain the work without needing to open every span.",
@@ -49,6 +54,8 @@ const additionalFindings: TraceliftFinding[] = [
   },
   {
     id: "missing-parent",
+    recommendation: null,
+    examples: [],
     title: "Spans to check for missing parents",
     description:
       "Disconnected work can make the execution path hard to follow. Verify the complete trace before changing context propagation.",
@@ -61,6 +68,8 @@ const additionalFindings: TraceliftFinding[] = [
   },
   {
     id: "unfinished-spans",
+    recommendation: null,
+    examples: [],
     title: "Spans without an end time",
     description:
       "Some work may still be running. For completed requests, check that instrumentation closes spans on both success and failure.",

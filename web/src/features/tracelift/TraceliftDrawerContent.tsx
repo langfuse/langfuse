@@ -9,6 +9,7 @@ import { buildEventsTablePathForObservationIds } from "@/src/features/events/lib
 import { TraceliftPanelContent } from "./TraceliftPanelContent";
 import { useTracelift } from "./TraceliftContext";
 import type { TraceliftFinding } from "./types";
+import { createTraceliftFinding } from "./issuePresentation";
 
 export function TraceliftDrawerContent() {
   const router = useRouter();
@@ -63,16 +64,9 @@ export function TraceliftDrawerContent() {
     if (!issues.data) return { status: "loading" as const };
     return {
       status: "success" as const,
-      findings: issues.data.counts.map(({ issue, count }) => ({
-        id: issue,
-        title: issue,
-        issueCount: count,
-        description: null,
-        prompt: null,
-        observationIds: [],
-        observationNames: [],
-        langfuseIngestionCostUsd: null,
-      })),
+      findings: issues.data.counts.map((finding) =>
+        createTraceliftFinding(finding, { projectId, ...timeRange }),
+      ),
       summary: {
         issueCount: issues.data.totalCount,
         langfuseIngestionCostUsd: null,
@@ -87,6 +81,7 @@ export function TraceliftDrawerContent() {
       onClose={() => setOpen(false)}
       onOpenAssistant={openAssistant}
       onViewObservations={viewObservations}
+      onViewExample={() => setOpen(false)}
     />
   );
 }

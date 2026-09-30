@@ -14,6 +14,7 @@ type TraceliftPanelContentProps = {
   onClose: () => void;
   onOpenAssistant: (finding: TraceliftFinding) => void;
   onViewObservations: (finding: TraceliftFinding) => void;
+  onViewExample: () => void;
 } & (
   | {
       status: "success";
@@ -25,7 +26,7 @@ type TraceliftPanelContentProps = {
 );
 
 export function TraceliftPanelContent(props: TraceliftPanelContentProps) {
-  const { onClose, onOpenAssistant, onViewObservations } = props;
+  const { onClose, onOpenAssistant, onViewObservations, onViewExample } = props;
   return (
     <section
       aria-label={TRACELIFT_TITLE}
@@ -38,7 +39,7 @@ export function TraceliftPanelContent(props: TraceliftPanelContentProps) {
             <Badge text="Preview" size="sm" color="yellow" />
           </div>
           <p className="text-muted-foreground text-sm">
-            Review issues detected in your traces.
+            Improve your traces with focused instrumentation fixes.
           </p>
         </div>
         <IconButton
@@ -57,9 +58,19 @@ export function TraceliftPanelContent(props: TraceliftPanelContentProps) {
             <p className="text-muted-foreground text-xs">Last 30 days</p>
             <dl className="grid grid-cols-2 gap-4">
               <div className="flex flex-col justify-between gap-1">
-                <dt className="text-muted-foreground text-xs">Issues</dt>
+                <dt className="text-muted-foreground text-xs">
+                  Recorded issues
+                </dt>
                 <dd className="text-xl font-bold tabular-nums">
                   {props.summary.issueCount.toLocaleString("en-US")}
+                </dd>
+              </div>
+              <div className="flex flex-col justify-between gap-1">
+                <dt className="text-muted-foreground text-xs">
+                  Issue categories
+                </dt>
+                <dd className="text-xl font-bold tabular-nums">
+                  {props.findings.length.toLocaleString("en-US")}
                 </dd>
               </div>
               {props.summary.langfuseIngestionCostUsd !== null && (
@@ -113,7 +124,7 @@ export function TraceliftPanelContent(props: TraceliftPanelContentProps) {
         )}
         {props.status === "success" && props.findings.length > 0 && (
           <div className="flex flex-col gap-1 pt-4">
-            <h3 className="text-sm font-bold">Issue categories</h3>
+            <h3 className="text-sm font-bold">Suggested improvements</h3>
             <Accordion type="multiple" defaultValue={[props.findings[0]!.id]}>
               {props.findings.map((finding) => (
                 <TraceliftFindingSection
@@ -121,6 +132,7 @@ export function TraceliftPanelContent(props: TraceliftPanelContentProps) {
                   finding={finding}
                   onOpenAssistant={onOpenAssistant}
                   onViewObservations={onViewObservations}
+                  onViewExample={onViewExample}
                 />
               ))}
             </Accordion>

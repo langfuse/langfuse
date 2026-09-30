@@ -63,9 +63,14 @@ export async function getTraceliftIssueCounts(
 ): Promise<TraceliftIssueCountsOutput> {
   const { projectId, fromTimestamp, toTimestamp } =
     TraceliftIssueCountsInputSchema.parse(input);
-  const rows = await queryClickhouse<{ issue: string; count: string }>({
+  const rows = await queryClickhouse<{
+    issue: string;
+    count: string;
+    examples: [string, string | null][];
+  }>({
     query: `
-      SELECT issues AS issue, count() AS count
+      SELECT issues AS issue, count() AS count,
+        groupUniqArray(5)(tuple(trace_id, observation_id)) AS examples
       FROM tracelift_issues
       WHERE project_id = {projectId: String}
         AND timestamp >= {fromTimestamp: DateTime64(6)}
@@ -81,7 +86,14 @@ export async function getTraceliftIssueCounts(
     tags: { projectId },
   });
 
-  const counts = rows.map((row) => ({ ...row, count: Number(row.count) }));
+  const counts = rows.map((row) => ({
+    issue: row.issue,
+    count: Number(row.count),
+    examples: row.examples.map(([traceId, observationId]) => ({
+      traceId,
+      observationId,
+    })),
+  }));
   return TraceliftIssueCountsOutputSchema.parse({
     counts,
     totalCount: counts.reduce((total, row) => total + row.count, 0),

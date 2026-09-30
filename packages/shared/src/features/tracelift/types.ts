@@ -70,6 +70,14 @@ export const TraceliftIssueCountsOutputSchema = z.object({
     z.object({
       issue: z.string().min(1),
       count: z.number().int().nonnegative(),
+      examples: z
+        .array(
+          z.object({
+            traceId: z.string().min(1),
+            observationId: z.string().min(1).nullable(),
+          }),
+        )
+        .max(5),
     }),
   ),
 });

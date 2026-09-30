@@ -5,6 +5,8 @@ export function createTraceliftPreviewFindings(): TraceliftFinding[] {
   const findings: TraceliftFinding[] = [
     {
       id: "wrapper-spans",
+      recommendation: null,
+      examples: [],
       title: "Unnecessary wrapper spans",
       description:
         "These spans may wrap other work without adding context. Review their inputs, outputs, and children before simplifying the instrumentation.",
@@ -17,6 +19,8 @@ export function createTraceliftPreviewFindings(): TraceliftFinding[] {
     },
     {
       id: "repeated-generations",
+      recommendation: null,
+      examples: [],
       title: "Repeated generation calls",
       description:
         "Check whether similar requests are intentional agent turns or avoidable duplicates before changing retries or caching.",
@@ -33,6 +37,8 @@ export function createTraceliftPreviewFindings(): TraceliftFinding[] {
     },
     {
       id: "repeated-tools",
+      recommendation: null,
+      examples: [],
       title: "Repeated tool spans",
       description:
         "Check whether these spans record separate attempts or the same tool call more than once.",

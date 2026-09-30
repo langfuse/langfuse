@@ -2,6 +2,8 @@ export type TraceliftFinding = {
   id: string;
   title: string;
   description: string | null;
+  recommendation: string | null;
+  examples: { traceId: string; observationId: string | null; href: string }[];
   /** Stored findings in the last 30 days. */
   issueCount: number;
   /** Combined Langfuse ingestion cost in USD over the same 30 days, excluding model costs. */

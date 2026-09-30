@@ -3,6 +3,7 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { api } from "@/src/utils/api";
+import { getTraceliftIssuePresentation } from "./issuePresentation";
 
 export function TraceIssues({
   projectId,
@@ -62,7 +63,9 @@ export function TraceIssues({
                   key={`${issue.id}-${index}`}
                   className="flex flex-wrap items-center justify-between gap-2 text-sm"
                 >
-                  <span className="min-w-0 break-words">{issue.issues}</span>
+                  <span className="min-w-0 break-words">
+                    {getTraceliftIssuePresentation(issue.issues).title}
+                  </span>
                   {issue.observationId ? (
                     <Button
                       text={`Observation: ${issue.observationId}`}
