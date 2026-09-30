@@ -26,6 +26,14 @@ const clientFields = {
   lastSeen: "2026-09-29T23:00:00Z",
 } as const;
 
+const noFeatures = {
+  activeEvaluationRules: 0,
+  datasets: 0,
+  datasetItems: 0,
+  activeMonitors: 0,
+  prompts: 0,
+};
+
 const exampleData: OrganizationIngestionOverview = {
   window: {
     previousFrom: "2026-09-16T00:00:00Z",
@@ -33,9 +41,29 @@ const exampleData: OrganizationIngestionOverview = {
     to: "2026-09-30T00:00:00Z",
   },
   projects: [
-    { id: "shiitake", name: "Shiitake" },
-    { id: "porcini", name: "Porcini" },
-    { id: "chanterelle", name: "Chanterelle" },
+    {
+      id: "shiitake",
+      name: "Shiitake",
+      features: {
+        activeEvaluationRules: 4,
+        datasets: 3,
+        datasetItems: 1250,
+        activeMonitors: 2,
+        prompts: 12,
+      },
+    },
+    {
+      id: "porcini",
+      name: "Porcini",
+      features: {
+        activeEvaluationRules: 1,
+        datasets: 1,
+        datasetItems: 40,
+        activeMonitors: 0,
+        prompts: 3,
+      },
+    },
+    { id: "chanterelle", name: "Chanterelle", features: noFeatures },
   ],
   eventRows: [
     {
@@ -170,9 +198,14 @@ const largeData: OrganizationIngestionOverview = {
 };
 for (const [index, name] of mushroomNames.entries()) {
   const projectId = `mushroom-${index}`;
-  const templateId = exampleData.projects[index % 3]!.id;
+  const template = exampleData.projects[index % 3]!;
+  const templateId = template.id;
   const factor = 0.4 + ((index * 37 + 13) % 100) / 40;
-  largeData.projects.push({ id: projectId, name: `Team ${name}` });
+  largeData.projects.push({
+    id: projectId,
+    name: `Team ${name}`,
+    features: template.features,
+  });
   for (const row of exampleData.eventRows.filter(
     (entry) => entry.projectId === templateId,
   )) {
@@ -212,7 +245,7 @@ export const IdleProject = meta.story({
   args: {
     data: {
       ...exampleData,
-      projects: [{ id: "morel", name: "Morel" }],
+      projects: [{ id: "morel", name: "Morel", features: noFeatures }],
       eventRows: [],
       scoreRows: [],
     },
