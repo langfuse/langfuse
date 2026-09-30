@@ -31,6 +31,7 @@ pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name
 pnpm run seed -- custom-models --v4  # project-level model definitions (tiered + single-tier, one price at 0) + a trace whose generations link to them, plus one unpriced model
 pnpm run seed -- experiment-io  # one v4 experiment with three chat/nested JSON items for the Formatted/JSON switch
 NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- evaluator-gallery --count 200  # project-owned evaluators via the seeded public API key
+pnpm run seed -- nested-prompts --migrate  # composed chat prompt nested 4 levels deep (API max) via the public prompt API; --migrate applies pending Postgres migrations first
 ```
 
 The last stdout line of a run is a JSON summary with `traceIds`,

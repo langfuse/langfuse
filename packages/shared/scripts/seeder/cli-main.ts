@@ -9,6 +9,8 @@
  * Scenario names, flag names, and JSON output keys are a stable, additive-only
  * contract. See ./README.md and ./AGENTS.md.
  */
+import { execFileSync } from "node:child_process";
+import path from "node:path";
 import { parseArgs } from "node:util";
 import { prisma } from "../../src/db";
 import { logger, redis } from "../../src/server";
@@ -48,6 +50,13 @@ const COMMON_FLAGS: ScenarioFlag[] = [
     type: "boolean",
     default: false,
     description: "print planned counts and links, write nothing",
+  },
+  {
+    flag: "migrate",
+    type: "boolean",
+    default: false,
+    description:
+      "apply pending Postgres migrations (prisma migrate deploy) before seeding",
   },
   {
     flag: "json",
@@ -296,6 +305,15 @@ const main = async (): Promise<number> => {
       if (!jsonOnly) console.error(`[seed:${scenario.name}] ${message}`);
     },
   };
+
+  if (!ctx.dryRun && params["migrate"] === true) {
+    ctx.log("applying pending Postgres migrations");
+    execFileSync("pnpm", ["exec", "prisma", "migrate", "deploy"], {
+      cwd: path.resolve(__dirname, "../.."),
+      // stdout is reserved for the JSON summary
+      stdio: ["ignore", jsonOnly ? "ignore" : process.stderr, "inherit"],
+    });
+  }
 
   if (!ctx.dryRun && scenario.target !== "api") {
     await preflight({
