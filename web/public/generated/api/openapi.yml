@@ -8873,8 +8873,8 @@ paths:
     get:
       description: >-
         Resolve a skill's metadata and file manifest by version or label.
-        Defaults to the production label. Use each file's id with getFileContent
-        to read its text content.
+        Defaults to the production label. Use each file's sha256Hash with
+        getFileContents, individually or in batches across manifests.
       operationId: unstable_skills_get
       tags:
         - UnstableSkills
@@ -8982,28 +8982,20 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/unstableUpdateSkillRequest'
-  /api/public/unstable/skills/files/{fileId}/content:
-    get:
-      description: >-
-        Read one text file from a persisted skill version using its file id, not
-        its blob id. Returns JSON containing the text content with Cache-Control
-        no-store.
-      operationId: unstable_skills_getFileContent
+  /api/public/unstable/skills/files/content:
+    post:
+      description: Read text contents by canonical base64-encoded SHA-256 hashes.
+      operationId: unstable_skills_getFileContents
       tags:
         - UnstableSkills
-      parameters:
-        - name: fileId
-          in: path
-          required: true
-          schema:
-            type: string
+      parameters: []
       responses:
         '200':
           description: ''
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/unstableSkillFileContentResponse'
+                $ref: '#/components/schemas/unstableSkillFileContentsResponse'
         '400':
           description: ''
           content:
@@ -9030,6 +9022,12 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableGetSkillFileContentsRequest'
   /api/public/unstable/skills/{skillName}/versions/{skillVersion}:
     patch:
       description: >-
@@ -17893,13 +17891,39 @@ components:
         - sha256Hash
         - contentType
         - contentLength
-    unstableSkillFileContentResponse:
-      title: unstableSkillFileContentResponse
+    unstableGetSkillFileContentsRequest:
+      title: unstableGetSkillFileContentsRequest
       type: object
       properties:
+        sha256Hashes:
+          type: array
+          items:
+            type: string
+          description: >-
+            One to 50 canonical base64-encoded SHA-256 hashes from skill file
+            manifests.
+      required:
+        - sha256Hashes
+    unstableSkillFileContentsResponse:
+      title: unstableSkillFileContentsResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableSkillFileContent'
+      required:
+        - data
+    unstableSkillFileContent:
+      title: unstableSkillFileContent
+      type: object
+      properties:
+        sha256Hash:
+          type: string
         content:
           type: string
       required:
+        - sha256Hash
         - content
     unstableSkillVersion:
       title: unstableSkillVersion

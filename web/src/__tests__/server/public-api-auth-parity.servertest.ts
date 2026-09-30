@@ -124,7 +124,7 @@ const projectRoutes: Route[] = [
     route: "unstable/skills/[skillName]/versions/[skillVersion]",
     methods: ["PATCH", "DELETE"],
   },
-  { route: "unstable/skills/files/[fileId]/content", methods: ["GET"] },
+  { route: "unstable/skills/files/content", methods: ["POST"] },
 ];
 
 // Org and misc routes call shadowAuth directly from the handler body.
@@ -246,10 +246,15 @@ async function callRoute(
     req: NextApiRequest,
     res: NextApiResponse,
   ) => Promise<void>;
+  let body: Record<string, unknown> | undefined =
+    method === "GET" ? undefined : {};
+  if (route === "unstable/skills/files/content") {
+    body = { sha256Hashes: [Buffer.alloc(32).toString("base64")] };
+  }
   const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
     method,
     query: queryForRoute(route),
-    body: method === "GET" ? undefined : {},
+    body,
     headers,
   });
   await handler(req, res);

@@ -30,6 +30,7 @@ import { CreateSkillVersionDialog } from "@/src/features/skills/components/Creat
 import { SkillFileExplorer } from "@/src/features/skills/components/SkillFileExplorer";
 import { getSkillFileLanguageExtensions } from "@/src/features/skills/utils/getSkillFileLanguageExtensions";
 import {
+  createSkillDraftFile,
   type SkillDraftFile,
   type SkillEditorInitialValue,
   type SkillEditorStore,
@@ -267,7 +268,7 @@ export function SkillEditor({
         name,
         version: baseVersion,
         getVersion: (input) => utils.client.skills.byName.query(input),
-        getFileContent: (input) => utils.skills.fileContent.fetch(input),
+        getFileContents: (input) => utils.skills.fileContents.fetch(input),
       });
       capture("skills:version_download", { fileCount: result.fileCount });
     } catch {
@@ -585,12 +586,10 @@ export const NEW_SKILL_INITIAL_VALUE: SkillEditorInitialValue = {
   labels: [],
   tags: [],
   files: [
-    {
-      path: "SKILL.md",
-      content:
-        "---\nname: my-skill\ndescription: Describe when and how to use this skill.\n---\n\n# Instructions\n\nAdd instructions for the agent here.\n",
-      contentType: "text/markdown",
-    },
+    createSkillDraftFile(
+      "SKILL.md",
+      "---\nname: my-skill\ndescription: Describe when and how to use this skill.\n---\n\n# Instructions\n\nAdd instructions for the agent here.\n",
+    ),
   ],
 };
 
