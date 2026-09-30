@@ -9,9 +9,9 @@
 //   --pretty                  indent the JSON
 //
 // With paths, every test they name seeds the scan. Without paths, the branch
-// diff plus uncommitted changes decide the scope. For each production symbol a
-// changed test calls, gather emits a hypothesis cluster: the export's line and
-// the test blocks that statically reference it. `measure` then stubs the symbol
+// diff plus uncommitted changes to tracked files decide the scope. For each
+// production symbol a changed test calls, gather emits a hypothesis cluster:
+// the export's line and the test blocks that statically reference it. `measure` then stubs the symbol
 // and returns the confirmed cluster in the same shape.
 
 import { execFileSync } from "node:child_process";
@@ -87,7 +87,6 @@ function changedTestFiles(base) {
   const changed = [
     ...lines(git(["diff", "--name-only", "--diff-filter=AM", base])),
     ...lines(git(["diff", "--name-only", "--diff-filter=AM"])),
-    ...lines(git(["ls-files", "--others", "--exclude-standard"])),
   ].filter((f) => TEST_FILE_RE.test(f));
 
   const files = [...new Set(changed)];
