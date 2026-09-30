@@ -56,9 +56,7 @@ describe("findLongMetadataValues", () => {
 
 describe("LongMetadataValueTracker", () => {
   const createTracker = (
-    persist: (
-      rows: LongMetadataValueKeyRow[],
-    ) => Promise<LongMetadataValueKeyRow[]>,
+    persist: (rows: LongMetadataValueKeyRow[]) => Promise<number>,
     clock = { now: 0 },
   ) =>
     new LongMetadataValueTracker(persist, {
@@ -72,7 +70,7 @@ describe("LongMetadataValueTracker", () => {
     const clock = { now: 0 };
     const tracker = createTracker(async (rows) => {
       batches.push(rows);
-      return rows;
+      return rows.length;
     }, clock);
 
     tracker.record(eventRecord("p1", { k: "x".repeat(LIMIT + 1) }));
@@ -100,30 +98,42 @@ describe("LongMetadataValueTracker", () => {
     ]);
   });
 
-  it("stops reporting new keys for a project the database rejected as full", async () => {
+  it("retries a pair on its next occurrence after a failed write", async () => {
+    const batches: LongMetadataValueKeyRow[][] = [];
+    let fail = true;
+    const tracker = createTracker(async (rows) => {
+      batches.push(rows);
+      if (fail) throw new Error("db down");
+      return rows.length;
+    });
+
+    tracker.record(eventRecord("p1", { k: "x".repeat(LIMIT + 1) }));
+    await expect(tracker.flush()).resolves.toBeUndefined();
+    fail = false;
+    tracker.record(eventRecord("p1", { k: "x".repeat(LIMIT + 1) }));
+    await tracker.flush();
+
+    expect(batches.map((b) => b.map((r) => r.key))).toEqual([["k"], ["k"]]);
+  });
+
+  it("does not track keys too long to store", async () => {
     const batches: LongMetadataValueKeyRow[][] = [];
     const tracker = createTracker(async (rows) => {
       batches.push(rows);
-      return rows.filter((r) => r.projectId !== "full");
+      return rows.length;
     });
+    const sharedPrefix = "p".repeat(500);
 
-    tracker.record(eventRecord("full", { a: "x".repeat(LIMIT + 1) }));
-    await tracker.flush();
-    tracker.record(eventRecord("full", { b: "x".repeat(LIMIT + 1) }));
-    tracker.record(eventRecord("open", { b: "x".repeat(LIMIT + 1) }));
-    await tracker.flush();
-
-    expect(batches.map((b) => b.map((r) => `${r.projectId}:${r.key}`))).toEqual(
-      [["full:a"], ["open:b"]],
+    tracker.record(
+      eventRecord("p1", {
+        [`${sharedPrefix}a`]: "x".repeat(LIMIT + 1),
+        [`${sharedPrefix}b`]: "x".repeat(LIMIT + 1),
+        short: "x".repeat(LIMIT + 1),
+      }),
     );
-  });
+    await tracker.flush();
 
-  it("never throws into ingestion when persisting fails", async () => {
-    const tracker = createTracker(async () => {
-      throw new Error("db down");
-    });
-    tracker.record(eventRecord("p1", { k: "x".repeat(LIMIT + 1) }));
-    await expect(tracker.flush()).resolves.toBeUndefined();
+    expect(batches.map((b) => b.map((r) => r.key))).toEqual([["short"]]);
   });
 });
 
@@ -163,7 +173,7 @@ describe("persistLongMetadataValueKeys", () => {
       row(projectId, "new-key", 500),
     ]);
 
-    expect(written.map((r) => r.key)).toEqual(["key-0"]);
+    expect(written).toBe(1);
     const keys = await stored(projectId);
     expect(keys).toHaveLength(MAX_KEYS_PER_PROJECT);
     expect(keys.find((k) => k.key === "key-0")?.maxValueLength).toBe(500);
@@ -177,6 +187,7 @@ describe("persistLongMetadataValueKeys", () => {
       row(projectId, "k", 300),
     ]);
 
-    expect(written.map((r) => r.projectId)).toEqual([projectId]);
+    expect(written).toBe(1);
+    expect(await stored(projectId)).toHaveLength(1);
   });
 });

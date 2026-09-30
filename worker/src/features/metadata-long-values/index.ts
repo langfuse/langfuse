@@ -10,7 +10,7 @@ import { env } from "../../env";
 /** events_core keeps only this many code points of each metadata value. */
 export const METADATA_VALUE_LENGTH_LIMIT = 200;
 export const MAX_KEYS_PER_PROJECT = 100;
-/** Keeps stored keys well below the Postgres btree entry size limit. */
+/** Longer keys are not tracked; keeps stored keys below the Postgres btree entry size limit. */
 const MAX_STORED_KEY_LENGTH = 500;
 const REPORT_TTL_MS = 60 * 60 * 1000;
 const MAX_TRACKED_PAIRS = 10_000;
@@ -56,14 +56,14 @@ function countCodePoints(value: string): number {
   return count;
 }
 
+const toPairId = (projectId: string, key: string) => `${projectId}\u0000${key}`;
+
 /**
  * Collects metadata keys with over-limit values and persists them in batches.
- * Each (project, key) pair is reported at most once per TTL per process;
- * projects at the key cap are skipped for the TTL.
+ * Each (project, key) pair is reported at most once per TTL per process.
  */
 export class LongMetadataValueTracker {
   private readonly reportedAt = new Map<string, number>();
-  private readonly fullProjectsUntil = new Map<string, number>();
   private pending = new Map<string, LongMetadataValueKeyRow>();
   private pendingPerProject = new Map<string, number>();
   private intervalId: NodeJS.Timeout | null = null;
@@ -72,7 +72,7 @@ export class LongMetadataValueTracker {
   constructor(
     private readonly persist: (
       rows: LongMetadataValueKeyRow[],
-    ) => Promise<LongMetadataValueKeyRow[]>,
+    ) => Promise<number>,
     private readonly options: {
       enabled: boolean;
       now?: () => number;
@@ -99,15 +99,9 @@ export class LongMetadataValueTracker {
 
     const projectId = eventRecord.project_id;
     const now = this.now();
-    const fullUntil = this.fullProjectsUntil.get(projectId);
-    if (fullUntil !== undefined) {
-      if (fullUntil > now) return;
-      this.fullProjectsUntil.delete(projectId);
-    }
-
-    for (const [rawKey, length] of offenders) {
-      const key = rawKey.slice(0, MAX_STORED_KEY_LENGTH);
-      const pairId = `${projectId}\u0000${key}`;
+    for (const [key, length] of offenders) {
+      if (key.length > MAX_STORED_KEY_LENGTH) continue;
+      const pairId = toPairId(projectId, key);
 
       const existing = this.pending.get(pairId);
       if (existing) {
@@ -169,18 +163,12 @@ export class LongMetadataValueTracker {
   private async persistRows(rows: LongMetadataValueKeyRow[]): Promise<void> {
     try {
       const written = await this.persist(rows);
-      const writtenProjects = new Set(written.map((row) => row.projectId));
-      const now = this.now();
-      for (const row of rows) {
-        if (!writtenProjects.has(row.projectId)) {
-          this.fullProjectsUntil.set(row.projectId, now + REPORT_TTL_MS);
-        }
-      }
-      recordIncrement(
-        "langfuse.ingestion.metadata_long_value_keys",
-        written.length,
-      );
+      recordIncrement("langfuse.ingestion.metadata_long_value_keys", written);
     } catch (error) {
+      // Let the next occurrence of each pair retry the write.
+      for (const row of rows) {
+        this.reportedAt.delete(toPairId(row.projectId, row.key));
+      }
       logger.warn("Failed to persist long metadata value keys", {
         error,
         rows: rows.length,
@@ -212,14 +200,14 @@ export class LongMetadataValueTracker {
 /**
  * Upserts rows while a project holds fewer than MAX_KEYS_PER_PROJECT keys;
  * already stored keys are always refreshed. The cap is soft: one statement
- * can overshoot it by its own new rows. Returns the rows that were written.
+ * can overshoot it by its own new rows. Returns the number of rows written.
  */
 export async function persistLongMetadataValueKeys(
   rows: LongMetadataValueKeyRow[],
-): Promise<LongMetadataValueKeyRow[]> {
-  if (rows.length === 0) return [];
+): Promise<number> {
+  if (rows.length === 0) return 0;
 
-  return prisma.$queryRaw<LongMetadataValueKeyRow[]>`
+  return prisma.$executeRaw`
     WITH input AS (
       SELECT *
       FROM unnest(
@@ -252,12 +240,6 @@ export async function persistLongMetadataValueKeys(
         THEN EXCLUDED.example_trace_id ELSE t.example_trace_id END,
       example_observation_id = CASE WHEN EXCLUDED.max_value_length > t.max_value_length
         THEN EXCLUDED.example_observation_id ELSE t.example_observation_id END
-    RETURNING
-      t.project_id AS "projectId",
-      t.key,
-      t.max_value_length AS "maxValueLength",
-      t.example_trace_id AS "exampleTraceId",
-      t.example_observation_id AS "exampleObservationId"
   `;
 }
 
