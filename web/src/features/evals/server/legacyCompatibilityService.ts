@@ -250,6 +250,7 @@ function definitionFromEvaluator(
 ): EvaluatorDefinition | null {
   const version = evaluator.versions[0];
   if (!version) return null;
+  if (evaluator.type === EvalTemplateType.FACET) return null;
   if (evaluator.type === EvalTemplateType.CODE) {
     if (!version.sourceCode || !version.sourceCodeLanguage) return null;
     return {
@@ -389,7 +390,10 @@ async function findReusableEvaluatorId(params: {
   }
 
   const version = await tx.evaluatorVersion.findFirst({
-    where: { id: templateId, evaluator: { projectId } },
+    where: {
+      id: templateId,
+      evaluator: { projectId, type: { not: EvalTemplateType.FACET } },
+    },
     include: { evaluator: { include: { versions: latestVersion } } },
   });
   if (!version) return null;
@@ -410,6 +414,7 @@ function isRunnableTemplate(template: {
   type: EvalTemplateType;
   sourceCodeLanguage: EvalTemplateSourceCodeLanguage | null;
 }) {
+  if (template.type === EvalTemplateType.FACET) return false;
   if (template.type !== EvalTemplateType.CODE) return true;
 
   return (
@@ -497,7 +502,12 @@ async function clearEvaluatorBlock(params: {
   if (!assignment) return;
 
   await params.tx.evaluator.updateMany({
-    where: { id: assignment.evaluatorId, projectId: params.projectId },
+    where: {
+      id: assignment.evaluatorId,
+      projectId: params.projectId,
+      isBuiltIn: false,
+      type: { not: EvalTemplateType.FACET },
+    },
     data: resetEvalConfigBlockFields,
   });
 }
@@ -523,10 +533,13 @@ async function applyScoreNameChange(params: {
     },
   });
   if (!evaluator || evaluator.name === scoreName) return;
+  if (evaluator.isBuiltIn || evaluator.type === EvalTemplateType.FACET) {
+    throw new InvalidRequestError("Built-in evaluators cannot be edited");
+  }
 
   if (evaluator._count.assignments <= 1) {
     await tx.evaluator.update({
-      where: { id: evaluatorId, projectId },
+      where: { id: evaluatorId, projectId, isBuiltIn: false },
       data: { name: scoreName },
     });
     return;
@@ -811,7 +824,7 @@ export class LegacyEvalCompatibilityService {
     options: { collapseManagedCopies?: boolean } = {},
   ) {
     const evaluators = await this.prisma.evaluator.findMany({
-      where: { projectId },
+      where: { projectId, type: { not: EvalTemplateType.FACET } },
       include: { versions: latestVersion },
       orderBy: [{ name: "asc" }, { createdAt: "asc" }],
     });
@@ -835,6 +848,7 @@ export class LegacyEvalCompatibilityService {
     const evaluators = await this.prisma.evaluator.findMany({
       where: {
         projectId: params.projectId,
+        type: { not: EvalTemplateType.FACET },
         ...(search
           ? { name: { contains: search, mode: "insensitive" as const } }
           : {}),
@@ -947,7 +961,10 @@ export class LegacyEvalCompatibilityService {
       return isRunnableTemplate(legacyTemplate) ? legacyTemplate : null;
     }
     const version = await this.prisma.evaluatorVersion.findFirst({
-      where: { id: templateId, evaluator: { projectId } },
+      where: {
+        id: templateId,
+        evaluator: { projectId, type: { not: EvalTemplateType.FACET } },
+      },
       include: { evaluator: true },
     });
     if (!version) return null;
@@ -979,7 +996,10 @@ export class LegacyEvalCompatibilityService {
     const version = await this.prisma.evaluatorVersion.findFirst({
       where: {
         id: params.templateId,
-        evaluator: { projectId: params.projectId },
+        evaluator: {
+          projectId: params.projectId,
+          type: { not: EvalTemplateType.FACET },
+        },
       },
       include: { evaluator: { include: { versions: latestVersion } } },
     });
@@ -1154,7 +1174,11 @@ export class LegacyEvalCompatibilityService {
         const source = await tx.evaluatorVersion.findFirst({
           where: {
             id: params.intent.sourceTemplateId,
-            evaluator: { projectId: params.projectId },
+            evaluator: {
+              projectId: params.projectId,
+              isBuiltIn: false,
+              type: { not: EvalTemplateType.FACET },
+            },
           },
           select: { evaluatorId: true },
         });
@@ -1168,6 +1192,9 @@ export class LegacyEvalCompatibilityService {
           where: { id: source.evaluatorId, projectId: params.projectId },
           include: { versions: latestVersion },
         });
+        if (evaluator.isBuiltIn) {
+          throw new InvalidRequestError("Built-in evaluators cannot be edited");
+        }
         if (
           evaluator.name !== params.name ||
           evaluator.type !== params.definition.type
@@ -1309,7 +1336,7 @@ export class LegacyEvalCompatibilityService {
 
   async listTemplateVersions(projectId: string, name: string) {
     const evaluators = await this.prisma.evaluator.findMany({
-      where: { projectId, name },
+      where: { projectId, name, type: { not: EvalTemplateType.FACET } },
       include: { versions: { orderBy: { version: "desc" } } },
     });
     return evaluators.flatMap((evaluator) =>
@@ -1455,6 +1482,8 @@ export class LegacyEvalCompatibilityService {
           where: {
             projectId: params.projectId,
             id: { in: assignments.map(({ evaluatorId }) => evaluatorId) },
+            isBuiltIn: false,
+            type: { not: EvalTemplateType.FACET },
           },
           data: resetEvalConfigBlockFields,
         });
@@ -1493,7 +1522,10 @@ export class LegacyEvalCompatibilityService {
       return [];
     }
     const version = await this.prisma.evaluatorVersion.findFirst({
-      where: { id: templateId, evaluator: { projectId } },
+      where: {
+        id: templateId,
+        evaluator: { projectId, type: { not: EvalTemplateType.FACET } },
+      },
       select: { evaluatorId: true },
     });
     if (!version) return [];
@@ -1517,7 +1549,14 @@ export class LegacyEvalCompatibilityService {
 
     return this.prisma.$transaction(async (tx) => {
       const version = await tx.evaluatorVersion.findFirst({
-        where: { id: templateId, evaluator: { projectId } },
+        where: {
+          id: templateId,
+          evaluator: {
+            projectId,
+            isBuiltIn: false,
+            type: { not: EvalTemplateType.FACET },
+          },
+        },
         select: { evaluatorId: true },
       });
       if (!version) throw new LangfuseNotFoundError("Evaluator not found");
@@ -1543,7 +1582,7 @@ export class LegacyEvalCompatibilityService {
         where: { evaluatorId: version.evaluatorId },
       });
       await tx.evaluator.delete({
-        where: { id: version.evaluatorId, projectId },
+        where: { id: version.evaluatorId, projectId, isBuiltIn: false },
       });
       return versions;
     });

@@ -1,4 +1,4 @@
-import { Code2, Scale, Sparkles } from "lucide-react";
+import { Code2, Scale, Sparkles, Tags } from "lucide-react";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
 const METHOD_BADGES = {
@@ -11,6 +11,7 @@ const METHOD_BADGES = {
     Icon: Scale,
     label: "Decision model",
   },
+  [EvalTemplateTypeEnum.FACET]: { Icon: Tags, label: "Facet" },
 } as const satisfies Record<EvalTemplateType, { Icon: unknown; label: string }>;
 
 export function EvaluatorGalleryMethodBadge({

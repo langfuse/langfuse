@@ -39,6 +39,8 @@ function toSetupDefinition(
         sourceCode: latest.sourceCode ?? "",
         sourceCodeLanguage: latest.sourceCodeLanguage ?? "TYPESCRIPT",
       };
+    case "FACET":
+      throw new Error("Facets are not shown as evaluators");
   }
 }
 
@@ -54,7 +56,7 @@ export default function EvaluatorDetailPage() {
   if (evaluator.isPending) {
     return <Skeleton className="m-6 h-96 w-[calc(100%-3rem)]" />;
   }
-  if (!evaluator.data?.versions[0]) {
+  if (!evaluator.data?.versions[0] || evaluator.data.type === "FACET") {
     return <div className="p-6">Evaluator not found</div>;
   }
 

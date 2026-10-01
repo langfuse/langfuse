@@ -5,7 +5,6 @@ import {
   type FilterState,
   type ModelConfig,
   type EvalTemplateSourceCodeLanguage,
-  type EvalTemplateType,
   type EvaluatorPromptMessage,
 } from "@langfuse/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
@@ -21,6 +20,8 @@ import type {
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import type { ScoreOutputFormState } from "@/src/features/evals/v2/scoreOutputTypes";
 import type { NormalizedEvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+
+type EditableEvaluatorType = NormalizedEvaluatorDefinition["type"];
 import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
 import { questionsToDrafts } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { DecisionModelQuestionDraft } from "@/src/features/evals/v2/types/decisionModel";
@@ -91,7 +92,7 @@ function buildInitialQuestions(
 }
 
 type EvaluatorSetupStoreActions = {
-  setType: (type: EvalTemplateType) => void;
+  setType: (type: EditableEvaluatorType) => void;
   setQuestion: (question: DecisionModelQuestionDraft) => void;
   addQuestion: (question: DecisionModelQuestionDraft) => void;
   removeQuestion: (id: string) => void;
@@ -130,7 +131,7 @@ type EvaluatorSetupStoreActions = {
 
 export type EvaluatorSetupStoreState = {
   initialDefinition: NormalizedEvaluatorDefinition | undefined;
-  type: EvalTemplateType;
+  type: EditableEvaluatorType;
   promptMessages: EvaluatorPromptMessage[];
   /** Stable client-only ids used by drag-and-drop; never persisted. */
   promptMessageIds: string[];
@@ -184,7 +185,7 @@ export function createEvaluatorSetupStore({
     definition: NormalizedEvaluatorDefinition;
   } | null;
   initialSampleFilter?: FilterState;
-  initialType?: EvalTemplateType;
+  initialType?: EditableEvaluatorType;
   defaultModel?: JudgeModel | null;
   mode: "create" | "edit";
 }): EvaluatorSetupStore {

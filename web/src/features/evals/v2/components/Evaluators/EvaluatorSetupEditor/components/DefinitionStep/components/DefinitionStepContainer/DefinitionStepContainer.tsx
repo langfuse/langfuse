@@ -51,6 +51,7 @@ export function DefinitionStepContainer({
     })),
   );
   const changeType = (type: EvalTemplateType) => {
+    if (type === "FACET") return;
     const previousEvaluatorType = store.getState().type;
     state.actions.setType(type);
     if (type !== previousEvaluatorType) {

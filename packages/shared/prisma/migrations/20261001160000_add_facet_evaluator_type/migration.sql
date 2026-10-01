@@ -1,0 +1,4 @@
+ALTER TYPE "EvalTemplateType" ADD VALUE 'FACET';
+
+ALTER TABLE "evaluators"
+  ADD COLUMN "is_built_in" BOOLEAN NOT NULL DEFAULT FALSE;

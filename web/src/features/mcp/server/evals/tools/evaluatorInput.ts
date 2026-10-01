@@ -78,7 +78,7 @@ const McpEvalOutputDefinitionSchema = z.object({
 export const McpEvaluatorInputBase = z.object({
   name: CreateEvaluatorSchema.shape.name,
   description: CreateEvaluatorSchema.shape.description.unwrap().optional(),
-  type: z.enum(EvalTemplateType),
+  type: z.enum([EvalTemplateType.LLM_AS_JUDGE, EvalTemplateType.CODE]),
   prompt: z.string().min(1).optional(),
   modelConfig: McpEvaluatorModelConfigSchema.optional().describe(
     "Optional custom model configuration. Omit to use the project default model.",
