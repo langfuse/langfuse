@@ -6,7 +6,7 @@ const meta = preview.meta({
   args: {
     ruleCount: 2,
     summary: { total: 10, failed: 0 },
-    executionsHref: "/project/demo/traces?dateRange=last7Days",
+    executionsHref: "/project/demo/traces?dateRange=7d",
   },
 });
 

@@ -396,9 +396,9 @@ export default function EvaluatorsPage() {
                 hasExecutionReadAccess
                   ? evaluatorExecutionsUrl(
                       projectId,
-                      row.original.name,
+                      row.original.id,
                       row.original.type,
-                    ) + "&dateRange=last7Days"
+                    )
                   : null
               }
             />
@@ -500,7 +500,7 @@ export default function EvaluatorsPage() {
                 router.push(
                   evaluatorExecutionsUrl(
                     projectId,
-                    row.original.name,
+                    row.original.id,
                     row.original.type,
                   ),
                 )
