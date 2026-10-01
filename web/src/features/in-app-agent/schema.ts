@@ -1,6 +1,14 @@
 import { z } from "zod";
 
-import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
+import {
+  AgUiContextSchema,
+  type AgUiMessage,
+} from "@langfuse/shared/in-app-agent";
+
+export const InAppAgentTurnInputSchema = z.object({
+  message: z.string().trim().min(1).max(32_000),
+  context: z.array(AgUiContextSchema).default([]),
+});
 
 export const InAppAgentMessageFeedbackValueSchema = z.enum([
   "thumbs_up",

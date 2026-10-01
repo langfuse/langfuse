@@ -91,7 +91,8 @@
   `src/server/instrumentation/bootstrap/index.ts`: instrumentation initializers loaded before sdk.start(); must not import the server barrel or any instrumented library.
 - `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
   client-safe durable in-app-agent contracts: AG-UI messages/events/context,
-  run requests/status/errors, approval events, constants, message helpers,
+  run requests/status/errors (including optional webhook credential provenance),
+  approval events, constants, message helpers,
   and interrupt parsing. Never re-export server code here.
 - In-app-agent server contracts use explicit subpaths only:
   `persistence`, `runLifecycle`, `tunables`, `eventCompaction`, `mcpPolicy`,
