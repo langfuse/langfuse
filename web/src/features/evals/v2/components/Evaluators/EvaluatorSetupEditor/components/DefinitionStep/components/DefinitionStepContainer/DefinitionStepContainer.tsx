@@ -18,6 +18,7 @@ import type { CodeEvalValidationResult } from "@/src/features/evals/utils/code-e
 
 export function DefinitionStepContainer({
   projectId,
+  evaluatorId,
   store,
   isEditing,
   defaultModel,
@@ -30,6 +31,7 @@ export function DefinitionStepContainer({
   codeValidationResult,
 }: {
   projectId: string;
+  evaluatorId: string;
   store: EvaluatorSetupStore;
   isEditing: boolean;
   defaultModel: JudgeModel | null;
@@ -85,7 +87,13 @@ export function DefinitionStepContainer({
               onSetProjectDefault={onSetProjectDefault}
             />
           }
-          promptEditor={<PromptEditor projectId={projectId} store={store} />}
+          promptEditor={
+            <PromptEditor
+              projectId={projectId}
+              evaluatorId={evaluatorId}
+              store={store}
+            />
+          }
           scoreOutputEditor={<ScoreOutputEditor store={store} />}
         />
       );
@@ -98,6 +106,7 @@ export function DefinitionStepContainer({
           codeEditor={
             <CodeEditor
               projectId={projectId}
+              evaluatorId={evaluatorId}
               store={store}
               validationResult={codeValidationResult}
             />

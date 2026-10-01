@@ -66,9 +66,55 @@ import {
   getJudgePromptAnalyticsProperties,
   type EvaluatorCreationSource,
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
+import {
+  useInAppAiAgent,
+  useIsInAppAgentLauncherVisible,
+} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { createInAppAgentConversationId } from "@/src/features/in-app-agent/ids";
+import { evaluatorAssistantTestResultStore } from "@/src/features/evals/v2/store/evaluatorAssistantTestResultStore";
+import { getEvaluatorAssistantSampleObservation } from "@/src/features/evals/v2/fns/getEvaluatorAssistantSampleObservation";
+import { startCodeEvaluatorAssistantHandoff } from "@/src/features/evals/v2/fns/startCodeEvaluatorAssistantHandoff";
+import { startJudgeEvaluatorAssistantHandoff } from "@/src/features/evals/v2/fns/startJudgeEvaluatorAssistantHandoff";
+import { useEvaluatorSamplePageContext } from "@/src/features/evals/v2/hooks/useEvaluatorSamplePageContext";
+import { useEvaluatorAssistantTestResultSync } from "@/src/features/evals/v2/hooks/useEvaluatorAssistantTestResultSync";
+import { useEvaluatorAssistantTestUpdateSignal } from "@/src/features/evals/v2/store/evaluatorAssistantUpdateSignalStore";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
+import { EvaluatorAssistantScratchView } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAssistantScratchView/EvaluatorAssistantScratchView";
+import { EvaluatorAssistantHeaderAction } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAssistantHeaderAction/EvaluatorAssistantHeaderAction";
+import { EvaluatorAssistantEditDialog } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/EvaluatorAssistantEditDialog";
 import { createEvalOnboardingAnalytics } from "@/src/features/evals/v2/fns/createEvalOnboardingAnalytics";
 import { EvalOnboardingAnalyticsProvider } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
+
+const EVALUATOR_EDITOR_MODE_STORAGE_KEY =
+  "langfuse:code-evaluator-editor-mode:v1";
+
+type EvaluatorEditorMode = "assistant" | "code";
+
+export function getEvaluatorSetupHeaderState({
+  isEditing,
+  isScratchCreation,
+  isAssistantAvailable,
+  showAssistantScratch,
+}: {
+  isEditing: boolean;
+  isScratchCreation: boolean;
+  isAssistantAvailable: boolean;
+  showAssistantScratch: boolean;
+}) {
+  const assistantAction =
+    !isAssistantAvailable || showAssistantScratch
+      ? "none"
+      : isEditing
+        ? "edit"
+        : isScratchCreation
+          ? "create"
+          : "none";
+
+  return {
+    title: "Configure evaluator",
+    assistantAction,
+  } as const;
+}
 
 type InitialEvaluator = {
   id: string;
@@ -95,6 +141,24 @@ export function applyEvaluatorSuggestion(
   if (!suggestion) return false;
   setSuggestion(suggestion);
   return true;
+}
+
+export async function navigateToEvaluatorDetail({
+  projectId,
+  evaluatorId,
+  prefetchEvaluator,
+  prefetchRoute,
+  replace,
+}: {
+  projectId: string;
+  evaluatorId: string;
+  prefetchEvaluator: () => Promise<unknown>;
+  prefetchRoute: (path: string) => Promise<unknown>;
+  replace: (path: string) => Promise<unknown>;
+}) {
+  const path = `/project/${projectId}/evals/${evaluatorId}`;
+  await Promise.allSettled([prefetchEvaluator(), prefetchRoute(path)]);
+  await replace(path);
 }
 
 export function getEvaluatorVersionDefinition(
@@ -188,6 +252,17 @@ export function EvaluatorSetupPage(
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const {
+    openAssistant,
+    selectedConversationId,
+    submit: submitToAssistant,
+  } = useInAppAiAgent();
+  const isAssistantLauncherVisible = useIsInAppAgentLauncherVisible();
+  const [preferredScratchMode, setPreferredScratchMode] =
+    useLocalStorage<EvaluatorEditorMode>(
+      EVALUATOR_EDITOR_MODE_STORAGE_KEY,
+      "assistant",
+    );
   const [filterExperience] = useLocalStorage<EvaluatorFilterExperience>(
     EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY,
     "query",
@@ -201,7 +276,7 @@ export function EvaluatorSetupPage(
     projectId,
     evaluatorId: initialEvaluator?.id ?? null,
   });
-  const scoreDataType = (() => {
+  const initialScoreDataType = (() => {
     if (initialEvaluator?.definition.type === "CODE") {
       return getFirstCodeEvaluatorScoreDataType(
         initialEvaluator.definition.sourceCode,
@@ -214,6 +289,19 @@ export function EvaluatorSetupPage(
     }
     return undefined;
   })();
+  const [persistedEvaluatorUi, setPersistedEvaluatorUi] = useState(() =>
+    initialEvaluator
+      ? {
+          name: initialEvaluator.name,
+          type: initialEvaluator.type,
+          defaultVariableMapping: initialEvaluator.definition.variableMapping,
+          scoreDataType: initialScoreDataType,
+          blockedAt: initialEvaluator.blockedAt,
+          blockReason: initialEvaluator.blockReason,
+          blockMessage: initialEvaluator.blockMessage,
+        }
+      : null,
+  );
   const projectDefaultModel = useProjectDefaultModel({
     projectId,
     source: "editor",
@@ -227,6 +315,12 @@ export function EvaluatorSetupPage(
       mode: props.mode,
     }),
   );
+  useEvaluatorSamplePageContext({
+    projectId,
+    evaluatorId,
+    selectedConversationId,
+    store: evaluatorSetupStore,
+  });
   const [onboardingAnalytics] = useState(() =>
     props.mode === "create"
       ? createEvalOnboardingAnalytics({
@@ -248,6 +342,15 @@ export function EvaluatorSetupPage(
       sourceCodeLanguage: state.sourceCodeLanguage,
     })),
   );
+  const assistantEvaluatorType =
+    codeDraft.type === "DECISION_MODEL" ? null : codeDraft.type;
+  const isScratchCreation =
+    props.mode === "create" && props.creationSource.type === "scratch";
+  const showAssistantScratch =
+    assistantEvaluatorType !== null &&
+    isScratchCreation &&
+    isAssistantLauncherVisible &&
+    preferredScratchMode === "assistant";
   const codeValidation = useCodeEvalSourceValidation({
     enabled: codeDraft.type === "CODE",
     sourceCode: codeDraft.sourceCode,
@@ -260,6 +363,7 @@ export function EvaluatorSetupPage(
       definition: prepareEvaluatorDraft(state).definition,
     });
   const initialSnapshot = useRef(getCurrentSnapshot());
+  const assistantPersistedEvaluatorIdRef = useRef<string | null>(null);
   const testPanelOpen = useStore(
     evaluatorSetupStore,
     (state) => state.testPanelOpen,
@@ -270,6 +374,18 @@ export function EvaluatorSetupPage(
     null,
   );
   const [rawResultOpen, setRawResultOpen] = useState(false);
+  const assistantTestResult = useEvaluatorAssistantTestResultSync({
+    projectId,
+    evaluatorId,
+    store: evaluatorSetupStore,
+    setHasCompletedTestCall,
+    setLastTestRunCostUsd,
+    setRawResultOpen,
+  });
+  const assistantTestUpdateId = useEvaluatorAssistantTestUpdateSignal(
+    projectId,
+    evaluatorId,
+  );
   const hasRequestedName = useRef(false);
   const saveInFlightRef = useRef(false);
   const hasCreatedRef = useRef(false);
@@ -277,6 +393,8 @@ export function EvaluatorSetupPage(
   const [historyOpen, setHistoryOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [assistantEditDialogOpen, setAssistantEditDialogOpen] = useState(false);
+  const assistantEditTriggerRef = useRef<HTMLButtonElement>(null);
   const [versionConflictOpen, setVersionConflictOpen] = useState(false);
   const [savedEvaluator, setSavedEvaluator] = useState<{
     id: string;
@@ -349,6 +467,16 @@ export function EvaluatorSetupPage(
         description:
           "The model test succeeded and the evaluator is active again.",
       });
+      setPersistedEvaluatorUi((current) =>
+        current
+          ? {
+              ...current,
+              blockedAt: null,
+              blockReason: null,
+              blockMessage: null,
+            }
+          : current,
+      );
       if (initialEvaluator) {
         await utils.evalsV2.get.invalidate({
           projectId,
@@ -492,8 +620,26 @@ export function EvaluatorSetupPage(
     else close().catch(trpcErrorToast);
   };
 
-  const save = async () => {
-    if (saveInFlightRef.current || hasCreatedRef.current) return;
+  const save = async (
+    intent: "manual" | "assistant" = "manual",
+  ): Promise<string | null> => {
+    const stateAtRequest = evaluatorSetupStore.getState();
+    const isAssistantHandoff = intent === "assistant";
+    if (
+      isAssistantHandoff &&
+      props.mode === "create" &&
+      assistantPersistedEvaluatorIdRef.current
+    ) {
+      return assistantPersistedEvaluatorIdRef.current;
+    }
+    if (
+      isAssistantHandoff &&
+      initialEvaluator &&
+      getCurrentSnapshot(stateAtRequest) === initialSnapshot.current
+    ) {
+      return initialEvaluator.id;
+    }
+    if (saveInFlightRef.current || hasCreatedRef.current) return null;
     saveInFlightRef.current = true;
     setSaveInFlight(true);
     try {
@@ -501,9 +647,12 @@ export function EvaluatorSetupPage(
       const metadata = await prepareEvaluatorMetadataForSave({
         currentName: state.name,
         currentDescription: state.description,
-        generateName: nameAIAssistanceAvailable ? generateNameSuggestion : null,
+        generateName:
+          !isAssistantHandoff && nameAIAssistanceAvailable
+            ? generateNameSuggestion
+            : null,
         generateDescription:
-          nameAIAssistanceAvailable && !initialEvaluator
+          !isAssistantHandoff && nameAIAssistanceAvailable && !initialEvaluator
             ? async () => {
                 try {
                   return await generateDescriptionSuggestion();
@@ -513,6 +662,11 @@ export function EvaluatorSetupPage(
                 }
               }
             : null,
+        fallbackName: isAssistantHandoff
+          ? state.type === "LLM_AS_JUDGE"
+            ? "Draft LLM-as-a-judge evaluator"
+            : "Draft code evaluator"
+          : undefined,
         setName: state.actions.setName,
         setDescription: state.actions.setDescription,
       });
@@ -521,7 +675,7 @@ export function EvaluatorSetupPage(
           "Evaluator name required",
           "We couldn't generate a name. Please enter one manually and try again.",
         );
-        return;
+        return null;
       }
       state = evaluatorSetupStore.getState();
       if (state.type === "CODE") {
@@ -538,11 +692,11 @@ export function EvaluatorSetupPage(
           state.sourceCode !== validatedSourceCode ||
           state.sourceCodeLanguage !== validatedSourceCodeLanguage
         ) {
-          return;
+          return null;
         }
       }
       const { definition } = prepareEvaluatorDraft(state);
-      if (!definition) return;
+      if (!definition) return null;
       const { name, description } = metadata;
 
       if (props.mode === "edit") {
@@ -553,6 +707,20 @@ export function EvaluatorSetupPage(
           description,
           definition,
         });
+        setPersistedEvaluatorUi({
+          name,
+          type: state.type,
+          defaultVariableMapping: definition.variableMapping,
+          scoreDataType:
+            state.type === "LLM_AS_JUDGE"
+              ? state.scoreOutput.dataType
+              : state.type === "CODE"
+                ? getFirstCodeEvaluatorScoreDataType(state.sourceCode)
+                : undefined,
+          blockedAt: evaluator.blockedAt,
+          blockReason: evaluator.blockReason,
+          blockMessage: evaluator.blockMessage,
+        });
         capture("evaluators:update", {
           evaluatorType: state.type,
           filterExperience,
@@ -561,14 +729,21 @@ export function EvaluatorSetupPage(
             ? getJudgePromptAnalyticsProperties(definition.promptMessages)
             : {}),
         });
-        showSuccessToast({
-          title: "Evaluator saved",
-          description: "Your evaluator changes are saved.",
-        });
+        if (!isAssistantHandoff) {
+          showSuccessToast({
+            title: "Evaluator saved",
+            description: "Your evaluator changes are saved.",
+          });
+        }
         initialSnapshot.current = getCurrentSnapshot(state);
-        await utils.evalsV2.filterOptions.invalidate({ projectId });
-        await router.push(`/project/${projectId}/evals/${evaluator.id}`);
-        return;
+        await Promise.all([
+          utils.evalsV2.filterOptions.invalidate({ projectId }),
+          utils.evalsV2.versions.invalidate({
+            projectId,
+            evaluatorId: evaluator.id,
+          }),
+        ]);
+        return evaluator.id;
       }
 
       const evaluator = await create.mutateAsync({
@@ -613,9 +788,23 @@ export function EvaluatorSetupPage(
       });
       initialSnapshot.current = getCurrentSnapshot(state);
       await utils.evalsV2.filterOptions.invalidate({ projectId });
+      if (isAssistantHandoff) {
+        assistantPersistedEvaluatorIdRef.current = evaluator.id;
+        return evaluator.id;
+      }
       if (!shouldOfferRuleAttachment(evaluator)) {
-        await router.push(`/project/${projectId}/evals/${evaluator.id}`);
-        return;
+        await navigateToEvaluatorDetail({
+          projectId,
+          evaluatorId: evaluator.id,
+          prefetchEvaluator: () =>
+            utils.evalsV2.get.prefetch({
+              projectId,
+              evaluatorId: evaluator.id,
+            }),
+          prefetchRoute: (path) => router.prefetch(path),
+          replace: (path) => router.replace(path),
+        });
+        return evaluator.id;
       }
       setSavedEvaluator({
         id: evaluator.id,
@@ -632,6 +821,7 @@ export function EvaluatorSetupPage(
         hasCompletedTestCall,
         testRunCostUsd: lastTestRunCostUsd,
       });
+      return evaluator.id;
     } catch (error) {
       hasCreatedRef.current = false;
       if (
@@ -643,10 +833,82 @@ export function EvaluatorSetupPage(
       } else {
         trpcErrorToast(error);
       }
+      return null;
     } finally {
       saveInFlightRef.current = false;
       setSaveInFlight(false);
     }
+  };
+
+  const submitEvaluatorAssistantRequest = async (
+    request: string,
+    evaluatorType: "CODE" | "LLM_AS_JUDGE",
+  ) => {
+    setTestResult(null);
+    const conversationId = createInAppAgentConversationId();
+    const sampleObservation = getEvaluatorAssistantSampleObservation(
+      evaluatorSetupStore.getState().selectedObservation,
+    );
+    const persistEvaluator = async () => {
+      const persistedEvaluatorId = await save("assistant");
+      if (!persistedEvaluatorId) {
+        showErrorToast(
+          "Couldn't save evaluator",
+          "Review the evaluator for validation errors, then try again.",
+        );
+      } else {
+        evaluatorAssistantTestResultStore.expect({
+          projectId,
+          evaluatorId: persistedEvaluatorId,
+          conversationId,
+          observationId: sampleObservation?.observationId ?? null,
+        });
+      }
+      return persistedEvaluatorId;
+    };
+    const handoff =
+      evaluatorType === "CODE"
+        ? await startCodeEvaluatorAssistantHandoff({
+            request,
+            sampleObservation,
+            conversationId,
+            openAssistant: () => openAssistant("evaluator_editor"),
+            persistEvaluator,
+            submitToAssistant,
+          })
+        : await startJudgeEvaluatorAssistantHandoff({
+            request,
+            sampleObservation,
+            conversationId,
+            openAssistant: () => openAssistant("evaluator_editor"),
+            persistEvaluator,
+            submitToAssistant,
+          });
+    if (!handoff) return false;
+
+    if (!handoff.started) {
+      evaluatorAssistantTestResultStore.clear(projectId, handoff.evaluatorId);
+      showErrorToast(
+        "Assistant didn't start",
+        "The evaluator was saved. Open Edit with AI and try again.",
+      );
+    }
+
+    if (props.mode === "create") {
+      await navigateToEvaluatorDetail({
+        projectId,
+        evaluatorId: handoff.evaluatorId,
+        prefetchEvaluator: () =>
+          utils.evalsV2.get.prefetch({
+            projectId,
+            evaluatorId: handoff.evaluatorId,
+          }),
+        prefetchRoute: (path) => router.prefetch(path),
+        replace: (path) => router.replace(path),
+      });
+    }
+
+    return handoff.started;
   };
 
   const discardConflictingChanges = async () => {
@@ -664,6 +926,7 @@ export function EvaluatorSetupPage(
   };
 
   const runTest = () => {
+    evaluatorAssistantTestResultStore.clear(projectId, evaluatorId);
     const state = evaluatorSetupStore.getState();
     const { definition } = prepareEvaluatorDraft(state);
     const selectedObservation = state.selectedObservation;
@@ -685,6 +948,7 @@ export function EvaluatorSetupPage(
   const evaluatorEditor = (
     <EvaluatorSetupEditor
       projectId={projectId}
+      evaluatorId={evaluatorId}
       store={evaluatorSetupStore}
       isEditing={Boolean(initialEvaluator)}
       defaultModel={projectDefaultModel.defaultModel}
@@ -759,8 +1023,9 @@ export function EvaluatorSetupPage(
           }}
         />
       }
-      testResult={testResult}
-      testPending={testEvaluator.isPending}
+      testResult={assistantTestResult?.result ?? testResult}
+      assistantUpdateId={assistantTestUpdateId}
+      testPending={!assistantTestResult && testEvaluator.isPending}
       rawResultOpen={rawResultOpen}
       onRawResultOpenChange={setRawResultOpen}
       onRunTest={runTest}
@@ -769,142 +1034,236 @@ export function EvaluatorSetupPage(
       }
     />
   );
+  const isSaving =
+    saveInFlight ||
+    create.isPending ||
+    update.isPending ||
+    suggestName.isPending ||
+    suggestDescription.isPending;
+  const headerState = getEvaluatorSetupHeaderState({
+    isEditing: Boolean(initialEvaluator),
+    isScratchCreation,
+    isAssistantAvailable:
+      isAssistantLauncherVisible && assistantEvaluatorType !== null,
+    showAssistantScratch,
+  });
+  const renderAssistantHeaderAction = () =>
+    headerState.assistantAction === "create" ? (
+      <EvaluatorAssistantHeaderAction
+        mode="create"
+        onClick={() => {
+          if (codeDraft.type === "CODE") {
+            capture("evaluators:code_editor_mode_switch", {
+              context: "scratch",
+              mode: "assistant",
+            });
+          }
+          setPreferredScratchMode("assistant");
+        }}
+      />
+    ) : headerState.assistantAction === "edit" ? (
+      <EvaluatorAssistantHeaderAction
+        mode="edit"
+        triggerRef={assistantEditTriggerRef}
+        onClick={() => {
+          if (codeDraft.type === "CODE") {
+            capture("evaluators:code_editor_mode_switch", {
+              context: "edit",
+              mode: "assistant",
+            });
+          }
+          setAssistantEditDialogOpen(true);
+        }}
+      />
+    ) : null;
+  const hasAssistantHeaderAction = headerState.assistantAction !== "none";
 
   return (
     <Page
       headerProps={{
-        title: initialEvaluator ? "Configure evaluator" : "New evaluator",
+        title: headerState.title,
+        titleContent: (
+          <span className="inline-flex flex-wrap items-baseline gap-x-2">
+            <span title={headerState.title} data-testid="page-header-title">
+              {headerState.title}
+            </span>
+            {hasAssistantHeaderAction ? (
+              <span className="hidden md:inline-flex">
+                {renderAssistantHeaderAction()}
+              </span>
+            ) : null}
+          </span>
+        ),
         breadcrumb: [
           { name: "Evaluators", href: `/project/${projectId}/evals` },
         ],
-        actionButtonsRight: initialEvaluator ? (
-          <div className="flex gap-2">
-            <EvaluatorRuleRelationships
-              projectId={projectId}
-              evaluatorId={initialEvaluator.id}
-              evaluatorName={initialEvaluator.name}
-              evaluatorType={initialEvaluator.type}
-              evaluatorDefaultVariableMapping={
-                initialEvaluator.definition.variableMapping
-              }
-            />
-            <EvaluatorAlertButton
-              scope="evaluator"
-              projectId={projectId}
-              evaluatorId={initialEvaluator.id}
-              evaluatorType={initialEvaluator.type}
-              scoreDataType={scoreDataType}
-              {...evaluatorAlerts}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              title="View version history"
-              onClick={() => {
-                capture("evaluators:version_history_interaction", {
-                  action: "open",
-                });
-                setHistoryOpen(true);
-              }}
-            >
-              <History className="mr-2 h-4 w-4" />
-              Version history
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              title="Delete evaluator"
-              onClick={() => setDeleteOpen(true)}
-            >
-              <Trash2 className="text-destructive h-4 w-4" />
-            </Button>
-          </div>
-        ) : undefined,
+        actionButtonsMenu: hasAssistantHeaderAction
+          ? renderAssistantHeaderAction()
+          : undefined,
+        actionButtonsRight:
+          initialEvaluator && persistedEvaluatorUi ? (
+            <div className="flex gap-2">
+              <EvaluatorRuleRelationships
+                projectId={projectId}
+                evaluatorId={initialEvaluator.id}
+                evaluatorName={persistedEvaluatorUi.name}
+                evaluatorType={persistedEvaluatorUi.type}
+                evaluatorDefaultVariableMapping={
+                  persistedEvaluatorUi.defaultVariableMapping
+                }
+              />
+              <EvaluatorAlertButton
+                scope="evaluator"
+                projectId={projectId}
+                evaluatorId={initialEvaluator.id}
+                evaluatorType={persistedEvaluatorUi.type}
+                scoreDataType={persistedEvaluatorUi.scoreDataType}
+                {...evaluatorAlerts}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                title="View version history"
+                onClick={() => {
+                  capture("evaluators:version_history_interaction", {
+                    action: "open",
+                  });
+                  setHistoryOpen(true);
+                }}
+              >
+                <History className="mr-2 h-4 w-4" />
+                Version history
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                title="Delete evaluator"
+                onClick={() => setDeleteOpen(true)}
+              >
+                <Trash2 className="text-destructive h-4 w-4" />
+              </Button>
+            </div>
+          ) : undefined,
       }}
     >
       <EvalOnboardingAnalyticsProvider value={onboardingAnalytics}>
         <div className="flex min-h-0 flex-1 flex-col">
-          <TableHeaderControls
-            timeRange={timeRange}
-            setTimeRange={setTimeRange}
-          />
-          {initialEvaluator?.blockedAt ? (
-            <div className="mx-3 mt-3">
-              <EvaluatorBlockedBanner
-                projectId={projectId}
-                blockedAt={initialEvaluator.blockedAt}
-                blockReason={initialEvaluator.blockReason}
-                blockMessage={initialEvaluator.blockMessage}
-                canReactivate={canReactivate}
-                reactivationPending={reactivate.isPending}
-                onReactivate={() => {
-                  capture("evaluators:reactivate", {
-                    blockReason:
-                      initialEvaluator.blockReason ??
-                      "EVAL_MODEL_CONFIG_INVALID",
-                  });
-                  reactivate.mutate({
-                    projectId,
-                    evaluatorId: initialEvaluator.id,
-                  });
-                }}
-              />
-            </div>
-          ) : null}
-          {isMobile ? (
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <div>{evaluatorEditor}</div>
-              <div className="border-t [&>aside]:h-auto">
-                {evaluatorTestPanel}
-              </div>
-            </div>
-          ) : (
-            <ResizableSplitLayout
-              className="h-auto min-h-0 flex-1"
-              primaryContent={evaluatorEditor}
-              secondaryContent={evaluatorTestPanel}
-              open={testPanelOpen}
-              defaultPrimarySize={60}
-              defaultSecondarySize={40}
-              minPrimarySize={30}
-              minSecondarySize="360px"
-              collapsedSecondarySize="48px"
-              onOpenChange={
-                evaluatorSetupStore.getState().actions.setTestPanelOpen
+          {showAssistantScratch && assistantEvaluatorType ? (
+            <EvaluatorAssistantScratchView
+              evaluatorType={assistantEvaluatorType}
+              onSubmit={(request) =>
+                submitEvaluatorAssistantRequest(request, assistantEvaluatorType)
               }
-              persistId="evaluator-test-panel"
+              onConfigureManually={() => {
+                if (codeDraft.type === "CODE") {
+                  capture("evaluators:code_editor_mode_switch", {
+                    context: "scratch",
+                    mode: "code",
+                  });
+                }
+                setPreferredScratchMode("code");
+              }}
             />
-          )}
-          <EvaluatorSetupFooter
-            store={evaluatorSetupStore}
-            initialSnapshot={initialSnapshot.current}
-            isEditing={Boolean(initialEvaluator)}
-            isSaving={
-              saveInFlight ||
-              create.isPending ||
-              update.isPending ||
-              suggestName.isPending ||
-              suggestDescription.isPending
-            }
-            nameAIAssistanceAvailable={nameAIAssistanceAvailable}
-            codeValidation={
-              codeDraft.type === "CODE"
-                ? {
-                    isValid: codeValidation.isValid,
-                    isPending: codeValidation.isPending,
+          ) : (
+            <>
+              <TableHeaderControls
+                timeRange={timeRange}
+                setTimeRange={setTimeRange}
+              />
+              {persistedEvaluatorUi?.blockedAt ? (
+                <div className="mx-3 mt-3">
+                  <EvaluatorBlockedBanner
+                    projectId={projectId}
+                    blockedAt={persistedEvaluatorUi.blockedAt}
+                    blockReason={persistedEvaluatorUi.blockReason}
+                    blockMessage={persistedEvaluatorUi.blockMessage}
+                    canReactivate={canReactivate}
+                    reactivationPending={reactivate.isPending}
+                    onReactivate={() => {
+                      capture("evaluators:reactivate", {
+                        blockReason:
+                          persistedEvaluatorUi.blockReason ??
+                          "EVAL_MODEL_CONFIG_INVALID",
+                      });
+                      reactivate.mutate({
+                        projectId,
+                        evaluatorId,
+                      });
+                    }}
+                  />
+                </div>
+              ) : null}
+              {isMobile ? (
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  <div>{evaluatorEditor}</div>
+                  <div className="border-t [&>aside]:h-auto">
+                    {evaluatorTestPanel}
+                  </div>
+                </div>
+              ) : (
+                <ResizableSplitLayout
+                  className="h-auto min-h-0 flex-1"
+                  primaryContent={evaluatorEditor}
+                  secondaryContent={evaluatorTestPanel}
+                  open={testPanelOpen}
+                  defaultPrimarySize={60}
+                  defaultSecondarySize={40}
+                  minPrimarySize={30}
+                  minSecondarySize="360px"
+                  collapsedSecondarySize="48px"
+                  onOpenChange={
+                    evaluatorSetupStore.getState().actions.setTestPanelOpen
                   }
-                : null
-            }
-            onClose={requestClose}
-            onSave={save}
-          />
+                  persistId="evaluator-test-panel"
+                />
+              )}
+              <EvaluatorSetupFooter
+                store={evaluatorSetupStore}
+                initialSnapshot={initialSnapshot.current}
+                isEditing={Boolean(initialEvaluator)}
+                isSaving={isSaving}
+                nameAIAssistanceAvailable={nameAIAssistanceAvailable}
+                codeValidation={
+                  codeDraft.type === "CODE"
+                    ? {
+                        isValid: codeValidation.isValid,
+                        isPending: codeValidation.isPending,
+                      }
+                    : null
+                }
+                onClose={requestClose}
+                onSave={save}
+              />
+            </>
+          )}
         </div>
       </EvalOnboardingAnalyticsProvider>
+      {initialEvaluator &&
+      isAssistantLauncherVisible &&
+      assistantEvaluatorType ? (
+        <EvaluatorAssistantEditDialog
+          open={assistantEditDialogOpen}
+          evaluatorType={assistantEvaluatorType === "CODE" ? "code" : "judge"}
+          returnFocusRef={assistantEditTriggerRef}
+          onOpenChange={(open) => {
+            if (!open && codeDraft.type === "CODE") {
+              capture("evaluators:code_editor_mode_switch", {
+                context: "edit",
+                mode: "code",
+              });
+            }
+            setAssistantEditDialogOpen(open);
+          }}
+          onAssistantSubmit={(request) =>
+            submitEvaluatorAssistantRequest(request, assistantEvaluatorType)
+          }
+        />
+      ) : null}
       {initialEvaluator ? (
         <EvaluatorVersionHistorySheet
           open={historyOpen}
           onOpenChange={setHistoryOpen}
-          evaluatorName={initialEvaluator.name}
+          evaluatorName={persistedEvaluatorUi?.name ?? initialEvaluator.name}
           versions={versions}
           currentVersionId={versions[0]?.id ?? ""}
           defaultModel={projectDefaultModel.defaultModel}
@@ -915,6 +1274,7 @@ export function EvaluatorSetupPage(
             });
           }}
           onRestoreVersion={(version) => {
+            evaluatorAssistantTestResultStore.clear(projectId, evaluatorId);
             restoreEvaluatorVersion({
               store: evaluatorSetupStore,
               version,
