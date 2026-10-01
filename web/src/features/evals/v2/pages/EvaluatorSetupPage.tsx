@@ -104,11 +104,9 @@ export function getEvaluatorSetupHeaderState({
   const assistantAction =
     !isAssistantAvailable || showAssistantScratch
       ? "none"
-      : isEditing
-        ? "edit"
-        : isScratchCreation
-          ? "create"
-          : "none";
+      : !isEditing && isScratchCreation
+        ? "create"
+        : "none";
 
   return {
     title: "Configure evaluator",
@@ -1061,20 +1059,6 @@ export function EvaluatorSetupPage(
           setPreferredScratchMode("assistant");
         }}
       />
-    ) : headerState.assistantAction === "edit" ? (
-      <EvaluatorAssistantHeaderAction
-        mode="edit"
-        triggerRef={assistantEditTriggerRef}
-        onClick={() => {
-          if (codeDraft.type === "CODE") {
-            capture("evaluators:code_editor_mode_switch", {
-              context: "edit",
-              mode: "assistant",
-            });
-          }
-          setAssistantEditDialogOpen(true);
-        }}
-      />
     ) : null;
   const hasAssistantHeaderAction = headerState.assistantAction !== "none";
 
@@ -1151,10 +1135,22 @@ export function EvaluatorSetupPage(
           {showAssistantScratch && assistantEvaluatorType ? (
             <EvaluatorAssistantScratchView
               evaluatorType={assistantEvaluatorType}
-              onSubmit={(request) =>
-                submitEvaluatorAssistantRequest(request, assistantEvaluatorType)
-              }
+              onSubmit={(request) => {
+                capture("evaluators:assistant_entry_interaction", {
+                  action: "submit_create",
+                  evaluatorType: assistantEvaluatorType,
+                  requestLength: request.length,
+                });
+                return submitEvaluatorAssistantRequest(
+                  request,
+                  assistantEvaluatorType,
+                );
+              }}
               onConfigureManually={() => {
+                capture("evaluators:assistant_entry_interaction", {
+                  action: "configure_manually",
+                  evaluatorType: assistantEvaluatorType,
+                });
                 if (codeDraft.type === "CODE") {
                   capture("evaluators:code_editor_mode_switch", {
                     context: "scratch",
@@ -1231,6 +1227,28 @@ export function EvaluatorSetupPage(
                       }
                     : null
                 }
+                editWithAI={
+                  initialEvaluator &&
+                  isAssistantLauncherVisible &&
+                  assistantEvaluatorType
+                    ? {
+                        triggerRef: assistantEditTriggerRef,
+                        onClick: () => {
+                          capture("evaluators:assistant_entry_interaction", {
+                            action: "open_edit",
+                            evaluatorType: assistantEvaluatorType,
+                          });
+                          if (assistantEvaluatorType === "CODE") {
+                            capture("evaluators:code_editor_mode_switch", {
+                              context: "edit",
+                              mode: "assistant",
+                            });
+                          }
+                          setAssistantEditDialogOpen(true);
+                        },
+                      }
+                    : null
+                }
                 onClose={requestClose}
                 onSave={save}
               />
@@ -1246,7 +1264,7 @@ export function EvaluatorSetupPage(
           evaluatorType={assistantEvaluatorType === "CODE" ? "code" : "judge"}
           returnFocusRef={assistantEditTriggerRef}
           onOpenChange={(open) => {
-            if (!open && codeDraft.type === "CODE") {
+            if (!open && assistantEvaluatorType === "CODE") {
               capture("evaluators:code_editor_mode_switch", {
                 context: "edit",
                 mode: "code",

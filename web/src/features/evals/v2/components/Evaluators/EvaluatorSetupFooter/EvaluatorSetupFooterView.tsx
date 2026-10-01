@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { ArrowRight } from "lucide-react";
+import type { ReactNode, RefObject } from "react";
+import { ArrowRight, WandSparkles } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
   Tooltip,
@@ -19,7 +19,17 @@ type EvaluatorSetupFooterViewBaseProps = {
 };
 
 export type EvaluatorSetupFooterViewProps = EvaluatorSetupFooterViewBaseProps &
-  ({ mode: "create"; children: ReactNode } | { mode: "edit" });
+  (
+    | { mode: "create"; children: ReactNode }
+    | {
+        mode: "edit";
+        editWithAI: {
+          triggerRef: RefObject<HTMLButtonElement | null>;
+          disabled: boolean;
+          onClick: () => void;
+        } | null;
+      }
+  );
 
 export function EvaluatorSetupFooterView(props: EvaluatorSetupFooterViewProps) {
   const {
@@ -52,6 +62,19 @@ export function EvaluatorSetupFooterView(props: EvaluatorSetupFooterViewProps) {
         <p className="text-muted-foreground min-w-0 flex-1 text-sm">
           {props.children}
         </p>
+      ) : null}
+      {props.mode === "edit" && props.editWithAI ? (
+        <Button
+          ref={props.editWithAI.triggerRef}
+          type="button"
+          variant="outline"
+          disabled={props.editWithAI.disabled}
+          className="gap-1.5"
+          onClick={props.editWithAI.onClick}
+        >
+          <WandSparkles className="h-4 w-4" aria-hidden="true" />
+          Edit with AI
+        </Button>
       ) : null}
       <div className="ml-auto flex shrink-0 gap-2">
         <Button type="button" variant="outline" onClick={onClose}>

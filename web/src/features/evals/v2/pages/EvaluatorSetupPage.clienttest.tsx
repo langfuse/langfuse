@@ -34,14 +34,14 @@ describe("getEvaluatorSetupHeaderState", () => {
       assistantAction: "create",
     },
     {
-      name: "existing evaluator",
+      name: "existing evaluator with footer action",
       input: {
         isEditing: true,
         isScratchCreation: false,
         isAssistantAvailable: true,
         showAssistantScratch: false,
       },
-      assistantAction: "edit",
+      assistantAction: "none",
     },
   ] as const)(
     "uses the Configure evaluator title in $name mode",
