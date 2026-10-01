@@ -62,8 +62,12 @@ export const DismissesFromBackdrop = meta.story({
     );
   },
   play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
-    const trigger = body.getByRole("button", { name: "Edit evaluator" });
+    const trigger = canvas.getByRole("button", {
+      name: "Edit evaluator",
+      hidden: true,
+    });
     const getOverlay = () =>
       canvasElement.ownerDocument.querySelector<HTMLElement>(
         '[data-state="open"].fixed.inset-0',
