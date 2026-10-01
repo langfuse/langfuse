@@ -46,7 +46,6 @@ export function ApiKeySettingsTable({
               type: "custom",
               icon: Pencil,
               label: "Edit name",
-              showOnHover: true,
               onClick: ({ row }) => editNoteAction.onClick(row.original),
             }
           : undefined,
