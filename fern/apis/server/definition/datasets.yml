@@ -84,7 +84,7 @@ types:
     properties:
       name: string
       description: optional<string>
-      metadata: optional<unknown>
+      metadata: optional<map<string, unknown>>
       inputSchema:
         type: optional<map<string, unknown>>
         docs: JSON Schema for validating dataset item inputs. When set, all new and existing dataset items will be validated against this schema.
