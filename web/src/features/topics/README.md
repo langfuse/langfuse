@@ -34,10 +34,10 @@ project permissions. Processing additionally requires the project allowlist.
   IDs, and per-trace errors, using aggregate counts for progress.
   Expanding Trace errors loads failed trace IDs and reasons on demand from
   retained queue state. When it expires, the UI says so; permanent counts remain.
-  Saved topic rules hold reusable filters, sampling and stable facet IDs, like
-  evaluator rules. Selecting a rule loads its criteria and each facet's latest
-  prompt version; editing criteria or facets becomes an ad hoc run until explicitly
-  saved. Rules do not create separate maps or invalidate summaries and embeddings.
+  Saved topic rules hold reusable filters and stable facet IDs, like evaluator
+  rules. Selecting a rule loads its filters and each facet's latest prompt
+  version; editing filters or facets becomes an ad hoc run until explicitly saved.
+  Sampling and trace limits belong to each run. Rules do not create separate maps or invalidate summaries and embeddings.
   These local PoC operations and rule saving add no product analytics event.
 - `useTopicTraceSelector` reuses the eval filter builder and query editor, with
   a time range, all matching traces selected by default, and optional random/latest

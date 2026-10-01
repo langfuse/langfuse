@@ -1172,8 +1172,6 @@ model EvaluationRule {
   name                   String
   status                 JobConfigState   @default(ACTIVE)
   purpose                EvaluatorPurpose @default(EVALUATION)
-  topicSelectionStrategy String?          @map("topic_selection_strategy")
-  topicSelectionLimit    Int?             @map("topic_selection_limit")
   targetObject           String           @map("target_object")
   filter                 Json
   sampling               Decimal

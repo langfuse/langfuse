@@ -404,8 +404,6 @@ describe("Topics filtered trace preview", () => {
       projectId,
       name: "Billing",
       filter: selection.filter,
-      sampling: selection.sampling,
-      limit: selection.limit,
       facetIds: ["facet-a"],
     };
     const request = {
@@ -428,7 +426,17 @@ describe("Topics filtered trace preview", () => {
       "Topic rule not found in this project",
     );
     expect(mocks.getTopicRule).toHaveBeenCalledWith(projectId, rule.id);
-    mocks.getTopicRule.mockResolvedValue({ ...rule, sampling: "latest" });
+    mocks.getTopicRule.mockResolvedValue({
+      ...rule,
+      filter: [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+      ],
+    });
     await expect(caller().trigger(request)).rejects.toThrow(
       "Topic rule changed",
     );

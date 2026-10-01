@@ -57,7 +57,7 @@ describe("Topics default facets", () => {
   it("creates missing defaults without replacing existing facet prompts on repeated initialization", async () => {
     const names = new Set(["Intent", "Issues"]);
     mocks.evaluatorFindFirst.mockImplementation(async ({ where }) =>
-      names.has(where.name) ? { id: where.projectId_name.name } : null,
+      names.has(where.name) ? { id: where.name } : null,
     );
     mocks.evaluatorFindMany.mockResolvedValue([]);
     mocks.evaluatorCreate.mockImplementation(async ({ data }) => {

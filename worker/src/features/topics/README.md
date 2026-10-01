@@ -12,10 +12,10 @@ which traces are processed:
 - `evaluators` stores stable facet identity, name and description with a `TOPICS`
   purpose. `evaluator_versions` stores immutable prompts by numeric version.
   Saving an unchanged prompt does not create a version.
-- `evaluation_rules` stores editable Topics selection rules with a `TOPICS`
-  purpose. Its dedicated selection strategy and limit columns hold random/latest
-  sampling; `evaluation_rule_evaluator_assignments` links facets to rules.
-  Editing a rule does not create prompt versions.
+- `evaluation_rules` stores editable Topics filters with a `TOPICS` purpose.
+  `evaluation_rule_evaluator_assignments` links facets to rules. The selection
+  strategy and trace limit belong to each run. Editing a rule does not create
+  prompt versions.
 - At trigger, the request freezes the rule ID, resolved trace IDs, selected prompt
   versions and runtime summary/embedding configuration. A hash identifies the
   original request, including its selection criteria. Retries never re-evaluate a rule.

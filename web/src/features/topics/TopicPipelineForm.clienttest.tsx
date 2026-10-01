@@ -26,8 +26,6 @@ const rule = {
       value: ["production"],
     },
   ],
-  sampling: "latest",
-  limit: 50,
   facetIds: ["intent"],
   updatedAt: "2026-09-16T00:00:00Z",
 } satisfies TopicRule;
@@ -208,7 +206,14 @@ it("processes pasted IDs and reviewed rule selections, invalidating edited crite
   await choose("Saved configuration", rule.name);
   expect(screen.getByLabelText("Version for Intent")).toHaveTextContent("v2");
   expect(screen.getByRole("checkbox", { name: "Issues" })).not.toBeChecked();
-  expect(screen.getByLabelText("Maximum traces")).toHaveValue(50);
+  expect(
+    screen.getByRole("checkbox", { name: "Sample traces" }),
+  ).not.toBeChecked();
+  fireEvent.click(screen.getByRole("checkbox", { name: "Sample traces" }));
+  fireEvent.change(screen.getByLabelText("Maximum traces"), {
+    target: { value: "50" },
+  });
+  await choose("Trace sampling method", "Newest first");
   await preview();
   const request = mocks.preview.mock.calls[0][0];
   expect(request).toMatchObject({
@@ -261,7 +266,7 @@ it("processes pasted IDs and reviewed rule selections, invalidating edited crite
   click("Done");
   const changed = await submit(/^Process 2 traces$/);
   expect(changed.selection).toMatchObject({ limit: 25, excludedTraceIds: [] });
-  expect(changed).not.toHaveProperty("ruleId");
+  expect(changed.ruleId).toBe(rule.id);
   expect(mocks.saveRule).not.toHaveBeenCalled();
   click("Configure topics");
   click("Update rule");
@@ -270,9 +275,7 @@ it("processes pasted IDs and reviewed rule selections, invalidating edited crite
     projectId: rule.projectId,
     name: rule.name,
     filter: rule.filter,
-    sampling: rule.sampling,
     facetIds: rule.facetIds,
-    limit: 25,
   });
 });
 

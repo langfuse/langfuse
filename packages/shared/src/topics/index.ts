@@ -37,11 +37,11 @@ export const topicRuleConfigSchema = z.object({
       (filters) => !filters.some((item) => item.type === "positionInTrace"),
       "Position-in-trace filters are not supported for Topics selection.",
     ),
-  limit: z.number().int().positive().nullable().default(null),
-  sampling: z.enum(["random", "latest"]),
 });
 export const topicTraceSelectionCriteriaSchema = topicRuleConfigSchema
   .extend({
+    limit: z.number().int().positive().nullable().default(null),
+    sampling: z.enum(["random", "latest"]),
     from: z.coerce.date(),
     to: z.coerce.date(),
     seed: z.string().min(1).max(128),

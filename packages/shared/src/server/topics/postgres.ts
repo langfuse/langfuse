@@ -179,11 +179,7 @@ const topicRule = (row: RuleRow): TopicRule => ({
   id: row.id,
   projectId: row.projectId,
   name: row.name,
-  ...topicRuleConfigSchema.parse({
-    filter: row.filter,
-    sampling: row.topicSelectionStrategy,
-    limit: row.topicSelectionLimit,
-  }),
+  ...topicRuleConfigSchema.parse({ filter: row.filter }),
   facetIds: row.assignments.map((assignment) => assignment.evaluatorId),
   updatedAt: row.updatedAt.toISOString(),
 });
@@ -241,8 +237,6 @@ export async function saveTopicRule(
       filter: JSON.parse(
         JSON.stringify(config.filter),
       ) as Prisma.InputJsonValue,
-      topicSelectionStrategy: config.sampling,
-      topicSelectionLimit: config.limit,
     };
     const assignments = facetIds.map((evaluatorId) => ({
       projectId: input.projectId,
