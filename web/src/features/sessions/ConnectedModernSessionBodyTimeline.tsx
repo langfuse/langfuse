@@ -8,7 +8,7 @@ import {
 import {
   type SessionConversationTimelineScrollTarget,
   useSessionConversationTimelineController,
-} from "@/src/features/sessions/SessionConversationTimeline/SessionConversationTimeline";
+} from "@/src/features/sessions/SessionConversationTimeline/useSessionConversationTimelineController";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { computeIdleGapSeconds } from "@/src/features/sessions/sessionIdleGap";
 import { useDebounce } from "@/src/hooks/useDebounce";

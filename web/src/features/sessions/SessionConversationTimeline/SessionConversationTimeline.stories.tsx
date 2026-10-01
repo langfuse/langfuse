@@ -1,8 +1,8 @@
 import preview from "@/.storybook/preview";
 import { type ComponentProps } from "react";
 import { expect, fn, within } from "storybook/test";
-import { SessionConversationTimelineFeed } from "./SessionConversationTimelineFeed";
-import { useSessionConversationTimelineController } from "./SessionConversationTimeline";
+import { SessionConversationTimeline } from "./SessionConversationTimeline";
+import { useSessionConversationTimelineController } from "./useSessionConversationTimelineController";
 import { SessionConversationTimelineTrace } from "./components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 
 type TraceProps = ComponentProps<typeof SessionConversationTimelineTrace>;
@@ -86,7 +86,7 @@ const traces: TraceProps[] = [
   },
 ];
 
-function SessionConversationTimelineFeedStory({
+function SessionConversationTimelineStory({
   onLoadMoreObservations,
 }: {
   onLoadMoreObservations?: () => void;
@@ -94,7 +94,7 @@ function SessionConversationTimelineFeedStory({
   const controller = useSessionConversationTimelineController(traces);
   return (
     <div className="h-[500px]">
-      <SessionConversationTimelineFeed
+      <SessionConversationTimeline
         traces={traces}
         TraceComponent={SessionConversationTimelineTrace}
         filterMeasurementKey="storybook"
@@ -105,7 +105,7 @@ function SessionConversationTimelineFeedStory({
   );
 }
 
-const meta = preview.meta({ component: SessionConversationTimelineFeedStory });
+const meta = preview.meta({ component: SessionConversationTimelineStory });
 export default meta;
 export const MultipleTraces = meta.story({
   name: "(Test) Renders Multiple Traces",

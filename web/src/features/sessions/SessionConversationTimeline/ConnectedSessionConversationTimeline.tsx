@@ -6,11 +6,11 @@ import { CommentDrawerController } from "@/src/features/comments";
 import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { showErrorToast } from "@/src/features/notifications";
-import { SessionConversationTimelineFeed } from "./SessionConversationTimelineFeed";
+import { SessionConversationTimeline } from "./SessionConversationTimeline";
 import {
   type SessionConversationTimelineController,
   type SessionConversationTimelineScrollTarget,
-} from "./SessionConversationTimeline";
+} from "./useSessionConversationTimelineController";
 import {
   SessionConversationTimelineTrace,
   type SessionObservationActions,
@@ -79,7 +79,7 @@ export function ConnectedSessionConversationTimeline({
               projectId={projectId}
             >
               {({ openDialog: openDatasetDialog }) => (
-                <SessionConversationTimelineFeed
+                <SessionConversationTimeline
                   traces={traces.map(({ trace, turnNumber, observations }) => {
                     const result = resultsByTraceId.get(trace.id);
                     const state = (() => {
