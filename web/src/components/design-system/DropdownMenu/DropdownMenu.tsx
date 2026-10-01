@@ -122,6 +122,7 @@ type DropdownMenuItem = {
   id: string;
   title: string;
   tooltip?: string;
+  badge?: React.ReactNode;
   icon?: LucideIcon;
   searchBehavior?: SearchBehavior;
   type: "item";
@@ -661,6 +662,9 @@ function DropdownMenuNode({
                           >
                             {item.title}
                           </span>
+                          {item.badge ? (
+                            <span className="ml-2 shrink-0">{item.badge}</span>
+                          ) : null}
                         </Link>
                       ) : (
                         <button
@@ -685,6 +689,9 @@ function DropdownMenuNode({
                           >
                             {item.title}
                           </span>
+                          {item.badge ? (
+                            <span className="ml-2 shrink-0">{item.badge}</span>
+                          ) : null}
                         </button>
                       )}
                       {renderedSecondaryAction}
