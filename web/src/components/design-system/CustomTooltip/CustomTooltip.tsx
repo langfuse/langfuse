@@ -29,8 +29,6 @@ type CustomTooltipProps = {
   delay?: number;
   hoverableContent?: boolean;
   placement?: Placement;
-  /** Checked whenever the tooltip is about to open; return false to skip it. */
-  shouldOpen?: () => boolean;
 };
 
 function CustomTooltip({
@@ -39,13 +37,12 @@ function CustomTooltip({
   delay = 700,
   hoverableContent = true,
   placement = "top",
-  shouldOpen,
 }: CustomTooltipProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const layerContainer = useLayerContainer("tooltip");
   const { context, floatingStyles, refs } = useFloating({
     open: isOpen,
-    onOpenChange: (open) => setIsOpen(open && (shouldOpen?.() ?? true)),
+    onOpenChange: setIsOpen,
     placement,
     strategy: "fixed",
     middleware: [offset(4), flip(), shift({ padding: 8 })],

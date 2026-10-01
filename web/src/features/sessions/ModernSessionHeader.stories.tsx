@@ -187,53 +187,6 @@ export const TestSearchesHiddenPills = meta.story({
   },
 });
 
-const longMetadataValue = `trace-review-${"x".repeat(400)}-end`;
-
-export const TestShowsTruncatedMetadataOnHover = meta.story({
-  name: "(Test) Shows truncated metadata on hover",
-  args: {
-    ...minimalArgs,
-    metadataJsonPaths: {
-      ...defaultArgs.metadataJsonPaths,
-      paths: ["$.cloud_region", "$.review_note"],
-      source: {
-        state: "ready",
-        metadata: { review_note: longMetadataValue, cloud_region: "EU" },
-        metadataTruncated: false,
-      },
-    },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
-
-    const shortPill = (await canvas.findAllByText("cloud_region")).find(
-      (element) => element.closest("[data-overflow-visible-item='true']"),
-    );
-    if (!shortPill) throw new Error("Expected a visible cloud_region pill");
-    await userEvent.hover(shortPill);
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    await expect(body.queryByRole("tooltip")).not.toBeInTheDocument();
-    await userEvent.unhover(shortPill);
-
-    await userEvent.click(
-      await canvas.findByRole("button", {
-        name: /show \d+ more session details/i,
-      }),
-    );
-    const dialog = await body.findByRole("dialog");
-    await userEvent.hover(within(dialog).getByText(longMetadataValue));
-
-    const tooltip = await body.findByRole("tooltip");
-    await expect(
-      within(tooltip).getByText(longMetadataValue),
-    ).toBeInTheDocument();
-    await expect(
-      within(tooltip).getByText("$.review_note"),
-    ).toBeInTheDocument();
-  },
-});
-
 export const TestBoundsManyUsers = meta.story({
   name: "(Test) Bounds many users",
   args: {

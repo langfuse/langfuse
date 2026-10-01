@@ -2,12 +2,11 @@
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 import { type ScoreDomain } from "@langfuse/shared";
 import { ArrowUpRight, Plus, Search, X } from "lucide-react";
-import { type ReactNode, type SyntheticEvent, useRef, useState } from "react";
+import { type ReactNode, type SyntheticEvent, useState } from "react";
 
 import Link from "next/link";
 
 import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
-import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import {
@@ -130,59 +129,28 @@ const getConfiguredMetadataDisplay = (
   };
 };
 
-const isTruncated = (element: HTMLElement | null) =>
-  element !== null && element.scrollWidth > element.clientWidth;
-
 const MetadataJsonPathPill = ({
   display,
   onRemove,
 }: {
   display: ReturnType<typeof getConfiguredMetadataDisplay>;
   onRemove: (path: string) => void;
-}) => {
-  const labelRef = useRef<HTMLSpanElement>(null);
-  const valueRef = useRef<HTMLSpanElement>(null);
-
-  return (
-    <span className="group flex max-w-full min-w-0 items-center">
-      <CustomTooltip
-        delay={300}
-        shouldOpen={() =>
-          isTruncated(labelRef.current) || isTruncated(valueRef.current)
-        }
-        content={
-          <span className="flex max-h-60 flex-col gap-0.5 overflow-y-auto text-xs break-all">
-            <span className="text-muted-foreground">{display.path}</span>
-            <span>{display.displayValue}</span>
-          </span>
-        }
+}) => (
+  <span className="group flex max-w-full min-w-0 items-center">
+    <BadgeShell data-session-header-pill="true">
+      <span
+        className="text-muted-foreground max-w-64 shrink-0 truncate"
+        title={display.path}
       >
-        {({ getTriggerProps }) => (
-          <BadgeShell data-session-header-pill="true" {...getTriggerProps()}>
-            {/* The tooltip carries the full text, so a native title would
-                stack a second tooltip on top of it. */}
-            <span
-              ref={labelRef}
-              className="text-muted-foreground max-w-64 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap"
-            >
-              {display.label}
-            </span>
-            <span
-              ref={valueRef}
-              className="overflow-hidden text-ellipsis whitespace-nowrap"
-            >
-              {display.displayValue}
-            </span>
-            <MetadataJsonPathRemoveButton
-              path={display.path}
-              onRemove={onRemove}
-            />
-          </BadgeShell>
-        )}
-      </CustomTooltip>
-    </span>
-  );
-};
+        {display.label}
+      </span>
+      <span className="truncate" title={display.displayValue}>
+        {display.displayValue}
+      </span>
+      <MetadataJsonPathRemoveButton path={display.path} onRemove={onRemove} />
+    </BadgeShell>
+  </span>
+);
 
 const MetadataJsonPathRemoveButton = ({
   path,
