@@ -6,6 +6,7 @@ import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluat
 import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/evaluatorSetupSteps";
 import {
   applyEvaluatorSuggestion,
+  getEvaluatorExecutionTracePeekConfig,
   getEvaluatorSamplePeekConfig,
   getEvaluatorVersionDefinition,
   openEvaluatorSamplePeek,
@@ -58,6 +59,26 @@ describe("evaluator sample peek navigation", () => {
           observation: "observation-child",
           traceId: "trace-1",
           timestamp: "2026-09-30T12:00:00.000Z",
+        },
+      },
+      undefined,
+      { shallow: true },
+    );
+  });
+
+  it("opens evaluator execution traces without selecting an observation", () => {
+    const { result } = renderHook(() =>
+      usePeekNavigation(getEvaluatorExecutionTracePeekConfig("project-1")),
+    );
+
+    result.current.openPeek("trace-1");
+
+    expect(mockPush).toHaveBeenCalledWith(
+      {
+        pathname: "/project/project-1/evals/new",
+        query: {
+          template: "scratch",
+          peek: "trace-1",
         },
       },
       undefined,

@@ -76,11 +76,21 @@ type EvaluatorSamplePeekObservation = {
   startTime: Date;
 };
 
-export function getEvaluatorSamplePeekConfig(projectId: string) {
+export function getEvaluatorExecutionTracePeekConfig(projectId: string) {
   return {
     queryParams: ["observation", "display", "timestamp", "traceId"],
     tableName: "evaluators-v2",
     isV4: true,
+    expandConfig: {
+      basePath: `/project/${projectId}/traces`,
+      reader: "trace" as const,
+    },
+  };
+}
+
+export function getEvaluatorSamplePeekConfig(projectId: string) {
+  return {
+    ...getEvaluatorExecutionTracePeekConfig(projectId),
     paramsToMirrorPeekValue: ["observation"],
     extractParamsValuesFromRow: (
       observation: EvaluatorSamplePeekObservation,
@@ -88,10 +98,6 @@ export function getEvaluatorSamplePeekConfig(projectId: string) {
       traceId: observation.traceId ?? "",
       timestamp: observation.startTime.toISOString(),
     }),
-    expandConfig: {
-      basePath: `/project/${projectId}/traces`,
-      reader: "trace" as const,
-    },
   };
 }
 
@@ -332,6 +338,9 @@ export function EvaluatorSetupPage(
   );
   const sampleTracePeekNavigation = usePeekNavigation(
     getEvaluatorSamplePeekConfig(projectId),
+  );
+  const executionTracePeekNavigation = usePeekNavigation(
+    getEvaluatorExecutionTracePeekConfig(projectId),
   );
   const sampleTracePeekConfig = {
     itemType: "TRACE" as const,
@@ -793,7 +802,7 @@ export function EvaluatorSetupPage(
       onRawResultOpenChange={setRawResultOpen}
       onRunTest={runTest}
       onOpenExecutionTrace={(traceId) =>
-        sampleTracePeekNavigation.openPeek(traceId)
+        executionTracePeekNavigation.openPeek(traceId)
       }
     />
   );
