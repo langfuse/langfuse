@@ -2,6 +2,7 @@ import { type ErrorEvent } from "@sentry/nextjs";
 
 import {
   isDenylistedNoiseEvent,
+  isJamExtensionInternalEvent,
   isKitesurfInternalEvent,
   isNoisyHttpClientGatewayEvent,
   isNoisyHttpClientPollEvent,
@@ -2655,6 +2656,200 @@ describe("isKitesurfInternalEvent", () => {
       expect(
         isDenylistedNoiseEvent(exceptionEvent(PROXY_TYPEERROR, "TypeError")),
       ).toBe(false);
+    });
+  });
+});
+
+describe("isJamExtensionInternalEvent", () => {
+  const MOBX_35 =
+    "[MobX] minified error nr: 35. Find the full error at: https://github.com/mobxjs/mobx/blob/main/packages/mobx/src/errors.ts";
+  const JAM_NETWORK =
+    "webpack://jam-extension/injected-scripts/host-network-events.js";
+  const JAM_HOOKS =
+    "webpack://jam-extension/injected-scripts/host-additional-hooks.js";
+  const JAM_CONSOLE =
+    "webpack://jam-extension/injected-scripts/host-console-events.js";
+
+  describe("drops errors thrown wholly inside Jam injected scripts", () => {
+    it("drops MobX 35 from host-network-events.js (LANGFUSE-62Z)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: MOBX_35,
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [frame(JAM_NETWORK), frame(JAM_NETWORK, "u8")],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isJamExtensionInternalEvent(event)).toBe(true);
+    });
+
+    it("drops MobX 35 from host-additional-hooks.js (LANGFUSE-630)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: MOBX_35,
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [frame(JAM_HOOKS), frame(JAM_HOOKS, "cH")],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isJamExtensionInternalEvent(event)).toBe(true);
+    });
+
+    it("drops MobX 35 from host-console-events.js (LANGFUSE-631)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: MOBX_35,
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [frame(JAM_CONSOLE), frame(JAM_CONSOLE, "cW")],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isJamExtensionInternalEvent(event)).toBe(true);
+    });
+
+    it("drops the same stack when the Jam filename has a query string", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: MOBX_35,
+              stacktrace: {
+                frames: [frame(`${JAM_NETWORK}?v=1`, "u8")],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isJamExtensionInternalEvent(event)).toBe(true);
+    });
+
+    it("drops a Jam stack mixed with opaque / source-mapped Sentry frames", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: MOBX_35,
+              stacktrace: {
+                frames: [
+                  frame(
+                    "node_modules/.pnpm/@sentry+browser@10.64.0/node_modules/@sentry/browser/src/helpers.ts",
+                    "r",
+                  ),
+                  frame(JAM_NETWORK, "u8"),
+                  frame("<anonymous>"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isJamExtensionInternalEvent(event)).toBe(true);
+    });
+  });
+
+  describe("KEEPS real errors (never masks a genuine app error)", () => {
+    it("keeps a stack that mixes Jam frames with a first-party /_next/ frame", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'map')",
+              stacktrace: {
+                frames: [
+                  frame(JAM_NETWORK, "u8"),
+                  frame(
+                    "app:///_next/static/chunks/0r47ep231kqhy.js",
+                    "onMutation",
+                  ),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isJamExtensionInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps the MobX 35 wording when it is thrown from an app chunk", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: MOBX_35,
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  frame(
+                    "app:///_next/static/chunks/0r47ep231kqhy.js",
+                    "createStore",
+                  ),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isJamExtensionInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps an all-opaque stack with no Jam attribution", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: MOBX_35,
+              stacktrace: {
+                frames: [frame("<anonymous>"), frame("[native code]")],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isJamExtensionInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps events with no stacktrace", () => {
+      expect(isJamExtensionInternalEvent(exceptionEvent(MOBX_35))).toBe(false);
+      expect(isJamExtensionInternalEvent(messageEvent(MOBX_35))).toBe(false);
+    });
+
+    it("does not let the generic denylist swallow MobX 35 on its own", () => {
+      expect(isDenylistedNoiseEvent(exceptionEvent(MOBX_35))).toBe(false);
     });
   });
 });
