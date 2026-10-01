@@ -228,10 +228,10 @@ function SessionTranscriptTool({
   const [isExpanded, setIsExpanded] = useState(false);
   return (
     <SessionTimelineToolRow
-      name={row.call.toolName ?? row.result.toolName ?? "Tool"}
-      input={row.call.input}
-      output={row.result.output}
-      isError={row.result.isError}
+      name={row.call?.toolName ?? row.result?.toolName ?? "Tool"}
+      input={row.call?.input}
+      output={row.result?.output}
+      isError={row.result?.isError}
       isExpanded={isExpanded}
       onExpandedChange={setIsExpanded}
       onOpenObservation={

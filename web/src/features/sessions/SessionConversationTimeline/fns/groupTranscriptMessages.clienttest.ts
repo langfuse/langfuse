@@ -88,12 +88,37 @@ describe("groupTranscriptMessages", () => {
     [call("a"), call("a"), result("a")],
     [call("a"), result("a"), result("a")],
     [result("a"), call("a")],
-  ])("preserves missing, ambiguous and out-of-order IDs: %j", (...parts) => {
-    const messages = parts.map((part) => message([part]));
-    expect(groupTranscriptMessages(messages)).toEqual(
-      messages.map((message) => ({ type: "message", message })),
-    );
-  });
+  ])(
+    "extracts missing, ambiguous and out-of-order IDs without pairing: %j",
+    (...parts) => {
+      const messages = parts.map((part) => message([part]));
+      expect(groupTranscriptMessages(messages)).toEqual(
+        messages.map((message, index) => ({
+          type: "tool",
+          message,
+          call: parts[index]!.type === "tool-call" ? parts[index] : null,
+          result: parts[index]!.type === "tool-result" ? parts[index] : null,
+        })),
+      );
+    },
+  );
+
+  it.each([call("a"), result("a")])(
+    "extracts an unmatched tool part while preserving surrounding text: %j",
+    (part) => {
+      const input = message([text("before"), part, text("after")]);
+      expect(groupTranscriptMessages([input])).toEqual([
+        { type: "message", message: { ...input, parts: [text("before")] } },
+        {
+          type: "tool",
+          message: input,
+          call: part.type === "tool-call" ? part : null,
+          result: part.type === "tool-result" ? part : null,
+        },
+        { type: "message", message: { ...input, parts: [text("after")] } },
+      ]);
+    },
+  );
 
   it("pairs a call and later result in the same message without mutating input", () => {
     const toolCall = call("a");

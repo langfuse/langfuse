@@ -538,6 +538,17 @@ export const RenderFalsyValues = meta.story({
 });
 
 export const GenerationToolCallOnly = meta.story({
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Expand get_subscription_details" }),
+    ).toBeInTheDocument();
+    await expect(canvas.queryByText("Assistant")).not.toBeInTheDocument();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand get_subscription_details" }),
+    );
+    await expect(canvas.getByText(/CUS-48291/)).toBeInTheDocument();
+  },
   args: {
     ...commonArgs,
     state: transcriptState({
@@ -563,6 +574,13 @@ export const GenerationToolCallOnly = meta.story({
 });
 
 export const ToolResultOnly = meta.story({
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand get_subscription_details" }),
+    );
+    await expect(canvas.getByText(/annual_pro/)).toBeInTheDocument();
+  },
   args: {
     ...commonArgs,
     state: transcriptState({

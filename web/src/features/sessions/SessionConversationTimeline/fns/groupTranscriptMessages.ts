@@ -12,9 +12,11 @@ export type TranscriptMessageGroup<T extends NormalizedMessage> =
       message: T;
       call: ToolCallPart;
       result: ToolResultPart;
-    };
+    }
+  | { type: "tool"; message: T; call: ToolCallPart; result: null }
+  | { type: "tool"; message: T; call: null; result: ToolResultPart };
 
-/** Group unique call/result pairs within one thread without changing its messages. */
+/** Only pair unique, ordered IDs; keep unmatched tool parts as standalone rows. */
 export function groupTranscriptMessages<T extends NormalizedMessage>(
   messages: readonly T[],
 ): TranscriptMessageGroup<T>[] {
@@ -83,6 +85,14 @@ export function groupTranscriptMessages<T extends NormalizedMessage>(
         groups.push({ type: "tool", message, ...pair });
       } else if (consumedResults.has(position)) {
         changed = true;
+      } else if (part.type === "tool-call") {
+        changed = true;
+        flush();
+        groups.push({ type: "tool", message, call: part, result: null });
+      } else if (part.type === "tool-result") {
+        changed = true;
+        flush();
+        groups.push({ type: "tool", message, call: null, result: part });
       } else {
         parts.push(part);
       }
