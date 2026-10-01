@@ -1,5 +1,12 @@
 import { useRef, useState } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import {
+  expect,
+  fireEvent,
+  fn,
+  userEvent,
+  waitFor,
+  within,
+} from "storybook/test";
 
 import preview from "../../../../../../../../../../.storybook/preview";
 import { EvaluatorAssistantEditDialog } from "./EvaluatorAssistantEditDialog";
@@ -56,18 +63,36 @@ export const DismissesFromBackdrop = meta.story({
   },
   play: async ({ canvasElement, args }) => {
     const body = within(canvasElement.ownerDocument.body);
-    const overlay = canvasElement.ownerDocument.querySelector<HTMLElement>(
-      '[data-state="open"].fixed.inset-0',
-    );
+    const trigger = body.getByRole("button", { name: "Edit evaluator" });
+    const getOverlay = () =>
+      canvasElement.ownerDocument.querySelector<HTMLElement>(
+        '[data-state="open"].fixed.inset-0',
+      );
 
-    await expect(overlay).not.toBeNull();
-    await userEvent.click(overlay!);
+    await expect(getOverlay()).not.toBeNull();
+    await userEvent.click(getOverlay()!);
     await expect(args.onOpenChange).toHaveBeenCalledWith(false);
     await waitFor(() => {
       expect(body.queryByRole("dialog")).not.toBeInTheDocument();
-      expect(
-        body.getByRole("button", { name: "Edit evaluator" }),
-      ).toHaveFocus();
+      expect(trigger).toHaveFocus();
+    });
+
+    await userEvent.click(trigger);
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(body.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(trigger).toHaveFocus();
+    });
+
+    await userEvent.click(trigger);
+    await userEvent.click(
+      within(body.getByRole("dialog")).getAllByRole("button", {
+        name: "Close",
+      })[0],
+    );
+    await waitFor(() => {
+      expect(body.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(trigger).toHaveFocus();
     });
   },
 });
@@ -76,17 +101,27 @@ export const EmbeddedSendPending = meta.story({
   name: "(Test) Embedded Send Pending",
   args: {
     ...sharedArgs,
-    evaluatorType: "judge",
-    onAssistantSubmit: fn(() => new Promise<boolean>(() => undefined)),
+    evaluatorType: "code",
+    onAssistantSubmit: fn(async () => true),
   },
   play: async ({ canvasElement, args }) => {
     const body = within(canvasElement.ownerDocument.body);
+    let finishSubmission: (started: boolean) => void = () => undefined;
+    args.onAssistantSubmit.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishSubmission = resolve;
+        }),
+    );
     const dialog = body.getByRole("dialog");
     const composer = within(dialog).getByRole("group", {
       name: "Evaluator request composer",
     });
     const input = within(composer).getByRole("textbox", {
-      name: "Describe how to change this LLM-as-a-judge evaluator",
+      name: "Describe how to change this code evaluator",
+    });
+    const submit = within(composer).getByRole("button", {
+      name: "Open Assistant",
     });
 
     await expect(
@@ -95,16 +130,36 @@ export const EmbeddedSendPending = meta.story({
     await expect(
       within(dialog).queryByRole("button", { name: "Cancel" }),
     ).not.toBeInTheDocument();
-    await userEvent.type(input, "Use a five-point score");
-    await userEvent.click(
-      within(composer).getByRole("button", { name: "Open Assistant" }),
-    );
+    await expect(submit).toBeDisabled();
+    await userEvent.type(input, "  Also fail when the output is empty  ");
+    await userEvent.keyboard("{Enter}");
+    fireEvent.submit(input.closest("form")!);
 
     await expect(args.onAssistantSubmit).toHaveBeenCalledOnce();
+    await expect(args.onAssistantSubmit).toHaveBeenCalledWith(
+      "Also fail when the output is empty",
+    );
     await expect(composer).toHaveAttribute("aria-busy", "true");
     await expect(input).toBeDisabled();
-    await expect(
-      within(composer).getByRole("button", { name: "Open Assistant" }),
-    ).toBeDisabled();
+    await expect(submit).toBeDisabled();
+
+    const overlay = canvasElement.ownerDocument.querySelector<HTMLElement>(
+      '[data-state="open"].fixed.inset-0',
+    );
+    await userEvent.click(overlay!);
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(
+      within(body.getByRole("dialog")).getAllByRole("button", {
+        name: "Close",
+      })[0],
+    );
+    await expect(body.getByRole("dialog")).toBeInTheDocument();
+
+    finishSubmission(false);
+    await waitFor(() => {
+      expect(composer).toHaveAttribute("aria-busy", "false");
+      expect(input).toBeEnabled();
+      expect(body.getByRole("dialog")).toBeInTheDocument();
+    });
   },
 });
