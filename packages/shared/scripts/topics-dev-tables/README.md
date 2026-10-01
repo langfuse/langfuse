@@ -85,7 +85,8 @@ provisioner explicitly. Production entrypoints never run it automatically.
 - Both selected databases are checked before any DDL. PostgreSQL columns,
   defaults, constraints and required indexes must match; ClickHouse columns,
   expressions, constraints, replacement engine/version and keys must match.
-  ClickHouse storage settings are allowed to differ.
+  ClickHouse storage settings may differ except the required projection
+  maintenance settings.
 - Missing tables are created. Existing incompatible tables cause failure; no
   automatic ALTER, DROP, data deletion, seeding or migration-history edits.
 - PostgreSQL DDL is transactional. Cross-database provisioning is not atomic;
@@ -109,5 +110,16 @@ Already-applied Topics migration history needs deliberate reconciliation before
 using development migration/reset tools on retained databases. This script does
 not erase history or force migration versions.
 
-Ordering, partitioning and replacement identity are unchanged, per ClickHouse
-`schema-pk-plan-before-creation` and `schema-pk-prioritize-filters`.
+Definitions partition by creation month and sort by project, creation date and ID.
+Summaries and assignments partition by source month and share the project,
+source minute, facet/version and source identity prefix. Assignment keys retain
+run and origin suffixes so online processing and unpublished runs preserve the
+published map's original cohort. Processing and assignment timestamps only
+select replacement versions. Reads require explicit time bounds, per ClickHouse
+`schema-pk-filter-on-orderby` and `schema-partition-lifecycle`.
+
+Summaries also have a compact source-key projection. Payload reads remain
+time-bounded; metadata lookups for candidate source IDs include all dates so a
+newer result outside the selected window invalidates its earlier location.
+Projection rebuild settings preserve this lookup during replacement merges and
+lightweight deletion.

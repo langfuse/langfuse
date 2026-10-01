@@ -1,3 +1,4 @@
+import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { useEffect, useRef, useState } from "react";
 import { Columns2 } from "lucide-react";
@@ -25,21 +26,27 @@ export function CurrentTopics({
   projectId,
   running,
   refreshAfter,
+  timeRange,
 }: {
   projectId: string;
   running: boolean;
   refreshAfter: number;
+  timeRange: TopicTimeRange;
 }) {
   const [selectedFacetId, setSelectedFacetId] = useState<string>();
   const { client } = api.useUtils();
   const result = useQuery({
     queryKey: [
-      ...getQueryKey(api.topics.currentResults, { projectId }, "query"),
+      ...getQueryKey(
+        api.topics.currentResults,
+        { projectId, timeRange },
+        "query",
+      ),
       // A completed status needs a new request, even if an older poll is in flight.
       running ? 0 : refreshAfter,
     ],
     queryFn: ({ signal }) =>
-      client.topics.currentResults.query({ projectId }, { signal }),
+      client.topics.currentResults.query({ projectId, timeRange }, { signal }),
     placeholderData: keepPreviousData,
     refetchInterval: running ? 3000 : false,
   });
@@ -75,7 +82,11 @@ export function CurrentTopics({
           </div>
           {result.data?.map((facet) => (
             <Tabs.Content key={facet.facetId} value={facet.facetId}>
-              <CurrentFacet projectId={projectId} facet={facet} />
+              <CurrentFacet
+                projectId={projectId}
+                facet={facet}
+                timeRange={timeRange}
+              />
             </Tabs.Content>
           ))}
         </Tabs>
@@ -87,9 +98,11 @@ export function CurrentTopics({
 function CurrentFacet({
   projectId,
   facet,
+  timeRange,
 }: {
   projectId: string;
   facet: Facet;
+  timeRange: TopicTimeRange;
 }) {
   const [selection, setSelection] = useState<string | null>(null);
   const [split, setSplit] = useState(false);
@@ -169,6 +182,7 @@ function CurrentFacet({
         {facet.map && (
           <div className="flex min-w-0 flex-col gap-3">
             <TopicEmbeddingMap
+              timeRange={timeRange}
               projectId={projectId}
               runId={facet.map.runId}
               topics={facet.map.topics}
@@ -313,7 +327,10 @@ function CurrentTraceTable({
   }, [selectedTraceId, pageIndex, pagination.pageSize, split]);
   const columns = (
     openInspector: (
-      source: Pick<Facet["rows"][number], "traceId" | "facetVersion">,
+      source: Pick<
+        Facet["rows"][number],
+        "traceId" | "facetVersion" | "unitStartTime"
+      >,
     ) => void,
   ): LangfuseColumnDef<Facet["rows"][number]>[] => [
     {
@@ -358,6 +375,7 @@ function CurrentTraceTable({
               openInspector({
                 traceId: row.original.traceId,
                 facetVersion: row.original.facetVersion,
+                unitStartTime: row.original.unitStartTime,
               });
             }}
           />
@@ -366,7 +384,9 @@ function CurrentTraceTable({
     },
   ];
   return (
-    <DialogController<Pick<Facet["rows"][number], "traceId" | "facetVersion">>
+    <DialogController<
+      Pick<Facet["rows"][number], "traceId" | "facetVersion" | "unitStartTime">
+    >
       renderDialog={({ state }) => (
         <Dialog title="Summary source" size="lg" closeOnInteractionOutside>
           <Dialog.Body>

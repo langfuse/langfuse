@@ -38,13 +38,22 @@ export async function summarizeAssembledTrace(input: {
   );
   const config = topicProcessingConfigSchema.parse({});
   const dimensions = topicEmbeddingConfigSchema.parse({}).embeddingDimensions;
+  const timestamp = Date.parse(input.traceTimestamp);
+  const timeRange = {
+    from: new Date(timestamp),
+    to: new Date(timestamp + 1),
+  };
   let written = 0;
   for (const facet of versions) {
-    const stored = await listTopicSummaries(input.projectId, {
-      traceIds: [input.traceId],
-      facetId: facet.facetId,
-      facetVersion: facet.version,
-    });
+    const stored = await listTopicSummaries(
+      input.projectId,
+      {
+        traceIds: [input.traceId],
+        facetId: facet.facetId,
+        facetVersion: facet.version,
+      },
+      timeRange,
+    );
     if (
       stored.some(
         (row) => row.traceId === input.traceId && row.state !== "summarized",

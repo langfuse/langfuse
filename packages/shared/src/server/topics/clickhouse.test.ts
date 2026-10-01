@@ -15,6 +15,7 @@ import {
   readLatestTopicAssignments,
   getLatestFacetSummaries,
   getTopicSummaryCounts,
+  getTopicClusteringSummaries,
   writeTopicSummaries,
   getTopicDefinitions,
   writeTopicDefinitions,
@@ -109,6 +110,61 @@ const assignmentFixture: TopicAssignment = {
   assignedAt: "2026-09-17T01:00:00.000Z",
 };
 
+const timeRange = {
+  from: new Date("2026-09-01T00:00:00.000Z"),
+  to: new Date("2026-10-01T00:00:00.000Z"),
+};
+
+it("bounds Topics payload reads by their storage timestamp", async () => {
+  const facet = { facetId: "facet-a", version: 1 };
+  const embedding = {
+    embeddingModel: "cohere.embed-v4:0" as const,
+    embeddingDimensions: 256,
+  };
+  const reads = [
+    () => getTopicDefinitions("project-a", ["topic-a"], timeRange),
+    () =>
+      listTopicSummaries(
+        "project-a",
+        { facetId: "facet-a", facetVersion: 1, sources: [summaryFixture] },
+        timeRange,
+      ),
+    () => getLatestFacetSummaries("project-a", "facet-a", undefined, timeRange),
+    () =>
+      getTopicClusteringSummaries(
+        "project-a",
+        "facet-a",
+        1,
+        embedding,
+        timeRange,
+      ),
+    () => getTopicSummaryCounts("project-a", [facet], embedding, timeRange),
+    () => readTopicRunTraceIds("project-a", facet, "run-a", timeRange),
+    () => readTopicMapAssignments("project-a", facet, "run-a", timeRange),
+    () =>
+      readTopicAssignments(
+        "project-a",
+        facet,
+        [summaryFixture],
+        "run-a",
+        timeRange,
+      ),
+    () => readLatestTopicAssignments("project-a", "facet-a", timeRange),
+  ];
+  for (const [index, read] of reads.entries()) {
+    mocks.query.mockClear();
+    await read();
+    const { query, params } = mocks.query.mock.calls[0][0];
+    const column = index === 0 ? "created_at" : "unit_start_time";
+    expect(query).toContain(`${column} >= {from:DateTime64(3)}`);
+    expect(query).toContain(`${column} < {to:DateTime64(3)}`);
+    expect(params).toMatchObject({
+      from: timeRange.from.toISOString(),
+      to: timeRange.to.toISOString(),
+    });
+  }
+});
+
 describe("Topics definition storage", () => {
   const topic: TopicDefinition = {
     topicVersionId: "definition-a",
@@ -188,7 +244,7 @@ describe("Topics definition storage", () => {
 
   it("bounds exact definition lookups and scopes every batch to its project", async () => {
     const ids = Array.from({ length: 1001 }, (_, index) => `topic-${index}`);
-    await getTopicDefinitions("project-a", [...ids, ids[0]]);
+    await getTopicDefinitions("project-a", [...ids, ids[0]], timeRange);
     expect(
       mocks.query.mock.calls.map(([query]) => query.params.ids.length),
     ).toEqual([1000, 1]);
@@ -214,18 +270,24 @@ describe("Topics definition storage", () => {
 
 describe("Topics summary storage", () => {
   it("keeps trace and session lookups distinct and ignores a trace's parent session", async () => {
-    await listTopicSummaries("project-a", {
-      facetId: "facet-a",
-      facetVersion: 2,
-      sources: [
-        { traceId: "source-a", sessionId: "parent-a" },
-        { traceId: "source-a", sessionId: "parent-b" },
-        { traceId: null, sessionId: "source-a" },
-      ],
-    });
+    await listTopicSummaries(
+      "project-a",
+      {
+        facetId: "facet-a",
+        facetVersion: 2,
+        sources: [
+          { traceId: "source-a", sessionId: "parent-a" },
+          { traceId: "source-a", sessionId: "parent-b" },
+          { traceId: null, sessionId: "source-a" },
+        ],
+      },
+      timeRange,
+    );
     expect(mocks.query).toHaveBeenCalledOnce();
     const { query, params } = mocks.query.mock.calls[0][0];
     expect(params).toEqual({
+      from: timeRange.from.toISOString(),
+      to: timeRange.to.toISOString(),
       projectId: "project-a",
       facetId: "facet-a",
       facetVersion: 2,
@@ -305,9 +367,11 @@ describe("Topics summary storage", () => {
   });
 
   it("selects the latest result per trace within its project and facet version", async () => {
-    await getLatestFacetSummaries("project-a", "facet-a", 1);
+    await getLatestFacetSummaries("project-a", "facet-a", 1, timeRange);
     const { query, params } = mocks.query.mock.calls[0][0];
     expect(params).toEqual({
+      from: timeRange.from.toISOString(),
+      to: timeRange.to.toISOString(),
       projectId: "project-a",
       facetId: "facet-a",
       facetVersion: 1,
@@ -322,9 +386,14 @@ describe("Topics summary storage", () => {
   });
 
   it("resolves current state from the newest processed facet version per source", async () => {
-    await getLatestFacetSummaries("project-a", "facet-a");
+    await getLatestFacetSummaries("project-a", "facet-a", undefined, timeRange);
     const { query, params } = mocks.query.mock.calls[0][0];
-    expect(params).toEqual({ projectId: "project-a", facetId: "facet-a" });
+    expect(params).toEqual({
+      from: timeRange.from.toISOString(),
+      to: timeRange.to.toISOString(),
+      projectId: "project-a",
+      facetId: "facet-a",
+    });
     expect(query).not.toContain("facet_version = {facetVersion:UInt32}");
     expect(query).toContain("ORDER BY facet_version DESC, processed_at DESC");
     expect(query).toContain(
@@ -341,10 +410,15 @@ describe("Topics summary storage", () => {
       { facetId: "intent", version: 1 },
       { facetId: "outcome", version: 2 },
     ];
-    const counts = await getTopicSummaryCounts("project-a", facets, {
-      embeddingModel: "cohere.embed-v4:0",
-      embeddingDimensions: 256,
-    });
+    const counts = await getTopicSummaryCounts(
+      "project-a",
+      facets,
+      {
+        embeddingModel: "cohere.embed-v4:0",
+        embeddingDimensions: 256,
+      },
+      timeRange,
+    );
     expect(counts).toEqual([
       { facetId: "intent", facetVersion: 1, count: 3 },
       { facetId: "outcome", facetVersion: 2, count: 5 },
@@ -372,17 +446,22 @@ describe("Topics summary storage", () => {
     const facet = { facetId: "facet-a", version: 2 };
     for (const read of [
       () =>
-        listTopicSummaries("project-a", {
-          facetId: facet.facetId,
-          facetVersion: facet.version,
-          traceIds: [...traceIds, traceIds[0]],
-        }),
+        listTopicSummaries(
+          "project-a",
+          {
+            facetId: facet.facetId,
+            facetVersion: facet.version,
+            traceIds: [...traceIds, traceIds[0]],
+          },
+          timeRange,
+        ),
       () =>
         readTopicAssignments(
           "project-a",
           facet,
           [...sources, sources[0]],
           "run-a",
+          timeRange,
         ),
     ]) {
       await read();
@@ -455,11 +534,15 @@ describe("Topics summary storage", () => {
         },
       ]);
       expect(
-        await listTopicSummaries("project-a", {
-          facetId: summary.facetId,
-          facetVersion: summary.facetVersion,
-          sources: [summary],
-        }),
+        await listTopicSummaries(
+          "project-a",
+          {
+            facetId: summary.facetId,
+            facetVersion: summary.facetVersion,
+            sources: [summary],
+          },
+          timeRange,
+        ),
       ).toEqual([{ ...summary, traceName: inserted.trace_name }]);
     },
   );
@@ -493,10 +576,13 @@ describe("Topics classifications", () => {
         "project-a",
         { facetId: "facet-a", version: 1 },
         "run-a",
+        timeRange,
       ),
     ).toEqual(["discovery-trace"]);
     const discoveryQuery = mocks.query.mock.calls[0][0];
     expect(discoveryQuery.params).toEqual({
+      from: timeRange.from.toISOString(),
+      to: timeRange.to.toISOString(),
       projectId: "project-a",
       runId: "run-a",
       facetId: "facet-a",
@@ -577,9 +663,9 @@ describe("Topics classifications", () => {
           assignedAtMs: Date.parse(row.assignedAt).toString(),
         },
       ]);
-      expect(await readLatestTopicAssignments("project-a", "facet-a")).toEqual([
-        { ...row, traceName: inserted.trace_name },
-      ]);
+      expect(
+        await readLatestTopicAssignments("project-a", "facet-a", timeRange),
+      ).toEqual([{ ...row, traceName: inserted.trace_name }]);
       expect(mocks.publishedRuns).toHaveBeenCalledWith({
         where: {
           projectId: "project-a",
@@ -590,13 +676,13 @@ describe("Topics classifications", () => {
       });
       const { query, params } = mocks.query.mock.calls[0][0];
       expect(params).toEqual({
+        from: timeRange.from.toISOString(),
+        to: timeRange.to.toISOString(),
         projectId: "project-a",
         facetId: "facet-a",
         publishedRunIds: ["published-run"],
       });
-      expect(query).toContain(
-        "project_id = {projectId:String} AND facet_id = {facetId:String}",
-      );
+      expect(query).toContain("facet_id = {facetId:String}");
       expect(query).toContain(
         "AND (clustering_run_id = '' OR clustering_run_id IN ({publishedRunIds:Array(String)}))",
       );
@@ -614,9 +700,12 @@ describe("Topics classifications", () => {
       "project-a",
       { facetId: "facet-a", version: 1 },
       "run-a",
+      timeRange,
     );
     const { query, params } = mocks.query.mock.calls[0][0];
     expect(params).toEqual({
+      from: timeRange.from.toISOString(),
+      to: timeRange.to.toISOString(),
       projectId: "project-a",
       runId: "run-a",
       facetId: "facet-a",

@@ -60,7 +60,12 @@ const execution = (
     operation,
     ...(operation === "process"
       ? { traceIds: Array.from({ length: count }, (_, i) => `trace-${i}`) }
-      : {}),
+      : {
+          timeRange: {
+            from: new Date("2026-09-01T00:00:00.000Z"),
+            to: new Date("2026-10-01T00:00:00.000Z"),
+          },
+        }),
   }),
   status: "queued",
   phase: "queued",

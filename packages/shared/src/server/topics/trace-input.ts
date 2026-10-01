@@ -1,7 +1,11 @@
 import { isRootObservation } from "../../eventsTable";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../ingestion/types";
 import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
-import { queryClickhouseStream } from "../repositories/clickhouse";
+import {
+  queryClickhouse,
+  queryClickhouseStream,
+} from "../repositories/clickhouse";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import {
   assembleTranscript,
   orderObservations,
@@ -41,6 +45,31 @@ export async function loadTopicTranscript(params: {
   traceId: string;
 }) {
   const { projectId, traceId } = params;
+  // ID-only requests first discover source bounds without reading transcript payloads.
+  const boundsQuery = new EventsQueryBuilder({ projectId })
+    .selectRaw(
+      "count() AS count",
+      "min(toUnixTimestamp64Milli(e.start_time)) AS minStart",
+      "max(toUnixTimestamp64Milli(e.start_time)) AS maxStart",
+    )
+    .forceFullTable()
+    .whereRaw("e.trace_id = {traceId: String}", { traceId })
+    .whereRaw("xxHash32(e.trace_id) = xxHash32({traceId: String})", { traceId })
+    .buildWithParams();
+  const [bounds] = await queryClickhouse<{
+    count: string;
+    minStart: string;
+    maxStart: string;
+  }>({
+    ...boundsQuery,
+    preferredClickhouseService: "EventsReadOnly",
+    tags: { projectId },
+    clickhouseSettings: { max_threads: 2, max_execution_time: 30 },
+  });
+  if (!bounds || Number(bounds.count) === 0)
+    throw new Error(
+      "Trace not found in this project's v4 events; legacy-only traces are not supported by this PoC",
+    );
   const builder = new EventsQueryBuilder({ projectId })
     .selectRaw(
       "e.project_id",
@@ -61,6 +90,17 @@ export async function loadTopicTranscript(params: {
     .forceFullTable()
     .whereRaw("e.trace_id = {traceId: String}", { traceId })
     .whereRaw("xxHash32(e.trace_id) = xxHash32({traceId: String})", { traceId })
+    .whereRaw(
+      "e.start_time >= {from: DateTime64(3)} AND e.start_time < {to: DateTime64(3)}",
+      {
+        from: convertDateToClickhouseDateTime(
+          new Date(Number(bounds.minStart)),
+        ),
+        to: convertDateToClickhouseDateTime(
+          new Date(Number(bounds.maxStart) + 1),
+        ),
+      },
+    )
     .orderByColumns([
       { column: "e.event_ts", direction: "DESC" },
       // Equal storage timestamps need a stable choice; they do not establish causal order.

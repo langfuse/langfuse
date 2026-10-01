@@ -1,8 +1,12 @@
-import type { TopicAssignment, TopicSummary } from "@langfuse/shared/topics";
+import type {
+  TopicAssignment,
+  TopicSummary,
+  TopicTimeRange,
+} from "@langfuse/shared/topics";
 import {
   getLatestFacetSummaries,
   getPublishedTopicRun,
-  getTopicDefinitions,
+  getTopicRuns,
   listTopicFacets,
   readLatestTopicAssignments,
 } from "@langfuse/shared/topics/server";
@@ -14,6 +18,7 @@ function resolveTopicResult(summary: TopicSummary, stored?: TopicAssignment) {
     stored.facetId === summary.facetId &&
     stored.facetVersion === summary.facetVersion &&
     stored.traceId === summary.traceId &&
+    stored.unitStartTime === summary.unitStartTime &&
     stored.summaryProcessedAt === summary.processedAt
       ? stored
       : undefined;
@@ -24,14 +29,17 @@ function resolveTopicResult(summary: TopicSummary, stored?: TopicAssignment) {
 }
 
 /** Current state is resolved per trace and facet, independently of execution batches. */
-export async function currentTopicResults(projectId: string) {
+export async function currentTopicResults(
+  projectId: string,
+  timeRange: TopicTimeRange,
+) {
   const facets = await listTopicFacets(projectId);
   return Promise.all(
     facets.map(async (facet) => {
       const version = facet.versions[0];
       const [storedAssignments, storedSummaries, run] = await Promise.all([
-        readLatestTopicAssignments(projectId, facet.id),
-        getLatestFacetSummaries(projectId, facet.id),
+        readLatestTopicAssignments(projectId, facet.id, timeRange),
+        getLatestFacetSummaries(projectId, facet.id, undefined, timeRange),
         getPublishedTopicRun(projectId, facet.id),
       ]);
       const assignments = storedAssignments.filter(
@@ -40,10 +48,17 @@ export async function currentTopicResults(projectId: string) {
       const latestSummaries = storedSummaries.filter(
         (row) => row.traceId !== null,
       );
-      const topicVersionIds = assignments.flatMap((row) =>
-        row.topicVersionId ? [row.topicVersionId] : [],
-      );
-      const definitions = await getTopicDefinitions(projectId, topicVersionIds);
+      const assignmentRuns = await getTopicRuns(projectId, [
+        ...new Set(
+          assignments.flatMap((row) =>
+            row.runId && row.runId !== run?.id ? [row.runId] : [],
+          ),
+        ),
+      ]);
+      const definitions = [
+        ...(run?.topics ?? []),
+        ...assignmentRuns.flatMap((item) => item.topics),
+      ];
       const assignmentByTrace = new Map(
         assignments.map((row) => [row.traceId, row]),
       );
@@ -81,6 +96,7 @@ export async function currentTopicResults(projectId: string) {
           return {
             facetVersion: summary.facetVersion,
             traceId: summary.traceId,
+            unitStartTime: summary.unitStartTime,
             summary: summary.summary,
             outcome,
             topicId: assignment?.topicId ?? null,

@@ -35,6 +35,7 @@ it("fits a tall cohort across the landscape plot while preserving pairwise dista
     <TopicEmbeddingMap
       projectId="project"
       runId="run"
+      timeRange={{ from: new Date("2026-09-16"), to: new Date("2026-09-23") }}
       topics={[]}
       selectedTopic={null}
       selectedTraceId={null}

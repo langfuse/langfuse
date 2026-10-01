@@ -6,6 +6,7 @@ import { BatchActionStatus } from "../../features/batchAction/types";
 import {
   topicExecutionInputSchema,
   topicIdSchema,
+  topicTimeRangeSchema,
   type TopicExecution,
   type TopicExecutionInput,
   type TopicExecutionSummary,
@@ -14,7 +15,12 @@ import {
 
 export const TOPICS_ACTION = "topics";
 type BatchMetadata = {
-  inputSettings: TopicExecutionSummary["input"];
+  inputSettings:
+    | Extract<TopicExecutionSummary["input"], { operation: "process" }>
+    | (Omit<
+        Extract<TopicExecutionSummary["input"], { operation: "update" }>,
+        "timeRange"
+      > & { timeRange: { from: string; to: string } });
   facets: TopicFacetProgress[];
   phase: string;
   inputHash: string;
@@ -87,7 +93,15 @@ function summaryResult(row: BatchRow): TopicExecutionSummary {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     error: row.log,
-    input: state.inputSettings,
+    input:
+      state.inputSettings.operation === "update"
+        ? {
+            ...state.inputSettings,
+            timeRange: topicTimeRangeSchema.parse(
+              state.inputSettings.timeRange,
+            ),
+          }
+        : state.inputSettings,
     facets: state.inputSettings.facets.map(({ facetId, version }) => {
       const facet = state.facets.find(
         (candidate) =>
@@ -181,6 +195,12 @@ export async function createTopicExecution(
           facetId: facet.facetId,
           facetVersion: facet.facetVersion,
           status: "pending",
+          config: {
+            timeRange: {
+              from: input.timeRange.from.toISOString(),
+              to: input.timeRange.to.toISOString(),
+            },
+          },
         })),
       });
     }
@@ -194,7 +214,16 @@ export async function createTopicExecution(
         status: BatchActionStatus.Queued,
         query: {},
         config: json({
-          inputSettings,
+          inputSettings:
+            inputSettings.operation === "update"
+              ? {
+                  ...inputSettings,
+                  timeRange: {
+                    from: inputSettings.timeRange.from.toISOString(),
+                    to: inputSettings.timeRange.to.toISOString(),
+                  },
+                }
+              : inputSettings,
           facets,
           phase: "queued",
           inputHash: hash(input),

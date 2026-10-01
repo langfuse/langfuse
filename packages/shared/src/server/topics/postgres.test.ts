@@ -4,6 +4,7 @@ import {
   ensureDefaultTopicFacets,
   getPublishedTopicRun,
   getTopicRun,
+  getTopicRuns,
   getTopicProcessingMapIds,
   saveTopicRun,
 } from "./postgres";
@@ -142,7 +143,12 @@ const runRow = (overrides: Record<string, unknown> = {}) => ({
   facetId: "facet-a",
   facetVersion: 1,
   status: "pending",
-  config: {},
+  config: {
+    definitionTimeRange: {
+      from: "2026-09-01T00:00:00.000Z",
+      to: "2026-10-01T00:00:00.000Z",
+    },
+  },
   error: null,
   topicVersionIds: [] as string[],
   createdAt: new Date("2026-09-16T00:00:00Z"),
@@ -309,6 +315,45 @@ describe("Topics immutable definitions and run membership", () => {
     metadata: { count: 0 },
   };
 
+  it("hydrates historical runs together using their original definition dates", async () => {
+    const laterTopic = {
+      ...topic,
+      topicVersionId: "topic-b",
+      createdAt: "2026-10-01T00:00:00.000Z",
+    };
+    const definitions = [topic, laterTopic];
+    mocks.runFindMany.mockResolvedValue(
+      definitions.map((definition, index) =>
+        runRow({
+          id: `run-${index}`,
+          topicVersionIds: [definition.topicVersionId],
+          config: {
+            definitionTimeRange: {
+              from: definition.createdAt,
+              to: new Date(Date.parse(definition.createdAt) + 1).toISOString(),
+            },
+          },
+        }),
+      ),
+    );
+    mocks.topicFind.mockResolvedValue(definitions);
+
+    const runs = await getTopicRuns("project-a", ["run-0", "run-1"]);
+
+    expect(runs.map((run) => run.topics)).toEqual([[topic], [laterTopic]]);
+    expect(mocks.runFindMany).toHaveBeenCalledExactlyOnceWith({
+      where: { projectId: "project-a", id: { in: ["run-0", "run-1"] } },
+    });
+    expect(mocks.topicFind).toHaveBeenCalledExactlyOnceWith(
+      "project-a",
+      ["topic-a", "topic-b"],
+      {
+        from: new Date(topic.createdAt),
+        to: new Date(Date.parse(laterTopic.createdAt) + 1),
+      },
+    );
+  });
+
   it("reuses a definition across runs and preserves the historical set when removing current membership", async () => {
     const rows = new Map([
       [
@@ -349,6 +394,18 @@ describe("Topics immutable definitions and run membership", () => {
     });
     expect(await getTopicRun("other-project", "run-b")).toBeNull();
     expect(saved.topics[0].createdByRunId).toBe("run-a");
+    expect(saved.config.definitionTimeRange).toEqual({
+      from: topic.createdAt,
+      to: "2026-09-16T00:00:00.001Z",
+    });
+    expect(mocks.topicFind).toHaveBeenCalledWith(
+      "project-a",
+      [topic.topicVersionId],
+      {
+        from: new Date(topic.createdAt),
+        to: new Date("2026-09-16T00:00:00.001Z"),
+      },
+    );
     expect(mocks.topicWrite).not.toHaveBeenCalled();
     expect((await getTopicRun("project-a", "run-a"))!.topics).toEqual([topic]);
 
@@ -402,7 +459,7 @@ describe("Topics immutable definitions and run membership", () => {
     expect(mocks.topicWrite.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.lock.mock.invocationCallOrder[0],
     );
-    expect(mocks.topicFind.mock.invocationCallOrder[2]).toBeLessThan(
+    expect(mocks.topicFind.mock.invocationCallOrder[1]).toBeLessThan(
       mocks.runUpdate.mock.invocationCallOrder[0],
     );
   });

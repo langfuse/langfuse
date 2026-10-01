@@ -10,6 +10,13 @@ export const topicIdSchema = z
   .max(128)
   .regex(/^[a-zA-Z0-9_-]+$/);
 export const topicTraceIdSchema = z.string().min(1).max(1000);
+export const topicTimeRangeSchema = z
+  .object({ from: z.coerce.date(), to: z.coerce.date() })
+  .refine(({ from, to }) => from < to, {
+    message: "Choose an end time after the start time.",
+    path: ["to"],
+  });
+export type TopicTimeRange = z.infer<typeof topicTimeRangeSchema>;
 export const topicEmbeddingConfigSchema = z.object({
   embeddingModel: z
     .literal(TOPICS_EMBEDDING_MODEL)
@@ -97,6 +104,7 @@ export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
     .object({
       ...executionBase,
       operation: z.literal("update"),
+      timeRange: topicTimeRangeSchema,
       exploratory: z.boolean().default(false),
       minimumTraceCount: topicMinimumTraceCountSchema.optional(),
     })

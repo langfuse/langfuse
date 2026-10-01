@@ -37,6 +37,10 @@ vi.mock("@/src/components/ui/CodeJsonViewer", () => ({
   JSONView: ({ json }: { json: unknown }) => <pre>{JSON.stringify(json)}</pre>,
 }));
 
+const timeRange = {
+  from: new Date("2026-09-16T00:00:00Z"),
+  to: new Date("2026-09-23T00:00:00Z"),
+};
 let client: QueryClient;
 const scrollIntoView = Element.prototype.scrollIntoView;
 beforeEach(() => {
@@ -56,6 +60,7 @@ function renderCurrent(
     projectId: "project",
     running: false,
     refreshAfter: 0,
+    timeRange,
   },
 ) {
   return render(<CurrentTopics {...props} />, {
@@ -84,6 +89,7 @@ describe("Current Topics", () => {
       projectId: "project",
       running: true,
       refreshAfter: Date.now(),
+      timeRange,
     });
     await act(() => vi.advanceTimersByTimeAsync(0));
     expect(state.fetchResults).toHaveBeenCalledOnce();
@@ -122,6 +128,7 @@ describe("Current Topics", () => {
         projectId="project"
         running={false}
         refreshAfter={Date.now()}
+        timeRange={timeRange}
       />,
     );
     await act(async () => {
@@ -151,6 +158,7 @@ describe("Current Topics", () => {
     const rows = Array.from({ length: 21 }, (_, i) => ({
       facetVersion: 1,
       traceId: `trace-${i}`,
+      unitStartTime: timeRange.from.toISOString(),
       summary: `Summary ${i}`,
       outcome: i === 20 ? "not_applicable" : "assigned",
       topicId: i === 20 ? null : "billing",
@@ -217,6 +225,7 @@ describe("Current Topics", () => {
       facetId: "intent",
       facetVersion: 1,
       traceId: "trace-1",
+      unitStartTime: timeRange.from.toISOString(),
     });
     expect(
       within(inspector).getByText('{"threads":[]}').closest(".ph-no-capture"),
@@ -260,6 +269,7 @@ describe("Current Topics", () => {
         rows: Array.from({ length: 26 }, (_, i) => ({
           facetVersion: 1,
           traceId: `trace-${i}`,
+          unitStartTime: timeRange.from.toISOString(),
           summary: `Summary ${i}`,
           outcome: i < 25 ? "assigned" : "outlier",
           topicId: i < 25 ? "billing" : null,
@@ -279,6 +289,7 @@ describe("Current Topics", () => {
       // Saved map membership can differ from a trace's current assignment.
       points: [25, 0, 1].map((i) => ({
         traceId: `trace-${i}`,
+        unitStartTime: timeRange.from.toISOString(),
         summary: `Mapped summary ${i}`,
         x: i,
         y: i % 2,

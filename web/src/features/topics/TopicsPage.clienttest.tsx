@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   replace: vi.fn(),
   retry: vi.fn(),
   refetchExecution: vi.fn(),
+  summaryCounts: vi.fn(),
 }));
 const pathname = "/project/[projectId]/topics";
 const retainedQuery = {
@@ -72,15 +73,19 @@ vi.mock("./CurrentTopics", () => ({
   CurrentTopics: ({
     running,
     refreshAfter,
+    timeRange,
   }: {
     running: boolean;
     refreshAfter: number;
+    timeRange: { from: Date; to: Date };
   }) => (
     <input
       aria-label="Current topic selection"
       data-testid="current-topics"
       data-running={running}
       data-refresh-after={refreshAfter}
+      data-from={timeRange.from.toISOString()}
+      data-to={timeRange.to.toISOString()}
       defaultValue=""
     />
   ),
@@ -91,6 +96,7 @@ vi.mock("@/src/utils/api", () => {
     status: state.status,
     phase: state.status === "queued" ? "queued" : "summarizing",
     createdAt: "2026-09-23T12:00:00Z",
+    updatedAt: "2026-09-23T12:00:00Z",
     input: {
       operation: "process",
       embeddingConfig: { embeddingDimensions: 1024 },
@@ -132,7 +138,12 @@ vi.mock("@/src/utils/api", () => {
         saveFacet: { useMutation: () => ({}) },
         trigger: { useMutation: () => ({}) },
         previewTraces: { useQuery: () => ({}) },
-        summaryCounts: { useQuery: () => ({}) },
+        summaryCounts: {
+          useQuery: (input: unknown) => {
+            state.summaryCounts(input);
+            return {};
+          },
+        },
         executions: {
           useQuery: () => ({
             data: state.inHistory ? [execution()] : [],
@@ -165,6 +176,7 @@ vi.mock("@/src/utils/api", () => {
         topics: {
           executions: { invalidate: vi.fn() },
           summaryCounts: { invalidate: vi.fn() },
+          currentResults: { invalidate: vi.fn() },
         },
       }),
     },
@@ -199,9 +211,84 @@ beforeEach(() => {
 afterEach(() => {
   HTMLElement.prototype.scrollIntoView = scrollIntoView;
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe("Topics execution history", () => {
+  it("uses whole local dates when switching a relative range to Custom", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 1, 14, 30));
+    state.configured = true;
+    render(<TopicsPage />);
+    fireEvent.keyDown(screen.getByLabelText("Topics time range"), {
+      key: "ArrowDown",
+    });
+    fireEvent.keyDown(
+      await screen.findByRole("option", { name: "Custom range" }),
+      { key: "Enter" },
+    );
+
+    const timeRange = {
+      from: new Date(2026, 8, 24),
+      to: new Date(2026, 9, 2),
+    };
+    expect(screen.getByLabelText("Topics start date")).toHaveValue(
+      "2026-09-24",
+    );
+    expect(screen.getByLabelText("Topics end date")).toHaveValue("2026-10-01");
+    expect(screen.getByTestId("current-topics")).toHaveAttribute(
+      "data-from",
+      timeRange.from.toISOString(),
+    );
+    expect(screen.getByTestId("current-topics")).toHaveAttribute(
+      "data-to",
+      timeRange.to.toISOString(),
+    );
+    expect(state.summaryCounts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ timeRange }),
+    );
+  });
+
+  it("shares the selected source time range between current results and update counts", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-30T00:00:00Z"));
+    state.configured = true;
+    render(<TopicsPage />);
+    const initial = screen.getByTestId("current-topics");
+    const from = new Date(initial.getAttribute("data-from")!);
+    const to = new Date(initial.getAttribute("data-to")!);
+    expect(to.getTime() - from.getTime()).toBe(7 * 86_400_000);
+    expect(state.summaryCounts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ timeRange: { from, to } }),
+    );
+    fireEvent.change(initial, { target: { value: "Billing" } });
+    vi.setSystemTime(new Date("2026-09-30T00:01:00Z"));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh results" }));
+    expect(screen.getByTestId("current-topics")).toBe(initial);
+    expect(initial).toHaveValue("Billing");
+    expect(screen.getByTestId("current-topics").getAttribute("data-to")).toBe(
+      "2026-09-30T00:01:00.000Z",
+    );
+    fireEvent.keyDown(screen.getByLabelText("Topics time range"), {
+      key: "ArrowDown",
+    });
+    fireEvent.keyDown(
+      await screen.findByRole("option", { name: "Last 30 days" }),
+      { key: "Enter" },
+    );
+    const current = screen.getByTestId("current-topics");
+    const selected = {
+      from: new Date(current.getAttribute("data-from")!),
+      to: new Date(current.getAttribute("data-to")!),
+    };
+    expect(selected.to.getTime() - selected.from.getTime()).toBe(
+      30 * 86_400_000,
+    );
+    expect(state.summaryCounts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ timeRange: selected }),
+    );
+  });
+
   it("preserves current results when changing operation and saved configuration", async () => {
     state.configured = true;
     render(<TopicsPage />);

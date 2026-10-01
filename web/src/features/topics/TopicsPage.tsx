@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { addDays, format, startOfDay } from "date-fns";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
@@ -17,6 +18,8 @@ import {
   SheetDescription,
 } from "@/src/components/ui/sheet";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { DateRangeInput } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/components/DateRangeInput/DateRangeInput";
 import { Textarea } from "@/src/components/ui/textarea";
 import { PopoverClose, PopoverController } from "@/src/components/ui/popover";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -108,6 +111,14 @@ function TopicsWorkspaceView({
   facets: UseQueryResult<TopicFacet[], { message: string }>;
 }) {
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [timeWindow, setTimeWindow] = useState("7");
+  const [timeRange, setTimeRange] = useState(() => {
+    const to = new Date();
+    return { from: new Date(to.getTime() - 7 * 86_400_000), to };
+  });
+  const validTimeRange =
+    timeRange.from < timeRange.to &&
+    timeRange.to.getTime() - timeRange.from.getTime() <= 93 * 86_400_000;
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
     isV4: false,
@@ -141,6 +152,33 @@ function TopicsWorkspaceView({
         !query.state.data || busy(query.state.data.status) ? 1500 : false,
     },
   );
+  const completedAt = Math.max(
+    0,
+    ...[...(executions.data ?? []), selectedExecution.data].flatMap(
+      (execution) =>
+        execution && !busy(execution.status)
+          ? [new Date(execution.updatedAt).getTime()]
+          : [],
+    ),
+  );
+  const rangeEnd = Math.max(timeRange.to.getTime(), completedAt);
+  const currentTimeRange =
+    timeWindow === "custom" || !Number.isFinite(rangeEnd)
+      ? timeRange
+      : {
+          from: new Date(rangeEnd - Number(timeWindow) * 86_400_000),
+          to: new Date(rangeEnd),
+        };
+  const refreshResults = () => {
+    if (timeWindow !== "custom") {
+      const to = new Date();
+      setTimeRange({
+        from: new Date(to.getTime() - Number(timeWindow) * 86_400_000),
+        to,
+      });
+    }
+    utils.topics.currentResults.invalidate({ projectId });
+  };
   const openExecution = (id: string) => {
     setHistoryOpen(false);
     router.push(
@@ -166,6 +204,7 @@ function TopicsWorkspaceView({
     facets: facets.data ?? [],
     canWrite,
     onTriggered: openExecution,
+    timeRange: validTimeRange ? currentTimeRange : null,
     facetEditor:
       canWrite && facets.data?.length ? (
         <FacetEditor projectId={projectId} facets={facets.data} />
@@ -184,7 +223,7 @@ function TopicsWorkspaceView({
         text="Refresh results"
         variant="ghost"
         size="sm"
-        onClick={() => utils.topics.currentResults.invalidate({ projectId })}
+        onClick={refreshResults}
       />
     </div>
   );
@@ -202,6 +241,63 @@ function TopicsWorkspaceView({
       scrollable={Boolean(facets.data?.length)}
       withPadding
     >
+      <div className="ph-no-capture mb-6 flex flex-wrap items-end gap-3">
+        <label className="flex w-48 flex-col gap-1 text-sm">
+          Topics time range
+          <SelectInput
+            aria-label="Topics time range"
+            placeholder="Topics time range"
+            value={timeWindow}
+            options={[
+              { value: "1", label: "Last 24 hours" },
+              { value: "7", label: "Last 7 days" },
+              { value: "30", label: "Last 30 days" },
+              { value: "90", label: "Last 90 days" },
+              { value: "custom", label: "Custom range" },
+            ]}
+            onValueChange={(value) => {
+              setTimeWindow(value);
+              if (value === "custom") {
+                setTimeRange({
+                  from: startOfDay(currentTimeRange.from),
+                  to: addDays(
+                    startOfDay(new Date(currentTimeRange.to.getTime() - 1)),
+                    1,
+                  ),
+                });
+                return;
+              }
+              const to = new Date();
+              setTimeRange({
+                from: new Date(to.getTime() - Number(value) * 86_400_000),
+                to,
+              });
+            }}
+          />
+        </label>
+        {timeWindow === "custom" && (
+          <DateRangeInput
+            value={{
+              from: format(timeRange.from, "yyyy-MM-dd"),
+              to: format(new Date(timeRange.to.getTime() - 1), "yyyy-MM-dd"),
+            }}
+            max={format(new Date(), "yyyy-MM-dd")}
+            fromAriaLabel="Topics start date"
+            toAriaLabel="Topics end date"
+            onValueChange={({ from, to }) => {
+              const end = new Date(`${to}T00:00:00`);
+              end.setDate(end.getDate() + 1);
+              setTimeRange({ from: new Date(`${from}T00:00:00`), to: end });
+            }}
+          />
+        )}
+        <p className="text-muted-foreground text-sm">
+          Trace start time for results and Update topics.
+        </p>
+      </div>
+      {!validTimeRange && (
+        <ErrorMessage message="Select a time range of at most 93 days." />
+      )}
       {configuration}
       <Sheet
         open={historyOpen || executionId !== null}
@@ -279,18 +375,21 @@ function TopicsWorkspaceView({
           itemType="TRACE"
           projectId={projectId}
         />
-        <CurrentTopics
-          projectId={projectId}
-          refreshAfter={Math.max(
-            executions.dataUpdatedAt,
-            selectedExecution.dataUpdatedAt,
-          )}
-          running={
-            Boolean(
-              executions.data?.some((execution) => busy(execution.status)),
-            ) || busy(selectedExecution.data?.status ?? "")
-          }
-        />
+        {validTimeRange && (
+          <CurrentTopics
+            projectId={projectId}
+            timeRange={currentTimeRange}
+            refreshAfter={Math.max(
+              executions.dataUpdatedAt,
+              selectedExecution.dataUpdatedAt,
+            )}
+            running={
+              Boolean(
+                executions.data?.some((execution) => busy(execution.status)),
+              ) || busy(selectedExecution.data?.status ?? "")
+            }
+          />
+        )}
         {facets.isLoading && <p>Loading facets…</p>}
         {facets.error && <ErrorMessage message={facets.error.message} />}
         {facets.data?.length === 0 && (

@@ -8,6 +8,7 @@ import type {
   TopicRun,
   TopicProcessBatchState,
   TopicSummary,
+  TopicTimeRange,
 } from "@langfuse/shared/topics";
 import {
   TOPICS_TRANSCRIPT_VERSION,
@@ -167,6 +168,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
         facetId: string;
         facetVersion: number;
       },
+      timeRange: TopicTimeRange,
     ) => {
       state.resultReads("historical");
       return [...state.summaries.values()].filter(
@@ -175,7 +177,8 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
           row.facetId === filter.facetId &&
           row.facetVersion === filter.facetVersion &&
           row.traceId !== null &&
-          filter.traceIds.includes(row.traceId),
+          filter.traceIds.includes(row.traceId) &&
+          inTimeRange(row, timeRange),
       );
     },
     writeTopicSummaries: async (rows: TopicSummary[]) =>
@@ -204,6 +207,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
       facetId: string,
       facetVersion: number,
       embeddingConfig: TopicEmbeddingConfig,
+      timeRange: TopicTimeRange,
     ) =>
       [...state.summaries.values()]
         .filter(
@@ -214,7 +218,8 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
             row.traceId !== null &&
             row.state === "complete" &&
             row.embeddingModel === embeddingConfig.embeddingModel &&
-            row.embedding.length === embeddingConfig.embeddingDimensions,
+            row.embedding.length === embeddingConfig.embeddingDimensions &&
+            inTimeRange(row, timeRange),
         )
         .sort((a, b) =>
           a.traceId < b.traceId ? -1 : a.traceId > b.traceId ? 1 : 0,
@@ -225,6 +230,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
       projectId: string,
       facet: TopicFacetRef,
       runId: string,
+      timeRange: TopicTimeRange,
     ) =>
       [...state.assignments.values()]
         .filter(
@@ -234,13 +240,15 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
             row.facetVersion === facet.version &&
             row.runId === runId &&
             row.origin === "initial" &&
-            row.traceId !== null,
+            row.traceId !== null &&
+            inTimeRange(row, timeRange),
         )
         .map((row) => row.traceId),
     readTopicMapAssignments: async (
       projectId: string,
       facet: TopicFacetRef,
       runId: string,
+      timeRange: TopicTimeRange,
     ) =>
       [...state.assignments.values()].filter(
         (row) =>
@@ -248,7 +256,8 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
           row.facetId === facet.facetId &&
           row.facetVersion === facet.version &&
           row.runId === runId &&
-          row.origin === "initial",
+          row.origin === "initial" &&
+          inTimeRange(row, timeRange),
       ),
     saveTopicRun: async (run: TopicRun) => {
       state.runs.set(run.id, structuredClone(run));
@@ -268,6 +277,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
       facet: TopicFacetRef,
       sources: Pick<TopicSummary, "traceId" | "sessionId">[],
       runId: string,
+      timeRange: TopicTimeRange,
     ) => {
       state.resultReads("assignments");
       if (!state.visible) return [];
@@ -277,7 +287,8 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
           row.facetId === facet.facetId &&
           row.facetVersion === facet.version &&
           row.runId === runId &&
-          sources.some((source) => source.traceId === row.traceId),
+          sources.some((source) => source.traceId === row.traceId) &&
+          inTimeRange(row, timeRange),
       );
     },
   };
@@ -295,6 +306,14 @@ vi.mock("./numeric", async (importOriginal) => ({
 
 import { processTopicsExecution as processTopicsExecutionAttempt } from "./processTopicsExecution";
 import { processTopicEmbeddingBatch } from "./processTopicEmbeddingBatch";
+
+function inTimeRange(
+  row: Pick<TopicSummary, "unitStartTime">,
+  timeRange: TopicTimeRange,
+) {
+  const timestamp = new Date(row.unitStartTime);
+  return timestamp >= timeRange.from && timestamp < timeRange.to;
+}
 
 function traceInput(traceId: string, input: string | null = traceId) {
   return {
@@ -382,7 +401,12 @@ function execution<T extends "process" | "update" = "process">(
     },
     ...(operation === "process"
       ? { traceIds: Array.from({ length: count }, (_, i) => `trace${i}`) }
-      : {}),
+      : {
+          timeRange: {
+            from: new Date("2026-01-01T00:00:00.000Z"),
+            to: new Date("2026-01-08T00:00:00.000Z"),
+          },
+        }),
   });
   return {
     id,
@@ -839,6 +863,21 @@ describe("Topics execution", () => {
     ).toHaveLength(4);
   });
 
+  it("regenerates a stored summary when late observations move the source start", async () => {
+    await processSelection("source", 1);
+    state.loadTranscript.mockResolvedValue({
+      ...traceInput("trace0"),
+      unitStartTime: "2025-12-31T23:59:00.000Z",
+    });
+
+    await processSelection("earlier-start", 1, undefined, true);
+
+    expect(state.summarize).toHaveBeenCalledTimes(2);
+    expect([...state.summaries.values()]).toMatchObject([
+      { unitStartTime: "2025-12-31T23:59:00.000Z" },
+    ]);
+  });
+
   it("records source failures while processing the remaining traces", async () => {
     state.loadTranscript.mockRejectedValueOnce(
       new Error("Source trace unavailable"),
@@ -882,6 +921,48 @@ describe("Topics execution", () => {
     ).toHaveLength(101);
     expect(state.numeric).toHaveBeenCalledTimes(3);
     expect(state.name).toHaveBeenCalledTimes(6);
+  });
+
+  it("keeps discovery and retry membership inside the frozen source-time window", async () => {
+    await processSelection("source", 100);
+    const summaries = [...state.summaries.values()];
+    summaries[0].unitStartTime = "2025-12-31T23:59:59.999Z";
+    summaries[1].unitStartTime = "2026-01-08T00:00:00.000Z";
+    const pending = execution("bounded", 0, "update");
+    pending.input.minimumTraceCount = 3;
+    state.executions.set(pending.id, pending);
+    state.assignmentWrites.mockRejectedValueOnce(new Error("Insert failed"));
+
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: pending.id,
+    });
+    expect(state.runs.get(pending.facets[0].runId!)?.status).toBe("failed");
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: pending.id,
+    });
+
+    const published = [...state.runs.values()].at(-1)!;
+    expect(published).toMatchObject({
+      status: "completed",
+      config: {
+        timeRange: {
+          from: "2026-01-01T00:00:00.000Z",
+          to: "2026-01-08T00:00:00.000Z",
+        },
+      },
+    });
+    const assigned = [...state.assignments.values()].filter(
+      (row) => row.runId === published.id,
+    );
+    expect(assigned).toHaveLength(98);
+    expect(assigned.some((row) => row.traceId === summaries[0].traceId)).toBe(
+      false,
+    );
+    expect(assigned.some((row) => row.traceId === summaries[1].traceId)).toBe(
+      false,
+    );
   });
 
   it.each([false, true])(

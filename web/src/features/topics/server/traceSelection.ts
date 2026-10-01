@@ -22,12 +22,20 @@ export const topicTraceSelectionSchema =
     projectId: topicIdSchema,
   });
 
-export const topicTriggerInputSchema = z.union([
-  topicExecutionInputSchema,
-  topicExecutionInputSchema.options[0].omit({ traceIds: true }).extend({
-    selection: topicTraceSelectionSnapshotSchema,
-  }),
-]);
+export const topicTriggerInputSchema = z
+  .union([
+    topicExecutionInputSchema,
+    topicExecutionInputSchema.options[0].omit({ traceIds: true }).extend({
+      selection: topicTraceSelectionSnapshotSchema,
+    }),
+  ])
+  .refine(
+    (input) =>
+      input.operation !== "update" ||
+      input.timeRange.to.getTime() - input.timeRange.from.getTime() <=
+        93 * 86_400_000,
+    "Select a time range of at most 93 days.",
+  );
 
 type TraceSelectionRow = {
   id: string;

@@ -1,5 +1,6 @@
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { type ReactNode, useRef, useState } from "react";
+import { skipToken } from "@tanstack/react-query";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
@@ -20,6 +21,7 @@ import {
   topicMinimumTraceCountSchema,
   type TopicFacet,
   type TopicOperation,
+  type TopicTimeRange,
 } from "@langfuse/shared/topics";
 import {
   useTopicTraceSelector,
@@ -32,12 +34,14 @@ export function useTopicPipelineForm({
   canWrite,
   onTriggered,
   facetEditor,
+  timeRange,
 }: {
   projectId: string;
   facets: TopicFacet[];
   canWrite: boolean;
   onTriggered: (id: string) => void;
   facetEditor: ReactNode;
+  timeRange: TopicTimeRange | null;
 }) {
   const [configurationOpen, setConfigurationOpen] = useState(false);
   const [operation, setOperation] = useState<TopicOperation>("process");
@@ -126,15 +130,19 @@ export function useTopicPipelineForm({
     activeFacetIds.length === selectedRule.facetIds.length &&
     activeFacetIds.every((id) => selectedRule.facetIds.includes(id));
   const summaryCounts = api.topics.summaryCounts.useQuery(
-    {
-      projectId,
-      facets: selectedFacets,
-      embeddingConfig:
-        embeddingConfig.data ?? topicEmbeddingConfigSchema.parse({}),
-    },
+    timeRange
+      ? {
+          projectId,
+          facets: selectedFacets,
+          timeRange,
+          embeddingConfig:
+            embeddingConfig.data ?? topicEmbeddingConfigSchema.parse({}),
+        }
+      : skipToken,
     {
       enabled:
         operation === "update" &&
+        timeRange !== null &&
         embeddingConfig.success &&
         selectedFacets.length > 0,
     },
@@ -167,15 +175,19 @@ export function useTopicPipelineForm({
         }),
       };
       const values = (() => {
-        if (operation === "update")
+        if (operation === "update") {
+          if (!timeRange)
+            throw new Error("Select a time range of at most 93 days.");
           return {
             ...base,
             operation,
             exploratory,
+            timeRange,
             minimumTraceCount: topicMinimumTraceCountSchema.parse(
               Number(minimumTraceCountValue),
             ),
           };
+        }
         if (!selection?.count)
           throw new Error("Preview and select traces before processing.");
         const traceInput =
@@ -310,7 +322,8 @@ export function useTopicPipelineForm({
         disabled={
           !canWrite ||
           !embeddingConfig.success ||
-          (operation === "update" && !minimumTraceCountResult.success) ||
+          (operation === "update" &&
+            (!timeRange || !minimumTraceCountResult.success)) ||
           trigger.isPending ||
           !selectedFacets.length ||
           (operation === "update"
@@ -341,7 +354,7 @@ export function useTopicPipelineForm({
             <p className="text-muted-foreground">
               {operation === "process"
                 ? "Summarize and embed selected traces, then assign them to current topics."
-                : "Rebuild topics from stored summaries and embeddings."}
+                : "Rebuild topics from stored summaries and embeddings in the selected Topics time range."}
             </p>
             {operationControls}
             {operation === "process" && traceControls}

@@ -128,7 +128,7 @@ Required for a local run, in addition to Postgres, ClickHouse, and Redis:
    compatible map. With no compatible map, completed summaries are **Awaiting
    topics**, not outliers. Processing never clusters or renames topics.
 3. Choose **Update topics** to fit a map from the latest completed compatible
-   summaries in ClickHouse. Initial discovery and later updates use this same
+   summaries whose source started in the last seven days. Initial discovery and later updates use this same
    operation. It does not load traces, summarize, or generate embeddings.
 4. Inspect the resulting summaries, names, representative examples, and outliers.
    The inspector regenerates the shared transcript from current trace data and
@@ -157,7 +157,12 @@ creation time and ID. A newer configured version without a completed map does
 not hide the previous map. Pending, running, failed and skipped runs are ineligible.
 A valid all-outlier map is completed even though it contains no topics.
 
-An update selects the latest summary per trace, then keeps only complete results
+Current summaries and membership use the last seven days of source start times.
+Each update freezes that window in its execution input and run configuration;
+retries keep the same boundaries. Published map cohorts and continuity reads use
+their run's stored window, even after the current window advances.
+
+Within its window, an update selects the latest summary per trace, then keeps only complete results
 matching the selected facet version and embedding configuration. The attempt uses
 that in-memory population for fitting; a failed update selects it again on retry. Non-applicable or incompatible newer summaries never
 revive older eligible results. A change to embedding dimensions must first be
@@ -170,13 +175,23 @@ anchors (3 exploratory), and 50% old-topic coverage. Compatible centroids must b
 within cosine distance 0.15. Material split/merge branches start new identities.
 These thresholds require quality calibration; they are not universal guarantees.
 
-The ClickHouse tables hold current state. Summaries replace rows with the same
-project, facet version and source using `processed_at`; assignments replace the
-same project/facet version/source/map/origin using `assigned_at`. Summaries and
-assignments are addressed by that source identity, without separate IDs. Neither table
-has time partitions: late-arriving
-observations can move the first start time across a month, but the row must keep
-the same replacement identity.
+Summaries and assignments partition by the month of `unit_start_time`, with
+project, source-start minute and facet version leading their sorting keys.
+Summaries replace the same minute/facet/source using `processed_at`; assignments
+retain map and origin in the sorting-key suffix and replace using `assigned_at`.
+Run and origin remain distinct so unpublished attempts and online assignments
+cannot remove a published map's initial membership or coordinates. Assignment
+time is neither a partition key nor a sorting key.
+
+Payload reads have an explicit source-time window. A metadata-only projection
+ordered by project, facet and source validates candidates against their latest
+facet version and processing time, including versions outside that window.
+Late observations can move a source into another minute or month; its earlier
+row remains stored but cannot reappear as current or enter clustering/counts.
+The projection rebuilds during replacement merges and lightweight deletes.
+Manual processing loads the complete trace first and reuses stored
+summaries only at that exact source start; a changed start generates a new summary.
+Accepted Redis payloads still resume without source or ClickHouse result reads.
 
 Assignments contain classification results only. A topic ID means assigned;
 an empty topic ID means outlier. An empty map ID supports future ad-hoc
@@ -341,9 +356,11 @@ facet-version and trace-or-session fields under the definition's project.
 A trace reference omits its parent session. Those references identify the current
 source result, not a historical summary snapshot.
 Definitions use RowBinary inserts with `Float64` geometry to preserve classifier precision and
-`ReplacingMergeTree(created_at)` keyed by project and version ID to deduplicate
-identical retry writes. They have no time partition or age-based expiry: an old
-definition may still be in use by the current map. Transcripts stay in memory.
+`ReplacingMergeTree(created_at)` partitioned by creation month and ordered by
+project, creation date and version ID to deduplicate identical retry writes.
+Definition lookups use creation-time bounds that include reused definitions:
+an old definition may still be in use by the current map. There is no age-based
+expiry. Transcripts stay in memory.
 There are no Topics object-storage manifests, numerical checkpoints or shared-disk files.
 
 Provider usage and calculated model costs use the events-style
@@ -366,7 +383,7 @@ input/output failures stop immediately. A manual resume can retry a failed batch
 while its Redis payload still exists; each manual resume resets the three-attempt
 retry budget.
 
-An interrupted update starts a new attempt from current compatible summaries,
+An interrupted update starts a new attempt from compatible summaries in its frozen time window,
 then fits again and names only new or changed definitions. Partially named failed attempts cannot overwrite
 the previous published map. After publication, an acknowledgement retry recognizes
 the completed attempt without fitting again. Skipped attempts also resume

@@ -33,9 +33,11 @@ import {
   type TopicFacetProgress,
   type TopicDefinition,
   type TopicProcessBatchState,
+  type TopicTimeRange,
   TOPICS_SUMMARY_MODEL,
   TOPICS_EMBEDDING_MODEL,
   sameTopicGeometry,
+  topicTimeRangeSchema,
 } from "@langfuse/shared/topics";
 import {
   summarizeTopicTrace,
@@ -97,46 +99,15 @@ async function saveProgress(
   );
 }
 
-async function loadCachedSummaries(
-  execution: ProcessExecution,
-  facet: TopicFacetVersion,
-  traceIds: string[],
-) {
-  const [staged, stored] = await Promise.all([
-    readStagedTopicSummaries(
-      execution.projectId,
-      execution.id,
-      facet.facetId,
-      facet.version,
-      traceIds,
-    ),
-    execution.input.reuseExistingSummaries
-      ? listTopicSummaries(execution.projectId, {
-          facetId: facet.facetId,
-          facetVersion: facet.version,
-          traceIds,
-        })
-      : Promise.resolve([]),
-  ]);
-  return {
-    staged,
-    stored: stored.filter(
-      (row) =>
-        row.summaryModel === execution.input.processingConfig.summaryModel &&
-        row.transcriptVersion === TOPICS_TRANSCRIPT_VERSION,
-    ),
-  };
-}
-
 async function summarizeTrace(
   metrics: TopicMetrics,
   execution: ProcessExecution,
   facet: TopicFacetVersion,
   traceId: string,
-  cached: Awaited<ReturnType<typeof loadCachedSummaries>>,
+  staged: TopicSummary[],
   getTranscript: () => ReturnType<typeof loadTopicTranscript>,
 ): Promise<TopicSummary> {
-  const accepted = cached.staged.find((row) => row.traceId === traceId);
+  const accepted = staged.find((row) => row.traceId === traceId);
   if (accepted) {
     metrics.result("summary", "cached");
     // An accepted payload may expire after the cache read; never renew its TTL.
@@ -171,7 +142,23 @@ async function summarizeTrace(
     processedAt: new Date().toISOString(),
     metadata: {},
   };
-  const reusable = cached.stored.find((row) => row.traceId === traceId);
+  const reusable = execution.input.reuseExistingSummaries
+    ? (
+        await listTopicSummaries(
+          execution.projectId,
+          {
+            facetId: facet.facetId,
+            facetVersion: facet.version,
+            traceIds: [traceId],
+          },
+          summaryTimeRange([summary]),
+        )
+      ).find(
+        (row) =>
+          row.summaryModel === execution.input.processingConfig.summaryModel &&
+          row.transcriptVersion === TOPICS_TRANSCRIPT_VERSION,
+      )
+    : undefined;
   if (reusable) {
     metrics.result("summary", "cached");
     const reuseEmbedding =
@@ -328,6 +315,17 @@ function countSummaries(
   ).length;
 }
 
+function summaryTimeRange(summaries: TopicSummary[]): TopicTimeRange {
+  let from = Infinity;
+  let to = -Infinity;
+  for (const summary of summaries) {
+    const timestamp = Date.parse(summary.unitStartTime);
+    from = Math.min(from, timestamp);
+    to = Math.max(to, timestamp + 1);
+  }
+  return topicTimeRangeSchema.parse({ from: new Date(from), to: new Date(to) });
+}
+
 async function assignSummaries(
   metrics: TopicMetrics,
   execution: TopicExecution,
@@ -398,6 +396,7 @@ async function assignSummaries(
             { facetId: facet.facetId, version: facet.version },
             summaries,
             run.id,
+            summaryTimeRange(summaries),
           )
         : [];
     const visibleByTrace = new Map(visible.map((row) => [row.traceId, row]));
@@ -447,6 +446,10 @@ async function clusterFacet(
     embeddingModel: TOPICS_EMBEDDING_MODEL,
     dimensions: execution.input.embeddingConfig.embeddingDimensions,
     classifierVersion: "original-cosine-loo95-rival05-eps1e-12-v2",
+    timeRange: {
+      from: execution.input.timeRange.from.toISOString(),
+      to: execution.input.timeRange.to.toISOString(),
+    },
   };
   let run =
     attempt?.status === "pending"
@@ -544,22 +547,31 @@ async function clusterFacet(
       previous !== null && compatibleMap(execution, facet, previous);
     if (previous) {
       const facetRef = { facetId: facet.facetId, version: facet.version };
+      const previousTimeRange = topicTimeRangeSchema.parse(
+        previous.config.timeRange,
+      );
       const previousTraceIds = await readTopicRunTraceIds(
         execution.projectId,
         facetRef,
         previous.id,
+        previousTimeRange,
       );
       const [previousSummaries, previousAssignments] = await Promise.all([
-        listTopicSummaries(execution.projectId, {
-          facetId: facet.facetId,
-          facetVersion: facet.version,
-          traceIds: previousTraceIds,
-        }),
+        listTopicSummaries(
+          execution.projectId,
+          {
+            facetId: facet.facetId,
+            facetVersion: facet.version,
+            traceIds: previousTraceIds,
+          },
+          previousTimeRange,
+        ),
         readTopicAssignments(
           execution.projectId,
           facetRef,
           previousTraceIds.map((traceId) => ({ traceId, sessionId: null })),
           previous.id,
+          previousTimeRange,
         ),
       ]);
       const byTrace = new Map(
@@ -790,19 +802,20 @@ async function processTraces(
   }
   if (!facets.length) return;
   if (!state.summarized) {
-    const cached = new Map<
-      TopicFacetVersion,
-      Awaited<ReturnType<typeof loadCachedSummaries>>
-    >();
+    const cached = new Map<TopicFacetVersion, TopicSummary[]>();
     for (const { facet } of facets)
       cached.set(
         facet,
-        await loadCachedSummaries(execution, facet, execution.input.traceIds),
+        await readStagedTopicSummaries(
+          execution.projectId,
+          execution.id,
+          facet.facetId,
+          facet.version,
+          execution.input.traceIds,
+        ),
       );
     for (const { facet } of facets) {
-      const available = new Set(
-        cached.get(facet)!.staged.map((row) => row.traceId),
-      );
+      const available = new Set(cached.get(facet)!.map((row) => row.traceId));
       if (
         state.summaries.some(
           (ref) =>
@@ -973,6 +986,7 @@ async function updateTopics(metrics: TopicMetrics, execution: UpdateExecution) {
           execution.projectId,
           { facetId: facet.facetId, version: facet.version },
           accepted.id,
+          topicTimeRangeSchema.parse(accepted.config.timeRange),
         );
         progress.counts.requested = assignments.length;
         progress.counts.complete = assignments.length;
@@ -1001,6 +1015,7 @@ async function updateTopics(metrics: TopicMetrics, execution: UpdateExecution) {
         facet.facetId,
         facet.version,
         execution.input.embeddingConfig,
+        execution.input.timeRange,
       );
       countSummaries(progress, summaries);
       progress.counts.requested = summaries.length;

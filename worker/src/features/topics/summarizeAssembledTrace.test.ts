@@ -144,7 +144,12 @@ describe("summarizeAssembledTrace", () => {
       environment: "default",
       traceName: "agent-turn",
     });
-    state.stored.mockResolvedValue([written]);
+    state.stored.mockImplementation(async (_projectId, _filter, timeRange) =>
+      new Date(written.unitStartTime) >= timeRange.from &&
+      new Date(written.unitStartTime) < timeRange.to
+        ? [written]
+        : [],
+    );
     state.summarize.mockClear();
     state.write.mockClear();
     await summarizeAssembledTrace({
@@ -157,6 +162,18 @@ describe("summarizeAssembledTrace", () => {
     });
     expect(state.summarize).not.toHaveBeenCalled();
     expect(state.write).not.toHaveBeenCalled();
+    await summarizeAssembledTrace({
+      projectId: "project-a",
+      traceId: "trace-1",
+      traceTimestamp: "2026-09-22T11:59:00.000Z",
+      environment: "default",
+      traceName: "agent-turn",
+      transcript,
+    });
+    expect(state.summarize).toHaveBeenCalledOnce();
+    expect(state.write.mock.calls[0][0][0].unitStartTime).toBe(
+      "2026-09-22T11:59:00.000Z",
+    );
   });
 
   it("propagates a provider failure so the batch job can retry", async () => {

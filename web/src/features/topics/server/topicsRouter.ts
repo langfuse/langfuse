@@ -8,6 +8,8 @@ import {
   topicFacetRefSchema,
   topicTraceIdSchema,
   topicRuleConfigSchema,
+  topicTimeRangeSchema,
+  type TopicTimeRange,
   type TopicExecutionSummary,
   type TopicFacetRef,
 } from "@langfuse/shared/topics";
@@ -53,7 +55,13 @@ import { currentTopicResults } from "./currentResults";
 
 const projectInput = z.object({ projectId: topicIdSchema });
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
-const mapInput = projectInput.extend({ runId: topicIdSchema });
+const resultInput = projectInput.extend({
+  timeRange: topicTimeRangeSchema.refine(
+    ({ from, to }) => to.getTime() - from.getTime() <= 93 * 86_400_000,
+    "Select a time range of at most 93 days.",
+  ),
+});
+const mapInput = resultInput.extend({ runId: topicIdSchema });
 const topicsProcedure = protectedProjectProcedureWithoutTracing
   .input(projectInput)
   .use(({ ctx, input, next }) => {
@@ -165,6 +173,7 @@ type TopicMap = {
 async function publishedTopicMap(input: {
   projectId: string;
   runId: string;
+  timeRange: TopicTimeRange;
 }): Promise<TopicMap> {
   const run = await getTopicRun(input.projectId, input.runId);
   if (!run || run.projectId !== input.projectId)
@@ -183,6 +192,7 @@ async function publishedTopicMap(input: {
       input.projectId,
       { facetId: run.facetId, version: run.facetVersion },
       run.id,
+      input.timeRange,
     )
   ).sort((a, b) => (a.traceId ?? "").localeCompare(b.traceId ?? ""));
   if (!discoveryAssignments.length)
@@ -213,6 +223,7 @@ async function publishedTopicMap(input: {
     input.projectId,
     run.facetId,
     run.facetVersion,
+    input.timeRange,
   );
   const byTraceId = new Map(
     summaries
@@ -260,9 +271,11 @@ async function publishedTopicMap(input: {
 }
 
 export const topicsRouter = createTRPCRouter({
-  currentResults: topicsProcedure.query(({ input }) =>
-    currentTopicResults(input.projectId),
-  ),
+  currentResults: topicsProcedure
+    .input(resultInput)
+    .query(({ input }) =>
+      currentTopicResults(input.projectId, input.timeRange),
+    ),
   previewTraces: topicsProcedure
     .input(topicTraceSelectionSchema)
     .query(({ input, ctx }) => previewTopicTraces(input, ctx.prisma)),
@@ -299,7 +312,7 @@ export const topicsRouter = createTRPCRouter({
     .mutation(({ input }) => saveTopicRule(input)),
   summaryCounts: topicsProcedure
     .input(
-      projectInput.extend({
+      resultInput.extend({
         facets: z.array(topicFacetRefSchema).min(1),
         embeddingConfig: topicEmbeddingConfigSchema,
       }),
@@ -310,6 +323,7 @@ export const topicsRouter = createTRPCRouter({
         input.projectId,
         input.facets,
         input.embeddingConfig,
+        input.timeRange,
       );
     }),
   executions: topicsProcedure.query(async ({ input }) =>
@@ -430,14 +444,22 @@ export const topicsRouter = createTRPCRouter({
         facetId: topicIdSchema,
         facetVersion: topicFacetRefSchema.shape.version,
         traceId: topicTraceIdSchema,
+        unitStartTime: z.coerce.date(),
       }),
     )
     .query(async ({ input }) => {
-      const [summary] = await listTopicSummaries(input.projectId, {
-        facetId: input.facetId,
-        facetVersion: input.facetVersion,
-        traceIds: [input.traceId],
-      });
+      const [summary] = await listTopicSummaries(
+        input.projectId,
+        {
+          facetId: input.facetId,
+          facetVersion: input.facetVersion,
+          traceIds: [input.traceId],
+        },
+        {
+          from: input.unitStartTime,
+          to: new Date(input.unitStartTime.getTime() + 1),
+        },
+      );
       if (
         !summary ||
         summary.projectId !== input.projectId ||

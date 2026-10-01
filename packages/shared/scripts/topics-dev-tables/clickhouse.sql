@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS topics
     metadata String CODEC(ZSTD(3))
 )
 ENGINE = ReplacingMergeTree(created_at)
-ORDER BY (project_id, id);
+PARTITION BY toYYYYMM(created_at)
+ORDER BY (project_id, toDate(created_at), id);
 
 CREATE TABLE IF NOT EXISTS topic_facet_summaries
 (
@@ -41,16 +42,24 @@ CREATE TABLE IF NOT EXISTS topic_facet_summaries
     usage_details Map(LowCardinality(String), UInt64),
     provided_cost_details Map(LowCardinality(String), Decimal(18,12)),
     cost_details Map(LowCardinality(String), Decimal(18,12)),
+    -- TODO: check if we really need this here & if we really want to have precise cost here
     calculated_input_cost Decimal(18,12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details))),
     calculated_output_cost Decimal(18,12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
     calculated_total_cost Decimal(18,12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0 OR positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
     total_cost Decimal(18,12) ALIAS cost_details['total'],
     processed_at DateTime64(3, 'UTC'),
-    metadata String CODEC(ZSTD(3))
+    metadata String CODEC(ZSTD(3)),
+    PROJECTION latest_source_versions
+    (
+        SELECT project_id, facet_id, facet_version, trace_id, session_id, unit_start_time, processed_at
+        ORDER BY (project_id, facet_id, trace_id, if(trace_id = '', session_id, ''), facet_version)
+    )
 )
 ENGINE = ReplacingMergeTree(processed_at)
-PRIMARY KEY (project_id, facet_id, facet_version)
-ORDER BY (project_id, facet_id, facet_version, trace_id, if(trace_id = '', session_id, ''));
+PARTITION BY toYYYYMM(unit_start_time)
+PRIMARY KEY (project_id, toStartOfMinute(unit_start_time), facet_id, facet_version)
+ORDER BY (project_id, toStartOfMinute(unit_start_time), facet_id, facet_version, trace_id, if(trace_id = '', session_id, ''))
+SETTINGS deduplicate_merge_projection_mode = 'rebuild', lightweight_mutation_projection_mode = 'rebuild';
 
 CREATE TABLE IF NOT EXISTS topic_assignments
 (
@@ -76,5 +85,6 @@ CREATE TABLE IF NOT EXISTS topic_assignments
     assigned_at DateTime64(3, 'UTC')
 )
 ENGINE = ReplacingMergeTree(assigned_at)
-PRIMARY KEY (project_id, facet_id, facet_version)
-ORDER BY (project_id, facet_id, facet_version, clustering_run_id, origin, trace_id, if(trace_id = '', session_id, ''));
+PARTITION BY toYYYYMM(unit_start_time)
+PRIMARY KEY (project_id, toStartOfMinute(unit_start_time), facet_id, facet_version)
+ORDER BY (project_id, toStartOfMinute(unit_start_time), facet_id, facet_version, trace_id, if(trace_id = '', session_id, ''), clustering_run_id, origin);

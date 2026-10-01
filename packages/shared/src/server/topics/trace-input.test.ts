@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { queryClickhouseStream } from "../repositories/clickhouse";
+import {
+  queryClickhouse,
+  queryClickhouseStream,
+} from "../repositories/clickhouse";
 import { loadTopicTranscript } from "./trace-input";
 
 vi.mock("../repositories/clickhouse", () => ({
+  queryClickhouse: vi.fn(),
   queryClickhouseStream: vi.fn(),
 }));
 
@@ -29,7 +33,16 @@ const row = {
   metadata: {},
 };
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(queryClickhouse).mockResolvedValue([
+    {
+      count: "3",
+      minStart: String(Date.parse("2026-09-15T09:00:00.000Z")),
+      maxStart: String(Date.parse("2026-09-15T10:00:00.000Z")),
+    },
+  ]);
+});
 
 function loadRows(...rows: Partial<typeof row>[]) {
   vi.mocked(queryClickhouseStream).mockImplementationOnce(async function* () {
@@ -73,9 +86,13 @@ describe("Topics transcript input", () => {
       expect(request.query).toContain("e.event_ts DESC");
       expect(request.query).not.toContain("leftUTF8");
       expect(request.query).not.toContain("FINAL");
+      expect(request.query).toContain("e.start_time >= {from: DateTime64(3)}");
+      expect(request.query).toContain("e.start_time < {to: DateTime64(3)}");
       expect(request.params).toMatchObject({
         projectId: "project",
         traceId: "trace",
+        from: "2026-09-15 09:00:00.000",
+        to: "2026-09-15 10:00:00.001",
       });
       expect(result).toMatchObject({
         unitStartTime: "2026-09-15T09:00:00.000Z",

@@ -69,8 +69,9 @@
     ClickHouse definitions; reused definitions retain their original creation run.
   - `clickhouse.ts`: current summaries/assignments and immutable definitions.
     Source identity prefers `traceId`; `sessionId` may carry parent context.
-    Facet versions use `(projectId, facetId, version)`. Timestamp replacement
-    excludes mutable source metadata and start time from identity.
+    Facet versions use `(projectId, facetId, version)`. Reads require a time
+    range; replacement includes the source minute, with run/origin suffixes
+    for assignments. Definition bounds retain original creation dates on reuse.
   - `journal.ts`: one BatchAction per request, compact counters and run references.
     Trace inputs and paid outputs belong outside the journal.
   - `embedding-queue.ts`: Redis staging with a fixed expiry; retain accepted

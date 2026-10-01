@@ -164,6 +164,18 @@ async function checkClickhouse(db: ClickHouseClient, sql: string[]) {
       missing.push(name);
       continue;
     }
+    // Projection maintenance is required for correct replacement and deletion.
+    for (const setting of [
+      "deduplicate_merge_projection_mode",
+      "lightweight_mutation_projection_mode",
+    ]) {
+      const expected = `${setting} = 'rebuild'`;
+      if (
+        statement.includes(expected) &&
+        !table.create_table_query.includes(expected)
+      )
+        mismatch(name, `setting ${setting}`);
+    }
     // Cloud manages replication and rewrites MergeTree to SharedMergeTree.
     // Compare the remaining schema, including constraints, keys and version column.
     const normalize = (query: string) =>
@@ -176,7 +188,7 @@ async function checkClickhouse(db: ClickHouseClient, sql: string[]) {
           /SharedReplacingMergeTree\('[^']*', '[^']*', /,
           "ReplacingMergeTree(",
         )
-        .replace(/ SETTINGS [\s\S]*$/, "");
+        .replace(/\s+SETTINGS [\s\S]*$/, "");
     const formatted = await db.query({
       query:
         "SELECT formatQuery({expected:String}) AS expected, formatQuery({actual:String}) AS actual",

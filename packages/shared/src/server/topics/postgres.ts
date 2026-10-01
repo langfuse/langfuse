@@ -1,6 +1,7 @@
 import { prisma, Prisma } from "../../db";
 import {
   topicRuleConfigSchema,
+  topicTimeRangeSchema,
   sameTopicGeometry,
   type TopicFacet,
   type TopicFacetRef,
@@ -270,11 +271,21 @@ async function hydrateRuns(
   rows: RunRow[],
 ): Promise<TopicRun[]> {
   const ids = rows.flatMap((row) => row.topicVersionIds);
+  if (!ids.length) return rows.map((row) => runResult(row, new Map()));
+  const ranges = rows
+    .filter((row) => row.topicVersionIds.length)
+    .map((row) =>
+      topicTimeRangeSchema.parse(
+        (row.config as Record<string, unknown>).definitionTimeRange,
+      ),
+    );
   const definitions = new Map(
-    (await getTopicDefinitions(projectId, ids)).map((topic) => [
-      topic.topicVersionId,
-      topic,
-    ]),
+    (
+      await getTopicDefinitions(projectId, ids, {
+        from: new Date(Math.min(...ranges.map(({ from }) => from.getTime()))),
+        to: new Date(Math.max(...ranges.map(({ to }) => to.getTime()))),
+      })
+    ).map((topic) => [topic.topicVersionId, topic]),
   );
   return rows.map((row) => runResult(row, definitions));
 }
@@ -287,6 +298,17 @@ export async function getTopicRun(
     where: { projectId, id },
   });
   return row ? (await hydrateRuns(projectId, [row]))[0] : null;
+}
+
+export async function getTopicRuns(
+  projectId: string,
+  ids: string[],
+): Promise<TopicRun[]> {
+  if (!ids.length) return [];
+  const rows = await prisma.topicClusteringRun.findMany({
+    where: { projectId, id: { in: ids } },
+  });
+  return hydrateRuns(projectId, rows);
 }
 
 // Higher facet versions win; a late-finishing older run cannot replace a newer map.
@@ -386,11 +408,31 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
     new Set(run.topics.map((topic) => topic.topicId)).size !== run.topics.length
   )
     throw new Error("Topic run contains duplicate definitions.");
+  const definitionTimes = run.topics.map((topic) =>
+    Date.parse(topic.createdAt),
+  );
+  const definitionTimeRange = definitionTimes.length
+    ? topicTimeRangeSchema.parse({
+        from: new Date(Math.min(...definitionTimes)),
+        to: new Date(Math.max(...definitionTimes) + 1),
+      })
+    : null;
+  const config = { ...run.config };
+  if (definitionTimeRange)
+    config.definitionTimeRange = {
+      from: definitionTimeRange.from.toISOString(),
+      to: definitionTimeRange.to.toISOString(),
+    };
+  else delete config.definitionTimeRange;
   const saved = new Map(
-    (await getTopicDefinitions(run.projectId, topicVersionIds)).map((topic) => [
-      topic.topicVersionId,
-      topic,
-    ]),
+    (definitionTimeRange
+      ? await getTopicDefinitions(
+          run.projectId,
+          topicVersionIds,
+          definitionTimeRange,
+        )
+      : []
+    ).map((topic) => [topic.topicVersionId, topic]),
   );
   const missing: TopicDefinition[] = [];
   for (const topic of run.topics) {
@@ -412,6 +454,7 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
     const inserted = await getTopicDefinitions(
       run.projectId,
       missing.map((topic) => topic.topicVersionId),
+      definitionTimeRange!,
     );
     for (const topic of inserted) saved.set(topic.topicVersionId, topic);
     for (const topic of missing) {
@@ -437,7 +480,7 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
       data: {
         topicVersionIds,
         status: run.status,
-        config: run.config as Prisma.InputJsonValue,
+        config: config as Prisma.InputJsonValue,
         error: run.error,
         startedAt:
           existing.startedAt ??

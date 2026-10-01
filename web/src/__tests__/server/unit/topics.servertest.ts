@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   readLatestTopicAssignments: vi.fn(),
   getLatestFacetSummaries: vi.fn(),
   getPublishedTopicRun: vi.fn(),
-  getTopicDefinitions: vi.fn(),
   ensureDefaultTopicFacets: vi.fn(),
   getTopicFacetVersion: vi.fn(),
   createTopicFacet: vi.fn(),
@@ -30,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   getTopicRule: vi.fn(),
   saveTopicRule: vi.fn(),
   getTopicRun: vi.fn(),
+  getTopicRuns: vi.fn(),
   listTopicSummaries: vi.fn(),
   readTopicMapAssignments: vi.fn(),
   loadTopicTranscript: vi.fn<typeof topicsServer.loadTopicTranscript>(),
@@ -55,7 +55,17 @@ const projectId = "project-a";
 const facetId = "facet-a";
 const facetVersion = 1;
 const selectedFacets = [{ facetId, version: facetVersion }];
-const inspectInput = { projectId, facetId, facetVersion, traceId: "trace-a" };
+const timeRange = {
+  from: new Date("2026-09-16T00:00:00Z"),
+  to: new Date("2026-09-23T00:00:00Z"),
+};
+const inspectInput = {
+  projectId,
+  facetId,
+  facetVersion,
+  traceId: "trace-a",
+  unitStartTime: timeRange.from,
+};
 const input: Extract<TopicExecutionInput, { operation: "process" }> = {
   projectId,
   requestId: "request-a",
@@ -87,7 +97,9 @@ function caller(role: "ADMIN" | "VIEWER" = "ADMIN", langfuseTopics = true) {
   );
 }
 
-function execution(): TopicExecution {
+function execution(): TopicExecution & {
+  input: Extract<TopicExecutionInput, { operation: "update" }>;
+} {
   return {
     id: "execution-a",
     projectId,
@@ -98,6 +110,7 @@ function execution(): TopicExecution {
       facets: selectedFacets,
       embeddingConfig: topicEmbeddingConfigSchema.parse({}),
       exploratory: false,
+      timeRange,
     },
     status: "completed",
     phase: "completed",
@@ -178,6 +191,7 @@ beforeEach(() => {
   mocks.readTopicExecutionForRequest.mockResolvedValue(null);
   mocks.createTopicExecution.mockResolvedValue(execution());
   mocks.getTopicRun.mockResolvedValue(run);
+  mocks.getTopicRuns.mockResolvedValue([]);
   mocks.listTopicSummaries.mockResolvedValue([summary]);
 });
 
@@ -525,7 +539,7 @@ describe("Topics filtered trace preview", () => {
 });
 
 describe("Topics published scatter map", () => {
-  const mapInput = { projectId, runId: "run-a" };
+  const mapInput = { projectId, runId: "run-a", timeRange };
   const firstAssignment = {
     projectId,
     facetId,
@@ -585,6 +599,7 @@ describe("Topics published scatter map", () => {
       projectId,
       { facetId, version: facetVersion },
       "run-a",
+      timeRange,
     );
     expect(JSON.stringify(map)).not.toContain("embedding");
     await expect(
@@ -606,6 +621,7 @@ describe("Topics published scatter map", () => {
       projectId,
       facetId,
       facetVersion,
+      timeRange,
     );
   });
 
@@ -685,6 +701,16 @@ describe("Topics local execution access and publication", () => {
     expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
   });
 
+  it("rejects topic updates spanning more than 93 days before creating work", async () => {
+    await expect(
+      caller().trigger({
+        ...execution().input,
+        timeRange: { from: new Date("2026-01-01T00:00:00Z"), to: timeRange.to },
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
+  });
+
   it("updates topics without selecting traces or requiring a previous execution", async () => {
     const request = { ...execution().input, minimumTraceCount: 31 };
     await caller().trigger(request);
@@ -702,6 +728,7 @@ describe("Topics local execution access and publication", () => {
       projectId,
       facets: selectedFacets,
       embeddingConfig: input.embeddingConfig,
+      timeRange,
     };
     mocks.getTopicSummaryCounts.mockResolvedValue([
       { facetId, facetVersion, count: 42 },
@@ -713,6 +740,7 @@ describe("Topics local execution access and publication", () => {
       projectId,
       selectedFacets,
       input.embeddingConfig,
+      timeRange,
     );
     expect(mocks.getTopicFacetVersion).toHaveBeenCalledWith(
       projectId,
@@ -757,11 +785,14 @@ describe("Topics local execution access and publication", () => {
       model: summary.summaryModel,
       transcript: source.transcript,
     });
-    expect(mocks.listTopicSummaries).toHaveBeenCalledWith(projectId, {
-      facetId,
-      facetVersion,
-      traceIds: [traceId],
-    });
+    expect(mocks.listTopicSummaries).toHaveBeenCalledWith(
+      projectId,
+      { facetId, facetVersion, traceIds: [traceId] },
+      {
+        from: inspectInput.unitStartTime,
+        to: new Date(inspectInput.unitStartTime.getTime() + 1),
+      },
+    );
     expect(mocks.loadTopicTranscript).toHaveBeenCalledWith({
       projectId,
       traceId,
@@ -947,23 +978,37 @@ describe("Topics current results", () => {
         topicId: traceId.split("-")[0],
         topicVersionId: traceId,
         summaryProcessedAt: summary.processedAt,
-        runId: "old-map",
+        unitStartTime: summary.unitStartTime,
+        runId: `old-map-${traceId}`,
         assignedAt:
           traceId === "retired-old"
             ? "2026-09-16T00:00:00Z"
             : "2026-09-17T00:00:00Z",
       })),
     );
-    mocks.getTopicDefinitions.mockResolvedValue(
+    mocks.getTopicRuns.mockResolvedValue(
       traces.map((id) => ({
-        ...run.topics[0],
-        topicId: id.split("-")[0],
-        topicVersionId: id,
-        name: `Old ${id}`,
-        description: `Historical ${id}`,
+        ...run,
+        id: `old-map-${id}`,
+        topics: [
+          {
+            ...run.topics[0],
+            topicId: id.split("-")[0],
+            topicVersionId: id,
+            name: `Old ${id}`,
+            description: `Historical ${id}`,
+          },
+        ],
       })),
     );
-    const [result] = await caller("VIEWER").currentResults({ projectId });
+    const [result] = await caller("VIEWER").currentResults({
+      projectId,
+      timeRange,
+    });
+    expect(mocks.getTopicRuns).toHaveBeenCalledExactlyOnceWith(
+      projectId,
+      traces.map((id) => `old-map-${id}`),
+    );
     expect(result.topics).toEqual(
       expect.arrayContaining([
         {
@@ -993,10 +1038,13 @@ describe("Topics current results", () => {
     expect(mocks.getLatestFacetSummaries).toHaveBeenCalledWith(
       projectId,
       "intent",
+      undefined,
+      timeRange,
     );
     expect(mocks.readLatestTopicAssignments).toHaveBeenCalledWith(
       projectId,
       "intent",
+      timeRange,
     );
     await expect(caller("VIEWER").trigger(input)).rejects.toMatchObject({
       code: "FORBIDDEN",
@@ -1050,6 +1098,7 @@ describe("Topics current results", () => {
           topicId: "stable-topic",
           topicVersionId: "version-old",
           summaryProcessedAt: summary.processedAt,
+          unitStartTime: summary.unitStartTime,
           runId: "map-old",
           assignedAt: "2026-09-16T00:00:00Z",
         },
@@ -1060,32 +1109,43 @@ describe("Topics current results", () => {
           traceId: row.traceId,
           sessionId: null,
           summaryProcessedAt: row.processedAt,
+          unitStartTime: row.unitStartTime,
+          runId: "map-old",
           topicId: row === cleared ? "stable-topic" : null,
         })),
         {
           ...staleVersion,
           facetVersion: 1,
           summaryProcessedAt: staleVersion.processedAt,
+          runId: "map-old",
           topicId: "stable-topic",
         },
       ]);
-      mocks.getTopicDefinitions.mockResolvedValue([
+      mocks.getTopicRuns.mockResolvedValue([
         {
-          topicId: "stable-topic",
-          topicVersionId: "version-old",
-          name: "Refunds",
-          description: "Refund requests",
-          centroid: [1, 2],
+          ...run,
+          id: "map-old",
+          topics: [
+            {
+              topicId: "stable-topic",
+              topicVersionId: "version-old",
+              name: "Refunds",
+              description: "Refund requests",
+              centroid: [1, 2],
+            },
+          ],
         },
       ]);
-      const result = await caller("VIEWER").currentResults({ projectId });
+      const result = await caller("VIEWER").currentResults({
+        projectId,
+        timeRange,
+      });
       expect(mocks.readLatestTopicAssignments).toHaveBeenCalledWith(
         projectId,
         "intent",
+        timeRange,
       );
-      expect(mocks.getTopicDefinitions).toHaveBeenCalledWith(projectId, [
-        "version-old",
-      ]);
+      expect(mocks.getTopicRuns).toHaveBeenCalledWith(projectId, ["map-old"]);
       expect(result[0]).toMatchObject({
         facetId: "intent",
         awaitingCount: 3,
@@ -1123,7 +1183,7 @@ describe("Topics current results", () => {
       });
       expect(JSON.stringify(result)).not.toContain("centroid");
       await expect(
-        caller().currentResults({ projectId: "foreign" }),
+        caller().currentResults({ projectId: "foreign", timeRange }),
       ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     },
   );

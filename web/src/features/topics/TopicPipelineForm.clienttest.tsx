@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   preview: vi.fn(),
   trigger: vi.fn(),
   saveRule: vi.fn(),
+  summaryCounts: vi.fn(),
   onTriggered: vi.fn(),
 }));
 const rule = {
@@ -43,9 +44,10 @@ vi.mock("@/src/utils/api", () => ({
           }),
       },
       summaryCounts: {
-        useQuery: () => ({
-          data: [{ facetId: "intent", facetVersion: 2, count: 120 }],
-        }),
+        useQuery: (input: unknown) => {
+          mocks.summaryCounts(input);
+          return { data: [{ facetId: "intent", facetVersion: 2, count: 120 }] };
+        },
       },
       rules: { useQuery: () => ({ data: [rule] }) },
       saveRule: {
@@ -94,6 +96,10 @@ const facets: TopicFacet[] = ["Intent", "Issues"].map((name) => ({
     createdAt: "2026-09-16T00:00:00Z",
   })),
 }));
+const timeRange = {
+  from: new Date("2026-09-09T00:00:00Z"),
+  to: new Date("2026-09-16T00:00:00Z"),
+};
 const latestFacets = facets.map((facet) => ({ facetId: facet.id, version: 2 }));
 function PipelineForm() {
   const { actions, configuration } = useTopicPipelineForm({
@@ -102,6 +108,7 @@ function PipelineForm() {
     canWrite: true,
     onTriggered: mocks.onTriggered,
     facetEditor: null,
+    timeRange,
   });
   return (
     <>
@@ -301,6 +308,10 @@ it("updates topics from stored summaries without a trace selection or process-on
     },
     minimumTraceCount: 30,
     exploratory: false,
+    timeRange,
   });
   expect(mocks.preview).not.toHaveBeenCalled();
+  expect(mocks.summaryCounts).toHaveBeenLastCalledWith(
+    expect.objectContaining({ timeRange }),
+  );
 });

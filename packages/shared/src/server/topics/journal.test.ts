@@ -112,6 +112,10 @@ const updateInput: TopicExecutionInput = {
   projectId: input.projectId,
   requestId: "update-1",
   operation: "update",
+  timeRange: {
+    from: new Date("2026-09-01T00:00:00.000Z"),
+    to: new Date("2026-10-01T00:00:00.000Z"),
+  },
   facets: input.facets,
   embeddingConfig: input.embeddingConfig,
   exploratory: false,
@@ -203,11 +207,31 @@ describe("Topics journal application contract", () => {
               facetId,
               facetVersion: version,
               status: "pending",
+              config: {
+                timeRange: {
+                  from: request.timeRange.from.toISOString(),
+                  to: request.timeRange.to.toISOString(),
+                },
+              },
             }))
           : [],
       );
       expect(await listTopicExecutions(input.projectId)).toHaveLength(1);
       const summary = (await readTopicExecutionSummary(input.projectId, a.id))!;
+      if (request.operation === "update") {
+        expect(summary.input).toMatchObject({ timeRange: request.timeRange });
+        const stored = [...state.batches.values()][0];
+        expect(stored).toMatchObject({
+          config: {
+            inputSettings: {
+              timeRange: {
+                from: request.timeRange.from.toISOString(),
+                to: request.timeRange.to.toISOString(),
+              },
+            },
+          },
+        });
+      }
       expect(
         await readTopicExecutionForRequest(
           input.projectId,

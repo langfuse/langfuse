@@ -7,17 +7,20 @@ export function SummaryInspector({
   facetId,
   facetVersion,
   traceId,
+  unitStartTime,
 }: {
   projectId: string;
   facetId: string;
   facetVersion: number;
   traceId: string;
+  unitStartTime: string;
 }) {
   const query = api.topics.inspect.useQuery({
     projectId,
     facetId,
     facetVersion,
     traceId,
+    unitStartTime,
   });
   if (query.error)
     return (
