@@ -37,9 +37,9 @@ export default function NewEvaluatorPage() {
       <Page
         headerProps={{
           title: "New evaluator",
-          breadcrumb: [
-            { name: "Evaluators", href: `/project/${projectId}/evals` },
-          ],
+          breadcrumb: projectId
+            ? [{ name: "Evaluators", href: `/project/${projectId}/evals` }]
+            : undefined,
         }}
       >
         <Skeleton className="m-6 h-96 w-[calc(100%-3rem)]" />

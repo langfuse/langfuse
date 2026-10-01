@@ -57,9 +57,9 @@ export default function EvaluatorDetailPage() {
       <Page
         headerProps={{
           title: "Configure evaluator",
-          breadcrumb: [
-            { name: "Evaluators", href: `/project/${projectId}/evals` },
-          ],
+          breadcrumb: projectId
+            ? [{ name: "Evaluators", href: `/project/${projectId}/evals` }]
+            : undefined,
         }}
       >
         <Skeleton className="m-6 h-96 w-[calc(100%-3rem)]" />
