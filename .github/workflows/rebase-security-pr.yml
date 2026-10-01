@@ -72,6 +72,8 @@ jobs:
           set -euo pipefail
           export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
           git config core.hooksPath /dev/null
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           BASE_SHA="$(git rev-parse HEAD)"
           export BASE_SHA
           echo "base=$BASE_SHA" >> "$GITHUB_OUTPUT"
