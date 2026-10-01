@@ -108,7 +108,7 @@ export const ConfiguredMetadata = meta.story({
       source: {
         state: "ready",
         metadata: {
-          langfuse_user_email: "danielm@nexite.io",
+          langfuse_user_email: "daniel.mueller-schmidt@enterprise.nexite.io",
           cloud_region: "EU",
         },
         metadataTruncated: false,
