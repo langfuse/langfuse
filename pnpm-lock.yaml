@@ -71,6 +71,7 @@ overrides:
   '@ai-sdk/ui-utils>@ai-sdk/provider-utils': 2.2.8
   '@storybook/addon-vitest>@vitest/browser': 4.1.11
   hono: 4.13.7
+  axios: 1.20.0
   '@grpc/grpc-js': 1.14.5
   next-auth>nodemailer: ^10.0.9
 
@@ -685,7 +686,7 @@ importers:
         version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@scalar/api-reference':
         specifier: 1.66.1
-        version: 1.66.1(axios@1.18.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)(zod@4.3.6)
+        version: 1.66.1(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)(zod@4.3.6)
       '@sentry/nextjs':
         specifier: ^10.64.0
         version: 10.64.0(@opentelemetry/core@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(next@16.3.6(@babel/core@7.29.7(supports-color@8.1.1))(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(supports-color@8.1.1)(webpack@5.97.1(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.25)(uglify-js@3.19.3))
@@ -774,8 +775,8 @@ importers:
         specifier: ^8.0.4
         version: 8.0.4
       dompurify:
-        specifier: ^3.4.12
-        version: 3.4.13
+        specifier: ^3.4.16
+        version: 3.4.16
       elkjs:
         specifier: ^0.11.1
         version: 0.11.1
@@ -7161,7 +7162,7 @@ packages:
     resolution: {integrity: sha512-SDobKBbPIOe0cVL7QxMzGkuUGHvWTdihi9zOrrWaWUgFKe15cwEcwfWmgrcNzjT6kHnNmWuTajPHoIzUjYNYYQ==}
     peerDependencies:
       async-validator: ^4
-      axios: ^1
+      axios: 1.20.0
       change-case: ^5
       drauu: ^0.4
       focus-trap: ^7
@@ -7505,8 +7506,8 @@ packages:
     resolution: {integrity: sha512-UzGt8zg7Ny8djbYMhxl2zuEevVa7r2gJjYY5Lwr1xM7+XU2nd6CkIWFTVcCIbAP63vSz71NaVyyuSk9lHKcy0A==}
     engines: {node: '>=4'}
 
-  axios@1.18.0:
-    resolution: {integrity: sha512-E32NzpYKp++W7XRe52rHiXV2ehxmh3wbdgO7MHeFM+vqxLBYHzt0ElkiImtOBxtOmyp0yoC8C6uESVV84Y2/hw==}
+  axios@1.20.0:
+    resolution: {integrity: sha512-r8aOh8j9cGKpgQAqpzrUHnSIc6a59Y3Xf/cv8sy1DrHCkZHzQGEuoq1tARk6qSyDdtQGSDgpb9kFlruzPvrgwg==}
 
   axobject-query@4.1.0:
     resolution: {integrity: sha512-qIj0G9wZbMGNLjLmg1PT6v2mE9AH2zlnADJD/2tC6E00hgmhUOfEB6greHPAfLRSufHqROIUTkw6E+M3lH0PTQ==}
@@ -7562,14 +7563,14 @@ packages:
   bowser@2.14.1:
     resolution: {integrity: sha512-tzPjzCxygAKWFOJP011oxFHs57HzIhOEracIgAePE4pqB3LikALKnSzUyU4MGs9/iCEUuHlAJTjTc5M+u7YEGg==}
 
-  brace-expansion@1.1.18:
-    resolution: {integrity: sha512-Edep/X9fGqVNmzKBVsDYIOtD+z1tuezV70LBjdCst9Tqu76lsnvRiZ6oTic1n+/BIwX6QDGAO94PN4N2SADvtw==}
+  brace-expansion@1.1.21:
+    resolution: {integrity: sha512-9zeA+KLZNNzglF2TPKRQEDyx6Yby7daAkuy8MiPzpXPsYDWi/DRM8jmwUDxokQjYqBpv5DgPiwD4h4ZZSy1Ujw==}
 
-  brace-expansion@2.1.4:
-    resolution: {integrity: sha512-hGfVzPxthbf3+2yjg/RBs60cB0FhqBS/zvdV/4wn4/BmN0bNMMHPc4V/BbFieqf1TKAGGAHnY4eSjajCl0f2Xg==}
+  brace-expansion@2.1.7:
+    resolution: {integrity: sha512-uZbew1NqdmPDTMJ8ah1y+b+9QEJrfkXFk3RcTQw3X0jW/xRUvFKsg1CfQdSYGdTbXZWExtU3J3ccxtnfw1Fi0g==}
 
-  brace-expansion@5.0.9:
-    resolution: {integrity: sha512-ScQ4IuvIEF1TMlP7Zt+vjJ//9zlPb2SDcxWxM3bk8s6t6GGdJ7KO1dCcTidOPJKePW30LE/2cT7wCyPho9/Wxg==}
+  brace-expansion@5.0.12:
+    resolution: {integrity: sha512-YovQ3rzhaLMIrDjNDMkNS01tea93qhEhG5xy8f6+R0l+dw3Ki+5sCoIoI942iuLZTHWogWktgwVDhU09iNEimQ==}
     engines: {node: 20 || >=22}
 
   braces@3.0.3:
@@ -8304,8 +8305,8 @@ packages:
     resolution: {integrity: sha512-cgwlv/1iFQiFnU96XXgROh8xTeetsnJiDsTc7TYCLFd9+/WNkIqPTxiM/8pSd8VIrhXGTf1Ny1q1hquVqDJB5w==}
     engines: {node: '>= 4'}
 
-  dompurify@3.4.13:
-    resolution: {integrity: sha512-2vmYIoqjze2d+kakP8S/nS5shfsl587kzwEjcGlTdiksUVgFHnFCsLYDVj/JNqJVOQZGSYBTmuycv0PodwmnMQ==}
+  dompurify@3.4.16:
+    resolution: {integrity: sha512-sqo+pNp3qRhCIpbgRi1y8Tgk27Bo2Ry7w0dC1NBeNTdZChWjz9Xb/KOoZbRP/R6pQZ80Qw8YhXw13hWWBbMRnQ==}
 
   domutils@3.2.2:
     resolution: {integrity: sha512-6kZKyUajlDuqlHKVX1w7gyslj9MPIXzIFiz/rGu35uC1wMi+kMhQwGhl4lt9unC9Vb9INnY9Z3/ZA3+FhASLaw==}
@@ -17051,10 +17052,10 @@ snapshots:
 
   '@rtsao/scc@1.1.0': {}
 
-  '@scalar/agent-chat@0.12.28(axios@1.18.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)(zod@4.3.6)':
+  '@scalar/agent-chat@0.12.28(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)(zod@4.3.6)':
     dependencies:
       '@ai-sdk/vue': 3.0.33(vue@3.5.41(typescript@7.0.2))(zod@4.3.6)
-      '@scalar/api-client': 3.16.3(axios@1.18.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)
+      '@scalar/api-client': 3.16.3(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)
       '@scalar/components': 0.28.1(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)
       '@scalar/helpers': 0.11.1
       '@scalar/icons': 0.7.6(typescript@7.0.2)
@@ -17089,7 +17090,7 @@ snapshots:
       - universal-cookie
       - zod
 
-  '@scalar/api-client@3.16.3(axios@1.18.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)':
+  '@scalar/api-client@3.16.3(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)':
     dependencies:
       '@headlessui/tailwindcss': 0.2.2(tailwindcss@4.2.2)
       '@headlessui/vue': 1.7.23(vue@3.5.41(typescript@7.0.2))
@@ -17109,7 +17110,7 @@ snapshots:
       '@scalar/use-toasts': 0.10.5(typescript@7.0.2)
       '@scalar/workspace-store': 0.58.1(typescript@7.0.2)
       '@vueuse/core': 13.9.0(vue@3.5.41(typescript@7.0.2))
-      '@vueuse/integrations': 13.9.0(axios@1.18.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(focus-trap@7.8.0)(fuse.js@7.5.0)(vue@3.5.41(typescript@7.0.2))
+      '@vueuse/integrations': 13.9.0(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(focus-trap@7.8.0)(fuse.js@7.5.0)(vue@3.5.41(typescript@7.0.2))
       focus-trap: 7.8.0
       fuse.js: 7.5.0
       js-base64: 3.9.3
@@ -17137,11 +17138,11 @@ snapshots:
       - typescript
       - universal-cookie
 
-  '@scalar/api-reference@1.66.1(axios@1.18.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)(zod@4.3.6)':
+  '@scalar/api-reference@1.66.1(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)(zod@4.3.6)':
     dependencies:
       '@headlessui/vue': 1.7.23(vue@3.5.41(typescript@7.0.2))
-      '@scalar/agent-chat': 0.12.28(axios@1.18.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)(zod@4.3.6)
-      '@scalar/api-client': 3.16.3(axios@1.18.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)
+      '@scalar/agent-chat': 0.12.28(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)(zod@4.3.6)
+      '@scalar/api-client': 3.16.3(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)
       '@scalar/blocks': 0.1.14(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)
       '@scalar/code-highlight': 0.4.5(supports-color@8.1.1)
       '@scalar/components': 0.28.1(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)
@@ -17605,7 +17606,7 @@ snapshots:
       '@slack/types': 2.20.1
       '@types/node': 24.3.0
       '@types/retry': 0.12.0
-      axios: 1.18.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      axios: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       eventemitter3: 5.0.4
       form-data: 4.0.6
       is-electron: 2.2.2
@@ -19016,13 +19017,13 @@ snapshots:
       '@vueuse/shared': 13.9.0(vue@3.5.41(typescript@7.0.2))
       vue: 3.5.41(typescript@7.0.2)
 
-  '@vueuse/integrations@13.9.0(axios@1.18.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(focus-trap@7.8.0)(fuse.js@7.5.0)(vue@3.5.41(typescript@7.0.2))':
+  '@vueuse/integrations@13.9.0(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(focus-trap@7.8.0)(fuse.js@7.5.0)(vue@3.5.41(typescript@7.0.2))':
     dependencies:
       '@vueuse/core': 13.9.0(vue@3.5.41(typescript@7.0.2))
       '@vueuse/shared': 13.9.0(vue@3.5.41(typescript@7.0.2))
       vue: 3.5.41(typescript@7.0.2)
     optionalDependencies:
-      axios: 1.18.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      axios: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       focus-trap: 7.8.0
       fuse.js: 7.5.0
 
@@ -19368,7 +19369,7 @@ snapshots:
 
   axe-core@4.13.0: {}
 
-  axios@1.18.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
+  axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
       follow-redirects: 1.16.0(debug@4.4.3(supports-color@8.1.1))
       form-data: 4.0.6
@@ -19428,16 +19429,16 @@ snapshots:
 
   bowser@2.14.1: {}
 
-  brace-expansion@1.1.18:
+  brace-expansion@1.1.21:
     dependencies:
       balanced-match: 1.0.2
       concat-map: 0.0.1
 
-  brace-expansion@2.1.4:
+  brace-expansion@2.1.7:
     dependencies:
       balanced-match: 1.0.2
 
-  brace-expansion@5.0.9:
+  brace-expansion@5.0.12:
     dependencies:
       balanced-match: 4.0.4
 
@@ -20224,7 +20225,7 @@ snapshots:
     dependencies:
       domelementtype: 2.3.0
 
-  dompurify@3.4.13:
+  dompurify@3.4.16:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
@@ -22485,7 +22486,7 @@ snapshots:
       d3-sankey: 0.12.3
       dagre-d3-es: 7.0.14
       dayjs: 1.11.20
-      dompurify: 3.4.13
+      dompurify: 3.4.16
       es-toolkit: 1.52.0
       katex: 0.16.45
       khroma: 2.1.0
@@ -22719,15 +22720,15 @@ snapshots:
 
   minimatch@10.2.6:
     dependencies:
-      brace-expansion: 5.0.9
+      brace-expansion: 5.0.12
 
   minimatch@3.1.5:
     dependencies:
-      brace-expansion: 1.1.18
+      brace-expansion: 1.1.21
 
   minimatch@9.0.9:
     dependencies:
-      brace-expansion: 2.1.4
+      brace-expansion: 2.1.7
 
   minimist@1.2.8: {}
 
@@ -23497,7 +23498,7 @@ snapshots:
       '@posthog/core': 1.48.1
       '@posthog/types': 1.404.1
       core-js: 3.50.0
-      dompurify: 3.4.13
+      dompurify: 3.4.16
       fflate: 0.4.9
       preact: 10.29.8(preact-render-to-string@5.2.6)
       query-selector-shadow-dom: 1.0.1
