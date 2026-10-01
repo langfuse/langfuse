@@ -1,1 +1,2 @@
-export { PaymentBanner } from "./PaymentBanner";
+export { usePaymentBanner } from "./PaymentBanner";
+export { PaymentBannerView } from "./PaymentBannerView";

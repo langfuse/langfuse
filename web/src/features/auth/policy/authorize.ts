@@ -1,11 +1,9 @@
-import { ForbiddenError } from "@langfuse/shared";
-
 import {
+  forbiddenError,
   wildcard,
   type Action,
   type AuthorizationContext,
   type Decision,
-  type ErrorResult,
   type Policy,
   type Resource,
 } from "./types";
@@ -22,12 +20,12 @@ export function authorize(
     .filter(hasResourceId(resource));
 
   if (matches.some(hasEffect("deny"))) {
-    return forbidden();
+    return forbiddenError();
   }
   if (matches.some(hasEffect("allow"))) {
     return { success: true };
   }
-  return forbidden();
+  return forbiddenError();
 }
 
 /** hasResourceKind matches a policy of the kind that governs the checked resource. */
@@ -48,8 +46,3 @@ const hasAction = (action: Action) => (p: Policy) =>
 /** hasEffect matches a policy of the given effect. */
 const hasEffect = (effect: Policy["effect"]) => (p: Policy) =>
   p.effect === effect;
-
-/** forbidden builds a 403 Decision carrying the generic ForbiddenError. */
-function forbidden(): ErrorResult<ForbiddenError> {
-  return { success: false, error: new ForbiddenError() };
-}

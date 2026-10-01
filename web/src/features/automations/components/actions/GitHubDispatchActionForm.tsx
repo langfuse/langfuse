@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Input } from "@/src/components/ui/input";
 import {
   FormControl,

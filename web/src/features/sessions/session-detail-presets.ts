@@ -101,15 +101,18 @@ const getSessionDetailDefaultPreset = () => SESSION_DETAIL_SYSTEM_PRESETS[0];
 
 /**
  * Which system preset to auto-apply on load. A selected system preset (deep
- * link / saved view) is re-applied; a user's own filters win; otherwise the
- * default "All observations with I/O" view is applied.
+ * link / saved view) is re-applied; a user's own filters win; the legacy
+ * timeline otherwise defaults to "All observations with I/O" while the new
+ * timeline starts without a selected view.
  */
 export const getSessionDetailPresetToApply = ({
   selectedViewId,
   hasFilters,
+  isTimelineEnabled,
 }: {
   selectedViewId: string | null;
   hasFilters: boolean;
+  isTimelineEnabled: boolean;
 }): SessionDetailSystemPreset | null => {
   const selectedSystemPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
     (preset) => preset.id === selectedViewId,
@@ -121,6 +124,10 @@ export const getSessionDetailPresetToApply = ({
 
   if (hasFilters) {
     return null;
+  }
+
+  if (isTimelineEnabled) {
+    return selectedSystemPreset ?? null;
   }
 
   return selectedSystemPreset ?? getSessionDetailDefaultPreset();

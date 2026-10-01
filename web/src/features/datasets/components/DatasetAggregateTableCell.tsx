@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
@@ -141,12 +142,22 @@ const DatasetAggregateCellContent = ({
   };
 
   const handleOpenReview = () => {
-    setActiveCell({
+    const opened = setActiveCell({
+      datasetRunId: value.datasetRunId,
       traceId: value.trace.id,
       observationId: value.observation?.id,
       scoreAggregates: scores,
       environment: data?.environment,
     });
+    if (opened && !isActiveCell) {
+      capture("annotation:entry_click", {
+        type: "trace",
+        entryPoint: "annotate_button",
+        source: "DatasetCompare",
+        targetType: value.observation ? "observation" : "trace",
+        isV4: false,
+      });
+    }
   };
 
   const isActiveCell =
@@ -176,7 +187,7 @@ const DatasetAggregateCellContent = ({
           <ConnectedIOTableCell isLoading variant="output" />
         ) : (
           <ConnectedIOTableCell
-            data={data.output ?? "null"}
+            data={data.output ?? null}
             variant="output"
             enableExpandOnHover
           />
@@ -226,7 +237,7 @@ const DatasetAggregateCellContent = ({
                   className="ml-1"
                 />
               ) : (
-                <Badge variant="tertiary" size="sm" className="font-normal">
+                <Badge variant="tertiary" className="font-normal">
                   <ClockIcon className="mr-1 mb-0.5 h-3 w-3" />
                   <span className="capitalize">
                     {formatIntervalSeconds(latency)}
@@ -242,7 +253,7 @@ const DatasetAggregateCellContent = ({
                   className="ml-1"
                 />
               ) : (
-                <Badge variant="tertiary" size="sm" className="font-normal">
+                <Badge variant="tertiary" className="font-normal">
                   <span className="mr-0.5">{usdFormatter(totalCost)}</span>
                 </Badge>
               ))}

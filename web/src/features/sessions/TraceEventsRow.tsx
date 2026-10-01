@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Card } from "@/src/components/ui/card";
@@ -462,6 +463,7 @@ export const TraceEventsRow = React.memo(
                     </div>
                   </Link>
                   <SessionTraceActionButtons
+                    isV4={true}
                     projectId={projectId}
                     traceId={trace.id}
                     timestamp={new Date(trace.timestamp)}

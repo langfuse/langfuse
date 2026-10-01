@@ -6,14 +6,14 @@
  *
  * Token values are parsed at build time from `src/styles/globals.css` (see
  * parseThemeTokens.ts), so the page cannot drift from the stylesheet. The
- * layer order is read from its source of truth, `components/ui/layer.tsx`.
+ * layer order is read from its source of truth, `context/layerOrder.ts`.
  *
  * Every section is a standalone component on purpose, so it can fold into
  * another reference page cheaply if this page is ever dissolved.
  */
 import { type CSSProperties } from "react";
 
-import { LAYER_ORDER } from "@/src/components/ui/layer";
+import { LAYER_ORDER } from "@/src/context/LayerContext/layers";
 
 import {
   CollapsedSection,
@@ -250,7 +250,7 @@ function LayeringSection({
   );
 }
 
-/** Short, honest description per layer band (source: layer.tsx JSDoc). */
+/** Short, honest description per layer band. */
 const LAYER_DESCRIPTIONS: Record<string, string> = {
   panel: "docked side surfaces: Sheet, Drawer, table peek",
   agent: "the in-app assistant window, below every true overlay",
@@ -261,8 +261,8 @@ const LAYER_DESCRIPTIONS: Record<string, string> = {
 };
 
 /**
- * The app's overlay layer order, read from components/ui/layer.tsx. These are
- * code constants mapped to DOM containers in _document.tsx, not CSS tokens:
+ * The app's overlay layer order, read from context/LayerContext/layers.ts. These are
+ * code constants mapped to DOM containers by LayerProvider, not CSS tokens:
  * layers stack purely by DOM order.
  */
 function LayerSystemSection({ ctx }: { ctx: TokenContext }) {
@@ -306,7 +306,7 @@ function LayerSystemSection({ ctx }: { ctx: TokenContext }) {
       </div>
       <p className="text-muted-foreground text-sm">
         Source of truth: <InlineCode>LAYER_ORDER</InlineCode> in{" "}
-        <code className="font-mono">components/ui/layer.tsx</code>, enforced by
+        <code className="font-mono">context/layerOrder.ts</code>, enforced by
         the <code className="font-mono">@repo/no-overlay-zindex</code> lint
         rule.
       </p>
@@ -402,7 +402,7 @@ export function Layout() {
               animations. Parsed at build time from{" "}
               <code className="font-mono">src/styles/globals.css</code>; the
               layer order from{" "}
-              <code className="font-mono">components/ui/layer.tsx</code>.
+              <code className="font-mono">context/layerOrder.ts</code>.
             </>
           }
           meta={

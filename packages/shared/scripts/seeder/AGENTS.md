@@ -20,6 +20,7 @@ pnpm run seed -- timeline-shapes --v4  # a dozen SMALL traces, one per timeline 
 pnpm run seed -- timeline-shapes --shape retry-backoff --v4  # just one of them
 pnpm run seed -- timeline-annotated --v4  # ONE trace with every row annotation at once (scores incl. +N overflow, 1 and 12 comments, costs, heat map, first-token mark) — for judging visual load
 pnpm run seed -- support-agent --v4 --id-prefix <hex>  # demo-grade handcrafted support-copilot run (videos/screenshots)
+pnpm run seed -- incident-session --id-prefix inc-4471-checkout-latency  # demo-grade multi-user v4 SESSION: 7 turns, 4 users, tool calls, nested sub-agent, refusal, typed scores + comments (session timeline videos/screenshots)
 pnpm run seed -- long-session --traces 300 --observations-per-trace 8
 pnpm run seed -- session-shapes --shape all        # chat / coding-agent / mixed / media v4 sessions
 pnpm run seed -- session-shapes --shape media      # messages carrying @@@langfuseMedia:...@@@ refs (needs MinIO)
@@ -28,6 +29,7 @@ pnpm run seed -- many-traces --count 100000 --days 14
 pnpm run seed -- outlier-traffic --days 90   # diurnal v4 traffic w/ cost/latency/token outliers (outlier chart strip)
 pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name
 pnpm run seed -- custom-models --v4  # project-level model definitions (tiered + single-tier, one price at 0) + a trace whose generations link to them, plus one unpriced model
+pnpm run seed -- experiment-io  # one v4 experiment with three chat/nested JSON items for the Formatted/JSON switch
 NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- evaluator-gallery --count 200  # project-owned evaluators via the seeded public API key
 ```
 

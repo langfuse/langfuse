@@ -12,6 +12,7 @@ readonly COMMUNITY_MIRRORS=(
 
 sudo tee "${APT_CONFIG_FILE}" > /dev/null <<'EOF'
 Acquire::Retries "3";
+Acquire::IndexTargets::deb::DEP-11::DefaultEnabled "false";
 EOF
 
 if [[ -f "${APT_MIRRORS_FILE}" && -f "${APT_SOURCES_FILE}" ]]; then

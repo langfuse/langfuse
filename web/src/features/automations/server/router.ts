@@ -7,7 +7,7 @@ import {
   ActionCreateSchema,
   ActionType,
   JobConfigState,
-  singleFilter,
+  singleFilterList,
   isWebhookActionConfig,
   TriggerEventSource,
   TriggerEventSourceSchema,
@@ -34,7 +34,7 @@ const CreateAutomationInputSchema = z.object({
   name: z.string().min(1, "Name is required"),
   eventSource: z.string(),
   eventAction: z.array(z.string()),
-  filter: z.array(singleFilter).nullable(),
+  filter: singleFilterList.nullable(),
   status: z.enum(JobConfigState).default(JobConfigState.ACTIVE),
   // Action fields
   actionType: z.enum(ActionType),

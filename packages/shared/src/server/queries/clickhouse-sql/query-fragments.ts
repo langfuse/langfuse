@@ -363,6 +363,7 @@ export const eventsSessionsAggregation = (params: {
   sessionIds?: string[];
   startTimeFrom?: string | null;
   includeMetadata?: boolean;
+  includeTools?: boolean;
 }): EventsSessionAggregationQueryBuilder => {
   return new EventsSessionAggregationQueryBuilder({
     projectId: params.projectId,
@@ -370,6 +371,9 @@ export const eventsSessionsAggregation = (params: {
     .selectFieldSet("base")
     .when(Boolean(params.includeMetadata), (builder) =>
       builder.selectFieldSet("metadata"),
+    )
+    .when(Boolean(params.includeTools), (builder) =>
+      builder.selectFieldSet("tools"),
     )
     .withSessionIds(params.sessionIds)
     .withStartTimeFrom(params.startTimeFrom)
@@ -608,12 +612,15 @@ export const buildScoresCTE = (params: ScoresCTEParams): CTEWithSchema => {
     queryParams.startTimeFrom = params.startTimeFrom;
   }
 
-  const observationFilter =
-    params.level === "any"
-      ? ""
-      : params.level === "trace"
-        ? "AND observation_id IS NULL"
-        : "AND observation_id IS NOT NULL";
+  const observationFilter = (() => {
+    if (params.level === "any") {
+      return "";
+    }
+    if (params.level === "trace") {
+      return "AND observation_id IS NULL";
+    }
+    return "AND observation_id IS NOT NULL";
+  })();
 
   const query = `
     SELECT

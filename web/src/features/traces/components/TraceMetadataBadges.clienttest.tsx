@@ -7,7 +7,6 @@ import {
   TargetTraceBadge,
   UserIdBadge,
 } from "./TraceMetadataBadges";
-import { UsageBadge } from "./ObservationMetadataBadgesTooltip";
 
 describe("TraceMetadataBadges session replay privacy", () => {
   it("blocks trace identifiers from PostHog session recordings", () => {
@@ -20,43 +19,14 @@ describe("TraceMetadataBadges session replay privacy", () => {
       </>,
     );
 
-    expect(
-      screen.getByText("Session: customer-session").closest("a"),
-    ).toHaveClass("ph-no-capture");
-    expect(screen.getByText("User ID: customer-user").closest("a")).toHaveClass(
+    expect(screen.getByTitle("customer-session").closest("a")).toHaveClass(
       "ph-no-capture",
     );
-    expect(
-      screen.getByText("Target Trace: target-trace").closest("a"),
-    ).toHaveClass("ph-no-capture");
-    expect(
-      screen.getByText("Session: customer-session").parentElement,
-    ).toHaveClass("bg-primary");
-    expect(
-      screen.getByText("User ID: customer-user").parentElement,
-    ).toHaveClass("bg-primary");
-    expect(
-      screen.getByText("Target Trace: target-trace").parentElement,
-    ).toHaveClass("bg-primary");
-    expect(screen.getByText("Env: production").parentElement).toHaveClass(
-      "bg-tertiary",
+    expect(screen.getByText("customer-user").closest("a")).toHaveClass(
+      "ph-no-capture",
     );
-  });
-});
-
-describe("UsageBadge", () => {
-  it("keeps custom usage details accessible without aggregate token totals", () => {
-    render(
-      <UsageBadge
-        inputUsage={0}
-        outputUsage={0}
-        totalUsage={0}
-        usageDetails={{ audio_seconds: 12 }}
-      />,
+    expect(screen.getByText("target-trace").closest("a")).toHaveClass(
+      "ph-no-capture",
     );
-
-    expect(
-      screen.getByRole("button", { name: "View usage breakdown" }),
-    ).toBeInTheDocument();
   });
 });

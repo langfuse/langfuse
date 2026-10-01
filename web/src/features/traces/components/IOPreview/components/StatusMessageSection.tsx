@@ -50,9 +50,7 @@ export function StatusMessageSection({
     <div>
       <MarkdownJsonViewHeader
         title={presentation.title}
-        handleOnValueChange={() => undefined}
         handleOnCopy={() => copyTextToClipboard(status.message)}
-        canEnableMarkdown={false}
         inset
       />
       <div

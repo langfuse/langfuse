@@ -57,7 +57,7 @@ function createClusterFitter(budgetPx: number, gapPx: number) {
 }
 
 export type RowMetrics = {
-  /** Already formatted, e.g. `∑ $0.02`. */
+  /** Already formatted, e.g. `$0.02`. */
   costText?: string | null;
 };
 
@@ -93,28 +93,34 @@ export function TimelineRowMetrics({
   const spaceBefore = Math.max(row.x - gapPx, 0);
   const spaceAfter = Math.max(laneWidth - (row.x + row.width + gapPx), 0);
   const spaceInside = Math.max(row.width - insetPx * 2, 0);
-  const placement =
-    spaceAfter >= spaceBefore && spaceAfter >= spaceInside
-      ? "after"
-      : spaceBefore >= spaceInside
-        ? "before"
-        : "inside";
+  const placement = (() => {
+    if (spaceAfter >= spaceBefore && spaceAfter >= spaceInside) {
+      return "after";
+    }
+    if (spaceBefore >= spaceInside) {
+      return "before";
+    }
+    return "inside";
+  })();
 
-  const style =
-    placement === "before"
-      ? {
-          right: `${Math.max(laneWidth - row.x + gapPx, 0)}px`,
-          maxWidth: `${spaceBefore}px`,
-        }
-      : placement === "inside"
-        ? {
-            left: `${row.x + insetPx}px`,
-            maxWidth: `${Math.max(row.width - insetPx * 2, 0)}px`,
-          }
-        : {
-            left: `${row.x + row.width + gapPx}px`,
-            maxWidth: `${spaceAfter}px`,
-          };
+  const style = (() => {
+    if (placement === "before") {
+      return {
+        right: `${Math.max(laneWidth - row.x + gapPx, 0)}px`,
+        maxWidth: `${spaceBefore}px`,
+      };
+    }
+    if (placement === "inside") {
+      return {
+        left: `${row.x + insetPx}px`,
+        maxWidth: `${Math.max(row.width - insetPx * 2, 0)}px`,
+      };
+    }
+    return {
+      left: `${row.x + row.width + gapPx}px`,
+      maxWidth: `${spaceAfter}px`,
+    };
+  })();
 
   const fits = createClusterFitter(
     Number.parseFloat(style.maxWidth),

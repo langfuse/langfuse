@@ -5,11 +5,11 @@ import {
 } from "@/src/server/api/trpc";
 import {
   orderBy,
-  singleFilter,
+  singleFilterList,
   optionalPaginationZod,
   LangfuseConflictError,
 } from "@langfuse/shared";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
   DashboardService,
@@ -29,7 +29,7 @@ const CreateDashboardWidgetInput = z.object({
   view: views,
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
-  filters: z.array(singleFilter),
+  filters: singleFilterList,
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
 });
@@ -43,7 +43,7 @@ const UpdateDashboardWidgetInput = z.object({
   view: views,
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
-  filters: z.array(singleFilter),
+  filters: singleFilterList,
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
 });

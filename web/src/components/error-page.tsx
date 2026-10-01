@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Button } from "@/src/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { useSession } from "next-auth/react";

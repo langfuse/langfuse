@@ -45,6 +45,18 @@ const sizeTokens = parsed.inlineTokens
 const weightTokenFor = (sizeName: string) =>
   parsed.inlineTokens.find((t) => t.name === `${sizeName}--font-weight`);
 
+const lineHeightTokenFor = (sizeName: string) =>
+  parsed.inlineTokens.find((t) => t.name === `${sizeName}--line-height`);
+
+/** `calc(20 / 13)` or `1.4` → px at the given size. */
+const lineHeightPx = (value: string, sizePx: number) => {
+  const ratio = value.match(/calc\(\s*([\d.]+)\s*\/\s*([\d.]+)\s*\)/);
+  const factor = ratio
+    ? Number(ratio[1]) / Number(ratio[2])
+    : parseFloat(value);
+  return Number.isFinite(factor) ? factor * sizePx : undefined;
+};
+
 /** First family in the (var-resolved) stack, e.g. `Inter` or `ui-monospace`. */
 const familyName = (token: TokenDeclaration) =>
   resolveStatic(token.value).split(",")[0].trim().replace(/^"|"$/g, "");
@@ -74,6 +86,10 @@ function TypeScaleRow({ token }: { token: TokenDeclaration }) {
     ? resolveStatic(weightToken.value)
     : undefined;
   const declaredPx = parseFloat(token.value) * 16;
+  const lineHeightToken = lineHeightTokenFor(token.name);
+  const leadingPx = lineHeightToken
+    ? lineHeightPx(lineHeightToken.value, declaredPx)
+    : undefined;
   const usage = SIZE_USAGE[token.name];
 
   return (
@@ -84,6 +100,7 @@ function TypeScaleRow({ token }: { token: TokenDeclaration }) {
           className="text-foreground block truncate"
           style={{
             fontSize: token.value,
+            lineHeight: lineHeightToken?.value,
             fontWeight: weightValue ? Number(weightValue) : undefined,
           }}
         >
@@ -95,6 +112,7 @@ function TypeScaleRow({ token }: { token: TokenDeclaration }) {
       </div>
       <div className="text-muted-foreground font-mono text-[11px] leading-4">
         {token.value} / {formatPx(declaredPx)}
+        {leadingPx !== undefined && ` · line ${formatPx(leadingPx)}`}
       </div>
       <div className="min-w-0 font-mono text-[11px] leading-4">
         {usage ? (
@@ -275,7 +293,7 @@ export function Typography() {
 
         <PageSection
           title="Type scale"
-          blurb="Each size carries its canonical weight. No line-height; opt in with leading-*."
+          blurb="Each size carries its weight and its line-height: the three text sizes share 1.5, display sizes tighten to 1.35 and below. leading-* is for single-line chrome only."
           aside={<InlineCode>{sizeTokens.length} sizes</InlineCode>}
         >
           <div className="flex flex-col">

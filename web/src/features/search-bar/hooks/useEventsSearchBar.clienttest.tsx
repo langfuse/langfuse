@@ -176,6 +176,28 @@ describe("useEventsSearchBar.commit", () => {
       );
     },
   );
+  it("records payload scope intent once without sending the phrase", () => {
+    const { result } = setup({ searchQuery: null });
+    act(() =>
+      result.current.store
+        .getState()
+        .actions.setDraft('input:"private payload phrase"'),
+    );
+    act(() => result.current.commit("enter"));
+    act(() => result.current.commit("blur"));
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(capture).toHaveBeenCalledWith(
+      "filters:search_submitted",
+      expect.objectContaining({
+        searchScopes: ["input"],
+        hasFreeText: false,
+      }),
+    );
+    expect(JSON.stringify(capture.mock.calls)).not.toContain(
+      "private payload phrase",
+    );
+  });
+
   it("commits outside a project without writing project recent searches", () => {
     const recordRecentSearch = vi
       .spyOn(recentSearches, "recordRecentSearch")

@@ -79,6 +79,7 @@ export const [createScoreTool, handleCreateScore] = defineTool({
     "Create one score in the current Langfuse project.",
     "Score reads are eventually consistent: after creation, getScore and listScores may not return the new score immediately. Wait briefly and retry reads when confirming creation.",
   ].join("\n"),
+  action: "scores:create",
   baseSchema: CreateScoreBaseSchema,
   inputSchema: PostScoresBodyV1,
   destructiveHint: true,

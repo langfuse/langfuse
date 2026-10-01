@@ -8,12 +8,6 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/src/env.mjs", () => ({ env: h.env }));
-// The container only reads the offset and registers its height; neither
-// affects the rendered content under test.
-vi.mock("@/src/features/top-banner", () => ({
-  useTopBanner: () => ({ getTopBannerOffset: () => 0 }),
-  useTopBannerRegistration: () => {},
-}));
 
 describe("PreviewDeploymentBanner", () => {
   afterEach(() => {

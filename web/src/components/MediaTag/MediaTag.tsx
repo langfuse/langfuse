@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import * as React from "react";
 import {
@@ -100,7 +101,7 @@ const MEDIA_KIND_ICON = {
 } satisfies Record<MediaKind, LucideIcon>;
 
 const mediaTagVariants = cva(
-  "focus-visible:ring-ring inline-flex h-3.5 max-w-full items-center gap-1 rounded-sm border px-1 py-0 align-middle text-xs leading-none transition-colors focus-visible:ring-2 focus-visible:outline-hidden",
+  "focus-visible:ring-ring inline-flex h-3.5 max-w-full items-center gap-1 rounded-sm border px-1 py-0 align-middle text-xs leading-4 transition-colors focus-visible:ring-2 focus-visible:outline-hidden",
   {
     variants: {
       intent: {
@@ -275,7 +276,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
             )}
             <span
               className={cn(
-                "relative top-0.25 truncate align-baseline font-mono leading-none",
+                "truncate font-mono leading-4",
                 hasGeneratedLabel && "max-w-[10ch]",
               )}
               // Empty while the peek is open: a native tooltip would render on
@@ -296,7 +297,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
             <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
               <KindIcon kind={kind} className="h-3.5 w-3.5 shrink-0" />
               <span
-                className="max-w-[20ch] truncate font-mono leading-none"
+                className="max-w-[20ch] truncate font-mono leading-4"
                 title={contentType}
               >
                 {contentType}

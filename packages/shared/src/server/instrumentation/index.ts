@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   CloudWatchClient,
   PutMetricDataCommand,
@@ -272,7 +273,7 @@ const sendCloudWatchMetric = (key: string, value: number, replace: boolean) => {
 };
 
 // Flush all cached metrics in a single API call
-const flushMetricsToCloudWatch = () => {
+export const flushMetricsToCloudWatch = () => {
   if (Object.keys(metricCache).length === 0) return;
 
   lastFlushTime = Date.now();

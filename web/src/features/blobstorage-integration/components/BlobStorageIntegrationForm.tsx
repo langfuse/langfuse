@@ -21,7 +21,7 @@ import {
   blobStorageIntegrationFormSchema,
   type BlobStorageIntegrationFormSchema,
 } from "@/src/features/blobstorage-integration/types";
-import { isExportSourceSelectable } from "@/src/features/analytics-integrations/exportSource";
+import { isExportSourceSelectable } from "@/src/features/analytics-integrations";
 import { type BlobStorageFormValues } from "@/src/features/blobstorage-integration/components/formValues";
 import { StorageProviderFields } from "@/src/features/blobstorage-integration/components/StorageProviderFields";
 import { ExportScheduleFields } from "@/src/features/blobstorage-integration/components/ExportScheduleFields";

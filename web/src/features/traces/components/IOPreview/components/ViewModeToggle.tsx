@@ -1,8 +1,9 @@
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useJsonBetaToggle } from "@/src/features/traces/hooks/useJsonBetaToggle";
+import { type JsonViewPreference } from "@/src/components/ui/jsonViewPreference";
 
-export type ViewMode = "pretty" | "json" | "json-beta";
+export type ViewMode = JsonViewPreference;
 
 export interface ViewModeToggleProps {
   selectedView: ViewMode;
@@ -32,7 +33,7 @@ export function ViewModeToggle({
         >
           <Tabs.List size="sm">
             <Tabs.Trigger value="pretty" size="sm" label="Formatted" />
-            <Tabs.Trigger value="json" size="sm" label="JSON" />
+            <Tabs.Trigger value="json" size="sm" label="Raw" />
           </Tabs.List>
         </Tabs>
       </div>

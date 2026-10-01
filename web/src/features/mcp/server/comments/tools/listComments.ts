@@ -1,6 +1,6 @@
 import { CommentObjectType, publicApiPaginationZod } from "@langfuse/shared";
 import { z } from "zod";
-import { listCommentsForApi } from "@/src/features/comments/server/publicCommentService";
+import { listCommentsForApi } from "@/src/features/comments/server";
 import {
   GetCommentsV1Query,
   GetCommentsV1Response,
@@ -22,6 +22,7 @@ export const [listCommentsTool, handleListComments] = defineTool({
   name: "listComments",
   description:
     "List comments in the current Langfuse project, optionally filtered by object or author.",
+  action: "comments:read",
   baseSchema: ListCommentsBaseSchema,
   inputSchema: GetCommentsV1Query,
   handler: async (input, context) =>

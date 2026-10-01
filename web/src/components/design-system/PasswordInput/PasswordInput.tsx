@@ -1,5 +1,6 @@
 import { useState, type InputHTMLAttributes, type Ref } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { InputControl } from "../internal/InputControl/InputControl";
 
 type PasswordInputProps = Pick<
   InputHTMLAttributes<HTMLInputElement>,
@@ -22,41 +23,40 @@ type PasswordInputProps = Pick<
   | "tabIndex"
   | "value"
 > & {
+  allowPasswordManager?: boolean;
+  error?: boolean;
   ref?: Ref<HTMLInputElement>;
 };
 
-export function PasswordInput({ ref, disabled, ...props }: PasswordInputProps) {
+export function PasswordInput({
+  allowPasswordManager,
+  ref,
+  disabled,
+  error,
+  ...props
+}: PasswordInputProps) {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const VisibilityIcon = isPasswordVisible ? EyeOff : Eye;
 
   return (
-    <div className="relative">
+    <InputControl
+      contentLayout="text"
+      error={error}
+      trailingAction={{
+        label: isPasswordVisible ? "Hide password" : "Show password",
+        icon: VisibilityIcon,
+        disabled,
+        pressed: isPasswordVisible,
+        onClick: () => setIsPasswordVisible((visible) => !visible),
+      }}
+    >
       <input
         {...props}
+        {...(!allowPasswordManager && { "data-1p-ignore": true })}
         ref={ref}
         type={isPasswordVisible ? "text" : "password"}
         disabled={disabled}
-        className="border-input bg-background ring-offset-background placeholder:text-foreground-tertiary focus-visible:ring-ring flex h-8 w-full rounded-md border px-3 py-2 pr-10 text-sm file:border-0 file:bg-transparent file:text-sm file:font-bold focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
       />
-      <button
-        type="button"
-        aria-label={isPasswordVisible ? "Hide password" : "Show password"}
-        aria-pressed={isPasswordVisible}
-        disabled={disabled}
-        // Keep the reveal toggle out of the tab order so Tab moves between the
-        // form's inputs. It stays reachable for pointer and screen reader users.
-        tabIndex={-1}
-        className="absolute top-1/2 right-3 -translate-y-1/2 transform cursor-pointer disabled:cursor-not-allowed"
-        onClick={() => setIsPasswordVisible((visible) => !visible)}
-      >
-        {isPasswordVisible ? (
-          <EyeOff
-            aria-hidden="true"
-            className="text-muted-foreground h-5 w-5"
-          />
-        ) : (
-          <Eye aria-hidden="true" className="text-muted-foreground h-5 w-5" />
-        )}
-      </button>
-    </div>
+    </InputControl>
   );
 }

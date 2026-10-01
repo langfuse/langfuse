@@ -3,9 +3,9 @@ import {
   type PrismaClient,
   prisma as defaultPrisma,
 } from "@langfuse/shared/src/db";
-import { InternalServerError } from "@langfuse/shared";
+import { type InternalServerError } from "@langfuse/shared";
 
-import { type ErrorResult, type Success } from "./types";
+import { internalServerError, type ErrorResult, type Success } from "./types";
 
 /** OrganizationRepository reads an org with its live projects, returning a null miss or an infra failure as a value. */
 export class OrganizationRepository {
@@ -22,12 +22,9 @@ export class OrganizationRepository {
       });
       return { success: true, organization };
     } catch (error) {
-      return {
-        success: false,
-        error: new InternalServerError(
-          `failed to load org ${orgId}: ${String(error)}`,
-        ),
-      };
+      return internalServerError(
+        `failed to load org ${orgId}: ${String(error)}`,
+      );
     }
   }
 
@@ -46,12 +43,9 @@ export class OrganizationRepository {
           : null,
       };
     } catch (error) {
-      return {
-        success: false,
-        error: new InternalServerError(
-          `failed to load org for project ${projectId}: ${String(error)}`,
-        ),
-      };
+      return internalServerError(
+        `failed to load org for project ${projectId}: ${String(error)}`,
+      );
     }
   }
 }

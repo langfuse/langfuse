@@ -13,7 +13,7 @@ import {
   validateExportFieldGroups,
 } from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
-import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
+import { resolveExportSource } from "@/src/features/analytics-integrations/server";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { env } from "@/src/env.mjs";
@@ -34,12 +34,15 @@ import {
   InvalidRequestError,
 } from "@langfuse/shared";
 
-const getAuditLogErrorType = (error: unknown) =>
-  error instanceof TRPCError
-    ? error.code
-    : error instanceof Error
-      ? error.name
-      : "UnknownError";
+const getAuditLogErrorType = (error: unknown) => {
+  if (error instanceof TRPCError) {
+    return error.code;
+  }
+  if (error instanceof Error) {
+    return error.name;
+  }
+  return "UnknownError";
+};
 
 const formatRootCause = (err: Error): string => {
   // SDK errors (e.g. S3, GCS) carry a descriptive name like

@@ -1,5 +1,8 @@
 import { Card } from "@/src/components/ui/card";
-import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
+import {
+  EvaluatorForm,
+  useEvaluatorFormTemplate,
+} from "@/src/features/evals/components/evaluator-form";
 import { type RouterOutputs } from "@/src/utils/api";
 
 type RunEvaluatorFormProps = {
@@ -13,15 +16,21 @@ export function RunEvaluatorForm({
   evaluatorId,
   evalTemplates,
 }: RunEvaluatorFormProps) {
+  const evalTemplate = useEvaluatorFormTemplate({
+    evalTemplates,
+    templateId: evaluatorId,
+  });
+
   return (
     <Card className="grid p-3">
-      <EvaluatorForm
-        projectId={projectId}
-        evalTemplates={evalTemplates}
-        templateId={evaluatorId}
-        preventRedirect={false}
-        useDialog={false}
-      />
+      {evalTemplate && (
+        <EvaluatorForm
+          projectId={projectId}
+          evalTemplate={evalTemplate}
+          preventRedirect={false}
+          useDialog={false}
+        />
+      )}
     </Card>
   );
 }

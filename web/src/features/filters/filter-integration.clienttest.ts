@@ -933,6 +933,7 @@ describe("Saved view validation", () => {
     const defaultPreset = getSessionDetailPresetToApply({
       selectedViewId: null,
       hasFilters: false,
+      isTimelineEnabled: false,
     });
     expect(defaultPreset).toEqual(SESSION_DETAIL_SYSTEM_PRESETS[0]);
     expect(defaultPreset?.name).toBe("All observations with I/O");
@@ -962,12 +963,20 @@ describe("Saved view validation", () => {
     const appliedFirstLlmCall = getSessionDetailPresetToApply({
       selectedViewId: firstLlmCallPreset?.id ?? null,
       hasFilters: false,
+      isTimelineEnabled: true,
     });
     const lastPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
       (preset) => preset.name === "Last LLM Call per Trace",
     );
 
     expect(appliedFirstLlmCall).toEqual(firstLlmCallPreset);
+    expect(
+      getSessionDetailPresetToApply({
+        selectedViewId: null,
+        hasFilters: false,
+        isTimelineEnabled: true,
+      }),
+    ).toBeNull();
     expect(firstLlmCallPreset?.filters).toEqual([
       {
         column: "type",
