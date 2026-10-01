@@ -7,27 +7,61 @@ import {
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import {
+  assignRole,
+  getRoleAssignmentsForPrincipal,
   revokeApiKeyRolesForOwners,
   transferRoleAssignments,
 } from "@langfuse/shared/rbac/server";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  ApiKeyId,
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+
+describe("role assignment integrity", () => {
+  it("rejects assignments for a user that does not exist", async () => {
+    const project = await prisma.project.create({
+      data: {
+        name: v4(),
+        organization: { create: { name: v4() } },
+      },
+    });
+
+    await expect(
+      assignRole(prisma, {
+        principalId: UserId(v4()),
+        ownerId: ProjectId(project.id),
+        roleId: SystemRoleId("VIEWER"),
+        tags: [],
+      }),
+    ).rejects.toMatchObject({ code: "P2003" });
+  });
+});
 
 async function addUserAssignment(orgId: string, projectId: string) {
-  await prisma.systemRoleAssignment.create({
+  const user = await prisma.user.create({
+    data: { email: `${v4()}@example.com` },
+  });
+  const assignment = await prisma.roleAssignment.create({
     data: {
       orgId,
-      principalId: UserId(v4()),
-      ownerId: ProjectId(projectId),
+      principalUserId: user.id,
+      ownerProjectId: projectId,
       systemRole: "VIEWER",
     },
   });
+  return { ...assignment, principalUserId: user.id };
 }
 
 async function assignmentsFor(projectId: string, prefix: string) {
-  return prisma.systemRoleAssignment.findMany({
+  return prisma.roleAssignment.findMany({
     where: {
-      ownerId: ProjectId(projectId),
-      principalId: { startsWith: prefix },
+      ownerProjectId: projectId,
+      ...(prefix === "apiKey/"
+        ? { principalApiKeyId: { not: null } }
+        : { principalUserId: { not: null } }),
     },
   });
 }
@@ -41,9 +75,9 @@ describe("transferRoleAssignments", () => {
     });
     const failingPrisma = prisma.$extends({
       query: {
-        systemRoleAssignment: {
+        roleAssignment: {
           deleteMany({ args, query }) {
-            if (args.where?.ownerId === ProjectId(projectId)) {
+            if (args.where?.ownerProjectId === projectId) {
               throw new Error("assignment deletion failed");
             }
             return query(args);
@@ -80,12 +114,12 @@ describe("transferRoleAssignments", () => {
         });
         await transferRoleAssignments(tx, projectId, targetOrg.id);
 
-        const assignments = await tx.systemRoleAssignment.findMany({
-          where: { ownerId: ProjectId(projectId) },
+        const assignments = await tx.roleAssignment.findMany({
+          where: { ownerProjectId: projectId },
         });
         expect(assignments).toHaveLength(1);
         expect(assignments[0].orgId).toBe(targetOrg.id);
-        expect(assignments[0].principalId).toMatch(/^apiKey\//);
+        expect(assignments[0].principalApiKeyId).not.toBeNull();
         throw new Error("outer transaction failed");
       }),
     ).rejects.toThrow("outer transaction failed");
@@ -137,5 +171,172 @@ describe("revokeApiKeyRolesForOwners", () => {
     expect(await assignmentsFor(projectId, "apiKey/")).toHaveLength(0);
     expect(await assignmentsFor(projectId, "user/")).toHaveLength(1);
     expect(await assignmentsFor(otherProject.id, "apiKey/")).toHaveLength(1);
+  });
+});
+
+describe("role assignment foreign keys", () => {
+  it.each([
+    ["user", "organization"],
+    ["user", "project"],
+    ["api key", "organization"],
+    ["api key", "project"],
+  ] as const)(
+    "rejects duplicate %s assignments on an %s owner",
+    async (principal, owner) => {
+      const { projectId, orgId } = await createOrgProjectAndApiKey();
+      const key = await prisma.apiKey.findFirstOrThrow({
+        where: { projectId },
+      });
+      const user = await prisma.user.create({
+        data: { email: `${v4()}@example.com` },
+      });
+      const assignment = {
+        principalId: principal === "user" ? UserId(user.id) : ApiKeyId(key.id),
+        ownerId:
+          owner === "organization"
+            ? OrganizationId(orgId)
+            : ProjectId(projectId),
+        roleId: SystemRoleId("VIEWER"),
+        tags: [],
+      };
+      await assignRole(prisma, assignment);
+
+      await expect(assignRole(prisma, assignment)).rejects.toMatchObject({
+        code: "P2002",
+      });
+    },
+  );
+
+  it.each([
+    "principalUserId",
+    "principalApiKeyId",
+    "ownerOrgId",
+    "ownerProjectId",
+  ] as const)("rejects a missing %s", async (field) => {
+    const { projectId, orgId } = await createOrgProjectAndApiKey();
+    const user = await prisma.user.create({
+      data: { email: `${v4()}@example.com` },
+    });
+    const data = {
+      orgId,
+      principalUserId: field === "principalApiKeyId" ? null : user.id,
+      ownerProjectId: field === "ownerOrgId" ? null : projectId,
+      systemRole: "VIEWER" as const,
+      [field]: v4(),
+    };
+
+    await expect(prisma.roleAssignment.create({ data })).rejects.toMatchObject({
+      code: "P2003",
+    });
+  });
+
+  it.each([
+    "both principals",
+    "neither principal",
+    "both owners",
+    "neither owner",
+  ] as const)("rejects assignments with %s", async (invalidShape) => {
+    const { projectId, orgId } = await createOrgProjectAndApiKey();
+    const key = await prisma.apiKey.findFirstOrThrow({ where: { projectId } });
+    const user = await prisma.user.create({
+      data: { email: `${v4()}@example.com` },
+    });
+    const data = {
+      orgId,
+      principalUserId: invalidShape === "neither principal" ? null : user.id,
+      principalApiKeyId: invalidShape === "both principals" ? key.id : null,
+      ownerProjectId: invalidShape === "neither owner" ? null : projectId,
+      ownerOrgId: invalidShape === "both owners" ? orgId : null,
+      systemRole: "VIEWER" as const,
+    };
+
+    await expect(prisma.roleAssignment.create({ data })).rejects.toThrow(
+      /check constraint/,
+    );
+  });
+
+  it.each(["user", "api key", "project", "organization"] as const)(
+    "cascades assignments when deleting their %s",
+    async (deletedEntity) => {
+      const { projectId, orgId } = await createOrgProjectAndApiKey();
+      const key = await prisma.apiKey.findFirstOrThrow({
+        where: { projectId },
+      });
+      const userAssignment = await addUserAssignment(orgId, projectId);
+      await assignRole(prisma, {
+        ownerId: OrganizationId(orgId),
+        principalId: UserId(userAssignment.principalUserId),
+        roleId: SystemRoleId("VIEWER"),
+        tags: [],
+      });
+
+      const affectedAssignments = await prisma.roleAssignment.findMany({
+        where: {
+          user: { principalUserId: userAssignment.principalUserId },
+          "api key": { principalApiKeyId: key.id },
+          project: { ownerProjectId: projectId },
+          organization: { orgId },
+        }[deletedEntity],
+      });
+      expect(affectedAssignments.length).toBeGreaterThan(0);
+
+      if (deletedEntity === "user")
+        await prisma.user.delete({
+          where: { id: userAssignment.principalUserId },
+        });
+      if (deletedEntity === "api key")
+        await prisma.apiKey.delete({ where: { id: key.id } });
+      if (deletedEntity === "project")
+        await prisma.project.delete({ where: { id: projectId } });
+      if (deletedEntity === "organization")
+        await prisma.organization.delete({ where: { id: orgId } });
+
+      expect(
+        await prisma.roleAssignment.count({
+          where: { id: { in: affectedAssignments.map(({ id }) => id) } },
+        }),
+      ).toBe(0);
+    },
+  );
+
+  it("loads tagged principal, owner, role, and tenant identifiers for both principal kinds", async () => {
+    const { projectId, orgId } = await createOrgProjectAndApiKey();
+    const key = await prisma.apiKey.findFirstOrThrow({ where: { projectId } });
+    const assignment = await addUserAssignment(orgId, projectId);
+    const principalId = UserId(assignment.principalUserId);
+    await assignRole(prisma, {
+      ownerId: OrganizationId(orgId),
+      principalId,
+      roleId: SystemRoleId("ADMIN"),
+      tags: [],
+    });
+
+    expect(await getRoleAssignmentsForPrincipal(prisma, principalId)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          principalId,
+          tenantId: OrganizationId(orgId),
+          ownerId: ProjectId(projectId),
+          roleId: SystemRoleId("VIEWER"),
+          role: expect.objectContaining({ name: "Viewer" }),
+        }),
+        expect.objectContaining({
+          principalId,
+          tenantId: OrganizationId(orgId),
+          ownerId: OrganizationId(orgId),
+          roleId: SystemRoleId("ADMIN"),
+        }),
+      ]),
+    );
+    expect(
+      await getRoleAssignmentsForPrincipal(prisma, ApiKeyId(key.id)),
+    ).toEqual([
+      expect.objectContaining({
+        principalId: ApiKeyId(key.id),
+        tenantId: OrganizationId(orgId),
+        ownerId: ProjectId(projectId),
+        roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      }),
+    ]);
   });
 });

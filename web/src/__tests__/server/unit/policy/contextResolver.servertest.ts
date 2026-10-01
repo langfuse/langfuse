@@ -35,25 +35,38 @@ const orgRow = (
   }) as unknown as OrganizationWithProjects;
 
 // Backfilled keys receive their legacy role, owned by their project or organization.
-const assignmentsFor = (principalId: string) => {
-  if (principalId === "apiKey/key_o")
+const assignmentsFor = (principalApiKeyId: string) => {
+  const principal = { principalApiKeyId, principalUserId: null };
+  if (principalApiKeyId === "key_o")
     return [
       {
         systemRole: "LEGACY_ORGANIZATION_API_KEY",
-        ownerId: `organization/${ORG}`,
+        ...principal,
+        ownerOrgId: ORG,
+        ownerProjectId: null,
         orgId: ORG,
       },
     ];
-  if (principalId === "apiKey/key_p")
+  if (principalApiKeyId === "key_p")
     return [
       {
         systemRole: "LEGACY_PROJECT_API_KEY",
-        ownerId: `project/${PRJ}`,
+        ...principal,
+        ownerOrgId: null,
+        ownerProjectId: PRJ,
         orgId: ORG,
       },
     ];
-  if (principalId === "apiKey/key_v")
-    return [{ systemRole: "VIEWER", ownerId: `project/${PRJ}`, orgId: ORG }];
+  if (principalApiKeyId === "key_v")
+    return [
+      {
+        ...principal,
+        systemRole: "VIEWER",
+        ownerOrgId: null,
+        ownerProjectId: PRJ,
+        orgId: ORG,
+      },
+    ];
   return [];
 };
 
@@ -63,9 +76,9 @@ const mockPrisma = (row: OrganizationWithProjects | null): PrismaClient =>
       findUnique: async () => row,
       findFirst: async () => row,
     },
-    systemRoleAssignment: {
-      findMany: async ({ where }: { where: { principalId: string } }) =>
-        assignmentsFor(where.principalId),
+    roleAssignment: {
+      findMany: async ({ where }: { where: { principalApiKeyId: string } }) =>
+        assignmentsFor(where.principalApiKeyId),
     },
     project: {
       findMany: async () => (row?.projects ?? []).map((p) => ({ id: p.id })),

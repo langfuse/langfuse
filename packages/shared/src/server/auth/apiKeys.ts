@@ -230,8 +230,7 @@ export async function deleteApiKeyFromDb(p: {
 
   // Delete the row and its assignment atomically, then evict the cache after
   // the commit so a concurrent authentication cannot re-cache the key from a
-  // row that is about to be gone. principalId is a tagged string, not an FK, so
-  // the delete does not cascade to the assignment.
+  // row that is about to be gone.
   await p.prisma.$transaction(async (tx) => {
     await tx.apiKey.delete({ where: { id: apiKey.id } });
     await revokeRolesForPrincipals(tx, [ApiKeyId(apiKey.id)]);

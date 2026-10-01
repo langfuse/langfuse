@@ -1,7 +1,7 @@
 import {
   type PrismaClient,
   type Prisma,
-  type SystemRoleAssignment,
+  type RoleAssignment as StoredRoleAssignment,
 } from "@prisma/client";
 import { withTransaction } from "../../server/utils/withTransaction";
 import {
@@ -13,7 +13,9 @@ import {
   ApiKeyId,
   OrganizationId,
   ProjectId,
+  SystemRoleId,
   UserId,
+  hasApiKeyKind,
   hasOrganizationKind,
   hasProjectKind,
   hasSystemRoleKind,
@@ -28,27 +30,19 @@ import {
 type Tx = PrismaClient | Prisma.TransactionClient;
 
 /** An assignment with its system-role definition attached. */
-export type SystemRoleAssignmentWithRole = SystemRoleAssignment & {
+export type RoleAssignmentWithRole = RoleAssignment & {
   role: SystemRoleDefinition;
 };
-
-/** apiKeyPrincipalPrefix is the tag prefix every api-key principal id carries. */
-const apiKeyPrincipalPrefix = ApiKeyId("");
-/** userPrincipalPrefix is the tag prefix every user principal id carries. */
-const userPrincipalPrefix = UserId("");
 
 /** Loads a principal's assignments with their system-role definitions. */
 export async function getRoleAssignmentsForPrincipal(
   tx: Tx,
   principalId: PrincipalId,
-): Promise<SystemRoleAssignmentWithRole[]> {
-  const assignments = await tx.systemRoleAssignment.findMany({
-    where: { principalId },
+): Promise<RoleAssignmentWithRole[]> {
+  const assignments = await tx.roleAssignment.findMany({
+    where: principalFields(principalId),
   });
-  return assignments.map((assignment) => ({
-    ...assignment,
-    role: systemRoleAccessRights[assignment.systemRole],
-  }));
+  return assignments.map(toRoleAssignment);
 }
 
 /** assignRole persists the assignment, deriving the owner's tenant from the database. */
@@ -65,7 +59,7 @@ export async function revokeRolesForOwner(
   tx: Tx,
   ownerId: OwnerId,
 ): Promise<void> {
-  await tx.systemRoleAssignment.deleteMany({ where: { ownerId } });
+  await tx.roleAssignment.deleteMany({ where: ownerFields(ownerId) });
 }
 
 /** revokeRolesForPrincipals deletes assignments for a set of principals, e.g. bulk key removal. */
@@ -74,8 +68,8 @@ export async function revokeRolesForPrincipals(
   principalIds: PrincipalId[],
 ): Promise<void> {
   if (principalIds.length === 0) return;
-  await tx.systemRoleAssignment.deleteMany({
-    where: { principalId: { in: principalIds } },
+  await tx.roleAssignment.deleteMany({
+    where: { OR: principalIds.map(principalFields) },
   });
 }
 
@@ -85,10 +79,10 @@ export async function revokeApiKeyRolesForOwners(
   ownerIds: OwnerId[],
 ): Promise<void> {
   if (ownerIds.length === 0) return;
-  await tx.systemRoleAssignment.deleteMany({
+  await tx.roleAssignment.deleteMany({
     where: {
-      ownerId: { in: ownerIds },
-      principalId: { startsWith: apiKeyPrincipalPrefix },
+      OR: ownerIds.map(ownerFields),
+      principalApiKeyId: { not: null },
     },
   });
 }
@@ -99,14 +93,13 @@ export async function transferRoleAssignments(
   projectId: string,
   targetOrgId: string,
 ): Promise<void> {
-  const ownerId = ProjectId(projectId);
   await withTransaction(prisma, async (tx) => {
-    await tx.systemRoleAssignment.updateMany({
-      where: { ownerId, principalId: { startsWith: apiKeyPrincipalPrefix } },
+    await tx.roleAssignment.updateMany({
+      where: { ownerProjectId: projectId, principalApiKeyId: { not: null } },
       data: { orgId: targetOrgId },
     });
-    await tx.systemRoleAssignment.deleteMany({
-      where: { ownerId, principalId: { startsWith: userPrincipalPrefix } },
+    await tx.roleAssignment.deleteMany({
+      where: { ownerProjectId: projectId, principalUserId: { not: null } },
     });
   });
 }
@@ -130,15 +123,64 @@ async function createRoleAssignment(
   ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">,
 ): Promise<void> {
   if (hasSystemRoleKind(ra.roleId)) {
-    await tx.systemRoleAssignment.create({
+    await tx.roleAssignment.create({
       data: {
         orgId: untag(ra.tenantId),
-        principalId: ra.principalId,
-        ownerId: ra.ownerId,
+        ...principalFields(ra.principalId),
+        ...ownerFields(ra.ownerId),
         systemRole: toSystemRole(ra.roleId),
       },
     });
   } else {
     throw new Error("custom roles not yet supported");
   }
+}
+
+/** principalFields selects the foreign key for a tagged principal. */
+function principalFields(principalId: PrincipalId) {
+  return hasApiKeyKind(principalId)
+    ? { principalApiKeyId: untag(principalId) }
+    : { principalUserId: untag(principalId) };
+}
+
+/** ownerFields selects the foreign key for a tagged owner. */
+function ownerFields(ownerId: OwnerId) {
+  return hasProjectKind(ownerId)
+    ? { ownerProjectId: untag(ownerId) }
+    : { ownerOrgId: untag(ownerId) };
+}
+
+/** toRoleAssignment restores the tagged domain identifiers from foreign keys. */
+function toRoleAssignment(
+  assignment: StoredRoleAssignment,
+): RoleAssignmentWithRole {
+  return {
+    id: assignment.id,
+    tenantId: OrganizationId(assignment.orgId),
+    principalId: toPrincipalId(assignment),
+    ownerId: toOwnerId(assignment),
+    roleId: SystemRoleId(assignment.systemRole),
+    tags: [],
+    createdAt: assignment.createdAt,
+    updatedAt: assignment.updatedAt,
+    role: systemRoleAccessRights[assignment.systemRole],
+  };
+}
+
+/** toPrincipalId tags the populated principal foreign key. */
+function toPrincipalId(assignment: StoredRoleAssignment): PrincipalId {
+  if (assignment.principalUserId !== null)
+    return UserId(assignment.principalUserId);
+  if (assignment.principalApiKeyId !== null)
+    return ApiKeyId(assignment.principalApiKeyId);
+  throw new Error("role assignment requires a principal");
+}
+
+/** toOwnerId tags the populated owner foreign key. */
+function toOwnerId(assignment: StoredRoleAssignment): OwnerId {
+  if (assignment.ownerProjectId !== null)
+    return ProjectId(assignment.ownerProjectId);
+  if (assignment.ownerOrgId !== null)
+    return OrganizationId(assignment.ownerOrgId);
+  throw new Error("role assignment requires an owner");
 }

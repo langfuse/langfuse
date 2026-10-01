@@ -1043,7 +1043,7 @@ describe("Authenticate API calls", () => {
             return prisma.apiKey.delete({ where: { id: apiKey!.id } });
           },
         },
-        systemRoleAssignment: {
+        roleAssignment: {
           deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
         },
         $transaction: (fn: (tx: PrismaClient) => Promise<unknown>) =>

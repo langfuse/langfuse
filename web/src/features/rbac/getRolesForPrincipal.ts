@@ -1,9 +1,7 @@
 import {
   hasOrganizationKind,
   hasProjectKind,
-  OrganizationId,
   ProjectId,
-  SystemRoleId,
   type OwnerId,
   type PrincipalId,
   type ResourceId,
@@ -13,7 +11,7 @@ import {
 } from "@langfuse/shared/rbac";
 import {
   getRoleAssignmentsForPrincipal,
-  type SystemRoleAssignmentWithRole,
+  type RoleAssignmentWithRole,
 } from "@langfuse/shared/rbac/server";
 import {
   prisma as defaultPrisma,
@@ -32,11 +30,11 @@ export async function getRolesForPrincipal(
 }
 
 /** toRoles turns each assignment into a role whose policies are bound to the owner's resources. */
-function toRoles(ras: SystemRoleAssignmentWithRole[]): Role[] {
+function toRoles(ras: RoleAssignmentWithRole[]): Role[] {
   const resourcesByRoleId = toResourcesByRoleId(ras);
   return ras.map((ra) => {
-    const roleId = toRoleId(ra);
-    const tenantId = OrganizationId(ra.orgId);
+    const roleId = ra.roleId;
+    const tenantId = ra.tenantId;
     const resources = resourcesByRoleId[roleId] ?? [];
     const policies = ra.role.policies
       .map((policy) => bindPolicy(policy, roleId, tenantId, resources))
@@ -54,12 +52,12 @@ function toRoles(ras: SystemRoleAssignmentWithRole[]): Role[] {
 
 /** toResourcesByRoleId groups every role's bound resources across a principal's assignments. */
 function toResourcesByRoleId(
-  ras: SystemRoleAssignmentWithRole[],
+  ras: RoleAssignmentWithRole[],
 ): Partial<Record<RoleId, ResourceId[]>> {
   const out: Partial<Record<RoleId, ResourceId[]>> = {};
   for (const ra of ras) {
-    const roleId = toRoleId(ra);
-    const resources = resourcesForOwner(ra.ownerId as OwnerId);
+    const roleId = ra.roleId;
+    const resources = resourcesForOwner(ra.ownerId);
     out[roleId] = [...(out[roleId] ?? []), ...resources];
   }
   return out;
@@ -69,11 +67,6 @@ function toResourcesByRoleId(
 function resourcesForOwner(ownerId: OwnerId): ResourceId[] {
   if (hasProjectKind(ownerId)) return [ownerId];
   return [ownerId, ProjectId("*")];
-}
-
-/** toRoleId tags an assignment's system role as its role id. */
-function toRoleId(ra: SystemRoleAssignmentWithRole): RoleId {
-  return SystemRoleId(ra.systemRole);
 }
 
 /** bindPolicy binds a catalog policy to the tagged resources of its own kind, returning null when the kind has no matching resource so the policy is dropped rather than bound to nothing. */

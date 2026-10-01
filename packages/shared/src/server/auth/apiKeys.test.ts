@@ -99,8 +99,9 @@ describe("createApiKey assignment rows", () => {
   function makeTx() {
     const assignments: Array<{
       orgId: string;
-      principalId: string;
-      ownerId: string;
+      principalApiKeyId: string;
+      ownerOrgId?: string;
+      ownerProjectId?: string;
       systemRole: string;
     }> = [];
     let apiKeyData: Record<string, unknown> = {};
@@ -117,7 +118,7 @@ describe("createApiKey assignment rows", () => {
           };
         }),
       },
-      systemRoleAssignment: {
+      roleAssignment: {
         create: vi.fn(
           async ({ data }: { data: (typeof assignments)[number] }) => {
             assignments.push(data);
@@ -148,8 +149,8 @@ describe("createApiKey assignment rows", () => {
     expect(assignments).toEqual([
       {
         orgId: ORG_ID,
-        principalId: `apiKey/${KEY_ID}`,
-        ownerId: "project/proj_1",
+        principalApiKeyId: KEY_ID,
+        ownerProjectId: "proj_1",
         systemRole: "VIEWER",
       },
     ]);
@@ -174,8 +175,8 @@ describe("createApiKey assignment rows", () => {
     expect(assignments).toEqual([
       {
         orgId: ORG_ID,
-        principalId: `apiKey/${KEY_ID}`,
-        ownerId: `organization/${ORG_ID}`,
+        principalApiKeyId: KEY_ID,
+        ownerOrgId: ORG_ID,
         systemRole: "LEGACY_ORGANIZATION_API_KEY",
       },
     ]);

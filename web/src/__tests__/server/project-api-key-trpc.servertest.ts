@@ -189,11 +189,11 @@ describe("project API keys trpc", () => {
         role: "VIEWER",
       });
 
-      const assignment = await prisma.systemRoleAssignment.findFirstOrThrow({
-        where: { principalId: `apiKey/${key.id}` },
+      const assignment = await prisma.roleAssignment.findFirstOrThrow({
+        where: { principalApiKeyId: key.id },
       });
       expect(assignment.systemRole).toBe("VIEWER");
-      expect(assignment.ownerId).toBe(`project/${projectId}`);
+      expect(assignment.ownerProjectId).toBe(projectId);
     });
 
     it("accepts only the LEGACY_PROJECT_API_KEY role when enforce is off", async () => {
@@ -216,8 +216,8 @@ describe("project API keys trpc", () => {
           note: "legacy role off enforce",
           role: "LEGACY_PROJECT_API_KEY",
         });
-        const assignment = await prisma.systemRoleAssignment.findFirstOrThrow({
-          where: { principalId: `apiKey/${key.id}` },
+        const assignment = await prisma.roleAssignment.findFirstOrThrow({
+          where: { principalApiKeyId: key.id },
         });
         expect(assignment.systemRole).toBe("LEGACY_PROJECT_API_KEY");
       } finally {
@@ -269,11 +269,11 @@ describe("project API keys trpc", () => {
         select: { orgId: true },
       });
 
-      const assignment = await prisma.systemRoleAssignment.findFirstOrThrow({
-        where: { principalId: `apiKey/${key.id}` },
+      const assignment = await prisma.roleAssignment.findFirstOrThrow({
+        where: { principalApiKeyId: key.id },
       });
       expect(assignment.systemRole).toBe("LEGACY_PROJECT_API_KEY");
-      expect(assignment.ownerId).toBe(`project/${projectId}`);
+      expect(assignment.ownerProjectId).toBe(projectId);
       expect(assignment.orgId).toBe(project.orgId);
 
       await expect(
@@ -281,8 +281,8 @@ describe("project API keys trpc", () => {
       ).resolves.toBe(true);
 
       await expect(
-        prisma.systemRoleAssignment.count({
-          where: { principalId: `apiKey/${key.id}` },
+        prisma.roleAssignment.count({
+          where: { principalApiKeyId: key.id },
         }),
       ).resolves.toBe(0);
     });
