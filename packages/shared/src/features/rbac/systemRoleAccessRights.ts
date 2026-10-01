@@ -126,15 +126,15 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       policies: userRoleAccessRights("NONE"),
       tags: ["principal:user"],
     },
-    PROJECT: {
-      id: "PROJECT",
+    LEGACY_PROJECT_API_KEY: {
+      id: "LEGACY_PROJECT_API_KEY",
       name: "Project API key",
       description: "Read and write within a single project.",
       policies: [allow("project", projectKeyActions)],
       tags: ["principal:apiKey", "legacy"],
     },
-    ORGANIZATION: {
-      id: "ORGANIZATION",
+    LEGACY_ORGANIZATION_API_KEY: {
+      id: "LEGACY_ORGANIZATION_API_KEY",
       name: "Organization API key",
       description: "Administer the organization and all of its projects.",
       policies: [
@@ -189,7 +189,10 @@ export const isLegacyApiKeyRole = (role: SystemRole): boolean =>
 /** legacyApiKeyRoleForScope is the full-access role a scope's keys carried before per-key roles. */
 export const legacyApiKeyRoleForScope = (
   scope: "project" | "organization",
-): SystemRole => (scope === "project" ? "PROJECT" : "ORGANIZATION");
+): SystemRole =>
+  scope === "project"
+    ? "LEGACY_PROJECT_API_KEY"
+    : "LEGACY_ORGANIZATION_API_KEY";
 
 /** apiKeyRolesAcceptedForScope is the roles a scope's create input accepts: the UI roles plus the scope's legacy role. */
 export const apiKeyRolesAcceptedForScope = (

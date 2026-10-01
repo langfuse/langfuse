@@ -69,7 +69,7 @@ describe("Memberships APIs", () => {
     // Create an organization API key
     const apiKey = await createApiKey(prisma, {
       owner: OrganizationId(testOrgId),
-      role: SystemRoleId("ORGANIZATION"),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(testUserId),
       name: "Test API Key for Memberships API",
       predefinedKeys: {
@@ -145,7 +145,7 @@ describe("Memberships APIs", () => {
         // Create a project API key
         const projectApiKey = await createApiKey(prisma, {
           owner: ProjectId(testProjectId),
-          role: SystemRoleId("PROJECT"),
+          role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
           createdBy: UserId(testUserId),
           name: "Test API Key for Memberships API",
           predefinedKeys: {

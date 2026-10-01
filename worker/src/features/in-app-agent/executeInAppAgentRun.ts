@@ -387,7 +387,7 @@ export async function executeInAppAgentRun(params: {
     mcpApiKey = await prisma.$transaction(async (tx) => {
       const key = await createApiKey(tx, {
         owner: ProjectId(projectId),
-        role: SystemRoleId("PROJECT"),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(triggeredByUserId),
         name: IN_APP_AGENT_API_KEY_NOTE,
         isInAppAgentKey: true,

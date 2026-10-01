@@ -11,20 +11,23 @@ import {
   type SystemRolePolicy,
   type TenantId,
 } from "@langfuse/shared/rbac";
-import { type PrismaClient } from "@langfuse/shared/src/db";
-
 import {
-  getSystemRoles,
+  getRoleAssignmentsForPrincipal,
   type SystemRoleAssignmentWithRole,
-} from "@/src/features/rbac/getSystemRoles";
+} from "@langfuse/shared/rbac/server";
+import {
+  prisma as defaultPrisma,
+  type PrismaClient,
+} from "@langfuse/shared/src/db";
+
 import { type Policy, type Role } from "@/src/features/rbac/types";
 
 /** getRolesForPrincipal loads a principal's system-role assignments and expands them into roles whose policies are bound to concrete resources. */
 export async function getRolesForPrincipal(
   principalId: PrincipalId,
-  prisma?: PrismaClient,
+  prisma: PrismaClient = defaultPrisma,
 ): Promise<Role[]> {
-  const assignments = await getSystemRoles(principalId, prisma);
+  const assignments = await getRoleAssignmentsForPrincipal(prisma, principalId);
   return toRoles(assignments);
 }
 

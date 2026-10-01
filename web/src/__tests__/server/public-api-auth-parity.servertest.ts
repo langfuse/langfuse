@@ -355,7 +355,7 @@ describe("public-api auth parity", () => {
     });
     const org = await createApiKey(prisma, {
       owner: OrganizationId(base.orgId),
-      role: SystemRoleId("ORGANIZATION"),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(orgKeyCreator.id),
     });
     keys.org = { publicKey: org.publicKey, secretKey: org.secretKey };
@@ -365,7 +365,7 @@ describe("public-api auth parity", () => {
     });
     const agent = await createApiKey(prisma, {
       owner: ProjectId(base.projectId),
-      role: SystemRoleId("PROJECT"),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(agentKeyCreator.id),
       isInAppAgentKey: true,
     });

@@ -34,19 +34,24 @@ const orgRow = (
     ...over,
   }) as unknown as OrganizationWithProjects;
 
-// Mirrors the backfill mapping: the default project key is a PROJECT role owned
-// by its project; the default org key is an ORGANIZATION role owned by its org.
+// Backfilled keys receive their legacy role, owned by their project or organization.
 const assignmentsFor = (principalId: string) => {
   if (principalId === "apiKey/key_o")
     return [
       {
-        systemRole: "ORGANIZATION",
+        systemRole: "LEGACY_ORGANIZATION_API_KEY",
         ownerId: `organization/${ORG}`,
         orgId: ORG,
       },
     ];
   if (principalId === "apiKey/key_p")
-    return [{ systemRole: "PROJECT", ownerId: `project/${PRJ}`, orgId: ORG }];
+    return [
+      {
+        systemRole: "LEGACY_PROJECT_API_KEY",
+        ownerId: `project/${PRJ}`,
+        orgId: ORG,
+      },
+    ];
   if (principalId === "apiKey/key_v")
     return [{ systemRole: "VIEWER", ownerId: `project/${PRJ}`, orgId: ORG }];
   return [];

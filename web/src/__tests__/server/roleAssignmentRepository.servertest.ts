@@ -33,6 +33,72 @@ async function assignmentsFor(projectId: string, prefix: string) {
 }
 
 describe("transferRoleAssignments", () => {
+  it("rolls back a root client's transfer when deleting user assignments fails", async () => {
+    const { projectId, orgId } = await createOrgProjectAndApiKey();
+    await addUserAssignment(orgId, projectId);
+    const targetOrg = await prisma.organization.create({
+      data: { id: v4(), name: v4() },
+    });
+    const failingPrisma = prisma.$extends({
+      query: {
+        systemRoleAssignment: {
+          deleteMany({ args, query }) {
+            if (args.where?.ownerId === ProjectId(projectId)) {
+              throw new Error("assignment deletion failed");
+            }
+            return query(args);
+          },
+        },
+      },
+    });
+
+    await expect(
+      transferRoleAssignments(
+        failingPrisma as typeof prisma,
+        projectId,
+        targetOrg.id,
+      ),
+    ).rejects.toThrow("assignment deletion failed");
+
+    const apiKeyAssignments = await assignmentsFor(projectId, "apiKey/");
+    expect(apiKeyAssignments[0].orgId).toBe(orgId);
+    expect(await assignmentsFor(projectId, "user/")).toHaveLength(1);
+  });
+
+  it("joins the caller's transaction and rolls back with its project update", async () => {
+    const { projectId, orgId } = await createOrgProjectAndApiKey();
+    await addUserAssignment(orgId, projectId);
+    const targetOrg = await prisma.organization.create({
+      data: { id: v4(), name: v4() },
+    });
+
+    await expect(
+      prisma.$transaction(async (tx) => {
+        await tx.project.update({
+          where: { id: projectId },
+          data: { orgId: targetOrg.id },
+        });
+        await transferRoleAssignments(tx, projectId, targetOrg.id);
+
+        const assignments = await tx.systemRoleAssignment.findMany({
+          where: { ownerId: ProjectId(projectId) },
+        });
+        expect(assignments).toHaveLength(1);
+        expect(assignments[0].orgId).toBe(targetOrg.id);
+        expect(assignments[0].principalId).toMatch(/^apiKey\//);
+        throw new Error("outer transaction failed");
+      }),
+    ).rejects.toThrow("outer transaction failed");
+
+    const project = await prisma.project.findUniqueOrThrow({
+      where: { id: projectId },
+    });
+    expect(project.orgId).toBe(orgId);
+    const apiKeyAssignments = await assignmentsFor(projectId, "apiKey/");
+    expect(apiKeyAssignments[0].orgId).toBe(orgId);
+    expect(await assignmentsFor(projectId, "user/")).toHaveLength(1);
+  });
+
   it("moves api-key assignments to the destination org and drops user assignments", async () => {
     const { projectId, orgId } = await createOrgProjectAndApiKey();
     await addUserAssignment(orgId, projectId);
@@ -62,7 +128,7 @@ describe("revokeApiKeyRolesForOwners", () => {
     });
     await createApiKey(prisma, {
       owner: ProjectId(otherProject.id),
-      role: SystemRoleId("PROJECT"),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(keyCreator.id),
     });
 

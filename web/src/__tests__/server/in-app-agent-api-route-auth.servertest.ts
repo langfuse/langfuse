@@ -52,7 +52,7 @@ describe("in-app agent public API route auth", () => {
     });
     const apiKey = await createApiKey(prisma, {
       owner: ProjectId(projectId),
-      role: SystemRoleId("PROJECT"),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(keyCreator.id),
       isInAppAgentKey: true,
     });

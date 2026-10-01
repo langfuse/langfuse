@@ -146,13 +146,13 @@ const createOrgApiKey = async (targetOrgId: string) => {
       scope: "ORGANIZATION",
     },
   });
-  // Mirror the ORGANIZATION system-role assignment the production create path
+  // Mirror the LEGACY_ORGANIZATION_API_KEY system-role assignment the production create path
   // writes, so the resolver reading policies from assignments sees this key.
   await prisma.systemRoleAssignment.create({
     data: {
       orgId: targetOrgId,
       principalId: `apiKey/${apiKeyRowId}`,
-      systemRole: "ORGANIZATION",
+      systemRole: "LEGACY_ORGANIZATION_API_KEY",
       ownerId: `organization/${targetOrgId}`,
     },
   });

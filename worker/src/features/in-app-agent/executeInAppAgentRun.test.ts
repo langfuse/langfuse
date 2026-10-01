@@ -898,7 +898,7 @@ describe("executeInAppAgentRun", () => {
     const twoMinutesAgo = new Date(Date.now() - 2 * 60_000);
     const key = await createApiKey(prisma, {
       owner: ProjectId(projectId),
-      role: SystemRoleId("PROJECT"),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(user.id),
       name: "stale-run mcp key",
       isInAppAgentKey: true,
@@ -937,7 +937,7 @@ describe("executeInAppAgentRun", () => {
     const twoMinutesAgo = new Date(Date.now() - 2 * 60_000);
     const key = await createApiKey(prisma, {
       owner: ProjectId(projectId),
-      role: SystemRoleId("PROJECT"),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(user.id),
       name: "already-deleted mcp key",
       isInAppAgentKey: true,
@@ -987,7 +987,7 @@ describe("executeInAppAgentRun", () => {
     const twoMinutesAgo = new Date(Date.now() - 2 * 60_000);
     const userKey = await createApiKey(prisma, {
       owner: ProjectId(projectId),
-      role: SystemRoleId("PROJECT"),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(user.id),
       name: "user project key",
       isInAppAgentKey: false,

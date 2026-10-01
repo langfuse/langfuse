@@ -75,7 +75,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
     });
     const orgApiKey = await createApiKey(prisma, {
       owner: OrganizationId(testOrgId),
-      role: SystemRoleId("ORGANIZATION"),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(orgKeyCreator.id),
       name: "Test API Key for Blob Status API",
       predefinedKeys: {
@@ -132,7 +132,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
     });
     const projectApiKey = await createApiKey(prisma, {
       owner: ProjectId(testProjectId),
-      role: SystemRoleId("PROJECT"),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(keyCreator.id),
       name: "Project API Key for status test",
       predefinedKeys: {

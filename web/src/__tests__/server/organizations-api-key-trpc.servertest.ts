@@ -200,7 +200,7 @@ describe("organization API keys trpc", () => {
     it("filters in-app agent API keys", async () => {
       const inAppAgentKey = await createApiKey(prisma, {
         owner: OrganizationId(organizationId),
-        role: SystemRoleId("ORGANIZATION"),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId("user-1"),
         name: "In-app agent key hidden from org UI",
         isInAppAgentKey: true,
@@ -375,7 +375,7 @@ describe("organization API keys trpc", () => {
     it("does not update in-app agent API keys", async () => {
       const inAppAgentKey = await createApiKey(prisma, {
         owner: OrganizationId(organizationId),
-        role: SystemRoleId("ORGANIZATION"),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId("user-1"),
         name: "Original in-app agent note",
         isInAppAgentKey: true,
@@ -456,7 +456,7 @@ describe("organization API keys trpc", () => {
     it("does not delete in-app agent API keys", async () => {
       const inAppAgentKey = await createApiKey(prisma, {
         owner: OrganizationId(organizationId),
-        role: SystemRoleId("ORGANIZATION"),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId("user-1"),
         isInAppAgentKey: true,
       });
@@ -511,7 +511,7 @@ describe("organization API keys trpc", () => {
       // otherwise a downgrade would strand live credentials.
       const existingKey = await createApiKey(prisma, {
         owner: OrganizationId(organizationId),
-        role: SystemRoleId("ORGANIZATION"),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId("user-1"),
         name: "Issued before downgrade",
       });
@@ -585,14 +585,14 @@ describe("organization API keys trpc", () => {
       await expect(
         ownerCallerForOrg(orgId).organizationApiKeys.create({
           orgId,
-          role: "ORGANIZATION",
+          role: "LEGACY_ORGANIZATION_API_KEY",
         }),
       ).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
       await expect(prisma.apiKey.count({ where: { orgId } })).resolves.toBe(0);
     });
 
-    it("accepts only the legacy ORGANIZATION role when enforce is off", async () => {
+    it("accepts only the LEGACY_ORGANIZATION_API_KEY role when enforce is off", async () => {
       const orgId = `org-${randomUUID()}`;
       await prisma.organization.create({ data: { id: orgId, name: "Scoped" } });
 
@@ -609,12 +609,12 @@ describe("organization API keys trpc", () => {
 
         const key = await ownerCallerForOrg(orgId).organizationApiKeys.create({
           orgId,
-          role: "ORGANIZATION",
+          role: "LEGACY_ORGANIZATION_API_KEY",
         });
         const roleIds = (await getRolesForPrincipal(ApiKeyId(key.id))).map(
           (role) => role.id,
         );
-        expect(roleIds).toContain(SystemRoleId("ORGANIZATION"));
+        expect(roleIds).toContain(SystemRoleId("LEGACY_ORGANIZATION_API_KEY"));
       } finally {
         (env as { API_AUTH_MIGRATION: string }).API_AUTH_MIGRATION =
           originalMigration;

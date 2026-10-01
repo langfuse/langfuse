@@ -147,7 +147,7 @@ describe("SCIM API", () => {
     });
     await createApiKey(prisma, {
       owner: OrganizationId(orgId),
-      role: SystemRoleId("ORGANIZATION"),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(keyCreator.id),
       predefinedKeys: {
         publicKey: orgApiKey,
@@ -1313,7 +1313,7 @@ describe("SCIM API", () => {
         scopedOrgSecretKey = `sk-lf-org-${randomUUID().substring(0, 8)}`;
         await createApiKey(prisma, {
           owner: OrganizationId(scopedOrgId),
-          role: SystemRoleId("ORGANIZATION"),
+          role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
           createdBy: UserId(owner.id),
           predefinedKeys: {
             publicKey: scopedOrgPublicKey,
@@ -1657,7 +1657,7 @@ describe("SCIM API", () => {
       });
       await createApiKey(prisma, {
         owner: OrganizationId(hobbyOrgId),
-        role: SystemRoleId("ORGANIZATION"),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId(hobbyKeyCreator.id),
         predefinedKeys: {
           publicKey: hobbyPublicKey,
@@ -1681,7 +1681,7 @@ describe("SCIM API", () => {
       });
       await createApiKey(prisma, {
         owner: OrganizationId(teamOrgId),
-        role: SystemRoleId("ORGANIZATION"),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId(teamKeyCreator.id),
         predefinedKeys: {
           publicKey: teamPublicKey,

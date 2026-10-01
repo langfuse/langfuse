@@ -125,7 +125,7 @@ model Organization {
   verifiedDomains                  VerifiedDomain[]
   gatewayConfig                    GatewayConfig?
   gatewayAiConnections             GatewayAiConnection[]
-  SystemRoleAssignment             SystemRoleAssignment[]
+  systemRoleAssignments            SystemRoleAssignment[]
 
   @@map("organizations")
 }
@@ -246,8 +246,8 @@ enum SystemRole {
   MEMBER
   VIEWER
   NONE
-  PROJECT
-  ORGANIZATION
+  LEGACY_PROJECT_API_KEY
+  LEGACY_ORGANIZATION_API_KEY
   SCORES_INGEST
   INGEST
   AI_GATEWAY

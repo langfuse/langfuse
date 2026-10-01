@@ -1,4 +1,13 @@
-import { type PrismaClient, type Prisma } from "@prisma/client";
+import {
+  type PrismaClient,
+  type Prisma,
+  type SystemRoleAssignment,
+} from "@prisma/client";
+import { withTransaction } from "../../server/utils/withTransaction";
+import {
+  systemRoleAccessRights,
+  type SystemRoleDefinition,
+} from "./systemRoleAccessRights";
 
 import {
   ApiKeyId,
@@ -18,10 +27,29 @@ import {
 
 type Tx = PrismaClient | Prisma.TransactionClient;
 
+/** An assignment with its system-role definition attached. */
+export type SystemRoleAssignmentWithRole = SystemRoleAssignment & {
+  role: SystemRoleDefinition;
+};
+
 /** apiKeyPrincipalPrefix is the tag prefix every api-key principal id carries. */
 const apiKeyPrincipalPrefix = ApiKeyId("");
 /** userPrincipalPrefix is the tag prefix every user principal id carries. */
 const userPrincipalPrefix = UserId("");
+
+/** Loads a principal's assignments with their system-role definitions. */
+export async function getRoleAssignmentsForPrincipal(
+  tx: Tx,
+  principalId: PrincipalId,
+): Promise<SystemRoleAssignmentWithRole[]> {
+  const assignments = await tx.systemRoleAssignment.findMany({
+    where: { principalId },
+  });
+  return assignments.map((assignment) => ({
+    ...assignment,
+    role: systemRoleAccessRights[assignment.systemRole],
+  }));
+}
 
 /** assignRole persists the assignment, deriving the owner's tenant from the database. */
 export async function assignRole(
@@ -67,17 +95,19 @@ export async function revokeApiKeyRolesForOwners(
 
 /** transferRoleAssignments moves a transferred project's api-key assignments to the destination organization and drops its user assignments, mirroring the membership wipe. */
 export async function transferRoleAssignments(
-  tx: Tx,
+  prisma: Tx,
   projectId: string,
   targetOrgId: string,
 ): Promise<void> {
   const ownerId = ProjectId(projectId);
-  await tx.systemRoleAssignment.updateMany({
-    where: { ownerId, principalId: { startsWith: apiKeyPrincipalPrefix } },
-    data: { orgId: targetOrgId },
-  });
-  await tx.systemRoleAssignment.deleteMany({
-    where: { ownerId, principalId: { startsWith: userPrincipalPrefix } },
+  await withTransaction(prisma, async (tx) => {
+    await tx.systemRoleAssignment.updateMany({
+      where: { ownerId, principalId: { startsWith: apiKeyPrincipalPrefix } },
+      data: { orgId: targetOrgId },
+    });
+    await tx.systemRoleAssignment.deleteMany({
+      where: { ownerId, principalId: { startsWith: userPrincipalPrefix } },
+    });
   });
 }
 

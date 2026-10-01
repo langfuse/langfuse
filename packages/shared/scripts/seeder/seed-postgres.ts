@@ -228,7 +228,7 @@ async function main() {
   ) {
     await createApiKey(prisma, {
       owner: ProjectId(project1.id),
-      role: SystemRoleId("PROJECT"),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(user.id),
       name: seedApiKey.note,
       predefinedKeys: {
@@ -289,7 +289,7 @@ async function main() {
     ) {
       await createApiKey(prisma, {
         owner: ProjectId(project2.id),
-        role: SystemRoleId("PROJECT"),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(user.id),
         name: secondKey.note,
         predefinedKeys: {

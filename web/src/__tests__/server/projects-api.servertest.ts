@@ -103,7 +103,7 @@ describe("Projects API", () => {
     });
     await createApiKey(prisma, {
       owner: OrganizationId("seed-org-id"),
-      role: SystemRoleId("ORGANIZATION"),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(keyCreator.id),
       predefinedKeys: {
         publicKey: orgApiKey,
@@ -1089,7 +1089,7 @@ describe("Projects API", () => {
       });
       const apiKeyMeta = await createApiKey(prisma, {
         owner: ProjectId(projectId),
-        role: SystemRoleId("PROJECT"),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(keyCreator.id),
         name: `Delete Test API Key ${randomUUID().substring(0, 8)}`,
       });

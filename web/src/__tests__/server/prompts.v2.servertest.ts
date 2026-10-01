@@ -3328,7 +3328,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       });
       const apiKey = await createApiKey(prisma, {
         owner: ProjectId(projectId),
-        role: SystemRoleId("PROJECT"),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(userId),
         isInAppAgentKey: true,
       });
@@ -3414,7 +3414,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       });
       const apiKey = await createApiKey(prisma, {
         owner: ProjectId(projectId),
-        role: SystemRoleId("PROJECT"),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(userId),
         isInAppAgentKey: true,
       });

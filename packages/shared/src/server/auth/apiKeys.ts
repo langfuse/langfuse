@@ -27,6 +27,7 @@ import {
   revokeRolesForPrincipals,
 } from "../../features/rbac/roleAssignmentRepository";
 import { invalidateCachedApiKeys } from "./invalidateApiKeys";
+import { withTransaction } from "../utils/withTransaction";
 
 export function getDisplaySecretKey(secretKey: string) {
   return secretKey.slice(0, 6) + "..." + secretKey.slice(-4);
@@ -168,15 +169,12 @@ export async function createApiKey(
     ...creatorColumns(opts.createdBy),
   };
 
-  // A root client owns the transaction; a transaction client joins the caller's.
-  const insert = (tx: Prisma.TransactionClient) => insertApiKey(tx, data, opts);
-  const created = isPrismaClient(prisma)
-    ? await prisma.$transaction(insert)
-    : await insert(prisma);
+  const created = await withTransaction(prisma, (tx) =>
+    insertApiKey(tx, data, opts),
+  );
   return { ...created, secretKey: sk };
 }
 
-/** isPrismaClient narrows a client to a root client, which can own a transaction. */
 /** creatorColumns maps a key's creator to its api-key columns; "system" records none. */
 function creatorColumns(
   createdBy: ApiKeyId | UserId | "system",
@@ -188,12 +186,6 @@ function creatorColumns(
   return hasApiKeyKind(createdBy)
     ? { createdByApiKeyId: untag(createdBy) }
     : { createdByUserId: untag(createdBy) };
-}
-
-function isPrismaClient(
-  client: PrismaClient | Prisma.TransactionClient,
-): client is PrismaClient {
-  return "$transaction" in client;
 }
 
 /** insertApiKey writes the api-key row and its one owner-keyed role assignment on a single transaction client. */

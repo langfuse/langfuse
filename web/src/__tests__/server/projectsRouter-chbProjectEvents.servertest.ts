@@ -187,7 +187,7 @@ describe("projectsRouter system role assignments", () => {
 
     const key = await createApiKey(prisma, {
       owner: ProjectId(projectId),
-      role: SystemRoleId("PROJECT"),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(user.id),
     });
 
@@ -219,7 +219,7 @@ describe("projectsRouter system role assignments", () => {
 
     const key = await createApiKey(prisma, {
       owner: ProjectId(projectId),
-      role: SystemRoleId("PROJECT"),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(user.id),
     });
 

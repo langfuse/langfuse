@@ -871,7 +871,7 @@ describe("Public Organizations API", () => {
     });
     const apiKey = await createApiKey(prisma, {
       owner: OrganizationId(testOrgId),
-      role: SystemRoleId("ORGANIZATION"),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(keyCreator.id),
       name: "Test API Key for Organizations API",
       predefinedKeys: {
@@ -943,7 +943,7 @@ describe("Public Organizations API", () => {
         });
         const projectApiKey = await createApiKey(prisma, {
           owner: ProjectId(testProject1Id),
-          role: SystemRoleId("PROJECT"),
+          role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
           createdBy: UserId(keyCreator.id),
           name: "Test Project API Key",
           predefinedKeys: {
@@ -1050,7 +1050,7 @@ describe("Public Organizations API", () => {
         });
         const emptyOrgApiKey = await createApiKey(prisma, {
           owner: OrganizationId(emptyOrg.id),
-          role: SystemRoleId("ORGANIZATION"),
+          role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
           createdBy: UserId(keyCreator.id),
           name: "Test API Key for Empty Org",
           predefinedKeys: {
@@ -1140,7 +1140,7 @@ describe("Public Organizations API", () => {
       // Create an organization API key for authentication
       const orgApiKey = await createApiKey(prisma, {
         owner: OrganizationId(testOrgId),
-        role: SystemRoleId("ORGANIZATION"),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId(keyCreator.id),
         name: "Org API Key for testing",
       });
@@ -1150,14 +1150,14 @@ describe("Public Organizations API", () => {
       // Create additional organization API keys to list
       await createApiKey(prisma, {
         owner: OrganizationId(testOrgId),
-        role: SystemRoleId("ORGANIZATION"),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId(keyCreator.id),
         name: "First test key",
       });
 
       await createApiKey(prisma, {
         owner: OrganizationId(testOrgId),
-        role: SystemRoleId("ORGANIZATION"),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId(keyCreator.id),
         name: "Second test key",
       });
@@ -1174,7 +1174,7 @@ describe("Public Organizations API", () => {
 
       const secondOrgKey = await createApiKey(prisma, {
         owner: OrganizationId(secondOrgId),
-        role: SystemRoleId("ORGANIZATION"),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId(keyCreator.id),
         name: "Second org API key",
       });
@@ -1275,7 +1275,7 @@ describe("Public Organizations API", () => {
       });
       const projectApiKey = await createApiKey(prisma, {
         owner: ProjectId(project.id),
-        role: SystemRoleId("PROJECT"),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(keyCreator.id),
         name: "Project API key",
       });

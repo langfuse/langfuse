@@ -81,7 +81,7 @@ describe("project API keys trpc", () => {
 
       const inAppAgentKey = await createApiKey(prisma, {
         owner: ProjectId(projectId),
-        role: SystemRoleId("PROJECT"),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId("user-1"),
         name: "In-app agent key hidden from project UI",
         isInAppAgentKey: true,
@@ -196,7 +196,7 @@ describe("project API keys trpc", () => {
       expect(assignment.ownerId).toBe(`project/${projectId}`);
     });
 
-    it("accepts only the legacy PROJECT role when enforce is off", async () => {
+    it("accepts only the LEGACY_PROJECT_API_KEY role when enforce is off", async () => {
       const { caller, projectId } = await createProjectCaller();
 
       const originalMigration = (env as { API_AUTH_MIGRATION: string })
@@ -214,12 +214,12 @@ describe("project API keys trpc", () => {
         const key = await caller.projectApiKeys.create({
           projectId,
           note: "legacy role off enforce",
-          role: "PROJECT",
+          role: "LEGACY_PROJECT_API_KEY",
         });
         const assignment = await prisma.systemRoleAssignment.findFirstOrThrow({
           where: { principalId: `apiKey/${key.id}` },
         });
-        expect(assignment.systemRole).toBe("PROJECT");
+        expect(assignment.systemRole).toBe("LEGACY_PROJECT_API_KEY");
       } finally {
         (env as { API_AUTH_MIGRATION: string }).API_AUTH_MIGRATION =
           originalMigration;
@@ -232,7 +232,7 @@ describe("project API keys trpc", () => {
       const { caller, projectId } = await createProjectCaller();
       const inAppAgentKey = await createApiKey(prisma, {
         owner: ProjectId(projectId),
-        role: SystemRoleId("PROJECT"),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId("user-1"),
         name: "Original in-app agent note",
         isInAppAgentKey: true,
@@ -254,12 +254,12 @@ describe("project API keys trpc", () => {
   });
 
   describe("system role assignments", () => {
-    it("writes a PROJECT assignment on create and revokes it on delete", async () => {
+    it("writes a LEGACY_PROJECT_API_KEY assignment on create and revokes it on delete", async () => {
       const { caller, projectId } = await createProjectCaller();
 
       const key = await createApiKey(prisma, {
         owner: ProjectId(projectId),
-        role: SystemRoleId("PROJECT"),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId("user-1"),
         name: "Key for role assignment test",
       });
@@ -272,7 +272,7 @@ describe("project API keys trpc", () => {
       const assignment = await prisma.systemRoleAssignment.findFirstOrThrow({
         where: { principalId: `apiKey/${key.id}` },
       });
-      expect(assignment.systemRole).toBe("PROJECT");
+      expect(assignment.systemRole).toBe("LEGACY_PROJECT_API_KEY");
       expect(assignment.ownerId).toBe(`project/${projectId}`);
       expect(assignment.orgId).toBe(project.orgId);
 
@@ -293,7 +293,7 @@ describe("project API keys trpc", () => {
       const { caller, projectId } = await createProjectCaller();
       const inAppAgentKey = await createApiKey(prisma, {
         owner: ProjectId(projectId),
-        role: SystemRoleId("PROJECT"),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId("user-1"),
         isInAppAgentKey: true,
       });

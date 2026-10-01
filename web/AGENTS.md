@@ -116,6 +116,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   `src/server/api/root.ts`.
 - RBAC lives in `src/features/rbac`: the role catalog (definitions, policies,
   tags, access-right tables, and helpers) lives in `@langfuse/shared/rbac`;
+  assignment reads and writes live in `@langfuse/shared/rbac/server`;
   web owns policy resolution/evaluation (`getRolesForPrincipal`, `authorize`)
   and the access checks in `src/features/rbac/utils/checkProjectAccess.ts` and
   `src/features/rbac/utils/checkOrganizationAccess.ts`.

@@ -32,9 +32,9 @@ const PRJ = "prj_1";
 const ORG = "org_1";
 
 const allowPrompts: Policy = {
-  id: "system/PROJECT:project",
+  id: "system/LEGACY_PROJECT_API_KEY:project",
   tenantId: OrganizationId(ORG),
-  roleId: SystemRoleId("PROJECT"),
+  roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
   actions: ["prompts:read"] as ProjectAction[] as never,
   resources: [ProjectId(PRJ)],
   effect: "ALLOW",

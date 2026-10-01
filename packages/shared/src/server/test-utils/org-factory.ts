@@ -66,11 +66,10 @@ export const createOrgProjectAndApiKey = async (
       },
     });
 
-    // Mirror the PROJECT system-role assignment the production create path writes,
-    // so the resolver reading policies from assignments sees this fixture key.
+    // Give the fixture key its legacy project permissions.
     await assignRole(tx, {
       principalId: ApiKeyId(apiKeyRowId),
-      roleId: SystemRoleId("PROJECT"),
+      roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       ownerId: ProjectId(projectId),
       tags: [],
     });

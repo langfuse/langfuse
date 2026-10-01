@@ -102,7 +102,7 @@ export async function createInAppAgentMcpContext(params: {
     ).id;
   const apiKey = await createApiKey(prisma, {
     owner: ProjectId(params.projectId),
-    role: SystemRoleId("PROJECT"),
+    role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
     createdBy: UserId(creatorUserId),
     name: "In-app agent MCP session",
     isInAppAgentKey: true,

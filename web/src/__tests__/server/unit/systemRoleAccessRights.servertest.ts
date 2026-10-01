@@ -8,8 +8,8 @@ import {
 } from "@langfuse/shared/rbac";
 import { describe, expect, it } from "vitest";
 
-// The project-administration actions an ORGANIZATION key reserves and a
-// PROJECT key does not hold.
+// The project-administration actions a legacy organization API key reserves and a
+// legacy project API key does not hold.
 const orgReservedProjectActions: ProjectAction[] = [
   "apiKeys:read",
   "apiKeys:CUD",
@@ -22,8 +22,8 @@ const orgReservedProjectActions: ProjectAction[] = [
 describe("systemRoleAccessRights", () => {
   // Decision-equivalence guard: these api-key policies pin the exact action
   // sets a later ticket depends on staying equal.
-  it("grants a PROJECT key every project action except the org-reserved admin actions", () => {
-    expect(systemRoleAccessRights.PROJECT.policies).toEqual([
+  it("grants a legacy project API key every project action except the org-reserved admin actions", () => {
+    expect(systemRoleAccessRights.LEGACY_PROJECT_API_KEY.policies).toEqual([
       {
         resourceKind: "project",
         effect: "ALLOW",
@@ -34,27 +34,29 @@ describe("systemRoleAccessRights", () => {
     ]);
   });
 
-  it("grants an ORGANIZATION key the full org vocab plus project administration", () => {
-    expect(systemRoleAccessRights.ORGANIZATION.policies).toEqual([
-      {
-        resourceKind: "organization",
-        effect: "ALLOW",
-        actions: allOrganizationActions,
-      },
-      {
-        resourceKind: "project",
-        effect: "ALLOW",
-        actions: [
-          "project:read",
-          "apiKeys:read",
-          "apiKeys:CUD",
-          "projectMembers:read",
-          "projectMembers:CUD",
-          "project:update",
-          "project:delete",
-        ],
-      },
-    ]);
+  it("grants a legacy organization API key the full org vocab plus project administration", () => {
+    expect(systemRoleAccessRights.LEGACY_ORGANIZATION_API_KEY.policies).toEqual(
+      [
+        {
+          resourceKind: "organization",
+          effect: "ALLOW",
+          actions: allOrganizationActions,
+        },
+        {
+          resourceKind: "project",
+          effect: "ALLOW",
+          actions: [
+            "project:read",
+            "apiKeys:read",
+            "apiKeys:CUD",
+            "projectMembers:read",
+            "projectMembers:CUD",
+            "project:update",
+            "project:delete",
+          ],
+        },
+      ],
+    );
   });
 
   it("grants SCORES_INGEST exactly scores:save at project scope", () => {
@@ -125,7 +127,10 @@ describe("systemRoleAccessRights", () => {
     for (const role of ["SCORES_INGEST", "INGEST", "AI_GATEWAY"] as const) {
       expect(tagsFor(role)).toEqual(["principal:apiKey"]);
     }
-    for (const role of ["PROJECT", "ORGANIZATION"] as const) {
+    for (const role of [
+      "LEGACY_PROJECT_API_KEY",
+      "LEGACY_ORGANIZATION_API_KEY",
+    ] as const) {
       expect(tagsFor(role)).toEqual(["principal:apiKey", "legacy"]);
     }
     for (const role of [

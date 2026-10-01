@@ -104,7 +104,7 @@ export async function handleCreateApiKey(
     // Create the API key
     const apiKeyMeta = await createApiKey(prisma, {
       owner: ProjectId(projectId),
-      role: SystemRoleId("PROJECT"),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: ApiKeyId(createdByApiKeyId),
       name: note,
       predefinedKeys:

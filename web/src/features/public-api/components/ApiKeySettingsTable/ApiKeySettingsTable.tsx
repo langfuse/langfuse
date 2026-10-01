@@ -5,8 +5,12 @@ import { type TableProps } from "@/src/components/design-system/table/Table";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 
 export type ApiKeySettingsTableRow =
@@ -82,12 +86,26 @@ export function ApiKeySettingsTable({
         header: "Secret Key",
         enableResizing: false,
       }),
-      createDateTableColumn<ApiKeySettingsTableRow>({
+      createTableColumn<ApiKeySettingsTableRow, Date>({
         accessorKey: "expiresAt",
         header: "Expiration",
-        emptyValue: "No expiration",
         hideBelowMd: true,
         enableResizing: false,
+        loadingCell: <Skeleton className="h-4 w-1/2" />,
+        renderCell: (expiresAt) => {
+          if (!expiresAt) {
+            return <span className="text-muted-foreground">No expiration</span>;
+          }
+          const date = buildLocalIsoDatePresentation({ date: expiresAt });
+          if (!date) return null;
+
+          return (
+            <span className="block w-full truncate" title={date.title}>
+              {isApiKeyExpired(expiresAt) ? "Expired on " : ""}
+              {date.display}
+            </span>
+          );
+        },
       }),
       createDateTableColumn<ApiKeySettingsTableRow>({
         accessorKey: "createdAt",

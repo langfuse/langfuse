@@ -75,7 +75,7 @@ const prepareProjectsAndApiKeys = async (
         });
         await assignRole(tx, {
           principalId: ApiKeyId(apiKeyId),
-          roleId: SystemRoleId("PROJECT"),
+          roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
           ownerId: ProjectId(projectId),
           tags: [],
         });

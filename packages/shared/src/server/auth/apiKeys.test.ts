@@ -166,7 +166,7 @@ describe("createApiKey assignment rows", () => {
 
     await createApiKey(asTx(tx), {
       owner: OrganizationId(ORG_ID),
-      role: SystemRoleId("ORGANIZATION"),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: ApiKeyId("key_creator"),
       name: "org key",
     });
@@ -176,7 +176,7 @@ describe("createApiKey assignment rows", () => {
         orgId: ORG_ID,
         principalId: `apiKey/${KEY_ID}`,
         ownerId: `organization/${ORG_ID}`,
-        systemRole: "ORGANIZATION",
+        systemRole: "LEGACY_ORGANIZATION_API_KEY",
       },
     ]);
     const data = getApiKeyData();
@@ -190,7 +190,7 @@ describe("createApiKey assignment rows", () => {
 
   // createApiKey always enforces that the role can back a key: a user-only
   // role is rejected outright, and a project owner needs a project-capable
-  // role. Legacy api-key roles still mint (see the ORGANIZATION case above).
+  // role. Legacy api-key roles remain valid.
   describe("role validation", () => {
     it("rejects a user-only role that cannot back an api key", async () => {
       const { tx, assignments } = makeTx();

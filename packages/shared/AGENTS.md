@@ -100,7 +100,8 @@
   leaks to the browser. Policy *resolution/evaluation* (binding a catalog policy
   to concrete resources) stays in `web`.
 - `@langfuse/shared/rbac/server` via `src/features/rbac/server.ts`: server-only
-  barrel for the role-assignment repository (`assignRole`,
+  barrel for the role-assignment repository (`getRoleAssignmentsForPrincipal`,
+  `SystemRoleAssignmentWithRole`, `assignRole`,
   `revokeRolesForPrincipals`, `revokeRolesForOwner`,
   `revokeApiKeyRolesForOwners`, `transferRoleAssignments`).
   Imports Prisma, so never route it into client bundles.

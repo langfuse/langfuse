@@ -135,7 +135,7 @@ describe("Blob Storage Integrations API", () => {
     });
     const orgApiKey = await createApiKey(prisma, {
       owner: OrganizationId(testOrgId),
-      role: SystemRoleId("ORGANIZATION"),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(orgKeyCreator.id),
       name: "Test API Key for Blob Storage API",
       predefinedKeys: {
@@ -249,7 +249,7 @@ describe("Blob Storage Integrations API", () => {
       });
       const projectApiKey = await createApiKey(prisma, {
         owner: ProjectId(testProject1Id),
-        role: SystemRoleId("PROJECT"),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(keyCreator.id),
         name: "Project API Key",
         predefinedKeys: {
@@ -1476,7 +1476,7 @@ describe("Blob Storage Integrations API", () => {
       });
       const projectApiKey = await createApiKey(prisma, {
         owner: ProjectId(testProject1Id),
-        role: SystemRoleId("PROJECT"),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(keyCreator.id),
         name: "Project API Key",
         predefinedKeys: {

@@ -91,7 +91,7 @@ describe("DataRetentionProcessingJob", () => {
       });
       const key = await createApiKey(prisma, {
         owner: ProjectId(projectId),
-        role: SystemRoleId("PROJECT"),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(creator.id),
         isInAppAgentKey: true,
       });
