@@ -119,3 +119,36 @@ describe.each([
     expect(parse(JSON.stringify({ payload }))).toEqual({ payload });
   });
 });
+
+describe.each([
+  ["recursive", deepParseJson],
+  ["iterative", deepParseJsonIterative],
+] as const)("%s Python dict literals", (_name, parse) => {
+  it("converts True/False/None outside strings", () => {
+    expect(parse("{'a': True, 'b': [False, None]}")).toEqual({
+      a: true,
+      b: [false, null],
+    });
+  });
+
+  it("leaves True/False/None inside string values untouched", () => {
+    expect(
+      parse("{'msg': 'None of the above', 'q': 'True or False?', 'ok': True}"),
+    ).toEqual({ msg: "None of the above", q: "True or False?", ok: true });
+  });
+
+  it("does not end a string at an escaped quote", () => {
+    expect(parse(`{"msg": "quote \\" None", 'ok': True}`)).toEqual({
+      msg: 'quote " None',
+      ok: true,
+    });
+  });
+
+  it("leaves True/False/None inside double-quoted strings and keys untouched", () => {
+    expect(parse(`{"msg": "None", 'True': 'x', 'f': False}`)).toEqual({
+      msg: "None",
+      True: "x",
+      f: false,
+    });
+  });
+});

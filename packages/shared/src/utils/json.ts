@@ -4,6 +4,17 @@ import { isSafeNumber } from "lossless-json";
 // Dangerous keys that could lead to prototype pollution
 const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
+const PYTHON_LITERALS: Record<string, string> = {
+  True: "true",
+  False: "false",
+  None: "null",
+};
+
+// Quoted strings are matched first so that True/False/None inside a string
+// value or key ("None of the above") is skipped instead of rewritten.
+const PYTHON_STRING_OR_LITERAL =
+  /'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|\b(?:True|False|None)\b/g;
+
 // attempts to parse Python dict/list string to JSON object
 // LangChain/LangGraph v1 tool calls are logged as python dicts for example
 function tryParsePythonDict(str: string): unknown {
@@ -23,12 +34,13 @@ function tryParsePythonDict(str: string): unknown {
 
   try {
     // Convert Python syntax to JSON:
-    // 1. Replace Python boolean/null literals (with word boundaries)
+    // 1. Replace Python boolean/null literals that are outside of strings
     // 2. Replace single quotes with double quotes
     const jsonStr = trimmed
-      .replace(/\bTrue\b/g, "true")
-      .replace(/\bFalse\b/g, "false")
-      .replace(/\bNone\b/g, "null")
+      .replace(
+        PYTHON_STRING_OR_LITERAL,
+        (token) => PYTHON_LITERALS[token] ?? token,
+      )
       // NOTE: this converts all ' indiscriminately and might break some JSONs with escaped '
       // not that bad, because we only call this function, after JSON.parse has already failed
       // therefore, the failure case is the default already.
