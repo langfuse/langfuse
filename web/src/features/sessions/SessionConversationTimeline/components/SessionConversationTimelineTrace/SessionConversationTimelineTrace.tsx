@@ -145,7 +145,7 @@ export function SessionTimelineToolRow({
             {renderFilterIcon("TOOL")}
           </span>
           <span
-            className="min-w-0 truncate text-xs font-normal group-hover:underline"
+            className="min-w-0 truncate text-xs font-normal hover:underline"
             title={name}
           >
             {name}
