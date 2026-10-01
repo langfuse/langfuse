@@ -124,6 +124,24 @@ describe.each([
   ["recursive", deepParseJson],
   ["iterative", deepParseJsonIterative],
 ] as const)("%s Python dict literals", (_name, parse) => {
+  it.each([
+    ["'", ""],
+    ["'", "\\"],
+    ['"', ""],
+    ['"', "\\"],
+  ])("bounds parsing of unterminated %s strings with suffix %s", (quote, suffix) => {
+    // Stay below the Python fallback's root-string limit, including when a
+    // dangling escape follows the repeated escaped quotes.
+    const input = "{'value': " + quote + ("\\" + quote).repeat(499_990) + suffix;
+    const start = performance.now();
+    const result = parse(input);
+    const elapsed = performance.now() - start;
+
+    expect(result).toBe(input);
+    // A linear pass takes milliseconds; leave ample headroom for slow CI.
+    expect(elapsed).toBeLessThan(1_000);
+  });
+
   it("converts True/False/None outside strings", () => {
     expect(parse("{'a': True, 'b': [False, None]}")).toEqual({
       a: true,

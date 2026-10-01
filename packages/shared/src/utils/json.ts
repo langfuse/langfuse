@@ -12,8 +12,10 @@ const PYTHON_LITERALS: Record<string, string> = {
 
 // Quoted strings are matched first so that True/False/None inside a string
 // value or key ("None of the above") is skipped instead of rewritten.
+// Consume unterminated strings through EOF (including a dangling escape) so
+// matching cannot restart at every escaped quote and rescan the remaining input.
 const PYTHON_STRING_OR_LITERAL =
-  /'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|\b(?:True|False|None)\b/g;
+  /'(?:[^'\\]|\\[\s\S])*(?:'|\\?$)|"(?:[^"\\]|\\[\s\S])*(?:"|\\?$)|\b(?:True|False|None)\b/g;
 
 // attempts to parse Python dict/list string to JSON object
 // LangChain/LangGraph v1 tool calls are logged as python dicts for example
