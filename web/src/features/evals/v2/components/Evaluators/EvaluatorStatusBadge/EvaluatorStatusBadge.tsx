@@ -3,7 +3,8 @@ import {
   getEvaluatorBlockMetadata,
   type EvaluatorBlockReason,
 } from "@langfuse/shared";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Badge as DesignSystemBadge } from "@/src/components/design-system/Badge/Badge";
+import { Badge } from "@/src/components/ui/badge";
 import {
   HoverCard,
   HoverCardContent,
@@ -74,9 +75,15 @@ export function EvaluatorStatusBadge({
     explanation = `${summary?.failed} of ${summary?.total} execution traces failed in the last 7 days.`;
   }
 
-  const badge = (
-    <Badge text={status === "Unknown" ? "—" : status} color={colors[status]} />
-  );
+  const badge =
+    status === "Inactive" ? (
+      <Badge variant="secondary">{status}</Badge>
+    ) : (
+      <DesignSystemBadge
+        text={status === "Unknown" ? "—" : status}
+        color={colors[status]}
+      />
+    );
 
   return (
     <HoverCard openDelay={200}>
