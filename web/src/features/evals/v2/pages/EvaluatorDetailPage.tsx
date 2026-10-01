@@ -1,5 +1,6 @@
 import { useRouter } from "next/router";
 import type { EvalTemplateType } from "@langfuse/shared";
+import Page from "@/src/components/layouts/page";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
@@ -52,7 +53,18 @@ export default function EvaluatorDetailPage() {
   );
 
   if (evaluator.isPending) {
-    return <Skeleton className="m-6 h-96 w-[calc(100%-3rem)]" />;
+    return (
+      <Page
+        headerProps={{
+          title: "Configure evaluator",
+          breadcrumb: [
+            { name: "Evaluators", href: `/project/${projectId}/evals` },
+          ],
+        }}
+      >
+        <Skeleton className="m-6 h-96 w-[calc(100%-3rem)]" />
+      </Page>
+    );
   }
   if (!evaluator.data?.versions[0]) {
     return <div className="p-6">Evaluator not found</div>;
