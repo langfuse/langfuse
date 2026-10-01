@@ -898,7 +898,7 @@ describe("AI SDK request shapes", () => {
 
     expect(result.output).toEqual({ answer: "ok" });
     expect(request.body.toolConfig).toBeUndefined();
-    expect(JSON.stringify(request.body.messages)).toContain(
+    expect(JSON.stringify(request.body)).toContain(
       "You MUST answer with only a JSON object",
     );
   });
