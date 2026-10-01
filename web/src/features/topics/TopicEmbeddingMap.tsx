@@ -1,3 +1,4 @@
+import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { type ReactNode, useState } from "react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -84,6 +85,7 @@ function fitMapPoints(
 export function TopicEmbeddingMap({
   projectId,
   runId,
+  timeRange,
   topics,
   selectedTopic,
   onSelectTopic,
@@ -94,6 +96,7 @@ export function TopicEmbeddingMap({
 }: {
   projectId: string;
   runId: string;
+  timeRange: TopicTimeRange;
   topics: Topic[];
   selectedTopic: string | null;
   onSelectTopic: (id: string | null) => void;
@@ -105,6 +108,7 @@ export function TopicEmbeddingMap({
   const query = api.topics.map.useQuery({
     projectId,
     runId,
+    timeRange,
   });
   if (query.error)
     return (
@@ -313,11 +317,7 @@ function EmbeddingMapView({
         </svg>
       </div>
       <div
-        className={
-          active
-            ? "bg-muted/20 max-h-32 overflow-y-auto border-t px-4 py-3"
-            : undefined
-        }
+        className="bg-muted/20 h-32 overflow-y-auto border-t px-4 py-3"
         aria-live="polite"
       >
         {active ? (
