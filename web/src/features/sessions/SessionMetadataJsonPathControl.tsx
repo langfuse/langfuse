@@ -131,6 +131,22 @@ export function SessionMetadataJsonPathControl({
         filter: filterState,
       }))
     : [];
+  // The timeline body loads observations through a different query, so the
+  // first trace is fetched here; the legacy body shares this cache entry.
+  const firstObservationInput = observationInputs[0];
+  api.sessions.observationsForTraceFromEvents.useQuery(
+    firstObservationInput ?? {
+      projectId,
+      sessionId,
+      traceId: "",
+      filter: filterState,
+    },
+    {
+      enabled: firstObservationInput !== undefined,
+      trpc: { context: { skipBatch: true } },
+      staleTime: 60 * 1000,
+    },
+  );
   const observationQueryHashes = observationInputs.map((input) =>
     hashKey(
       getQueryKey(api.sessions.observationsForTraceFromEvents, input, "query"),
