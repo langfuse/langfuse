@@ -112,4 +112,42 @@ describe("EvaluatorSetupFooter", () => {
       "Category names cannot be empty.",
     );
   });
+
+  it("asks for confirmation before creating an evaluator without a model", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      initialType: "LLM_AS_JUDGE",
+      mode: "create",
+    });
+    store.getState().actions.setName("Evaluator without a model");
+    const onSave = vi.fn();
+
+    render(
+      <TooltipProvider>
+        <EvaluatorSetupFooter
+          store={store}
+          initialSnapshot=""
+          isEditing={false}
+          isSaving={false}
+          nameAIAssistanceAvailable={false}
+          codeValidation={null}
+          onClose={vi.fn()}
+          onSave={onSave}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Create evaluator" }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("dialog", {
+        name: "Create evaluator without a model?",
+      }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Create anyway" }));
+
+    expect(onSave).toHaveBeenCalledOnce();
+  });
 });

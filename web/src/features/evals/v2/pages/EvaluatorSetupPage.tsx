@@ -566,7 +566,13 @@ export function EvaluatorSetupPage(
           description: "Your evaluator changes are saved.",
         });
         initialSnapshot.current = getCurrentSnapshot(state);
-        await utils.evalsV2.filterOptions.invalidate({ projectId });
+        await Promise.all([
+          utils.evalsV2.filterOptions.invalidate({ projectId }),
+          utils.evalsV2.get.invalidate({
+            projectId,
+            evaluatorId: evaluator.id,
+          }),
+        ]);
         await router.push(`/project/${projectId}/evals/${evaluator.id}`);
         return;
       }
