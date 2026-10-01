@@ -91,10 +91,10 @@ export function getEvaluatorExecutionTracePeekConfig(projectId: string) {
 export function getEvaluatorSamplePeekConfig(projectId: string) {
   return {
     ...getEvaluatorExecutionTracePeekConfig(projectId),
-    paramsToMirrorPeekValue: ["observation"],
     extractParamsValuesFromRow: (
       observation: EvaluatorSamplePeekObservation,
     ) => ({
+      observation: observation.id,
       traceId: observation.traceId ?? "",
       timestamp: observation.startTime.toISOString(),
     }),

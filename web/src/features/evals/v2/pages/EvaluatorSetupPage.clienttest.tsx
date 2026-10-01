@@ -85,6 +85,21 @@ describe("evaluator sample peek navigation", () => {
       { shallow: true },
     );
   });
+
+  it("navigates between trace details without treating trace ids as observation ids", () => {
+    const { result } = renderHook(() =>
+      usePeekNavigation(getEvaluatorSamplePeekConfig("project-1")),
+    );
+
+    const target = result.current.resolveDetailNavigationPath({
+      id: "trace-2",
+      params: { timestamp: "2026-09-30T13:00:00.000Z" },
+    });
+    const params = new URL(target, window.location.origin).searchParams;
+
+    expect(params.get("peek")).toBe("trace-2");
+    expect(params.get("observation")).toBeNull();
+  });
 });
 
 describe("shouldOfferRuleAttachment", () => {
