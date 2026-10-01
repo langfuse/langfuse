@@ -115,6 +115,7 @@ export function EvaluatorSetupFooter({
       text="This evaluator won't be able to run until a model is configured. Do you want to create it anyway?"
       confirmLabel="Create anyway"
       variant="default"
+      loading={isSaving}
       onConfirm={onSave}
     >
       {({ openDialog }) => (

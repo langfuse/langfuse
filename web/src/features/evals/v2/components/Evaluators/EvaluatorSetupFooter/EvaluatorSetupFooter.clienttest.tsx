@@ -150,4 +150,53 @@ describe("EvaluatorSetupFooter", () => {
 
     expect(onSave).toHaveBeenCalledOnce();
   });
+
+  it("keeps the confirmation open while creating the evaluator", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      initialType: "LLM_AS_JUDGE",
+      mode: "create",
+    });
+    store.getState().actions.setName("Evaluator without a model");
+
+    const { rerender } = render(
+      <TooltipProvider>
+        <EvaluatorSetupFooter
+          store={store}
+          initialSnapshot=""
+          isEditing={false}
+          isSaving={false}
+          nameAIAssistanceAvailable={false}
+          codeValidation={null}
+          onClose={vi.fn()}
+          onSave={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Create evaluator" }));
+
+    rerender(
+      <TooltipProvider>
+        <EvaluatorSetupFooter
+          store={store}
+          initialSnapshot=""
+          isEditing={false}
+          isSaving
+          nameAIAssistanceAvailable={false}
+          codeValidation={null}
+          onClose={vi.fn()}
+          onSave={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(
+      screen.getByRole("dialog", {
+        name: "Create evaluator without a model?",
+      }),
+    ).toBeInTheDocument();
+  });
 });

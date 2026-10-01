@@ -566,13 +566,19 @@ export function EvaluatorSetupPage(
           description: "Your evaluator changes are saved.",
         });
         initialSnapshot.current = getCurrentSnapshot(state);
-        await Promise.all([
-          utils.evalsV2.filterOptions.invalidate({ projectId }),
-          utils.evalsV2.get.invalidate({
-            projectId,
-            evaluatorId: evaluator.id,
-          }),
-        ]);
+        utils.evalsV2.get.setData(
+          { projectId, evaluatorId: evaluator.id },
+          (current) =>
+            current
+              ? {
+                  ...current,
+                  blockedAt: evaluator.blockedAt,
+                  blockReason: evaluator.blockReason,
+                  blockMessage: evaluator.blockMessage,
+                }
+              : current,
+        );
+        await utils.evalsV2.filterOptions.invalidate({ projectId });
         await router.push(`/project/${projectId}/evals/${evaluator.id}`);
         return;
       }
