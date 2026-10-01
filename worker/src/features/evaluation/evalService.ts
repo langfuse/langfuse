@@ -315,6 +315,7 @@ export const createEvalJobs = async ({
   const rules = await prisma.evaluationRule.findMany({
     where: {
       projectId: event.projectId,
+      purpose: "EVALUATION",
       status: "ACTIVE",
       targetObject: {
         in: [EvalTargetObject.TRACE, EvalTargetObject.DATASET],

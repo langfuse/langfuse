@@ -596,7 +596,11 @@ export class RuleService {
         });
       }
       await prisma.evaluationRule.updateMany({
-        where: { projectId: input.projectId, id: { in: ids } },
+        where: {
+          projectId: input.projectId,
+          purpose: "EVALUATION",
+          id: { in: ids },
+        },
         data: { status: input.enabled ? "ACTIVE" : "INACTIVE" },
       });
       return ids;

@@ -196,8 +196,6 @@ model Project {
   InAppAgentEvent                   InAppAgentEvent[]
   InAppAgentRun                     InAppAgentRun[]
   InAppAgentPendingToolApproval     InAppAgentPendingToolApproval[]
-  facets                            Facet[]
-  facetRules                        FacetRule[]
   gatewayConfigs                    GatewayConfig[]                     @relation("GatewayDefaultIngestionProject")
 
   @@index([orgId])
@@ -1045,6 +1043,7 @@ model Evaluator {
 
   name            String
   type            EvalTemplateType
+  purpose         EvaluatorPurpose      @default(EVALUATION)
   description     String?
   createdByUserId String?               @map("created_by_user_id")
   createdByUser   User?                 @relation("EvaluatorCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -1056,6 +1055,7 @@ model Evaluator {
   assignments EvaluationRuleEvaluatorAssignment[]
 
   @@index([projectId, createdAt(sort: Desc)])
+  @@index([projectId, purpose])
   @@map("evaluators")
 }
 
@@ -1070,21 +1070,27 @@ model EvaluatorVersion {
   createdByUserId String? @map("created_by_user_id")
   createdByUser   User?   @relation("EvaluatorVersionCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
-  prompt             String?
-  promptMessages     Json?                        @map("prompt_messages")
-  partner            String?
-  model              String?
-  provider           String?
-  modelParams        Json?                        @map("model_params")
-  vars               String[]                     @default([])
-  variableMapping    Json?                        @map("variable_mapping")
-  outputDefinition   Json?                        @map("output_definition")
-  sourceCode         String?                      @map("source_code") @db.VarChar(262144)
-  sourceCodeLanguage EvaluatorSourceCodeLanguage? @map("source_code_language")
-  questions          Json?
+  prompt              String?
+  promptMessages      Json?                        @map("prompt_messages")
+  partner             String?
+  model               String?
+  provider            String?
+  modelParams         Json?                        @map("model_params")
+  vars                String[]                     @default([])
+  variableMapping     Json?                        @map("variable_mapping")
+  outputDefinition    Json?                        @map("output_definition")
+  sourceCode          String?                      @map("source_code") @db.VarChar(262144)
+  sourceCodeLanguage  EvaluatorSourceCodeLanguage? @map("source_code_language")
+  questions           Json?
+  topicClusteringRuns TopicClusteringRun[]
 
   @@unique([evaluatorId, version(sort: Desc)])
   @@map("evaluator_versions")
+}
+
+enum EvaluatorPurpose {
+  EVALUATION
+  TOPICS
 }
 
 enum EvalTemplateType {
@@ -1161,19 +1167,23 @@ model EvaluationRule {
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  createdByUserId String?        @map("created_by_user_id")
-  createdByUser   User?          @relation("EvaluationRuleCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  name            String
-  status          JobConfigState @default(ACTIVE)
-  targetObject    String         @map("target_object")
-  filter          Json
-  sampling        Decimal
-  delay           Int
-  timeScope       String[]       @default(["NEW"]) @map("time_scope")
+  createdByUserId        String?          @map("created_by_user_id")
+  createdByUser          User?            @relation("EvaluationRuleCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  name                   String
+  status                 JobConfigState   @default(ACTIVE)
+  purpose                EvaluatorPurpose @default(EVALUATION)
+  topicSelectionStrategy String?          @map("topic_selection_strategy")
+  topicSelectionLimit    Int?             @map("topic_selection_limit")
+  targetObject           String           @map("target_object")
+  filter                 Json
+  sampling               Decimal
+  delay                  Int
+  timeScope              String[]         @default(["NEW"]) @map("time_scope")
 
   assignments EvaluationRuleEvaluatorAssignment[]
 
   @@index([projectId, updatedAt(sort: Desc)])
+  @@index([projectId, purpose])
   @@map("evaluation_rules")
 }
 
@@ -2015,77 +2025,19 @@ model CloudSpendAlert {
   @@map("cloud_spend_alerts")
 }
 
-model Facet {
-  id              String                @id @default(cuid())
-  projectId       String                @map("project_id")
-  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name            String
-  description     String                @default("")
-  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
-  versions        FacetVersion[]
-  ruleAssignments FacetRuleAssignment[]
-
-  @@unique([projectId, id])
-  @@unique([projectId, name])
-  @@map("facets")
-}
-
-model FacetVersion {
-  projectId String               @map("project_id")
-  facetId   String               @map("facet_id")
-  facet     Facet                @relation(fields: [projectId, facetId], references: [projectId, id], onDelete: Cascade)
-  version   Int
-  prompt    String
-  createdAt DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  runs      TopicClusteringRun[]
-
-  @@id([projectId, facetId, version])
-  @@map("facet_versions")
-}
-
-model FacetRule {
-  id          String                @id @default(cuid())
-  projectId   String                @map("project_id")
-  project     Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name        String
-  filter      Json
-  sampling    String
-  limit       Int?
-  createdAt   DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
-  assignments FacetRuleAssignment[]
-
-  @@unique([projectId, id])
-  @@index([projectId, updatedAt(sort: Desc)])
-  @@map("facet_rules")
-}
-
-model FacetRuleAssignment {
-  projectId String    @map("project_id")
-  ruleId    String    @map("rule_id")
-  rule      FacetRule @relation(fields: [projectId, ruleId], references: [projectId, id], onDelete: Cascade)
-  facetId   String    @map("facet_id")
-  facet     Facet     @relation(fields: [projectId, facetId], references: [projectId, id], onDelete: Cascade)
-
-  @@id([ruleId, facetId])
-  @@index([projectId, facetId])
-  @@map("facet_rule_assignments")
-}
-
 model TopicClusteringRun {
-  id              String       @id @default(cuid())
-  projectId       String       @map("project_id")
-  facetId         String       @map("facet_id")
-  facetVersion    Int          @map("facet_version")
-  facet           FacetVersion @relation(fields: [projectId, facetId, facetVersion], references: [projectId, facetId, version], onDelete: Cascade)
-  status          String       @default("pending")
-  config          Json         @default("{}")
+  id              String           @id @default(cuid())
+  projectId       String           @map("project_id")
+  facetId         String           @map("facet_id")
+  facetVersion    Int              @map("facet_version")
+  facet           EvaluatorVersion @relation(fields: [facetId, facetVersion], references: [evaluatorId, version], onDelete: Cascade)
+  status          String           @default("pending")
+  config          Json             @default("{}")
   error           String?
-  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
-  startedAt       DateTime?    @map("started_at") @db.Timestamptz(3)
-  finishedAt      DateTime?    @map("finished_at") @db.Timestamptz(3)
-  topicVersionIds String[]     @default([]) @map("topic_version_ids")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  startedAt       DateTime?        @map("started_at") @db.Timestamptz(3)
+  finishedAt      DateTime?        @map("finished_at") @db.Timestamptz(3)
+  topicVersionIds String[]         @default([]) @map("topic_version_ids")
 
   @@index([projectId, facetId, status, facetVersion(sort: Desc), createdAt(sort: Desc), id(sort: Desc)], map: "topic_clustering_runs_serving_map_idx")
   @@map("topic_clustering_runs")

@@ -21,14 +21,8 @@ export default defineConfig({
   },
   experimental: { externalTables: true },
   tables: {
-    // Topics models stay available to Prisma Client; their DDL is applied by
+    // Clustering runs stay available to Prisma Client; their DDL is applied by
     // scripts/topics-dev-tables.ts outside the migration history.
-    external: [
-      "facets",
-      "facet_versions",
-      "facet_rules",
-      "facet_rule_assignments",
-      "topic_clustering_runs",
-    ].map((table) => `${databaseSchema}.${table}`),
+    external: [`${databaseSchema}.topic_clustering_runs`],
   },
 });

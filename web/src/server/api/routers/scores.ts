@@ -273,6 +273,7 @@ export const scoresRouter = createTRPCRouter({
               where: {
                 projectId: input.projectId,
                 evaluationRuleId: { in: fallbackRuleIds },
+                evaluationRule: { purpose: "EVALUATION" },
               },
               select: {
                 evaluationRuleId: true,

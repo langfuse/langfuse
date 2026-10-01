@@ -45,6 +45,7 @@ export async function fetchObservationEvalRules(
   const rules = await prisma.evaluationRule.findMany({
     where: {
       projectId,
+      purpose: "EVALUATION",
       targetObject: {
         in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
       },

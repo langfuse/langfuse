@@ -9,12 +9,13 @@ current Langfuse instance (locally, normally `http://localhost:3000`).
 Like evaluators and evaluation rules, Topics separates semantic definitions from
 which traces are processed:
 
-- `facets`: stable facet identity, name and description.
-- `facet_versions`: immutable prompts keyed by project, facet and numeric
-  version. Saving an unchanged prompt does not create a version.
-- `facet_rules`: editable names, observation filters and optional random/latest
-  sample size. `facet_rule_assignments` attaches stable facets to rules;
-  editing a rule does not create prompt versions.
+- `evaluators` stores stable facet identity, name and description with a `TOPICS`
+  purpose. `evaluator_versions` stores immutable prompts by numeric version.
+  Saving an unchanged prompt does not create a version.
+- `evaluation_rules` stores editable Topics selection rules with a `TOPICS`
+  purpose. Its dedicated selection strategy and limit columns hold random/latest
+  sampling; `evaluation_rule_evaluator_assignments` links facets to rules.
+  Editing a rule does not create prompt versions.
 - At trigger, the request freezes the rule ID, resolved trace IDs, selected prompt
   versions and runtime summary/embedding configuration. A hash identifies the
   original request, including its selection criteria. Retries never re-evaluate a rule.
@@ -23,7 +24,7 @@ which traces are processed:
 
 Use the normal local Postgres, ClickHouse, Redis, web, and worker stack. Apply the
 repository's database migrations and regenerate/build shared before starting the
-worker. Once the Topics tables exist, set `LANGFUSE_TOPICS_ENABLED=true` on both
+worker. Once the Topics schema exists, set `LANGFUSE_TOPICS_ENABLED=true` on both
 web and worker. It defaults to false: Topics routes, effective session flags,
 queues and Topics cleanup are disabled, so the tables may be absent.
 Set `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS=project-a,project-b` on both services to

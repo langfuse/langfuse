@@ -292,6 +292,7 @@ export const handleBatchActionJob = async (
       where: {
         id: configId,
         projectId: projectId,
+        purpose: "EVALUATION",
       },
       select: {
         delay: true,
@@ -496,7 +497,11 @@ export const handleBatchActionJob = async (
       // for jobs dispatched after eval v2 migration
       if (evalVersion === "v2") {
         const stableEvaluators = await prisma.evaluator.findMany({
-          where: { id: { in: selectedEvaluatorIds }, projectId },
+          where: {
+            id: { in: selectedEvaluatorIds },
+            projectId,
+            purpose: "EVALUATION",
+          },
           select: {
             id: true,
             name: true,
@@ -558,6 +563,7 @@ export const handleBatchActionJob = async (
           where: {
             id: { in: selectedEvaluatorIds },
             projectId,
+            purpose: "EVALUATION",
           },
           include: {
             assignments: {
