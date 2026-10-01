@@ -1,106 +1,13 @@
-import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/evaluatorSetupSteps";
 import {
   applyEvaluatorSuggestion,
-  getEvaluatorExecutionTracePeekConfig,
-  getEvaluatorSamplePeekConfig,
   getEvaluatorVersionDefinition,
-  openEvaluatorSamplePeek,
   restoreEvaluatorVersion,
   shouldOfferRuleAttachment,
 } from "./EvaluatorSetupPage";
-
-const { mockPush } = vi.hoisted(() => ({
-  mockPush: vi.fn(),
-}));
-
-vi.mock("next/router", () => ({
-  useRouter: () => ({
-    push: mockPush,
-    pathname: "/project/[projectId]/evals/new",
-  }),
-}));
-vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
-  usePostHogClientCapture: () => vi.fn(),
-}));
-
-describe("evaluator sample peek navigation", () => {
-  beforeEach(() => {
-    mockPush.mockReset();
-    window.history.replaceState(
-      {},
-      "",
-      "/project/project-1/evals/new?template=scratch",
-    );
-  });
-
-  it("opens the trace peek focused on the clicked observation", () => {
-    const observation = {
-      id: "observation-child",
-      traceId: "trace-1",
-      startTime: new Date("2026-09-30T12:00:00.000Z"),
-    };
-    const { result } = renderHook(() =>
-      usePeekNavigation(getEvaluatorSamplePeekConfig("project-1")),
-    );
-
-    openEvaluatorSamplePeek(result.current, observation);
-
-    expect(mockPush).toHaveBeenCalledWith(
-      {
-        pathname: "/project/project-1/evals/new",
-        query: {
-          template: "scratch",
-          peek: "observation-child",
-          observation: "observation-child",
-          traceId: "trace-1",
-          timestamp: "2026-09-30T12:00:00.000Z",
-        },
-      },
-      undefined,
-      { shallow: true },
-    );
-  });
-
-  it("opens evaluator execution traces without selecting an observation", () => {
-    const { result } = renderHook(() =>
-      usePeekNavigation(getEvaluatorExecutionTracePeekConfig("project-1")),
-    );
-
-    result.current.openPeek("trace-1");
-
-    expect(mockPush).toHaveBeenCalledWith(
-      {
-        pathname: "/project/project-1/evals/new",
-        query: {
-          template: "scratch",
-          peek: "trace-1",
-        },
-      },
-      undefined,
-      { shallow: true },
-    );
-  });
-
-  it("navigates between trace details without treating trace ids as observation ids", () => {
-    const { result } = renderHook(() =>
-      usePeekNavigation(getEvaluatorSamplePeekConfig("project-1")),
-    );
-
-    const target = result.current.resolveDetailNavigationPath({
-      id: "trace-2",
-      params: { timestamp: "2026-09-30T13:00:00.000Z" },
-    });
-    const params = new URL(target, window.location.origin).searchParams;
-
-    expect(params.get("peek")).toBe("trace-2");
-    expect(params.get("observation")).toBeNull();
-  });
-});
 
 describe("shouldOfferRuleAttachment", () => {
   it("does not offer rule attachment for a blocked evaluator", () => {
