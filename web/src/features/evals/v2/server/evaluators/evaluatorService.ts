@@ -20,7 +20,7 @@ import {
   ChatMessageType,
   generateLangfuseAIText,
   getClientInitiatedNonStreamingLlmTimeoutMs,
-  getRecentEvaluatorExecutionTraces,
+  getEvaluatorExecutionSummaries,
   getTotalCostByEvaluatorIds,
   invalidateProjectEvalConfigCaches,
   logger,
@@ -128,12 +128,6 @@ function prepareEvaluatorDefinitionForPersistence(
     prompt: getLegacyEvaluatorPrompt(definition.promptMessages),
   };
 }
-
-type EvaluatorExecutionTrace = {
-  id: string;
-  level: string;
-  timestamp: Date;
-};
 
 export type EvaluatorAuditEvent = {
   action: "create" | "update" | "delete";
@@ -260,25 +254,21 @@ export class EvaluatorService {
     };
   }
 
-  async listRecent(params: { projectId: string; evaluatorIds: string[] }) {
-    const result = Object.fromEntries(
-      params.evaluatorIds.map((evaluatorId) => [evaluatorId, []]),
-    ) as Record<string, EvaluatorExecutionTrace[]>;
-    if (params.evaluatorIds.length === 0) return result;
-
-    const traces = await getRecentEvaluatorExecutionTraces(
+  async getExecutionSummaries(params: {
+    projectId: string;
+    evaluatorIds: string[];
+  }) {
+    const result: Record<string, { total: number; failed: number }> =
+      Object.fromEntries(
+        params.evaluatorIds.map((id) => [id, { total: 0, failed: 0 }]),
+      );
+    const summaries = await getEvaluatorExecutionSummaries(
       params.projectId,
       params.evaluatorIds,
     );
-
-    for (const trace of traces) {
-      result[trace.evaluatorId]?.push({
-        id: trace.id,
-        level: trace.level,
-        timestamp: trace.timestamp,
-      });
+    for (const { evaluatorId, total, failed } of summaries) {
+      result[evaluatorId] = { total, failed };
     }
-
     return result;
   }
 
