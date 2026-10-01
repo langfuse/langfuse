@@ -57,7 +57,10 @@ export function SessionTranscriptContent({
         <p className="text-muted-foreground text-sm">No transcript messages.</p>
       )}
       {result.transcript?.threads.map((thread, threadIndex) => (
-        <div key={threadIndex} className="space-y-4">
+        <div
+          key={threadIndex}
+          className="space-y-4 [&>[data-session-tool-row]:has(+[data-session-tool-row])]:mb-1"
+        >
           {(result.transcript?.threads.length ?? 0) > 1 && (
             <h3 className="text-muted-foreground text-xs font-bold">
               Thread {threadIndex + 1}
@@ -191,6 +194,7 @@ function SessionTranscriptThread({
       <div
         key={index}
         className="group space-y-1"
+        data-session-tool-row={isTool ? "" : undefined}
         data-session-observation-id={row.message.observationId ?? undefined}
         data-scroll-request-id={
           scrollTarget?.observationId === row.message.observationId
