@@ -111,7 +111,7 @@ export const OpensExistingEvaluatorDialog = meta.story({
     return (
       <>
         <EvaluatorAssistantHeaderAction
-          {...args}
+          mode="edit"
           triggerRef={triggerRef}
           onClick={() => {
             args.onClick();

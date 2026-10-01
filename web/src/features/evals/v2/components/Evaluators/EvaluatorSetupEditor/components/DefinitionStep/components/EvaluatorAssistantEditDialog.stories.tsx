@@ -111,7 +111,8 @@ export const EmbeddedSendPending = meta.story({
   play: async ({ canvasElement, args }) => {
     const body = within(canvasElement.ownerDocument.body);
     let finishSubmission: (started: boolean) => void = () => undefined;
-    args.onAssistantSubmit.mockImplementationOnce(
+    const onAssistantSubmit = args.onAssistantSubmit as ReturnType<typeof fn>;
+    onAssistantSubmit.mockImplementationOnce(
       () =>
         new Promise<boolean>((resolve) => {
           finishSubmission = resolve;
@@ -139,8 +140,8 @@ export const EmbeddedSendPending = meta.story({
     await userEvent.keyboard("{Enter}");
     fireEvent.submit(input.closest("form")!);
 
-    await expect(args.onAssistantSubmit).toHaveBeenCalledOnce();
-    await expect(args.onAssistantSubmit).toHaveBeenCalledWith(
+    await expect(onAssistantSubmit).toHaveBeenCalledOnce();
+    await expect(onAssistantSubmit).toHaveBeenCalledWith(
       "Also fail when the output is empty",
     );
     await expect(composer).toHaveAttribute("aria-busy", "true");

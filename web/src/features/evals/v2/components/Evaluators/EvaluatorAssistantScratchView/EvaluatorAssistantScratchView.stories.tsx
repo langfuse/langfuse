@@ -66,7 +66,8 @@ export const Loading = meta.story({
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     let finishSubmission: (started: boolean) => void = () => undefined;
-    args.onSubmit.mockImplementationOnce(
+    const onSubmit = args.onSubmit as ReturnType<typeof fn>;
+    onSubmit.mockImplementationOnce(
       () =>
         new Promise<boolean>((resolve) => {
           finishSubmission = resolve;
@@ -86,8 +87,8 @@ export const Loading = meta.story({
     await userEvent.keyboard("{Enter}");
     fireEvent.submit(input.closest("form")!);
 
-    await expect(args.onSubmit).toHaveBeenCalledOnce();
-    await expect(args.onSubmit).toHaveBeenCalledWith(
+    await expect(onSubmit).toHaveBeenCalledOnce();
+    await expect(onSubmit).toHaveBeenCalledWith(
       "Score whether the answer is helpful",
     );
     await expect(submit).toBeDisabled();
