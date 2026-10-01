@@ -4,7 +4,6 @@ import {
   DialogController,
   DialogHeader,
   DialogTitle,
-  type DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { CreateProjectMemberDialogContent } from "@/src/features/rbac/components/CreateProjectMemberDialogContent";
 import {
@@ -29,7 +28,7 @@ type CreateProjectMemberDialogControllerProps = {
           max: number;
         }
       | undefined;
-    Trigger: typeof DialogTrigger;
+    openDialog: () => void;
   }) => ReactNode;
 };
 
@@ -134,13 +133,13 @@ export function CreateProjectMemberDialogController({
         </>
       )}
     >
-      {({ Trigger }) =>
+      {({ openDialog }) =>
         children({
           hasAccess,
           hasOnlySingleProjectAccess,
           isSubmitting: createProjectMemberMutation.isPending,
           usageLimit,
-          Trigger,
+          openDialog,
         })
       }
     </DialogController>

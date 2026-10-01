@@ -20,7 +20,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 
 /**
  * One "Table settings" surface for the controls that shape the same table —
- * columns and row height — instead of a button per control. Filed against the
+ * columns and row height, plus whatever presentation settings the surface adds
+ * through `extraSections` — instead of a button per control. Filed against the
  * old compare view as "fields vs. columns confused me as a new user"
  * and reproduced by the new experiments UI with one more control.
  *
@@ -39,6 +40,7 @@ export function DataTableSettingsPopover<TData, TValue>({
   tableName,
   isV4,
   onColumnGroupToggle,
+  extraSections,
 }: {
   columns: LangfuseColumnDef<TData, TValue>[];
   columnVisibility: VisibilityState;
@@ -52,6 +54,10 @@ export function DataTableSettingsPopover<TData, TValue>({
   tableName: string;
   isV4: boolean;
   onColumnGroupToggle?: (payload: ColumnGroupTogglePayload) => void;
+  /** A table's own presentation settings, rendered under the shared two. Each
+   *  should be a labelled block; a separator is drawn between them. Keeps
+   *  surface-specific vocabulary out of this component. */
+  extraSections?: React.ReactNode;
 }) {
   const capture = usePostHogClientCapture();
 
@@ -104,6 +110,12 @@ export function DataTableSettingsPopover<TData, TValue>({
               ))}
             </div>
           </div>
+          {extraSections && (
+            <>
+              <Separator />
+              {extraSections}
+            </>
+          )}
         </div>
       )}
     >

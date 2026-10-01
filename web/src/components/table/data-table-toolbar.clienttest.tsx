@@ -221,4 +221,22 @@ describe("DataTableToolbar merged table settings", () => {
       screen.queryByRole("button", { name: /^Columns/ }),
     ).not.toBeInTheDocument();
   });
+
+  // A surface can add its own presentation settings to the popover (the
+  // experiment results view adds the cell format). They belong inside it, not
+  // as another button beside it — which is the shape this whole prop exists to
+  // avoid.
+  it("puts a surface's own settings section inside the popover", () => {
+    render(
+      <DataTableToolbar
+        {...settingsProps}
+        mergeSettingsIntoPopover
+        settingsSections={<p>Format</p>}
+      />,
+    );
+
+    expect(screen.queryByText("Format")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Table settings" }));
+    expect(screen.getByText("Format")).toBeInTheDocument();
+  });
 });

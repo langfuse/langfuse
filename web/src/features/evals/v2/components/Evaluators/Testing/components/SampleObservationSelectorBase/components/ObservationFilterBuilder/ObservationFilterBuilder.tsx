@@ -24,7 +24,7 @@ export function ObservationFilterBuilder({
     <div
       ref={containerRef}
       className={cn(
-        "[&_table]:w-full [&_table]:table-fixed [&_td:first-child]:w-16 [&_td:last-child]:w-8 [&_td:last-child]:text-right",
+        "[&_table]:w-full [&_table]:table-fixed [&_td]:align-middle [&_td:first-child]:w-16 [&_td:last-child]:w-8 [&_td:last-child>button]:ml-auto [&_td:last-child>button]:flex [&_td:nth-last-child(2)]:pr-0",
         isNarrow
           ? "[&_td:nth-child(2)]:w-40 [&_td:nth-child(3)]:w-32"
           : "[&_td:nth-child(2)]:w-56 [&_td:nth-child(3)]:w-40",

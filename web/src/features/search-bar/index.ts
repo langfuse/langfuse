@@ -6,6 +6,7 @@
 // would close a runtime cycle.
 export { ComposerTokens } from "@/src/features/search-bar/components/ComposerTokens";
 export { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+export { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 export {
   COMPOSER_SURFACE_CLASSES,
   COMPOSER_TEXT_CLASSES,

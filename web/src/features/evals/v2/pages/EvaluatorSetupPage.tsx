@@ -24,7 +24,6 @@ import type { EvaluatorVersion } from "../components/Evaluators/EvaluatorVersion
 import { EvaluatorVersionConflictDialog } from "../components/Evaluators/EvaluatorVersionConflictDialog/EvaluatorVersionConflictDialog";
 import { EvaluatorSetupEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/EvaluatorSetupEditor";
 import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupFooter/EvaluatorSetupFooter";
-import { EvaluatorAssistantScratchView } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAssistantScratchView/EvaluatorAssistantScratchView";
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
@@ -77,11 +76,38 @@ import { useEvaluatorSamplePageContext } from "@/src/features/evals/v2/hooks/use
 import { useEvaluatorAssistantTestResultSync } from "@/src/features/evals/v2/hooks/useEvaluatorAssistantTestResultSync";
 import { useEvaluatorAssistantTestUpdateSignal } from "@/src/features/evals/v2/store/evaluatorAssistantUpdateSignalStore";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
+import { EvaluatorAssistantScratchView } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAssistantScratchView/EvaluatorAssistantScratchView";
+import { EvaluatorAssistantHeaderAction } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAssistantHeaderAction/EvaluatorAssistantHeaderAction";
 import { EvaluatorAssistantEditDialog } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/EvaluatorAssistantEditDialog";
 
 const EVALUATOR_EDITOR_MODE_STORAGE_KEY =
   "langfuse:code-evaluator-editor-mode:v1";
+
 type EvaluatorEditorMode = "assistant" | "code";
+
+export function getEvaluatorSetupHeaderState({
+  isEditing,
+  isScratchCreation,
+  isAssistantAvailable,
+  showAssistantScratch,
+}: {
+  isEditing: boolean;
+  isScratchCreation: boolean;
+  isAssistantAvailable: boolean;
+  showAssistantScratch: boolean;
+}) {
+  const assistantAction =
+    !isAssistantAvailable || showAssistantScratch
+      ? "none"
+      : !isEditing && isScratchCreation
+        ? "create"
+        : "none";
+
+  return {
+    title: "Configure evaluator",
+    assistantAction,
+  } as const;
+}
 
 type InitialEvaluator = {
   id: string;
@@ -280,9 +306,10 @@ export function EvaluatorSetupPage(
       sourceCodeLanguage: state.sourceCodeLanguage,
     })),
   );
+  const isScratchCreation =
+    props.mode === "create" && props.creationSource.type === "scratch";
   const showAssistantScratch =
-    props.mode === "create" &&
-    props.creationSource.type === "scratch" &&
+    isScratchCreation &&
     isAssistantLauncherVisible &&
     preferredScratchMode === "assistant";
   const codeValidation = useCodeEvalSourceValidation({
@@ -933,14 +960,51 @@ export function EvaluatorSetupPage(
     update.isPending ||
     suggestName.isPending ||
     suggestDescription.isPending;
+  const headerState = getEvaluatorSetupHeaderState({
+    isEditing: Boolean(initialEvaluator),
+    isScratchCreation,
+    isAssistantAvailable: isAssistantLauncherVisible,
+    showAssistantScratch,
+  });
+  const renderAssistantHeaderAction = () =>
+    headerState.assistantAction === "create" ? (
+      <EvaluatorAssistantHeaderAction
+        mode="create"
+        onClick={() => {
+          if (codeDraft.type === "CODE") {
+            capture("evaluators:code_editor_mode_switch", {
+              context: "scratch",
+              mode: "assistant",
+            });
+          }
+          setPreferredScratchMode("assistant");
+        }}
+      />
+    ) : null;
+  const hasAssistantHeaderAction = headerState.assistantAction !== "none";
 
   return (
     <Page
       headerProps={{
-        title: initialEvaluator ? "Configure evaluator" : "New evaluator",
+        title: headerState.title,
+        titleContent: (
+          <span className="inline-flex flex-wrap items-baseline gap-x-2">
+            <span title={headerState.title} data-testid="page-header-title">
+              {headerState.title}
+            </span>
+            {hasAssistantHeaderAction ? (
+              <span className="hidden md:inline-flex">
+                {renderAssistantHeaderAction()}
+              </span>
+            ) : null}
+          </span>
+        ),
         breadcrumb: [
           { name: "Evaluators", href: `/project/${projectId}/evals` },
         ],
+        actionButtonsMenu: hasAssistantHeaderAction
+          ? renderAssistantHeaderAction()
+          : undefined,
         actionButtonsRight:
           initialEvaluator && persistedEvaluatorUi ? (
             <div className="flex gap-2">
@@ -1004,6 +1068,12 @@ export function EvaluatorSetupPage(
                 action: "configure_manually",
                 evaluatorType: codeDraft.type,
               });
+              if (codeDraft.type === "CODE") {
+                capture("evaluators:code_editor_mode_switch", {
+                  context: "scratch",
+                  mode: "code",
+                });
+              }
               setPreferredScratchMode("code");
             }}
           />

@@ -142,6 +142,14 @@ type UseEventsFilterOptionsParams = {
    * typed into.
    */
   lazy?: boolean;
+  /**
+   * Off keeps every query unmounted and reports "settled with nothing". For a
+   * surface that exists on both read paths (Users) and picks its option source
+   * per path: a v3 project must not scan `events_core`, and a disabled query is
+   * `pending` forever in react-query, which would skeleton the sidebar for good
+   * if that flag were passed through unchanged.
+   */
+  enabled?: boolean;
 };
 
 export function useEventsFilterOptions({
@@ -152,6 +160,7 @@ export function useEventsFilterOptions({
   isRootObservation,
   columns,
   lazy = false,
+  enabled = true,
 }: UseEventsFilterOptionsParams) {
   // User-authored start-time conditions (search-bar `startTime:>…`) merge into
   // the authoritative startTimeFilter channel — the server ignores them in
@@ -236,6 +245,7 @@ export function useEventsFilterOptions({
       includeApproxCount,
     },
     {
+      enabled,
       trpc: { context: { skipBatch: true } },
       ...FILTER_OPTION_QUERY_OPTIONS,
     },
@@ -285,7 +295,7 @@ export function useEventsFilterOptions({
       perColumnPlan.map(({ column, filter }) =>
         t.events.filterOptions(
           { ...baseInput, filter, columns: [column] },
-          FILTER_OPTION_QUERY_OPTIONS,
+          { enabled, ...FILTER_OPTION_QUERY_OPTIONS },
         ),
       ),
     { combine: combineLazy },
@@ -380,6 +390,9 @@ export function useEventsFilterOptions({
   // Each entry is gated on an in-flight fetch: a skeleton means "loading", not
   // "no data". On a terminal error the column is dropped (no auto-retry, so the
   // facet renders its empty state instead of skeletoning forever).
+  // A disabled query never leaves `pending`, so report it as settled-empty
+  // rather than letting consumers skeleton forever.
+  const isEagerPending = enabled && eagerQuery.isPending;
   const isEagerFetching = eagerQuery.isFetching;
   const bulkColumns = plan.bulk.columns;
   const loadingColumns = useMemo<ReadonlySet<string> | undefined>(() => {
@@ -427,7 +440,7 @@ export function useEventsFilterOptions({
 
   return {
     filterOptions: newFilterOptions,
-    isFilterOptionsPending: eagerQuery.isPending,
+    isFilterOptionsPending: isEagerPending,
     /** Approximate total observation count matching the refined filter, or null. */
     approxTotalCount,
     /** True while the first approximate-count value is still loading. */

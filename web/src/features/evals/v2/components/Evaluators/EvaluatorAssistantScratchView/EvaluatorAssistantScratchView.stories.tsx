@@ -32,21 +32,73 @@ export const Compact = meta.story({
   },
 });
 
-export const ConfigureManually = meta.story({
-  name: "(Test) Configure Manually",
+export const Focused = meta.story({
+  name: "(Test) Focused",
   args: {
-    evaluatorType: "LLM_AS_JUDGE",
+    evaluatorType: "CODE",
+    onSubmit: fn(async () => true),
+    onConfigureManually: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("textbox", {
+        name: "Describe the evaluator you want",
+      }),
+    );
+  },
+});
+
+export const Loading = meta.story({
+  name: "(Test) Loading",
+  args: {
+    evaluatorType: "CODE",
+    onSubmit: fn(() => new Promise<boolean>(() => undefined)),
+    onConfigureManually: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(
+      canvas.getByRole("textbox", {
+        name: "Describe the evaluator you want",
+      }),
+      "Score answer helpfulness",
+    );
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Create evaluator" }),
+    );
+  },
+});
+
+export const ExampleSelection = meta.story({
+  name: "(Test) Selects Example Without Submitting",
+  args: {
+    evaluatorType: "CODE",
     onSubmit: fn(async () => true),
     onConfigureManually: fn(),
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
+    const composer = canvas.getByRole("group", {
+      name: "Evaluator request composer",
+    });
+    const examples = canvas.getByRole("region", {
+      name: "Try one of these",
+    });
+
+    await expect(
+      within(composer).getByRole("button", { name: "Create evaluator" }),
+    ).toBeInTheDocument();
     await userEvent.click(
-      canvas.getByRole("button", {
-        name: "Configure it manually instead",
+      within(examples).getByRole("button", {
+        name: "Score helpfulness 1–5 with a one-sentence reason",
       }),
     );
-    await expect(args.onConfigureManually).toHaveBeenCalledOnce();
+    await expect(
+      within(composer).getByRole("textbox", {
+        name: "Describe the evaluator you want",
+      }),
+    ).toHaveValue("Score helpfulness 1–5 with a one-sentence reason");
     await expect(args.onSubmit).not.toHaveBeenCalled();
   },
 });

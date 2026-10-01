@@ -10,12 +10,16 @@ import {
 } from "@/src/features/experiments/lib/analytics";
 import { ExperimentBaselineControls } from "./ExperimentBaselineControls";
 import { ExperimentComparisonSelector } from "./ExperimentComparisonSelector";
+import { getExperimentColorStyles } from "./table/types";
+import { cn } from "@/src/utils/tailwind";
 
 type ExperimentSelectionControlsProps = {
   projectId: string;
   baselineId?: string;
   baselineName?: string;
   comparisonIds: string[];
+  /** The run order the table's cells colour by. See `useExperimentResultsState`. */
+  colorExperimentIds: string[];
   selectedExperimentCount: number;
   onBaselineChange: (id: string) => void;
   onBaselineClear: () => void;
@@ -30,6 +34,7 @@ export function ExperimentSelectionControls({
   baselineId,
   baselineName,
   comparisonIds,
+  colorExperimentIds,
   selectedExperimentCount,
   onBaselineChange,
   onBaselineClear,
@@ -112,10 +117,26 @@ export function ExperimentSelectionControls({
     captureComparisonChanged,
   ]);
 
+  // The same marker the cells put in front of a value, so the run whose values
+  // are plain is named as the baseline here. Absent when the cells show no
+  // colour at all, which is what an empty colour order means.
+  const baselineMarkerClass =
+    baselineId && colorExperimentIds.includes(baselineId)
+      ? getExperimentColorStyles(baselineId, colorExperimentIds).markerClass
+      : undefined;
+
   return (
     <div className="flex w-[56dvw] min-w-0 flex-row gap-3">
       <div className="flex min-w-0 items-center">
-        <div className="border-input bg-muted/30 flex h-8 w-auto shrink-0 items-center rounded-l-md border px-3 text-xs">
+        <div className="border-input bg-muted/30 flex h-8 w-auto shrink-0 items-center gap-1.5 rounded-l-md border px-3 text-xs">
+          {baselineMarkerClass && (
+            <span
+              className={cn(
+                "block h-3 w-0.5 shrink-0 rounded-full",
+                baselineMarkerClass,
+              )}
+            />
+          )}
           Baseline
         </div>
         <div className="w-full max-w-64 min-w-0 flex-1">
@@ -134,6 +155,7 @@ export function ExperimentSelectionControls({
           projectId={projectId}
           baselineExperimentId={baselineId}
           selectedIds={comparisonIds}
+          colorExperimentIds={colorExperimentIds}
           selectedExperimentCount={selectedExperimentCount}
           onSelectedIdsChange={onComparisonIdsChange}
           isAutoSelectEnabled={isAutoSelectEnabled}

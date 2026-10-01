@@ -1,0 +1,15 @@
+{
+  "name": "ai-gateway",
+  "private": true,
+  "scripts": {
+    "dev": "dotenv -e ../.env -- cargo run --locked",
+    "build": "cargo build --release --locked",
+    "typecheck": "cargo check --locked --all-targets",
+    "lint": "cargo fmt --all -- --check && cargo clippy --locked --all-targets -- -D warnings",
+    "test": "cargo test --locked",
+    "format": "cargo fmt --all"
+  },
+  "devDependencies": {
+    "dotenv-cli": "^7.4.4"
+  }
+}

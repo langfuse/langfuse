@@ -56,6 +56,7 @@ import {
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { describeVariableMismatch } from "@/src/features/experiments/fns/describeVariableMismatch";
 
 const ExperimentFilterOptions = z.object({
   projectId: z.string(),
@@ -197,7 +198,7 @@ export const experimentsRouter = createTRPCRouter({
       if (!Boolean(Object.keys(variablesMap).length)) {
         return {
           isValid: false,
-          message: "No dataset item contains any variables.",
+          message: describeVariableMismatch(allVariables),
         };
       }
 

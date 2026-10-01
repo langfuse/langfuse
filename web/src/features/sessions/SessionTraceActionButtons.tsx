@@ -76,19 +76,20 @@ export function SessionTraceActionButtons({
   return (
     <div className={cn("flex flex-wrap items-start gap-2", className)}>
       {trace.data ? (
-        <NewDatasetItemFromExistingObjectDialogController
-          projectId={projectId}
-          traceId={traceId}
-          input={trace.data.input ?? null}
-          output={trace.data.output ?? null}
-          metadata={trace.data.metadata ?? null}
-        >
+        <NewDatasetItemFromExistingObjectDialogController projectId={projectId}>
           {({ openDialog }) => (
             <ExistingDatasetItemsDropdownMenuController
               projectId={projectId}
               datasetItems={existingDatasetItems}
               disabled={!hasDatasetAccess}
-              onOpenDialog={openDialog}
+              onOpenDialog={() =>
+                openDialog({
+                  traceId,
+                  input: trace.data.input ?? null,
+                  output: trace.data.output ?? null,
+                  metadata: trace.data.metadata ?? null,
+                })
+              }
             >
               {({ Anchor, openDropdown }) => (
                 <Anchor>
@@ -100,7 +101,12 @@ export function SessionTraceActionButtons({
                       }
 
                       captureNewDatasetItemFormOpen();
-                      openDialog();
+                      openDialog({
+                        traceId,
+                        input: trace.data.input ?? null,
+                        output: trace.data.output ?? null,
+                        metadata: trace.data.metadata ?? null,
+                      });
                     }}
                     variant={hasExistingDatasetItems ? "secondary" : "outline"}
                     size={size}
@@ -128,30 +134,27 @@ export function SessionTraceActionButtons({
         </NewDatasetItemFromExistingObjectDialogController>
       ) : null}
       <div className="flex items-start">
-        <AnnotateDrawerController
-          key={`annotation-drawer-${traceId}`}
-          projectId={projectId}
-          scoreTarget={{
-            type: "trace",
-            traceId,
-          }}
-          scores={scores}
-          analyticsData={{
-            type: "trace",
-            source: "SessionDetail",
-          }}
-          scoreMetadata={{
-            projectId,
-            environment: environment ?? undefined,
-          }}
-        >
+        <AnnotateDrawerController projectId={projectId}>
           {({ disabled, openDrawer }) => (
             <Button
               variant="outline"
               size={size}
               disabled={disabled}
               className="rounded-r-none"
-              onClick={openDrawer}
+              onClick={() =>
+                openDrawer({
+                  scoreTarget: { type: "trace", traceId },
+                  scores,
+                  analyticsData: {
+                    type: "trace",
+                    source: "SessionDetail",
+                  },
+                  scoreMetadata: {
+                    projectId,
+                    environment: environment ?? undefined,
+                  },
+                })
+              }
             >
               {disabled ? (
                 <LockIcon className="mr-1.5 h-3 w-3" />
@@ -187,19 +190,20 @@ export function SessionTraceActionButtons({
           )}
         </AnnotationQueueItemDropdownMenuController>
       </div>
-      <CommentDrawerController
-        projectId={projectId}
-        objectId={traceId}
-        objectType="TRACE"
-        count={commentCount}
-      >
+      <CommentDrawerController projectId={projectId} count={commentCount}>
         {({ disabled, openDrawer }) => (
           <Button
             type="button"
             variant="outline"
             size={size}
             disabled={disabled}
-            onClick={openDrawer}
+            onClick={() =>
+              openDrawer({
+                type: "comments",
+                objectId: traceId,
+                objectType: "TRACE",
+              })
+            }
             className="gap-1"
           >
             {disabled ? (

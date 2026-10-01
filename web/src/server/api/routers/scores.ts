@@ -381,17 +381,62 @@ export const scoresRouter = createTRPCRouter({
         );
       }
 
+      // Bound the scored-traces semi-join by the same window the scores list
+      // view applies on scores.timestamp, so the offered options match what the
+      // windowed view can actually display. Preserve the caller's operator (not
+      // just the instant) so a score exactly on a strict boundary is offered iff
+      // the view would show it. Take the tightest bound on each side; on a tie
+      // the strict operator wins because it excludes the boundary instant.
+      const timestamps = timestampFilter ?? [];
+      const lowerBound = timestamps
+        .filter((tf) => tf.operator === ">=" || tf.operator === ">")
+        .reduce<{ operator: ">=" | ">"; value: Date } | undefined>(
+          (tightest, tf) => {
+            const candidate = {
+              operator: tf.operator as ">=" | ">",
+              value: tf.value,
+            };
+            if (!tightest) return candidate;
+            const diff = candidate.value.getTime() - tightest.value.getTime();
+            if (diff > 0) return candidate;
+            if (diff === 0 && candidate.operator === ">") return candidate;
+            return tightest;
+          },
+          undefined,
+        );
+      const upperBound = timestamps
+        .filter((tf) => tf.operator === "<=" || tf.operator === "<")
+        .reduce<{ operator: "<=" | "<"; value: Date } | undefined>(
+          (tightest, tf) => {
+            const candidate = {
+              operator: tf.operator as "<=" | "<",
+              value: tf.value,
+            };
+            if (!tightest) return candidate;
+            const diff = candidate.value.getTime() - tightest.value.getTime();
+            if (diff < 0) return candidate;
+            if (diff === 0 && candidate.operator === "<") return candidate;
+            return tightest;
+          },
+          undefined,
+        );
+      const scope = {
+        type: "scoredTraces" as const,
+        fromTime: lowerBound,
+        toTime: upperBound,
+      };
+
       const [names, tags, traceNames, userIds, stringValues] =
         await Promise.all([
           getScoreNames(input.projectId, timestampFilter ?? []),
           getEventsGroupedByTraceTags(input.projectId, eventsFilter, {
-            scope: "scoredTraces",
+            scope,
           }),
           getEventsGroupedByTraceName(input.projectId, eventsFilter, {
-            scope: "scoredTraces",
+            scope,
           }),
           getEventsGroupedByUserId(input.projectId, eventsFilter, {
-            scope: "scoredTraces",
+            scope,
           }),
           getScoreStringValues(input.projectId, timestampFilter ?? []),
         ]);

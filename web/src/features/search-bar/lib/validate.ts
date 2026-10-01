@@ -216,13 +216,29 @@ export function semanticDiagnostics(
   // scoreTypes the commit-time lowering does, or the two disagree on score
   // routing and a clean validation hides an error the commit then drops.
   const topLevel: ASTNode[] = ast.kind === "and" ? ast.children : [ast];
+  const termRegistry = registry.filterStateErrors
+    ? { ...registry, filterStateErrors: undefined }
+    : registry;
   for (const node of topLevel) {
-    const { errors } = astToFilterState(node, scoreTypes, registry);
+    const { errors } = astToFilterState(node, scoreTypes, termRegistry);
     const span = nodeSpan(node, textLength);
     for (const message of errors) {
       out.push({ from: span.from, to: span.to, severity: "error", message });
     }
     hasFilterWarnings(node, textLength, out, false, registry);
+  }
+
+  // Some view contracts constrain the complete filter set (for example, one
+  // filter per column). Check the complete lowering as well as each term so
+  // draft validation and commit validation share the same backend boundary.
+  if (registry.filterStateErrors) {
+    const { errors } = astToFilterState(ast, scoreTypes, registry);
+    const span = nodeSpan(ast, textLength);
+    for (const message of errors) {
+      if (!out.some((diagnostic) => diagnostic.message === message)) {
+        out.push({ ...span, severity: "error", message });
+      }
+    }
   }
 
   return out;

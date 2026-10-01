@@ -42,9 +42,7 @@ use `LINEAR_API_KEY` (or `LINEAR_TOKEN` / `LINEAR_API_TOKEN`) via GraphQL or
 `lf-context.sh`. If that env is unset, **say so** and tell them to add
 **`LINEAR_API_KEY`** at https://cursor.com/dashboard/cloud-agents, then start a
 new run. Langfuse engineers: the write policy is
-[`linear-agent-writes`](../linear-agent-writes/SKILL.md). Identity is
-[`langfuse-onboarding`](../langfuse-onboarding/SKILL.md) — Cloud `run-info`, not
-Cloud `gh` permissions.
+[`linear-agent-writes`](../linear-agent-writes/SKILL.md).
 
 If Linear is not reachable, **say so in your handoff message** and hand back
 the context that should have gone on the ticket. Do not skip it silently.

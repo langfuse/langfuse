@@ -10,6 +10,7 @@ import {
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useCallback, useEffect } from "react";
 import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
+import { ExperimentFormatSetting } from "@/src/features/experiments/components/ExperimentFormatSetting";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { ExperimentSelectionControls } from "@/src/features/experiments/components/ExperimentSelectionControls";
@@ -43,6 +44,7 @@ export default function ExperimentResults() {
     itemVisibility,
     setItemVisibility,
     allExperimentIds,
+    colorExperimentIds,
   } = useExperimentResultsState();
   const [ioRenderMode, setIoRenderMode] = useIoRenderModeLocalStorage(
     "experiment-items",
@@ -138,6 +140,7 @@ export default function ExperimentResults() {
             baselineId={baselineId}
             baselineName={experiment?.name}
             comparisonIds={comparisonIds}
+            colorExperimentIds={colorExperimentIds}
             selectedExperimentCount={allExperimentIds.length}
             onBaselineChange={setBaseline}
             onBaselineClear={clearBaseline}
@@ -155,8 +158,6 @@ export default function ExperimentResults() {
               onItemVisibilityChange={setItemVisibility}
               hasComparisons={comparisonIds.length > 0}
               hasBaseline={hasBaseline}
-              ioRenderMode={ioRenderMode}
-              onIoRenderModeChange={setIoRenderMode}
             />
 
             <OverviewPanelToggle
@@ -172,9 +173,18 @@ export default function ExperimentResults() {
         persistId={`experiment-detail-${baselineId ?? "none"}`}
         mainContent={
           <ExperimentItemsTable
+            // The shared table body's memo comparator does not look at the
+            // column definitions, so a format change alone never reaches the
+            // cells. Remounting is what makes the switch take effect.
             key={ioRenderMode}
             projectId={projectId}
             ioRenderMode={ioRenderMode}
+            settingsSections={
+              <ExperimentFormatSetting
+                ioRenderMode={ioRenderMode}
+                onIoRenderModeChange={setIoRenderMode}
+              />
+            }
           />
         }
         overviewContent={

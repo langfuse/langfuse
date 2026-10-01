@@ -182,6 +182,12 @@ export function useExperimentResultsState() {
     selectedExperimentIds,
     allExperimentIds: selectedExperimentIds,
 
+    // The list `getExperimentColorStyles` indexes into, so the cells and the run
+    // pickers cannot drift into two mappings. Empty without a baseline: colour
+    // separates comparisons from the run they are measured against, and with no
+    // baseline there is nothing to separate.
+    colorExperimentIds: hasBaseline ? selectedExperimentIds : [],
+
     // Layout
     layout,
     setLayout,

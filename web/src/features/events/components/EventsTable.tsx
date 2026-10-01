@@ -1,3 +1,6 @@
+import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
+import { useEventsTableSearch } from "../hooks/useEventsTableSearch";
+import { SearchScopeSelect } from "@/src/components/table/SearchScopeSelect";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -23,6 +26,7 @@ import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type ObservationLevelType,
   type FilterState,
+  type OrderByState,
   BatchExportTableName,
   type ObservationType,
   TableViewPresetTableName,
@@ -52,11 +56,11 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   buildAiContext,
+  DEFAULT_SEARCH_TYPE,
   EventsSearchBarRow,
   filterStateToQueryText,
   observedScoreNamesFromOptions,
   toObservedOptions,
-  useEventsSearchBar,
   useSearchBarEnabled,
   withMetadataPathOptions,
 } from "@/src/features/search-bar";
@@ -111,7 +115,6 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import {
   demoteViewOnUserFilterEdit,
   type ExplicitFilterStateChange,
-  type ViewDemotionControllers,
 } from "@/src/features/events/lib/demoteViewOnUserFilterEdit";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
@@ -322,6 +325,9 @@ export default function ObservationsEventsTable({
   const tableStatePolicy = getEventsTableStatePolicy({
     hideControls,
     isolateTableState,
+    hasParentScope: Boolean(
+      peekContext || userId || sessionId || promptName || promptVersion,
+    ),
   });
   const searchQuery = tableStatePolicy.useIsolatedSearch
     ? isolatedSearchQuery
@@ -512,7 +518,30 @@ export default function ObservationsEventsTable({
   // hook (and its onExplicitFilterStateChange) is created before
   // useTableViewManager runs, so reach the controllers through a ref (same
   // pattern as queryFilterRef).
-  const viewControllersRef = useRef<ViewDemotionControllers | null>(null);
+  const viewControllersRef = useRef<Pick<
+    ReturnType<typeof useTableViewManager>,
+    "selectedViewId" | "handleSetViewId" | "handleUserStateChange"
+  > | null>(null);
+  const resetSearchBarDraftRef = useRef<
+    ((filters: FilterState) => void) | null
+  >(null);
+
+  const handleSearchQueryChange = (query: string | null) => {
+    viewControllersRef.current?.handleUserStateChange(
+      searchQuery ?? "",
+      query ?? "",
+    );
+    setSearchQuery(query);
+  };
+  const handleSearchTypeChange = (next: TracingSearchType[]) => {
+    if (searchQuery?.trim()) {
+      viewControllersRef.current?.handleUserStateChange(
+        [...searchType].sort(),
+        [...next].sort(),
+      );
+    }
+    setSearchType(next);
+  };
 
   const onAppRootExplicitFilterStateChange =
     appRootDefault.onExplicitFilterStateChange;
@@ -523,6 +552,9 @@ export default function ObservationsEventsTable({
     (change: ExplicitFilterStateChange) => {
       onAppRootExplicitFilterStateChange(change);
       demoteViewOnUserFilterEdit(change, viewControllersRef.current);
+      if (change.origin === "user" && change.action === "clear") {
+        resetSearchBarDraftRef.current?.(change.nextFilters);
+      }
     },
     [onAppRootExplicitFilterStateChange],
   );
@@ -699,17 +731,19 @@ export default function ObservationsEventsTable({
   // sidebar and time/refresh controls stay.
   const searchBarEnabled = useSearchBarEnabled();
   const searchBarMode =
-    searchBarEnabled &&
-    !hideControls &&
-    !externalFilterState &&
-    !peekContext &&
-    tableStatePolicy.allowGrammarSearch &&
-    // Embedded user/session-detail tables are page-scoped (a userId/sessionId
-    // filter is AND-combined into the query); the bar reads the full FIELDS
-    // registry and would let e.g. `userId:other` fight that scope. Keep it to
-    // full-page surfaces, matching the documented embedded opt-out.
-    !userId &&
-    !sessionId;
+    searchBarEnabled && !hideControls && !externalFilterState;
+  const searchRegistry = eventsSearchRegistry(
+    [
+      ...(eventsFilterConfig.omittedFilterColumns ?? []),
+      ...(userId ? ["userId"] : []),
+      ...(sessionId ? ["sessionId"] : []),
+      ...(promptName ? ["promptName"] : []),
+      ...(promptVersion ? ["promptVersion"] : []),
+    ],
+    tableStatePolicy.useHostSearchScopes,
+  );
+  const sidebarAiFiltersEnabled =
+    !searchBarMode || !searchRegistry.aiFilterPrompt;
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
@@ -748,18 +782,28 @@ export default function ObservationsEventsTable({
     store: searchBarStore,
     commit: searchBarCommit,
     applyFilters: searchBarApplyFilters,
-  } = useEventsSearchBar({
+    resetDraft: resetSearchBarDraft,
+  } = useEventsTableSearch({
     projectId,
     tableName: eventsFilterConfig.tableName,
     enabled: searchBarMode,
+    useHostSearchScopes: tableStatePolicy.useHostSearchScopes,
+    registry: searchRegistry,
     filterState: queryFilter.searchBarFilterState,
     searchQuery,
     searchType,
     observed: observedOptions,
     setFilterState: setFiltersWrapper,
-    setSearchQuery,
-    setSearchType,
+    setSearchQuery: handleSearchQueryChange,
+    setSearchType: handleSearchTypeChange,
   });
+  resetSearchBarDraftRef.current = (filters) => {
+    resetSearchBarDraft({
+      filters: projectFiltersForSearchBar(filters),
+      searchQuery,
+      searchType,
+    });
+  };
 
   // Non-destructive preview: while a category-chip preset row is hovered or
   // focused, show the query it would apply as the store's preview overlay. The
@@ -772,14 +816,29 @@ export default function ObservationsEventsTable({
       const { actions } = searchBarStore.getState();
       if (state) {
         actions.setPreview(
-          filterStateToQueryText(projectFiltersForSearchBar(state.filters))
-            .text,
+          filterStateToQueryText(
+            projectFiltersForSearchBar(state.filters),
+            {
+              searchQuery: state.searchQuery,
+              searchType: tableStatePolicy.useHostSearchScopes
+                ? DEFAULT_SEARCH_TYPE
+                : searchType,
+            },
+            searchRegistry,
+          ).text,
         );
       } else {
         actions.clearPreview();
       }
     },
-    [searchBarMode, searchBarStore, projectFiltersForSearchBar],
+    [
+      searchBarMode,
+      searchBarStore,
+      projectFiltersForSearchBar,
+      searchRegistry,
+      tableStatePolicy.useHostSearchScopes,
+      searchType,
+    ],
   );
 
   // Disabled for now because perhaps confusing
@@ -1595,8 +1654,32 @@ export default function ObservationsEventsTable({
     currentExpandedFilters: queryFilter.expanded,
     disabled: tableStatePolicy.disableSavedViews,
     allowBackendSystemPresets: true,
+    onViewApplied: (viewState) =>
+      resetSearchBarDraft({
+        filters: projectFiltersForSearchBar(viewState.filters),
+        searchQuery: viewState.searchQuery ?? null,
+        searchType,
+      }),
   });
   viewControllersRef.current = viewControllers;
+
+  const handleOrderByChange = (next: OrderByState) => {
+    viewControllers.handleUserStateChange(orderByState, next);
+    setOrderByState(next);
+  };
+  const handleColumnOrderChange: typeof setColumnOrder = (update) => {
+    const next = typeof update === "function" ? update(columnOrder) : update;
+    viewControllers.handleUserStateChange(columnOrder, next);
+    setColumnOrder(next);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibilityState = (
+    update,
+  ) => {
+    const next =
+      typeof update === "function" ? update(columnVisibility) : update;
+    viewControllers.handleUserStateChange(columnVisibility, next);
+    setColumnVisibilityState(next);
+  };
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
     if (hideControls) return undefined;
@@ -1715,6 +1798,15 @@ export default function ObservationsEventsTable({
     new Set(
       (queryFilter.explicitFilterState ?? []).map((filter) => filter.column),
     ).size + (searchQuery && searchQuery.trim().length > 0 ? 1 : 0);
+  const searchScope = tableStatePolicy.useHostSearchScopes ? (
+    <SearchScopeSelect
+      searchType={searchType}
+      setSearchType={handleSearchTypeChange}
+      metadataLabel="IDs / Names"
+      fullTextLabel="Full Text"
+      availableSearchTypes={{ content: true, input: true, output: true }}
+    />
+  ) : null;
 
   return (
     <DataTableControlsProvider tableName={eventsFilterConfig.tableName}>
@@ -1737,40 +1829,51 @@ export default function ObservationsEventsTable({
               resultCount={totalCount}
               onClearAll={() => {
                 queryFilter.clearAll();
-                setSearchQuery("");
+                handleSearchQueryChange("");
+                resetSearchBarDraft({
+                  filters: projectFiltersForSearchBar([]),
+                  searchQuery: null,
+                  searchType,
+                });
               }}
               search={
                 searchBarMode ? (
-                  <EventsSearchBarRow
-                    projectId={projectId}
-                    tableName={eventsFilterConfig.tableName}
-                    store={searchBarStore}
-                    commit={searchBarCommit}
-                    observed={observedOptions}
-                    erroredColumns={erroredColumns}
-                    fieldReason={
-                      chartActive ? chartSearchFieldReason : undefined
-                    }
-                    freeTextReason={
-                      chartFreeTextIgnored
-                        ? CHART_SEARCH_QUERY_REASON
-                        : undefined
-                    }
-                    onApplyFilters={searchBarApplyFilters}
-                    onRequestColumns={requestColumns}
-                    aiDataContext={aiDataContext}
-                    aiScoreNames={aiScoreNames}
-                    // Flush inside the sheet: the section container owns the
-                    // padding, so the bar lines up with time range / presets.
-                    className="p-0"
-                  />
+                  <div className="flex min-w-0 flex-col gap-2">
+                    <EventsSearchBarRow
+                      key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+                      registry={searchRegistry}
+                      projectId={projectId}
+                      tableName={eventsFilterConfig.tableName}
+                      isV4={true}
+                      store={searchBarStore}
+                      commit={searchBarCommit}
+                      observed={observedOptions}
+                      erroredColumns={erroredColumns}
+                      fieldReason={
+                        chartActive ? chartSearchFieldReason : undefined
+                      }
+                      freeTextReason={
+                        chartFreeTextIgnored
+                          ? CHART_SEARCH_QUERY_REASON
+                          : undefined
+                      }
+                      onApplyFilters={searchBarApplyFilters}
+                      onRequestColumns={requestColumns}
+                      aiDataContext={aiDataContext}
+                      aiScoreNames={aiScoreNames}
+                      // Flush inside the sheet: the section container owns the
+                      // padding, so the bar lines up with time range / presets.
+                      className="p-0"
+                    />
+                    {searchScope && (
+                      <div className="flex justify-end">{searchScope}</div>
+                    )}
+                  </div>
                 ) : (
-                  // No grammar bar (userId/sessionId-scoped tables): fall back
-                  // to the legacy full-text search so mobile keeps the search
-                  // desktop has via the toolbar's searchConfig (LFE-11067).
+                  // Externally controlled filters retain the host's search input.
                   <MobileFullTextSearch
                     currentQuery={searchQuery ?? undefined}
-                    updateQuery={setSearchQuery}
+                    updateQuery={handleSearchQueryChange}
                     tableAllowsFullTextSearch
                     metadataSearchFields={["ID", "Name", "Trace Name", "Model"]}
                     tableName={eventsFilterConfig.tableName}
@@ -1832,9 +1935,9 @@ export default function ObservationsEventsTable({
               }
               facets={
                 <DataTableControls
-                  key={viewControllers.selectedViewId ?? "no-view"}
+                  key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                   queryFilter={queryFilter}
-                  filterWithAI={!searchBarMode}
+                  filterWithAI={sidebarAiFiltersEnabled}
                   blockedColumnReason={
                     chartActive ? chartFilterExclusionReason : undefined
                   }
@@ -1870,22 +1973,34 @@ export default function ObservationsEventsTable({
                 page header via TableHeaderControls; otherwise they remain in
                 the toolbar row below. */}
             {searchBarMode && (
-              <EventsSearchBarRow
-                projectId={projectId}
-                tableName={eventsFilterConfig.tableName}
-                store={searchBarStore}
-                commit={searchBarCommit}
-                observed={observedOptions}
-                erroredColumns={erroredColumns}
-                fieldReason={chartActive ? chartSearchFieldReason : undefined}
-                freeTextReason={
-                  chartFreeTextIgnored ? CHART_SEARCH_QUERY_REASON : undefined
-                }
-                onApplyFilters={searchBarApplyFilters}
-                onRequestColumns={requestColumns}
-                aiDataContext={aiDataContext}
-                aiScoreNames={aiScoreNames}
-              />
+              <div className="flex min-w-0 items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <EventsSearchBarRow
+                    key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+                    registry={searchRegistry}
+                    projectId={projectId}
+                    tableName={eventsFilterConfig.tableName}
+                    isV4={true}
+                    store={searchBarStore}
+                    commit={searchBarCommit}
+                    observed={observedOptions}
+                    erroredColumns={erroredColumns}
+                    fieldReason={
+                      chartActive ? chartSearchFieldReason : undefined
+                    }
+                    freeTextReason={
+                      chartFreeTextIgnored
+                        ? CHART_SEARCH_QUERY_REASON
+                        : undefined
+                    }
+                    onApplyFilters={searchBarApplyFilters}
+                    onRequestColumns={requestColumns}
+                    aiDataContext={aiDataContext}
+                    aiScoreNames={aiScoreNames}
+                  />
+                </div>
+                {searchScope}
+              </div>
             )}
             {/* Toolbar spanning full width */}
             <DataTableToolbar
@@ -1907,10 +2022,10 @@ export default function ObservationsEventsTable({
                         "Trace Name",
                         "Model",
                       ],
-                      updateQuery: setSearchQuery,
+                      updateQuery: handleSearchQueryChange,
                       currentQuery: searchQuery ?? undefined,
                       searchType,
-                      setSearchType,
+                      setSearchType: handleSearchTypeChange,
                       tableAllowsFullTextSearch: true,
                     }
               }
@@ -1926,9 +2041,9 @@ export default function ObservationsEventsTable({
                 "promptName",
               ]}
               columnVisibility={columnVisibility}
-              setColumnVisibility={setColumnVisibilityState}
+              setColumnVisibility={handleColumnVisibilityChange}
               columnOrder={columnOrder}
-              setColumnOrder={setColumnOrder}
+              setColumnOrder={handleColumnOrderChange}
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
@@ -2025,9 +2140,8 @@ export default function ObservationsEventsTable({
                       pageIndex: paginationState.page - 1,
                     }
               }
-              // In bar mode AI filtering lives in the search bar ("Ask AI"),
-              // so the legacy wand is only offered when the bar is absent.
-              filterWithAI={!searchBarMode}
+              // Scoped registries keep AI filtering in the sidebar.
+              filterWithAI={sidebarAiFiltersEnabled}
               // Category-preset chips + "My Views" pill share the toolbar row,
               // left-aligned, so they sit on the same line as the right-aligned
               // Columns/Export controls.
@@ -2073,12 +2187,9 @@ export default function ObservationsEventsTable({
               in the layout). */}
           {!hideControls && !isMobile && (
             <DataTableControls
-              // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
-              key={viewControllers.selectedViewId ?? "no-view"}
+              key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
               queryFilter={queryFilter}
-              // In bar mode AI filtering lives in the search bar; only offer the
-              // sidebar wand on non-bar surfaces (embedded scoped tables).
-              filterWithAI={!searchBarMode}
+              filterWithAI={sidebarAiFiltersEnabled}
               // In chart mode, block filters the chart can't apply — active or
               // not — dimmed + hover reason. Stateless per-column resolver,
               // matching the search bar.
@@ -2189,12 +2300,12 @@ export default function ObservationsEventsTable({
                 rowSelection={selectedRows}
                 highlightAllRows={selectAll}
                 setRowSelection={setSelectedRows}
-                setOrderBy={setOrderByState}
+                setOrderBy={handleOrderByChange}
                 orderBy={orderByState}
                 columnOrder={columnOrder}
-                onColumnOrderChange={setColumnOrder}
+                onColumnOrderChange={handleColumnOrderChange}
                 columnVisibility={columnVisibility}
-                onColumnVisibilityChange={setColumnVisibilityState}
+                onColumnVisibilityChange={handleColumnVisibilityChange}
                 rowHeight={rowHeight}
                 onRowClick={(row, event) => {
                   // Handle Command/Ctrl+click to open observation in new tab

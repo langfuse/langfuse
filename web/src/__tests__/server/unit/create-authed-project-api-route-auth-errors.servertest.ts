@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 import { z } from "zod";
+import type * as PrismaClientModule from "@prisma/client";
 
 const {
   mockVerifyAuthHeaderAndReturnScope,
@@ -26,9 +27,16 @@ vi.mock("@/src/features/public-api/server/apiAuth", () => ({
   },
 }));
 
-vi.mock("@langfuse/shared/src/db", () => ({
-  prisma: {},
-}));
+vi.mock("@langfuse/shared/src/db", async () => {
+  const { GatewayConnectionStatus, GatewayIngestionMode, GatewayProvider } =
+    await vi.importActual<typeof PrismaClientModule>("@prisma/client");
+  return {
+    GatewayConnectionStatus,
+    GatewayIngestionMode,
+    GatewayProvider,
+    prisma: {},
+  };
+});
 
 vi.mock("@langfuse/shared/src/server", () => ({
   redis: null,

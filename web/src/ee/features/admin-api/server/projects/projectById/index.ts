@@ -120,6 +120,20 @@ export async function handleDeleteProject(
   scope: ApiAccessScope,
 ) {
   try {
+    const gatewayConfig = await prisma.gatewayConfig.findFirst({
+      where: {
+        organizationId: scope.orgId,
+        defaultIngestionProjectId: projectId,
+      },
+      select: { organizationId: true },
+    });
+    if (gatewayConfig) {
+      return res.status(409).json({
+        message:
+          "This project is used as the AI Gateway ingestion project. Select another ingestion project before deleting it.",
+      });
+    }
+
     // API keys need to be deleted from cache. Otherwise, they will still be valid.
     await new ApiAuthService(prisma, redis).invalidateCachedProjectApiKeys(
       projectId,

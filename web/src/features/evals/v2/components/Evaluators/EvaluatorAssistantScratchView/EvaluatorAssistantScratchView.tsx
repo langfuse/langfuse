@@ -1,13 +1,8 @@
-import {
-  type KeyboardEvent,
-  type SyntheticEvent,
-  useRef,
-  useState,
-} from "react";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { type SyntheticEvent, useRef, useState } from "react";
+import { Sparkles } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { Textarea } from "@/src/components/ui/textarea";
+import { EvaluatorAssistantComposer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAssistantComposer/EvaluatorAssistantComposer";
 
 const EXAMPLE_PROMPTS = [
   "Fail when the answer contradicts the retrieved context",
@@ -44,19 +39,8 @@ export function EvaluatorAssistantScratchView({
     }
   };
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (
-      event.key === "Enter" &&
-      (event.metaKey || event.ctrlKey) &&
-      !event.nativeEvent.isComposing
-    ) {
-      event.preventDefault();
-      event.currentTarget.form?.requestSubmit();
-    }
-  };
-
   return (
-    <main className="flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-4 py-12 sm:px-8 sm:py-20">
+    <main className="flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-4 py-10 sm:px-8 sm:py-16">
       <form
         onSubmit={handleSubmit}
         className="flex w-full max-w-2xl flex-col gap-5"
@@ -71,52 +55,40 @@ export function EvaluatorAssistantScratchView({
           </h2>
         </div>
 
-        <Textarea
-          aria-label="Describe the evaluator you want"
-          autoFocus
-          autoComplete="off"
-          maxLength={2000}
-          rows={5}
-          placeholder="Classify each user message into one topic: support, billing, technical, sales, feedback"
+        <EvaluatorAssistantComposer
+          ariaLabel="Describe the evaluator you want"
           value={request}
-          disabled={isSubmitting}
-          onChange={(event) => setRequest(event.target.value)}
-          onKeyDown={handleKeyDown}
-          className="ph-no-capture min-h-32 resize-y text-base"
+          placeholder="Classify each user message into one topic: support, billing, technical, sales, feedback"
+          submitLabel="Create evaluator"
+          isSubmitting={isSubmitting}
+          autoFocus
+          onValueChange={setRequest}
         />
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <p className="text-muted-foreground flex-1 text-sm">
-            AI writes the prompt, score output, variable mapping, and name.
-          </p>
-          <Button
-            type="submit"
-            aria-label="Create evaluator"
-            disabled={!request.trim()}
-            loading={isSubmitting}
-            className="gap-1.5"
+        <section
+          aria-labelledby="evaluator-example-prompts"
+          className="flex flex-col gap-2"
+        >
+          <p
+            id="evaluator-example-prompts"
+            className="text-muted-foreground text-[10px] font-bold tracking-wider uppercase"
           >
-            Create evaluator
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <p className="text-muted-foreground text-[10px] font-bold tracking-wider uppercase">
             Try one of these
           </p>
-          {EXAMPLE_PROMPTS.map((example) => (
-            <button
-              key={example}
-              type="button"
-              disabled={isSubmitting}
-              className="border-border bg-card text-card-foreground hover:bg-accent focus-visible:ring-ring rounded-md border px-3 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-hidden"
-              onClick={() => setRequest(example)}
-            >
-              {example}
-            </button>
-          ))}
-        </div>
+          <div className="flex flex-wrap gap-2">
+            {EXAMPLE_PROMPTS.map((example) => (
+              <button
+                key={example}
+                type="button"
+                disabled={isSubmitting}
+                className="border-border bg-card text-card-foreground hover:bg-accent focus-visible:ring-ring min-w-0 flex-[1_1_12rem] rounded-md border px-3 py-2 text-left text-sm text-wrap transition-colors focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => setRequest(example)}
+              >
+                {example}
+              </button>
+            ))}
+          </div>
+        </section>
 
         <Button
           type="button"

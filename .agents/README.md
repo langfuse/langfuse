@@ -232,16 +232,6 @@ idempotent setup and then installs Cursor's Playwright system dependencies.
 Each agent run starts the six-service source stack with
 `scripts/agents/start-cursor-cloud.sh`.
 
-Identity recovery runs in both repo postinstall and Cursor Cloud start. When
-`LINEAR_API_KEY` is available, it verifies the viewer belongs to the Langfuse
-team and writes `.langfuse/me.md` (gitignored, inside the checkout) without
-exposing the key. A machine-level copy under `~/.config/langfuse` is also
-written when the harness allows home-dir access; OpenCode and similar
-workspace-scoped tools skip that path so they do not prompt on the user
-dir. Neither file is overwritten, so human corrections survive repeated
-installs and worktrees. Running it at Cloud start matters because
-environment builds do not rerun install for each new agent.
-
 The start script builds and waits for web, worker, PostgreSQL, ClickHouse,
 Redis, and MinIO, seeds the synthetic demo project, and verifies the web and
 worker health endpoints. The default Cursor VM is accepted only after three

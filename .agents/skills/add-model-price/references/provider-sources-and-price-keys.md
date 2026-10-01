@@ -574,6 +574,26 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   audio/TTS/translate, robotics, and agent-product waves noted in the September 6
   and September 8 2026 entries above — no new modality-specific model needed
   re-investigation.
+- **September 10 2026 audit: full re-fetch found no price or catalog drift;
+  OpenAI Daybreak cybersecurity family confirmed to include more than
+  `gpt-5.6-cyber`** — Re-fetched the full Anthropic pricing table plus the
+  models-overview table, the OpenAI aggregate Standard/Fast-mode/Flex pricing
+  tables plus the full model catalog (`developers.openai.com/api/docs/models/all`),
+  and both Gemini pricing pages (`ai.google.dev/gemini-api/docs/pricing` for the
+  3.x family, `ai.google.dev/pricing` for the 2.5 family) plus the Gemini models
+  catalog page. Every price already in the file — including every `gpt-6-astra`,
+  `gemini-3.8-flash`, `claude-fable-5-1`/`claude-mythos-5-1`, and `gpt-5.3-codex`
+  tier — matched verbatim; no updates were needed. One clarification: the OpenAI
+  model catalog groups `gpt-5.6-cyber` together with previously-unseen
+  `gpt-5.5-cyber` and `gpt-5.4-cyber` under a "Cyber/Daybreak models" heading, and
+  separately lists `gpt-oss-120b`/`gpt-oss-20b` as open-weight (self-hosted, no
+  OpenAI-hosted per-token price) models. Per the existing `gpt-5.6-cyber` scope
+  exclusion (gated Daybreak-program endpoint), `gpt-5.5-cyber` and `gpt-5.4-cyber`
+  are the same class of restricted, specialized-use endpoint and were not added;
+  no pricing was visible for either in this run's fetch, so there is nothing to
+  add even if the scope exclusion were lifted. Treat the whole Daybreak cyber
+  family (currently three members) as one standing scope exclusion rather than
+  re-investigating each member separately in future audits.
 
 Capture:
 

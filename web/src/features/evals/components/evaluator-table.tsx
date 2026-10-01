@@ -11,6 +11,9 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useColumnVisibility } from "@/src/features/column-visibility";
 import { EvaluatorFilterCell } from "@/src/features/evals/components/EvaluatorFilterCell";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { LEGACY_EVALUATORS_FIELD_REGISTRY } from "@/src/features/evals/constants/tableSearchRegistry";
 import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
 import { useSidebarFilterState } from "@/src/features/filters";
 import { api } from "@/src/utils/api";
@@ -430,6 +433,17 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       defaultSidebarCollapsed={evaluatorFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
+        <TableSearchBar
+          key={queryFilter.draftResetKey}
+          projectId={projectId}
+          tableName={evaluatorFilterConfig.tableName}
+          registry={LEGACY_EVALUATORS_FIELD_REGISTRY}
+          filterState={queryFilter.searchBarFilterState}
+          setFilterState={queryFilter.setFilterState}
+          observed={toObservedOptions(newFilterOptions, false)}
+          search={{ query: searchQuery, setQuery: setSearchQuery }}
+          isV4={false}
+        />
         {/* Toolbar spanning full width */}
         <DataTableToolbar
           tableName="evaluators"
@@ -437,19 +451,14 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           filterState={queryFilter.filterState}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}
-          searchConfig={{
-            metadataSearchFields: ["Name"],
-            updateQuery: setSearchQuery,
-            currentQuery: searchQuery ?? undefined,
-            tableAllowsFullTextSearch: false,
-            setSearchType: undefined,
-            searchType: undefined,
-          }}
         />
 
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
-          <DataTableControls queryFilter={queryFilter} />
+          <DataTableControls
+            key={queryFilter.draftResetKey}
+            queryFilter={queryFilter}
+          />
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
