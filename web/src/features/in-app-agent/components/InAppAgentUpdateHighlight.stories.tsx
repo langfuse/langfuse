@@ -51,7 +51,12 @@ export const RetriggersHighlight = meta.story({
 
     return (
       <>
-        <button type="button" onClick={() => setUpdateId("update-2")}>
+        <button
+          type="button"
+          onClick={() => {
+            setUpdateId("update-2");
+          }}
+        >
           Apply next Assistant update
         </button>
         <InAppAgentUpdateHighlight {...args} updateId={updateId} />
