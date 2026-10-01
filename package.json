@@ -6,12 +6,12 @@
   "private": true,
   "engines": {
     "node": "24",
-    "pnpm": "12.6.0"
+    "pnpm": "12.8.2"
   },
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "12.6.0"
+      "version": "12.8.2"
     }
   },
   "scripts": {
@@ -66,7 +66,7 @@
     "prettier": "^3.8.3",
     "release-it": "^20.2.0",
     "ts7": "npm:typescript@^7.0.2",
-    "turbo": "2.11.3"
+    "turbo": "2.11.6"
   },
   "release-it": {
     "git": {

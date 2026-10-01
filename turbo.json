@@ -4,6 +4,8 @@
     "errorsOnlyShowHash": true,
     "watchUsingTaskInputs": true
   },
+  // Agent guidance is maintained in .agents/AGENTS.md; keep its root symlink.
+  "agentGuidance": false,
   "noUpdateNotifier": true,
   "cacheMaxSize": "7.5GB",
   "globalDependencies": [".env"],
