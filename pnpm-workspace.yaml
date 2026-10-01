@@ -98,7 +98,10 @@ overrides:
   path-to-regexp@0.1.12: 0.1.13
   # ReDoS only affects the 8.x line (CVE-2026-4926/-4923, >=8.0.0 <8.4.0).
   path-to-regexp@8.3.0: 8.4.0
-  ip-address@10.1.0: 10.2.0
+  # SSRF/DoS classifier fixes land in 10.5.1 and 10.7.1 (CVE-2026-101910/-101911/
+  # -101912/-101913). express-rate-limit and socks declare ^10 ranges the
+  # vulnerable 10.3.1 already satisfies, so only an override moves it.
+  ip-address: 10.7.1
   # SSRF + throttling fixes land in 4.0.29/4.0.33. @mastra/core pins its
   # provider-utils-v6 alias to exactly 4.0.27, which the range key can't
   # catch — aliased deps need alias-name overrides (same reason -v5 exists).
@@ -131,6 +134,11 @@ overrides:
   # @vueuse/integrations declare ^1 ranges the vulnerable 1.18.0 already
   # satisfies, so only an override moves it.
   axios: 1.20.0
+  # CVE-2026-101916 (certificate validation) and CVE-2026-101915 (sensitive
+  # data in server errors), fixed in 1.14.5. The OpenTelemetry gRPC exporters,
+  # @a2a-js/sdk and dockerode all declare ^1 ranges the vulnerable 1.14.4
+  # already satisfies, so only an override moves it.
+  "@grpc/grpc-js": 1.14.5
   # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
