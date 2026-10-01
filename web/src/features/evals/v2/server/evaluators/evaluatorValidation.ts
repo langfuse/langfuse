@@ -8,7 +8,7 @@ import {
   DefaultEvalModelService,
   isDecisionModelAdapter,
 } from "@langfuse/shared/src/server";
-import { getEvaluatorDefinitionConfigurationError } from "@/src/features/evals/server/evaluator-preflight";
+import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import {
   isCodeEvalEnabled,
@@ -167,7 +167,7 @@ export async function assertEvaluatorConfigurationValid(params: {
     }
   }
 
-  const error = await getEvaluatorDefinitionConfigurationError({
+  const error = await getEvaluatorDefinitionPreflightError({
     projectId: params.projectId,
     template: {
       name: params.name,
