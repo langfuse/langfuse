@@ -83,28 +83,10 @@
 - `@langfuse/shared/encryption` via `src/encryption/index.ts`: encryption and
   signature helpers for secrets and signed payloads.
 - `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
-- `@langfuse/shared/rbac` via `src/features/rbac/index.ts`: client-safe RBAC
-  tagged-id primitives (`UserId`/`ApiKeyId`/`OrganizationId`/`ProjectId`/
-  `SystemRoleId`/`CustomRoleId`), the `PrincipalId`/`ResourceId`/`OwnerId`/
-  `TenantId`/`RoleId` unions, their kind predicates/`untag`, and the
-  `RoleAssignment` type. It also owns the role catalog: the system-role
-  definitions/policies/tags and the helpers over them (`systemRoleAccessRights`,
-  `isAssignableAtCreate`, `isLegacyApiKeyRole`, `roleHasProjectPolicy`,
-  `apiKeyRolesForScope`, `apiKeyRolesAcceptedForScope`,
-  `legacyApiKeyRoleForScope`), the
-  action vocabulary (`ProjectAction`/`OrganizationAction`/`Action`/`Effect`,
-  `allProjectActions`/`allOrganizationActions`/`isOrgAction`), and the
-  organization access-right table (`organizationRoleAccessRights`,
-  `OrganizationScope`; the project table lives in the root `@langfuse/shared`
-  barrel). `SystemRole`/`Role` are imported type-only, so no Prisma runtime
-  leaks to the browser. Policy *resolution/evaluation* (binding a catalog policy
-  to concrete resources) stays in `web`.
+- `@langfuse/shared/rbac` via `src/features/rbac/index.ts`: client-safe tagged IDs,
+  role assignments, role catalog, and permission vocabulary.
 - `@langfuse/shared/rbac/server` via `src/features/rbac/server.ts`: server-only
-  barrel for the role-assignment repository (`getRoleAssignmentsForPrincipal`,
-  `SystemRoleAssignmentWithRole`, `assignRole`,
-  `revokeRolesForPrincipals`, `revokeRolesForOwner`,
-  `revokeApiKeyRolesForOwners`, `transferRoleAssignments`).
-  Imports Prisma, so never route it into client bundles.
+  role-assignment reads and writes, mapping database foreign keys to tagged IDs.
 - `@langfuse/shared/instrumentation/bootstrap` via
   `src/server/instrumentation/bootstrap/index.ts`: instrumentation initializers loaded before sdk.start(); must not import the server barrel or any instrumented library.
 - `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
