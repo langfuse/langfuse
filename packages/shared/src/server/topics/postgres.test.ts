@@ -15,9 +15,9 @@ const mocks = vi.hoisted(() => ({
   runFind: vi.fn(),
   runFindMany: vi.fn(),
   runUpdate: vi.fn(),
-  facetFindUnique: vi.fn(),
-  facetFindMany: vi.fn(),
-  facetCreate: vi.fn(),
+  evaluatorFindFirst: vi.fn(),
+  evaluatorFindMany: vi.fn(),
+  evaluatorCreate: vi.fn(),
   topicFind: vi.fn(),
   topicWrite: vi.fn(),
 }));
@@ -33,15 +33,18 @@ vi.mock("../../db", () => {
       findMany: mocks.runFindMany,
       update: mocks.runUpdate,
     },
-    facet: {
-      findUnique: mocks.facetFindUnique,
-      findMany: mocks.facetFindMany,
-      create: mocks.facetCreate,
+    evaluator: {
+      findFirst: mocks.evaluatorFindFirst,
+      findMany: mocks.evaluatorFindMany,
+      create: mocks.evaluatorCreate,
     },
-    facetVersion: { findFirst: mocks.findFirst, create: mocks.create },
+    evaluatorVersion: { findFirst: mocks.findFirst, create: mocks.create },
   };
   return {
     Prisma: {},
+    EvalTemplateType: { LLM_AS_JUDGE: "LLM_AS_JUDGE" },
+    EvaluatorPurpose: { TOPICS: "TOPICS" },
+    JobConfigState: { INACTIVE: "INACTIVE" },
     prisma: {
       ...db,
       $transaction: (callback: (tx: typeof db) => Promise<unknown>) =>
@@ -53,40 +56,40 @@ vi.mock("../../db", () => {
 describe("Topics default facets", () => {
   it("creates missing defaults without replacing existing facet prompts on repeated initialization", async () => {
     const names = new Set(["Intent", "Issues"]);
-    mocks.facetFindUnique.mockImplementation(async ({ where }) =>
-      names.has(where.projectId_name.name)
-        ? { id: where.projectId_name.name }
-        : null,
+    mocks.evaluatorFindFirst.mockImplementation(async ({ where }) =>
+      names.has(where.name) ? { id: where.name } : null,
     );
-    mocks.facetFindMany.mockResolvedValue([]);
-    mocks.facetCreate.mockImplementation(async ({ data }) => {
+    mocks.evaluatorFindMany.mockResolvedValue([]);
+    mocks.evaluatorCreate.mockImplementation(async ({ data }) => {
       names.add(data.name);
-      return { ...data, id: "new-facet" };
+      return {
+        ...data,
+        id: "new-facet",
+        versions: [
+          {
+            evaluatorId: "new-facet",
+            version: 1,
+            prompt: data.versions.create.prompt,
+            createdAt: new Date(),
+          },
+        ],
+      };
     });
-    mocks.create.mockImplementation(async ({ data }) => ({
-      ...data,
-      createdAt: new Date(),
-    }));
 
     await ensureDefaultTopicFacets("project-a");
     await ensureDefaultTopicFacets("project-a");
 
-    expect(mocks.facetCreate).toHaveBeenCalledTimes(1);
-    expect(mocks.facetCreate).toHaveBeenCalledWith({
+    expect(mocks.evaluatorCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.evaluatorCreate).toHaveBeenCalledWith({
       data: {
         projectId: "project-a",
+        purpose: "TOPICS",
+        type: "LLM_AS_JUDGE",
         name: "Outcome",
         description: expect.any(String),
+        versions: { create: { version: 1, prompt: expect.any(String) } },
       },
-    });
-    expect(mocks.create).toHaveBeenCalledTimes(1);
-    expect(mocks.create).toHaveBeenCalledWith({
-      data: {
-        projectId: "project-a",
-        facetId: "new-facet",
-        version: 1,
-        prompt: expect.any(String),
-      },
+      include: { versions: true },
     });
   });
 });
@@ -95,8 +98,7 @@ describe("Topics facet prompt versions", () => {
   beforeEach(() => {
     mocks.lock.mockResolvedValue([{ id: "facet-a" }]);
     mocks.findFirst.mockResolvedValue({
-      projectId: "project-a",
-      facetId: "facet-a",
+      evaluatorId: "facet-a",
       version: 2,
       prompt: "Describe the task.",
       createdAt: new Date("2026-09-16T00:00:00Z"),
@@ -127,8 +129,7 @@ describe("Topics facet prompt versions", () => {
     expect(version.version).toBe(3);
     expect(mocks.create).toHaveBeenCalledWith({
       data: {
-        projectId: "project-a",
-        facetId: "facet-a",
+        evaluatorId: "facet-a",
         version: 3,
         prompt: "Describe evidenced failures.",
       },

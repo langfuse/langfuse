@@ -2,6 +2,7 @@ import {
   CODE_EVAL_TEMPLATE_VARIABLES,
   EvalTargetObject,
   EvalTemplateType,
+  EvaluatorPurpose,
   ForbiddenError,
   InvalidRequestError,
   getCodeEvalVariableMapping,
@@ -375,7 +376,12 @@ async function findReusableEvaluatorId(params: {
     // Managed catalog entries have no row of their own to attach to, so look
     // for the project copy an earlier legacy create already made from them.
     const candidates = await tx.evaluator.findMany({
-      where: { projectId, name: scoreName, type: definition.type },
+      where: {
+        projectId,
+        name: scoreName,
+        type: definition.type,
+        purpose: EvaluatorPurpose.EVALUATION,
+      },
       include: { versions: latestVersion },
     });
     const match = candidates.find((candidate) => {
@@ -389,7 +395,10 @@ async function findReusableEvaluatorId(params: {
   }
 
   const version = await tx.evaluatorVersion.findFirst({
-    where: { id: templateId, evaluator: { projectId } },
+    where: {
+      id: templateId,
+      evaluator: { projectId, purpose: EvaluatorPurpose.EVALUATION },
+    },
     include: { evaluator: { include: { versions: latestVersion } } },
   });
   if (!version) return null;
@@ -497,7 +506,11 @@ async function clearEvaluatorBlock(params: {
   if (!assignment) return;
 
   await params.tx.evaluator.updateMany({
-    where: { id: assignment.evaluatorId, projectId: params.projectId },
+    where: {
+      id: assignment.evaluatorId,
+      projectId: params.projectId,
+      purpose: EvaluatorPurpose.EVALUATION,
+    },
     data: resetEvalConfigBlockFields,
   });
 }
@@ -516,7 +529,7 @@ async function applyScoreNameChange(params: {
 }) {
   const { tx, projectId, assignmentId, evaluatorId, scoreName } = params;
   const evaluator = await tx.evaluator.findFirst({
-    where: { id: evaluatorId, projectId },
+    where: { id: evaluatorId, projectId, purpose: EvaluatorPurpose.EVALUATION },
     include: {
       versions: latestVersion,
       _count: { select: { assignments: true } },
@@ -526,7 +539,11 @@ async function applyScoreNameChange(params: {
 
   if (evaluator._count.assignments <= 1) {
     await tx.evaluator.update({
-      where: { id: evaluatorId, projectId },
+      where: {
+        id: evaluatorId,
+        projectId,
+        purpose: EvaluatorPurpose.EVALUATION,
+      },
       data: { name: scoreName },
     });
     return;
@@ -611,6 +628,8 @@ const legacyConfigIdsQuery = (params: {
     ) a ON a."evaluation_rule_id" = r."id"
     JOIN "evaluators" e ON e."id" = a."evaluator_id"
     WHERE r."project_id" = ${params.projectId}
+      AND r."purpose" = 'EVALUATION'
+      AND e."purpose" = 'EVALUATION'
   ) jc
   WHERE TRUE
   ${params.targetCondition}
@@ -647,14 +666,23 @@ export class LegacyEvalCompatibilityService {
   async counts(projectId: string) {
     const [configCount, configActiveCount, templateCount, legacyConfigCount] =
       await Promise.all([
-        this.prisma.evaluationRule.count({ where: { projectId } }),
         this.prisma.evaluationRule.count({
-          where: { projectId, status: JobConfigState.ACTIVE },
+          where: { projectId, purpose: EvaluatorPurpose.EVALUATION },
         }),
-        this.prisma.evaluator.count({ where: { projectId } }),
         this.prisma.evaluationRule.count({
           where: {
             projectId,
+            purpose: EvaluatorPurpose.EVALUATION,
+            status: JobConfigState.ACTIVE,
+          },
+        }),
+        this.prisma.evaluator.count({
+          where: { projectId, purpose: EvaluatorPurpose.EVALUATION },
+        }),
+        this.prisma.evaluationRule.count({
+          where: {
+            projectId,
+            purpose: EvaluatorPurpose.EVALUATION,
             targetObject: {
               in: [EvalTargetObject.TRACE, EvalTargetObject.DATASET],
             },
@@ -739,7 +767,11 @@ export class LegacyEvalCompatibilityService {
     const ids = rows.map(({ id }) => id);
     const rules = ids.length
       ? await this.prisma.evaluationRule.findMany({
-          where: { id: { in: ids }, projectId: params.projectId },
+          where: {
+            id: { in: ids },
+            projectId: params.projectId,
+            purpose: EvaluatorPurpose.EVALUATION,
+          },
           include: ruleInclude,
         })
       : [];
@@ -757,7 +789,7 @@ export class LegacyEvalCompatibilityService {
 
   async getConfig(projectId: string, ruleId: string) {
     const rule = await this.prisma.evaluationRule.findFirst({
-      where: { id: ruleId, projectId },
+      where: { id: ruleId, projectId, purpose: EvaluatorPurpose.EVALUATION },
       include: ruleInclude,
     });
     if (!rule || rule.assignments.length > 1) return null;
@@ -811,7 +843,7 @@ export class LegacyEvalCompatibilityService {
     options: { collapseManagedCopies?: boolean } = {},
   ) {
     const evaluators = await this.prisma.evaluator.findMany({
-      where: { projectId },
+      where: { projectId, purpose: EvaluatorPurpose.EVALUATION },
       include: { versions: latestVersion },
       orderBy: [{ name: "asc" }, { createdAt: "asc" }],
     });
@@ -835,6 +867,7 @@ export class LegacyEvalCompatibilityService {
     const evaluators = await this.prisma.evaluator.findMany({
       where: {
         projectId: params.projectId,
+        purpose: EvaluatorPurpose.EVALUATION,
         ...(search
           ? { name: { contains: search, mode: "insensitive" as const } }
           : {}),
@@ -947,7 +980,10 @@ export class LegacyEvalCompatibilityService {
       return isRunnableTemplate(legacyTemplate) ? legacyTemplate : null;
     }
     const version = await this.prisma.evaluatorVersion.findFirst({
-      where: { id: templateId, evaluator: { projectId } },
+      where: {
+        id: templateId,
+        evaluator: { projectId, purpose: EvaluatorPurpose.EVALUATION },
+      },
       include: { evaluator: true },
     });
     if (!version) return null;
@@ -979,7 +1015,10 @@ export class LegacyEvalCompatibilityService {
     const version = await this.prisma.evaluatorVersion.findFirst({
       where: {
         id: params.templateId,
-        evaluator: { projectId: params.projectId },
+        evaluator: {
+          projectId: params.projectId,
+          purpose: EvaluatorPurpose.EVALUATION,
+        },
       },
       include: { evaluator: { include: { versions: latestVersion } } },
     });
@@ -1049,6 +1088,7 @@ export class LegacyEvalCompatibilityService {
             id: params.reuseEvaluatorFromRuleId,
             projectId: params.projectId,
             targetObject: { in: LEGACY_TARGET_OBJECTS },
+            purpose: EvaluatorPurpose.EVALUATION,
           },
           select: {
             assignments: {
@@ -1154,7 +1194,10 @@ export class LegacyEvalCompatibilityService {
         const source = await tx.evaluatorVersion.findFirst({
           where: {
             id: params.intent.sourceTemplateId,
-            evaluator: { projectId: params.projectId },
+            evaluator: {
+              projectId: params.projectId,
+              purpose: EvaluatorPurpose.EVALUATION,
+            },
           },
           select: { evaluatorId: true },
         });
@@ -1265,7 +1308,11 @@ export class LegacyEvalCompatibilityService {
       }
 
       const duplicate = await tx.evaluator.findFirst({
-        where: { projectId: params.projectId, name: params.name },
+        where: {
+          projectId: params.projectId,
+          name: params.name,
+          purpose: EvaluatorPurpose.EVALUATION,
+        },
         select: { type: true },
       });
       if (duplicate) {
@@ -1309,7 +1356,7 @@ export class LegacyEvalCompatibilityService {
 
   async listTemplateVersions(projectId: string, name: string) {
     const evaluators = await this.prisma.evaluator.findMany({
-      where: { projectId, name },
+      where: { projectId, name, purpose: EvaluatorPurpose.EVALUATION },
       include: { versions: { orderBy: { version: "desc" } } },
     });
     return evaluators.flatMap((evaluator) =>
@@ -1327,7 +1374,10 @@ export class LegacyEvalCompatibilityService {
     const rules = await this.prisma.evaluationRule.findMany({
       where: {
         projectId,
-        assignments: { some: { evaluator: { name } } },
+        purpose: EvaluatorPurpose.EVALUATION,
+        assignments: {
+          some: { evaluator: { name, purpose: EvaluatorPurpose.EVALUATION } },
+        },
       },
       include: ruleInclude,
     });
@@ -1355,6 +1405,7 @@ export class LegacyEvalCompatibilityService {
           id: params.ruleId,
           projectId: params.projectId,
           targetObject: { in: LEGACY_TARGET_OBJECTS },
+          purpose: EvaluatorPurpose.EVALUATION,
         },
         include: { assignments: true },
       });
@@ -1437,6 +1488,7 @@ export class LegacyEvalCompatibilityService {
           id: { in: params.ruleIds },
           projectId: params.projectId,
           targetObject: { in: LEGACY_TARGET_OBJECTS },
+          purpose: EvaluatorPurpose.EVALUATION,
         },
         data: { status: params.status },
       });
@@ -1470,6 +1522,7 @@ export class LegacyEvalCompatibilityService {
         id: ruleId,
         projectId,
         targetObject: { in: LEGACY_TARGET_OBJECTS },
+        purpose: EvaluatorPurpose.EVALUATION,
       },
       select: { id: true },
     });
@@ -1483,7 +1536,9 @@ export class LegacyEvalCompatibilityService {
       this.prisma.jobExecution.deleteMany({
         where: { projectId, jobConfigurationId: ruleId },
       }),
-      this.prisma.evaluationRule.delete({ where: { id: ruleId, projectId } }),
+      this.prisma.evaluationRule.delete({
+        where: { id: ruleId, projectId, purpose: EvaluatorPurpose.EVALUATION },
+      }),
     ]);
     return true;
   }
@@ -1493,13 +1548,17 @@ export class LegacyEvalCompatibilityService {
       return [];
     }
     const version = await this.prisma.evaluatorVersion.findFirst({
-      where: { id: templateId, evaluator: { projectId } },
+      where: {
+        id: templateId,
+        evaluator: { projectId, purpose: EvaluatorPurpose.EVALUATION },
+      },
       select: { evaluatorId: true },
     });
     if (!version) return [];
     const rules = await this.prisma.evaluationRule.findMany({
       where: {
         projectId,
+        purpose: EvaluatorPurpose.EVALUATION,
         assignments: { some: { evaluatorId: version.evaluatorId } },
       },
       include: ruleInclude,
@@ -1517,7 +1576,10 @@ export class LegacyEvalCompatibilityService {
 
     return this.prisma.$transaction(async (tx) => {
       const version = await tx.evaluatorVersion.findFirst({
-        where: { id: templateId, evaluator: { projectId } },
+        where: {
+          id: templateId,
+          evaluator: { projectId, purpose: EvaluatorPurpose.EVALUATION },
+        },
         select: { evaluatorId: true },
       });
       if (!version) throw new LangfuseNotFoundError("Evaluator not found");
@@ -1529,6 +1591,7 @@ export class LegacyEvalCompatibilityService {
       const referencingRules = await tx.evaluationRule.findMany({
         where: {
           projectId,
+          purpose: EvaluatorPurpose.EVALUATION,
           assignments: { some: { evaluatorId: version.evaluatorId } },
         },
         select: { name: true },
@@ -1543,7 +1606,11 @@ export class LegacyEvalCompatibilityService {
         where: { evaluatorId: version.evaluatorId },
       });
       await tx.evaluator.delete({
-        where: { id: version.evaluatorId, projectId },
+        where: {
+          id: version.evaluatorId,
+          projectId,
+          purpose: EvaluatorPurpose.EVALUATION,
+        },
       });
       return versions;
     });

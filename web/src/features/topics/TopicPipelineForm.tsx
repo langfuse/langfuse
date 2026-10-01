@@ -121,8 +121,6 @@ export function useTopicPipelineForm({
     selectedRule &&
     criteria &&
     JSON.stringify(criteria.filter) === JSON.stringify(selectedRule.filter) &&
-    criteria.sampling === selectedRule.sampling &&
-    criteria.limit === selectedRule.limit &&
     activeFacetIds.length === selectedRule.facetIds.length &&
     activeFacetIds.every((id) => selectedRule.facetIds.includes(id));
   const summaryCounts = api.topics.summaryCounts.useQuery(
@@ -259,8 +257,8 @@ export function useTopicPipelineForm({
               const criteria = rule
                 ? {
                     filter: rule.filter,
-                    sampling: rule.sampling,
-                    limit: rule.limit,
+                    sampling: "random" as const,
+                    limit: null,
                   }
                 : undefined;
               setInitialCriteria(criteria);
@@ -418,15 +416,16 @@ export function useTopicPipelineForm({
                         projectId,
                         ...(selectedRule ? { id: selectedRule.id } : {}),
                         name: ruleName,
-                        ...criteria,
+                        filter: criteria.filter,
                         facetIds: activeFacetIds,
                       })
                     }
                   />
                 </div>
                 <p className="text-muted-foreground text-xs">
-                  Rules save filters, sampling and selected facets. Choose the
-                  time range and summary reuse for each run.
+                  Rules save filters and selected facets. Choose the trace
+                  limit, selection order, time range and summary reuse for each
+                  run.
                   {selectedRule && !matchesRule(criteria)
                     ? " Unsaved changes apply only to this run until you update the rule."
                     : ""}

@@ -641,7 +641,11 @@ export class EvaluatorService {
     if (definition) {
       if (evaluatorId) {
         const evaluator = await this.prisma.evaluator.findFirst({
-          where: { id: evaluatorId, projectId: params.projectId },
+          where: {
+            id: evaluatorId,
+            projectId: params.projectId,
+            purpose: "EVALUATION",
+          },
           select: { id: true },
         });
         // The setup editor pre-generates a UUID so a test run can be attributed

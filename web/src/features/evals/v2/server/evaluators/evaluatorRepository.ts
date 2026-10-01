@@ -1,5 +1,6 @@
 import {
   EvalTemplateType,
+  EvaluatorPurpose,
   Prisma,
   type PrismaClient,
   type EvaluatorBlockReason,
@@ -47,7 +48,10 @@ const eventEvaluatorFilterColumnIds = new Set(
 
 const publicEvaluationRuleAssignments = (projectId: string) =>
   ({
-    where: { projectId },
+    where: {
+      projectId,
+      evaluationRule: { purpose: EvaluatorPurpose.EVALUATION },
+    },
     orderBy: { createdAt: "desc" },
     select: {
       variableMapping: true,
@@ -188,6 +192,7 @@ async function evaluatorIdsMatchingModelFilters(params: {
       LEFT JOIN default_llm_models AS default_model
         ON default_model.project_id = evaluator.project_id
       WHERE evaluator.project_id = ${params.projectId}
+        AND evaluator.purpose = 'EVALUATION'
         AND ${Prisma.join(predicates, " AND ")}
     `,
   );
@@ -272,6 +277,7 @@ async function evaluatorWhere(params: {
 
   return {
     projectId: params.projectId,
+    purpose: EvaluatorPurpose.EVALUATION,
     ...(modelEvaluatorIds ? { id: { in: modelEvaluatorIds } } : {}),
     ...(params.search
       ? { name: { contains: params.search, mode: "insensitive" as const } }
@@ -419,7 +425,10 @@ export async function listEvaluatorFilterOptions(params: {
 }) {
   const [evaluators, defaultModel] = await Promise.all([
     params.prisma.evaluator.findMany({
-      where: { projectId: params.projectId },
+      where: {
+        projectId: params.projectId,
+        purpose: EvaluatorPurpose.EVALUATION,
+      },
       select: {
         name: true,
         type: true,
@@ -477,7 +486,11 @@ export function countProjectEvaluators(params: {
   evaluatorIds: string[];
 }) {
   return params.prisma.evaluator.count({
-    where: { projectId: params.projectId, id: { in: params.evaluatorIds } },
+    where: {
+      projectId: params.projectId,
+      purpose: EvaluatorPurpose.EVALUATION,
+      id: { in: params.evaluatorIds },
+    },
   });
 }
 
@@ -491,6 +504,7 @@ export async function listEvaluatorOptions(params: {
   const evaluators = await params.prisma.evaluator.findMany({
     where: {
       projectId: params.projectId,
+      purpose: EvaluatorPurpose.EVALUATION,
       ...(params.search
         ? { name: { contains: params.search, mode: "insensitive" } }
         : {}),
@@ -530,7 +544,11 @@ export function findEvaluator(params: {
   evaluatorId: string;
 }) {
   return params.prisma.evaluator.findFirst({
-    where: { id: params.evaluatorId, projectId: params.projectId },
+    where: {
+      id: params.evaluatorId,
+      projectId: params.projectId,
+      purpose: EvaluatorPurpose.EVALUATION,
+    },
     include: {
       versions: latestVersionWithCreator,
       createdByUser,
@@ -549,8 +567,14 @@ export async function findFirstAssignedRuleFilter(params: {
       where: {
         projectId: params.projectId,
         evaluatorId: params.evaluatorId,
-        evaluator: { projectId: params.projectId },
-        evaluationRule: { projectId: params.projectId },
+        evaluator: {
+          projectId: params.projectId,
+          purpose: EvaluatorPurpose.EVALUATION,
+        },
+        evaluationRule: {
+          projectId: params.projectId,
+          purpose: EvaluatorPurpose.EVALUATION,
+        },
       },
       orderBy: { createdAt: "desc" },
       select: {
@@ -581,6 +605,7 @@ export function findEvaluatorsByIds(params: {
     where: {
       id: { in: params.evaluatorIds },
       projectId: params.projectId,
+      purpose: EvaluatorPurpose.EVALUATION,
     },
     include: {
       versions: latestVersion,
@@ -598,7 +623,10 @@ export async function listEvaluatorVersions(params: {
   const versions = await params.prisma.evaluatorVersion.findMany({
     where: {
       evaluatorId: params.evaluatorId,
-      evaluator: { projectId: params.projectId },
+      evaluator: {
+        projectId: params.projectId,
+        purpose: EvaluatorPurpose.EVALUATION,
+      },
       ...(params.cursor ? { version: { lt: params.cursor } } : {}),
     },
     orderBy: { version: "desc" },
@@ -623,7 +651,11 @@ export function findEvaluatorsByName(params: {
   name: string;
 }) {
   return params.prisma.evaluator.findMany({
-    where: { projectId: params.projectId, name: params.name },
+    where: {
+      projectId: params.projectId,
+      name: params.name,
+      purpose: EvaluatorPurpose.EVALUATION,
+    },
     include: { versions: latestVersion },
     take: 2,
   });
@@ -644,6 +676,7 @@ export function createEvaluator(params: {
       name: params.input.name,
       description: params.input.description,
       type: params.input.definition.type,
+      purpose: EvaluatorPurpose.EVALUATION,
       createdByUserId: params.createdByUserId,
       ...(params.block
         ? {
@@ -675,7 +708,11 @@ export function blockEvaluator(params: {
   message: string;
 }) {
   return params.tx.evaluator.update({
-    where: { id: params.evaluatorId, projectId: params.projectId },
+    where: {
+      id: params.evaluatorId,
+      projectId: params.projectId,
+      purpose: EvaluatorPurpose.EVALUATION,
+    },
     data: {
       blockedAt: new Date(),
       blockReason: params.reason,
@@ -690,7 +727,11 @@ export function unblockEvaluator(params: {
   evaluatorId: string;
 }) {
   return params.tx.evaluator.update({
-    where: { id: params.evaluatorId, projectId: params.projectId },
+    where: {
+      id: params.evaluatorId,
+      projectId: params.projectId,
+      purpose: EvaluatorPurpose.EVALUATION,
+    },
     data: {
       blockedAt: null,
       blockReason: null,
@@ -707,7 +748,11 @@ export function updateEvaluatorMetadata(params: {
   description?: string | null;
 }) {
   return params.tx.evaluator.update({
-    where: { id: params.evaluatorId, projectId: params.projectId },
+    where: {
+      id: params.evaluatorId,
+      projectId: params.projectId,
+      purpose: EvaluatorPurpose.EVALUATION,
+    },
     data: {
       ...(params.name === undefined ? {} : { name: params.name }),
       ...(params.description === undefined
@@ -753,11 +798,16 @@ export async function deleteEvaluator(params: {
       where: {
         projectId: params.projectId,
         evaluatorId: params.evaluatorId,
+        evaluator: { purpose: EvaluatorPurpose.EVALUATION },
       },
       select: { evaluationRuleId: true },
     });
   const result = await params.prisma.evaluator.deleteMany({
-    where: { id: params.evaluatorId, projectId: params.projectId },
+    where: {
+      id: params.evaluatorId,
+      projectId: params.projectId,
+      purpose: EvaluatorPurpose.EVALUATION,
+    },
   });
   if (result.count > 0) {
     await setRuleStatus({

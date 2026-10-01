@@ -15,6 +15,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     where: {
       id: evaluatorId,
       projectId,
+      purpose: "EVALUATION",
     },
     select: {
       project: {

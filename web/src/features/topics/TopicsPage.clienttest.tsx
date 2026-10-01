@@ -121,8 +121,6 @@ vi.mock("@/src/utils/api", () => {
                 id: "rule",
                 name: "Saved rule",
                 filter: [],
-                sampling: "latest",
-                limit: 50,
                 facetIds: ["intent"],
               },
             ],

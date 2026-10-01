@@ -23,6 +23,7 @@ import {
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { CreateObservationBatchEvaluationActionSchema } from "../validation";
+import { EvaluatorPurpose } from "@langfuse/shared/src/db";
 import { batchEligibleEvaluatorWhere } from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
 import { prepareBatchEvalEvaluatorMappings } from "./prepareBatchEvalEvaluatorMappings";
 
@@ -79,6 +80,7 @@ export const runEvaluationRouter = createTRPCRouter({
                 where: {
                   id: { in: requestedEvaluatorIds },
                   projectId,
+                  purpose: EvaluatorPurpose.EVALUATION,
                   ...batchEligibleEvaluatorWhere,
                 },
                 select: { id: true },
@@ -89,6 +91,7 @@ export const runEvaluationRouter = createTRPCRouter({
                     in: requestedEvaluatorIds,
                   },
                   projectId,
+                  purpose: EvaluatorPurpose.EVALUATION,
                   targetObject,
                 },
                 select: {

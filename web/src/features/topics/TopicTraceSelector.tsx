@@ -30,10 +30,8 @@ import { DateRangeInput } from "@/src/features/evals/v2/components/Evaluators/Ev
 import { parseTraceInput } from "./parse-trace-input";
 
 type PreviewInput = RouterInputs["topics"]["previewTraces"];
-export type TopicTraceCriteria = Pick<
-  TopicRule,
-  "filter" | "sampling" | "limit"
->;
+export type TopicTraceCriteria = Pick<TopicRule, "filter"> &
+  Pick<PreviewInput, "sampling" | "limit">;
 type TracePreview = RouterOutputs["topics"]["previewTraces"]["traces"][number];
 type TopicTraceSelection = { count: number } & (
   | { traceIds: string[] }

@@ -142,6 +142,7 @@ async function runCodeEvalTestForObservation(params: {
           id: params.evalTemplateId,
           evaluator: {
             projectId: params.projectId,
+            purpose: "EVALUATION",
             type: EvalTemplateType.CODE,
           },
           sourceCode: { not: null },
