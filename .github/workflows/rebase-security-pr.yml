@@ -1,0 +1,322 @@
+name: Rebase security dependency pull request
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: rebase-security-pr-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  rebase:
+    if: >-
+      github.repository == 'langfuse/langfuse' &&
+      github.event.issue.pull_request != null &&
+      github.event.comment.body == '/rebase-security-pr'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Authorize command
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENTER: ${{ github.event.comment.user.login }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+
+          [[ "$COMMENT_BODY" == "/rebase-security-pr" ]]
+          [[ "$COMMENTER" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}$ ]]
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
+
+          permission="$(
+            gh api "repos/${GITHUB_REPOSITORY}/collaborators/${COMMENTER}/permission" \
+              --jq '.permission'
+          )"
+          case "$permission" in
+            admin|maintain|write) ;;
+            *)
+              echo "${COMMENTER} does not have write permission"
+              exit 1
+              ;;
+          esac
+
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Setup pnpm
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          dest: ${{ runner.temp }}/security-rebase-pnpm
+          install: false
+          cache: false
+
+      - name: Validate and rebase security branch
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          PR_PATH: ${{ runner.temp }}/security-pr.json
+          WHY_PATH: ${{ runner.temp }}/security-dependency-why.json
+        run: |
+          set -euo pipefail
+          export GIT_CONFIG_GLOBAL=/dev/null
+          export GIT_CONFIG_SYSTEM=/dev/null
+
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" > "$PR_PATH"
+          jq -e --arg repo "$GITHUB_REPOSITORY" '
+            .state == "open" and
+            .user.login == "github-actions[bot]" and
+            .base.repo.full_name == $repo and
+            .base.ref == "main" and
+            .head.repo.full_name == $repo and
+            (.head.ref | startswith("deps/security-")) and
+            (.title | test("^chore\\(deps\\): bump (?:@[A-Za-z0-9._-]+/)?[A-Za-z0-9._-]+ to [0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")) and
+            (.labels | map(.name) | index("has-conflicts") != null)
+          ' "$PR_PATH" >/dev/null
+
+          dependency="$(jq -er '.title | capture("^chore\\(deps\\): bump (?<dependency>(?:@[A-Za-z0-9._-]+/)?[A-Za-z0-9._-]+) to (?<version>[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)$").dependency' "$PR_PATH")"
+          target_version="$(jq -er '.title | capture("^chore\\(deps\\): bump (?<dependency>(?:@[A-Za-z0-9._-]+/)?[A-Za-z0-9._-]+) to (?<version>[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)$").version' "$PR_PATH")"
+          head_ref="$(jq -er '.head.ref' "$PR_PATH")"
+          expected_head_sha="$(jq -er '.head.sha' "$PR_PATH")"
+          base_sha="$(git rev-parse HEAD)"
+
+          [[ "$dependency" =~ ^(@[A-Za-z0-9._-]+/)?[A-Za-z0-9._-]+$ ]]
+          [[ "$target_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]
+          [[ "$head_ref" == deps/security-* ]]
+          git check-ref-format "refs/heads/${head_ref}"
+          [[ "$expected_head_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$base_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$base_sha" == "$(git rev-parse origin/main)" ]]
+
+          git fetch --no-tags origin \
+            "refs/heads/${head_ref}:refs/remotes/origin/security-rebase-original"
+          [[ "$(git rev-parse refs/remotes/origin/security-rebase-original)" == "$expected_head_sha" ]]
+
+          original_base_sha="$(git merge-base "$expected_head_sha" "$base_sha")"
+          [[ "$original_base_sha" =~ ^[0-9a-f]{40}$ ]]
+          git merge-base --is-ancestor "$original_base_sha" "$expected_head_sha"
+          git merge-base --is-ancestor "$original_base_sha" "$base_sha"
+
+          if [[ -n "$(git rev-list --merges "${original_base_sha}..${expected_head_sha}")" ]]; then
+            echo "Original pull request contains a merge commit"
+            exit 1
+          fi
+
+          while IFS= read -r commit_sha; do
+            gh api "repos/${GITHUB_REPOSITORY}/commits/${commit_sha}" |
+              jq -e '
+                .commit.verification.verified == true and
+                (.author.login == "github-actions[bot]" or .author.login == "langfuse-bot") and
+                .committer.login == "web-flow"
+              ' >/dev/null
+          done < <(git rev-list --reverse "${original_base_sha}..${expected_head_sha}")
+          unset GH_TOKEN
+
+          mapfile -d '' -t original_changed_files < <(
+            git diff --name-only -z "${original_base_sha}..${expected_head_sha}"
+          )
+          if (( ${#original_changed_files[@]} == 0 || ${#original_changed_files[@]} > 30 )); then
+            echo "Expected between 1 and 30 original dependency files"
+            exit 1
+          fi
+
+          for path in "${original_changed_files[@]}"; do
+            case "$path" in
+              package.json|pnpm-lock.yaml|pnpm-workspace.yaml|*/package.json) ;;
+              *)
+                echo "Original pull request changes disallowed file: $path"
+                exit 1
+                ;;
+            esac
+          done
+
+          original_changed_lines="$(
+            git diff --numstat "${original_base_sha}..${expected_head_sha}" |
+              awk '{added += $1; deleted += $2} END {print added + deleted}'
+          )"
+          if (( original_changed_lines > 5000 )); then
+            echo "Original pull request changes too many lines: $original_changed_lines"
+            exit 1
+          fi
+
+          original_intent_patch_id="$(
+            git diff "${original_base_sha}..${expected_head_sha}" -- \
+              package.json ':(glob)**/package.json' pnpm-workspace.yaml |
+              git patch-id --stable |
+              awk '{print $1}'
+          )"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config commit.gpgsign false
+          git config core.hooksPath /dev/null
+          git checkout --detach "$expected_head_sha"
+
+          if ! GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true git rebase --no-verify "$base_sha"; then
+            mapfile -d '' -t conflicted_files < <(git diff --name-only --diff-filter=U -z)
+            if (( ${#conflicted_files[@]} != 1 )) || [[ "${conflicted_files[0]}" != "pnpm-lock.yaml" ]]; then
+              echo "Only pnpm-lock.yaml may conflict"
+              printf 'Conflicted file: %s\n' "${conflicted_files[@]}"
+              exit 1
+            fi
+
+            git checkout --ours pnpm-lock.yaml
+            git add -u
+            [[ -z "$(git diff --name-only --diff-filter=U)" ]]
+            GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true git rebase --continue
+          fi
+
+          git checkout "$base_sha" -- pnpm-lock.yaml
+          pnpm --config.ignore-scripts=true install --lockfile-only
+          pnpm --config.ignore-scripts=true dedupe
+          git add pnpm-lock.yaml
+
+          if ! git diff --cached --quiet; then
+            mapfile -d '' -t staged_files < <(git diff --cached --name-only -z)
+            if (( ${#staged_files[@]} != 1 )) || [[ "${staged_files[0]}" != "pnpm-lock.yaml" ]]; then
+              echo "Only pnpm-lock.yaml may be staged for the deterministic rebuild"
+              exit 1
+            fi
+            git diff --quiet -- pnpm-lock.yaml
+            git diff --cached --check -- pnpm-lock.yaml
+            GIT_EDITOR=true git commit --amend --no-edit --no-verify
+          fi
+
+          rebased_sha="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$base_sha" "$rebased_sha"
+          if [[ -n "$(git rev-list --merges "${base_sha}..${rebased_sha}")" ]]; then
+            echo "Rebased history contains a merge commit"
+            exit 1
+          fi
+
+          mapfile -d '' -t changed_files < <(
+            git diff --name-only -z "${base_sha}..${rebased_sha}"
+          )
+          if (( ${#changed_files[@]} == 0 || ${#changed_files[@]} > 30 )); then
+            echo "Expected between 1 and 30 changed dependency files"
+            exit 1
+          fi
+
+          for path in "${changed_files[@]}"; do
+            case "$path" in
+              package.json|pnpm-lock.yaml|pnpm-workspace.yaml|*/package.json) ;;
+              *)
+                echo "Rebased branch changes disallowed file: $path"
+                exit 1
+                ;;
+            esac
+          done
+
+          while IFS= read -r commit_sha; do
+            mapfile -d '' -t commit_changed_files < <(
+              git diff-tree --no-commit-id --name-only -r -z "$commit_sha"
+            )
+            for path in "${commit_changed_files[@]}"; do
+              case "$path" in
+                package.json|pnpm-lock.yaml|pnpm-workspace.yaml|*/package.json) ;;
+                *)
+                  echo "Rebased commit ${commit_sha} changes disallowed file: $path"
+                  exit 1
+                  ;;
+              esac
+            done
+          done < <(git rev-list --reverse "${base_sha}..${rebased_sha}")
+
+          changed_lines="$(
+            git diff --numstat "${base_sha}..${rebased_sha}" |
+              awk '{added += $1; deleted += $2} END {print added + deleted}'
+          )"
+          if (( changed_lines > 5000 )); then
+            echo "Rebased branch changes too many lines: $changed_lines"
+            exit 1
+          fi
+
+          rebased_intent_patch_id="$(
+            git diff "${base_sha}..${rebased_sha}" -- \
+              package.json ':(glob)**/package.json' pnpm-workspace.yaml |
+              git patch-id --stable |
+              awk '{print $1}'
+          )"
+          if [[ "$original_intent_patch_id" != "$rebased_intent_patch_id" ]]; then
+            echo "Rebased manifest changes do not match the original pull request intent"
+            exit 1
+          fi
+
+          pnpm --config.ignore-scripts=true install --frozen-lockfile
+          pnpm why -r --json "$dependency" > "$WHY_PATH"
+          jq -e --arg target_version "$target_version" '
+            type == "array" and
+            length > 0 and
+            all(.version == $target_version)
+          ' "$WHY_PATH" >/dev/null
+          pnpm --config.ignore-scripts=true dedupe --check
+          git diff --check "${base_sha}..${rebased_sha}" -- "${changed_files[@]}"
+
+          if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+            echo "Worktree is not clean after rebase"
+            git status --short
+            exit 1
+          fi
+
+          {
+            printf 'base_sha=%s\n' "$base_sha"
+            printf 'dependency=%s\n' "$dependency"
+            printf 'expected_head_sha=%s\n' "$expected_head_sha"
+            printf 'head_ref=%s\n' "$head_ref"
+            printf 'rebased_sha=%s\n' "$rebased_sha"
+            printf 'target_version=%s\n' "$target_version"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish rebased security branch
+        env:
+          GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+          BASE_SHA: ${{ steps.prepare.outputs.base_sha }}
+          DEPENDENCY: ${{ steps.prepare.outputs.dependency }}
+          EXPECTED_HEAD_SHA: ${{ steps.prepare.outputs.expected_head_sha }}
+          HEAD_REF: ${{ steps.prepare.outputs.head_ref }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          REBASED_SHA: ${{ steps.prepare.outputs.rebased_sha }}
+          TARGET_VERSION: ${{ steps.prepare.outputs.target_version }}
+        run: |
+          set -euo pipefail
+          export GIT_CONFIG_GLOBAL=/dev/null
+          export GIT_CONFIG_SYSTEM=/dev/null
+
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HEAD_REF" == deps/security-* ]]
+          git check-ref-format "refs/heads/${HEAD_REF}"
+          [[ "$EXPECTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$REBASED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$REBASED_SHA" ]]
+          [[ "$(git ls-remote origin refs/heads/main | awk '{print $1}')" == "$BASE_SHA" ]]
+          [[ "$(git ls-remote origin "refs/heads/${HEAD_REF}" | awk '{print $1}')" == "$EXPECTED_HEAD_SHA" ]]
+
+          basic_auth="$(printf 'x-access-token:%s' "$GH_ACCESS_TOKEN" | base64 -w 0)"
+          GIT_CONFIG_COUNT=1 \
+          GIT_CONFIG_KEY_0='http.https://github.com/.extraheader' \
+          GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${basic_auth}" \
+            git push \
+              --force-with-lease="refs/heads/${HEAD_REF}:${EXPECTED_HEAD_SHA}" \
+              origin \
+              "${REBASED_SHA}:refs/heads/${HEAD_REF}"
+
+          printf 'Rebased `%s` to `%s` on pull request #%s.\n' \
+            "$DEPENDENCY" "$TARGET_VERSION" "$PR_NUMBER" \
+            >> "$GITHUB_STEP_SUMMARY"
