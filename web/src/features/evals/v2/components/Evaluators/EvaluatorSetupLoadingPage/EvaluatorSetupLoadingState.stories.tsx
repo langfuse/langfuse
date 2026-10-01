@@ -1,20 +1,18 @@
 import preview from "../../../../../../../.storybook/preview";
-import { EvaluatorSetupLoadingPage } from "./EvaluatorSetupLoadingPage";
+import { EvaluatorSetupLoadingState } from "./EvaluatorSetupLoadingState";
 
 const meta = preview.meta({
-  component: EvaluatorSetupLoadingPage,
+  component: EvaluatorSetupLoadingState,
 });
 
 export const Creating = meta.story({
   args: {
     mode: "create",
-    projectId: "project-1",
   },
 });
 
 export const Editing = meta.story({
   args: {
     mode: "edit",
-    projectId: "project-1",
   },
 });
