@@ -136,15 +136,12 @@ const MetadataJsonPathPill = ({
   display: ReturnType<typeof getConfiguredMetadataDisplay>;
   onRemove: (path: string) => void;
 }) => (
-  <span className="group flex items-center">
+  <span className="group flex max-w-full min-w-0 items-center">
     <BadgeShell data-session-header-pill="true">
-      <span
-        className="text-muted-foreground max-w-40 truncate"
-        title={display.path}
-      >
+      <span className="text-muted-foreground truncate" title={display.path}>
         {display.label}
       </span>
-      <span className="max-w-56 truncate" title={display.displayValue}>
+      <span className="truncate" title={display.displayValue}>
         {display.displayValue}
       </span>
       <span className="-ml-1.5 inline-flex w-0 overflow-hidden transition-[width,margin] group-focus-within:ml-0 group-focus-within:w-4 group-hover:ml-0 group-hover:w-4">
@@ -528,7 +525,10 @@ export function ModernSessionHeader({
                   {hasResults ? (
                     <>
                       {filteredPills.map((pill) => (
-                        <span key={pill.key} className="flex items-center">
+                        <span
+                          key={pill.key}
+                          className="flex max-w-full items-center"
+                        >
                           {pill.content}
                         </span>
                       ))}
