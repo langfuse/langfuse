@@ -1,8 +1,7 @@
 import { useRouter } from "next/router";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 
-import Page from "@/src/components/layouts/page";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { EvaluatorSetupLoadingPage } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupLoadingPage/EvaluatorSetupLoadingPage";
 import { useEvalTemplate } from "@/src/features/evals/v2/hooks/useEvalTemplate";
 import { EvaluatorSetupPage } from "./EvaluatorSetupPage";
 
@@ -33,18 +32,7 @@ export default function NewEvaluatorPage() {
   });
 
   if (!router.isReady || template.isPending) {
-    return (
-      <Page
-        headerProps={{
-          title: "New evaluator",
-          breadcrumb: projectId
-            ? [{ name: "Evaluators", href: `/project/${projectId}/evals` }]
-            : undefined,
-        }}
-      >
-        <Skeleton className="m-6 h-96 w-[calc(100%-3rem)]" />
-      </Page>
-    );
+    return <EvaluatorSetupLoadingPage mode="create" projectId={projectId} />;
   }
 
   if (template.isNotFound) {
