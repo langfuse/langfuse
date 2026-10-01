@@ -469,6 +469,25 @@ describe("isExpectedTrpcClientError", () => {
     expect(isExpectedTrpcClientError(error)).toBe(true);
   });
 
+  it("treats a concurrent evaluator save as expected", () => {
+    // evalsV2.update / evalsV2.reactivate throw CONFLICT when two writers
+    // append the same next version (P2002). The setup page opens
+    // EvaluatorVersionConflictDialog; reactivate toasts. Product working
+    // as designed — not a regression.
+    for (const path of ["evalsV2.update", "evalsV2.reactivate"] as const) {
+      expect(
+        isExpectedTrpcClientError(
+          trpcServerError({
+            code: "CONFLICT",
+            httpStatus: 409,
+            path,
+            message: "Evaluator was updated concurrently. Retry the request.",
+          }),
+        ),
+      ).toBe(true);
+    }
+  });
+
   it("does not treat CONFLICT on other procedures as expected", () => {
     // Negative fixture: duplicate-name / unique-constraint CONFLICTs must
     // still reach Sentry. Widening the allowlist would hide those.
@@ -733,23 +752,26 @@ describe("reportTrpcErrorWithoutToast", () => {
     });
   });
 
-  it("suppresses a stale in-app-agent tool approval (breadcrumb, no capture)", () => {
-    reportTrpcErrorWithoutToast(
-      trpcServerError({
-        code: "CONFLICT",
-        httpStatus: 409,
-        path: EXPECTED_TRPC_CONFLICT_PATHS[0],
-        message: "This approval is no longer pending. Reload the conversation.",
-      }),
-      "in-app-agent",
-    );
+  it("suppresses expected CONFLICT paths (breadcrumb, no capture)", () => {
+    for (const path of EXPECTED_TRPC_CONFLICT_PATHS) {
+      captureExceptionMock.mockClear();
+      addBreadcrumbMock.mockClear();
+      reportTrpcErrorWithoutToast(
+        trpcServerError({
+          code: "CONFLICT",
+          httpStatus: 409,
+          path,
+        }),
+        "trpc",
+      );
 
-    expect(captureExceptionMock).not.toHaveBeenCalled();
-    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
-    expect(addBreadcrumbMock.mock.calls[0]![0].data).toMatchObject({
-      code: "CONFLICT",
-      path: "inAppAgent.decideToolApproval",
-    });
+      expect(captureExceptionMock).not.toHaveBeenCalled();
+      expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
+      expect(addBreadcrumbMock.mock.calls[0]![0].data).toMatchObject({
+        code: "CONFLICT",
+        path,
+      });
+    }
   });
 
   it("suppresses expected codes (breadcrumb, no capture) — same policy as the seam", () => {
