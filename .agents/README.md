@@ -147,6 +147,12 @@ Project-local `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` files can
 disable the fallback; remove local compatibility files or choose the mode
 that loads both formats. See the [instruction loader documentation](https://github.com/anthropics/claude-code/blob/main/mods/agents-md/README.md).
 
+## Hosted Claude Code Review
+
+Root [`REVIEW.md`](../REVIEW.md) defines review rules, severity, and reporting.
+It references domain skills for technical guidance. Claude's hosted reviewer
+loads it automatically; request it explicitly for local `/code-review` runs.
+
 ## Validation
 
 Two levels, deliberately separated:

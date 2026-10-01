@@ -1,13 +1,13 @@
 /* eslint-disable no-nested-ternary */
 import {
   Check,
-  ChevronDown,
   ExternalLink,
   Plug,
   Settings2,
   Sparkles,
   TriangleAlert,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { forwardRef, type ReactNode } from "react";
 
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
@@ -156,7 +156,7 @@ export const JudgeModelPickerTrigger = forwardRef<
         {loading ? (
           <Spinner size="sm" variant="muted" />
         ) : (
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+          <DropdownIndicator />
         )}
       </Button>
     );

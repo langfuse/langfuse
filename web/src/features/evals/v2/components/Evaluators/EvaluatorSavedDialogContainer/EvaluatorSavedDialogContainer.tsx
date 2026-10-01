@@ -6,7 +6,7 @@ import {
   type FilterState,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
-import { ChevronDown } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { PopoverTrigger } from "@/src/components/ui/popover";
@@ -29,6 +29,7 @@ import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFil
 import { EvaluatorSavedRuleFilterPreview } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialog/EvaluatorSavedRuleFilterPreview";
 import { EvaluatorBackfillSettings } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/EvaluatorBackfillSettings";
 import { useEvaluatorSavedBackfill } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialogContainer/hooks/useEvaluatorSavedBackfill";
+import type { createEvalOnboardingAnalytics } from "@/src/features/evals/v2/fns/createEvalOnboardingAnalytics";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["list"]["rules"][number];
 type DialogPhase = "saved" | "closing-saved" | "create-rule" | "closed";
@@ -46,11 +47,13 @@ type EvaluatorSavedDialogEvaluator = {
 export function EvaluatorSavedDialogContainer({
   projectId,
   evaluator,
+  onboardingAnalytics,
   onDismiss,
   onFinish,
 }: {
   projectId: string;
   evaluator: EvaluatorSavedDialogEvaluator;
+  onboardingAnalytics: ReturnType<typeof createEvalOnboardingAnalytics> | null;
   onDismiss: () => Promise<void>;
   onFinish: () => Promise<void>;
 }) {
@@ -72,6 +75,7 @@ export function EvaluatorSavedDialogContainer({
   const estimateRequestId = useRef(0);
   const initialEstimateRequested = useRef(false);
   const createRuleHandoffPending = useRef(false);
+  const ruleCreatedInEditor = useRef(false);
   const hasRequestedMissingCostTest = useRef(
     evaluator.hasCompletedTestCall ?? false,
   );
@@ -190,6 +194,11 @@ export function EvaluatorSavedDialogContainer({
       { filter: currentRule.filter, sampling: currentRule.sampling },
       backfill.executionRange,
     );
+    onboardingAnalytics?.completeOnboarding({
+      executionPath: "existing_rule",
+      hasBackfill: backfill.enabled,
+      samplingPercent: Math.round(currentRule.sampling * 100),
+    });
     await invalidateRuleQueries();
     await finish();
   };
@@ -220,6 +229,11 @@ export function EvaluatorSavedDialogContainer({
       { filter: supportedRuleFilters, sampling },
       backfill.executionRange,
     );
+    onboardingAnalytics?.completeOnboarding({
+      executionPath: "test_filters",
+      hasBackfill: backfill.enabled,
+      samplingPercent: Math.round(sampling * 100),
+    });
     await invalidateRuleQueries();
     await finish();
   };
@@ -340,6 +354,11 @@ export function EvaluatorSavedDialogContainer({
   };
 
   const handleModeChange = (nextMode: EvaluatorSavedMode) => {
+    if (nextMode !== mode) {
+      onboardingAnalytics?.track("eval:onboarding_scope_changed", {
+        scope: nextMode === "test-filters" ? "test_filters" : "different_scope",
+      });
+    }
     const modeChangeRequestId = ++estimateRequestId.current;
     setActivationOpen(false);
     setIsEstimating(false);
@@ -435,6 +454,7 @@ export function EvaluatorSavedDialogContainer({
         action: "new_rule",
         hasBackfill: false,
       });
+      onboardingAnalytics?.track("eval:onboarding_create_rule_opened", {});
       openCreateRule();
     }
   };
@@ -466,7 +486,7 @@ export function EvaluatorSavedDialogContainer({
               {selectedRule?.name ??
                 (selectedRuleId === null ? "New rule" : "Select a rule")}
             </span>
-            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+            <DropdownIndicator />
           </Button>
         </PopoverTrigger>
       )}
@@ -518,9 +538,12 @@ export function EvaluatorSavedDialogContainer({
       maxAllowedItems={backfill.allowedItems}
       matchingObservations={backfill.matchingObservations}
       isEstimating={backfill.isEstimating}
-      onEnabledChange={(enabled) =>
-        backfill.setEnabled(enabled, currentBackfillScope)
-      }
+      onEnabledChange={(enabled) => {
+        onboardingAnalytics?.track("eval:onboarding_historic_eval_toggled", {
+          isEnabled: enabled,
+        });
+        backfill.setEnabled(enabled, currentBackfillScope);
+      }}
       onWindowChange={(window) =>
         backfill.updateWindow(window, currentBackfillScope)
       }
@@ -558,6 +581,11 @@ export function EvaluatorSavedDialogContainer({
           ? (sampling) => {
               setTestFilterSampling(sampling);
               setActivationSampling(sampling);
+              onboardingAnalytics?.track(
+                "eval:onboarding_sampling_changed",
+                {},
+                { onceKey: "sampling_changed" },
+              );
             }
           : null
       }
@@ -602,11 +630,17 @@ export function EvaluatorSavedDialogContainer({
         onModeChange={handleModeChange}
         onOpenAutoFocus={requestInitialEstimate}
         onDismiss={() => {
+          onboardingAnalytics?.track("eval:onboarding_execution_skipped", {
+            method: "dialog_dismissed",
+          });
           createRuleHandoffPending.current = false;
           setDialogPhase("closed");
           onDismiss().catch(trpcErrorToast);
         }}
         onSecondaryAction={() => {
+          onboardingAnalytics?.track("eval:onboarding_execution_skipped", {
+            method: "skip_button",
+          });
           setDialogPhase("closed");
           finish().catch(trpcErrorToast);
         }}
@@ -622,9 +656,21 @@ export function EvaluatorSavedDialogContainer({
         open
         onOpenChange={(open) => {
           if (!open) {
+            if (!ruleCreatedInEditor.current) {
+              onboardingAnalytics?.track("eval:onboarding_execution_skipped", {
+                method: "rule_editor_closed",
+              });
+            }
             setDialogPhase("closed");
             finish().catch(() => undefined);
           }
+        }}
+        onCreated={() => {
+          ruleCreatedInEditor.current = true;
+          onboardingAnalytics?.completeOnboarding({
+            executionPath: "new_rule",
+            hasBackfill: false,
+          });
         }}
         initialEvaluator={{ ...evaluator, initialVariableMapping: null }}
         successNotification="none"

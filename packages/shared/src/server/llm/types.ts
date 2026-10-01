@@ -331,6 +331,7 @@ export const openAIModels = [
   "gpt-4.1-nano-2025-04-14",
   "gpt-6-astra",
   "gpt-6-sol",
+  "gpt-6.1-sol",
   "gpt-6-luna",
   "gpt-5.6-sol",
   "gpt-5.6-terra",
@@ -395,6 +396,7 @@ export type OpenAIModel = (typeof openAIModels)[number];
 export const anthropicModels = [
   "claude-sonnet-4-5-20250929",
   "claude-sonnet-5",
+  "claude-sonnet-5-5",
   "claude-fable-5",
   "claude-fable-5-1",
   "claude-mythos-5",

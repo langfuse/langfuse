@@ -24,7 +24,8 @@ import { useQueryFilterState } from "@/src/features/filters";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import { ChevronDown, Columns3, Trash } from "lucide-react";
+import { Columns3, Trash } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -126,7 +127,7 @@ const DatasetRunTableMultiSelectAction = ({
               onClick={() => capture("dataset_run:compare_view_click")}
             >
               Actions ({selectedRunIds.length} selected)
-              <ChevronDown className="h-5 w-5" />
+              <DropdownIndicator nudge />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent key="dropdown-menu-content">
