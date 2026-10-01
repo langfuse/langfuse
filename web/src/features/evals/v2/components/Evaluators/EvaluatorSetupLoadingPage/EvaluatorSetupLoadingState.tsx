@@ -11,12 +11,12 @@ export function EvaluatorSetupLoadingState({
   const isCreating = mode === "create";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" aria-busy="true">
+    <div className="@container flex min-h-0 flex-1 flex-col" aria-busy="true">
       <span className="sr-only" role="status">
         Loading evaluator
       </span>
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:grid md:grid-cols-[minmax(0,3fr)_minmax(360px,2fr)] md:overflow-hidden">
-        <div className="shrink-0 p-6 md:min-h-0 md:overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto @3xl:grid @3xl:grid-cols-[minmax(0,3fr)_minmax(360px,2fr)] @3xl:overflow-hidden">
+        <div className="shrink-0 p-6 @3xl:min-h-0 @3xl:overflow-hidden">
           <div className="flex gap-3">
             <div className="bg-primary text-primary-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold">
               1
@@ -44,7 +44,7 @@ export function EvaluatorSetupLoadingState({
           </div>
         </div>
 
-        <aside className="flex shrink-0 flex-col overflow-hidden border-t md:min-h-0 md:border-t-0 md:border-l">
+        <aside className="flex shrink-0 flex-col overflow-hidden border-t @3xl:min-h-0 @3xl:border-t-0 @3xl:border-l">
           <div className="flex h-12 shrink-0 items-center justify-between border-b px-6">
             <div className="flex items-center gap-2">
               <FlaskConical className="h-4 w-4" />
