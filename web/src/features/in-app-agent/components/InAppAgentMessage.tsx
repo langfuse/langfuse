@@ -1145,7 +1145,10 @@ function TableBlock({ children }: { children: ReactNode }) {
       return;
     }
 
-    const rendered = readRenderedTable(table);
+    const rendered = readRenderedTable(
+      table,
+      format === "csv" ? "text" : "markdown",
+    );
     const text =
       format === "csv" ? tableToCsv(rendered) : tableToMarkdown(rendered);
     const copy = format === "csv" ? csvCopy.copy : markdownCopy.copy;

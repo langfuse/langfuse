@@ -1,6 +1,13 @@
+import { getSafeLinkUrl } from "@/src/components/ui/safe-url";
+
 export type RenderedTable = {
   headers: string[];
   rows: string[][];
+  /**
+   * Cells are already safe to place in a Markdown table. Plain-text callers
+   * leave this unset so `tableToMarkdown` still escapes `|` and `\`.
+   */
+  markdownReady?: boolean;
 };
 
 const BLOCK_COPY_BUTTON_SELECTOR = "[data-in-app-agent-block-copy-button]";
@@ -9,38 +16,81 @@ function normalizeCell(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
-function cellText(cell: Element) {
+function cellValue(cell: Element, format: "text" | "markdown") {
   const clone = cell.cloneNode(true);
   if (!(clone instanceof HTMLElement)) {
-    return normalizeCell(cell.textContent ?? "");
+    const text = normalizeCell(cell.textContent ?? "");
+    return format === "markdown" ? escapeMarkdownCell(text) : text;
   }
 
   clone.querySelectorAll(BLOCK_COPY_BUTTON_SELECTOR).forEach((node) => {
     node.remove();
   });
-  clone.querySelectorAll("br").forEach((node) => {
-    node.replaceWith("\n");
-  });
 
-  return normalizeCell(clone.textContent ?? "");
+  return normalizeCell(renderInline(clone, format));
 }
 
-function rowCells(row: Element) {
-  return [...row.querySelectorAll(":scope > th, :scope > td")].map(cellText);
+function renderInline(node: Node, format: "text" | "markdown"): string {
+  if (node.nodeType === Node.TEXT_NODE) {
+    const text = node.textContent ?? "";
+    return format === "markdown" ? escapeMarkdownCell(text) : text;
+  }
+
+  if (!(node instanceof HTMLElement)) {
+    return [...node.childNodes]
+      .map((child) => renderInline(child, format))
+      .join("");
+  }
+
+  if (node.tagName === "BR") {
+    return "\n";
+  }
+
+  const children = [...node.childNodes]
+    .map((child) => renderInline(child, format))
+    .join("");
+  if (format !== "markdown" || node.tagName !== "A") {
+    return children;
+  }
+
+  const href = getSafeLinkUrl(node.getAttribute("href"));
+  const label = normalizeCell(children);
+  if (!href || !label) {
+    return children;
+  }
+
+  const text = label.replace(/[[\]]/g, "\\$&");
+  const url = href.replace(/[()\\|]/g, "\\$&");
+  return `[${text}](${url})`;
 }
 
-export function readRenderedTable(table: HTMLTableElement): RenderedTable {
+function rowCells(row: Element, format: "text" | "markdown") {
+  return [...row.querySelectorAll(":scope > th, :scope > td")].map((cell) =>
+    cellValue(cell, format),
+  );
+}
+
+export function readRenderedTable(
+  table: HTMLTableElement,
+  format: "text" | "markdown" = "text",
+): RenderedTable {
   const sectionRows = [
     ...table.querySelectorAll(":scope > thead > tr"),
     ...table.querySelectorAll(":scope > tbody > tr"),
     ...table.querySelectorAll(":scope > tfoot > tr"),
-  ].map(rowCells);
-  const looseRows = [...table.querySelectorAll(":scope > tr")].map(rowCells);
+  ].map((row) => rowCells(row, format));
+  const looseRows = [...table.querySelectorAll(":scope > tr")].map((row) =>
+    rowCells(row, format),
+  );
   const [headers = [], ...rows] = [...sectionRows, ...looseRows].filter(
     (row) => row.length > 0,
   );
 
-  return { headers, rows };
+  return {
+    headers,
+    rows,
+    markdownReady: format === "markdown",
+  };
 }
 
 function columnCount(table: RenderedTable) {
@@ -101,9 +151,12 @@ export function tableToMarkdown(table: RenderedTable) {
     return "";
   }
 
-  const header = padded.headers.map(escapeMarkdownCell);
+  const escape = table.markdownReady
+    ? (value: string) => value
+    : escapeMarkdownCell;
+  const header = padded.headers.map(escape);
   const separator = padded.headers.map(() => "---");
-  const body = padded.rows.map((row) => row.map(escapeMarkdownCell));
+  const body = padded.rows.map((row) => row.map(escape));
 
   return [
     `| ${header.join(" | ")} |`,

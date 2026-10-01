@@ -69,6 +69,32 @@ describe("table copy", () => {
     ).toBe(["| Only |  |", "| --- | --- |", "| 1 | 2 |"].join("\n"));
   });
 
+  it("keeps a safe link target when copying markdown", () => {
+    const table = tableFromHtml(`
+      <table>
+        <thead>
+          <tr><th>Where</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>see <a href="https://example.com/docs">a|b</a> and <a href="javascript:alert(1)">skip</a></td>
+          </tr>
+        </tbody>
+      </table>
+    `);
+
+    expect(tableToCsv(readRenderedTable(table))).toBe(
+      "Where\nsee a|b and skip",
+    );
+    expect(tableToMarkdown(readRenderedTable(table, "markdown"))).toBe(
+      [
+        "| Where |",
+        "| --- |",
+        "| see [a\\|b](https://example.com/docs) and skip |",
+      ].join("\n"),
+    );
+  });
+
   it("ignores copy controls nested in a cell", () => {
     const table = readRenderedTable(
       tableFromHtml(`
