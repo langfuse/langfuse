@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo, useState } from "react";
 import {
   ChevronDown,
@@ -14,9 +15,10 @@ import {
   type ParsedSessionTimelineObservation,
   type PreparedSessionTimelineItem,
   type PreparedSessionTimelineMessages,
+  type SessionTimelineObservation,
 } from "@/src/features/sessions/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
-import { SessionTimelineContentMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionTimelineContentMessage/SessionTimelineContentMessage";
-import { SessionTimelineSystemMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionTimelineSystemMessage/SessionTimelineSystemMessage";
+import { SessionTimelineContentMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTimelineContentMessage/SessionTimelineContentMessage";
+import { SessionTimelineSystemMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTimelineSystemMessage/SessionTimelineSystemMessage";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -36,6 +38,7 @@ import { type RouterOutputs } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { getLevelColors } from "@/src/components/level-colors";
+import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 
 type EventObservation = RouterOutputs["events"]["all"]["observations"][number];
 type EventObservationIO = RouterOutputs["events"]["batchIO"][number];
@@ -43,6 +46,10 @@ export type SessionObservation = Omit<
   EventObservation,
   "input" | "output" | "metadata" | "traceId"
 > &
+  Omit<
+    SessionTimelineObservation,
+    "input" | "output" | "metadata" | "traceId"
+  > &
   Pick<EventObservationIO, "input" | "output" | "metadata"> & {
     traceId: string;
     inputTruncated?: boolean;
@@ -53,7 +60,12 @@ export type SessionObservation = Omit<
 type SessionConversationTimelineTraceState =
   | { type: "loading" }
   | { type: "error" }
-  | { type: "empty"; message: string }
+  | { type: "empty" }
+  | {
+      type: "filtered-empty";
+      viewLabel: string | null;
+      onClearFilters: () => void;
+    }
   | {
       type: "loaded";
       observations: readonly SessionObservation[];
@@ -87,12 +99,15 @@ function SessionTimelineStatusIndicator({
 }: {
   observation: SessionObservation;
 }) {
-  const Icon =
-    observation.level === "ERROR"
-      ? CircleAlert
-      : observation.level === "WARNING"
-        ? TriangleAlert
-        : Info;
+  const Icon = (() => {
+    if (observation.level === "ERROR") {
+      return CircleAlert;
+    }
+    if (observation.level === "WARNING") {
+      return TriangleAlert;
+    }
+    return Info;
+  })();
   const colors = getLevelColors(observation.level);
 
   return (
@@ -117,10 +132,15 @@ function SessionTimelineStatusIndicator({
   );
 }
 
-const toPreviewText = (value: unknown) =>
-  typeof value === "string"
-    ? value
-    : (JSON.stringify(value, undefined, 2) ?? String(value));
+const toPreviewText = (value: unknown) => {
+  const text =
+    typeof value === "string"
+      ? value
+      : (JSON.stringify(value, undefined, 2) ?? String(value));
+  // Match PrettyJsonView / SessionObservationIO: decode \uXXXX so truncated
+  // previews show CJK and other non-ASCII characters instead of raw escapes.
+  return decodeUnicodeEscapesOnly(text, true);
+};
 
 const hasPreviewValue = (value: unknown) =>
   value !== null && value !== undefined && value !== "";
@@ -144,7 +164,7 @@ function SessionObservationActionsMenuContent({
         disabled={actions.comment.disabled}
         onSelect={() => actions.comment.onSelect(observation)}
       >
-        Add comment
+        Comments
       </DropdownMenuItem>
       <DropdownMenuItem
         disabled={actions.addToDataset.disabled}
@@ -233,12 +253,15 @@ function getNestedObservationSummary(
       }
 
       const names = count <= 3 ? Array.from(toolNames) : [];
-      const namesSummary =
-        names.length < 2
-          ? (names[0] ?? "")
-          : names.length === 2
-            ? `${names[0]} and ${names[1]}`
-            : `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`;
+      const namesSummary = (() => {
+        if (names.length < 2) {
+          return names[0] ?? "";
+        }
+        if (names.length === 2) {
+          return `${names[0]} and ${names[1]}`;
+        }
+        return `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`;
+      })();
       if (names.length === count) return `tools: ${namesSummary}`;
 
       return `${count} tool${count === 1 ? "" : "s"}${namesSummary ? ` using ${namesSummary}` : ""}`;
@@ -690,17 +713,30 @@ function LoadedSessionConversationTimeline({
   const [collapseState, setCollapseState] = useState(() => ({
     scrollRequestId: null as number | null,
     observationIds: new Set(
-      observations.flatMap(({ observation, phase, ancestorObservationIds }) => {
-        if (phase !== "start") return [];
-        if (ancestorObservationIds.length > 0) return [observation.id];
-        if (
-          hasPreviewValue(observation.input) ||
-          hasPreviewValue(observation.output)
-        ) {
-          return [observation.id];
-        }
-        return [];
-      }),
+      observations.flatMap(
+        ({
+          observation,
+          phase,
+          ancestorObservationIds,
+          nestedObservationCounts,
+        }) => {
+          if (phase !== "start") return [];
+          if (
+            Object.keys(nestedObservationCounts).length === 1 &&
+            nestedObservationCounts.TOOL === 1
+          ) {
+            return [];
+          }
+          if (ancestorObservationIds.length > 0) return [observation.id];
+          if (
+            hasPreviewValue(observation.input) ||
+            hasPreviewValue(observation.output)
+          ) {
+            return [observation.id];
+          }
+          return [];
+        },
+      ),
     ),
   }));
   const [expandedToolObservationIds, setExpandedToolObservationIds] = useState(
@@ -795,6 +831,9 @@ function LoadedSessionConversationTimeline({
             );
           const hasNestedObservations =
             Object.keys(nestedObservationCounts).length > 0;
+          const hasSingleNestedTool =
+            Object.keys(nestedObservationCounts).length === 1 &&
+            nestedObservationCounts.TOOL === 1;
           const nestedObservationSummary = hasNestedObservations
             ? (nestedObservationSummaries.get(observation.id) ?? "")
             : "";
@@ -876,7 +915,8 @@ function LoadedSessionConversationTimeline({
                   }
                   onOpenInTraceView={() => onOpenObservation(observation.id)}
                 />
-              ) : !isToolStart && !isEmptyEnd ? (
+              ) : !isEmptyEnd &&
+                (observation.type !== "TOOL" || phase !== "end") ? (
                 <SessionTimelineObservation
                   observation={observation}
                   parsed={parsed}
@@ -900,7 +940,9 @@ function LoadedSessionConversationTimeline({
                   actions={observationActions}
                 />
               ) : null}
-              {phase === "start" && hasNestedObservations ? (
+              {phase === "start" &&
+              hasNestedObservations &&
+              !hasSingleNestedTool ? (
                 <div
                   className={cn(
                     "relative",
@@ -1077,9 +1119,26 @@ export function SessionConversationTimelineTrace({
         <div className="border-destructive/40 bg-destructive/5 text-foreground rounded-lg border p-4 text-xs">
           Failed to load observations.
         </div>
-      ) : state.type === "empty" ? (
-        <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-xs">
-          {state.message}
+      ) : state.type === "empty" || state.type === "filtered-empty" ? (
+        <div className="text-muted-foreground flex items-center justify-between gap-4 rounded-lg border border-dashed p-4 text-xs">
+          <span>
+            {state.type === "empty"
+              ? "This trace has no observations."
+              : state.viewLabel
+                ? `No observation matches the “${state.viewLabel}” view in this trace.`
+                : "No observation matches the current filters in this trace."}
+          </span>
+          {state.type === "filtered-empty" ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={state.onClearFilters}
+            >
+              Clear filters
+            </Button>
+          ) : null}
         </div>
       ) : (
         <LoadedSessionConversationTimeline

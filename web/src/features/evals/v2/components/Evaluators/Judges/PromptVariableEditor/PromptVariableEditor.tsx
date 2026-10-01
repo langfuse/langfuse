@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Fragment, useMemo, type ReactNode } from "react";
 import {
   Decoration,
@@ -91,11 +92,15 @@ function createVariableHighlighter(
               : undefined));
       const invalid = status?.status === "invalid";
       const label = truncateEnd(mappingLabel || "map data", MAX_LABEL_LENGTH);
-      const title = invalid
-        ? (status.message ?? "Not connected to the sample data")
-        : mappingLabel
-          ? `Pulls from ${label}`
-          : undefined;
+      const title = (() => {
+        if (invalid) {
+          return status.message ?? "Not connected to the sample data";
+        }
+        if (mappingLabel) {
+          return `Pulls from ${label}`;
+        }
+        return undefined;
+      })();
       add(
         from,
         to,

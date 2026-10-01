@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -12,7 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { TablePeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/peek-evaluator-template-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { Button } from "@/src/components/ui/button";
 import { useRouter } from "next/router";
 import {
@@ -74,12 +75,15 @@ const getMaintainerLabel = (maintainer: string) =>
 
 const getCodeEvalLanguageLabel = (
   sourceCodeLanguage?: EvalTemplate["sourceCodeLanguage"],
-) =>
-  sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
-    ? "Python"
-    : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
-      ? "TypeScript"
-      : "Code";
+) => {
+  if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON) {
+    return "Python";
+  }
+  if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT) {
+    return "TypeScript";
+  }
+  return "Code";
+};
 
 const TemplateTypeBadge = ({
   type,
@@ -90,12 +94,15 @@ const TemplateTypeBadge = ({
 }) => {
   if (type === EvalTemplateType.CODE) {
     const label = getCodeEvalLanguageLabel(sourceCodeLanguage);
-    const Icon =
-      sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
-        ? SiPython
-        : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
-          ? SiTypescript
-          : null;
+    const Icon = (() => {
+      if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON) {
+        return SiPython;
+      }
+      if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT) {
+        return SiTypescript;
+      }
+      return null;
+    })();
 
     return (
       <Badge className="w-fit gap-1.5" variant="outline-solid">

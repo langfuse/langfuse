@@ -1,27 +1,27 @@
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 
 export interface DeleteAutomationDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   isPending: boolean;
   onConfirm: () => void;
 }
 
 export function DeleteAutomationDialog({
-  open,
-  onOpenChange,
   isPending,
   onConfirm,
 }: DeleteAutomationDialogProps) {
   return (
-    <ConfirmDialog
-      open={open}
-      onOpenChange={onOpenChange}
+    <Dialog
+      size="sm"
       title="Please confirm"
-      description="This action permanently deletes this automation and execution history. This cannot be undone."
-      confirmLabel="Delete Automation"
-      loading={isPending}
-      onConfirm={onConfirm}
+      text="This action permanently deletes this automation and execution history. This cannot be undone."
+      actions={[
+        {
+          label: "Delete Automation",
+          variant: "destructive",
+          loading: isPending,
+          onClick: onConfirm,
+        },
+      ]}
     />
   );
 }

@@ -11,14 +11,22 @@
 // The draft sync never writes back to applied state. A commit acknowledgment
 // keeps separately updated host lanes from projecting a half-applied query.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  type Key,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import isEqual from "lodash/isEqual";
 
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
 
 import {
   classifySearchError,
-  DEFAULT_SEARCH_TYPE,
   planCommit,
 } from "@/src/features/search-bar/lib/commit";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
@@ -62,6 +70,31 @@ type PendingCommit = {
   next: AppliedSearchState;
   text: string;
 };
+
+type SearchBarDraftCacheSnapshot = {
+  committedText: string;
+  draft: string;
+};
+
+type SearchBarDraftCache = {
+  current: SearchBarDraftCacheSnapshot | null;
+  searchIdentity: Key | null;
+};
+
+export const SearchBarDraftCacheContext =
+  createContext<SearchBarDraftCache | null>(null);
+
+/**
+ * Keeps an unsubmitted draft alive while a responsive sheet unmounts its
+ * search input. A new React key represents a new search scope (for example a
+ * different table view), so it intentionally starts with an empty cache.
+ */
+export function useSearchBarDraftCache(searchIdentity: Key | null) {
+  return useMemo<SearchBarDraftCache>(
+    () => ({ current: null, searchIdentity }),
+    [searchIdentity],
+  );
+}
 
 function sameAppliedState(a: AppliedSearchState, b: AppliedSearchState) {
   return (
@@ -148,6 +181,7 @@ export function useEventsSearchBar({
   }) => void;
 } {
   const capture = usePostHogClientCapture();
+  const draftCache = useContext(SearchBarDraftCacheContext);
 
   // Latest observed options, read inside commit and by the store's draft
   // validation so both route `scores.<name>` by the same observed score type.
@@ -214,8 +248,26 @@ export function useEventsSearchBar({
   // commit's own echo settles immediately without clobbering the caret.
   useEffect(() => {
     if (!enabled) return;
+    const cachedDraft = draftCache?.current;
     store.getState().actions.resetTo(committedText);
-  }, [enabled, committedText, store]);
+    // Only restore a draft that belongs to the same applied search state.
+    // External query/filter changes must continue to reset the input.
+    if (cachedDraft?.committedText === committedText) {
+      store.getState().actions.setDraft(cachedDraft.draft);
+    }
+  }, [draftCache, enabled, committedText, store]);
+
+  useEffect(() => {
+    if (!enabled || !draftCache) return;
+    const persistDraft = () => {
+      draftCache.current = {
+        committedText,
+        draft: store.getState().draft,
+      };
+    };
+    persistDraft();
+    return store.subscribe(persistDraft);
+  }, [committedText, draftCache, enabled, store]);
 
   // Re-validate when observed options or the registry load: a draft typed
   // before score types or dynamic allowed values were known has stale
@@ -298,15 +350,15 @@ export function useEventsSearchBar({
       beginCommit({
         filters: committedFilters,
         query: null,
-        scopes: DEFAULT_SEARCH_TYPE,
+        scopes: [...registry.defaultSearchType],
       });
       setFilterState(committedFilters);
       setSearchQuery(null);
-      if (!sameScopes(DEFAULT_SEARCH_TYPE, searchTypeRef.current)) {
-        setSearchType(DEFAULT_SEARCH_TYPE);
+      if (!sameScopes([...registry.defaultSearchType], searchTypeRef.current)) {
+        setSearchType([...registry.defaultSearchType]);
       }
     },
-    [beginCommit, mergeWithSkipped],
+    [beginCommit, mergeWithSkipped, registry],
   );
 
   // The committed text at the last render — the dedup baseline so a blur that
@@ -374,11 +426,7 @@ export function useEventsSearchBar({
       });
       setFilterState(committedFilters);
       setSearchQuery(result.searchQuery);
-      // Only write searchType when it actually changed. planCommit coerces a
-      // draft with no scope token to the default (`["id","content"]` — ids+names
-      // +input+output); the bar's default deliberately differs from the legacy
-      // toolbar's `["id"]`, so it IS written to the URL (that's how the content
-      // lane persists). The guard just avoids a redundant rewrite when unchanged.
+      // Commit the scope alongside the query, without redundant URL writes.
       if (!sameScopes(result.searchType, searchTypeRef.current)) {
         setSearchType(result.searchType);
       }
@@ -393,6 +441,18 @@ export function useEventsSearchBar({
           filterCount: committedFilters.length,
           hasFreeText: (result.searchQuery ?? "").trim().length > 0,
           searchType: analyticsSearchType ?? result.searchType,
+          searchScopes: Array.from(
+            new Set([
+              ...((result.searchQuery ?? "").trim()
+                ? (analyticsSearchType ?? result.searchType)
+                : []),
+              ...result.filters.flatMap((filter) =>
+                filter.column === "input" || filter.column === "output"
+                  ? [filter.column]
+                  : [],
+              ),
+            ]),
+          ),
           queryLength: committed.trim().length,
           trigger,
           isV4,

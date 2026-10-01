@@ -2,8 +2,8 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha2::{Digest, Sha256};
 use std::fmt::Write;
 
-pub(super) fn authorization(service_key: &str, gateway_key: &str, timestamp: u64) -> String {
-    let key_hash = lowercase_hex(&Sha256::digest(gateway_key.as_bytes()));
+pub(crate) fn authorization(service_key: &str, credential: &str, timestamp: u64) -> String {
+    let key_hash = lowercase_hex(&Sha256::digest(credential.as_bytes()));
     let payload = format!("gateway-web-v1\n{timestamp}\n{key_hash}");
     // HMAC accepts keys of any length.
     let mut mac = Hmac::<Sha256>::new_from_slice(service_key.as_bytes()).expect("valid HMAC key");

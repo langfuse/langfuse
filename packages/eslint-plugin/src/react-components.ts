@@ -433,6 +433,18 @@ function visitReturnExpressionsInStatement(
   }
 }
 
+export function visitFunctionReturnExpressions(
+  node: TSESTree.ArrowFunctionExpression | TSESTree.FunctionExpression,
+  onReturnExpression: (node: TSESTree.Expression) => void,
+) {
+  if (node.type === AST_NODE_TYPES.ArrowFunctionExpression && node.expression) {
+    onReturnExpression(node.body);
+    return;
+  }
+
+  visitReturnExpressionsInStatement(node.body, onReturnExpression);
+}
+
 /**
  * Visits complete expressions returned by React components. Unlike the root
  * element visitor, this preserves fragments and sibling relationships for

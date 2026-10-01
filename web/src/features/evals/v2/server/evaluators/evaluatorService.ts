@@ -20,12 +20,12 @@ import {
   ChatMessageType,
   generateLangfuseAIText,
   getClientInitiatedNonStreamingLlmTimeoutMs,
-  getRecentEvaluatorExecutionTraces,
+  getEvaluatorExecutionSummaries,
   getTotalCostByEvaluatorIds,
   invalidateProjectEvalConfigCaches,
   logger,
 } from "@langfuse/shared/src/server";
-import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server/availability";
+import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 import {
   type CreateEvaluatorInput,
@@ -47,7 +47,10 @@ import {
   EvaluatorModelConfigurationError,
   EvaluatorVersionConflictError,
 } from "./evaluatorErrors";
-import { assertEvaluatorConfigurationValid } from "./evaluatorValidation";
+import {
+  assertEvaluatorConfigurationValid,
+  getDecisionModelConfigurationError,
+} from "./evaluatorValidation";
 
 type SuggestEvaluatorTextParams = {
   projectId: string;
@@ -59,6 +62,10 @@ type SuggestEvaluatorTextParams = {
           "promptMessages"
         >
       | { sourceCode: string }
+      | Pick<
+          Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>,
+          "questions"
+        >
     );
 };
 
@@ -112,17 +119,15 @@ function prepareEvaluatorDefinitionForPersistence(
     };
   }
 
+  if (definition.type === EvalTemplateType.DECISION_MODEL) {
+    return definition;
+  }
+
   return {
     ...definition,
     prompt: getLegacyEvaluatorPrompt(definition.promptMessages),
   };
 }
-
-type EvaluatorExecutionTrace = {
-  id: string;
-  level: string;
-  timestamp: Date;
-};
 
 export type EvaluatorAuditEvent = {
   action: "create" | "update" | "delete";
@@ -164,6 +169,7 @@ export class EvaluatorService {
     limit: number;
     cursor?: { createdAt: Date; id: string };
     search?: string;
+    types?: EvalTemplateType[];
   }) {
     const page = await repository.listEvaluatorsCursor({
       prisma: this.prisma,
@@ -248,25 +254,21 @@ export class EvaluatorService {
     };
   }
 
-  async listRecent(params: { projectId: string; evaluatorIds: string[] }) {
-    const result = Object.fromEntries(
-      params.evaluatorIds.map((evaluatorId) => [evaluatorId, []]),
-    ) as Record<string, EvaluatorExecutionTrace[]>;
-    if (params.evaluatorIds.length === 0) return result;
-
-    const traces = await getRecentEvaluatorExecutionTraces(
+  async getExecutionSummaries(params: {
+    projectId: string;
+    evaluatorIds: string[];
+  }) {
+    const result: Record<string, { total: number; failed: number }> =
+      Object.fromEntries(
+        params.evaluatorIds.map((id) => [id, { total: 0, failed: 0 }]),
+      );
+    const summaries = await getEvaluatorExecutionSummaries(
       params.projectId,
       params.evaluatorIds,
     );
-
-    for (const trace of traces) {
-      result[trace.evaluatorId]?.push({
-        id: trace.id,
-        level: trace.level,
-        timestamp: trace.timestamp,
-      });
+    for (const { evaluatorId, total, failed } of summaries) {
+      result[evaluatorId] = { total, failed };
     }
-
     return result;
   }
 
@@ -488,22 +490,29 @@ export class EvaluatorService {
     if (!version)
       throw new LangfuseNotFoundError("Evaluator version not found");
     const definition = toEvaluatorDefinition(evaluator.type, version);
-    if (definition.type !== EvalTemplateType.LLM_AS_JUDGE) {
+    if (definition.type === EvalTemplateType.CODE) {
       throw new EvaluatorConfigurationError(
-        "Only LLM evaluators can be reactivated with a model test.",
+        "Only LLM and decision-model evaluators can be reactivated with a model test.",
       );
     }
-    const error = await getEvaluatorDefinitionPreflightError({
-      projectId,
-      template: {
-        name: evaluator.name,
-        type: definition.type,
-        provider: definition.provider,
-        model: definition.model,
-        modelParams: definition.modelParams,
-        outputDefinition: definition.outputDefinition,
-      },
-    });
+    const error =
+      definition.type === EvalTemplateType.DECISION_MODEL
+        ? await getDecisionModelConfigurationError({
+            projectId,
+            name: evaluator.name,
+            definition,
+          })
+        : await getEvaluatorDefinitionPreflightError({
+            projectId,
+            template: {
+              name: evaluator.name,
+              type: definition.type,
+              provider: definition.provider,
+              model: definition.model,
+              modelParams: definition.modelParams,
+              outputDefinition: definition.outputDefinition,
+            },
+          });
     if (error) {
       const reason = getBlockReasonForInvalidModelConfig({
         templateProvider: definition.provider,
@@ -915,36 +924,63 @@ export function toEvaluatorDefinition(
     outputDefinition: unknown;
     sourceCode: string | null;
     sourceCodeLanguage: "PYTHON" | "TYPESCRIPT" | null;
+    questions?: unknown;
   },
 ): NormalizedEvaluatorDefinition {
-  const definition = EvaluatorDefinitionSchema.parse(
-    type === EvalTemplateType.LLM_AS_JUDGE
-      ? {
-          type,
-          promptMessages: reconcileEvaluatorPromptMessages({
-            prompt: version.prompt,
-            promptMessages: version.promptMessages,
-          }),
-          provider: version.provider,
-          model: version.model,
-          modelParams: version.modelParams,
-          vars: version.vars,
-          variableMapping: version.variableMapping,
-          outputDefinition: version.outputDefinition,
-        }
-      : {
-          type,
-          sourceCode: version.sourceCode ?? "",
-          sourceCodeLanguage: version.sourceCodeLanguage ?? "PYTHON",
-        },
+  return EvaluatorDefinitionSchema.parse(
+    toEvaluatorDefinitionInput(type, version),
   );
-  return definition;
+}
+
+function toEvaluatorDefinitionInput(
+  type: EvalTemplateType,
+  version: Parameters<typeof toEvaluatorDefinition>[1],
+) {
+  switch (type) {
+    case EvalTemplateType.LLM_AS_JUDGE:
+      return {
+        type,
+        promptMessages: reconcileEvaluatorPromptMessages({
+          prompt: version.prompt,
+          promptMessages: version.promptMessages,
+        }),
+        provider: version.provider,
+        model: version.model,
+        modelParams: version.modelParams,
+        vars: version.vars,
+        variableMapping: version.variableMapping,
+        outputDefinition: version.outputDefinition,
+      };
+    case EvalTemplateType.DECISION_MODEL:
+      return {
+        type,
+        questions: version.questions,
+        provider: version.provider ?? "",
+        model: version.model ?? "",
+        vars: version.vars,
+        variableMapping: version.variableMapping,
+      };
+    case EvalTemplateType.CODE:
+      return {
+        type,
+        sourceCode: version.sourceCode ?? "",
+        sourceCodeLanguage: version.sourceCodeLanguage ?? "PYTHON",
+      };
+  }
 }
 
 function getSuggestionDefinitionText(params: SuggestEvaluatorTextParams) {
-  return "promptMessages" in params.definition
-    ? getLegacyEvaluatorPrompt(params.definition.promptMessages)
-    : params.definition.sourceCode;
+  if ("promptMessages" in params.definition) {
+    return getLegacyEvaluatorPrompt(params.definition.promptMessages);
+  }
+  if ("sourceCode" in params.definition) return params.definition.sourceCode;
+  return params.definition.questions
+    .map((question) =>
+      typeof question.instructions === "string"
+        ? question.instructions
+        : JSON.stringify(question.instructions),
+    )
+    .join("\n\n");
 }
 
 async function defaultNameGenerator(

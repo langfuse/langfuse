@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { prisma } from "@langfuse/shared/src/db";
 import {
   GetSessionsV1Query,
@@ -7,8 +8,7 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { SESSIONS_DEPRECATION } from "@/src/features/public-api/server/deprecations";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
-
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Sessions",

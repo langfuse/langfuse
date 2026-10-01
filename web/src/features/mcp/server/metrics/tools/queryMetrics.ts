@@ -89,11 +89,15 @@ const normalizeMetricOrderByFields = (
       const matchingMetrics = isDimensionField
         ? []
         : input.metrics.filter((metric) => metric.measure === orderBy.field);
-      const normalizedField = isDimensionField
-        ? orderBy.field
-        : matchingMetrics.length === 1
-          ? `${matchingMetrics[0].aggregation}_${matchingMetrics[0].measure}`
-          : (reversedMetricAliases.get(orderBy.field) ?? orderBy.field);
+      const normalizedField = (() => {
+        if (isDimensionField) {
+          return orderBy.field;
+        }
+        if (matchingMetrics.length === 1) {
+          return `${matchingMetrics[0].aggregation}_${matchingMetrics[0].measure}`;
+        }
+        return reversedMetricAliases.get(orderBy.field) ?? orderBy.field;
+      })();
 
       if (!allowedOrderByFields.has(normalizedField)) {
         throw new InvalidRequestError(
@@ -139,6 +143,7 @@ const MetricsQueryObjectV2BaseSchema = z.object({
 
 export const [queryMetricsTool, handleQueryMetrics] = defineTool({
   name: "queryMetrics",
+  action: "metrics:read",
   description:
     "Answer analytics questions about the current Langfuse project, such as usage over time, model costs, latency, errors, scores, or grouped breakdowns by environment, trace, observation, model, user, session, tag, or score name.",
   baseSchema: MetricsQueryObjectV2BaseSchema,

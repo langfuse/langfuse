@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -5,13 +6,17 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
+import { RunEvaluationDialog } from "@/src/features/batch-actions";
 import { LightbulbIcon } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import { type TableAction } from "@/src/features/table/types";
+import {
+  TableActionMenu,
+  type TableAction,
+  TableSelectionManager,
+  useSelectAll,
+} from "@/src/features/table";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters";
 import {
@@ -37,7 +42,7 @@ import {
   scoreColumnScopeToggledProps,
 } from "@/src/features/experiments/lib/analytics";
 import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import {
   useColumnOrder,
@@ -45,28 +50,22 @@ import {
 } from "@/src/features/column-visibility";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
-import {
-  type RowSelectionState,
-  type VisibilityState,
-} from "@tanstack/react-table";
-import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
-import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { type RowSelectionState } from "@tanstack/react-table";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { ExperimentGridView } from "./ExperimentGridView";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+
 import { EXPERIMENT_ITEMS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentItemsSearchRegistry";
 import {
   reconcileFilterTargets,
   hasAmbiguousTargetChange,
 } from "@/src/features/experiments/lib/reconcileFilterTargets";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { useExperimentItemsTableData } from "../../hooks/useExperimentItemsTableData";
+import { useExpectedOutputVisibility } from "../../hooks/useExpectedOutputVisibility";
 import {
   type ExperimentItemsTableRow,
   type ExperimentItemsTableProps,
@@ -74,6 +73,7 @@ import {
   type ExperimentOutputData,
   getExperimentColorStyles,
 } from "./types";
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { Badge } from "@/src/components/ui/badge";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
@@ -82,7 +82,6 @@ import {
   collectPresentScoreKeys,
   composeAggregateScoreKey,
   createScoreColumns,
-  revealScoreColumns,
   withPresentScoreKeys,
 } from "@/src/features/scores";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -247,7 +246,7 @@ const formatScoreAggregateValue = (
 ): string => {
   if (!aggregate) return "nothing";
   return aggregate.type === "NUMERIC"
-    ? aggregate.average.toFixed(4)
+    ? aggregate.average.toFixed(2)
     : (aggregate.values[0] ?? "nothing");
 };
 
@@ -315,7 +314,7 @@ const StackedExperimentCell = ({
                 {content}
               </>
             ) : (
-              <span className="text-muted-foreground">—</span>
+              <EmptyValue />
             )}
           </div>
         );
@@ -389,7 +388,6 @@ const matchesExpectedOutput = (
 
 const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
   <Badge
-    size="sm"
     variant={matches ? "success" : "error"}
     className="mt-0.5 ml-1 shrink-0 font-bold"
   >
@@ -501,7 +499,9 @@ const StackedOutputCell = ({
                 }
               />
             ) : (
-              <span className="text-muted-foreground px-2 py-1">—</span>
+              <span className="px-2 py-1">
+                <EmptyValue />
+              </span>
             )}
           </div>
         );
@@ -524,7 +524,7 @@ export default function ExperimentItemsTable({
   projectId,
   ioRenderMode,
   hideControls = false,
-  settingsSections,
+  toolbarSettings,
 }: ExperimentItemsTableProps) {
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
@@ -617,12 +617,9 @@ export default function ExperimentItemsTable({
     limit: "pageSize",
   });
 
-  // Medium by default: with the ids out of the cell a row no longer needs the
-  // tallest option to show its output, and two rows per screen was the
-  // complaint. Large stays one click away for reading long outputs.
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
-    "experiment-items",
-    "m",
+    "experiment-items-compact",
+    "s",
   );
   const ioSingleLine = ioRenderMode === "text";
 
@@ -785,7 +782,7 @@ export default function ExperimentItemsTable({
   );
 
   // Use the custom hook for experiment items data fetching
-  const { items, totalCount, dataUpdatedAt, ioLoading } =
+  const { items, totalCount, dataUpdatedAt, ioLoading, isTotalCountLoading } =
     useExperimentItemsTableData({
       projectId,
       baseExperimentId: baselineId,
@@ -803,7 +800,7 @@ export default function ExperimentItemsTable({
     });
 
   // Running items without an expected output is common, so don't spend a column
-  // on it when nothing has one. Kept while IO loads so it doesn't flash.
+  // on it before loaded IO confirms there is expected output to display.
   //
   // Whether the column exists is a property of the runs being compared, not of
   // the page that happens to be loaded, so a page of items that all lack an
@@ -827,16 +824,11 @@ export default function ExperimentItemsTable({
     () => (experimentSelectionKey ? experimentSelectionKey.split(",") : []),
     [experimentSelectionKey],
   );
-  const [expectedOutputSeenFor, setExpectedOutputSeenFor] = useState<
-    string | null
-  >(null);
-  useEffect(() => {
-    if (expectedOutputOnPage) setExpectedOutputSeenFor(experimentSelectionKey);
-  }, [expectedOutputOnPage, experimentSelectionKey]);
-  const showExpectedOutput =
-    ioLoading ||
-    expectedOutputOnPage ||
-    expectedOutputSeenFor === experimentSelectionKey;
+  const showExpectedOutput = useExpectedOutputVisibility(
+    experimentSelectionKey,
+    expectedOutputOnPage,
+    ioLoading,
+  );
 
   const { selectActionColumn } = TableSelectionManager<ExperimentItemsTableRow>(
     {
@@ -1083,6 +1075,7 @@ export default function ExperimentItemsTable({
 
         return {
           ...scoreCol,
+          defaultHidden: false,
           // The header holds this column's analysis, so it also sets the
           // column's floor: the shared table's default lets a column be dragged
           // to 20px, which is narrower than `−0.12 ↗1 ↘14` and would clip a
@@ -1168,8 +1161,7 @@ export default function ExperimentItemsTable({
                   const scoresData = exp[scoreField] ?? {};
                   const value = scoresData[scoreKey];
 
-                  if (!value)
-                    return <span className="text-muted-foreground">-</span>;
+                  if (!value) return <EmptyValue />;
 
                   const mockRow = {
                     getValue: (key: string) =>
@@ -1227,6 +1219,7 @@ export default function ExperimentItemsTable({
                       </span>
                       {diff && (
                         <DiffLabel
+                          variant="ghost"
                           diff={diff}
                           formatValue={(v) => v.toFixed(2)}
                           title={diffTitle}
@@ -1295,6 +1288,7 @@ export default function ExperimentItemsTable({
     header: "Expected Output",
     size: 300,
     enableHiding: true,
+    defaultHidden: true,
     // An empty expected output used to render as two literal quote characters.
     getCell: (value) => (ioLoading ? { type: "loading" } : value || undefined),
     singleLine: ioSingleLine,
@@ -1325,8 +1319,8 @@ export default function ExperimentItemsTable({
     if (!diff) return null;
     return (
       <DiffLabel
+        variant="ghost"
         diff={diff}
-        preferNegativeDiff
         formatValue={format}
         title={describeRunComparison({
           baselineName: runNameOf(baselineId),
@@ -1340,12 +1334,6 @@ export default function ExperimentItemsTable({
 
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = [
     ...(hideControls ? [] : [selectActionColumn]),
-    createIdTableColumn<ExperimentItemsTableRow>({
-      accessorKey: "itemId",
-      header: "Item ID",
-      size: 150,
-      enableHiding: true,
-    }),
     createIOTableColumn<ExperimentItemsTableRow>({
       accessorKey: "input",
       header: "Input",
@@ -1390,6 +1378,7 @@ export default function ExperimentItemsTable({
       header: "Output",
       size: 300,
       enableHiding: true,
+      defaultHidden: true,
       cell: ({ row }) => {
         const outputs = row.original.outputs ?? [];
         return (
@@ -1412,8 +1401,7 @@ export default function ExperimentItemsTable({
         );
       },
     },
-    // Cost and latency read as measurements, the ids as lookups — both
-    // sit behind the score columns so the analysis is above the fold.
+    // Measurements sit behind the scores so the analysis is above the fold.
     {
       accessorKey: "totalCost",
       id: "totalCost",
@@ -1424,6 +1412,7 @@ export default function ExperimentItemsTable({
         ),
       size: 120,
       enableHiding: true,
+      defaultHidden: true,
       cell: ({ row }) => {
         const experiments = row.original.experiments;
         const baselineCost = baselineExperimentOf(experiments)?.totalCost;
@@ -1467,6 +1456,7 @@ export default function ExperimentItemsTable({
         ),
       size: 120,
       enableHiding: true,
+      defaultHidden: true,
       cell: ({ row }) => {
         const experiments = row.original.experiments;
         const baselineLatency = baselineExperimentOf(experiments)?.latencyMs;
@@ -1493,27 +1483,6 @@ export default function ExperimentItemsTable({
                 })}
               </span>
             )}
-          />
-        );
-      },
-    },
-    {
-      accessorKey: "observationId",
-      id: "observationId",
-      headerLabel: "Observation ID",
-      header: () => renderExperimentSpecificHeader("Observation ID"),
-      size: 180,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const experiments = row.original.experiments;
-        return (
-          <StackedExperimentCell
-            experiments={experiments}
-            allExperimentIds={allExperimentIds}
-            colorExperimentIds={colorExperimentIds}
-            row={row.original}
-            onExperimentClick={onExperimentCellClick}
-            renderValue={(exp) => <IdTableCell value={exp.observationId} />}
           />
         );
       },
@@ -1581,7 +1550,7 @@ export default function ExperimentItemsTable({
       headerLabel: "Experiment",
       header: () => renderExperimentSpecificHeader("Experiment"),
       size: 150,
-      defaultHidden: true,
+      defaultHidden: false,
       enableHiding: true,
       cell: ({ row }) => {
         const experiments = row.original.experiments;
@@ -1610,38 +1579,10 @@ export default function ExperimentItemsTable({
     },
   ];
 
-  const scoreColumnIds = useMemo(
-    () =>
-      [...observationScoreColumns, ...traceScoreColumns].map(
-        (column) => column.accessorKey,
-      ),
-    [observationScoreColumns, traceScoreColumns],
-  );
-
-  // Score columns are now visible by default. A returning user has `false`
-  // persisted for every one of them from the previous default, so this one-time
-  // migration reaches them too — see `revealScoreColumns` for how a user who
-  // picked their own score columns is left alone. It is consumed once and for
-  // good, so it waits for the score columns to be known rather than running
-  // against an empty or half-loaded set.
-  const columnVisibilityMigrations = useMemo(
-    () => [
-      {
-        versionKey: `experimentItemsColumnVisibility-scoresVisible-v1-${projectId}`,
-        apply: (visibility: VisibilityState) =>
-          isFilterOptionsLoading
-            ? null
-            : revealScoreColumns(visibility, scoreColumnIds),
-      },
-    ],
-    [projectId, scoreColumnIds, isFilterOptionsLoading],
-  );
-
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<ExperimentItemsTableRow>(
-      `experimentItemsColumnVisibility-${projectId}`,
+      `experimentItemsColumnVisibility-compare-v2-${projectId}`,
       columns,
-      columnVisibilityMigrations,
     );
 
   // the score columns moved ahead of the metrics and ids so their
@@ -1651,7 +1592,7 @@ export default function ExperimentItemsTable({
   const columnOrderMigrations = useMemo(
     () => [
       {
-        versionKey: `experimentItemsColumnOrder-scoresEarlier-v2-${projectId}`,
+        versionKey: `experimentItemsColumnOrder-compare-${projectId}`,
         apply: resetStaleDefaultColumnOrder,
       },
     ],
@@ -1926,10 +1867,13 @@ export default function ExperimentItemsTable({
   const pagination = useMemo(
     () => ({
       totalCount: totalCount ?? null,
+      // Without this the footer prints "of 1" for as long as the count query
+      // is in flight behind rows that are already on screen.
+      isTotalCountLoading,
       onChange: setPaginationState,
       state: paginationState,
     }),
-    [paginationState, setPaginationState, totalCount],
+    [isTotalCountLoading, paginationState, setPaginationState, totalCount],
   );
 
   // Compute selected observation IDs for batch evaluation
@@ -2032,116 +1976,122 @@ export default function ExperimentItemsTable({
       tableName={experimentItemsFilterConfig.tableName}
     >
       <div className="flex h-full w-full flex-col">
-        {!hideControls && (
-          <TableSearchBar
-            key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
-            projectId={projectId}
-            tableName="experiment-items"
-            registry={searchRegistry}
-            filterState={queryFilter.searchBarFilterState}
-            setFilterState={queryFilter.setFilterState}
-            observed={toObservedOptions(
-              scoreFilterOptions,
-              isFilterOptionsLoading,
-            )}
-            isV4={true}
-          />
-        )}
-        {/* Toolbar spanning full width */}
-        {!hideControls && (
-          <DataTableToolbar
-            columns={columns}
-            filterState={queryFilter.filterState}
-            viewConfig={{
-              tableName: TableViewPresetTableName.ExperimentItems,
-              projectId,
-              controllers: {
-                ...viewControllers,
-                applyViewState: (
-                  ...args: Parameters<typeof viewControllers.applyViewState>
-                ) => {
-                  setFilterTargetState({ filters: [], targets: {} });
-                  viewControllers.applyViewState(...args);
-                },
-              },
-            }}
-            tableName={experimentItemsFilterConfig.tableName}
-            isV4={true}
-            onColumnGroupToggle={handleColumnGroupToggle}
-            columnsWithCustomSelect={["datasetItemId"]}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={handleColumnVisibilityChange}
-            columnOrder={columnOrder}
-            setColumnOrder={handleColumnOrderChange}
-            orderByState={orderByState}
-            rowHeight={rowHeight}
-            setRowHeight={setRowHeight}
-            // One "Table settings" button for the controls that shape this
-            // table, as on the experiments list — where two buttons plus a
-            // third control in the page header was the inconsistency between
-            // the two surfaces of the same feature.
-            mergeSettingsIntoPopover
-            settingsSections={settingsSections}
-            multiSelect={{
-              selectAll,
-              setSelectAll,
-              selectedRowIds:
-                Object.keys(selectedRows).filter((itemId) =>
-                  items.rows
-                    ?.map((item: ExperimentItemsTableRow) => item.itemId)
-                    .includes(itemId),
-                ) ?? [],
-              setRowSelection: setSelectedRows,
-              totalCount,
-              pageSize: paginationState.pageSize,
-              pageIndex: paginationState.pageIndex,
-            }}
-            actionButtons={
-              (selectAll || selectedItemCount > 0) && tableActions.length > 0
-                ? [
-                    <TableActionMenu
-                      key="experiment-items-multi-select-actions"
-                      projectId={projectId}
-                      actions={tableActions}
-                      tableName={BatchExportTableName.Sessions}
-                      selectedCount={selectAll ? totalCount : selectedItemCount}
-                      onClearSelection={() => {
-                        setSelectedRows({});
-                        setSelectAll(false);
-                      }}
-                      onCustomAction={(actionId) => {
-                        if (actionId === ActionId.ObservationBatchEvaluation) {
-                          setShowRunEvaluationDialog(true);
-                        }
-                      }}
-                    />,
-                  ]
-                : undefined
-            }
-          />
-        )}
+        <SearchableTableFilterLayout
+          search={
+            hideControls ? null : (
+              <TableSearchBar
+                key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+                projectId={projectId}
+                tableName="experiment-items"
+                registry={searchRegistry}
+                filterState={queryFilter.searchBarFilterState}
+                setFilterState={queryFilter.setFilterState}
+                observed={toObservedOptions(
+                  scoreFilterOptions,
+                  isFilterOptionsLoading,
+                )}
+                isV4={true}
+              />
+            )
+          }
+          toolbar={
+            <>
+              {!hideControls && (
+                <DataTableToolbar
+                  columns={columns}
+                  filterState={queryFilter.filterState}
+                  viewConfig={{
+                    tableName: TableViewPresetTableName.ExperimentItems,
+                    projectId,
+                    controllers: {
+                      ...viewControllers,
+                      applyViewState: (
+                        ...args: Parameters<
+                          typeof viewControllers.applyViewState
+                        >
+                      ) => {
+                        setFilterTargetState({ filters: [], targets: {} });
+                        viewControllers.applyViewState(...args);
+                      },
+                    },
+                  }}
+                  tableName={experimentItemsFilterConfig.tableName}
+                  isV4={true}
+                  onColumnGroupToggle={handleColumnGroupToggle}
+                  columnsWithCustomSelect={["datasetItemId"]}
+                  columnVisibility={columnVisibility}
+                  setColumnVisibility={handleColumnVisibilityChange}
+                  columnOrder={columnOrder}
+                  setColumnOrder={handleColumnOrderChange}
+                  orderByState={orderByState}
+                  rowHeight={rowHeight}
+                  setRowHeight={setRowHeight}
+                  toolbarSettings={toolbarSettings}
+                  multiSelect={{
+                    selectAll,
+                    setSelectAll,
+                    selectedRowIds:
+                      Object.keys(selectedRows).filter((itemId) =>
+                        items.rows
+                          ?.map((item: ExperimentItemsTableRow) => item.itemId)
+                          .includes(itemId),
+                      ) ?? [],
+                    setRowSelection: setSelectedRows,
+                    totalCount,
+                    pageSize: paginationState.pageSize,
+                    pageIndex: paginationState.pageIndex,
+                  }}
+                  actionButtons={
+                    (selectAll || selectedItemCount > 0) &&
+                    tableActions.length > 0
+                      ? [
+                          <TableActionMenu
+                            key="experiment-items-multi-select-actions"
+                            projectId={projectId}
+                            actions={tableActions}
+                            tableName={BatchExportTableName.Sessions}
+                            selectedCount={
+                              selectAll ? totalCount : selectedItemCount
+                            }
+                            onClearSelection={() => {
+                              setSelectedRows({});
+                              setSelectAll(false);
+                            }}
+                            onCustomAction={(actionId) => {
+                              if (
+                                actionId === ActionId.ObservationBatchEvaluation
+                              ) {
+                                setShowRunEvaluationDialog(true);
+                              }
+                            }}
+                          />,
+                        ]
+                      : undefined
+                  }
+                />
+              )}
 
-        {/* Score comparison filters — evaluated over the loaded page */}
-        {scoreComparisonPills.length > 0 && (
-          <ScoreComparisonFilterPills
-            pills={scoreComparisonPills}
-            onRemove={removeScoreComparisonFilter}
-          />
-        )}
+              {/* Score comparison filters — evaluated over the loaded page */}
+              {scoreComparisonPills.length > 0 && (
+                <ScoreComparisonFilterPills
+                  pills={scoreComparisonPills}
+                  onRemove={removeScoreComparisonFilter}
+                />
+              )}
 
-        {/* Filter Pills with Experiment Targeting */}
-        {filtersByExperiment.length > 0 && (
-          <ExperimentFilterPills
-            selectedExperimentNames={selectedExperimentNames}
-            filtersByExperiment={filtersByExperiment}
-            onFilterTargetChange={handleFilterTargetChange}
-            onFilterRemove={handleFilterRemove}
-            className="border-b"
-          />
-        )}
-
-        {/* Content area with sidebar and table */}
-        <ResizableFilterLayout>
+              {/* Filter Pills with Experiment Targeting */}
+              {filtersByExperiment.length > 0 && (
+                <ExperimentFilterPills
+                  selectedExperimentNames={selectedExperimentNames}
+                  filtersByExperiment={filtersByExperiment}
+                  onFilterTargetChange={handleFilterTargetChange}
+                  onFilterRemove={handleFilterRemove}
+                  className="border-b"
+                />
+              )}
+            </>
+          }
+        >
           {!hideControls && (
             <DataTableControls
               key={viewControllers.filterEditorResetKey}
@@ -2180,6 +2130,7 @@ export default function ExperimentItemsTable({
                   singleLine={ioSingleLine}
                   rows={rows}
                   isLoading={items.status === "loading" || isViewLoading}
+                  ioLoading={ioLoading}
                   rowHeight={rowHeight}
                   showExpectedOutput={showExpectedOutput}
                   pagination={pagination}
@@ -2242,7 +2193,7 @@ export default function ExperimentItemsTable({
               />
             )}
           </div>
-        </ResizableFilterLayout>
+        </SearchableTableFilterLayout>
 
         {/* Peek view panel */}
         {peekConfig && (
@@ -2266,6 +2217,8 @@ export default function ExperimentItemsTable({
             }
             onClose={() => {
               setShowRunEvaluationDialog(false);
+            }}
+            onSuccess={() => {
               setSelectedRows({});
               setSelectAll(false);
             }}

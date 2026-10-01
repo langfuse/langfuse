@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "zustand";
@@ -20,11 +21,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { ChevronLeft, ExternalLink, Plus } from "lucide-react";
 import {
@@ -56,6 +53,7 @@ type RunEvaluationDialogProps = {
   selectAll: boolean;
   totalCount: number;
   onClose: () => void;
+  onSuccess: () => void;
   experimentCount?: number;
   exampleObservation?: {
     id: string;
@@ -232,12 +230,15 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     displayCount,
     sourceTable,
   });
-  const mappingRunDisabledReason =
-    selectedCount === 0
-      ? "Attach at least one evaluator."
-      : mappingsComplete
-        ? null
-        : "Map every evaluator variable to a source column before running.";
+  const mappingRunDisabledReason = (() => {
+    if (selectedCount === 0) {
+      return "Select at least one evaluator.";
+    }
+    if (mappingsComplete) {
+      return null;
+    }
+    return "Map every evaluator variable to a source column before running.";
+  })();
 
   const toggleEvaluatorSelection = (evaluatorId: string) => {
     setSelectedEvaluators((previous) => {
@@ -311,6 +312,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
       },
     });
 
+    props.onSuccess();
     props.onClose();
   };
 
@@ -321,7 +323,12 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
 
   return (
     <>
-      <Dialog open onOpenChange={(open) => !open && props.onClose()}>
+      <Dialog
+        open
+        onOpenChange={(open) =>
+          !open && !runEvaluationMutation.isPending && props.onClose()
+        }
+      >
         <DialogContent
           {...(showMappingEditor ? { size: "lg" as const } : {})}
           className={
@@ -418,7 +425,16 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
 
             <div className="flex items-center gap-2">
               {step !== "confirm" ? (
-                <CreateEvaluatorButton href={createEvaluatorHref} />
+                <CreateEvaluatorButton
+                  href={createEvaluatorHref}
+                  onClick={() => {
+                    // The legacy (v3) editor is not part of the onboarding funnel.
+                    if (forceV3Experience) return;
+                    capture("eval:onboarding_started", {
+                      entryPoint: "batch_evaluation",
+                    });
+                  }}
+                />
               ) : null}
               {showMappingEditor ? (
                 <MappingRunButton
@@ -453,11 +469,18 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   );
 }
 
-function CreateEvaluatorButton({ href }: { href: string }) {
+function CreateEvaluatorButton({
+  href,
+  onClick,
+}: {
+  href: string;
+  onClick: () => void;
+}) {
   return (
     <Button variant="secondary" className="gap-1.5" asChild>
       <Link
         href={href}
+        onClick={onClick}
         target="_blank"
         rel="noreferrer"
         aria-label="Create new Evaluator (opens in a new tab)"
@@ -498,13 +521,16 @@ function MappingRunButton({
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex cursor-not-allowed" tabIndex={0}>
+    <Tooltip label={disabledReason} hoverableContent={false}>
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps()}
+          className="inline-flex cursor-not-allowed"
+          tabIndex={0}
+        >
           {button}
         </span>
-      </TooltipTrigger>
-      <TooltipContent>{disabledReason}</TooltipContent>
+      )}
     </Tooltip>
   );
 }

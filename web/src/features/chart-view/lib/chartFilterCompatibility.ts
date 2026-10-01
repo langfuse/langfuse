@@ -148,6 +148,8 @@ export function chartSearchFieldReason(fieldName: string): string | null {
     );
   // `has:`/`-has:` presence checks lower to a null-check filter, which the chart
   // doesn't apply (dropped by toChartFilters) — so the pill is deactivated too.
+  if (ref.type === "searchScope" || (ref.type === "pseudo" && ref.id === "in"))
+    return CHART_SEARCH_QUERY_REASON;
   if (ref.type === "pseudo")
     return "Charts can't filter by whether a field is set at the moment — still applies to the table.";
   return chartFilterExclusionReason(ref.field.id);

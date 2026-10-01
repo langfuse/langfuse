@@ -10,17 +10,13 @@
  * which is what keeps it reviewable in Storybook across every size and shape.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { type RowMetrics } from "./TimelineRowMetrics";
 import { usdFormatter } from "@/src/utils/numbers";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
-import {
-  useActiveObservationIds,
-  usePlayhead,
-  useShowPlayhead,
-} from "@/src/features/traces/contexts/PlayheadContext";
+import { useTraceSearchMatches } from "@/src/features/traces/hooks/useTraceSearchMatches";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
 import { detectPointerModality } from "../../fns/timeline/density";
@@ -36,22 +32,14 @@ export function TraceTimelineCompact() {
   const { handleHover } = useHandlePrefetchObservation();
   const selectNode = useSelectTraceNode("timeline_compact");
 
-  // Playback: the transport lives in the navigation header and drives the shared
-  // engine, so this view owes the two things you WATCH — a line that sweeps and
-  // the rows lighting up as it passes them. Both are handed to the renderer,
-  // which stays context-free so Storybook can still mount it anywhere.
-  const { seekToSec, getPlayheadSec, subscribePosition } = usePlayhead();
-  const showPlayhead = useShowPlayhead();
-  const activeIds = useActiveObservationIds();
-  const playhead = useMemo(
-    () => ({
-      visible: showPlayhead,
-      getSec: getPlayheadSec,
-      subscribe: subscribePosition,
-      onSeek: seekToSec,
-    }),
-    [showPlayhead, getPlayheadSec, subscribePosition, seekToSec],
-  );
+  /**
+   * The search box, answered in place. The renderer takes the SET of ids that
+   * keep their colour and nothing about searching — it dims the rest, reveals
+   * the first hit and states the count, which is all a chart can do with a
+   * query. The Graph reads the same hook, so the two cannot state different
+   * counts for one query.
+   */
+  const search = useTraceSearchMatches();
 
   const [pointerModality] = useState(detectPointerModality);
   const [box, setBox] = useState<{ width: number; height: number } | null>(
@@ -98,10 +86,7 @@ export function TraceTimelineCompact() {
     (nodeId: string): RowMetrics => {
       const node = nodeMap.get(nodeId);
       if (!node?.totalCost || !showCostTokens) return {};
-      const aggregated = node.children.length > 0 || node.type === "TRACE";
-      return {
-        costText: `${aggregated ? "∑ " : ""}${usdFormatter(node.totalCost.toNumber())}`,
-      };
+      return { costText: usdFormatter(node.totalCost.toNumber()) };
     },
     [nodeMap, showCostTokens],
   );
@@ -121,10 +106,9 @@ export function TraceTimelineCompact() {
           selectedId={selectedNodeId}
           onSelect={selectNode}
           onHover={handleHoverNode}
-          activeIds={activeIds}
-          playhead={playhead}
           metricsOf={metricsOf}
           showDuration={showDuration}
+          search={search}
         />
       ) : null}
     </div>

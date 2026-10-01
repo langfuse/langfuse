@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { CsvColumnsCard } from "./CsvColumnsCard";
 import { MappingCard } from "./MappingCard";
 import {

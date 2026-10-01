@@ -11,7 +11,7 @@ vi.mock("@/src/features/public-api/server/scores", () => ({
   convertScoreToPublicApi: vi.fn((score) => score),
 }));
 
-vi.mock("@/src/features/audit-logs/auditLog", () => ({
+vi.mock("@/src/features/audit-logs/server", () => ({
   auditLog: vi.fn(),
 }));
 

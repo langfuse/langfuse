@@ -27,10 +27,7 @@ import {
   getObservationLevels,
   removeHiddenNodes,
 } from "../fns/treeBuilding";
-import {
-  calculateTraceDuration,
-  findEarliestStartTime,
-} from "@/src/features/traces/fns/timelineCalculations";
+import { type TraceMetricEmphasis } from "@/src/features/traces/fns/metricEmphasis";
 import { useViewPreferences } from "./ViewPreferencesContext";
 import { useMergedScores } from "@/src/features/scores";
 import { traceLevelScoreOwnerIds } from "@/src/features/traces/fns/nodeScores";
@@ -41,6 +38,8 @@ type TraceType = Omit<
 > & {
   input: string | null;
   output: string | null;
+  /** Server-derived, in seconds. */
+  latency?: number;
 };
 
 interface TraceDataContextValue {
@@ -55,6 +54,9 @@ interface TraceDataContextValue {
    * children into `roots`, and a promoted child is not a stand-in for the trace. */
   traceLevelScoreOwnerIds: Set<string>;
   nodeMap: Map<string, TreeNode>;
+  /** Trace-wide cost/duration totals for metric emphasis. Derived from the
+   * UNFILTERED tree so level filtering cannot change which rows read bold. */
+  metricEmphasis: TraceMetricEmphasis;
   searchItems: TraceSearchListItem[];
   hiddenObservationsCount: number;
   /**
@@ -76,12 +78,6 @@ interface TraceDataContextValue {
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
   comments: Map<string, number>;
-  /** Timeline origin (the 0s mark): earliest start across the whole tree. The
-   * single owner of the temporal frame — timeline, playhead, and graph all
-   * consume these two instead of re-deriving them. */
-  traceStartTime: Date;
-  /** Total trace span in seconds, origin → latest end (0 for empty traces). */
-  traceDuration: number;
 }
 
 const TraceDataContext = createContext<TraceDataContextValue | null>(null);
@@ -168,17 +164,6 @@ export function TraceDataProvider({
       return { filteredRoots, filteredSearchItems, hiddenObservationsCount };
     }, [uiData, minObservationLevel]);
 
-  // Temporal frame, derived once from the filtered roots (single source of
-  // truth for the timeline scale, the playback engine, and scroll math).
-  const traceStartTime = useMemo(
-    () => findEarliestStartTime(filteredRoots) ?? new Date(),
-    [filteredRoots],
-  );
-  const traceDuration = useMemo(
-    () => calculateTraceDuration(filteredRoots, traceStartTime),
-    [filteredRoots, traceStartTime],
-  );
-
   const traceLevelScoreOwnerIdSet = useMemo(
     () =>
       traceLevelScoreOwnerIds(
@@ -210,14 +195,13 @@ export function TraceDataProvider({
       roots: filteredRoots,
       traceLevelScoreOwnerIds: traceLevelScoreOwnerIdSet,
       nodeMap: uiData.nodeMap,
+      metricEmphasis: uiData.metricEmphasis,
       searchItems: filteredSearchItems,
       hiddenObservationsCount,
       detachedObservationId,
       detachedObservationIsMisplaced,
       truncatedAtObservations,
       comments,
-      traceStartTime,
-      traceDuration,
     }),
     [
       trace,
@@ -233,9 +217,8 @@ export function TraceDataProvider({
       detachedObservationIsMisplaced,
       truncatedAtObservations,
       uiData.nodeMap,
+      uiData.metricEmphasis,
       comments,
-      traceStartTime,
-      traceDuration,
     ],
   );
 

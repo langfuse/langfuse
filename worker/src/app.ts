@@ -58,6 +58,9 @@ import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseReadSkipCache } from "./utils/clickhouseReadSkipCache";
 import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
+import { traceBatchQueueProcessor } from "./queues/traceBatchQueue";
+import { TraceBatchDispatcher } from "./features/traceBatching/traceBatching";
+import { TraceBatchMetricsRunner } from "./features/traceBatching/TraceBatchMetricsRunner";
 import { projectDeleteProcessor } from "./queues/projectDelete";
 import {
   postHogIntegrationProcessingProcessor,
@@ -135,6 +138,34 @@ ClickhouseReadSkipCache.getInstance(prisma)
   .catch((err) => {
     logger.error("Error initializing ClickhouseReadSkipCache", err);
   });
+
+export let traceBatchDispatcher: TraceBatchDispatcher | null = null;
+if (
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+  env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true"
+) {
+  traceBatchDispatcher = new TraceBatchDispatcher();
+  traceBatchDispatcher.start();
+}
+
+if (
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+  env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true"
+) {
+  WorkerManager.register(QueueName.TraceBatch, traceBatchQueueProcessor, {
+    concurrency: env.LANGFUSE_TRACE_BATCH_CONCURRENCY,
+  });
+}
+
+export let traceBatchMetricsRunner: TraceBatchMetricsRunner | null = null;
+if (
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+  (env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true" ||
+    env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true")
+) {
+  traceBatchMetricsRunner = new TraceBatchMetricsRunner();
+  traceBatchMetricsRunner.start();
+}
 
 if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
   // Register workers for all trace upsert queue shards

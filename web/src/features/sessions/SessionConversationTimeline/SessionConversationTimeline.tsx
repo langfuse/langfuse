@@ -141,7 +141,7 @@ export type SessionConversationTimelineController = ReturnType<
 export function SessionConversationTimeline({
   traces,
   filterMeasurementKey,
-  emptyMessage,
+  emptyState,
   onOpenTrace,
   onOpenObservation,
   controller,
@@ -151,7 +151,13 @@ export function SessionConversationTimeline({
 }: {
   traces: readonly SessionConversationTimelineItem[];
   filterMeasurementKey: string;
-  emptyMessage: string;
+  emptyState:
+    | { type: "empty" }
+    | {
+        type: "filtered-empty";
+        viewLabel: string | null;
+        onClearFilters: () => void;
+      };
   onOpenTrace: (trace: EventSessionTrace) => void;
   onOpenObservation: (trace: EventSessionTrace, observationId: string) => void;
   controller: SessionConversationTimelineController;
@@ -196,9 +202,7 @@ export function SessionConversationTimeline({
         ): PreparedSessionConversationTimelineTraceState => {
           if (observations === undefined) return { type: "loading" };
           if (observations === null) return { type: "error" };
-          if (observations.length === 0) {
-            return { type: "empty", message: emptyMessage };
-          }
+          if (observations.length === 0) return emptyState;
 
           return {
             type: "loaded",
@@ -207,7 +211,7 @@ export function SessionConversationTimeline({
         },
       ),
     };
-  }, [emptyMessage, observationFingerprint, traces]);
+  }, [emptyState, observationFingerprint, traces]);
 
   return (
     <SessionConversationTimelineFeed

@@ -5,8 +5,8 @@ import { ConnectedModernSessionBodyLegacy } from "@/src/features/sessions/Connec
 import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/ConnectedModernSessionBodyTimeline";
 import { ModernSessionFilterControls } from "@/src/features/sessions/ModernSessionFilterControls";
 import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader";
+import { SessionReviewLeading } from "@/src/features/sessions/sessionReviewLeading";
 import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionMetadataJsonPathControl";
-import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import {
   type EventSession,
   type EventSessionTrace,
@@ -21,7 +21,6 @@ type ModernSessionProps = {
     | "outputUsage"
     | "totalTokens"
     | "totalCost"
-    | "environment"
     | "users"
     | "scores"
     | "minTimestamp"
@@ -65,9 +64,6 @@ export function ModernSession({
   filterControlsProps,
   onFilterObservationByName,
 }: ModernSessionProps) {
-  const isProjectMember = useIsAuthenticatedAndProjectMember(projectId);
-  // Public session authorization must support timeline event queries before removing the sessionTimeline flag.
-  const shouldRenderTimeline = isTimelineEnabled && isProjectMember;
   const headerTraces =
     tracesState.type === "loaded"
       ? ({ state: "loaded", data: tracesState.traces } as const)
@@ -95,24 +91,26 @@ export function ModernSession({
         filterState={filterState}
       >
         {(metadataJsonPaths) => (
-          <ModernSessionHeader
-            projectId={projectId}
-            countTraces={session.countTraces}
-            traces={headerTraces}
-            tokensIn={session.inputUsage}
-            tokensOut={session.outputUsage}
-            totalTokens={session.totalTokens}
-            totalCost={session.totalCost ?? 0}
-            environment={session.environment ?? null}
-            users={session.users ?? []}
-            metadataJsonPaths={metadataJsonPaths}
-            scores={session.scores}
-          />
+          <SessionReviewLeading>
+            <ModernSessionHeader
+              projectId={projectId}
+              countTraces={session.countTraces}
+              minTimestamp={session.minTimestamp}
+              maxTimestamp={session.maxTimestamp}
+              tokensIn={session.inputUsage}
+              tokensOut={session.outputUsage}
+              totalTokens={session.totalTokens}
+              totalCost={session.totalCost ?? 0}
+              users={session.users ?? []}
+              metadataJsonPaths={metadataJsonPaths}
+              scores={session.scores}
+            />
+          </SessionReviewLeading>
         )}
       </SessionMetadataJsonPathControl>
       <ModernSessionFilterControls {...filterControlsProps}>
         {(sidebarFilterControls) =>
-          shouldRenderTimeline ? (
+          isTimelineEnabled ? (
             <ConnectedModernSessionBodyTimeline
               {...sharedBodyProps}
               sidebarFilterControls={sidebarFilterControls}

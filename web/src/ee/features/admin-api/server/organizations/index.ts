@@ -1,6 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
-import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
+import { organizationNameSchema } from "@/src/features/organizations/server";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";

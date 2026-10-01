@@ -29,6 +29,20 @@ export const FTS_TEXT_FIELDS: ReadonlySet<string> = new Set([
 ]);
 export const FTS_METADATA_FIELD = "metadata";
 
+// events_full carries ngrambf_v1 skip indexes on lower(<col>) for these
+// human-readable substring-search columns. A predicate uses them only when
+// lower(col) appears directly under a supported function (=, LIKE, IN), so
+// StringFilter/StringOptionsFilter emit a lower() conjunct for these fields.
+// trace_name is intentionally excluded: it maps to a COALESCE expression, not a
+// bare column, and needs a branch-aware rewrite. span_id/trace_id match by
+// equality against their bloom_filter/primary key (handled by the search
+// id-lane), so they need no ngram treatment here.
+const FTS_NGRAM_SUBSTRING_FIELDS: ReadonlySet<string> = new Set([
+  "name",
+  "user_id",
+  "session_id",
+]);
+
 // Column mappings may carry a table prefix (e.g. "e.input"); strip to the bare
 // field name before set lookup.
 export const bareFtsField = (field: string): string => {
@@ -67,6 +81,19 @@ export const isFtsMetadataTarget = (
   field: string,
 ): boolean => isFtsEventsTable(clickhouseTable) && isFtsMetadataField(field);
 
+const isNgramSubstringField = (field: string): boolean =>
+  FTS_NGRAM_SUBSTRING_FIELDS.has(bareFtsField(field));
+
+// True when a filter targets an events-family table column backed by an
+// events_full lower(col) ngram index. The filter layer cannot tell events_core
+// from events_full (physical selection happens later in EventsQueryBuilder); on
+// events_core the emitted lower() conjunct is simply an unindexed, correct, and
+// cheap extra comparison on these small columns.
+export const isNgramSubstringTarget = (
+  clickhouseTable: string,
+  field: string,
+): boolean => isFtsEventsTable(clickhouseTable) && isNgramSubstringField(field);
+
 export const isFtsAcceleratedIoOperator = (operator: string): boolean =>
   FTS_TEXT_OPERATORS.has(operator as FtsStringOperator);
 
@@ -94,23 +121,21 @@ const ftsTokenPrefilterPredicate = (
 ): string =>
   `hasAllTokens(${fieldExpr}, ${ftsSearchTokenPrefilterExpr(valueParam, normalizeValue)})`;
 
-const ftsTextTokenPredicate = (fieldExpr: string, valueParam: string): string =>
-  ftsTokenPrefilterPredicate(normalizeFtsTextExpr(fieldExpr), valueParam, true);
-
-export const ftsTextTokenConjunct = (
+// Bare `hasAllTokens` index prefilter. Callers include it only when the search
+// value yields at least one token (`hasFtsSearchToken`): a tokenless value
+// makes `tokens()` empty, leaving the prefilter a no-op that only costs
+// skip-index pruning on the surrounding OR.
+export const ftsTextTokenPredicate = (
   fieldExpr: string,
   valueParam: string,
 ): string =>
-  `(empty(${ftsSearchTokensExpr(valueParam, true)}) OR ${ftsTextTokenPredicate(fieldExpr, valueParam)})`;
+  ftsTokenPrefilterPredicate(normalizeFtsTextExpr(fieldExpr), valueParam, true);
 
 const ftsTextIndexedSubstringCondition = (
   fieldExpr: string,
   valueParam: string,
 ): string =>
   `(position(${normalizeFtsTextExpr(fieldExpr)}, ${normalizeFtsTextExpr(valueParam)}) > 0 AND ${ftsTextTokenPredicate(fieldExpr, valueParam)})`;
-
-const ftsMetadataArrayHas = (arrayExpr: string, valueParam: string): string =>
-  `has(${arrayExpr}, ${valueParam})`;
 
 const ftsMetadataArrayTokenConjunct = (
   arrayExpr: string,
@@ -122,6 +147,9 @@ type FtsMetadataArrayConditionContext = {
   valuesColumn: string;
   valueAccessor: string;
   valueParam: string;
+  // Whether the search value yields at least one token; gates the text-index
+  // prefilter so tokenless values fall back to the exact check alone.
+  hasToken: boolean;
 };
 
 type FtsOperatorDescriptor = {
@@ -129,6 +157,7 @@ type FtsOperatorDescriptor = {
     fieldExpr: string,
     valueParam: string,
     exactCondition: string,
+    hasToken: boolean,
   ) => string;
   metadataArrayCondition: (ctx: FtsMetadataArrayConditionContext) => string;
 };
@@ -147,18 +176,23 @@ type FtsOperatorDescriptors = {
 
 export const FTS_OPERATOR_DESCRIPTORS = {
   "=": {
-    textCondition: (fieldExpr, valueParam, exactCondition) =>
-      `(${exactCondition} AND ${ftsTextTokenConjunct(fieldExpr, valueParam)})`,
+    textCondition: (fieldExpr, valueParam, exactCondition, hasToken) =>
+      hasToken
+        ? `(${exactCondition} AND ${ftsTextTokenPredicate(fieldExpr, valueParam)})`
+        : exactCondition,
     metadataArrayCondition: ({
       hasKey,
       valuesColumn,
       valueAccessor,
       valueParam,
+      hasToken,
     }) =>
-      `${hasKey} AND ${ftsMetadataArrayHas(valuesColumn, valueParam)} AND (${valueAccessor} = ${valueParam})`,
+      hasToken
+        ? `${hasKey} AND ${ftsMetadataArrayTokenConjunct(valuesColumn, valueParam)} AND (${valueAccessor} = ${valueParam})`
+        : `${hasKey} AND (${valueAccessor} = ${valueParam})`,
   },
   [FTS_MATCH_OPERATOR]: {
-    textCondition: (fieldExpr, valueParam, _exactCondition) =>
+    textCondition: (fieldExpr, valueParam, _exactCondition, _hasToken) =>
       ftsTextIndexedSubstringCondition(fieldExpr, valueParam),
     metadataArrayCondition: ftsMetadataArrayIndexedSubstringCondition,
   },

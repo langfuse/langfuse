@@ -19,14 +19,6 @@ import React from "react";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
 
-// Boolean scores render as `true`/`false`; the capitalised entries keep the same
-// treatment for categorical scores whose category happens to be True/False.
-const COLOR_MAP = new Map([
-  ["true", "bg-light-green p-0.5 text-dark-green"],
-  ["True", "bg-light-green p-0.5 text-dark-green"],
-  ["false", "bg-light-red p-0.5 text-dark-red"],
-  ["False", "bg-light-red p-0.5 text-dark-red"],
-]);
 const COLLAPSE_CATEGORICAL_SCORES_AFTER = 2;
 
 const ScoreValueCounts = ({
@@ -91,17 +83,12 @@ export const ScoresTableCell = ({
       // `inline-flex` triggers keep each icon's box the size of the icon, which
       // the row then centres. Left to stretch, a trigger's box grows with the
       // row and pins the icon to its top, off the value's centre.
-      <span
-        className={cn(
-          "flex min-w-0 flex-row items-center gap-0.5 rounded-sm",
-          COLOR_MAP.get(value),
-        )}
-      >
+      <span className="flex min-w-0 flex-row items-center gap-0.5 rounded-sm">
         <span
           className="truncate"
           title={valueTitle ? `${valueTitle}: ${value}` : value}
         >
-          {value}
+          {aggregate.type === "NUMERIC" ? aggregate.average.toFixed(2) : value}
         </span>
         {aggregate.comment && (
           <HoverCard>
@@ -147,7 +134,9 @@ export const ScoresTableCell = ({
 
   if (aggregate.type === "NUMERIC") {
     return (
-      <span className="rounded-sm">{`Ø ${aggregate.average.toFixed(4)}`}</span>
+      <span className="rounded-sm" title={aggregate.average.toFixed(4)}>
+        {`Ø ${aggregate.average.toFixed(2)}`}
+      </span>
     );
   }
 

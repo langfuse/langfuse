@@ -1,3 +1,6 @@
+import { Pencil } from "lucide-react";
+import { fn } from "storybook/test";
+
 import preview from "../../../../../.storybook/preview";
 
 import {
@@ -16,15 +19,32 @@ const columns = [
   createTextTableColumn<Row>({
     id: "name",
     accessorFn: (row) => row.name,
-    header: "Text",
+    header: "Copyable text",
+    trailingAction: { type: "copy-to-clipboard" },
+  }),
+  createTextTableColumn<Row>({
+    id: "name-with-tooltip",
+    accessorFn: (row) => row.name,
+    header: "Text with tooltip",
+    tooltip: ({ row }) =>
+      row.original.name
+        ? `Created: today\nCount: ${row.original.count ?? "—"}`
+        : undefined,
   }),
   createTextTableColumn<Row, number>({
     accessorKey: "count",
-    header: "Mapped text",
+    header: "Mapped text with action",
     mapValue: (value, { row }) =>
       row.original.isCountLoading
         ? { type: "loading" }
         : value?.toLocaleString(),
+    nullValue: "—",
+    trailingAction: {
+      type: "custom",
+      icon: Pencil,
+      label: "Edit value",
+      onClick: fn(),
+    },
   }),
 ];
 

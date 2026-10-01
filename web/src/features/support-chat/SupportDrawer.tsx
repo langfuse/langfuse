@@ -1,8 +1,8 @@
-/* eslint-disable @repo/no-style-props, @repo/no-null-render */
+/* eslint-disable @repo/no-style-props */
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { X, Slash } from "lucide-react";
+import { X } from "lucide-react";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -20,9 +20,7 @@ export const SupportDrawer = (props: {
   showCloseButton?: boolean;
   className?: string;
 }) => {
-  const { open, openEpoch } = useSupportDrawer();
-
-  if (!open) return null;
+  const { openEpoch } = useSupportDrawer();
 
   // Keyed by openEpoch so re-opening (openWithMode while already open)
   // remounts the content and re-seeds mode/topic from the provider.
@@ -70,8 +68,8 @@ const SupportDrawerContent = ({
                       </button>
                     </BreadcrumbLink>
                   </BreadcrumbItem>
-                  <BreadcrumbSeparator>
-                    <Slash />
+                  <BreadcrumbSeparator className="text-foreground-tertiary">
+                    /
                   </BreadcrumbSeparator>
                   <BreadcrumbItem>
                     <BreadcrumbPage>Email Engineer</BreadcrumbPage>

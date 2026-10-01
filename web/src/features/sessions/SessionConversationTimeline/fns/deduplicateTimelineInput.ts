@@ -8,21 +8,22 @@ export function deduplicateTimelineInput(
   messages: SessionTimelineConversationMessage[],
   ancestorMessages: readonly NormalizedMessage[],
 ) {
-  const currentInput = getConversationEntries(messages, "input");
-  const ancestorInput = getConversationEntries(ancestorMessages, "input");
-  const historicalInputIndices = getHistoricalInputIndices(
-    ancestorInput,
-    currentInput,
-  );
   const historicalParts = new Set(
-    currentInput
-      .filter((_entry, index) => historicalInputIndices.has(index))
-      .map((entry) => `${entry.messageIndex}:${entry.partIndex}`),
+    (["input", "output"] as const).flatMap((source) => {
+      const currentEntries = getConversationEntries(messages, source);
+      const ancestorEntries = getConversationEntries(ancestorMessages, source);
+      const historicalEntryIndices = getHistoricalInputIndices(
+        ancestorEntries,
+        currentEntries,
+      );
+
+      return currentEntries
+        .filter((_entry, index) => historicalEntryIndices.has(index))
+        .map((entry) => `${entry.messageIndex}:${entry.partIndex}`);
+    }),
   );
 
   return messages.flatMap((message, messageIndex) => {
-    if (message.source === "output") return [message];
-
     const parts = message.parts.filter(
       (_part, partIndex) =>
         !historicalParts.has(`${messageIndex}:${partIndex}`),

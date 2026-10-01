@@ -1,7 +1,7 @@
 import { showSuccessToast } from "@/src/features/notifications";
 import type * as React from "react";
-import { useState } from "react";
 
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { DeleteAutomationDialog } from "./DeleteAutomationDialog";
@@ -22,7 +22,6 @@ export const DeleteAutomationDialogController = ({
   onSuccess,
   children,
 }: DeleteAutomationDialogControllerProps) => {
-  const [open, setOpen] = useState(false);
   const utils = api.useUtils();
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -48,33 +47,36 @@ export const DeleteAutomationDialogController = ({
     ? undefined
     : { reason: "You don't have permission to delete this automation." };
 
-  const openDialog = () => {
-    if (!hasAccess) return;
-
-    setOpen(true);
-  };
-
-  const handleDelete = async () => {
+  const handleDelete = async (closeDialog: () => void) => {
     try {
       await deleteAutomationMutation.mutateAsync({
         projectId,
         automationId,
       });
-      setOpen(false);
+      closeDialog();
     } catch {
       // The tRPC error handler owns mutation failures; keep the dialog open.
     }
   };
 
   return (
-    <>
-      {children({ disabled, openDialog })}
-      <DeleteAutomationDialog
-        open={hasAccess && open}
-        onOpenChange={setOpen}
-        isPending={deleteAutomationMutation.isPending}
-        onConfirm={handleDelete}
-      />
-    </>
+    <DialogController
+      renderDialog={({ closeDialog }) => (
+        <DeleteAutomationDialog
+          isPending={deleteAutomationMutation.isPending}
+          onConfirm={() => handleDelete(closeDialog)}
+        />
+      )}
+    >
+      {({ openDialog }) =>
+        children({
+          disabled,
+          openDialog: () => {
+            if (!hasAccess) return;
+            openDialog();
+          },
+        })
+      }
+    </DialogController>
   );
 };

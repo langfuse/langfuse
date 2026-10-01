@@ -24,6 +24,30 @@ const tracingFormat = function () {
   })();
 };
 
+/**
+ * Log collectors disagree on which field carries the level. GCP Cloud Logging
+ * only reads `severity`, and only its own LogSeverity names, so a JSON line
+ * that carries the level in `level` is indexed as DEFAULT there. Datadog and
+ * Loki read `level` as well, so emitting both fields makes one line sort
+ * correctly everywhere.
+ */
+const gcpSeverityByLevel: Record<string, string> = {
+  error: "ERROR",
+  warn: "WARNING",
+  info: "INFO",
+  http: "INFO",
+  verbose: "DEBUG",
+  debug: "DEBUG",
+  silly: "DEBUG",
+};
+
+const severityFormat = function () {
+  return winston.format((info) => {
+    info.severity = gcpSeverityByLevel[info.level] ?? "DEFAULT";
+    return info;
+  })();
+};
+
 const getWinstonLogger = (
   nodeEnv: "development" | "production" | "test",
   minLevel = "info",
@@ -42,6 +66,7 @@ const getWinstonLogger = (
     winston.format.errors({ stack: true }),
     winston.format.timestamp(),
     tracingFormat(),
+    severityFormat(),
     winston.format.json(),
   );
 

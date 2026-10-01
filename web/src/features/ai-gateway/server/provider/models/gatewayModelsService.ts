@@ -74,5 +74,11 @@ function compareModels(
   left: GatewayModelCatalogEntry,
   right: GatewayModelCatalogEntry,
 ) {
-  return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
+  if (left.id < right.id) {
+    return -1;
+  }
+  if (left.id > right.id) {
+    return 1;
+  }
+  return 0;
 }

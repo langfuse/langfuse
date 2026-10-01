@@ -1,11 +1,8 @@
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useRouter } from "next/router";
 import { useRef } from "react";
-import {
-  TraceDetailActions,
-  TraceDetailBody,
-  traceDetailTitle,
-} from "@/src/features/traces";
+import { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
+import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
 import {
   TablePeekView,
   shouldClosePeekAfterDelete,
@@ -19,9 +16,10 @@ export const TablePeekViewTraceDetail = (
     "children" | "title"
   > & {
     projectId: string;
+    layout?: React.ComponentProps<typeof TraceDetailBody>["layout"];
   },
 ) => {
-  const { projectId } = props;
+  const { projectId, layout, ...tablePeekViewProps } = props;
 
   const router = useRouter();
   const { traceId, timestamp } = resolvePeekTraceParams({
@@ -45,19 +43,17 @@ export const TablePeekViewTraceDetail = (
 
   const actionProps = trace.data
     ? {
-        traceId: trace.data.id,
-        projectId: trace.data.projectId,
-        isPublic: trace.data.public,
+        trace: trace.data,
+        traceContext: "peek" as const,
         shareUrl: buildTracePath({
           projectId: trace.data.projectId,
           traceId: trace.data.id,
           timestamp,
         }),
-        name: trace.data.name,
         timestamp,
         onAfterDelete: (deletedTraceId: string) => {
           if (shouldClosePeekAfterDelete(peekIdRef.current, deletedTraceId)) {
-            props.closePeek();
+            tablePeekViewProps.closePeek();
           }
         },
       }
@@ -65,8 +61,9 @@ export const TablePeekViewTraceDetail = (
 
   return (
     <TablePeekView
-      {...props}
-      title={traceDetailTitle(trace.data, traceId)}
+      {...tablePeekViewProps}
+      title={traceId}
+      hideExpandToggle
       actions={
         actionProps ? <TraceDetailActions {...actionProps} /> : undefined
       }
@@ -79,6 +76,7 @@ export const TablePeekViewTraceDetail = (
       <TraceDetailBody
         trace={trace.data}
         context="peek"
+        layout={layout}
         truncatedAtObservations={trace.truncatedAtObservations}
       />
     </TablePeekView>

@@ -10,8 +10,8 @@ import { TRPCError } from "@trpc/server";
 import {
   type MediaContentType,
   type MediaReturnType,
-  type MediaEnabledFields,
-} from "@/src/features/media/validation";
+} from "@/src/features/media/server";
+import { type MediaEnabledFields } from "@/src/features/media/validation";
 
 export const mediaRouter = createTRPCRouter({
   getById: protectedProjectProcedure

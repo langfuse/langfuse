@@ -83,7 +83,7 @@ export const NewOrganizationForm = ({
                 <FormLabel>Enable AI powered features</FormLabel>
                 <p className="text-muted-foreground text-sm">
                   {isLangfuseCloud
-                    ? "Relevant project data can be sent to AWS Bedrock within your Langfuse data region. Your data will not be used for training models."
+                    ? "Relevant project data can be sent to AWS Bedrock within your Langfuse data region. Your data will not be used to train models."
                     : "Relevant project data can be sent to the model provider configured by your instance administrator."}{" "}
                   {isLangfuseCloud && (
                     <a

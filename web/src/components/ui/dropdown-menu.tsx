@@ -4,18 +4,12 @@
 import * as React from "react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { cva } from "class-variance-authority";
-import {
-  Check,
-  ChevronRight,
-  Circle,
-  Minus,
-  type LucideIcon,
-} from "lucide-react";
+import { Check, Circle, Minus, type LucideIcon } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
 
 import { cn } from "@/src/utils/tailwind";
-import { useLayerContainer } from "@/src/components/ui/layer";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
@@ -56,7 +50,11 @@ const DropdownMenuSubTrigger = React.forwardRef<
     {...props}
   >
     {children}
-    {!hasCustomIcon && <ChevronRight className="ml-auto h-4 w-4" />}
+    {!hasCustomIcon && (
+      <span className="ml-auto flex">
+        <DropdownIndicator direction="right" />
+      </span>
+    )}
   </DropdownMenuPrimitive.SubTrigger>
 ));
 DropdownMenuSubTrigger.displayName =
@@ -266,6 +264,7 @@ DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
  */
 type DropdownMenuControllerProps = {
   align: React.ComponentProps<typeof DropdownMenuContent>["align"];
+  isActive?: boolean;
   children: (control: {
     isOpen: boolean;
     Trigger: typeof DropdownMenuTrigger;
@@ -280,6 +279,7 @@ type DropdownMenuControllerProps = {
 
 const DropdownMenuController = ({
   align,
+  isActive = true,
   children,
   maxWidth,
   onCloseAutoFocus,
@@ -288,13 +288,16 @@ const DropdownMenuController = ({
   const [isOpen, setIsOpen] = React.useState(false);
 
   return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-      {children({ isOpen, Trigger: DropdownMenuTrigger })}
+    <DropdownMenu open={isActive && isOpen} onOpenChange={setIsOpen}>
+      {children({ isOpen: isActive && isOpen, Trigger: DropdownMenuTrigger })}
       <DropdownMenuContent
         align={align}
         style={maxWidth === undefined ? undefined : { maxWidth }}
         onClick={(event) => event.stopPropagation()}
-        onCloseAutoFocus={onCloseAutoFocus}
+        onCloseAutoFocus={(event) => {
+          if (!isActive) event.preventDefault();
+          onCloseAutoFocus?.(event);
+        }}
       >
         {renderMenu()}
       </DropdownMenuContent>
@@ -510,12 +513,6 @@ const DropdownMenuItemWithSecondaryAction = (
   );
 };
 
-const DropdownMenuLoadingItem = () => (
-  <DropdownMenuItem disabled aria-label="Loading">
-    <Skeleton variant="contrast" className="h-4 w-24" />
-  </DropdownMenuItem>
-);
-
 const DropdownMenuCheckboxItem = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.CheckboxItem>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>
@@ -609,7 +606,6 @@ export {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuItemWithSecondaryAction,
-  DropdownMenuLoadingItem,
   DropdownMenuCheckboxItem,
   DropdownMenuRadioItem,
   DropdownMenuLabel,
