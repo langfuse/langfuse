@@ -1,5 +1,5 @@
 import preview from "../../../.storybook/preview";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, waitFor, within } from "storybook/test";
 import { MarkdownView } from "./MarkdownViewer";
 
 const meta = preview.meta({
@@ -154,8 +154,8 @@ trace.generation({ name: "answer" });
   },
 });
 
-export const HeaderControlsOnHover = meta.story({
-  name: "(Test) Reveals Header Controls On Hover",
+export const HeaderControlsOnFocus = meta.story({
+  name: "(Test) Reveals Header Controls On Focus",
   args: {
     markdown: "Hover this message to reveal its header controls.",
     title: "assistant",
@@ -163,14 +163,9 @@ export const HeaderControlsOnHover = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const copyButton = canvas.getByTitle("Copy to clipboard");
-    const message = copyButton.closest<HTMLElement>(".group\\/iosection");
-
-    if (!message) throw new Error("no markdown message");
-
-    await userEvent.unhover(message);
     await waitFor(() => expect(copyButton).not.toBeVisible());
 
-    await userEvent.hover(message);
+    copyButton.focus();
     await waitFor(() => expect(copyButton).toBeVisible());
   },
 });

@@ -11,6 +11,33 @@ pub(crate) enum RelayOutcome {
     TransportError,
 }
 
+impl RelayOutcome {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Eof => "eof",
+            Self::Cancelled => "cancelled",
+            Self::Timeout => "timeout",
+            Self::TransportError => "transport_error",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum InputOmissionReason {
+    SizeLimit,
+    ContentEncoding,
+    InvalidJson,
+    RecordLimit,
+    TelemetryBuffer,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+pub(crate) struct InputOmission {
+    pub reason: InputOmissionReason,
+    pub body_bytes: usize,
+}
+
 #[derive(Serialize)]
 pub(crate) struct InferenceFacts {
     pub api_format: &'static str,
@@ -35,6 +62,7 @@ pub(crate) struct ProviderFacts {
     pub error_message: Option<String>,
     pub usage_details: Option<Value>,
     pub input: Option<Value>,
+    pub input_omission: Option<InputOmission>,
     pub output: Option<Value>,
     pub provider_response_id: Option<String>,
     pub provider_request_id: Option<String>,

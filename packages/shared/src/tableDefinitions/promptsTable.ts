@@ -81,6 +81,10 @@ export function promptsTableColsWithOptions(
   });
 }
 
-export function webhookActionFilterOptions(): ColumnDefinition[] {
-  return promptsTableCols.filter((col) => col.id === "name");
+export function webhookActionFilterOptions(
+  options?: PromptOptions,
+): ColumnDefinition[] {
+  return promptsTableColsWithOptions(options).filter((col) =>
+    ["name", "labels", "tags"].includes(col.id),
+  );
 }

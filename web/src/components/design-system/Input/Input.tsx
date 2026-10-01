@@ -4,6 +4,9 @@ import { InputControl } from "../internal/InputControl/InputControl";
 type InputProps = Pick<
   InputHTMLAttributes<HTMLInputElement>,
   | "aria-describedby"
+  | "aria-controls"
+  | "aria-expanded"
+  | "aria-activedescendant"
   | "aria-invalid"
   | "aria-label"
   | "aria-labelledby"
@@ -19,20 +22,28 @@ type InputProps = Pick<
   | "onBlur"
   | "onChange"
   | "onFocus"
+  | "onKeyDown"
   | "placeholder"
   | "readOnly"
   | "required"
+  | "role"
   | "tabIndex"
   | "type"
   | "value"
 > & {
   allowPasswordManager?: boolean;
+  error?: boolean;
   ref?: Ref<HTMLInputElement>;
 };
 
-export function Input({ allowPasswordManager, ref, ...props }: InputProps) {
+export function Input({
+  allowPasswordManager,
+  error,
+  ref,
+  ...props
+}: InputProps) {
   return (
-    <InputControl contentLayout="text">
+    <InputControl contentLayout="text" error={error}>
       <input
         {...props}
         {...(!allowPasswordManager && { "data-1p-ignore": true })}

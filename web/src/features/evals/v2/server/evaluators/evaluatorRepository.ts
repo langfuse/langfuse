@@ -84,8 +84,9 @@ function versionData(
         : (definition.variableMapping as Prisma.InputJsonValue),
   };
 
-  return definition.type === EvalTemplateType.LLM_AS_JUDGE
-    ? {
+  switch (definition.type) {
+    case EvalTemplateType.LLM_AS_JUDGE:
+      return {
         ...commonVersionData,
         prompt: definition.prompt,
         promptMessages: definition.promptMessages,
@@ -97,12 +98,22 @@ function versionData(
             : (definition.modelParams as Prisma.InputJsonValue),
         vars: definition.vars,
         outputDefinition: definition.outputDefinition as Prisma.InputJsonValue,
-      }
-    : {
+      };
+    case EvalTemplateType.DECISION_MODEL:
+      return {
+        ...commonVersionData,
+        provider: definition.provider,
+        model: definition.model,
+        vars: definition.vars,
+        questions: definition.questions as Prisma.InputJsonValue,
+      };
+    case EvalTemplateType.CODE:
+      return {
         ...commonVersionData,
         sourceCode: definition.sourceCode,
         sourceCodeLanguage: definition.sourceCodeLanguage,
       };
+  }
 }
 
 type EvaluatorModelFilter = Extract<
@@ -128,6 +139,8 @@ async function evaluatorIdsMatchingModelFilters(params: {
     CASE
       WHEN evaluator.type = 'LLM_AS_JUDGE'
       THEN COALESCE(latest_version.model, default_model.model)
+      WHEN evaluator.type = 'DECISION_MODEL'
+      THEN latest_version.model
       ELSE NULL
     END
   `;
@@ -221,28 +234,31 @@ async function evaluatorWhere(params: {
     status: {
       stringOptions: (filter) => {
         const statuses: Prisma.EvaluatorWhereInput[] = filter.value.map(
-          (status) =>
-            status === "BLOCKED"
-              ? { blockedAt: { not: null } }
-              : status === "ACTIVE"
-                ? {
-                    blockedAt: null,
-                    assignments: {
-                      some: {
-                        projectId: params.projectId,
-                        evaluationRule: { status: "ACTIVE" },
-                      },
-                    },
-                  }
-                : {
-                    blockedAt: null,
-                    assignments: {
-                      none: {
-                        projectId: params.projectId,
-                        evaluationRule: { status: "ACTIVE" },
-                      },
-                    },
+          (status) => {
+            if (status === "BLOCKED") {
+              return { blockedAt: { not: null } };
+            }
+            if (status === "ACTIVE") {
+              return {
+                blockedAt: null,
+                assignments: {
+                  some: {
+                    projectId: params.projectId,
+                    evaluationRule: { status: "ACTIVE" },
                   },
+                },
+              };
+            }
+            return {
+              blockedAt: null,
+              assignments: {
+                none: {
+                  projectId: params.projectId,
+                  evaluationRule: { status: "ACTIVE" },
+                },
+              },
+            };
+          },
         );
         return filter.operator === "any of"
           ? { OR: statuses }
@@ -317,13 +333,27 @@ export async function listEvaluators(params: {
       hasActiveRules: assignments.some(
         ({ evaluationRule }) => evaluationRule.status === "ACTIVE",
       ),
-      effectiveModel:
-        evaluator.type === EvalTemplateType.LLM_AS_JUDGE
-          ? (evaluator.versions[0]?.model ?? defaultModel?.model ?? null)
-          : null,
+      effectiveModel: getEffectiveModel(evaluator, defaultModel?.model),
     })),
     totalItems,
   };
+}
+
+function getEffectiveModel(
+  evaluator: {
+    type: EvalTemplateType;
+    versions: Array<{ model: string | null }>;
+  },
+  defaultModel: string | null | undefined,
+): string | null {
+  switch (evaluator.type) {
+    case EvalTemplateType.LLM_AS_JUDGE:
+      return evaluator.versions[0]?.model ?? defaultModel ?? null;
+    case EvalTemplateType.DECISION_MODEL:
+      return evaluator.versions[0]?.model ?? null;
+    case EvalTemplateType.CODE:
+      return null;
+  }
 }
 
 export async function listEvaluatorsCursor(params: {
@@ -332,8 +362,12 @@ export async function listEvaluatorsCursor(params: {
   limit: number;
   cursor?: { createdAt: Date; id: string };
   search?: string;
+  types?: EvalTemplateType[];
 }) {
-  const baseWhere = await evaluatorWhere(params);
+  const baseWhere: Prisma.EvaluatorWhereInput = {
+    ...(await evaluatorWhere(params)),
+    ...(params.types ? { type: { in: params.types } } : {}),
+  };
   const where: Prisma.EvaluatorWhereInput = params.cursor
     ? {
         AND: [
@@ -414,9 +448,8 @@ export async function listEvaluatorFilterOptions(params: {
     ].sort(),
     model: [
       ...new Set(
-        evaluators.flatMap(({ type, versions }) => {
-          if (type !== EvalTemplateType.LLM_AS_JUDGE) return [];
-          const model = versions[0]?.model ?? defaultModel?.model;
+        evaluators.flatMap((evaluator) => {
+          const model = getEffectiveModel(evaluator, defaultModel?.model);
           return model ? [model] : [];
         }),
       ),

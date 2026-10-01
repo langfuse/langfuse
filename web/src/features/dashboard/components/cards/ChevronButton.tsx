@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Button } from "@/src/components/ui/button";
 
 export const ExpandListButton = ({
@@ -12,17 +12,19 @@ export const ExpandListButton = ({
 }) => {
   return (
     <Button
-      className="mt-2"
+      className="mt-2 gap-2"
       variant="ghost"
       onClick={() => setExpanded(!isExpanded)}
     >
       {isExpanded ? (
         <>
-          <ChevronUp className="mr-2 h-4 w-4" /> See less
+          <DropdownIndicator direction="up" nudge />
+          See less
         </>
       ) : (
         <>
-          <ChevronDown className="mr-2 h-4 w-4" /> {expandText}
+          <DropdownIndicator nudge />
+          {expandText}
         </>
       )}
     </Button>

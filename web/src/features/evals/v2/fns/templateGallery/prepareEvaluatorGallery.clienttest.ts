@@ -42,7 +42,7 @@ describe("prepareEvaluatorGallery", () => {
         template.source === "managed" ? template.key : null,
       ),
     ).toEqual([
-      "topic-classifier",
+      "topic-decision-model",
       "out-of-scope-request",
       "quality-criterion",
     ]);
@@ -59,6 +59,9 @@ describe("prepareEvaluatorGallery", () => {
       "user-disagreement",
       "all-caps",
       "user-distress",
+      "out-of-scope-decision-model",
+      "frustration-decision-model",
+      "conversation-signals",
     ]);
   });
 

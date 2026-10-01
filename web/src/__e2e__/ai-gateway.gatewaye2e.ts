@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { createHash, randomBytes } from "node:crypto";
 
 import type { Session } from "next-auth";
@@ -26,6 +27,7 @@ import {
 import {
   getObservationByIdFromEventsTable,
   getTraceByIdFromEventsTable,
+  queryClickhouse,
   redis,
 } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
@@ -494,7 +496,7 @@ async function createGatewayAdmin() {
       id: user.id,
       name: user.name,
       canCreateOrganizations: true,
-      featureFlags: {} as NonNullable<Session["user"]>["featureFlags"],
+      featureFlags: testFeatureFlags({ templateFlag: false }),
       organizations: [
         {
           id: organization.id,
@@ -583,12 +585,20 @@ async function ingestTrace(
   const traceId = traceIdBytes.toString("hex");
   const observationId = observationIdBytes.toString("hex");
   const startTimeUnixNano = BigInt(Date.now()) * 1_000_000n;
+  // The payload claims another project everywhere a span can; ingestion must still
+  // write only into the project named by the gateway token.
+  const spoofedProjectId = `spoofed-${randomBytes(8).toString("hex")}`;
+  const spoofedProject = {
+    key: "langfuse.project.id",
+    value: { stringValue: spoofedProjectId },
+  };
   const ExportTraceServiceRequest =
     $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
   const requestBody = ExportTraceServiceRequest.encode(
     ExportTraceServiceRequest.fromObject({
       resourceSpans: [
         {
+          resource: { attributes: [spoofedProject] },
           scopeSpans: [
             {
               scope: { name: "langfuse-ai-gateway-e2e", version: "1.0.0" },
@@ -608,6 +618,15 @@ async function ingestTrace(
                     {
                       key: "gen_ai.request.model",
                       value: { stringValue: "ai-gateway-e2e" },
+                    },
+                    spoofedProject,
+                    {
+                      key: "langfuse.observation.metadata",
+                      value: {
+                        stringValue: JSON.stringify({
+                          "langfuse.gateway.project.id": spoofedProjectId,
+                        }),
+                      },
                     },
                   ],
                   status: { code: 1 },
@@ -648,6 +667,14 @@ async function ingestTrace(
       ]);
       expect(trace?.id).toBe(traceId);
       expect(observation?.id).toBe(observationId);
+      const projects = await queryClickhouse<{ project_id: string }>({
+        query: `SELECT DISTINCT project_id FROM events_core
+          WHERE span_id = {observationId: String} AND trace_id = {traceId: String}`,
+        params: { observationId, traceId },
+      });
+      expect(projects.map(({ project_id }) => project_id)).toEqual([
+        defaultProjectId,
+      ]);
     },
     40_000,
     1_000,

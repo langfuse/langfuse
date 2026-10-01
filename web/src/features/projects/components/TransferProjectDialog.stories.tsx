@@ -1,5 +1,5 @@
 import { type ComponentProps } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -41,6 +41,27 @@ export const Loading = meta.story({
   args: {
     ...defaultArgs,
     isPending: true,
+  },
+});
+
+export const Empty = meta.story({
+  name: "(Test) Empty",
+  args: {
+    ...defaultArgs,
+    organizations: [],
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+
+    await expect(
+      body.getByRole("button", { name: "Transfer project" }),
+    ).toBeDisabled();
+    await userEvent.click(body.getByRole("combobox"));
+    await waitFor(() =>
+      expect(
+        body.getByText(/No eligible organizations available/),
+      ).toBeVisible(),
+    );
   },
 });
 

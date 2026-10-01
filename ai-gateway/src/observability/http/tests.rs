@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     inference::InferenceService,
-    providers::openai::{OpenAiProvider, ProviderLimits},
+    providers::{ProviderLimits, ProviderTransport},
     resolution::ControlPlaneConfig,
     server::GatewayLifecycleState,
     telemetry::Telemetry,
@@ -178,7 +178,7 @@ async fn cancellation_releases_spans_before_and_after_headers() {
 #[tokio::test]
 async fn provider_http_errors_are_traced_without_changing_the_response() {
     use crate::{
-        providers::openai::{OpenAiProvider, ProviderLimits},
+        providers::{ProviderLimits, ProviderTransport},
         test_support::{FakeServer, resolved_request_context},
     };
     for status in [429, 500] {
@@ -190,7 +190,8 @@ async fn provider_http_errors_are_traced_without_changing_the_response() {
                 .unwrap()
         })
         .await;
-        let provider = OpenAiProvider::for_test(upstream.url.clone(), ProviderLimits::default());
+        let provider =
+            ProviderTransport::for_test(format!("{}/v1", upstream.url), ProviderLimits::default());
         let recording = Recording::start();
         let response = provider
             .forward(
@@ -246,7 +247,11 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
             web_calls.lock().unwrap().push((
                 if ingestion { "ingestion" } else { "resolver" },
                 parts.headers,
-                serde_json::from_slice::<Value>(&bytes).unwrap(),
+                if ingestion {
+                    crate::test_support::upload_json(&bytes)
+                } else {
+                    serde_json::from_slice::<Value>(&bytes).unwrap()
+                },
             ));
             if ingestion {
                 Response::new(Body::from("{}"))
@@ -266,16 +271,19 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
         async {
             Response::builder()
                 .header("content-type", "application/json")
-                .body(Body::from(r#"{"id":"resp_1","output":[]}"#))
+                .body(Body::from(PROVIDER_RESPONSE))
                 .unwrap()
         }
     })
     .await;
-    let telemetry =
-        Telemetry::new(&ControlPlaneConfig::new(&web.url, "test-service-key").unwrap()).unwrap();
+    let telemetry = Telemetry::new(
+        &ControlPlaneConfig::new(&web.url, "test-service-key").unwrap(),
+        crate::telemetry::DEFAULT_RETAINED_BYTES,
+    )
+    .unwrap();
     let service = InferenceService::for_test(
         web.control_plane(),
-        OpenAiProvider::for_test(provider.url.clone(), ProviderLimits::default())
+        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default())
             .with_telemetry(telemetry.clone()),
         1,
     );
@@ -304,28 +312,116 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
         .iter()
         .find(|span| span.span_kind == SpanKind::Server)
         .unwrap();
-    assert_eq!(spans.len(), 4);
     assert_eq!(server.parent_span_id, opentelemetry::trace::SpanId::INVALID);
     assert_ne!(
         server.span_context.trace_id().to_string(),
         "4bf92f3577b34da6a3ce929d0e0e4736"
     );
+    assert_phase_spans(&spans, server);
     let observed = observed.lock().unwrap();
     assert_eq!(observed.len(), 3);
     for (name, headers, payload) in &*observed {
         let child = spans.iter().find(|span| span.name == *name).unwrap();
-        assert_eq!(
-            child.span_context.trace_id(),
-            server.span_context.trace_id()
-        );
-        assert!(child.span_context.trace_state().header().is_empty());
-        assert_eq!(child.parent_span_id, server.span_context.span_id());
         assert_outbound_context(headers, (*name != "provider.headers").then_some(child));
         if *name == "ingestion" {
             assert_generation_context(payload);
         }
     }
 }
+
+type SpanData = opentelemetry_sdk::trace::SpanData;
+
+/// Every phase between the caller's headers and the last body byte has a span in
+/// the server trace, so a waterfall shows no unattributed wall time. Batched
+/// ingestion runs in its own trace, linked back to each request it carries.
+fn assert_phase_spans(spans: &[SpanData], server: &SpanData) {
+    let named = |name: &str| spans.iter().find(|span| span.name == name).unwrap();
+    assert_eq!(spans.len(), 9);
+    for (name, parent) in [
+        ("resolution", server),
+        ("resolver", named("resolution")),
+        ("request.body", server),
+        ("request.capture", server),
+        ("provider.headers", server),
+        ("provider.stream", server),
+    ] {
+        let child = named(name);
+        assert_eq!(
+            child.span_context.trace_id(),
+            server.span_context.trace_id(),
+            "{name}"
+        );
+        assert!(child.span_context.trace_state().header().is_empty());
+        assert_eq!(
+            child.parent_span_id,
+            parent.span_context.span_id(),
+            "{name}"
+        );
+    }
+    let batch = named("telemetry.batch");
+    assert_eq!(batch.parent_span_id, opentelemetry::trace::SpanId::INVALID);
+    assert_ne!(
+        batch.span_context.trace_id(),
+        server.span_context.trace_id()
+    );
+    assert_eq!(
+        batch
+            .links
+            .iter()
+            .map(|link| link.span_context.clone())
+            .collect::<Vec<_>>(),
+        std::slice::from_ref(&server.span_context)
+    );
+    assert_attribute(batch, "gateway.telemetry.records", 1i64);
+    assert_attribute(batch, "gateway.telemetry.attempts", 1i64);
+    let ingestion = named("ingestion");
+    assert_eq!(ingestion.parent_span_id, batch.span_context.span_id());
+    assert_eq!(
+        ingestion.span_context.trace_id(),
+        batch.span_context.trace_id()
+    );
+    let request_bytes = i64::try_from(GENERATION_REQUEST.len()).unwrap();
+    assert_attribute(server, "http.request.body.size", request_bytes);
+    assert_attribute(server, "gateway.outcome", "eof");
+    assert!(
+        server
+            .attributes
+            .iter()
+            .any(|attribute| attribute.key.as_str() == "gateway.first_byte_ms")
+    );
+    assert_attribute(
+        named("request.body"),
+        "http.request.body.size",
+        request_bytes,
+    );
+    assert_attribute(
+        named("request.capture"),
+        "http.request.body.size",
+        request_bytes,
+    );
+    assert_attribute(named("resolution"), "gateway.outcome", "admitted");
+    let stream = named("provider.stream");
+    assert_attribute(stream, "gateway.outcome", "eof");
+    assert_attribute(
+        stream,
+        "http.response.body.size",
+        i64::try_from(PROVIDER_RESPONSE.len()).unwrap(),
+    );
+    assert_attribute(stream, "gateway.chunks", 1i64);
+    assert_eq!(stream.status, opentelemetry::trace::Status::Unset);
+}
+
+fn assert_attribute(span: &SpanData, key: &str, expected: impl Into<opentelemetry::Value>) {
+    let actual = span
+        .attributes
+        .iter()
+        .find(|attribute| attribute.key.as_str() == key)
+        .unwrap_or_else(|| panic!("{} lacks {key}", span.name));
+    assert_eq!(actual.value, expected.into(), "{} {key}", span.name);
+}
+
+const GENERATION_REQUEST: &str = r#"{"model":"test-model"}"#;
+const PROVIDER_RESPONSE: &str = r#"{"id":"resp_1","output":[]}"#;
 
 fn generation_request() -> HttpRequest<Body> {
     HttpRequest::post("/openai/v1/responses")
@@ -342,9 +438,10 @@ fn generation_request() -> HttpRequest<Body> {
         .header("langfuse-trace-name", "caller trace")
         .header("langfuse-user-id", "caller-user")
         .header("langfuse-session-id", "caller-session")
+        .header("langfuse-environment", "production")
         .header("langfuse-tags", "one,two")
         .header("langfuse-metadata", "team:search")
-        .body(Body::from(r#"{"model":"test-model"}"#))
+        .body(Body::from(GENERATION_REQUEST))
         .unwrap()
 }
 
@@ -372,6 +469,7 @@ fn assert_outbound_context(headers: &HeaderMap, span: Option<&opentelemetry_sdk:
         "langfuse-trace-name",
         "langfuse-user-id",
         "langfuse-session-id",
+        "langfuse-environment",
         "langfuse-tags",
         "langfuse-metadata",
     ] {
@@ -403,6 +501,7 @@ fn assert_generation_context(payload: &Value) {
         ("langfuse.trace.name", "caller trace"),
         ("user.id", "caller-user"),
         ("session.id", "caller-session"),
+        ("langfuse.environment", "production"),
         ("langfuse.trace.tags", r#"["one","two"]"#),
     ] {
         assert_eq!(attributes[key], expected);

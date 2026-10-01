@@ -71,6 +71,7 @@ export const [testEvaluatorTool, handleTestEvaluator] = defineTool({
     "Pass the observationId, traceId, and startTime returned by the observation tools.",
     "This executes the evaluator, emits an internal trace, and may incur model or code execution cost.",
   ].join(" "),
+  action: "evaluator:CUD",
   baseSchema: TestEvaluatorInputBase,
   inputSchema: TestEvaluatorInput,
   handler: (input, context) =>

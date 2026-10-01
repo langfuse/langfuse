@@ -114,11 +114,15 @@ export function getLLMErrorInfo(error: unknown): LLMErrorInfo | null {
     };
   }
 
-  const aiSdkError = AISDKError.isInstance(resolvedError)
-    ? resolvedError
-    : AISDKError.isInstance(error)
-      ? error
-      : undefined;
+  const aiSdkError = (() => {
+    if (AISDKError.isInstance(resolvedError)) {
+      return resolvedError;
+    }
+    if (AISDKError.isInstance(error)) {
+      return error;
+    }
+    return undefined;
+  })();
   if (aiSdkError) {
     return {
       kind: "ai-sdk",

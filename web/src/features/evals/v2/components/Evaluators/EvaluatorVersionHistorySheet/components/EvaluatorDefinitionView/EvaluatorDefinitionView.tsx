@@ -5,6 +5,7 @@ import {
   type EvalTemplateType,
   type ObservationVariableMapping,
   type EvaluatorPromptMessage,
+  parseDecisionModelQuestions,
 } from "@langfuse/shared";
 
 import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
@@ -22,6 +23,7 @@ import {
 import { PromptVariableEditor } from "@/src/features/evals/v2/components/Evaluators/Judges/PromptVariableEditor/PromptVariableEditor";
 import { ScoreOutputConfiguration } from "@/src/features/evals/v2/components/Evaluators/Judges/ScoreOutputConfiguration/ScoreOutputConfiguration";
 import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapping/VariableMapping";
+import { DecisionModelQuestionSummary } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/DecisionModelQuestionSummary/DecisionModelQuestionSummary";
 import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
 import { formatMappingLabel } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
 import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
@@ -43,6 +45,12 @@ export type EvaluatorDefinition =
       variableMappings:
         | { state: "hidden" }
         | { state: "visible"; mappings: ObservationVariableMapping[] };
+    }
+  | {
+      type: Extract<EvalTemplateType, "DECISION_MODEL">;
+      questions: unknown;
+      selectedModel: JudgeModel | null;
+      variableMapping: ObservationVariableMapping[];
     };
 
 // A saved version is immutable, so every control below is the live editing
@@ -190,6 +198,58 @@ function LlmEvaluatorDefinitionView({
   );
 }
 
+function DecisionModelDefinitionView({
+  definition,
+}: {
+  definition: Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>;
+}) {
+  const questions = parseDecisionModelQuestions(definition.questions);
+
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      <EvaluationTypeConfiguration
+        mode={EvalTemplateTypeEnum.DECISION_MODEL}
+        onModeChange={noop}
+        disabled
+      >
+        <Badge variant="outline" className="font-mono">
+          {definition.selectedModel
+            ? `${definition.selectedModel.provider}: ${definition.selectedModel.model}`
+            : "No model"}
+        </Badge>
+      </EvaluationTypeConfiguration>
+      <section className="flex min-w-0 flex-col gap-2">
+        <Label>Questions</Label>
+        {questions.success ? (
+          questions.data.map((question, index) => (
+            <DecisionModelQuestionSummary
+              key={question.id}
+              question={question}
+              index={index}
+            />
+          ))
+        ) : (
+          <p className="text-destructive text-xs">{questions.error}</p>
+        )}
+      </section>
+      <section className="flex flex-col gap-2">
+        <Label>State</Label>
+        <VariableMapping
+          mode="read-only"
+          variableDisplay="stateKey"
+          mappings={definition.variableMapping.map((mapping) => ({
+            variable: mapping.templateVariable,
+            fieldState: {
+              selectedColumnId: mapping.selectedColumnId,
+              jsonSelector: mapping.jsonSelector ?? null,
+            },
+          }))}
+        />
+      </section>
+    </div>
+  );
+}
+
 function renderMediaAwareText(value: string) {
   return splitStringByMediaReferences(value).map((segment, index) =>
     segment.type === "media" ? (
@@ -211,9 +271,12 @@ export function EvaluatorDefinitionView({
 }: {
   definition: EvaluatorDefinition;
 }) {
-  return definition.type === EvalTemplateTypeEnum.CODE ? (
-    <CodeEvaluatorDefinitionView definition={definition} />
-  ) : (
-    <LlmEvaluatorDefinitionView definition={definition} />
-  );
+  switch (definition.type) {
+    case EvalTemplateTypeEnum.CODE:
+      return <CodeEvaluatorDefinitionView definition={definition} />;
+    case EvalTemplateTypeEnum.DECISION_MODEL:
+      return <DecisionModelDefinitionView definition={definition} />;
+    case EvalTemplateTypeEnum.LLM_AS_JUDGE:
+      return <LlmEvaluatorDefinitionView definition={definition} />;
+  }
 }

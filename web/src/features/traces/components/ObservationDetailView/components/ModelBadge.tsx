@@ -4,9 +4,9 @@
  */
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { ExternalLinkIcon, PlusCircle } from "lucide-react";
+import { ExternalLinkIcon } from "lucide-react";
 import Link from "next/link";
-import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";
+import { UpsertModelFormDialogController } from "@/src/features/models";
 
 export function ModelBadge({
   model,
@@ -27,14 +27,14 @@ export function ModelBadge({
         className="inline-flex"
         title="View model details"
       >
-        <Badge text={model} trailingIcon={ExternalLinkIcon} />
+        <Badge color="ghost" text={model} trailingIcon={ExternalLinkIcon} />
       </Link>
     );
   }
 
   // Unlinked model - show create form dialog
   return (
-    <UpsertModelFormDialog
+    <UpsertModelFormDialogController
       action="create"
       projectId={projectId}
       prefilledModelData={{
@@ -53,9 +53,16 @@ export function ModelBadge({
             : undefined,
       }}
     >
-      <button type="button" className="inline-flex cursor-pointer">
-        <Badge text={model} trailingIcon={PlusCircle} />
-      </button>
-    </UpsertModelFormDialog>
+      {({ openDialog }) => (
+        <button
+          type="button"
+          title="Create model definition"
+          className="inline-flex cursor-pointer"
+          onClick={openDialog}
+        >
+          <Badge color="ghost" interactive text={model} />
+        </button>
+      )}
+    </UpsertModelFormDialogController>
   );
 }

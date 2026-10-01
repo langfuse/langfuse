@@ -186,12 +186,15 @@ export async function processAddObservationsToDataset(params: {
   }
 
   // Determine final status
-  const finalStatus =
-    failed === 0
-      ? BatchActionStatus.Completed
-      : processed === 0
-        ? BatchActionStatus.Failed
-        : BatchActionStatus.Partial;
+  const finalStatus = (() => {
+    if (failed === 0) {
+      return BatchActionStatus.Completed;
+    }
+    if (processed === 0) {
+      return BatchActionStatus.Failed;
+    }
+    return BatchActionStatus.Partial;
+  })();
 
   // Aggregate error summary
   const errorSummary =

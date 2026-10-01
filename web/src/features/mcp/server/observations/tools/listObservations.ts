@@ -387,6 +387,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
     'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
     "Requests that project or filter input, output, or metadata must include traceId, an id filter, or a date range of at most 14 days. Date-scoped input/output projections support a maximum limit of 50.",
   ].join("\n"),
+  action: "traces:read",
   baseSchema: ListObservationsBaseSchema,
   inputSchema: ListObservationsInputSchema,
   handler: async (input, context) => {

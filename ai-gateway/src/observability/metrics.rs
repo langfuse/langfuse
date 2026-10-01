@@ -83,9 +83,9 @@ pub(crate) fn rejected(phase: &'static str) {
     METRICS.rejections.add(1, &[KeyValue::new("phase", phase)]);
 }
 
-pub(crate) fn delivery(outcome: &'static str, reason: &'static str) {
+pub(crate) fn delivery(outcome: &'static str, reason: &'static str, records: u64) {
     METRICS.delivery.add(
-        1,
+        records,
         &[
             KeyValue::new("outcome", outcome),
             KeyValue::new("reason", reason),
@@ -103,10 +103,15 @@ pub(crate) fn execution_finished(facts: &crate::capture::InferenceFacts) {
         RelayOutcome::Timeout => "timeout",
         RelayOutcome::TransportError => "transport_error",
     };
+    tracing::Span::current().record("gateway.outcome", facts.outcome.as_str());
     METRICS
         .executions
         .add(1, &[KeyValue::new("outcome", outcome)]);
     if let Some(first_byte_ms) = facts.first_byte_ms {
+        tracing::Span::current().record(
+            "gateway.first_byte_ms",
+            i64::try_from(first_byte_ms).unwrap_or(i64::MAX),
+        );
         phase_finished(
             "provider.first_byte",
             std::time::Duration::from_millis(u64::try_from(first_byte_ms).unwrap_or(u64::MAX)),

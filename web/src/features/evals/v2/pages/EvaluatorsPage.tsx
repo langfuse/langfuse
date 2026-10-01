@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { showSuccessToast } from "@/src/features/notifications";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
@@ -18,7 +19,7 @@ import {
   DataTableControls,
   DataTableControlsProvider,
 } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -39,11 +40,11 @@ import {
 } from "@/src/features/column-visibility";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useEvaluatorAlerts } from "@/src/features/evals/v2/hooks/useEvaluatorAlerts";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { TableSelectionManager } from "@/src/features/table";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters";
-import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+
 import { EVALUATORS_LIST_FIELD_REGISTRY } from "../constants/tableSearchRegistry";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import {
@@ -57,10 +58,7 @@ import {
   evaluatorExecutionsUrl,
   evaluatorScoresUrl,
 } from "../fns/evaluators/evaluatorScoresUrl";
-import {
-  EVALS_V2_TABS,
-  getEvalsV2Tabs,
-} from "@/src/features/navigation/utils/evals-v2-tabs";
+import { EVALS_V2_TABS, getEvalsV2Tabs } from "@/src/features/navigation";
 import { DefaultModelChangeConfirmationDialog } from "../components/Evaluators/ProjectDefaultModel/DefaultModelChangeConfirmationDialog";
 import { useProjectDefaultModel } from "@/src/features/evals/v2/hooks/useProjectDefaultModel";
 import {
@@ -76,7 +74,7 @@ import {
 import type { GalleryTemplate } from "../types/templateGallery";
 import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { EvaluatorAlertButton } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAlertButton/EvaluatorAlertButton";
 
@@ -226,9 +224,7 @@ export default function EvaluatorsPage() {
               ...facet,
               renderOptionSuffix: (model: string) =>
                 model === projectDefaultModel.defaultModel?.model ? (
-                  <Badge variant="secondary" size="sm">
-                    Project default
-                  </Badge>
+                  <Badge variant="secondary">Project default</Badge>
                 ) : null,
             }
           : facet,
@@ -291,6 +287,13 @@ export default function EvaluatorsPage() {
     evaluators.data.totalItems === 0 &&
     !searchQuery &&
     filterState.length === 0;
+  const openGalleryFromNewEvaluatorButton = () => {
+    capture("eval:onboarding_started", {
+      entryPoint: "new_evaluator_button",
+      hasExistingEvaluators: evaluators.isSuccess ? !showOnboarding : undefined,
+    });
+    setGalleryOpen(true);
+  };
   const hasExecutionReadAccess = useHasProjectAccess({
     projectId,
     scope: "evalJobExecution:read",
@@ -531,11 +534,15 @@ export default function EvaluatorsPage() {
               onEdit={() =>
                 router.push(`/project/${projectId}/evals/${row.original.id}`)
               }
-              onClone={() =>
-                router.push(
+              onClone={() => {
+                capture("eval:onboarding_started", {
+                  entryPoint: "clone_evaluator",
+                  hasExistingEvaluators: true,
+                });
+                return router.push(
                   `/project/${projectId}/evals/new?evaluatorId=${encodeURIComponent(row.original.id)}`,
-                )
-              }
+                );
+              }}
               onDelete={() => setDeleteIds([row.original.id])}
             />
           </div>
@@ -543,6 +550,7 @@ export default function EvaluatorsPage() {
       },
     ],
     [
+      capture,
       costs.data,
       costs.isPending,
       hasExecutionReadAccess,
@@ -623,6 +631,12 @@ export default function EvaluatorsPage() {
           description:
             "Create reusable evaluator definitions and test them before activation.",
         },
+        mobileActionButtons: showOnboarding ? (
+          <Button size="sm" onClick={openGalleryFromNewEvaluatorButton}>
+            <Plus className="mr-2 h-4 w-4" />
+            New evaluator
+          </Button>
+        ) : undefined,
         actionButtonsRight: (
           <div className="flex gap-2">
             {showOnboarding ? null : (
@@ -676,7 +690,7 @@ export default function EvaluatorsPage() {
                 {...evaluatorAlerts}
               />
             )}
-            <Button onClick={() => setGalleryOpen(true)}>
+            <Button onClick={openGalleryFromNewEvaluatorButton}>
               <Plus className="mr-2 h-4 w-4" />
               New evaluator
             </Button>
@@ -698,46 +712,51 @@ export default function EvaluatorsPage() {
       ) : (
         <DataTableControlsProvider tableName={filterConfig.tableName}>
           <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
-            <TableSearchBar
-              key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
-              projectId={projectId}
-              tableName={filterConfig.tableName}
-              registry={EVALUATORS_LIST_FIELD_REGISTRY}
-              filterState={queryFilter.searchBarFilterState}
-              setFilterState={queryFilter.setFilterState}
-              observed={toObservedOptions(
-                filterOptions,
-                filterOptionsQuery.isPending,
-              )}
-              search={{
-                query: searchQuery ?? null,
-                setQuery: handleSearchChange,
-              }}
-              isV4={false}
-            />
-            <EvaluatorsTableToolbar
-              selectionStore={selectionStore}
-              pageRowIds={evaluatorIds}
-              pageSize={pagination.limit}
-              pageIndex={pagination.page - 1}
-              totalCount={evaluators.data?.totalItems ?? null}
-              columns={columns}
-              columnVisibility={columnVisibility}
-              setColumnVisibility={handleColumnVisibilityChange}
-              columnOrder={columnOrder}
-              setColumnOrder={handleColumnOrderChange}
-              rowHeight={rowHeight}
-              setRowHeight={setRowHeight}
-              filterState={filterState}
-              orderByState={orderBy}
-              currentSearchQuery={searchQuery ?? ""}
-              viewConfig={{
-                tableName: TableViewPresetTableName.Evaluators,
-                projectId,
-                controllers: viewControllers,
-              }}
-            />
-            <ResizableFilterLayout>
+            <SearchableTableFilterLayout
+              search={
+                <TableSearchBar
+                  key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+                  projectId={projectId}
+                  tableName={filterConfig.tableName}
+                  registry={EVALUATORS_LIST_FIELD_REGISTRY}
+                  filterState={queryFilter.searchBarFilterState}
+                  setFilterState={queryFilter.setFilterState}
+                  observed={toObservedOptions(
+                    filterOptions,
+                    filterOptionsQuery.isPending,
+                  )}
+                  search={{
+                    query: searchQuery ?? null,
+                    setQuery: handleSearchChange,
+                  }}
+                  isV4={false}
+                />
+              }
+              toolbar={
+                <EvaluatorsTableToolbar
+                  selectionStore={selectionStore}
+                  pageRowIds={evaluatorIds}
+                  pageSize={pagination.limit}
+                  pageIndex={pagination.page - 1}
+                  totalCount={evaluators.data?.totalItems ?? null}
+                  columns={columns}
+                  columnVisibility={columnVisibility}
+                  setColumnVisibility={handleColumnVisibilityChange}
+                  columnOrder={columnOrder}
+                  setColumnOrder={handleColumnOrderChange}
+                  rowHeight={rowHeight}
+                  setRowHeight={setRowHeight}
+                  filterState={filterState}
+                  orderByState={orderBy}
+                  currentSearchQuery={searchQuery ?? ""}
+                  viewConfig={{
+                    tableName: TableViewPresetTableName.Evaluators,
+                    projectId,
+                    controllers: viewControllers,
+                  }}
+                />
+              }
+            >
               <DataTableControls
                 key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
                 queryFilter={queryFilter}
@@ -795,7 +814,7 @@ export default function EvaluatorsPage() {
                   noResultsMessage="No evaluators found."
                 />
               </div>
-            </ResizableFilterLayout>
+            </SearchableTableFilterLayout>
           </div>
         </DataTableControlsProvider>
       )}

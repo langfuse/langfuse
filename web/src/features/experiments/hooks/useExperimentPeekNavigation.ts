@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react";
 import { useQueryParam, StringParam } from "use-query-params";
 import { useRouter } from "next/router";
 import { useExperimentResultsState } from "./useExperimentResultsState";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { getPathnameWithoutBasePath } from "@/src/utils/api";
 
 type ExperimentTarget = {

@@ -2,10 +2,13 @@
 
 import { describe, expect, it } from "vitest";
 import type { FilterState } from "@langfuse/shared";
-import { EVENTS_FIELD_REGISTRY } from "@/src/features/search-bar/lib/fields";
-import { planCommit } from "@/src/features/search-bar/lib/commit";
-import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
-import { runSearchBarInvariants } from "@/src/features/search-bar/lib/searchBarInvariants";
+import {
+  EVENTS_FIELD_REGISTRY,
+  planCommit,
+  filterStateToQueryText,
+  runSearchBarInvariants,
+} from "@/src/features/search-bar";
+
 import { eventsSearchRegistry } from "./eventsSearchRegistry";
 
 describe("events search scope", () => {

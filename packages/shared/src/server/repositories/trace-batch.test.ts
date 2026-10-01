@@ -82,13 +82,19 @@ describe("trace batch query controls", () => {
         requestedSecondRow = false;
         const stream = getTraceBatchEventStream(
           { traces: members },
-          { maxThreads: 1, maxBlockSize, experimentId: "arm-b" },
+          {
+            maxThreads: 1,
+            maxBlockSize,
+            experimentId: "arm-b",
+            queryId: "read-attempt",
+          },
         );
         expect(await stream.next()).toEqual({ value: row, done: false });
         expect(requestedSecondRow).toBe(false);
         const sent = vi.mocked(queryClickhouseStream).mock.lastCall![0];
         expect(sent).toEqual({
           ...baseline,
+          queryId: "read-attempt",
           tags: { ...baseline.tags, experimentId: "arm-b" },
           clickhouseSettings: {
             ...baseline.clickhouseSettings,

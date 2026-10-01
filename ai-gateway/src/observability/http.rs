@@ -4,7 +4,7 @@ use axum::{
     Router,
     body::Body,
     extract::MatchedPath,
-    http::Request,
+    http::{HeaderMap, Request},
     middleware::{self, Next},
     response::Response,
 };
@@ -21,7 +21,7 @@ pub fn instrument(router: Router) -> Router {
             TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<Body>| {
                     let (method, route) = request_labels(request);
-                    let span = tracing::info_span!(parent: None, "http.server", otel.name = %format_args!("{method} {route}"), otel.kind = "server", http.request.method = method, http.route = route, http.response.status_code = tracing::field::Empty, otel.status_code = tracing::field::Empty, provider_request_id = tracing::field::Empty);
+                    let span = tracing::info_span!(parent: None, "http.server", otel.name = %format_args!("{method} {route}"), otel.kind = "server", http.request.method = method, http.route = route, http.request.body.size = tracing::field::Empty, http.response.status_code = tracing::field::Empty, otel.status_code = tracing::field::Empty, provider_request_id = tracing::field::Empty, gateway.outcome = tracing::field::Empty, gateway.first_byte_ms = tracing::field::Empty);
                     // Operational tracing has no caller or ambient trace context.
                     let _ = span.set_parent(Context::new());
                     span
@@ -39,7 +39,14 @@ pub fn instrument(router: Router) -> Router {
                     tracing::info!(trace_id = %ids.trace_id(), span_id = %ids.span_id(), status = status.as_u16(), duration_ms = latency.as_secs_f64() * 1000.0, "gateway response started");
                 })
                 .on_body_chunk(())
-                .on_eos(())
+                // Fires once the body reaches end of stream; a client that disconnects
+                // early never gets here, which the relay outcome records instead.
+                .on_eos(|_: Option<&HeaderMap>, stream_duration: Duration, span: &Span| {
+                    let context = span.context();
+                    let context_span = context.span();
+                    let ids = context_span.span_context();
+                    tracing::info!(trace_id = %ids.trace_id(), span_id = %ids.span_id(), stream_duration_ms = stream_duration.as_secs_f64() * 1000.0, "gateway response completed");
+                })
                 .on_failure(()),
         )
 }

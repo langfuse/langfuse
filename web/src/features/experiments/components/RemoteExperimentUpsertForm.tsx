@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React, { useState } from "react";
@@ -5,7 +6,8 @@ import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ChevronDown, Lock, LockOpen, Plus, X } from "lucide-react";
+import { Lock, LockOpen, Plus, X } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
@@ -380,7 +382,7 @@ export const RemoteExperimentUpsertForm = ({
               <AccordionPrimitive.Item value="advanced">
                 <AccordionPrimitive.Header className="flex">
                   <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-start gap-2 py-2 text-sm font-bold transition-all hover:underline [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
-                    <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                    <DropdownIndicator nudge />
                     Advanced Options
                   </AccordionPrimitive.Trigger>
                 </AccordionPrimitive.Header>

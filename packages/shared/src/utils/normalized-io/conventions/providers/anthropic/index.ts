@@ -1,8 +1,10 @@
+/* eslint-disable no-nested-ternary */
 import { claimed, unmatched } from "../..";
 import {
   asRecord,
   compact,
   optionalString,
+  recordKeyAsParsed,
   toJsonValue,
   toProviderMetadata,
 } from "../../../core/utils/json";
@@ -29,9 +31,9 @@ import type {
 
 /**
  * Anthropic Messages API convention: this module owns Anthropic's typed
- * block vocabulary, its `system` request field, and the `thinking` sibling
- * array. One message can still contain parts from several dialects — the
- * core folds every provider cumulatively.
+ * block vocabulary and its `system` request field. One message can still
+ * contain parts from several dialects — the core folds every provider
+ * cumulatively.
  */
 
 // Anthropic `stop_reason` vocabulary -> the canonical FinishReason set.
@@ -125,8 +127,12 @@ const normalizeAnthropicMcpToolCall: PartHandler = (value) =>
     ),
   );
 
-const normalizeAnthropicThinking: PartHandler = (value) =>
-  claimed(reasoningPart(value.thinking, optionalString(value.signature)));
+const normalizeAnthropicThinking: PartHandler = (value) => {
+  if (value.thinking === null || value.thinking === undefined) return unmatched;
+  return claimed(
+    reasoningPart(value.thinking, optionalString(value.signature)),
+  );
+};
 
 const normalizeAnthropicRedactedThinking: PartHandler = (value) => {
   const data = optionalString(value.data);
@@ -206,7 +212,7 @@ function anthropicSystemMessage(
   if (kind !== "input" || !("system" in root)) return undefined;
   return {
     kind: "single",
-    value: { content: root.system },
+    value: { content: recordKeyAsParsed(root, "system") },
     fallbackRole: "user",
     roleOverride: "system",
   };
@@ -232,18 +238,6 @@ export const anthropicProvider = {
       providerMetadata: toolDefinitionProviderMetadata(value, value),
     });
     return definition ? claimed(definition) : unmatched;
-  },
-  collectSiblingParts: (
-    value: Record<string, unknown>,
-    _baseParts,
-    context,
-  ) => {
-    const parts = context.normalizePartList(
-      Array.isArray(value.thinking) ? value.thinking : [],
-    );
-    return parts.length > 0
-      ? [{ sourceKey: "thinking", slot: "after-content", parts }]
-      : [];
   },
   getSystemMessage: anthropicSystemMessage,
 } satisfies IOConvention;

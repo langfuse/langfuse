@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { useEffect, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
@@ -108,12 +109,15 @@ export function ChartLoadingState({
     );
   }
 
-  const statusTitle =
-    isPendingProgressState || shouldShowProgress
-      ? "Running query"
-      : showSpinner
-        ? "Loading widget"
-        : "Query needs attention";
+  const statusTitle = (() => {
+    if (isPendingProgressState || shouldShowProgress) {
+      return "Running query";
+    }
+    if (showSpinner) {
+      return "Loading widget";
+    }
+    return "Query needs attention";
+  })();
 
   return (
     <div

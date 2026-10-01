@@ -5,6 +5,7 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
   EXCEPTION_TAG_HEADER_NAME,
+  resolveClickhouseService,
 } from "../clickhouse/client";
 import { ClickhouseExecExceptionTagTransform } from "./clickhouseExecExceptionTag";
 import { logger } from "../logger";
@@ -277,7 +278,7 @@ export async function upsertClickhouse<
 }
 
 export async function* queryClickhouseStream<T>(
-  opts: ClickhouseQueryOpts,
+  opts: ClickhouseQueryOpts & { queryId?: string },
 ): AsyncGenerator<T> {
   if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
@@ -288,7 +289,7 @@ export async function* queryClickhouseStream<T>(
 
   // Client-generated so failures before/without a response still carry a
   // query_id on errors and spans; system.query_log stays pollable by id.
-  const queryId = randomUUID();
+  const queryId = opts.queryId ?? randomUUID();
 
   try {
     setSpanQueryAttributes(span, opts.query);
@@ -705,6 +706,9 @@ export async function queryClickhouse<T>(
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
   const table = clickHouseQueryTableLabel(opts.query);
   const shape = clickHouseQueryShape(opts.query);
+  const clickhouseService = resolveClickhouseService(
+    opts.preferredClickhouseService,
+  );
   return await instrumentAsync(
     { name: "clickhouse-query", spanKind: SpanKind.CLIENT },
     async (span) => {
@@ -768,11 +772,18 @@ export async function queryClickhouse<T>(
           normalizedTags,
           table,
           shape,
+          clickhouseService,
         );
         throw wrapped;
       });
 
-      recordClickHouseQueryOutcome("success", normalizedTags, table, shape);
+      recordClickHouseQueryOutcome(
+        "success",
+        normalizedTags,
+        table,
+        shape,
+        clickhouseService,
+      );
       return rows;
     },
   );

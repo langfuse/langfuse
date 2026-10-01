@@ -1,9 +1,9 @@
 import { env } from "@/src/env.mjs";
-import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
 import {
+  createMediaUploadUrl,
   GetMediaUploadUrlQuerySchema,
   GetMediaUploadUrlResponseSchema,
-} from "@/src/features/media/validation";
+} from "@/src/features/media/server";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { ForbiddenError, InvalidRequestError } from "@langfuse/shared";

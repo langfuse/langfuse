@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import startCase from "lodash/startCase";
 
@@ -15,7 +16,7 @@ import {
 import {
   mapWidgetUiTableFilterToView,
   normalizeStoredWidgetFiltersForEditor,
-} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+} from "@/src/features/dashboard";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import { dashboardWidgetChartTypeSchema } from "@/src/features/widgets/lib/dashboardWidgetChartTypes";
 import {

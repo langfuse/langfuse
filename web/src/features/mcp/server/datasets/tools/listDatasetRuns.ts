@@ -10,6 +10,7 @@ export const [listDatasetRunsTool, handleListDatasetRuns] = defineTool({
   name: "listDatasetRuns",
   description:
     "List dataset runs, each experiment or evaluation execution over a dataset, by dataset ID.",
+  action: "datasets:read",
   baseSchema: GetDatasetRunsMcpInput,
   inputSchema: GetDatasetRunsMcpInput,
   handler: async (input, context) =>

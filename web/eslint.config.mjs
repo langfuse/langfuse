@@ -1,4 +1,5 @@
 import { globalIgnores } from "eslint/config";
+import { globSync } from "node:fs";
 import boundaries from "eslint-plugin-boundaries";
 import checkFile from "eslint-plugin-check-file";
 import reactYouMightNotNeedAnEffect from "eslint-plugin-react-you-might-not-need-an-effect";
@@ -69,6 +70,17 @@ export default [
   globalIgnores(["**/storybook-static/"]),
 
   ...nextConfig,
+  {
+    name: "langfuse/web/client-test-story-cache-key",
+    files: ["src/**/*.clienttest.{ts,tsx}"],
+    settings: {
+      // ESLint caches unchanged client tests; changing the story set must invalidate them.
+      clientTestStoryFiles: [
+        ...globSync("src/**/*.stories.ts"),
+        ...globSync("src/**/*.stories.tsx"),
+      ].sort(),
+    },
+  },
   ...storybook.configs["flat/recommended"],
   {
     name: "langfuse/web/storybook-test-story-names",
@@ -281,12 +293,14 @@ export default [
   // Root design-system components follow `Name/Name.tsx`, optionally alongside
   // `Name/Name.stories.tsx`. Files must be directly inside a PascalCase folder,
   // match that folder's name, and expose a matching named runtime export. The
-  // table and internal subtrees are domain-specific exceptions with their own
-  // structure.
+  // charts, factories, table, and internal subtrees are domain-specific exceptions
+  // with their own structure.
   {
     name: "langfuse/web/design-system-component-structure",
     files: ["src/components/design-system/**/*.{ts,tsx}"],
     ignores: [
+      "src/components/design-system/charts/**",
+      "src/components/design-system/factories/**",
       "src/components/design-system/internal/**",
       "src/components/design-system/table/**",
     ],
@@ -323,6 +337,7 @@ export default [
     files: ["src/components/design-system/*/*.{ts,tsx}"],
     ignores: [
       "src/components/design-system/**/*.stories.{ts,tsx}",
+      "src/components/design-system/charts/**",
       "src/components/design-system/table/**",
     ],
     rules: {
@@ -386,9 +401,6 @@ export default [
           ],
         },
       ],
-
-      // TODO: Expand to more of the codebase
-      "no-nested-ternary": "error",
     },
   },
 
@@ -533,6 +545,21 @@ export default [
         {
           "src/components/design-system/*/": "KEBAB_CASE",
           "src/components/design-system/internal/*/": "PASCAL_CASE",
+        },
+      ],
+    },
+  },
+
+  {
+    name: "langfuse/web/design-system-internal-charts-naming",
+    files: ["src/components/design-system/internal/charts/**/*.{ts,tsx}"],
+    rules: {
+      "check-file/folder-naming-convention": [
+        "warn",
+        {
+          "src/components/design-system/*/": "KEBAB_CASE",
+          "src/components/design-system/internal/*/": "KEBAB_CASE",
+          "src/components/design-system/internal/charts/*/": "PASCAL_CASE",
         },
       ],
     },

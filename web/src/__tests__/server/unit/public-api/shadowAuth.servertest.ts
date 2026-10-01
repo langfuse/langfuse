@@ -48,7 +48,7 @@ vi.mock(
   }),
 );
 
-import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { shadowAuth } from "@/src/features/public-api/server";
 
 const mappedFields = {
   orgId: "org_1",
@@ -321,6 +321,20 @@ describe("project-family dispatch (allowedAccessLevels ['project'])", () => {
         { success: true, scope: legacyScope.scope },
         "traces:read",
       );
+    });
+
+    it("threads the new pipeline's context to shadow the per-item check", async () => {
+      legacyAllows();
+      mockEnforceAuth.mockResolvedValue({
+        success: true,
+        scope: projectScope("privateKey"),
+        ctx: { principal: {}, policies: [] },
+      });
+      expect(await call()).toMatchObject({
+        success: true,
+        scope: legacyScope.scope,
+        ctx: { policies: [] },
+      });
     });
   });
 

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   ChevronLeft,
   ChevronRight,
@@ -14,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -25,6 +26,9 @@ import {
 } from "@/src/components/ui/tooltip";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { useEffect, useState } from "react";
+
+/** Tracing lists accept a limit of 100. Other tables keep the 50 default. */
+export const TRACING_PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 100];
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 // Grammar-aware search composer.
 //
 // The per-mount store owns draft/committed query state. This component owns
@@ -90,6 +91,22 @@ type LogicalRange = { start: number; end: number };
 
 function textFromRoot(root: HTMLElement): string {
   return (root.textContent ?? "").replace(WORD_JOINER_RE, "");
+}
+
+// IME composition (Korean, Chinese, Japanese) inserts a text node the
+// contenteditable root does not already own. React will not remove that
+// sibling when it later projects a token, so the composed run doubles and
+// state-based delete cannot reach it. Strip those unmanaged nodes after
+// reading textContent — token spans are all ELEMENT_NODE.
+function stripUnmanagedRootChildren(root: HTMLElement): boolean {
+  let removed = false;
+  for (const child of Array.from(root.childNodes)) {
+    if (child.nodeType !== Node.ELEMENT_NODE) {
+      child.remove();
+      removed = true;
+    }
+  }
+  return removed;
 }
 
 function rawOffsetForLogicalOffset(
@@ -363,6 +380,10 @@ export function SearchComposer({
   const containerRef = React.useRef<HTMLDivElement>(null);
   // Selection to restore after the next reprojection of a controlled edit.
   const pendingSelectionRef = React.useRef<LogicalRange | null>(null);
+  // Bumped after IME composition so token spans remount instead of keeping
+  // text nodes the IME mutated in place (React skips an update when the
+  // last rendered string is unchanged).
+  const [tokensGeneration, setTokensGeneration] = React.useState(0);
 
   const selectionCollapsed = selectionSnapshot.start === selectionSnapshot.end;
   const caret = selectionSnapshot.end;
@@ -559,10 +580,10 @@ export function SearchComposer({
     setHighlightedOptionId(null);
   }, []);
 
-  // Restore selection after a controlled mutation reprojected the DOM. Runs
-  // before paint so the caret never visibly jumps. External draft changes
-  // (URL nav) leave pendingSelectionRef null and the browser keeps whatever
-  // selection state it had.
+  // Restore selection after a controlled mutation reprojected the DOM, and
+  // after an IME remount of the token spans. Runs before paint so the caret
+  // never visibly jumps. External draft changes (URL nav) leave
+  // pendingSelectionRef null and the browser keeps whatever selection it had.
   React.useLayoutEffect(() => {
     const root = rootRef.current;
     const pending = pendingSelectionRef.current;
@@ -571,7 +592,7 @@ export function SearchComposer({
     pendingSelectionRef.current = null;
     setSelectionRange(root, pending.start, pending.end);
     setSelectionSnapshot(pending);
-  }, [draft]);
+  }, [draft, tokensGeneration]);
 
   // Mirror the native selection. Read-only: this effect never moves the
   // selection, it only snapshots it for completion planning and hover/focus
@@ -597,8 +618,14 @@ export function SearchComposer({
     const root = rootRef.current;
     if (root === null) return;
     const next = textFromRoot(root);
-    if (next === draftRef.current) return;
     const caretNow = selectionOffsets(root).end;
+    const stripped = stripUnmanagedRootChildren(root);
+    if (next === draftRef.current && !stripped) return;
+    setTokensGeneration((generation) => generation + 1);
+    if (next === draftRef.current) {
+      pendingSelectionRef.current = { start: caretNow, end: caretNow };
+      return;
+    }
     setDraftWithSelection(next, caretNow);
     openAutocompleteAfterEdit();
   }, [draftRef, openAutocompleteAfterEdit, setDraftWithSelection]);
@@ -733,6 +760,9 @@ export function SearchComposer({
         const sel = selectionOffsets(root);
         caretAtEnd =
           sel.start === sel.end && sel.end === text.length && text.length > 0;
+        if (stripUnmanagedRootChildren(root)) {
+          setTokensGeneration((generation) => generation + 1);
+        }
         if (text !== storeApi.getState().draft) actions.setDraft(text);
       }
       // The container validates, lowers, and writes the filter state; on failure
@@ -1063,12 +1093,15 @@ export function SearchComposer({
       const current = highlightedRef.current;
       const idx = current === null ? -1 : ids.indexOf(current);
       const delta = event.key === "ArrowDown" ? 1 : -1;
-      const next =
-        idx === -1
-          ? delta > 0
-            ? 0
-            : ids.length - 1
-          : (idx + delta + ids.length) % ids.length;
+      const next = (() => {
+        if (idx === -1) {
+          if (delta > 0) {
+            return 0;
+          }
+          return ids.length - 1;
+        }
+        return (idx + delta + ids.length) % ids.length;
+      })();
       setHighlightedOptionId(ids[next]!);
     }
   };
@@ -1301,12 +1334,15 @@ export function SearchComposer({
   const removeTargetIdActual = removeTarget?.id ?? null;
   // Measured separately from the remove target: an operator token explains
   // itself but is not editable, so it never has a remove X to anchor to.
-  const tooltipTargetId =
-    errorTarget !== null
-      ? errorTarget.id
-      : explanation !== null
-        ? explainTargetId
-        : null;
+  const tooltipTargetId = (() => {
+    if (errorTarget !== null) {
+      return errorTarget.id;
+    }
+    if (explanation !== null) {
+      return explainTargetId;
+    }
+    return null;
+  })();
   const measurePositions = React.useCallback(() => {
     const root = rootRef.current;
     const container = containerRef.current;
@@ -1459,6 +1495,7 @@ export function SearchComposer({
           onMouseOver={onRootMouseOver}
         >
           <ComposerTokens
+            key={tokensGeneration}
             draft={draft}
             showDiagnostics={showTokenDiagnostics}
             scoreTypes={scoreTypes}

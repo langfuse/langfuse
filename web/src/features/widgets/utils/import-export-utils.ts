@@ -11,7 +11,7 @@ import {
   getWidgetImportFilterConfig,
   normalizeStoredWidgetFiltersForEditor,
   partitionStoredUiTableFiltersToView,
-} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+} from "@/src/features/dashboard";
 import startCase from "lodash/startCase";
 import {
   ChartConfigSchema,
