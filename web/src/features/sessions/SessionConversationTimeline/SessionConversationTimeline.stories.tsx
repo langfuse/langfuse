@@ -1,9 +1,14 @@
 import preview from "@/.storybook/preview";
 import { type ComponentProps } from "react";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { SessionConversationTimeline } from "./SessionConversationTimeline";
 import { useSessionConversationTimelineController } from "./useSessionConversationTimelineController";
 import { SessionConversationTimelineTrace } from "./components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
+import {
+  supportAgentWorkflow,
+  codingAgentWorkflow,
+  langfuseAssistantWorkflow,
+} from "./workflowStoryFixtures";
 
 type TraceProps = ComponentProps<typeof SessionConversationTimelineTrace>;
 
@@ -88,14 +93,37 @@ const traces: TraceProps[] = [
 
 function SessionConversationTimelineStory({
   onLoadMoreObservations,
+  workflowTraces,
 }: {
   onLoadMoreObservations?: () => void;
+  workflowTraces?: typeof supportAgentWorkflow;
 }) {
-  const controller = useSessionConversationTimelineController(traces);
+  const displayedTraces = workflowTraces
+    ? workflowTraces.map((item) => ({
+        ...item,
+        state: {
+          ...item.state,
+          observations: item.state.observations as Extract<
+            TraceProps["state"],
+            { type: "transcript" }
+          >["observations"],
+        },
+        onOpenTrace: fn(),
+        onOpenObservation: fn(),
+        scrollTarget: null,
+      }))
+    : traces;
+  const controller = useSessionConversationTimelineController(displayedTraces);
   return (
-    <div className="h-[500px]">
+    <div
+      className={
+        workflowTraces
+          ? "bg-card dark:bg-background h-screen min-w-[320px]"
+          : "h-[500px]"
+      }
+    >
       <SessionConversationTimeline
-        traces={traces}
+        traces={displayedTraces}
         TraceComponent={SessionConversationTimelineTrace}
         filterMeasurementKey="storybook"
         controller={controller}
@@ -107,6 +135,32 @@ function SessionConversationTimelineStory({
 
 const meta = preview.meta({ component: SessionConversationTimelineStory });
 export default meta;
+export const SupportAgentWorkflow = meta.story({
+  args: { workflowTraces: supportAgentWorkflow },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText(/Hi, I just noticed order #LF-20481/),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByText(/Your shipping address has been updated/),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand Get order" }),
+    );
+    await expect(canvas.getByText(/800 Pine Street/)).toBeInTheDocument();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand Update shipping address" }),
+    );
+    await expect(canvas.getByText(/addr_7b19c2/)).toBeInTheDocument();
+  },
+});
+export const CodingAgentWorkflow = meta.story({
+  args: { workflowTraces: codingAgentWorkflow },
+});
+export const LangfuseAssistantWorkflow = meta.story({
+  args: { workflowTraces: langfuseAssistantWorkflow },
+});
 export const MultipleTraces = meta.story({
   name: "(Test) Renders Multiple Traces",
   play: async ({ canvasElement }) => {
