@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /**
  * TraceDetailView - Shows trace-level details when no observation is selected
  */
