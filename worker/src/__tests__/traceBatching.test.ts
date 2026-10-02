@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { randomBytes, randomUUID } from "node:crypto";
 import { Queue, QueueEvents, Worker } from "bullmq";
 import {
@@ -731,8 +730,8 @@ describe("trace micro-batch scheduling with Redis", () => {
       const metadata = JSON.stringify({ context: "metadata".repeat(1_000) });
       const nano = BigInt(Date.now()) * 1_000_000n;
       const timestamp = {
-        low: Number(nano & 0xffffffffn),
-        high: Number(nano >> 32n),
+        low: Number(BigInt.asUintN(32, nano)),
+        high: Number(nano / 2n ** 32n),
         unsigned: true,
       };
       async function ingest(traceIds: string[]) {
