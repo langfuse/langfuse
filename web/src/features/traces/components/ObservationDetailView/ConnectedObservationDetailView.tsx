@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /**
  * ConnectedObservationDetailView - Connects observation details to application data.
  *
@@ -33,12 +32,8 @@ import {
   TabsBarContent,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
@@ -414,15 +409,17 @@ export function ConnectedObservationDetailView({
                     ) : null}
                     {showLogViewTab ? (
                       <TabsBarTrigger value="log">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span>Log View</span>
-                          </TooltipTrigger>
-                          <TooltipContent className="text-xs">
-                            {isLogViewVirtualized
+                        <Tooltip
+                          label={
+                            isLogViewVirtualized
                               ? `Shows all ${observations.length} observations with virtualization enabled.`
-                              : "Shows all observations concatenated. Great for quickly scanning through them."}
-                          </TooltipContent>
+                              : "Shows all observations concatenated. Great for quickly scanning through them."
+                          }
+                          delay={300}
+                        >
+                          {({ getTriggerProps }) => (
+                            <span {...getTriggerProps()}>Log View</span>
+                          )}
                         </Tooltip>
                       </TabsBarTrigger>
                     ) : null}
