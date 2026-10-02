@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
 import { type EvalTemplate } from "@langfuse/shared";
 
@@ -31,11 +30,7 @@ import { useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { useExperimentEvaluatorSelection } from "@/src/features/experiments/hooks/useExperimentEvaluatorSelection";
 import { useTemplatesValidation } from "@/src/features/evals/hooks/useTemplatesValidation";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingleTemplateValidation";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
@@ -230,11 +225,7 @@ export const TemplateSelector = ({
                             </Badge>
                           )}
                           {isInvalid && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <AlertCircle className="icon-base ml-1 text-yellow-500" />
-                              </TooltipTrigger>
-                              <TooltipContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
+                            <CustomTooltip delay={300} content={<div className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
                                 <p>Requires project-level evaluation model</p>
                                 <Link
                                   href={`/project/${projectId}/evals/default-model`}
@@ -245,8 +236,7 @@ export const TemplateSelector = ({
                                   <ExternalLinkIcon className="icon-base" />
                                   Configure default model
                                 </Link>
-                              </TooltipContent>
-                            </Tooltip>
+                              </div>}>{({ getTriggerProps }) => (<AlertCircle {...getTriggerProps()} className="icon-base ml-1 text-yellow-500" />)}</CustomTooltip>
                           )}
                           {isInactive && (
                             <div
@@ -323,11 +313,7 @@ export const TemplateSelector = ({
                           </Badge>
                         )}
                         {isInvalid && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <AlertCircle className="icon-base ml-1 text-yellow-500" />
-                            </TooltipTrigger>
-                            <TooltipContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
+                          <CustomTooltip delay={300} content={<div className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
                               <p>Requires project-level evaluation model</p>
                               <Link
                                 href={`/project/${projectId}/evals/default-model`}
@@ -338,8 +324,7 @@ export const TemplateSelector = ({
                                 <ExternalLinkIcon className="icon-base" />
                                 Configure default model
                               </Link>
-                            </TooltipContent>
-                          </Tooltip>
+                            </div>}>{({ getTriggerProps }) => (<AlertCircle {...getTriggerProps()} className="icon-base ml-1 text-yellow-500" />)}</CustomTooltip>
                         )}
                         {isInactive && (
                           <div
