@@ -10,14 +10,9 @@ import { schemaTypeAssertions, extensionTypeAssertions } from "./types.assert";
 
 describe("table registry derivation", () => {
   it("derives the tenanted table set from the registry", () => {
-    // Only relations in the registry are scoped. `events_full` is just as
-    // project-gated as `events_core` and would be `tenant: true` if modeled —
-    // it is absent only because the builder targets `events_core` (the MV
-    // projection) and never selects `events_full`. Since it is not in the row
-    // type and raw sources are rejected, it is unreachable, so it needs no
-    // entry. Add one (tenant defaults true) the day a query selects it.
     expect([...TENANTED_TABLES].sort()).toEqual([
       "events_core",
+      "events_full",
       "observations",
       "scores",
       "traces",
@@ -32,8 +27,9 @@ describe("table registry derivation", () => {
     expect(COLUMN_DATA_TYPES.cost_details).toBe("map");
   });
 
-  it("declares events_core as immutable and leaves legacy tables undeclared", () => {
+  it("declares events_core and events_full as immutable and leaves legacy tables undeclared", () => {
     expect(DEDUP_SPECS.events_core).toEqual({ strategy: "none" });
+    expect(DEDUP_SPECS.events_full).toEqual({ strategy: "none" });
     expect(DEDUP_SPECS.traces).toBeUndefined();
     expect(DEDUP_SPECS.observations).toBeUndefined();
     expect(DEDUP_SPECS.scores).toBeUndefined();
