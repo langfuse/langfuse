@@ -6,7 +6,6 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { cloneElement } from "react";
 import { useReadPath } from "@/src/features/events";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -18,7 +17,7 @@ import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { type RouterInput } from "@/src/utils/types";
 import { useMutation } from "@tanstack/react-query";
 import { CheckIcon, Globe, Link, Share2 } from "lucide-react";
-import { useState } from "react";
+import { cloneElement, useState } from "react";
 
 type PublishObjectProps = {
   kind: "trace" | "session";
