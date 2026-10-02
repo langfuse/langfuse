@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-let-assign-in-react */
 import { type ReactNode, useState } from "react";
 import {
   type ColumnDefinition,

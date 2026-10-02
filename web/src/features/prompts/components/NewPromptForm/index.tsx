@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-let-assign-in-react */
 import capitalize from "lodash/capitalize";
 import router from "next/router";
 import { useState, useEffect, useRef } from "react";

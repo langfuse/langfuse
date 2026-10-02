@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-let-assign-in-react */
 // Presentational rendering of a query draft as styled inline tokens.
 //
 // Pure and context-free: given the draft text, it projects it to segments

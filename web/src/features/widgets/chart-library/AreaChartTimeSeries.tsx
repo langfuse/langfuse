@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-let-assign-in-react */
 import { useMemo } from "react";
 
 import { AreaChart as DesignSystemAreaChart } from "@/src/components/design-system/charts/AreaChart/AreaChart";

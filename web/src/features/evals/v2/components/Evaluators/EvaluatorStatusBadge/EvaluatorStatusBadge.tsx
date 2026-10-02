@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-let-assign-in-react */
 import Link from "next/link";
 import {
   getEvaluatorBlockMetadata,

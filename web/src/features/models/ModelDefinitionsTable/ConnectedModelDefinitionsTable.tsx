@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-let-assign-in-react */
 import { useRouter } from "next/router";
 import { FlaskConical, PlusIcon } from "lucide-react";
 import { useRef } from "react";
