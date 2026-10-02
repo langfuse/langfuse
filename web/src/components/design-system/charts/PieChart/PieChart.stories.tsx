@@ -112,6 +112,33 @@ export const CenterTextFits = meta.story({
   },
 });
 
+export const OversizedCenterTextHidden = meta.story({
+  name: "(Test) Oversized Center Text Hidden",
+  args: {
+    data: [{ label: "Production", value: 1 }],
+    valueFormatter: () => "$123456789012345678901234567890.123456",
+    centerLabel: "Total cost across all production environments",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const total = canvas.getByText("$123456789012345678901234567890.123456");
+    const label = canvas.getByText(
+      "Total cost across all production environments",
+    );
+    const svg = canvasElement.querySelector("svg");
+    if (!svg?.parentElement) throw new Error("Missing pie chart container");
+
+    svg.parentElement.style.width = "160px";
+    svg.parentElement.style.height = "160px";
+
+    await waitFor(async () => {
+      await expect(total).not.toBeVisible();
+      await expect(label).not.toBeVisible();
+      await expect(svg).toBeVisible();
+    });
+  },
+});
+
 export const KeyboardFocus = meta.story({
   name: "(Test) Keyboard Focus",
   play: async ({ canvasElement }) => {

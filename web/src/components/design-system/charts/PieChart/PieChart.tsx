@@ -163,7 +163,7 @@ function PieChartContent({
     availableSize: number;
     centerLabel: string;
     formattedTotal: string;
-    size: typeof centerLabelSize;
+    size: typeof centerLabelSize | "hidden";
   } | null>(null);
   const fittedCenterLabelSize =
     centerTextFit?.availableSize === availableSize &&
@@ -175,6 +175,7 @@ function PieChartContent({
   useLayoutEffect(() => {
     const element = centerTextRef.current;
     if (!element) return;
+    if (fittedCenterLabelSize === "hidden") return;
 
     const radius = ((availableSize * INNER_RADIUS) / VIEWBOX_SIZE) * 0.9;
     // The rectangle's corners must fit the circular hole, not just its width.
@@ -183,8 +184,9 @@ function PieChartContent({
     if (textRadius <= radius) return;
 
     const nextSize =
-      CENTER_LABEL_SIZES[CENTER_LABEL_SIZES.indexOf(fittedCenterLabelSize) + 1];
-    if (!nextSize) return;
+      CENTER_LABEL_SIZES[
+        CENTER_LABEL_SIZES.indexOf(fittedCenterLabelSize) + 1
+      ] ?? "hidden";
 
     setCenterTextFit((current) => {
       if (
@@ -274,6 +276,7 @@ function PieChartContent({
             className={clsx(
               "pointer-events-none absolute inset-0 flex items-center justify-center",
               availableSize < MIN_CENTER_LABEL_CHART_SIZE && "invisible",
+              fittedCenterLabelSize === "hidden" && "invisible",
             )}
             aria-hidden="true"
           >
