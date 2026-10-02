@@ -7,7 +7,7 @@ import { type ReactNode, type SyntheticEvent, useState } from "react";
 import Link from "next/link";
 
 import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
-import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
+import { SingleLineOverflowList } from "@/src/components/design-system/SingleLineOverflowList/SingleLineOverflowList";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import {
   getMetadataJsonPathLabel,
