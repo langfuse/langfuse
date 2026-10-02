@@ -13,6 +13,13 @@
   },
   "workspaces": {
     "packages/shared": {
+      "project": [
+        // Keep manually invoked scripts in regular analysis, but not production mode.
+        "**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}",
+        "src/**/*.{ts,tsx}!",
+        "!src/**/*.{test,spec}.{ts,tsx}!",
+        "!src/**/__tests__/**!",
+      ],
       "ignoreFiles": [
         // Standalone helper invoked manually as documented in the adjacent framework-traces README.
         "scripts/seeder/utils/framework-traces/merge-observations.ts",
@@ -20,10 +27,16 @@
     },
     "worker": {
       "entry": [
+        // The start script runs dist/index.js, built from this source entry.
+        "src/index.ts!",
         // Migration implementations are loaded dynamically from script names persisted in the database.
-        "src/backgroundMigrations/*.ts",
+        "src/backgroundMigrations/*.ts!",
         // Loaded through a dynamic require from the tokenisation worker thread.
-        "src/features/tokenisation/usage.ts",
+        "src/features/tokenisation/usage.ts!",
+      ],
+      "project": [
+        "src/**/*.{ts,js}!",
+        "!src/**/__tests__/**!",
       ],
       "ignoreFiles": [
         // Standalone fixture downloader invoked manually as documented in the adjacent README.
@@ -43,7 +56,7 @@
         // Components imported by MDX documentation, which Knip does not trace.
         ".storybook/docs/**/*.tsx",
         // Runtime worker entry loaded by filename through Piscina.
-        "src/server/otel/otelIngestionWorker.ts",
+        "src/server/otel/otelIngestionWorker.ts!",
       ],
       "ignoreFiles": [
         // Standalone benchmark invoked directly with Node rather than imported by the application.
@@ -51,7 +64,15 @@
         "src/__tests__/mocks/**",
       ],
       // Include runtime JavaScript modules such as src/env.mjs in dependency analysis.
-      "project": ["src/**/*.{ts,tsx,mjs}", ".storybook/docs/*.{ts,tsx}"],
+      "project": [
+        "src/**/*.{ts,tsx,mjs}!",
+        "!src/**/*.{clienttest,servertest,test,spec,stories}.{ts,tsx}!",
+        "!src/**/__tests__/**!",
+        "!src/**/*.mdx!",
+        // Maintenance script invoked directly, not imported by the app.
+        "!src/ee/features/sfdc-sync/scripts/**!",
+        ".storybook/docs/*.{ts,tsx}",
+      ],
       "ignoreDependencies": [
         // Tailwind loads this plugin from an @plugin directive in globals.css.
         "@tailwindcss/forms",
@@ -71,6 +92,9 @@
     "packages/in-app-agent-sandbox-runtime": {
       "entry": ["src/server.ts"],
       "project": ["src/**/*.ts", "tests/**/*.ts"],
+    },
+    "packages/langfuse-skills": {
+      "ignoreFiles": ["scripts/sync-skills.mjs"],
     },
     "packages/config-eslint": {
       "project": ["*.js"],
