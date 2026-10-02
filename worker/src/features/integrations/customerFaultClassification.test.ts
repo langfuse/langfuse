@@ -106,6 +106,14 @@ describe("isCustomerFaultError", () => {
         true,
       );
     });
+
+    it.each(["gcs-bucket-not-allowed", "gcs-not-allowed"] as const)(
+      "classifies GCS allowlist rejection %s as bucket_or_container",
+      (code) => {
+        const err = new OutboundUrlValidationError(code, "not allowed");
+        expect(classifyCustomerFault(err)).toBe("bucket_or_container");
+      },
+    );
   });
 
   describe("customer_fault — bare HTTP status", () => {

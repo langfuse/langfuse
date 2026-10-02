@@ -1,6 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
 import { OutboundUrlValidationError, parseOutboundUrl } from "../outbound-url";
-import { validateBlobStorageEndpoint } from "./blobStorageEndpointValidation";
+import {
+  assertGcsBlobStorageBucketAllowed,
+  validateBlobStorageEndpoint,
+} from "./blobStorageEndpointValidation";
+import { env } from "../../env";
 
 // Non-empty whitelist turns on validation in a non-cloud (DEV) deployment; the
 // entries are an *allow* list, so an endpoint outside them is still checked.
@@ -57,5 +61,54 @@ describe("validateBlobStorageEndpoint", () => {
         ip_ranges: [],
       }),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("assertGcsBlobStorageBucketAllowed", () => {
+  const original = {
+    buckets: env.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS,
+    region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+  };
+  const setEnv = (buckets: string[], region?: string) => {
+    env.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS = buckets;
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = region as never;
+  };
+  const codeOf = (fn: () => void) => {
+    try {
+      fn();
+    } catch (error) {
+      return (error as OutboundUrlValidationError).code;
+    }
+    return undefined;
+  };
+
+  afterEach(() => setEnv(original.buckets, original.region));
+
+  it("is disabled when no buckets are allowlisted", () => {
+    setEnv([]);
+    expect(codeOf(() => assertGcsBlobStorageBucketAllowed("any"))).toBe(
+      "gcs-bucket-not-allowed",
+    );
+  });
+
+  it("allows an allowlisted bucket, case- and whitespace-insensitive", () => {
+    setEnv(["sc-langfuse-staging"]);
+    expect(() =>
+      assertGcsBlobStorageBucketAllowed(" SC-Langfuse-Staging "),
+    ).not.toThrow();
+  });
+
+  it("rejects a bucket outside the allowlist", () => {
+    setEnv(["sc-langfuse-staging"]);
+    expect(
+      codeOf(() => assertGcsBlobStorageBucketAllowed("other-bucket")),
+    ).toBe("gcs-bucket-not-allowed");
+  });
+
+  it("is never available on Langfuse Cloud, even if a bucket is listed", () => {
+    setEnv(["sc-langfuse-staging"], "US");
+    expect(
+      codeOf(() => assertGcsBlobStorageBucketAllowed("sc-langfuse-staging")),
+    ).toBe("gcs-not-allowed");
   });
 });

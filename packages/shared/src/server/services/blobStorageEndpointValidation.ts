@@ -89,6 +89,30 @@ export async function validateBlobStorageEndpoint(
   }
 }
 
+/**
+ * GOOGLE_CLOUD_STORAGE blob exports authenticate as the deployment's own GCP
+ * identity (ADC) rather than with customer-supplied keys, so the bucket is the
+ * only thing a project owner controls. Restrict it to operator-approved buckets.
+ * Self-hosted only: on Langfuse Cloud the ADC identity is Langfuse's own.
+ */
+export function assertGcsBlobStorageBucketAllowed(bucketName: string): void {
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    throw new OutboundUrlValidationError(
+      "gcs-not-allowed",
+      "Google Cloud Storage blob exports are only available on self-hosted deployments",
+    );
+  }
+  const allowed = env.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS ?? [];
+  if (!allowed.includes(bucketName.toLowerCase().trim())) {
+    throw new OutboundUrlValidationError(
+      "gcs-bucket-not-allowed",
+      allowed.length === 0
+        ? "Google Cloud Storage blob exports are disabled. Set LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS to enable them."
+        : `Bucket "${bucketName}" is not in LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS`,
+    );
+  }
+}
+
 export function blobStorageEndpointConnectionValidationOptions(
   whitelist: OutboundUrlValidationWhitelist = blobStorageEndpointWhitelistFromEnv(),
 ): OutboundUrlConnectionValidationOptions | undefined {

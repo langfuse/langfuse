@@ -24,6 +24,7 @@ import {
   StorageServiceFactory,
   blobStorageEndpointConnectionValidationOptions,
   validateBlobStorageEndpoint,
+  assertGcsBlobStorageBucketAllowed,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -389,6 +390,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         if (endpoint) {
           await validateBlobStorageEndpoint(endpoint);
         }
+        const isGcs = type === BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE;
+        if (isGcs) assertGcsBlobStorageBucketAllowed(bucketName);
 
         // Create storage service with provided configuration
         const storageService = StorageServiceFactory.getInstance({
@@ -399,7 +402,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           region: region || undefined,
           forcePathStyle: forcePathStyle || false,
           useAzureBlob: type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
-          useGoogleCloudStorage: false, // Not supported in blob storage integration
+          useGoogleCloudStorage: isGcs,
           useOCIObjectStorage: false, // Not supported in blob storage integration
           googleCloudCredentials: undefined,
           awsSse: undefined,
@@ -418,13 +421,23 @@ Timestamp: ${new Date().toISOString()}
 Configuration: ${type} storage
 This file can be safely deleted.`;
 
-        // Upload the test file
-        const result = await storageService.uploadWithSignedUrl({
+        // Upload the test file. GCS skips the signed URL: V4 signing needs a
+        // private key, which ADC identities (e.g. GKE metadata) don't have, and
+        // the export itself never signs.
+        const testFile = {
           fileName: testFileName,
           fileType: "text/plain",
           data: testContent,
-          expiresInSeconds: 3600, // 1 hour
-        });
+        };
+        let signedUrl: string | undefined;
+        if (isGcs) {
+          await storageService.uploadFile(testFile);
+        } else {
+          ({ signedUrl } = await storageService.uploadWithSignedUrl({
+            ...testFile,
+            expiresInSeconds: 3600, // 1 hour
+          }));
+        }
 
         logger.info(
           `Blob storage validation successful for project ${input.projectId}`,
@@ -450,7 +463,7 @@ This file can be safely deleted.`;
           success: true,
           message: "Validation successful! Test file uploaded.",
           testFileName,
-          signedUrl: result.signedUrl,
+          signedUrl,
         };
       } catch (e) {
         const errorMessage = getErrorMessage(

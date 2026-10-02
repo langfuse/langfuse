@@ -12,7 +12,10 @@ import {
 import { assertPersistedExportSourceAllowed } from "@/src/features/analytics-integrations/server";
 import { encrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
-import { validateBlobStorageEndpoint } from "@langfuse/shared/src/server";
+import {
+  assertGcsBlobStorageBucketAllowed,
+  validateBlobStorageEndpoint,
+} from "@langfuse/shared/src/server";
 
 type UpsertBlobStorageIntegrationInput = {
   type: BlobStorageIntegrationType;
@@ -67,11 +70,24 @@ export async function upsertBlobStorageIntegration(params: {
   const { prisma, projectId, data } = params;
 
   const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const isGcs = data.type === BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE;
   const canUseHostCredentials =
     isSelfHosted && data.type === BlobStorageIntegrationType.S3;
 
-  const accessKeyId = data.accessKeyId?.trim() || null;
-  const secretAccessKey = data.secretAccessKey?.trim() || null;
+  if (isGcs) {
+    try {
+      assertGcsBlobStorageBucketAllowed(data.bucketName);
+    } catch (error) {
+      throw new InvalidRequestError(
+        error instanceof Error ? error.message : "GCS bucket not allowed",
+      );
+    }
+  }
+
+  // GCS always runs as the deployment identity: drop any keys rather than store
+  // credentials that would never be used.
+  const accessKeyId = isGcs ? null : data.accessKeyId?.trim() || null;
+  const secretAccessKey = isGcs ? null : data.secretAccessKey?.trim() || null;
   let region: string;
   try {
     region = normalizeBlobStorageRegion(data.region);
@@ -89,7 +105,7 @@ export async function upsertBlobStorageIntegration(params: {
     }
   }
 
-  if (!canUseHostCredentials && !accessKeyId) {
+  if (!isGcs && !canUseHostCredentials && !accessKeyId) {
     throw new InvalidRequestError(
       "Access Key ID and Secret Access Key are required",
     );
@@ -134,7 +150,7 @@ export async function upsertBlobStorageIntegration(params: {
     // Require secret key for new integrations (unless using host credentials)
     if (!existing) {
       const isUsingHostCredentials =
-        canUseHostCredentials && (!accessKeyId || !secretAccessKey);
+        isGcs || (canUseHostCredentials && (!accessKeyId || !secretAccessKey));
       if (!isUsingHostCredentials && !secretAccessKey) {
         throw new InvalidRequestError(
           "Secret access key is required for new configuration",
@@ -144,6 +160,15 @@ export async function upsertBlobStorageIntegration(params: {
 
     const modeChanged = existing && existing.exportMode !== data.exportMode;
     const encryptedSecret = secretAccessKey ? encrypt(secretAccessKey) : null;
+    // Only overwrite secretAccessKey when a new value is provided, so partial
+    // updates don't wipe the existing encrypted secret. Switching to GCS clears
+    // it: GCS never uses stored keys.
+    let secretAccessKeyUpdate: { secretAccessKey: string | null } | object = {};
+    if (encryptedSecret) {
+      secretAccessKeyUpdate = { secretAccessKey: encryptedSecret };
+    } else if (isGcs) {
+      secretAccessKeyUpdate = { secretAccessKey: null };
+    }
 
     // The CREATE payload always carries a concrete source, resolved by the
     // caller through resolveExportSource. Applying it unconditionally (rather
@@ -169,9 +194,7 @@ export async function upsertBlobStorageIntegration(params: {
       },
       update: {
         ...writeData,
-        // Only overwrite secretAccessKey when a new value is provided,
-        // so partial updates don't wipe the existing encrypted secret.
-        ...(encryptedSecret ? { secretAccessKey: encryptedSecret } : {}),
+        ...secretAccessKeyUpdate,
         // Schedule an immediate retry when saving an errored integration
         // so the scheduler picks it up via the nextSyncAt clause.
         ...(existing?.lastError && data.enabled && !modeChanged

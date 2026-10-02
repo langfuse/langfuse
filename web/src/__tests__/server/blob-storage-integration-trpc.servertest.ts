@@ -252,6 +252,118 @@ describe("Blob Storage Integration tRPC Router", () => {
     vi.clearAllMocks();
   });
 
+  describe("GOOGLE_CLOUD_STORAGE (keyless, allowlisted)", () => {
+    const original = {
+      buckets: sharedEnv.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS,
+      region: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    };
+    const gcsConfig = {
+      ...baseConfig,
+      type: "GOOGLE_CLOUD_STORAGE" as const,
+      bucketName: "allowed-bucket",
+      accessKeyId: "ignored-key",
+      secretAccessKey: "ignored-secret",
+    };
+
+    beforeEach(() => {
+      sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      sharedEnv.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS = ["allowed-bucket"];
+    });
+
+    afterEach(() => {
+      sharedEnv.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS = original.buckets;
+      sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.region;
+    });
+
+    it("saves an allowlisted bucket without storing any keys", async () => {
+      const { caller, project } = await prepare({
+        plan: "self-hosted:enterprise",
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...gcsConfig,
+      });
+
+      const integration = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+      });
+      expect(integration).toMatchObject({
+        type: "GOOGLE_CLOUD_STORAGE",
+        bucketName: "allowed-bucket",
+        accessKeyId: null,
+        secretAccessKey: null,
+      });
+    });
+
+    it("rejects a bucket outside LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS", async () => {
+      const { caller, project } = await prepare({
+        plan: "self-hosted:enterprise",
+      });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsConfig,
+          bucketName: "someone-elses-bucket",
+        }),
+      ).rejects.toThrow(/LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS/);
+    });
+
+    it("clears stored S3 keys when an integration switches to GCS", async () => {
+      const { caller, project } = await prepare({
+        plan: "self-hosted:enterprise",
+      });
+      await createIntegration({ projectId: project.id });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...gcsConfig,
+        secretAccessKey: null,
+      });
+
+      const integration = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+      });
+      expect(integration?.accessKeyId).toBeNull();
+      expect(integration?.secretAccessKey).toBeNull();
+    });
+
+    it("validates with the GCS client and a plain upload (no signed URL)", async () => {
+      const uploadFile = vi.fn().mockResolvedValue(undefined);
+      const uploadWithSignedUrl = vi.fn();
+      (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+        uploadFile,
+        uploadWithSignedUrl,
+      });
+      const { caller, project } = await prepare({
+        plan: "self-hosted:enterprise",
+      });
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...gcsConfig,
+      });
+
+      const result = await caller.blobStorageIntegration.validate({
+        projectId: project.id,
+      });
+
+      expect(result.success).toBe(true);
+      expect(StorageServiceFactory.getInstance).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          useGoogleCloudStorage: true,
+          bucketName: "allowed-bucket",
+          accessKeyId: undefined,
+          secretAccessKey: undefined,
+        }),
+      );
+      expect(uploadFile).toHaveBeenCalledWith(
+        expect.objectContaining({ fileName: result.testFileName }),
+      );
+      expect(uploadWithSignedUrl).not.toHaveBeenCalled();
+    });
+  });
+
   describe("region normalization", () => {
     it("persists a trimmed region", async () => {
       const { caller, project } = await prepare();

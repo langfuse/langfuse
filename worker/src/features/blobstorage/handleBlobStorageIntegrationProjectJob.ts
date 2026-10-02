@@ -30,6 +30,7 @@ import {
   enrichObservationWithModelData,
   createModelCache,
   blobStorageEndpointConnectionValidationOptions,
+  assertGcsBlobStorageBucketAllowed,
   validateBlobStorageEndpoint,
   dispatchProjectNotification,
 } from "@langfuse/shared/src/server";
@@ -359,8 +360,14 @@ type BlobStorageConnectionConfig = {
 
 const createBlobStorageService = (
   config: BlobStorageConnectionConfig,
-): StorageService =>
-  StorageServiceFactory.getInstance({
+): StorageService => {
+  const useGoogleCloudStorage =
+    config.type === BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE;
+  // Re-checked per run so removing a bucket from the allowlist stops exports
+  // that were saved while it was allowed.
+  if (useGoogleCloudStorage)
+    assertGcsBlobStorageBucketAllowed(config.bucketName);
+  return StorageServiceFactory.getInstance({
     accessKeyId: config.accessKeyId,
     secretAccessKey: config.secretAccessKey,
     bucketName: config.bucketName,
@@ -370,10 +377,14 @@ const createBlobStorageService = (
     awsSse: undefined,
     awsSseKmsKeyId: undefined,
     useAzureBlob: config.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
-    useGoogleCloudStorage: false, // Not supported in blob storage integration
+    // GCS uses the deployment's own identity (LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS
+    // or ADC), never customer-supplied keys.
+    useGoogleCloudStorage,
+    googleCloudCredentials: undefined,
     useOCIObjectStorage: false, // Not supported in blob storage integration
     connectionValidation: blobStorageEndpointConnectionValidationOptions(),
   });
+};
 
 const processBlobStorageExport = async (config: {
   projectId: string;

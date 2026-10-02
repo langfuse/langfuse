@@ -11,6 +11,8 @@ export type OutboundUrlValidationErrorCode =
   | "blocked-hostname"
   | "blocked-ip"
   | "dns-lookup-failed"
+  | "gcs-bucket-not-allowed"
+  | "gcs-not-allowed"
   | "https-required"
   | "invalid-encoding"
   | "invalid-syntax"

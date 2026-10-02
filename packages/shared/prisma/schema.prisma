@@ -1409,6 +1409,7 @@ enum BlobStorageIntegrationType {
   S3
   S3_COMPATIBLE
   AZURE_BLOB_STORAGE
+  GOOGLE_CLOUD_STORAGE
 
   @@map("BlobStorageIntegrationType")
 }
