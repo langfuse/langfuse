@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EvalTemplateType } from "@langfuse/shared";
 
 import { managedEvaluatorTemplateService } from "@/src/features/evals";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
@@ -7,7 +8,13 @@ import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
 const ListManagedEvaluatorTemplatesInput = z.object({
   search: z.string().trim().max(200).optional(),
   category: z.string().trim().min(1).optional(),
-  type: z.enum(["LLM_AS_JUDGE", "CODE"]).optional(),
+  type: z
+    .enum([
+      EvalTemplateType.LLM_AS_JUDGE,
+      EvalTemplateType.CODE,
+      EvalTemplateType.DECISION_MODEL,
+    ])
+    .optional(),
 });
 
 export const [

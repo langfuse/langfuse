@@ -1,4 +1,5 @@
 import {
+  DecisionModelQuestionsSchema,
   EvalOutputDataTypeSchema,
   EvalTemplateType,
   observationVariableMapping,
@@ -78,13 +79,20 @@ const McpEvalOutputDefinitionSchema = z.object({
 export const McpEvaluatorInputBase = z.object({
   name: CreateEvaluatorSchema.shape.name,
   description: CreateEvaluatorSchema.shape.description.unwrap().optional(),
-  type: z.enum([EvalTemplateType.LLM_AS_JUDGE, EvalTemplateType.CODE]),
+  type: z.enum([
+    EvalTemplateType.LLM_AS_JUDGE,
+    EvalTemplateType.CODE,
+    EvalTemplateType.DECISION_MODEL,
+  ]),
   prompt: z.string().min(1).optional(),
   modelConfig: McpEvaluatorModelConfigSchema.optional().describe(
-    "Optional custom model configuration. Omit to use the project default model.",
+    "Model configuration. Required for decision-model evaluators. Optional for LLM-as-a-judge evaluators, which use the project default when omitted.",
   ),
   outputDefinition: McpEvalOutputDefinitionSchema.optional().describe(
     "Required for LLM-as-a-judge evaluators. Defines the reasoning and score returned by the evaluator.",
+  ),
+  questions: DecisionModelQuestionsSchema.optional().describe(
+    "Required for decision-model evaluators. Each question produces its own score.",
   ),
   sourceCode: CodeEvaluatorDefinitionSchema.shape.sourceCode.optional(),
   sourceCodeLanguage:
@@ -92,7 +100,9 @@ export const McpEvaluatorInputBase = z.object({
   variableMapping: z
     .array(McpObservationVariableMappingSchema)
     .optional()
-    .describe("Variable mappings for LLM-as-a-judge evaluators only."),
+    .describe(
+      "Variable mappings for LLM-as-a-judge and decision-model evaluators. Decision-model mappings define the state and require at least one entry.",
+    ),
 });
 
 export const McpEvaluatorDefinitionInputBase = McpEvaluatorInputBase.omit({
@@ -117,6 +127,19 @@ function toEvaluatorInput(input: z.infer<typeof McpEvaluatorInputBase>) {
     };
   }
 
+  if (input.type === EvalTemplateType.DECISION_MODEL) {
+    return {
+      name: input.name,
+      description: input.description ?? null,
+      definition: {
+        type: input.type,
+        questions: input.questions,
+        modelConfig: input.modelConfig,
+        variableMapping: input.variableMapping,
+      },
+    };
+  }
+
   return {
     name: input.name,
     description: input.description ?? null,
@@ -137,6 +160,18 @@ function validateEvaluatorInput(
       code: "custom",
       path: ["prompt"],
       message: "Prompt is required for LLM-as-a-judge evaluators.",
+    });
+  }
+
+  if (
+    input.type === EvalTemplateType.DECISION_MODEL &&
+    input.variableMapping?.length === 0
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["variableMapping"],
+      message:
+        "Decision-model evaluators require at least one state variable mapping.",
     });
   }
 

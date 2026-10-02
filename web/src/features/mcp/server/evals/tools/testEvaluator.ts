@@ -67,7 +67,7 @@ export const [testEvaluatorTool, handleTestEvaluator] = defineTool({
   name: "testEvaluator",
   description: [
     "Test an evaluator draft or the latest saved version of an evaluator against one observation in the current Langfuse project.",
-    "For a saved evaluator, provide evaluatorId. For an unsaved draft, omit evaluatorId and provide type plus the matching LLM-as-a-judge or code evaluator fields.",
+    "For a saved evaluator, provide evaluatorId. For an unsaved draft, omit evaluatorId and provide type plus the matching LLM-as-a-judge, code, or decision-model evaluator fields.",
     "Pass the observationId, traceId, and startTime returned by the observation tools.",
     "This executes the evaluator, emits an internal trace, and may incur model or code execution cost.",
   ].join(" "),
