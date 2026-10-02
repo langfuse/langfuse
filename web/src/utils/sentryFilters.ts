@@ -575,13 +575,16 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
   // --- C. `type`-guarded rules — exception events only (message events carry
   // no exception `type`; these artifacts always arrive as thrown exceptions). ---
   if (typeof exceptionValue === "string") {
-    // Expected clipboard permission denial (we already fall back). The generic
-    // `NotAllowedError` type (autoplay, fullscreen, ...) REQUIRES a clipboard
-    // marker alongside it.
+    // Expected clipboard permission denial (Chromium names Clipboard/writeText
+    // in the message; Safari uses a generic permission string plus a writeText
+    // stack frame). Autoplay / fullscreen NotAllowedErrors stay out.
     if (
-      exceptionType === "NotAllowedError" &&
-      (exceptionValue.includes("Clipboard") ||
-        exceptionValue.includes("writeText"))
+      isClipboardPermissionDeniedEvent(
+        exceptionType,
+        exceptionValue,
+        exception?.mechanism?.type,
+        event,
+      )
     ) {
       return true;
     }
@@ -744,6 +747,73 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
   }
 
   return false;
+}
+
+/**
+ * Chromium's Clipboard API denial names the interface in the message. Safari /
+ * WebKit instead throws a generic permission string and puts `writeText` on
+ * the stack (`react18-json-view` copy-button, LANGFUSE-629).
+ */
+const SAFARI_CLIPBOARD_PERMISSION_MESSAGE =
+  "The request is not allowed by the user agent or the platform in the current context, possibly because the user denied permission.";
+
+function isClipboardWriteFrame(frame: {
+  filename?: string;
+  function?: string;
+  abs_path?: string;
+  context_line?: string;
+}): boolean {
+  const fn = frame.function ?? "";
+  const filename = frame.filename ?? "";
+  const absPath = frame.abs_path ?? "";
+  const contextLine = frame.context_line ?? "";
+  return (
+    fn.includes("writeText") ||
+    filename.includes("copy-button") ||
+    absPath.includes("copy-button") ||
+    contextLine.includes("clipboard.writeText") ||
+    contextLine.includes("clipboard.write")
+  );
+}
+
+function hasClipboardWriteFrame(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+  return frames.some((frame) => isClipboardWriteFrame(frame));
+}
+
+/**
+ * True for an expected clipboard permission denial. Chromium is identified by
+ * the exception message (`Clipboard` / `writeText`). Safari's generic
+ * permission string REQUIRES a clipboard write stack marker AND a browser
+ * global handler so autoplay / fullscreen / getUserMedia and app-captured
+ * `NotAllowedError`s still reach Sentry.
+ */
+function isClipboardPermissionDeniedEvent(
+  exceptionType: string | undefined,
+  exceptionValue: string,
+  mechanismType: string | undefined,
+  event: ErrorEvent,
+): boolean {
+  if (exceptionType !== "NotAllowedError") return false;
+
+  if (
+    exceptionValue.includes("Clipboard") ||
+    exceptionValue.includes("writeText")
+  ) {
+    return true;
+  }
+
+  if (exceptionValue !== SAFARI_CLIPBOARD_PERMISSION_MESSAGE) {
+    return false;
+  }
+  if (
+    typeof mechanismType !== "string" ||
+    !mechanismType.startsWith("auto.browser.global_handlers")
+  ) {
+    return false;
+  }
+  return hasClipboardWriteFrame(event);
 }
 
 /**
