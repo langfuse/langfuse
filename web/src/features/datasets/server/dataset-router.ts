@@ -2106,6 +2106,25 @@ export const datasetRouter = createTRPCRouter({
         },
       });
 
+      // Nothing matched, so there is nothing to delete or audit — and the
+      // `datasetRuns[0]` fallback below would read a property off `undefined`.
+      //
+      // The cleanup enqueue still has to happen when the caller supplied a dataset id:
+      // a previous attempt may have committed the delete and then failed to enqueue,
+      // and returning here unconditionally would mean the ClickHouse cleanup is never
+      // retried. Re-enqueueing is safe because the queue handler deletes by run id.
+      if (datasetRuns.length === 0) {
+        if (input.datasetId) {
+          await addToDeleteDatasetQueue({
+            deletionType: "dataset-runs",
+            projectId: input.projectId,
+            datasetId: input.datasetId,
+            datasetRunIds: input.datasetRunIds,
+          });
+        }
+        return datasetRuns;
+      }
+
       // Delete all dataset runs
       await ctx.prisma.datasetRuns.deleteMany({
         where: {
