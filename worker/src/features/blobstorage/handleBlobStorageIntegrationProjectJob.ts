@@ -392,8 +392,7 @@ const createBlobStorageService = (
     awsSse: undefined,
     awsSseKmsKeyId: undefined,
     useAzureBlob: config.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
-    // Undefined → the deployment identity (LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS
-    // or ADC), allowlist-gated above.
+    // Undefined → ADC (the deployment's own identity), allowlist-gated above.
     useGoogleCloudStorage,
     googleCloudCredentials: gcsServiceAccountKey,
     useOCIObjectStorage: false, // Not supported in blob storage integration
