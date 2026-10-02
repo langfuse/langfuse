@@ -566,9 +566,9 @@ export function isCancellableBackgroundRun(
 }
 
 const ASSISTANT_FAILED_CONTINUE =
-  "The assistant failed. Send another message to continue.";
+  "Halo failed. Send another message to continue.";
 const ASSISTANT_FAILED_TRY_AGAIN =
-  "The assistant failed. Send another message to try again.";
+  "Halo failed. Send another message to try again.";
 
 const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {
   [InAppAgentRunErrorCode.WORKER_LOST]: ASSISTANT_FAILED_CONTINUE,
@@ -583,7 +583,7 @@ const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {
   [InAppAgentRunErrorCode.RUN_TIMEOUT]:
     "The run hit the time limit. Send another message to continue.",
   [InAppAgentRunErrorCode.AGENT_ERROR]:
-    "The assistant hit an error before finishing. Send another message to continue.",
+    "Halo hit an error before finishing. Send another message to continue.",
   [InAppAgentRunErrorCode.APPROVAL_SUPERSEDED]: "Replaced by a newer message.",
   [InAppAgentRunErrorCode.APPROVAL_CANCELLED]: "Approval cancelled.",
   [InAppAgentRunErrorCode.CANCELLED]: "You stopped this run.",
@@ -604,9 +604,9 @@ export type BackgroundRunNotice = {
 };
 
 const STEP_LIMIT_NOTICE =
-  "The assistant had to stop before finishing this answer. Too many steps in one turn. Send another message to continue.";
+  "Halo had to stop before finishing this answer. Too many steps in one turn. Send another message to continue.";
 const OUTPUT_LIMIT_NOTICE =
-  "The assistant had to stop before finishing this answer. The response hit the model's output limit. Send another message to continue.";
+  "Halo had to stop before finishing this answer. The response hit the model's output limit. Send another message to continue.";
 
 /** Notices for SUCCEEDED runs cut short before a final answer, by error code. */
 const TRUNCATION_NOTICES: Readonly<Record<string, string>> = {

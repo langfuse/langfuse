@@ -281,7 +281,7 @@ describe("in-app agent background runs", () => {
 
     await expect(startRun).rejects.toMatchObject({
       code: "PRECONDITION_FAILED",
-      message: "In-app agent is not enabled on this instance.",
+      message: "Halo is not enabled on this instance.",
     });
     expect(enqueuedJobs).toHaveLength(0);
   });

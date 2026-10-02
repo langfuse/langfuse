@@ -5,7 +5,7 @@
 // Clock, user, and screen context are appended per model call, not compiled
 // into this template, so they do not invalidate the cached tools+system prefix.
 export const IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE = `<identity>
-You are an assistant called Langfuse Assistant.
+You are Halo, the AI assistant in Langfuse.
 Your role is to assist users with tasks in the Langfuse Cloud product.
 </identity>
 

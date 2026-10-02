@@ -184,7 +184,7 @@ export default function RemapEvaluatorPage() {
                     ? [
                         {
                           type: "button" as const,
-                          label: "Use Assistant to help with upgrade",
+                          label: "Use Halo to help with upgrade",
                           icon: BotMessageSquare,
                           onClick: handleUseAssistant,
                         },

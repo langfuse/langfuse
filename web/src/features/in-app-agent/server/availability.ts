@@ -23,7 +23,7 @@ export async function assertInAppAgentAvailable({
     throw new BaseError(
       "PreconditionFailedError",
       412,
-      "In-app agent is not enabled on this instance.",
+      "Halo is not enabled on this instance.",
       true,
     );
   }
@@ -35,9 +35,7 @@ export async function assertInAppAgentAvailable({
       projectId,
     })
   ) {
-    throw new ForbiddenError(
-      "Unauthorized, user does not have access to entitlement: in-app-agent",
-    );
+    throw new ForbiddenError("You do not have access to Halo");
   }
 
   const project = await prisma.project.findUnique({
@@ -55,9 +53,7 @@ export async function assertInAppAgentAvailable({
   });
 
   if (!project?.organization.aiFeaturesEnabled) {
-    throw new ForbiddenError(
-      "In-app agent is not enabled for this organization",
-    );
+    throw new ForbiddenError("Halo is not enabled for this organization");
   }
 
   return project.organization;

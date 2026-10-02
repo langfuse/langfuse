@@ -27,9 +27,7 @@ describe("InAppAgentWidgetComposer", () => {
     fireEvent.change(screen.getByLabelText("Describe the widget you want"), {
       target: { value: "  Show p95 latency by model  " },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Add with Langfuse Assistant" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Add with Halo" }));
 
     await waitFor(() => {
       expect(submit).toHaveBeenCalledWith(
@@ -55,7 +53,7 @@ describe("InAppAgentWidgetComposer", () => {
     });
 
     expect(
-      screen.getByRole("button", { name: "Add with Langfuse Assistant" }),
+      screen.getByRole("button", { name: "Add with Halo" }),
     ).toBeDisabled();
   });
 
@@ -73,7 +71,7 @@ describe("InAppAgentWidgetComposer", () => {
       target: { value: "Show p95 latency" },
     });
     const submitButton = screen.getByRole("button", {
-      name: "Add with Langfuse Assistant",
+      name: "Add with Halo",
     });
 
     expect(submitButton).toBeEnabled();
@@ -98,9 +96,7 @@ describe("InAppAgentWidgetComposer", () => {
 
     const input = screen.getByLabelText("Describe the widget you want");
     fireEvent.change(input, { target: { value: "Show error rate" } });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Add with Langfuse Assistant" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Add with Halo" }));
 
     await waitFor(() => {
       expect(submit).toHaveBeenCalledOnce();
