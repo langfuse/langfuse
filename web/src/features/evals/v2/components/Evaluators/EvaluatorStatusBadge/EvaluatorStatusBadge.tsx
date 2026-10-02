@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-let-assign-in-react */
+import { useMemo } from "react";
 import Link from "next/link";
 import {
   getEvaluatorBlockMetadata,
@@ -56,24 +56,29 @@ export function EvaluatorStatusBadge({
   executionsHref: string | null;
 }) {
   const status = getStatus({ ruleCount, summary, blocked });
-  let explanation: string;
-  if (status === "Blocked") {
-    explanation =
-      blockMessage ??
-      (blockReason
-        ? getEvaluatorBlockMetadata(blockReason).message
-        : "This evaluator is blocked.");
-  } else if (ruleCount === 0) {
-    explanation = "No rule is attached to this evaluator.";
-  } else if (status === "Unknown") {
-    explanation = "Execution status is unavailable.";
-  } else if (status === "Inactive") {
-    explanation = "No execution traces in the last 7 days.";
-  } else if (status === "Healthy") {
-    explanation = "All runs passed in the last 7 days.";
-  } else {
-    explanation = `${summary?.failed} of ${summary?.total} execution traces failed in the last 7 days.`;
-  }
+  const explanation = useMemo(() => {
+    if (status === "Blocked") {
+      return (
+        blockMessage ??
+        (blockReason
+          ? getEvaluatorBlockMetadata(blockReason).message
+          : "This evaluator is blocked.")
+      );
+    }
+    if (ruleCount === 0) {
+      return "No rule is attached to this evaluator.";
+    }
+    if (status === "Unknown") {
+      return "Execution status is unavailable.";
+    }
+    if (status === "Inactive") {
+      return "No execution traces in the last 7 days.";
+    }
+    if (status === "Healthy") {
+      return "All runs passed in the last 7 days.";
+    }
+    return `${summary?.failed} of ${summary?.total} execution traces failed in the last 7 days.`;
+  }, [status, blockMessage, blockReason, ruleCount, summary]);
 
   const badge = (
     <Badge text={status === "Unknown" ? "—" : status} color={colors[status]} />
