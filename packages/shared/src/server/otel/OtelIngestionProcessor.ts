@@ -38,7 +38,7 @@ import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
 import { isValidDateString, flattenJsonToPathArrays } from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { isNullOrUndefined } from "./isNullOrUndefined";
+import { isNullOrUndefined } from "../../utils/isNullOrUndefined";
 
 export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
 
