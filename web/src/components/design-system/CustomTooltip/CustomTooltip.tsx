@@ -139,7 +139,7 @@ function CustomTooltip({
             ref={refs.setFloating}
             className={cn(
                 tooltipVariants({ padding, overflow }),
-                tooltipSize === "wide" && "max-w-[calc(100vw-2rem)]",
+                { default: "max-w-xs", wide: "max-w-[calc(100vw-2rem)]" }[tooltipSize],
               !hoverableContent && "pointer-events-none",
             )}
             style={floatingStyles}
