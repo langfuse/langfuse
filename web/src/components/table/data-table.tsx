@@ -313,7 +313,9 @@ export function DataTable<TData extends object, TValue>({
       left: columns
         .filter((col) => col.isPinnedLeft)
         .map((col) => col.id || col.accessorKey),
-      right: [],
+      right: columns
+        .filter((col) => col.isPinnedRight)
+        .map((col) => col.id || col.accessorKey),
     }),
     [columns],
   );
