@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from "react";
+import { useRef } from "react";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -28,29 +28,11 @@ type CommentListProps = {
 
 export function CommentList(props: CommentListProps) {
   return (
-    <CommentReadAccessGate projectId={props.projectId}>
-      <CommentThread
-        key={`${props.projectId}-${props.objectType}-${props.objectId}`}
-        {...props}
-      />
-    </CommentReadAccessGate>
+    <CommentThread
+      key={`${props.projectId}-${props.objectType}-${props.objectId}`}
+      {...props}
+    />
   );
-}
-
-function CommentReadAccessGate({
-  projectId,
-  children,
-}: {
-  projectId: string;
-  children: ReactNode;
-}) {
-  const session = useSession();
-  const hasReadAccess = useHasProjectAccess({
-    projectId,
-    scope: "comments:read",
-  });
-  if (!hasReadAccess || session.status !== "authenticated") return null;
-  return children;
 }
 
 function CommentThread({

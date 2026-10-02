@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { type RouterOutputs } from "@/src/utils/api";
 import { CommentList } from "./CommentList";
+import { CommentsSection } from "@/src/features/annotation-queues/components/shared/CommentsSection";
 
 const { useCommentsQuery, composerRenders, accessState } = vi.hoisted(() => ({
   useCommentsQuery: vi.fn(),
@@ -92,7 +93,7 @@ describe("CommentList draft lifecycle", () => {
       }
 
       const { container } = render(
-        <CommentList
+        <CommentsSection
           projectId="project-1"
           objectId="trace-1"
           objectType="TRACE"
