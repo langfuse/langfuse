@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { Button } from "@/src/components/ui/button";
@@ -36,11 +35,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { SingleSelect } from "@/src/features/filters/components/single-select";
 import { FilterToken } from "@/src/features/filters/components/FilterToken";
@@ -332,9 +328,10 @@ export function PopoverFilterBuilder({
       </Popover>
       {filterState.length > 0 ? (
         buttonType === "default" ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
+          <Tooltip label="Clear all filters" delay={300}>
+            {({ getTriggerProps }) => (
               <Button
+                {...getTriggerProps()}
                 onClick={() => setWipFilterState([])}
                 variant="ghost"
                 type="button"
@@ -343,13 +340,13 @@ export function PopoverFilterBuilder({
               >
                 <X className="h-4 w-4" />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent>Clear all filters</TooltipContent>
+            )}
           </Tooltip>
         ) : (
-          <Tooltip>
-            <TooltipTrigger asChild>
+          <Tooltip label="Clear all filters" delay={300}>
+            {({ getTriggerProps }) => (
               <Button
+                {...getTriggerProps()}
                 onClick={() => setWipFilterState([])}
                 variant="ghost"
                 type="button"
@@ -358,8 +355,7 @@ export function PopoverFilterBuilder({
               >
                 <X className="h-3 w-3" />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent>Clear all filters</TooltipContent>
+            )}
           </Tooltip>
         )
       ) : null}
@@ -776,21 +772,20 @@ function FilterBuilderForm({
                       />
                       <span className="flex-1">{option.name}</span>
                       {hasAlert && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
+                        <CustomTooltip
+                          content={<>{option.alert?.content}</>}
+                          delay={300}
+                        >
+                          {({ getTriggerProps }) => (
                             <Info
+                              {...getTriggerProps()}
                               className={cn(
                                 "ml-2 h-4 w-4",
                                 alertStyles.iconColor,
                               )}
                             />
-                          </TooltipTrigger>
-                          <TooltipContent
-                            className={cn("max-w-xs", alertStyles.tooltipBg)}
-                          >
-                            {option.alert?.content}
-                          </TooltipContent>
-                        </Tooltip>
+                          )}
+                        </CustomTooltip>
                       )}
                     </InputCommandItem>
                   );
@@ -1237,16 +1232,16 @@ function FilterBuilderForm({
                 >
                   {aiFilter.isPending ? "Loading..." : "Generate filters"}
                 </Button>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="text-muted-foreground h-4 w-4" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="text-xs">
-                      We convert natural language into deterministic filters
-                      which you can adjust afterwards
-                    </p>
-                  </TooltipContent>
+                <Tooltip
+                  label="We convert natural language into deterministic filters which you can adjust afterwards"
+                  delay={300}
+                >
+                  {({ getTriggerProps }) => (
+                    <Info
+                      {...getTriggerProps()}
+                      className="text-muted-foreground h-4 w-4"
+                    />
+                  )}
                 </Tooltip>
               </div>
               {aiError && (
