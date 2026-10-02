@@ -1,4 +1,4 @@
-/* eslint-disable boundaries/dependencies */
+/* eslint-disable boundaries/dependencies, @repo/no-let-assign-in-react */
 import {
   JsonSkeleton,
   stringifyJsonNode,

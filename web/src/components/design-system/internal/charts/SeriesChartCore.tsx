@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-let-assign-in-react */
 "use client";
 
 import { useId, useMemo, useState, type PointerEvent } from "react";

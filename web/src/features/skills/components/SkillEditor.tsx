@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-let-assign-in-react */
 import { type ComponentProps, useState } from "react";
 import { useStore } from "zustand";
 import { useMediaQuery } from "react-responsive";

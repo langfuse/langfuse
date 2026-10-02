@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-let-assign-in-react */
 import preview from "../../../../../.storybook/preview";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import {
