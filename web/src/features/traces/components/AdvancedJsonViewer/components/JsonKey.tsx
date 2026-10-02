@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable @repo/no-style-props */
 /**
  * JsonKey - Renders a JSON property key or array index
@@ -12,11 +11,7 @@ import {
   highlightTextWithComments,
   COMMENT_HIGHLIGHT_COLOR,
 } from "../utils/highlightText";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 export function JsonKey({
   keyName,
@@ -79,15 +74,17 @@ export function JsonKey({
         // Wrap comment highlights in tooltip if preview exists
         if (segment.type === "comment" && segment.preview) {
           return (
-            <Tooltip key={index}>
-              <TooltipTrigger asChild>{highlightedSpan}</TooltipTrigger>
-              <TooltipContent
-                side="top"
-                align="start"
-                className="max-w-xs px-2 py-1 text-xs"
-              >
-                {segment.preview}
-              </TooltipContent>
+            <Tooltip
+              key={index}
+              label={segment.preview}
+              placement="top-start"
+              delay={300}
+            >
+              {({ getTriggerProps }) => (
+                <span {...getTriggerProps()} style={{ backgroundColor }}>
+                  {segment.text}
+                </span>
+              )}
             </Tooltip>
           );
         }
