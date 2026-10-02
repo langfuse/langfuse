@@ -1,9 +1,10 @@
-import { ChevronDown, CircleAlert } from "lucide-react";
+import { ChevronDown, CircleAlert, MessageSquareOff } from "lucide-react";
 import { type ReactNode } from "react";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   DropdownMenuContent,
   DropdownMenuItem,
@@ -244,6 +245,20 @@ export function SessionConversationTimelineTrace({
           <span>trace · {trace.id}</span>
         </button>
         <div className="border-border min-w-0 flex-1 border-t border-dashed" />
+        {state.type === "transcript" && state.result.cutoff && (
+          <Tooltip label="This transcript may be incomplete because the observation limit was reached.">
+            {({ getTriggerProps }) => (
+              <button
+                {...getTriggerProps()}
+                type="button"
+                className="bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
+                aria-label="Transcript may be incomplete"
+              >
+                <MessageSquareOff className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            )}
+          </Tooltip>
+        )}
       </div>
 
       {state.type === "loading" && (

@@ -39,12 +39,6 @@ export function SessionTranscriptContent({
 }) {
   return (
     <div className="ph-no-capture space-y-4">
-      {result.cutoff && (
-        <p role="status" className="text-muted-foreground text-sm">
-          This transcript may be incomplete because the observation limit was
-          reached.
-        </p>
-      )}
       {!result.transcript?.threads.some((thread) =>
         thread.currentTurn.messages.some(
           (message) =>

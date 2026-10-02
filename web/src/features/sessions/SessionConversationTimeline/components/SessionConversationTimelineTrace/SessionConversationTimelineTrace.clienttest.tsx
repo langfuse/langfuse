@@ -96,9 +96,12 @@ describe("SessionConversationTimelineTrace", () => {
     fireEvent.click(systemObservationButton);
     expect(onOpenTrace).toHaveBeenCalledOnce();
     expect(onOpenObservation).toHaveBeenCalledWith("generation-1");
+    expect(
+      screen.queryByRole("button", { name: "Transcript may be incomplete" }),
+    ).toBeNull();
   });
 
-  it("hides history, preserves multiple threads, renders tool payloads and source timing, and blocks replay capture", () => {
+  it("hides history, preserves multiple threads, renders tool payloads and source timing, and blocks replay capture", async () => {
     const onOpenObservation = vi.fn();
     const { container } = render(
       <SessionConversationTimelineTrace
@@ -208,7 +211,20 @@ describe("SessionConversationTimelineTrace", () => {
       container.querySelectorAll('time[datetime="2026-09-24T12:00:01.000Z"]'),
     ).toHaveLength(0);
     expect(screen.getByText("1.00s")).toBeTruthy();
-    expect(screen.getByRole("status")).toBeTruthy();
+    expect(screen.queryByRole("status")).toBeNull();
+    const cutoffWarning = screen.getByRole("button", {
+      name: "Transcript may be incomplete",
+    });
+    expect(cutoffWarning.parentElement).toBe(
+      screen.getByRole("button", { name: /trace · trace-1/ }).parentElement,
+    );
+    expect(text).not.toContain(
+      "This transcript may be incomplete because the observation limit was reached.",
+    );
+    fireEvent.focus(cutoffWarning);
+    expect((await screen.findByRole("tooltip")).textContent).toContain(
+      "This transcript may be incomplete because the observation limit was reached.",
+    );
     expect(
       screen
         .getByText(/"temperature": 12/)
