@@ -612,6 +612,30 @@ if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET)
     }),
   );
 
+
+// Fields defined in the Account model (schema.prisma). Any field not in this
+// set is stripped from the OAuth token response before linkAccount to prevent
+// Prisma "Unknown argument" errors when IdPs return non-standard fields.
+const KNOWN_ACCOUNT_FIELDS = new Set([
+  "id",
+  "userId",
+  "user_id",
+  "type",
+  "provider",
+  "providerAccountId",
+  "refresh_token",
+  "access_token",
+  "expires_at",
+  "expires_in",
+  "ext_expires_in",
+  "token_type",
+  "scope",
+  "id_token",
+  "session_state",
+  "refresh_token_expires_in",
+  "created_at",
+]);
+
 // Extend Prisma Adapter
 const prismaAdapter = PrismaAdapter(prisma);
 const ignoredAccountFields = env.AUTH_IGNORE_ACCOUNT_FIELDS?.split(",") ?? [];
@@ -673,6 +697,17 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
     for (const ignoredField of ignoredAccountFields) {
       if (ignoredField in data) {
         delete data[ignoredField];
+      }
+    }
+
+    // Defense-in-depth: strip any remaining fields that are not defined in
+    // the Account model.  IdPs can return arbitrary non-standard fields
+    // (e.g. session_token, custom_claim) that cause Prisma to throw
+    // "Unknown argument" at runtime.
+    // See https://github.com/langfuse/langfuse/issues/17626
+    for (const key of Object.keys(data)) {
+      if (!KNOWN_ACCOUNT_FIELDS.has(key)) {
+        delete data[key as keyof typeof data];
       }
     }
 
