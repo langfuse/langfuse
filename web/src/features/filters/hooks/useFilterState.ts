@@ -84,11 +84,22 @@ const getCommaArrayParam = (table: TableName) => ({
         if (DEBUG_QUERY_STATE)
           console.log("values", [column, type, key, operator, value]);
         const decodedValue = value ? decodeURIComponent(value) : undefined;
+        // A blank value segment is ambiguous: for most types it means "absent",
+        // but `stringOptions` rejects empty arrays (see stringOptionsFilter),
+        // so a blank segment there can only be the single value "" — i.e. a
+        // deliberate filter for records without a value, such as an unnamed
+        // trace. Other types keep the previous "drop the filter" behaviour:
+        // `categoryOptions`/`arrayOptions` do allow [], so for them a blank
+        // segment really is an empty selection rather than an empty string.
+        const isEmptyStringOptions = type === "stringOptions" && value === "";
         const normalizedKey =
           type === "positionInTrace"
             ? normalizeLegacySessionPositionInTraceKey(key)
             : key;
         const parsedValue = (() => {
+          if (isEmptyStringOptions) {
+            return [""];
+          }
           if (decodedValue === undefined || type === undefined) {
             return undefined;
           }
