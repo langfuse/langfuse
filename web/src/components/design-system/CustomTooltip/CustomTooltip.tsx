@@ -95,7 +95,10 @@ function CustomTooltip({
             ref={refs.setFloating}
             className={cn(
               "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 overflow-hidden rounded-md border px-3 py-1.5 text-sm shadow-md",
-              size === "wide" ? "max-w-[calc(100vw-2rem)]" : "max-w-xs",
+              {
+                default: "max-w-xs",
+                wide: "max-w-[calc(100vw-2rem)]",
+              }[size],
             )}
             style={floatingStyles}
             {...getFloatingProps()}
