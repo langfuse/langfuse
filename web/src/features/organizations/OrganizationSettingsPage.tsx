@@ -19,6 +19,7 @@ import { isCloudPlan } from "@langfuse/shared";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import AIFeatureSwitch from "@/src/features/organizations/components/AIFeatureSwitch";
+import CrossProjectTraceTrackingSwitch from "@/src/features/organizations/components/CrossProjectTraceTrackingSwitch";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing";
 import { env } from "@/src/env.mjs";
 import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer";
@@ -135,6 +136,7 @@ export const getOrganizationSettingsPages = ({
           />
         </div>
         <AIFeatureSwitch />
+        <CrossProjectTraceTrackingSwitch />
         <SettingsDangerZone
           items={[
             {
