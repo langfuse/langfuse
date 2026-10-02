@@ -59,7 +59,7 @@ export function SessionTranscriptContent({
       {result.transcript?.threads.map((thread, threadIndex) => (
         <div
           key={threadIndex}
-          className="space-y-4 [&>[data-session-tool-row]:has(+[data-session-tool-row])]:mb-1"
+          className="space-y-4 [&>[data-session-system-row]:has(+[data-session-system-row])]:mb-1 [&>[data-session-tool-row]:has(+[data-session-tool-row])]:mb-1"
         >
           {(result.transcript?.threads.length ?? 0) > 1 && (
             <h3 className="text-muted-foreground text-xs font-bold">
@@ -125,6 +125,7 @@ function SessionTranscriptThread({
   return rows.map((row, index) => {
     const timing = row.message.timing;
     const isTool = row.type === "tool";
+    const isSystem = row.message.role === "system";
     const observation = observations.find(
       (item) => item.id === row.message.observationId,
     );
@@ -136,6 +137,7 @@ function SessionTranscriptThread({
           className={cn(
             "text-muted-foreground flex items-center gap-2 font-mono text-xs",
             !isTool &&
+              !isSystem &&
               "invisible group-focus-within:visible group-hover:visible",
             !isTool && row.message.role === "user" && "justify-end",
           )}
@@ -146,7 +148,7 @@ function SessionTranscriptThread({
             row.message.observationId && (
               <button
                 type="button"
-                className="hover:text-foreground underline"
+                className="hover:text-foreground invisible underline group-focus-within:visible group-hover:visible"
                 onClick={() => onOpenObservation(row.message.observationId!)}
               >
                 Open observation
@@ -160,6 +162,10 @@ function SessionTranscriptThread({
                   variant="ghost"
                   size="icon-xs"
                   aria-label={`Actions for ${observation.name ?? observation.id}`}
+                  className={cn(
+                    isSystem &&
+                      "invisible group-focus-within:visible group-hover:visible",
+                  )}
                 >
                   <MoreHorizontal className="h-3.5 w-3.5" />
                 </Button>
@@ -195,6 +201,7 @@ function SessionTranscriptThread({
         key={index}
         className="group space-y-1"
         data-session-tool-row={isTool ? "" : undefined}
+        data-session-system-row={isSystem ? "" : undefined}
         data-session-observation-id={row.message.observationId ?? undefined}
         data-scroll-request-id={
           scrollTarget?.observationId === row.message.observationId
@@ -211,10 +218,11 @@ function SessionTranscriptThread({
         ) : (
           <SessionTranscriptMessage
             message={row.message}
+            trailingContent={isSystem ? metadata : null}
             onOpenObservation={onOpenObservation}
           />
         )}
-        {row.type !== "tool" && metadata}
+        {row.type !== "tool" && !isSystem && metadata}
       </div>
     );
   });
@@ -250,9 +258,11 @@ function SessionTranscriptTool({
 
 function SessionTranscriptMessage({
   message,
+  trailingContent,
   onOpenObservation,
 }: {
   message: DisplayMessage;
+  trailingContent: ReactNode;
   onOpenObservation: (observationId: string) => void;
 }) {
   if (message.role === "system") {
@@ -260,6 +270,7 @@ function SessionTranscriptMessage({
       <SessionTimelineSystemMessage
         parts={message.parts}
         senderName={message.senderName}
+        trailingContent={trailingContent}
       />
     );
   }

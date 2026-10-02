@@ -61,6 +61,12 @@ describe("SessionConversationTimelineTrace", () => {
                     messages: [
                       {
                         ...timing,
+                        role: "system",
+                        source: "input",
+                        parts: [{ type: "text", text: "System instructions" }],
+                      },
+                      {
+                        ...timing,
                         role: "assistant",
                         source: "output",
                         parts: [{ type: "text", text: "Answer" }],
@@ -76,7 +82,18 @@ describe("SessionConversationTimelineTrace", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /trace · trace-1/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Open observation" }));
+    const systemHeader = screen.getByRole("button", {
+      name: "System prompt",
+    }).parentElement!;
+    const systemTimestamp = systemHeader.querySelector("time");
+    expect(systemTimestamp?.dateTime).toBe(timing.startTime.toISOString());
+    expect(
+      systemTimestamp?.parentElement?.classList.contains("invisible"),
+    ).toBe(false);
+    const systemObservationButton =
+      systemHeader.querySelector("button.underline")!;
+    expect(systemObservationButton.classList.contains("invisible")).toBe(true);
+    fireEvent.click(systemObservationButton);
     expect(onOpenTrace).toHaveBeenCalledOnce();
     expect(onOpenObservation).toHaveBeenCalledWith("generation-1");
   });

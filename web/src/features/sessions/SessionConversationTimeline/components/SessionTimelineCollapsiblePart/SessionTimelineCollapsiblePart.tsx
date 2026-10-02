@@ -10,6 +10,7 @@ export function SessionTimelineCollapsiblePart({
   status,
   variant,
   alignment,
+  trailingContent,
   children,
 }: {
   label: string;
@@ -17,6 +18,7 @@ export function SessionTimelineCollapsiblePart({
   status?: "success" | "error";
   variant: "plain" | "card";
   alignment: "start" | "center" | "row";
+  trailingContent?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -62,8 +64,8 @@ export function SessionTimelineCollapsiblePart({
             aria-hidden="true"
           />
         </button>
-        {alignment === "row" ? (
-          <div className="border-border min-w-0 flex-1 border-t border-dashed" />
+        {trailingContent ? (
+          <div className="ml-auto shrink-0">{trailingContent}</div>
         ) : null}
       </div>
       {isExpanded ? (
