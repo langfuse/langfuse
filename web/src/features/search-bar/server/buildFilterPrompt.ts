@@ -161,7 +161,7 @@ columns from this catalog and only the documented type/operator/value shape:
 
 ${catalog}
 
-Metadata uses {"type":"stringObject","column":"metadata","key":"<key>","operator":"="|"contains"|"does not contain"|"starts with"|"ends with","value":"<string>"}.
+Metadata uses stringObject for equality/contains/starts/ends (string value) or numberObject for ">", "<", ">=", "<=" (numeric value).
 Nullable columns (${nullableIds}) use type "null", operator "is null" or "is not null", and value "".
 Tags use the canonical "tags" column. Never emit full-text search, score filters,
 time-range filters, or a column not present in the catalog. Prefer observed values
@@ -228,14 +228,18 @@ or "failed" → level any of ["ERROR"]. "warnings" → ["WARNING"].
 
 ## Metadata (use it boldly)
 
-Custom trace/observation metadata is addressed by key:
+Custom trace/observation metadata is addressed by key. Equality and string
+match stay stringObject; numeric comparisons use numberObject:
 {"type": "stringObject", "column": "metadata", "key": "<the metadata key>", "operator": "=" | "contains" | "does not contain" | "starts with" | "ends with", "value": "<string>"}
+{"type": "numberObject", "column": "metadata", "key": "<the metadata key>", "operator": ">" | "<" | ">=" | "<=", "value": <number>}
 
 If the request names a domain-specific attribute that is NOT a catalog column
 (e.g. "routing queue", "tenant", "customer tier", "feature flag", "experiment
 step"), filter on metadata: \`{"type":"stringObject","column":"metadata","key":"<key>",...}\`.
-When the observed project data lists a metadata key that matches the user's
-phrase (e.g. "routing queue" → metadata.routing.queue), use that exact key. Use
+When the user asks for a numeric comparison (timeout > 20, retries >= 3), emit
+numberObject with a numeric value — do not stringify the number. When the
+observed project data lists a metadata key that matches the user's phrase
+(e.g. "routing queue" → metadata.routing.queue), use that exact key. Use
 "contains" when the user gives a fuzzy/partial value, "=" for an exact value.
 
 ## Scores (evaluation results)
@@ -318,6 +322,9 @@ Output: [{"type":"stringOptions","column":"level","operator":"any of","value":["
 
 Input: "requests for the membership-support routing queue"
 Output: [{"type":"stringObject","column":"metadata","key":"routing.queue","operator":"=","value":"membership-support"}]
+
+Input: "observations whose timeout metadata is above 20"
+Output: [{"type":"numberObject","column":"metadata","key":"timeout","operator":">","value":20}]
 
 Input: "where the output talks about a refund and the input mentions cancel"
 Output: [{"type":"string","column":"output","operator":"contains","value":"refund"},{"type":"string","column":"input","operator":"contains","value":"cancel"}]
