@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import { type EvalTemplate } from "@langfuse/shared";
 
@@ -31,11 +30,7 @@ import { useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { useExperimentEvaluatorSelection } from "@/src/features/experiments/hooks/useExperimentEvaluatorSelection";
 import { useTemplatesValidation } from "@/src/features/evals/hooks/useTemplatesValidation";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingleTemplateValidation";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
@@ -231,23 +226,32 @@ export const TemplateSelector = ({
                               </Badge>
                             )}
                             {isInvalid && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
-                                </TooltipTrigger>
-                                <TooltipContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
-                                  <p>Requires project-level evaluation model</p>
-                                  <Link
-                                    href={`/project/${projectId}/evals/default-model`}
-                                    className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                  >
-                                    <ExternalLinkIcon className="h-3 w-3" />
-                                    Configure default model
-                                  </Link>
-                                </TooltipContent>
-                              </Tooltip>
+                              <CustomTooltip
+                                delay={300}
+                                content={
+                                  <div className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
+                                    <p>
+                                      Requires project-level evaluation model
+                                    </p>
+                                    <Link
+                                      href={`/project/${projectId}/evals/default-model`}
+                                      className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      <ExternalLinkIcon className="h-3 w-3" />
+                                      Configure default model
+                                    </Link>
+                                  </div>
+                                }
+                              >
+                                {({ getTriggerProps }) => (
+                                  <AlertCircle
+                                    {...getTriggerProps()}
+                                    className="ml-1 h-4 w-4 text-yellow-500"
+                                  />
+                                )}
+                              </CustomTooltip>
                             )}
                             {isInactive && (
                               <div
@@ -325,23 +329,30 @@ export const TemplateSelector = ({
                             </Badge>
                           )}
                           {isInvalid && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
-                              </TooltipTrigger>
-                              <TooltipContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
-                                <p>Requires project-level evaluation model</p>
-                                <Link
-                                  href={`/project/${projectId}/evals/default-model`}
-                                  className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  <ExternalLinkIcon className="h-3 w-3" />
-                                  Configure default model
-                                </Link>
-                              </TooltipContent>
-                            </Tooltip>
+                            <CustomTooltip
+                              delay={300}
+                              content={
+                                <div className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
+                                  <p>Requires project-level evaluation model</p>
+                                  <Link
+                                    href={`/project/${projectId}/evals/default-model`}
+                                    className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <ExternalLinkIcon className="h-3 w-3" />
+                                    Configure default model
+                                  </Link>
+                                </div>
+                              }
+                            >
+                              {({ getTriggerProps }) => (
+                                <AlertCircle
+                                  {...getTriggerProps()}
+                                  className="ml-1 h-4 w-4 text-yellow-500"
+                                />
+                              )}
+                            </CustomTooltip>
                           )}
                           {isInactive && (
                             <div
