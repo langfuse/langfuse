@@ -129,11 +129,7 @@ async function summarizeFacet(input: {
       "Applicable facet summary must contain a concise summary.",
       "invalid_output",
     );
-  if (!applicable && summary)
-    throw new TopicsProviderUnavailable(
-      "Non-applicable facet result contains a summary.",
-      "invalid_output",
-    );
+  // Models sometimes add text to a not-applicable result; keep the status, drop the text.
   if (!applicable) {
     return {
       ...base,

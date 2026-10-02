@@ -198,12 +198,6 @@ async function summarizeTrace(
           "summary",
           "Applicable facet summary must contain a concise summary.",
         );
-      if (!applicable && result.output.summary.trim())
-        throw invalidOutput(
-          metrics,
-          "summary",
-          "Non-applicable facet result contains a summary.",
-        );
       return result;
     });
     metrics.result(
@@ -218,7 +212,11 @@ async function summarizeTrace(
         result.output.status === "applicable"
           ? "summarized"
           : result.output.status,
-      summary: result.output.summary.trim(),
+      // Models sometimes add text to a not-applicable result; keep the status, drop the text.
+      summary:
+        result.output.status === "applicable"
+          ? result.output.summary.trim()
+          : "",
       providedUsageDetails: result.providedUsageDetails,
       usageDetails: result.usageDetails,
       providedCostDetails: result.providedCostDetails,
