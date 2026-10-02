@@ -24,7 +24,7 @@ Use this as the first stop for Langfuse org navigation. Your job is to choose th
 
 ## Quick Skill Routing
 
-- Product implementation in `langfuse/langfuse`: choose the matching repo-local skill under `.agents/skills`, such as `backend-dev-guidelines`, `frontend-browser-review`, `clickhouse-best-practices`, `add-model-price`, `turborepo`, `pnpm-upgrade-package`, `code-review`, or production-debug skills as applicable.
+- Product implementation in `langfuse/langfuse`: choose the matching repo-local skill under `.agents/skills`, such as `backend-dev-guidelines`, `frontend-browser-review`, `clickhouse-best-practices`, `add-model-price`, `turborepo`, `pnpm-upgrade-package`, or production-debug skills as applicable.
 - Cursor Cloud or Cursor desktop agents implementing a Linear issue, opening a PR, applying the `cursor` GitHub label, asking a human to test, or handling Claude, Greptile, or Codex review comments: use `cursor-agents-workflow`.
 - A change too large for one reviewable PR: split it into small stacked PRs rather than one wide PR.
 - "What should I do today", or preparing a weekly project update: use `linear-work-rhythm`.

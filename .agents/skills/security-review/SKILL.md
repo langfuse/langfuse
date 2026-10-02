@@ -95,8 +95,6 @@ Candidates for future references (do not add until a real finding recurs):
 
 ## Integration With Other Skills
 
-- The shared `code-review` skill should defer here for any change that matches
-  the triggers above; see [code-review/SKILL.md](../code-review/SKILL.md).
 - The shared `backend-dev-guidelines` skill should defer here when adding
   outbound HTTP, integration config, or URL-accepting procedures; see
   [backend-dev-guidelines/SKILL.md](../backend-dev-guidelines/SKILL.md).

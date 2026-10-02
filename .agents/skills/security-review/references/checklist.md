@@ -39,10 +39,6 @@ diff. Each bullet links to the topic reference that owns the detail.
   `createAuthedProjectAPIRoute` (or the equivalent organization variant) with
   the right scope?
 
-These are enforced today by the repo-wide review checklist in
-[../../code-review/references/review-checklist.md](../../code-review/references/review-checklist.md);
-restate them here so the security sweep stays self-contained.
-
 ## Secrets and Credentials
 
 - Are new secrets stored encrypted at rest (e.g. via `encrypt` / `decrypt`
