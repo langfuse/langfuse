@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import { useId, useState, type ReactNode } from "react";
 import { Plus, TriangleAlert } from "lucide-react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
@@ -23,11 +22,7 @@ import {
 } from "@/src/components/ui/popover";
 import { ScoreDataTypeEnum } from "@langfuse/shared";
 import { CategoryEditorPopover } from "./components/CategoryEditorPopover/CategoryEditorPopover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
 
 import {
@@ -311,9 +306,10 @@ export function ScoreOutputSection({
                       {choice.label.trim() || `Category ${index + 1}`}
                     </span>
                     {categoryWarnings[index] ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
+                      <Tooltip label={categoryWarnings[index]} delay={300}>
+                        {({ getTriggerProps }) => (
                           <span
+                            {...getTriggerProps()}
                             className="text-dark-yellow h-4 w-4 shrink-0"
                             aria-label={`Warning: ${categoryWarnings[index]}`}
                           >
@@ -322,10 +318,7 @@ export function ScoreOutputSection({
                               aria-hidden="true"
                             />
                           </span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {categoryWarnings[index]}
-                        </TooltipContent>
+                        )}
                       </Tooltip>
                     ) : null}
                     {!readOnly ? <DropdownIndicator /> : null}
