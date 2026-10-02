@@ -12,9 +12,9 @@ import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPag
 import { computeIdleGapSeconds } from "@/src/features/sessions/sessionIdleGap";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import {
-  ModernSessionSidebar,
-  type ModernSessionSidebarTrace,
-} from "@/src/features/sessions/ModernSessionSidebar";
+  SessionConversationSidebar,
+  type SessionConversationSidebarTrace,
+} from "@/src/features/sessions/SessionConversationSidebar/SessionConversationSidebar";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useSessionTraceTranscripts } from "./SessionConversationTimeline/useSessionTraceTranscripts";
 import { getSessionTranscriptRows } from "./SessionConversationTimeline/fns/getSessionTranscriptRows";
@@ -211,7 +211,7 @@ export function ConnectedModernSessionBodyTimeline({
     }
   }
 
-  const sidebarTraces: ModernSessionSidebarTrace[] = [];
+  const sidebarTraces: SessionConversationSidebarTrace[] = [];
   for (const [index, trace] of traces.entries()) {
     const transcript = resultsByTraceId.get(trace.id);
     const transcriptRows = (() => {
@@ -256,7 +256,6 @@ export function ConnectedModernSessionBodyTimeline({
       turnNumber: index + 1,
       idleGapSeconds:
         index === 0 ? null : computeIdleGapSeconds(traces[index - 1]!, trace),
-      contentType: "transcript",
       transcriptRows: matchingRows,
     });
   }
@@ -369,11 +368,10 @@ export function ConnectedModernSessionBodyTimeline({
   return (
     <div className="bg-background session-review-stack:grid-rows-[minmax(7rem,9rem)_minmax(0,1fr)] session-review-stack:gap-x-0 relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden @3xl/session-workspace:grid-cols-[clamp(200px,24cqw,296px)_minmax(0,1fr)] @3xl/session-workspace:grid-rows-1">
       {tracesState.type === "loading" ? (
-        <ModernSessionSidebar state="loading" />
+        <SessionConversationSidebar state="loading" />
       ) : (
-        <ModernSessionSidebar
+        <SessionConversationSidebar
           state="loaded"
-          contentType="transcript"
           traces={isSearchPending ? [] : sidebarTraces}
           activeTraceId={timelineController.activeTraceId ?? undefined}
           search={search}
@@ -382,15 +380,8 @@ export function ConnectedModernSessionBodyTimeline({
           onToggleTraceExpanded={toggleTraceExpanded}
           onSelect={handleSelect}
           onVisibleTraceIdsChange={handleVisibleTraceIdsChange}
-          hasMoreObservations={hasMoreObservations}
-          isLoadingMoreObservations={
-            isSearchPending || isLoadingMoreObservations || isLoadingTranscripts
-          }
-          observationLoadError={transcriptLoadError}
-          onLoadMoreObservations={loadMoreObservations}
-          onViewportUnderfilled={
-            searchQuery && !isSearchPending ? loadMoreObservations : undefined
-          }
+          isLoadingTranscripts={isSearchPending || isLoadingTranscripts}
+          transcriptLoadError={transcriptLoadError}
         />
       )}
       <div className="bg-card dark:bg-background session-review-stack:min-w-0 relative min-h-0 min-w-[320px]">

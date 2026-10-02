@@ -26,6 +26,8 @@ when no longer observed. Unfiltered observation queries supply action metadata;
 the transcript supplies the displayed messages and tools. Sidebar search matches
 message previews, roles, and tool names across the session.
 Observation filters and saved views apply only to the legacy session view.
+`SessionConversationSidebar` owns transcript navigation and search;
+`ModernSessionSidebar` remains the observation-based sidebar for the legacy view.
 
 `SessionConversationTimelineTrace` renders transcript content for every thread
 using the existing timeline message/part components. Current-turn times describe

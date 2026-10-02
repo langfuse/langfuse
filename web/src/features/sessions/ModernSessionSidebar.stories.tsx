@@ -185,7 +185,7 @@ const toSidebarTraces = (
     string,
     Array<{ id: string; name: string; type: string; latency: number | null }>
   >,
-): Exclude<ModernSessionSidebarTrace, { contentType: "transcript" }>[] =>
+): ModernSessionSidebarTrace[] =>
   sourceTraces.map((trace, index) => ({
     trace,
     turnNumber: index + 1,
@@ -284,13 +284,6 @@ function ModernSessionSidebarStory(
   const normalizedSearch = search.trim().toLowerCase();
   const visibleTraces = normalizedSearch
     ? args.traces.flatMap<ModernSessionSidebarTrace>((sidebarTrace) => {
-        if (sidebarTrace.contentType === "transcript") {
-          const transcriptRows = sidebarTrace.transcriptRows?.filter((row) =>
-            `${row.role} ${row.label}`.toLowerCase().includes(normalizedSearch),
-          );
-          if (transcriptRows?.length === 0) return [];
-          return [{ ...sidebarTrace, transcriptRows }];
-        }
         const matchingObservations = sidebarTrace.observations?.filter(
           (observation) =>
             (observation.name ?? "").toLowerCase().includes(normalizedSearch),
@@ -337,73 +330,6 @@ const meta = preview.meta({
 export default meta;
 
 export const Default = meta.story({ args: loadedArgs });
-
-export const TranscriptMessagesAndTools = meta.story({
-  name: "(Test) Transcript messages and tools",
-  args: {
-    ...loadedArgs,
-    contentType: "transcript",
-    filterControls: undefined,
-    onFilterObservationByName: undefined,
-    traces: [
-      {
-        trace: traces[0]!,
-        turnNumber: 1,
-        idleGapSeconds: null,
-        contentType: "transcript",
-        transcriptRows: [
-          {
-            id: "0:0",
-            observationId: "generation-1",
-            role: "system",
-            label: "You are a helpful assistant.",
-          },
-          {
-            id: "0:1",
-            observationId: "generation-1",
-            role: "user",
-            label: "How do I configure tracing?",
-          },
-          {
-            id: "0:2",
-            observationId: "generation-1",
-            role: "assistant",
-            label: "Let me check the documentation.",
-          },
-          {
-            id: "0:3",
-            observationId: "generation-1",
-            role: "tool",
-            label: "search_documentation",
-          },
-          {
-            id: "0:4",
-            observationId: "generation-1",
-            role: "assistant",
-            label: "Initialize the SDK to start tracing.",
-          },
-        ],
-      },
-    ],
-  },
-  play: async ({ canvasElement, args }) => {
-    assertLoadedArgs(args);
-    const canvas = within(canvasElement);
-    await expect(
-      canvas.queryByRole("button", { name: "Filter observations" }),
-    ).not.toBeInTheDocument();
-    await userEvent.click(
-      await canvas.findByRole("button", { name: "tool: search_documentation" }),
-    );
-    await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-1", "0:3");
-    await userEvent.click(
-      canvas.getByRole("button", {
-        name: "assistant: Initialize the SDK to start tracing.",
-      }),
-    );
-    await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-1", "0:4");
-  },
-});
 
 export const DarkMode = meta.story({
   args: {
