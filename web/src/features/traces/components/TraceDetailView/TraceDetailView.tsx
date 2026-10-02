@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /**
  * TraceDetailView - Shows trace-level details when no observation is selected
  */
@@ -21,12 +20,8 @@ import {
 } from "@/src/features/comments";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   HoverCard,
   HoverCardContent,
@@ -312,15 +307,17 @@ export function TraceDetailView({
                       )}
                       {showLogViewTab && (
                         <TabsBarTrigger value="log">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span>Log View</span>
-                            </TooltipTrigger>
-                            <TooltipContent className="text-xs">
-                              {isLogViewVirtualized
+                          <Tooltip
+                            label={
+                              isLogViewVirtualized
                                 ? `Shows all ${observations.length} observations with virtualization enabled.`
-                                : "Shows all observations concatenated. Great for quickly scanning through them."}
-                            </TooltipContent>
+                                : "Shows all observations concatenated. Great for quickly scanning through them."
+                            }
+                            delay={300}
+                          >
+                            {({ getTriggerProps }) => (
+                              <span {...getTriggerProps()}>Log View</span>
+                            )}
                           </Tooltip>
                         </TabsBarTrigger>
                       )}
