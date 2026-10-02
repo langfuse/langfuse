@@ -2,13 +2,17 @@
 // Langfuse Cloud only
 
 import { useMemo, useState } from "react";
+import { DownloadIcon } from "lucide-react";
 
 import { Card } from "@/src/components/ui/card";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { VerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
 import { USAGE_BREAKDOWN_MAX_RANGE_MS } from "@/src/ee/features/billing/constants";
 import { api } from "@/src/utils/api";
 import { numberFormatter } from "@/src/utils/numbers";
@@ -97,6 +101,36 @@ const toChartData = (breakdown: UsageBreakdown, groupBy: GroupBy) => {
   return { data, config, total };
 };
 
+/**
+ * One row per bucket, project and unit type, independent of the chart's
+ * grouping, so either view can be rebuilt offline with a pivot. Cells without
+ * usage are left out.
+ */
+const toCsvRows = (breakdown: UsageBreakdown) => {
+  const projectNames = new Map(
+    breakdown.projects.map((project) => [project.id, project.name]),
+  );
+  return breakdown.rows
+    .map((row) => ({
+      bucket_start_utc: row.bucket,
+      project_id: row.projectId,
+      project_name: projectNames.get(row.projectId) ?? "",
+      unit_type: row.unitType,
+      units: row.count,
+    }))
+    .sort(
+      (a, b) =>
+        a.bucket_start_utc.localeCompare(b.bucket_start_utc) ||
+        a.project_name.localeCompare(b.project_name) ||
+        a.unit_type.localeCompare(b.unit_type),
+    );
+};
+
+const toCsvFileName = (breakdown: UsageBreakdown, from: Date, to: Date) => {
+  const day = (date: Date) => date.toISOString().slice(0, 10);
+  return `usage-breakdown-${GRANULARITY_LABELS[breakdown.granularity]}-${day(from)}-to-${day(to)}`;
+};
+
 export const BillingUsageBreakdown = ({ orgId }: { orgId: string }) => {
   const [timeRange, setTimeRange] = useState<TimeRange>({
     range: "last30Days",
@@ -152,6 +186,28 @@ export const BillingUsageBreakdown = ({ orgId }: { orgId: string }) => {
             timeRangePresets={TIME_RANGE_PRESETS}
             maxRangeMs={USAGE_BREAKDOWN_MAX_RANGE_MS}
           />
+          <Tooltip label="Download as CSV">
+            {({ getTriggerProps }) => (
+              <IconButton
+                {...getTriggerProps()}
+                icon={DownloadIcon}
+                label="Download usage breakdown as CSV"
+                variant="outline"
+                disabled={!chart || chart.total === 0}
+                onClick={() => {
+                  if (!breakdown.data || !absoluteTimeRange) return;
+                  downloadChartDataCsv(
+                    toCsvRows(breakdown.data),
+                    toCsvFileName(
+                      breakdown.data,
+                      absoluteTimeRange.from,
+                      absoluteTimeRange.to,
+                    ),
+                  );
+                }}
+              />
+            )}
+          </Tooltip>
         </div>
       </div>
       <div className="h-80">
