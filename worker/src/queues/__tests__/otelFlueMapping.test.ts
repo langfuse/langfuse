@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 /**
  * Tests for mapping Flue (https://flueframework.com) OpenTelemetry spans to the
  * Langfuse data model.
@@ -22,9 +23,9 @@ function createNanoTimestamp(nanoTime: bigint): {
   high: number;
   unsigned: boolean;
 } {
-  const lowBits = BigInt.asUintN(32, nanoTime);
-  const high = Number((nanoTime - lowBits) / 2n ** 32n);
-  return { low: Number(lowBits), high, unsigned: true };
+  const low = Number(nanoTime & BigInt(0xffffffff));
+  const high = Number(nanoTime >> BigInt(32));
+  return { low, high, unsigned: true };
 }
 
 function createBufferId(hexString: string): { type: "Buffer"; data: number[] } {
