@@ -35,6 +35,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { Tooltip as DSTooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type RouterOutputs } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
@@ -145,18 +146,18 @@ function SessionTimelineMarkerIcon({
   label: string;
 }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <DSTooltip label={label}>
+      {({ getTriggerProps }) => (
         <span
+          {...getTriggerProps()}
           className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
           role="img"
           aria-label={label}
         >
           <Icon className="h-3 w-3" aria-hidden="true" />
         </span>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
+      )}
+    </DSTooltip>
   );
 }
 
