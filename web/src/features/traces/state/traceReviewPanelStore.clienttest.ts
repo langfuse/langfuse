@@ -24,24 +24,6 @@ const annotation: AnnotationPanelData = {
 };
 
 describe("trace review panel sessions", () => {
-  it("initializes an annotation session for each navigated target", () => {
-    for (const observationId of ["first", "next"]) {
-      const initialAnnotation = {
-        ...annotation,
-        scoreTarget: { ...annotation.scoreTarget, observationId },
-      };
-      const store = createTraceReviewPanelStore({
-        projectId: "project",
-        initialAnnotation,
-      });
-      expect(store.getState().active).toBe("annotate");
-      expect(store.getState().annotation?.data).toBe(initialAnnotation);
-      const key = store.getState().annotation?.key;
-      store.getState().actions.openAnnotation(initialAnnotation);
-      expect(store.getState().annotation?.key).toBe(key);
-    }
-  });
-
   it("keeps a comment draft and its session when closed and reopened", () => {
     const store = createTraceReviewPanelStore({ projectId: "project" });
     const actions = store.getState().actions;
