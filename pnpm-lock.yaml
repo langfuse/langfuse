@@ -826,8 +826,8 @@ importers:
         specifier: 9.3.3
         version: 9.3.3
       piscina:
-        specifier: 5.3.0
-        version: 5.3.0
+        specifier: 5.3.2
+        version: 5.3.2
       posthog-js:
         specifier: ^1.417.1
         version: 1.417.1(preact-render-to-string@5.2.6)
@@ -10808,8 +10808,8 @@ packages:
     resolution: {integrity: sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==}
     engines: {node: '>=12'}
 
-  piscina@5.3.0:
-    resolution: {integrity: sha512-9D3tPBayfoal6l9l4Y8NrMn1jkV718qJoYrla6P51+hh9h0Q+9/1c8KgEnoBQqhguyfgjay4biADI8HJG3pkoA==}
+  piscina@5.3.2:
+    resolution: {integrity: sha512-vv7l/mM7B9WgrhDaudIqv1x6v4LOBRYYmpWGdWushhpbCmVHp11sUB2v4hj1CAeTGXVxuZFz6xOU1RalAiPKfQ==}
     engines: {node: '>=20.x'}
 
   pkce-challenge@5.0.1:
@@ -23435,7 +23435,7 @@ snapshots:
 
   picomatch@4.0.5: {}
 
-  piscina@5.3.0:
+  piscina@5.3.2:
     optionalDependencies:
       '@napi-rs/nice': 1.1.1
 
