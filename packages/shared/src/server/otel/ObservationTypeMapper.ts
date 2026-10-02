@@ -454,10 +454,15 @@ export class ObservationTypeMapperRegistry {
       },
     ),
 
-    // Priority 10: Model-based fallback
+    // Priority 10: Mastra span type
+    new SimpleAttributeMapper("Mastra", 10, "mastra.span.type", {
+      model_step: "GENERATION",
+    }),
+
+    // Priority 11: Model-based fallback
     new CustomAttributeMapper(
       "ModelBased",
-      10,
+      11,
       (attributes, _resourceAttributes, _scopeData) => {
         const modelKeys = [
           LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
