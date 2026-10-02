@@ -160,11 +160,13 @@ export function useEventsTraceData(
     },
   );
 
-  // Step 4: Fetch scores for the trace
+  // Step 4: Fetch scores for the trace. Wait until observations exist — the
+  // events auth middleware 404s missing traces, and a parallel scores fetch
+  // would toast "Trace not found" during arrival retries.
   const scoresQuery = api.events.scoresForTrace.useQuery(
     { traceId, projectId, timestamp: props.timestamp },
     {
-      enabled: enabled && !!traceId,
+      enabled: enabled && !!traceId && (observations?.length ?? 0) > 0,
       staleTime: 60 * 1000,
     },
   );
