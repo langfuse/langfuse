@@ -28,20 +28,26 @@ export type ChColumnType =
   | "String"
   | "Float"
   | "DateTime"
+  | "UInt8"
   | "Array(String)"
-  | "Map(String, Float)";
+  | "Map(String, Float)"
+  | "Map(String, String)";
 
 type TsTypeOfColumn<T extends ChColumnType> = T extends "String"
   ? string
   : T extends "Float"
     ? number
-    : T extends "DateTime"
-      ? Date
-      : T extends "Array(String)"
-        ? string[]
-        : T extends "Map(String, Float)"
-          ? Record<string, number>
-          : never;
+    : T extends "UInt8"
+      ? number
+      : T extends "DateTime"
+        ? Date
+        : T extends "Array(String)"
+          ? string[]
+          : T extends "Map(String, Float)"
+            ? Record<string, number>
+            : T extends "Map(String, String)"
+              ? Record<string, string>
+              : never;
 
 /** Coarse runtime category the aggregate type-check pass reasons about. */
 export type ColumnDataType = "string" | "number" | "date" | "array" | "map";
@@ -49,9 +55,11 @@ export type ColumnDataType = "string" | "number" | "date" | "array" | "map";
 const RUNTIME_TYPE: Record<ChColumnType, ColumnDataType> = {
   String: "string",
   Float: "number",
+  UInt8: "number",
   DateTime: "date",
   "Array(String)": "array",
   "Map(String, Float)": "map",
+  "Map(String, String)": "map",
 };
 
 /**
@@ -123,6 +131,9 @@ const TABLE_REGISTRY = {
       event_ts: "DateTime",
       type: "String",
       total_cost: "Float",
+      experiment_id: "String",
+      prompt_id: "String",
+      is_deleted: "UInt8",
       metadata_names: "Array(String)",
       metadata_values: "Array(String)",
     },
@@ -131,10 +142,29 @@ const TABLE_REGISTRY = {
   }),
   scores: defineTable({
     columns: {
+      id: "String",
       environment: "String",
       project_id: "String",
       timestamp: "DateTime",
+      event_ts: "DateTime",
+      created_at: "DateTime",
+      updated_at: "DateTime",
       data_type: "String",
+      trace_id: "String",
+      session_id: "String",
+      observation_id: "String",
+      dataset_run_id: "String",
+      name: "String",
+      value: "Float",
+      source: "String",
+      comment: "String",
+      author_user_id: "String",
+      config_id: "String",
+      string_value: "String",
+      queue_id: "String",
+      execution_trace_id: "String",
+      is_deleted: "UInt8",
+      metadata: "Map(String, String)",
     },
   }),
 } as const;
@@ -188,9 +218,11 @@ export const DEDUP_SPECS: Record<string, DedupSpec> = Object.fromEntries(
 const BIND_TYPE: Record<ChColumnType, string> = {
   String: "String",
   Float: "Float64",
+  UInt8: "UInt8",
   DateTime: "DateTime64(3)",
   "Array(String)": "Array(String)",
   "Map(String, Float)": "Map(String, Float64)",
+  "Map(String, String)": "Map(String, String)",
 };
 
 export const COLUMN_BIND_TYPES: Record<string, string> = Object.fromEntries(

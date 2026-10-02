@@ -8,10 +8,10 @@ metadata, `FilterState` embedding) will land under
 `packages/shared/src/query-ast/`.
 
 This folder is a compile-only ClickHouse dialect on Kysely 0.28: real
-`OperationNode`s for ARRAY JOIN, LIMIT BY, and metadata `indexOf` subscripts; a
-mandatory tenancy injection pass keyed on `ExecutionContext`; per-table dedup
-lowering from the registry; schema-typed selection; virtual views as WITH CTEs;
-catalog parity.
+`OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata `indexOf`
+subscripts; a mandatory tenancy injection pass keyed on `ExecutionContext`;
+per-table dedup lowering from the registry; schema-typed selection; virtual
+views as WITH CTEs; catalog parity.
 
 Two audiences: **[Using it](#using-it)** if you are calling the compiler from a
 repository, **[Developing the dialect](#developing-the-dialect)** if you are
@@ -29,7 +29,7 @@ changing how it emits SQL.
   of hand-maintained tables that drift.
 - `compiler.ts` / `transformer.ts` / `dialect.ts` / `nodes.ts` — the dialect.
 - `extensions.ts` — the `$call` helpers: `arrayJoin`, `mapKeys`, `mapValues`,
-  `limitBy`, `metadataValue`.
+  `limitBy`, `useFinal`, `metadataValue`.
 - `catalog.ts` / `views.ts` / `dedup.ts` — catalog, virtual views as CTEs, and
   per-table dedup lowering.
 - `catalog.golden.test.ts` — catalog SQL baselines.
@@ -38,7 +38,8 @@ The golden-SQL harness lives in `../repositories/goldenHarness.ts` (it captures
 SQL at the `repositories/clickhouse.ts` exec seam in test mode, then normalizes
 it via `clickhouse format` + positional param names for snapshot comparison — no
 ClickHouse server needed). Each migrated call site keeps its SQL baseline next to
-that call site, e.g. `../repositories/environments.golden.test.ts` and
+that call site, e.g. `../repositories/environments.golden.test.ts`,
+`../repositories/scores.golden.test.ts`, and
 `../queries/clickhouse-sql/event-filter-options.golden.test.ts`.
 
 Regenerate baselines with `-u` after an intentional SQL change. Filter by the
@@ -81,7 +82,8 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `events_core` is `none` (immutable at read time — no LIMIT BY, no FINAL).
   `limitBy` is the legacy `ORDER BY <version> DESC LIMIT 1 BY <key>` already
   used on traces / observations / scores. `$call(limitBy(...))` remains for
-  explicit non-version LIMIT BY.
+  explicit non-version LIMIT BY. Auto-lowering does not declare scores as
+  `{ strategy: "final" }`; callers opt in with `$call(useFinal(["scores"]))`.
 - **Value binds take their ClickHouse type from the compared column** in the
   table registry (`total_cost > 1` emits `{p:Float64}`, not inferred
   `{p:Int64}`). Same-value binds still intern to one placeholder.
@@ -115,6 +117,15 @@ db.selectFrom("events_core")
 // … order by event_ts desc limit 1 by span_id, project_id
 ```
 
+**Write FINAL** (`useFinal` — ReplacingMergeTree reads; never on `events_core`):
+
+```ts
+db.selectFrom("scores as s")
+  .select("s.id")
+  .$call(useFinal(["scores"]));
+// … from scores as s final
+```
+
 **Select a metadata value** (`metadataValue` — lowers `metadata[key]` to a bound `indexOf` subscript):
 
 ```ts
@@ -140,6 +151,7 @@ preserve it:
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
 | ARRAY JOIN         | Plugin attaches `ArrayJoinNode` as an extra field on `SelectQueryNode`. `ClickHouseOperationNodeTransformer` preserves it. `ClickHouseQueryCompiler.visitSelectQuery` emits it after JOINs / before WHERE. | no    |
 | LIMIT BY           | Plugin attaches `LimitByNode` the same way. Compiler emits it after ORDER BY / before LIMIT.                                                                                                               | no    |
+| FINAL              | Plugin wraps a FROM/JOIN table expression in `FinalTableNode`. Compiler emits `final` after that expression (`scores as s final`). `$call(useFinal(["scores"]))`. Tables declared `dedup: none` throw.     | no    |
 | metadata `indexOf` | Helper builds an `ArrayIndexNode` whose index child is a `FunctionNode` (`indexOf`) over a bound `ValueNode` key. Transformer + compiler special-case the node. No plugin.                                 | no    |
 | Virtual view       | Plugin rewrites `selectFrom(viewName)` into a WITH CTE. Outer types only expose the view's selected columns.                                                                                               | no    |
 
@@ -178,8 +190,8 @@ is where tenancy is enforced:
    (`none` / `limitBy` / `final`). `events_core` is `none` — immutable at
    read time, so the pass does not inject LIMIT BY or FINAL. `limitBy` is
    the existing legacy `ORDER BY <version> DESC LIMIT 1 BY <key>`.
-   `final` is fail-closed until an emitter exists. The pass restamps the
-   rewritten root.
+   `final` remains fail-closed on the auto-lowering pass; callers opt in
+   with `$call(useFinal(["scores"]))`. The pass restamps the rewritten root.
 4. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is
    present, so `qb.compile()` without the plugin also fails. Value binds take
    their ClickHouse type from the compared column's registry entry when one is
@@ -199,7 +211,8 @@ callbacks hand you. Getting that requires either forking Kysely's whole builder
 graph or globally mutating its prototype via an internal `kysely/dist/...`
 import (blocked here by Kysely's `exports` map under NodeNext). A curried helper
 is a plain function of a builder, so it works in any of those positions — which
-is exactly why ARRAY JOIN / LIMIT BY compose inside CTEs, subqueries, and views.
+is exactly why ARRAY JOIN / LIMIT BY / FINAL compose inside CTEs, subqueries,
+and views.
 `composition.test.ts` locks that property in.
 
 **`arrayJoin` widens the row type.** Each `{ alias: arrayExpr }` entry is added
@@ -230,16 +243,17 @@ is just `eb.fn("arrayJoin", [...])`.
 ### The one Kysely-internals coupling (upgrade hazard)
 
 `compiler.ts` wraps Kysely's **private** `visitNode` / `nodeStack` to dispatch
-`ArrayIndexNode` (for `metadata[key]`), because it is not one of Kysely's closed
-`OperationNode` kinds. Kysely is pinned to **0.28.17** for this reason. Re-verify
-this hack on any Kysely bump; it is the single place that reaches past Kysely's
-documented surface. Everything else (plugins, dialect, transformer overrides)
-uses public or documented-protected API.
+`ArrayIndexNode` (for `metadata[key]`) and `FinalTableNode` (for `FINAL`),
+because they are not Kysely's closed `OperationNode` kinds. Kysely is pinned
+to **0.28.17** for this reason. Re-verify this hack on any Kysely bump; it is
+the single place that reaches past Kysely's documented surface. Everything
+else (plugins, dialect, transformer overrides) uses public or
+documented-protected API.
 
 ### Types are asserted at compile time
 
 `types.assert.ts` holds `tsc`-only assertions (schema typing, view opacity,
-arrayJoin widening, limitBy preservation). It is never run; `schema.test.ts`
+arrayJoin widening, limitBy / useFinal preservation). It is never run; `schema.test.ts`
 anchors it so it stays in the build graph. `@ts-expect-error` lines there must
 stay live.
 
