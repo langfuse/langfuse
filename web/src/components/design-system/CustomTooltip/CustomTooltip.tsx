@@ -8,27 +8,33 @@ import {
   safePolygon,
   shift,
   useDismiss,
+  useClick,
   useFloating,
   useFocus,
   useHover,
   useInteractions,
+  useMergeRefs,
   useRole,
   type Placement,
 } from "@floating-ui/react";
 import * as React from "react";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { cn } from "@/src/utils/tailwind";
 
 type CustomTooltipProps = {
   children: (controls: {
-    getTriggerProps: () => ReturnType<
-      ReturnType<typeof useInteractions>["getReferenceProps"]
-    >;
+    getTriggerProps: (
+      props?: React.HTMLProps<HTMLElement>,
+    ) => ReturnType<ReturnType<typeof useInteractions>["getReferenceProps"]>;
   }) => React.ReactNode;
   content: React.ReactElement;
   delay?: number;
   hoverableContent?: boolean;
   placement?: Placement;
+  activation?: "hover" | "hover-and-click";
+  size?: "default" | "wide";
+  triggerRef?: React.Ref<HTMLElement>;
 };
 
 function CustomTooltip({
@@ -37,6 +43,9 @@ function CustomTooltip({
   delay = 700,
   hoverableContent = true,
   placement = "top",
+  activation = "hover",
+  size = "default",
+  triggerRef,
 }: CustomTooltipProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const layerContainer = useLayerContainer("tooltip");
@@ -54,28 +63,37 @@ function CustomTooltip({
     handleClose: hoverableContent ? safePolygon() : undefined,
   });
   const focus = useFocus(context);
+  const click = useClick(context, {
+    enabled: activation === "hover-and-click",
+  });
   const dismiss = useDismiss(context);
   const role = useRole(context, { role: "tooltip" });
   const { getFloatingProps, getReferenceProps } = useInteractions([
     hover,
     focus,
+    click,
     dismiss,
     role,
   ]);
+  const referenceRef = useMergeRefs([refs.setReference, triggerRef]);
 
   return (
     <>
       {children({
-        getTriggerProps: () =>
+        getTriggerProps: (props) =>
           getReferenceProps({
-            ref: refs.setReference,
+            ...props,
+            ref: referenceRef,
           }),
       })}
       {isOpen ? (
         <FloatingPortal root={layerContainer}>
           <div
             ref={refs.setFloating}
-            className="bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 max-w-xs overflow-hidden rounded-md border px-3 py-1.5 text-sm shadow-md"
+            className={cn(
+              "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 overflow-hidden rounded-md border px-3 py-1.5 text-sm shadow-md",
+              size === "wide" ? "max-w-[calc(100vw-2rem)]" : "max-w-xs",
+            )}
             style={floatingStyles}
             {...getFloatingProps()}
           >
