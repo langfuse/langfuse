@@ -123,6 +123,7 @@ export async function upsertBlobStorageIntegration(params: {
       where: { projectId },
       // createdAt/exportSource feed the post-upsert backstop below.
       select: {
+        enabled: true,
         exportMode: true,
         lastError: true,
         runStartedAt: true,
@@ -143,6 +144,7 @@ export async function upsertBlobStorageIntegration(params: {
     }
 
     const modeChanged = existing && existing.exportMode !== data.exportMode;
+    const reEnabled = data.enabled && !existing?.enabled;
     const encryptedSecret = secretAccessKey ? encrypt(secretAccessKey) : null;
 
     // The CREATE payload always carries a concrete source, resolved by the
@@ -181,6 +183,9 @@ export async function upsertBlobStorageIntegration(params: {
         // start-date logic takes effect instead of continuing from the
         // previous mode's lastSyncAt.
         ...(modeChanged ? { lastSyncAt: null, nextSyncAt: new Date() } : {}),
+        // Both restart the export from history; the worker clears the flag
+        // once it reaches the live tail. CREATE gets it from the column default.
+        ...(modeChanged || reEnabled ? { backfill: true } : {}),
         // Saving enabled resets the failure-notification cooldown: the
         // customer just acted, so a fresh failure should email promptly.
         ...(data.enabled ? { lastFailureNotificationSentAt: null } : {}),
