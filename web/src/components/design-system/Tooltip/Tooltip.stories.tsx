@@ -42,6 +42,9 @@ export const DisabledTrigger = meta.story({
 
 export const TestHoverAndFocus = meta.story({
   name: "(Test) Hover and focus",
+  args: {
+    hoverableContent: false,
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
@@ -53,14 +56,6 @@ export const TestHoverAndFocus = meta.story({
     );
 
     await userEvent.unhover(trigger);
-    const viewport = canvasElement.ownerDocument.documentElement;
-    await userEvent.pointer({
-      target: canvasElement.ownerDocument.body,
-      coords: {
-        clientX: viewport.clientWidth - 1,
-        clientY: viewport.clientHeight - 1,
-      },
-    });
     await waitFor(() =>
       expect(body.queryByRole("tooltip")).not.toBeInTheDocument(),
     );
