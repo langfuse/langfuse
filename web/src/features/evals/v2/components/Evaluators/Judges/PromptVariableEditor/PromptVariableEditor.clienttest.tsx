@@ -1,9 +1,41 @@
 /* eslint-disable @repo/prefer-stories-over-client-tests */
 import { fireEvent, render, waitFor } from "@testing-library/react";
+import { INVALID_PROMPT_VARIABLE_NAME_MESSAGE } from "@langfuse/shared";
 
 import { PromptVariableEditor } from "./PromptVariableEditor";
 
 describe("PromptVariableEditor", () => {
+  it("accepts numeric-leading variables and reports invalid names consistently", async () => {
+    const { container, rerender } = render(
+      <PromptVariableEditor
+        value="{{1st_question}}"
+        onChange={vi.fn()}
+        validateVariableMappings={false}
+      />,
+    );
+
+    await waitFor(() => {
+      const variable = container.querySelector(".cm-eval-variable");
+      expect(variable).not.toBeNull();
+      expect(variable).not.toHaveClass("cm-eval-variable-invalid");
+    });
+
+    rerender(
+      <PromptVariableEditor
+        value="{{_question}}"
+        onChange={vi.fn()}
+        validateVariableMappings={false}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector(".cm-eval-variable-invalid")).toHaveAttribute(
+        "title",
+        INVALID_PROMPT_VARIABLE_NAME_MESSAGE,
+      );
+    });
+  });
+
   it("opens the search panel above the prompt editor", async () => {
     const { container } = render(
       <PromptVariableEditor

@@ -284,8 +284,9 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               Define your prompt template. You can use{" "}
               <code className="text-xs">{"{{variable}}"}</code> to insert
               variables into your prompt.
-              <b className="font-bold"> Note:</b> Variables must be alphabetical
-              characters or underscores. You can also link other text prompts
+              <b className="font-bold"> Note:</b> Variable names must start with
+              a letter or number and can only contain letters, numbers, or
+              underscores. You can also link other text prompts
               using the plus button.
             </FormDescription>
             <Tabs

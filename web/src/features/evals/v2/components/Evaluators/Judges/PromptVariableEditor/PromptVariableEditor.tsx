@@ -13,7 +13,11 @@ import { Prec } from "@codemirror/state";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { cn } from "@/src/utils/tailwind";
-import { isValidVariableName, MUSTACHE_REGEX } from "@langfuse/shared";
+import {
+  INVALID_PROMPT_VARIABLE_NAME_MESSAGE,
+  isValidVariableName,
+  MUSTACHE_REGEX,
+} from "@langfuse/shared";
 import { truncateEnd } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
 
 export type InterpolatedPromptPreviewState =
@@ -75,8 +79,7 @@ function createVariableHighlighter(
       const status = !hasValidName
         ? {
             status: "invalid" as const,
-            message:
-              "Variable must start with a letter and can only contain letters and underscores",
+            message: INVALID_PROMPT_VARIABLE_NAME_MESSAGE,
           }
         : (getStatus(match[1]) ??
           (mappingLabel
