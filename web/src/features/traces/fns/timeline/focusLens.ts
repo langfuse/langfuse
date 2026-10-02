@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 /**
  * A focus+context lens over a list of rows — GROUNDWORK, not in use.
  *
@@ -125,7 +126,7 @@ export function rowIndexAtY(
   let low = 0;
   let high = rows.length - 1;
   while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
+    const mid = (low + high) >> 1;
     const row = rows[mid]!;
     if (target < row.y) high = mid - 1;
     else if (target >= row.y + row.height) low = mid + 1;
