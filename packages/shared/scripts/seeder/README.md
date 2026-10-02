@@ -65,7 +65,7 @@ two `long-session` runs sharing a `--session-id` with different
 
 ## Topics
 
-After [local setup](../topics-dev-tables/README.md#local-development), seed either fixture:
+After applying the normal Postgres and ClickHouse migrations, seed either fixture:
 
 ```bash
 pnpm run seed -- topics

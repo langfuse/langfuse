@@ -29,10 +29,6 @@ import { DateRangeInput } from "@/src/features/evals/v2/components/Evaluators/Ev
 import { parseTraceInput } from "./parse-trace-input";
 
 type PreviewInput = RouterInputs["topics"]["previewTraces"];
-export type TopicTraceCriteria = Pick<
-  PreviewInput,
-  "filter" | "sampling" | "limit"
->;
 type TracePreview = RouterOutputs["topics"]["previewTraces"]["traces"][number];
 type TopicTraceSelection = { count: number } & (
   | { traceIds: string[] }
@@ -467,10 +463,8 @@ export function useTopicTraceSelector({
       },
     };
   }
-  const criteria: TopicTraceCriteria | null =
-    mode === "filters" && validLimit
-      ? { filter, sampling, limit: sample ? Number(limit) : null }
-      : null;
+  const criteria: FilterState | null =
+    mode === "filters" && validLimit ? filter : null;
   return {
     selection,
     criteria,

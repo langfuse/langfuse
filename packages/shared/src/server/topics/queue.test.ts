@@ -592,26 +592,4 @@ describe("Topics embedding queue handoff", () => {
     ).rejects.toThrow("scope mismatch");
     expect(retry).not.toHaveBeenCalled();
   });
-
-  it("resumes a persisted embedding batch containing legacy summary IDs", async () => {
-    const getState = vi.fn().mockResolvedValue("completed");
-    vi.spyOn(TopicsEmbeddingQueue, "getInstance").mockReturnValue({
-      getJob: vi.fn(async () => ({
-        data: {
-          payload: {
-            ...batch,
-            summaries: batch.summaries.map((ref) => ({
-              ...ref,
-              summaryId: "legacy-summary-hash",
-            })),
-          },
-        },
-        getState,
-      })),
-    } as unknown as NonNullable<
-      ReturnType<typeof TopicsEmbeddingQueue.getInstance>
-    >);
-    await expect(enqueueTopicEmbeddingBatch(batch)).resolves.toBe("complete");
-    expect(getState).toHaveBeenCalledOnce();
-  });
 });

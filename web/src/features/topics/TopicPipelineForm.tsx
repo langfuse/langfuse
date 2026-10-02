@@ -23,10 +23,7 @@ import {
   type TopicOperation,
   type TopicTimeRange,
 } from "@langfuse/shared/topics";
-import {
-  useTopicTraceSelector,
-  type TopicTraceCriteria,
-} from "./TopicTraceSelector";
+import { useTopicTraceSelector } from "./TopicTraceSelector";
 
 export function useTopicPipelineForm({
   projectId,
@@ -120,10 +117,10 @@ export function useTopicPipelineForm({
       version: choice.version.version,
     }));
   const activeFacetIds = selectedFacets.map(({ facetId }) => facetId);
-  const matchesRule = (criteria: TopicTraceCriteria | null) =>
+  const matchesRule =
     selectedRule &&
     criteria &&
-    JSON.stringify(criteria.filter) === JSON.stringify(selectedRule.filter) &&
+    JSON.stringify(criteria) === JSON.stringify(selectedRule.filter) &&
     activeFacetIds.length === selectedRule.facetIds.length &&
     activeFacetIds.every((id) => selectedRule.facetIds.includes(id));
   const summaryCounts = api.topics.summaryCounts.useQuery(
@@ -196,9 +193,7 @@ export function useTopicPipelineForm({
           operation,
           reuseExistingSummaries,
           ...traceInput,
-          ...(selectedRule && matchesRule(criteria)
-            ? { ruleId: selectedRule.id }
-            : {}),
+          ...(selectedRule && matchesRule ? { ruleId: selectedRule.id } : {}),
         };
       })();
       const key = JSON.stringify(values);
@@ -420,7 +415,7 @@ export function useTopicPipelineForm({
                         projectId,
                         ...(selectedRule ? { id: selectedRule.id } : {}),
                         name: ruleName,
-                        filter: criteria.filter,
+                        filter: criteria,
                         facetIds: activeFacetIds,
                       })
                     }
@@ -429,7 +424,7 @@ export function useTopicPipelineForm({
                 <p className="text-muted-foreground text-xs">
                   Rules save filters and selected facets. Choose the time range,
                   sampling and summary reuse for each run.
-                  {selectedRule && !matchesRule(criteria)
+                  {selectedRule && !matchesRule
                     ? " Unsaved changes apply only to this run until you update the rule."
                     : ""}
                 </p>

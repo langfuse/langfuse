@@ -28,11 +28,10 @@ it does not change automatic scheduling or trace-batch admission.
 ## Setup
 
 Use the normal local Postgres, ClickHouse, Redis, web, and worker stack. Apply the
-repository's database migrations and regenerate/build shared before starting the
-worker. Provision the Topics ClickHouse tables with
-`pnpm run topics:dev-tables --apply`. Once they exist, set `LANGFUSE_TOPICS_ENABLED=true` on both
+repository's Postgres and ClickHouse migrations and regenerate/build shared before
+starting the worker. Set `LANGFUSE_TOPICS_ENABLED=true` on both
 web and worker. It defaults to false: Topics routes, effective session flags,
-queues and Topics cleanup are disabled, so the tables may be absent.
+queues and Topics cleanup are disabled.
 Set `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS=project-a,project-b` on both services to
 allow processing for those project IDs. An unset or empty list admits no projects;
 IDs are comma-separated and whitespace is trimmed. Keep the deployment enabled
@@ -221,10 +220,6 @@ Processing and fitting use separate `topics` and `topics-update` queues with one
 coordinator slot each. `topics-embedding` has two slots and receives reference-only
 batches of up to 100 traces across facets. This internal batch size is not a
 selected-trace cap.
-
-Deploy coordinator and embedding consumers together for the source-reference
-queue contract. New consumers can resume queued work carrying legacy summary
-hashes; older consumers require those fields and cannot consume new references.
 
 1. Summarization stages accepted results in Redis with a fixed deadline:
    `LANGFUSE_TOPICS_REDIS_TTL_SECONDS` defaults to three hours. Retries never extend it.
@@ -474,8 +469,8 @@ vector behavior. Rust tests cover deterministic fitting and validation. Neither
 command calls a paid model.
 
 `storage.integration.test.ts` checks exact definition roundtrips against real
-ClickHouse, including Float64 values affected by decimal parsing. It requires
-the Topics tables (`pnpm run topics:dev-tables clickhouse --apply`).
+ClickHouse, including Float64 values affected by decimal parsing. Apply the normal
+Postgres and ClickHouse migrations before running it.
 
 ## Default facet extraction
 

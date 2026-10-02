@@ -15,7 +15,6 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   ensureDefaultTopicFacets: (...args: unknown[]) => state.facets(...args),
   listTopicSummaries: (...args: unknown[]) => state.stored(...args),
   writeTopicSummaries: (...args: unknown[]) => state.write(...args),
-  topicSummaryId: () => "summary-1",
   TOPICS_TRANSCRIPT_VERSION: "shared-transcript-v2",
 }));
 vi.mock("./models", () => ({

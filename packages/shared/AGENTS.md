@@ -170,9 +170,6 @@ the same PR.
 - Build: `pnpm --filter @langfuse/shared run build`
 - Prisma generate: `pnpm --filter @langfuse/shared run db:generate`
 - Prisma migrate (dev): `pnpm --filter @langfuse/shared run db:migrate`
-- Topics ClickHouse preflight: `pnpm run topics:dev-tables`; add `--apply` to create.
-  Postgres uses normal migrations. For ClickHouse deployment targeting, see
-  `scripts/topics-dev-tables/README.md`.
 - ClickHouse reset: `pnpm --filter @langfuse/shared run ch:reset`
 - Materialize direct-migration trees: `pnpm ch:migrations:materialize`
 - Clean direct-migration trees: `pnpm ch:migrations:clean`

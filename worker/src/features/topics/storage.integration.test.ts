@@ -240,6 +240,7 @@ describe("Topics eval-backed configuration", () => {
 
 describe("Topics definition persistence", () => {
   const projectId = randomUUID();
+  const otherProjectId = randomUUID();
 
   afterAll(async () => {
     for (const table of [
@@ -248,8 +249,8 @@ describe("Topics definition persistence", () => {
       "topic_assignments",
     ])
       await clickhouseClient().command({
-        query: `DELETE FROM ${table} WHERE project_id = {projectId:String}`,
-        query_params: { projectId },
+        query: `DELETE FROM ${table} WHERE project_id IN {projectIds:Array(String)}`,
+        query_params: { projectIds: [projectId, otherProjectId] },
         clickhouse_settings: { mutations_sync: "1" },
       });
   });
@@ -279,15 +280,13 @@ describe("Topics definition persistence", () => {
       processedAt: "2026-09-01T00:00:00.000Z",
       metadata: {},
     };
-    await writeTopicSummaries([
-      summary,
-      {
-        ...summary,
-        summary: "latest",
-        sessionId: "parent-session",
-        processedAt: "2026-10-01T00:00:00.000Z",
-      },
-    ]);
+    const latest = {
+      ...summary,
+      summary: "latest",
+      sessionId: "parent-session",
+      processedAt: "2026-10-01T00:00:00.000Z",
+    };
+    await writeTopicSummaries([summary, latest]);
     const assignment: TopicAssignment = {
       projectId,
       facetId: summary.facetId,
@@ -390,6 +389,19 @@ describe("Topics definition persistence", () => {
       from: oldRange.to,
       to: new Date("2026-10-01T00:00:00.000Z"),
     };
+    await writeTopicSummaries([
+      {
+        ...latest,
+        projectId: otherProjectId,
+        processedAt: "2026-10-04T00:00:00.000Z",
+      },
+      { ...latest, facetId: "other-facet", facetVersion: 2 },
+    ]);
+    for (const version of [1, undefined])
+      expect(
+        await getLatestFacetSummaries(projectId, "facet", version, oldRange),
+      ).toEqual([latest]);
+
     const moved: TopicSummary = {
       ...summary,
       unitStartTime: "2026-09-01T00:00:00.000Z",
@@ -417,9 +429,15 @@ describe("Topics definition persistence", () => {
       ]),
     ).toEqual([[], [], [], [{ facetId: "facet", facetVersion: 1, count: 0 }]]);
 
-    await writeTopicSummaries([
-      { ...summary, facetVersion: 2, processedAt: "2026-10-03T00:00:00.000Z" },
-    ]);
+    const newerVersion = {
+      ...summary,
+      facetVersion: 2,
+      processedAt: "2026-09-30T00:00:00.000Z",
+    };
+    await writeTopicSummaries([newerVersion]);
+    expect(
+      await getLatestFacetSummaries(projectId, "facet", undefined, oldRange),
+    ).toEqual([newerVersion]);
     expect(
       await getLatestFacetSummaries(projectId, "facet", undefined, newRange),
     ).toEqual([]);

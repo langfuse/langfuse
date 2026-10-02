@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { stableJsonStringify } from "@langfuse/shared";
 import type { Transcript } from "@langfuse/shared/src/server";
 import type {
@@ -106,7 +105,6 @@ export function prepareAssembledTopicTranscript(
   transcript: Transcript | null,
 ): {
   text: string;
-  inputHash: string;
   hasContent: boolean;
 } {
   let hasContent = false;
@@ -125,7 +123,6 @@ export function prepareAssembledTopicTranscript(
   });
   return {
     text,
-    inputHash: createHash("sha256").update(text).digest("hex"),
     hasContent,
   };
 }

@@ -94,7 +94,6 @@ function acceptedState(): TopicProcessBatchState {
     },
     summaries: [
       {
-        summaryId: "summary",
         facetId: "facet",
         facetVersion: 1,
         traceId: "trace",

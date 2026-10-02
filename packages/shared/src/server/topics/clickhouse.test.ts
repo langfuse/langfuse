@@ -366,41 +366,6 @@ describe("Topics summary storage", () => {
     }
   });
 
-  it("selects the latest result per trace within its project and facet version", async () => {
-    await getLatestFacetSummaries("project-a", "facet-a", 1, timeRange);
-    const { query, params } = mocks.query.mock.calls[0][0];
-    expect(params).toEqual({
-      from: timeRange.from.toISOString(),
-      to: timeRange.to.toISOString(),
-      projectId: "project-a",
-      facetId: "facet-a",
-      facetVersion: 1,
-    });
-    expect(query).toContain("project_id = {projectId:String}");
-    expect(query).toContain("facet_id = {facetId:String}");
-    expect(query).toContain("facet_version = {facetVersion:UInt32}");
-    expect(query).toContain(
-      "LIMIT 1 BY project_id, facet_id, facet_version, trace_id, if(trace_id = '', session_id, '')",
-    );
-    expect(query).toContain("ORDER BY processed_at DESC");
-  });
-
-  it("resolves current state from the newest processed facet version per source", async () => {
-    await getLatestFacetSummaries("project-a", "facet-a", undefined, timeRange);
-    const { query, params } = mocks.query.mock.calls[0][0];
-    expect(params).toEqual({
-      from: timeRange.from.toISOString(),
-      to: timeRange.to.toISOString(),
-      projectId: "project-a",
-      facetId: "facet-a",
-    });
-    expect(query).not.toContain("facet_version = {facetVersion:UInt32}");
-    expect(query).toContain("ORDER BY facet_version DESC, processed_at DESC");
-    expect(query).toContain(
-      "LIMIT 1 BY project_id, trace_id, if(trace_id = '', session_id, '')",
-    );
-  });
-
   it("counts only selected facet/version pairs after deduplicating summaries", async () => {
     mocks.query.mockResolvedValue([
       { facetId: "intent", facetVersion: 1, count: "3" },

@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import type { Transcript } from "@langfuse/shared/src/server";
 import { prepareAssembledTopicTranscript } from "./assembledTranscript";
 
-it("keeps canonical conversation evidence and hashes it without provenance or opaque payloads", () => {
+it("keeps canonical conversation evidence without provenance or opaque payloads", () => {
   const answer = "Useful answer. ".repeat(1_000);
   const transcript: Transcript = {
     threads: [
@@ -111,17 +111,5 @@ it("keeps canonical conversation evidence and hashes it without provenance or op
     { type: "data", value: { count: 2 } },
   ]);
   expect(prepared.text).not.toMatch(/private-|SElEREVO|toolDefinitions/);
-  const reordered = structuredClone(transcript);
-  const call = reordered.threads[0].currentTurn.messages[0].parts[3];
-  if (call.type !== "tool-call") throw new Error("Expected tool call fixture");
-  call.input = { limit: 2, query: "Refund policy" };
-  reordered.threads[0].currentTurn.messages[0].traceId = "different-trace";
-  expect(prepareAssembledTopicTranscript(reordered).inputHash).toBe(
-    prepared.inputHash,
-  );
-  call.input = { query: "Different policy", limit: 2 };
-  expect(prepareAssembledTopicTranscript(reordered).inputHash).not.toBe(
-    prepared.inputHash,
-  );
   expect(prepareAssembledTopicTranscript(null).hasContent).toBe(false);
 });

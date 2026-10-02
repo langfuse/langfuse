@@ -781,7 +781,7 @@ describe("Topics execution", () => {
     expect(state.name).not.toHaveBeenCalled();
   });
 
-  it("resumes legacy summary references after a provider interruption", async () => {
+  it("resumes accepted summaries after a provider interruption without regenerating paid work", async () => {
     const original = state.summarize.getMockImplementation()!;
     state.summarize
       .mockImplementationOnce(original)
@@ -790,10 +790,6 @@ describe("Topics execution", () => {
     expect(state.batches.get("partial")?.summaries).toHaveLength(1);
     expect(state.executions.get("partial")?.status).toBe("failed");
     const accepted = [...state.staged.values()][0].summary;
-    Object.assign(accepted, { id: "legacy-summary-id" });
-    Object.assign(state.batches.get("partial")!.summaries[0], {
-      summaryId: "legacy-summary-id",
-    });
     accepted.transcriptVersion = "older-transcript";
     state.loadTranscript.mockClear();
     await processTopicsExecution({
