@@ -1,3 +1,5 @@
+import { randomUUID } from "crypto";
+
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db";
@@ -161,7 +163,7 @@ export async function declarePendingDatasetItemMedia(props: {
   datasetItemId: string;
   field: DatasetItemMediaField;
   mediaId: string;
-}) {
+}): Promise<boolean> {
   const dataset = await prisma.dataset.findFirst({
     where: { id: props.datasetId, projectId: props.projectId },
     select: { id: true },
@@ -172,24 +174,27 @@ export async function declarePendingDatasetItemMedia(props: {
     );
   }
 
-  // createMany for skipDuplicates: redeclaring the same (item, field, media)
-  // is a no-op against the pending partial unique index (create would throw,
-  // and upsert can't target a partial index).
-  await prisma.datasetItemMedia.createMany({
-    data: [
-      {
-        projectId: props.projectId,
-        datasetId: props.datasetId,
-        datasetItemId: props.datasetItemId,
-        field: props.field,
-        mediaId: props.mediaId,
-        datasetItemValidFrom: null,
-        jsonPath: null,
-        referenceString: null,
-      },
-    ],
-    skipDuplicates: true,
-  });
+  // The media-row lock coordinates this declaration with retention deletion.
+  // ON CONFLICT keeps redeclaration idempotent against the pending index.
+  const rows = await prisma.$queryRaw<{ mediaExists: boolean }[]>`
+    WITH locked_media AS MATERIALIZED (
+      SELECT "id" FROM "media"
+      WHERE "project_id" = ${props.projectId} AND "id" = ${props.mediaId}
+      FOR KEY SHARE
+    ), inserted AS (
+      INSERT INTO "dataset_item_media" (
+        "id", "project_id", "dataset_id", "dataset_item_id", "field", "media_id"
+      )
+      SELECT ${randomUUID()}, ${props.projectId}, ${props.datasetId},
+        ${props.datasetItemId}, ${props.field}, "id"
+      FROM locked_media
+      WHERE true
+      ON CONFLICT DO NOTHING
+      RETURNING "id"
+    )
+    SELECT EXISTS(SELECT 1 FROM locked_media) AS "mediaExists"
+  `;
+  return rows[0]?.mediaExists ?? false;
 }
 
 /**
@@ -232,6 +237,22 @@ export async function linkDatasetItemMedia(
 
   // Hot path: items without media still need the replaceExisting delete.
   if (rowsToInsert.length === 0 && !replaceExisting) return;
+
+  if (rowsToInsert.length > 0) {
+    const mediaIds = [
+      ...new Set(rowsToInsert.map((row) => row.mediaId)),
+    ].sort();
+    const existingMedia = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT "id" FROM "media"
+      WHERE "project_id" = ${projectId}
+        AND "id" IN (${Prisma.join(mediaIds)})
+      ORDER BY "id"
+      FOR KEY SHARE
+    `);
+    if (existingMedia.length !== mediaIds.length) {
+      throw new InvalidRequestError("Dataset item references unknown media");
+    }
+  }
 
   if (replaceExisting) {
     await deleteDatasetItemMediaLinks(tx, { projectId, itemVersions: items });
