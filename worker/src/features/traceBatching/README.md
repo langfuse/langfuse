@@ -17,6 +17,7 @@ changes. These internal controls are intentionally absent from env templates.
 | `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`          | `1`       | Fraction admitted by ingestion, from 0 to 1.                                                               |
 | `LANGFUSE_TRACE_BATCH_STRATEGY`               | `project` | Choose project-order packing or opt-in locality grouping.                                                  |
 | `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`      | Maximum traces per job, up to 10,000.                                                                      |
+| `LANGFUSE_TRACE_BATCH_MAX_ESTIMATED_BYTES`    | `0`       | Estimated serialized event bytes per job; `0` disables the budget. When enabled, unknown and oversized traces run alone. |
 | `LANGFUSE_TRACE_BATCH_MAX_THREADS`            | `2`       | ClickHouse threads per query (positive integer).                                                           |
 | `LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE`         | unset     | Optional positive `max_block_size` hint; unset inherits the server profile.                                |
 | `LANGFUSE_TRACE_BATCH_EXPERIMENT_ID`          | unset     | Optional 1–64 character attempt/query label: letters, digits, `.`, `_`, `-`; first character alphanumeric. |
@@ -74,15 +75,28 @@ The dispatcher emits `estimated_event_update_count` and
 `estimated_serialized_event_bytes` distributions under `langfuse.trace_batch`, tagged
 with `scope:trace|batch` and `strategy`. Batch totals require known estimates for
 every member; `estimates_unavailable` counts unknown traces and affected batches.
-Estimates stay out of queue payloads, job IDs and batch selection. They do not cap
-work or change oversized-trace handling. Dispatch retries can emit another sample.
+Estimates stay out of queue payloads and job IDs. With the byte budget enabled,
+the dispatcher splits each selected batch in order after project/locality selection
+and partial coalescing, before adding a trace that would exceed
+`LANGFUSE_TRACE_BATCH_MAX_ESTIMATED_BYTES`.
+Traces with unknown estimates or individually exceeding the budget dispatch alone;
+no trace is dropped or truncated. Each resulting job is enqueued and acknowledged
+separately, so failed enqueueing leaves the remaining traces pending. Dispatch
+retries can emit another sample.
 
 Serialized event bytes differ from the reader's `io_metadata_bytes` metric: they
 include the serialized event fields and JSON encoding, and do not represent RAM,
-network transfer or ClickHouse scan bytes. After rollout, collect a stable hour
-with unchanged sampling and batching settings; compare trace/batch distributions,
-unknown-estimate counts, ingestion latency and Redis command rate/CPU/memory with
-the baseline before choosing any size-aware batching policy.
+network transfer or ClickHouse scan bytes. The budget is a packing estimate, not a
+hard read limit: a query can also return older rows in the buffered trace interval,
+and one oversized trace can still time out. Splitting cannot widen the selected
+batch's outer time window, but does not rerun the locality optimizer for each split.
+The budget defaults to disabled. For an initial experiment, explicitly set
+`LANGFUSE_TRACE_BATCH_MAX_ESTIMATED_BYTES=33554432` (32 MiB), a provisional value.
+Compare a stable hour with the budget disabled against one with it enabled, holding
+sampling, trace cap, concurrency and reader settings fixed. Compare failures,
+successful throughput, actual payload bytes, query CPU and queue age as well as
+estimated batch bytes; smaller jobs increase query count. Previously queued jobs
+retain their grouping.
 
 The worker streams full `events_full` payloads and records batch observation,
 trace, project and logical payload-byte metrics. The `input_bytes`, `output_bytes`
