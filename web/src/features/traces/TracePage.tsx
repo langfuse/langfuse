@@ -136,7 +136,6 @@ export function TracePage({
                 return `/project/${projectId as string}/traces/${entry.id}${finalQueryString}`;
               }}
               listKey="traces"
-              compact
             />
             <TraceDetailActions
               trace={trace.data}

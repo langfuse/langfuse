@@ -64,14 +64,12 @@ const NAV_FALLBACK_PX = 68;
 const samePlan = (a: PeekHeaderPlan, b: PeekHeaderPlan) =>
   a.foldActions === b.foldActions &&
   a.foldOpenInTab === b.foldOpenInTab &&
-  a.badgeShowLabel === b.badgeShowLabel &&
-  a.navCompact === b.navCompact;
+  a.badgeShowLabel === b.badgeShowLabel;
 
 const FULL: PeekHeaderPlan = {
   foldActions: false,
   foldOpenInTab: false,
   badgeShowLabel: true,
-  navCompact: false,
 };
 
 // Header tooltips appear quickly and share one style (Radix Tooltip, not the
@@ -111,13 +109,12 @@ export function PeekHeader({
   const pinnedRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLDivElement>(null);
   // Cached widths survive a part being folded / collapsed (it can't be
-  // re-measured while hidden, in the closed popover, or in the other nav mode).
+  // re-measured while hidden or in the closed popover).
   const widthsRef = useRef<{
     actions?: number;
     openInTab?: number;
     badgeLabel?: number;
-    navFull?: number;
-    navCompact?: number;
+    nav?: number;
     otherPinned?: number;
   }>({});
   const [plan, setPlan] = useState<PeekHeaderPlan>(FULL);
@@ -145,10 +142,7 @@ export function PeekHeader({
     }
     if (pinnedRef.current) {
       const navW = hasNav && navRef.current ? navRef.current.offsetWidth : 0;
-      if (hasNav) {
-        widthsRef.current.navCompact = navW;
-        widthsRef.current.navFull = navW;
-      }
+      if (hasNav) widthsRef.current.nav = navW;
       widthsRef.current.otherPinned =
         pinnedRef.current.offsetWidth -
         navW +
@@ -160,10 +154,7 @@ export function PeekHeader({
       minTitle: MIN_TITLE_PX,
       badgeLabelWidth: widthsRef.current.badgeLabel ?? BADGE_LABEL_FALLBACK_PX,
       badgeIconWidth: BADGE_ICON_PX,
-      navFullWidth: hasNav ? (widthsRef.current.navFull ?? NAV_FALLBACK_PX) : 0,
-      navCompactWidth: hasNav
-        ? (widthsRef.current.navCompact ?? NAV_FALLBACK_PX)
-        : 0,
+      navWidth: hasNav ? (widthsRef.current.nav ?? NAV_FALLBACK_PX) : 0,
       otherPinnedWidth: widthsRef.current.otherPinned ?? 0,
       moreWidth: MORE_BUTTON_PX,
       actionsWidth: hasActions ? (widthsRef.current.actions ?? 0) : undefined,
@@ -188,7 +179,7 @@ export function PeekHeader({
     <TooltipProvider>
       <div
         ref={headerRef}
-        className="bg-muted flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
+        className="flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
       >
         <div className="flex min-w-0 flex-row items-center gap-2">
           {/* Type never truncates: the word when it fits, the icon when not. */}
@@ -200,7 +191,7 @@ export function PeekHeader({
             )}
           </div>
           <span
-            className="truncate text-sm font-bold focus:outline-hidden"
+            className="truncate text-lg leading-7 font-bold focus:outline-hidden"
             tabIndex={0}
             title={typeof title === "string" ? title : undefined}
           >
@@ -245,7 +236,6 @@ export function PeekHeader({
                   currentId={itemId}
                   path={resolveDetailNavigationPath!}
                   listKey={detailNavigationKey!}
-                  compact
                 />
               </div>
             )}

@@ -1,20 +1,11 @@
 /* eslint-disable @repo/no-null-render */
-import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
-import { InputCommandShortcut } from "@/src/components/ui/input-command";
-import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import {
   type ListEntry,
   useDetailPageLists,
 } from "@/src/features/navigate-detail-pages/context";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useReadPath } from "@/src/features/events";
-import { cn } from "@/src/utils/tailwind";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -28,15 +19,8 @@ export const DetailPageNav = (props: {
   path: (entry: ListEntry) => string;
   listKey: string;
   onNavigate?: (entry: ListEntry) => void;
-  /** Button size; defaults to the cva default. Pass "sm" to match icon-xs rows. */
-  size?: ButtonProps["size"];
-  /**
-   * Compact mode for header action rows: icon-only ghost arrows with the K/J
-   * hint moved to the tooltip. Shortcuts still work.
-   */
-  compact?: boolean;
 }) => {
-  const { currentId, path, listKey, onNavigate, size, compact } = props;
+  const { currentId, path, listKey, onNavigate } = props;
   const { detailPagelists } = useDetailPageLists();
   const entries = detailPagelists[listKey] ?? [];
   const [shortcutPulse, setShortcutPulse] = useState<ShortcutPulse>(null);
@@ -138,94 +122,32 @@ export const DetailPageNav = (props: {
   }, [previousPageEntry, nextPageEntry, navigateToEntry, pulseShortcut]);
 
   if (entries.length > 1) {
-    if (compact) {
-      return (
-        <div className="flex flex-row gap-1">
-          <HeaderActionButton
-            label="Navigate up"
-            shortcut="K"
-            icon={<ArrowUp className="h-4 w-4" />}
-            active={shortcutPulse === "previous"}
-            disabled={!previousPageEntry}
-            onClick={() => {
-              if (previousPageEntry) {
-                navigateToEntry(previousPageEntry, "previous", "button");
-              }
-            }}
-          />
-          <HeaderActionButton
-            label="Navigate down"
-            shortcut="J"
-            icon={<ArrowDown className="h-4 w-4" />}
-            active={shortcutPulse === "next"}
-            disabled={!nextPageEntry}
-            onClick={() => {
-              if (nextPageEntry) {
-                navigateToEntry(nextPageEntry, "next", "button");
-              }
-            }}
-          />
-        </div>
-      );
-    }
-    const buttonClassName = (active: boolean) =>
-      cn(
-        "gap-1.5 px-2 transition-[background-color,border-color,box-shadow,color] duration-150",
-        active && "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
-      );
     return (
       <div className="flex flex-row gap-1">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              type="button"
-              size={size}
-              className={buttonClassName(shortcutPulse === "previous")}
-              disabled={!previousPageEntry}
-              onClick={() => {
-                if (previousPageEntry) {
-                  navigateToEntry(previousPageEntry, "previous", "button");
-                }
-              }}
-            >
-              <ArrowUp className="h-4 w-4" />
-              <span className="hidden md:inline-flex">
-                <KeyboardShortcut keys={["K"]} />
-              </span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <span>Navigate up</span>
-            <InputCommandShortcut className="ml-2" keys={["K"]} />
-          </TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              type="button"
-              size={size}
-              className={buttonClassName(shortcutPulse === "next")}
-              disabled={!nextPageEntry}
-              onClick={() => {
-                if (nextPageEntry) {
-                  navigateToEntry(nextPageEntry, "next", "button");
-                }
-              }}
-            >
-              <ArrowDown className="h-4 w-4" />
-              <span className="hidden md:inline-flex">
-                <KeyboardShortcut keys={["J"]} />
-              </span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <span>Navigate down</span>
-            <InputCommandShortcut className="ml-2" keys={["J"]} />
-          </TooltipContent>
-        </Tooltip>
+        <HeaderActionButton
+          label="Navigate up"
+          shortcut="K"
+          icon={<ArrowUp className="h-4 w-4" />}
+          active={shortcutPulse === "previous"}
+          disabled={!previousPageEntry}
+          onClick={() => {
+            if (previousPageEntry) {
+              navigateToEntry(previousPageEntry, "previous", "button");
+            }
+          }}
+        />
+        <HeaderActionButton
+          label="Navigate down"
+          shortcut="J"
+          icon={<ArrowDown className="h-4 w-4" />}
+          active={shortcutPulse === "next"}
+          disabled={!nextPageEntry}
+          onClick={() => {
+            if (nextPageEntry) {
+              navigateToEntry(nextPageEntry, "next", "button");
+            }
+          }}
+        />
       </div>
     );
   }
