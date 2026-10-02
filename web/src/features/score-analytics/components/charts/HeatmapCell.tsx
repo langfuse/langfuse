@@ -136,21 +136,15 @@ function CellWithData({
   if (renderTooltip) {
     return (
       <CustomTooltip content={<>{renderTooltip(cell)}</>} delay={300}>
-        {({ getTriggerProps }) => {
-          const triggerProps =
-            getTriggerProps() as React.HTMLAttributes<HTMLElement>;
-          return cloneElement(cellContent, {
-            ...triggerProps,
-            onMouseEnter: (event: React.MouseEvent<HTMLElement>) => {
-              triggerProps.onMouseEnter?.(event);
-              handleMouseEnter();
-            },
-            onMouseLeave: (event: React.MouseEvent<HTMLElement>) => {
-              triggerProps.onMouseLeave?.(event);
-              handleMouseLeave();
-            },
-          });
-        }}
+        {({ getTriggerProps }) =>
+          cloneElement(
+            cellContent,
+            getTriggerProps({
+              onMouseEnter: handleMouseEnter,
+              onMouseLeave: handleMouseLeave,
+            }),
+          )
+        }
       </CustomTooltip>
     );
   }
