@@ -7,7 +7,10 @@ const state = vi.hoisted(() => ({
   selectedNodeId: "first",
   replace: vi.fn(),
 }));
-const store = createTraceReviewPanelStore({ projectId: "project" });
+const store = createTraceReviewPanelStore({
+  projectId: "project",
+  followTraceSelection: true,
+});
 vi.mock("next/router", () => ({
   useRouter: () => ({
     query: state.query,
@@ -43,11 +46,18 @@ vi.mock("@/src/features/scores/components/AnnotationPanelContent", () => ({
   AnnotationPanelContent: ({
     data,
   }: {
-    data: { scoreTarget: { observationId?: string }; scores: { id: string }[] };
+    data: {
+      scoreTarget: { observationId?: string };
+      scores: { id: string }[];
+      companionTrace?: { scores: { id: string }[] };
+    };
   }) => (
     <div data-testid="annotation">
       {data.scoreTarget.observationId ?? "trace"}:
       {data.scores.map((score) => score.id).join(",")}
+      <span data-testid="trace-scope">
+        {data.companionTrace?.scores.map((score) => score.id).join(",")}
+      </span>
     </div>
   ),
 }));
@@ -65,11 +75,14 @@ it("follows selection and URL mode without replacing the review store", () => {
   expect(screen.getByTestId("annotation")).toHaveTextContent(
     "first:first-score",
   );
+  expect(screen.getByTestId("trace-scope")).toHaveTextContent("trace-score");
   state.selectedNodeId = "second";
   view.rerender(<TraceReviewPanel projectId="project" />);
   expect(screen.getByTestId("annotation")).toHaveTextContent(
     "second:second-score",
   );
+  expect(screen.getByTestId("trace-scope")).toHaveTextContent("trace-score");
+  expect(screen.getByTestId("annotation")).not.toHaveTextContent("first-score");
   state.selectedNodeId = "trace";
   view.rerender(<TraceReviewPanel projectId="project" />);
   expect(screen.getByTestId("annotation")).toHaveTextContent(

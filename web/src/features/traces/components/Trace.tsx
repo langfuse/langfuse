@@ -250,6 +250,7 @@ function DesktopTraceContent({
   }
   return (
     <TraceReviewPanelProvider
+      followTraceSelection
       key={`${trace.projectId}:${trace.id}`}
       projectId={trace.projectId}
       initialComments={initialComments}

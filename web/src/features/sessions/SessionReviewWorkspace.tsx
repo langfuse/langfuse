@@ -116,8 +116,10 @@ export function SessionReviewWorkspace({
             disabled={!open}
             aria-label="Resize review panel"
             className={cn(
-              "bg-border",
-              vertical ? "h-px" : "w-px",
+              "border-border relative self-stretch",
+              vertical
+                ? "h-px min-h-px w-full border-t"
+                : "h-full w-px min-w-px border-l",
               !open && "hidden",
             )}
           />

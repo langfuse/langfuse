@@ -91,6 +91,7 @@ export function CommentDrawerController({
             });
             const current = reviewPanel.getState();
             if (
+              reviewPanel.followTraceSelection &&
               current.active === "comments" &&
               current.comments?.target.objectId === target.objectId &&
               current.comments.target.objectType === target.objectType

@@ -15,11 +15,14 @@ export function TraceReviewPanelProvider({
   projectId,
   initialComments,
   initialAnnotation,
+  followTraceSelection = false,
   children,
 }: {
   projectId: string;
   initialComments?: CommentTarget;
   initialAnnotation?: AnnotationPanelData;
+  /** Trace workspaces derive the active mode and target from URL selection. */
+  followTraceSelection?: boolean;
   children: ReactNode;
 }) {
   const [store] = useState(() =>
@@ -27,6 +30,7 @@ export function TraceReviewPanelProvider({
       projectId,
       initialComments,
       initialAnnotation,
+      followTraceSelection,
     }),
   );
 

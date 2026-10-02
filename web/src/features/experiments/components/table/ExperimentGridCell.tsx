@@ -36,14 +36,10 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import {
-  decomposeAggregateScoreKey,
-  useMergedAggregates,
-  useMergeScoreColumns,
-} from "@/src/features/scores";
+import { decomposeAggregateScoreKey } from "@/src/features/scores";
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
-import { ScoreTag, type ScoreLevel } from "@/src/components/score-tag";
+import { type ScoreLevel } from "@/src/components/score-tag";
 import { NotRecordedMetric } from "./NotRecordedMetric";
 import { describeRunComparison } from "@/src/features/experiments/fns/describeRunComparison";
 
@@ -68,8 +64,6 @@ type ExperimentGridCellProps = {
   isBaseline: boolean;
   /** Whether this cell carries deltas against the baseline (the diff mode). */
   showDiff?: boolean;
-  baselineTraceId?: string;
-  baselineObservationId?: string;
   baselineScores?: ScoreAggregate;
   baselineTraceScores?: ScoreAggregate;
   /** Named in every diff chip's hover sentence, so the arrow has a direction. */
@@ -135,7 +129,7 @@ const formatCost = (value: number) => usdFormatter(value, 4, 4);
 
 const valueColumnsClass = (showBaselineDelta: boolean) =>
   showBaselineDelta
-    ? "grid shrink-0 grid-cols-[auto_4.5rem] items-center justify-items-start gap-1"
+    ? "grid max-w-full shrink-0 grid-cols-[minmax(0,auto)_4.5rem] items-center justify-items-start gap-1"
     : "flex shrink-0 items-center justify-end gap-1";
 
 /**
@@ -187,8 +181,9 @@ const ScoreItem = ({
           className="flex cursor-default items-center justify-between gap-2 text-xs"
         >
           <div className="flex min-w-0 items-center gap-1">
-            {showScoreLevelLabel && <ScoreTag level={level} />}
             <span className="text-muted-foreground line-clamp-1 min-w-0">
+              {showScoreLevelLabel &&
+                `${level === "trace" ? "Trace" : "Observation"}: `}
               {name}
             </span>
           </div>
@@ -209,7 +204,10 @@ const ScoreItem = ({
                 </Badge>
               )}
             </span>
-            {diff && (
+            {diff?.type === "CATEGORICAL" && (
+              <span className="text-muted-foreground text-xs">Changed</span>
+            )}
+            {diff?.type === "NUMERIC" && (
               <DiffLabel
                 variant="ghost"
                 className="px-0"
@@ -229,7 +227,16 @@ const ScoreItem = ({
           <span className="font-bold">{name}</span>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
             <dt className="text-muted-foreground">Value</dt>
-            <dd>{displayValue}</dd>
+            <dd className="min-w-0">
+              {displayValue}
+              {diff?.type === "CATEGORICAL" && (
+                <span className="text-muted-foreground ml-2 whitespace-normal">
+                  {diff.from && diff.to
+                    ? `${diff.from} → ${diff.to}`
+                    : "Varies from baseline"}
+                </span>
+              )}
+            </dd>
             <dt className="text-muted-foreground">Source</dt>
             <dd className="capitalize">{source.toLowerCase()}</dd>
             <dt className="text-muted-foreground">Type</dt>
@@ -482,8 +489,6 @@ export const ExperimentGridCell = ({
   showDiff = true,
   baselineScores,
   baselineTraceScores,
-  baselineTraceId,
-  baselineObservationId,
   baselineExperimentName,
   isLoading = false,
   columnVisibility = {},
@@ -492,80 +497,19 @@ export const ExperimentGridCell = ({
   onExperimentClick,
   onAnnotate,
 }: ExperimentGridCellProps) => {
-  const displayScores = useMergedAggregates(scores, traceId, observationId);
-  const displayTraceScores = useMergedAggregates(traceScores, traceId);
-  const displayBaselineScores = useMergedAggregates(
-    baselineScores ?? {},
-    baselineTraceId ?? "",
-    baselineObservationId,
-  );
-  const displayBaselineTraceScores = useMergedAggregates(
-    baselineTraceScores ?? {},
-    baselineTraceId ?? "",
-  );
-  const cachedColumns = useMergeScoreColumns([]);
-  const orderedObservationKeys = [
-    ...new Set([
-      ...(observationScoreOrder.length
-        ? observationScoreOrder
-        : Object.keys(scores).sort()),
-      ...cachedColumns
-        .filter(
-          ({ key }) => key in displayScores || key in displayBaselineScores,
-        )
-        .map(({ key }) => key),
-    ]),
-  ];
-  const orderedTraceKeys = [
-    ...new Set([
-      ...(traceScoreOrder.length
-        ? traceScoreOrder
-        : Object.keys(traceScores).sort()),
-      ...cachedColumns
-        .filter(
-          ({ key }) =>
-            key in displayTraceScores || key in displayBaselineTraceScores,
-        )
-        .map(({ key }) => key),
-    ]),
-  ];
-  const displayScoreLevelLabels =
-    showScoreLevelLabels ||
-    (cachedColumns.some(
-      ({ key }) => key in displayScores || key in displayTraceScores,
-    ) &&
-      orderedObservationKeys.length > 0 &&
-      orderedTraceKeys.length > 0 &&
-      columnVisibility.observationScores !== false &&
-      columnVisibility.traceScores !== false);
   const scoreDiffs = useMemo(
     () =>
-      !showDiff || isBaseline || !(baselineScores || baselineTraceId)
+      !showDiff || isBaseline || !baselineScores
         ? undefined
-        : computeScoreDiffs(displayScores, displayBaselineScores),
-    [
-      displayScores,
-      displayBaselineScores,
-      baselineScores,
-      baselineTraceId,
-      isBaseline,
-      showDiff,
-    ],
+        : computeScoreDiffs(scores, baselineScores),
+    [scores, baselineScores, isBaseline, showDiff],
   );
-
   const traceScoreDiffs = useMemo(
     () =>
-      !showDiff || isBaseline || !(baselineTraceScores || baselineTraceId)
+      !showDiff || isBaseline || !baselineTraceScores
         ? undefined
-        : computeScoreDiffs(displayTraceScores, displayBaselineTraceScores),
-    [
-      displayTraceScores,
-      displayBaselineTraceScores,
-      baselineTraceScores,
-      baselineTraceId,
-      isBaseline,
-      showDiff,
-    ],
+        : computeScoreDiffs(traceScores, baselineTraceScores),
+    [traceScores, baselineTraceScores, isBaseline, showDiff],
   );
 
   const totalCostDiff = useMemo(
@@ -596,8 +540,8 @@ export const ExperimentGridCell = ({
     latencyDiff,
     observationId,
     traceId,
-    scores: displayScores,
-    traceScores: displayTraceScores,
+    scores,
+    traceScores,
     scoreDiffs,
     traceScoreDiffs,
     baselineScores,
@@ -618,17 +562,13 @@ export const ExperimentGridCell = ({
       header: "Scores",
       children: [
         ...(columnVisibility.observationScores !== false
-          ? orderedObservationKeys.map((key) =>
-              getScoreRowDefinition(
-                key,
-                "observation",
-                displayScoreLevelLabels,
-              ),
+          ? observationScoreOrder.map((key) =>
+              getScoreRowDefinition(key, "observation", showScoreLevelLabels),
             )
           : []),
         ...(columnVisibility.traceScores !== false
-          ? orderedTraceKeys.map((key) =>
-              getScoreRowDefinition(key, "trace", displayScoreLevelLabels),
+          ? traceScoreOrder.map((key) =>
+              getScoreRowDefinition(key, "trace", showScoreLevelLabels),
             )
           : []),
       ],
@@ -705,11 +645,11 @@ export const ExperimentGridCell = ({
       onClick={onExperimentClick}
     >
       {onAnnotate && (
-        <div className="bg-background absolute right-1 bottom-1 z-1 rounded-md opacity-0 shadow-sm group-focus-within/grid-cell:opacity-100 group-hover/grid-cell:opacity-100">
+        <div className="bg-background absolute right-1 bottom-1 z-1 rounded-md opacity-0 group-focus-within/grid-cell:opacity-100 group-hover/grid-cell:opacity-100">
           <Button
             text="Annotate"
             icon={SquarePen}
-            variant="secondary"
+            variant="ghost"
             size="sm"
             onClick={(event) => {
               event.stopPropagation();

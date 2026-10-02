@@ -92,16 +92,22 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
                 .getState()
                 .actions.rememberTrigger(triggerRef.current);
               reviewPanel.getState().actions.openAnnotation(payload);
-              const { comments, commentObjectId, commentObjectType, ...query } =
-                router.query;
-              router.replace(
-                {
-                  pathname: router.pathname,
-                  query: { ...query, mode: "annotate" },
-                },
-                undefined,
-                { shallow: true },
-              );
+              if (reviewPanel.followTraceSelection) {
+                const {
+                  comments,
+                  commentObjectId,
+                  commentObjectType,
+                  ...query
+                } = router.query;
+                router.replace(
+                  {
+                    pathname: router.pathname,
+                    query: { ...query, mode: "annotate" },
+                  },
+                  undefined,
+                  { shallow: true },
+                );
+              }
             } else openDrawer(payload);
           },
         })
