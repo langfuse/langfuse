@@ -152,6 +152,7 @@ export type EvaluatorSetupStoreState = {
   defaultModel: JudgeModel | null;
   selectedModel: JudgeModel | null;
   modelParams: ModelConfig | null;
+  hasChangedModelSelection: boolean;
   selectedObservation: SampleObservation | null;
   sampleFilter: FilterState;
   promptPreviewEnabled: boolean;
@@ -247,6 +248,7 @@ export function createEvaluatorSetupStore({
       initialDefinition?.type === "LLM_AS_JUDGE"
         ? initialDefinition.modelParams
         : null,
+    hasChangedModelSelection: false,
     selectedObservation: null,
     sampleFilter: initialSampleFilter ?? [
       ...DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
@@ -461,12 +463,14 @@ export function createEvaluatorSetupStore({
         })),
       setActiveMapping: (activeMapping) => set({ activeMapping }),
       setModelPickerOpen: (modelPickerOpen) => set({ modelPickerOpen }),
-      setModelMode: (modelMode) => set({ modelMode }),
+      setModelMode: (modelMode) =>
+        set({ modelMode, hasChangedModelSelection: true }),
       setDefaultModel: (defaultModel) => set({ defaultModel }),
       selectModel: (selectedModel) =>
         set((state) => ({
           selectedModel,
           modelMode: "custom",
+          hasChangedModelSelection: true,
           modelParams:
             state.selectedModel?.provider === selectedModel.provider &&
             state.selectedModel.model === selectedModel.model
@@ -474,7 +478,12 @@ export function createEvaluatorSetupStore({
               : null,
         })),
       configureModel: (selectedModel, modelParams) =>
-        set({ selectedModel, modelParams, modelMode: "custom" }),
+        set({
+          selectedModel,
+          modelParams,
+          modelMode: "custom",
+          hasChangedModelSelection: true,
+        }),
       setSelectedObservation: (selectedObservation) =>
         set({ selectedObservation }),
       setSampleFilter: (sampleFilter) => set({ sampleFilter }),
@@ -516,6 +525,7 @@ export function createEvaluatorSetupStore({
               modelMode: "custom",
               selectedModel,
               modelParams: null,
+              hasChangedModelSelection: true,
             };
           }
 
@@ -531,6 +541,7 @@ export function createEvaluatorSetupStore({
             modelMode: selectedModel ? "custom" : "default",
             selectedModel,
             modelParams: selectedModel ? definition.modelParams : null,
+            hasChangedModelSelection: true,
           };
         }),
     },
