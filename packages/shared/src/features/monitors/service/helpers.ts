@@ -1,5 +1,4 @@
 /* eslint-disable no-nested-ternary */
-/* eslint-disable @repo/no-exotic-operators */
 /** service/helpers.ts contains the mapping + calculate helpers consumed
  * by MonitorService. Exported so that colocated unit tests can exercise them,
  * but intentionally not re-exported from the service barrel — internal
@@ -166,7 +165,7 @@ export const calculateSchedulerBatchId = (params: {
     params.windowMs.toString(),
   ].join("\x1f");
   const digest = createHash("sha256").update(input).digest();
-  return digest.readBigUInt64BE(0) & ((1n << 63n) - 1n);
+  return digest.readBigUInt64BE(0) % 2n ** 63n;
 };
 
 /** viewToPrisma converts the MonitorView api enum to the Prisma MonitorView enum. */
