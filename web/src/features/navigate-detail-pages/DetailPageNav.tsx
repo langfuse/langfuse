@@ -1,14 +1,9 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable @repo/no-null-render */
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { InputCommandShortcut } from "@/src/components/ui/input-command";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import {
   type ListEntry,
   useDetailPageLists,
@@ -176,9 +171,18 @@ export const DetailPageNav = (props: {
       );
     return (
       <div className="flex flex-row gap-1">
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <CustomTooltip
+          delay={300}
+          content={
+            <>
+              <span>Navigate up</span>
+              <InputCommandShortcut className="ml-2" keys={["K"]} />
+            </>
+          }
+        >
+          {({ getTriggerProps }) => (
             <Button
+              {...getTriggerProps()}
               variant="outline"
               type="button"
               size={size}
@@ -195,16 +199,21 @@ export const DetailPageNav = (props: {
                 <KeyboardShortcut keys={["K"]} />
               </span>
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <span>Navigate up</span>
-            <InputCommandShortcut className="ml-2" keys={["K"]} />
-          </TooltipContent>
-        </Tooltip>
+          )}
+        </CustomTooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <CustomTooltip
+          delay={300}
+          content={
+            <>
+              <span>Navigate down</span>
+              <InputCommandShortcut className="ml-2" keys={["J"]} />
+            </>
+          }
+        >
+          {({ getTriggerProps }) => (
             <Button
+              {...getTriggerProps()}
               variant="outline"
               type="button"
               size={size}
@@ -221,12 +230,8 @@ export const DetailPageNav = (props: {
                 <KeyboardShortcut keys={["J"]} />
               </span>
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <span>Navigate down</span>
-            <InputCommandShortcut className="ml-2" keys={["J"]} />
-          </TooltipContent>
-        </Tooltip>
+          )}
+        </CustomTooltip>
       </div>
     );
   }
