@@ -14,6 +14,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 describe("overlay content keeps scroll events local", () => {
   beforeAll(() => {
@@ -71,6 +72,7 @@ describe("overlay content keeps scroll events local", () => {
       >
         {({ getTriggerProps }) => <button {...getTriggerProps()}>hover</button>}
       </ControlledHoverCard>,
+      { wrapper: LayerProvider },
     );
 
     scroll(screen.getByText("preview"));

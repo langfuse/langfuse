@@ -3,8 +3,6 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { HoverCard } from "./HoverCard";
-import { ControlledHoverCard } from "../ControlledHoverCard/ControlledHoverCard";
-import { HoverCardController } from "../HoverCardController/HoverCardController";
 
 const meta = preview.meta({
   component: HoverCard,
@@ -32,7 +30,10 @@ const meta = preview.meta({
   ),
 });
 
-export const Default = meta.story({
+export const Default = meta.story({});
+
+export const DefaultSurface = meta.story({
+  name: "(Test) Default surface",
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
@@ -48,40 +49,8 @@ export const Default = meta.story({
   },
 });
 
-export const CustomSurface = meta.story({
-  args: {
-    content: (
-      <div className="bg-muted w-64 rounded-md p-3 shadow-md">
-        A custom surface, composed without the default card frame.
-      </div>
-    ),
-  },
-  render: function CustomSurfaceExample(args) {
-    const [open, setOpen] = React.useState(false);
-    return (
-      <HoverCardController {...args} open={open} onOpenChange={setOpen}>
-        {({ getTriggerProps }) => (
-          <button type="button" {...getTriggerProps()}>
-            Show preview
-          </button>
-        )}
-      </HoverCardController>
-    );
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
-
-    await userEvent.hover(canvas.getByRole("button", { name: "Show preview" }));
-    const card = await body.findByRole("dialog");
-    await expect(card).toHaveTextContent(
-      "A custom surface, composed without the default card frame.",
-    );
-    await expect(card.querySelector(".bg-popover")).toBeNull();
-  },
-});
-
 export const HoverableContent = meta.story({
+  name: "(Test) Hoverable content",
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
@@ -101,6 +70,7 @@ export const HoverableContent = meta.story({
 });
 
 export const KeyboardNavigation = meta.story({
+  name: "(Test) Keyboard navigation",
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
@@ -122,6 +92,7 @@ export const KeyboardNavigation = meta.story({
 });
 
 export const Delayed = meta.story({
+  name: "(Test) Delayed",
   args: { openDelay: 700, closeDelay: 300 },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -132,32 +103,6 @@ export const Delayed = meta.story({
     await expect(
       await body.findByRole("dialog", {}, { timeout: 2000 }),
     ).toHaveTextContent("Preview details");
-  },
-});
-
-export const ControlledClosed = meta.story({
-  name: "(Test) Controlled state stays closed",
-  args: { onOpenChange: fn() },
-  render: (args) => (
-    <ControlledHoverCard
-      {...args}
-      open={false}
-      onOpenChange={(open) => args.onOpenChange?.(open)}
-    >
-      {({ getTriggerProps }) => (
-        <button type="button" {...getTriggerProps()}>
-          Show preview
-        </button>
-      )}
-    </ControlledHoverCard>
-  ),
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
-
-    await userEvent.hover(canvas.getByRole("button", { name: "Show preview" }));
-    await waitFor(() => expect(args.onOpenChange).toHaveBeenCalledWith(true));
-    await expect(body.queryByRole("dialog")).not.toBeInTheDocument();
   },
 });
 
@@ -178,11 +123,13 @@ export const TriggerRefAndClickHandler = meta.story({
               type="button"
               {...getTriggerProps({
                 ref,
-                onClick: (event) =>
+                onClick: (event) => {
+                  const refConnected = ref.current === event.currentTarget;
                   setClickResult((current) => ({
                     count: current.count + 1,
-                    refConnected: ref.current === event.currentTarget,
-                  })),
+                    refConnected,
+                  }));
+                },
               })}
             >
               Show preview
@@ -206,7 +153,7 @@ export const TriggerRefAndClickHandler = meta.story({
     await userEvent.click(trigger);
     await expect(canvas.getByText("1 trigger clicks")).toBeVisible();
     await expect(canvas.getByText("Trigger ref connected")).toBeVisible();
-    await expect(await body.findByRole("dialog")).toBeVisible();
+    await waitFor(() => expect(body.getByRole("dialog")).toBeVisible());
     await userEvent.click(trigger);
     await expect(canvas.getByText("2 trigger clicks")).toBeVisible();
     await expect(canvas.getByText("Trigger ref connected")).toBeVisible();
@@ -267,21 +214,6 @@ export const Disabled = meta.story({
   },
 });
 
-export const PopoverLayer = meta.story({
-  name: "(Test) Controlled open card uses the popover layer",
-  render: () => <ControlledExample initialOpen={true} />,
-  play: async ({ canvasElement }) => {
-    const body = within(canvasElement.ownerDocument.body);
-    const card = await body.findByRole("dialog");
-
-    await expect(card.closest('[data-layer="popover"]')).not.toBeNull();
-    await userEvent.keyboard("{Escape}");
-    await waitFor(() =>
-      expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-  },
-});
-
 export const DisabledButton = meta.story({
   render: (args) => (
     <HoverCard {...args} placement="right">
@@ -294,46 +226,4 @@ export const DisabledButton = meta.story({
       )}
     </HoverCard>
   ),
-});
-
-function ControlledExample({ initialOpen }: { initialOpen: boolean }) {
-  const [open, setOpen] = React.useState(initialOpen);
-
-  return (
-    <ControlledHoverCard
-      open={open}
-      onOpenChange={setOpen}
-      content={<div className="w-64 p-3">Controlled preview</div>}
-    >
-      {({ getTriggerProps }) => (
-        <button
-          type="button"
-          {...getTriggerProps({ onClick: () => setOpen(!open) })}
-        >
-          Toggle preview
-        </button>
-      )}
-    </ControlledHoverCard>
-  );
-}
-
-export const Controlled = meta.story({
-  render: () => <ControlledExample initialOpen={false} />,
-  play: async ({ canvasElement }) => {
-    const body = within(canvasElement.ownerDocument.body);
-    await userEvent.click(
-      within(canvasElement).getByRole("button", { name: "Toggle preview" }),
-    );
-    const card = await body.findByRole("dialog");
-    await expect(card).toHaveTextContent("Controlled preview");
-    await expect(card.firstElementChild).toHaveClass(
-      "bg-popover",
-      "border",
-      "shadow-md",
-    );
-    await userEvent.keyboard("{Escape}");
-    await waitFor(() =>
-      expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-  },
 });

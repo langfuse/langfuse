@@ -1,5 +1,5 @@
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { HoverCardController } from "@/src/components/design-system/HoverCardController/HoverCardController";
+import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import {
   type CategoricalAggregate,
   type AggregatedScoreData,
@@ -216,11 +216,11 @@ function AggregateScoreMetadataPeek({
   const metadataLoaded = metadata && Object.keys(metadata).length > 0;
 
   return (
-    <HoverCardController
+    <ControlledHoverCard
       open={isOpen}
       onOpenChange={setIsOpen}
       content={
-        <div className="text-popover-foreground w-64 overflow-hidden rounded-md p-0 text-xs break-normal whitespace-normal shadow-md">
+        <div className="w-64 overflow-hidden rounded-md p-0 text-xs break-normal whitespace-normal">
           {metadataLoaded ? (
             <JSONView codeClassName="rounded-md!" json={metadata} />
           ) : (
@@ -239,6 +239,6 @@ function AggregateScoreMetadataPeek({
           <BracesIcon size={12} />
         </button>
       )}
-    </HoverCardController>
+    </ControlledHoverCard>
   );
 }

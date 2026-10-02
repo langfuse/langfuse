@@ -97,6 +97,7 @@ function HoverCardController({
     dismiss,
     role,
   ]);
+  const { setReference } = refs;
   const getTriggerRef = React.useMemo(() => {
     // Stable composed refs avoid detaching the trigger on every prop-getter call.
     const mergedRefs = new WeakMap<
@@ -105,16 +106,16 @@ function HoverCardController({
     >();
 
     return (callerRef: React.Ref<HTMLElement> | undefined) => {
-      if (!callerRef) return refs.setReference;
+      if (!callerRef) return setReference;
       const cachedRef = mergedRefs.get(callerRef);
       if (cachedRef) return cachedRef;
 
       const mergedRef: React.RefCallback<HTMLElement> = (node) => {
-        refs.setReference(node);
+        setReference(node);
         if (typeof callerRef === "function") {
           const cleanup = callerRef(node);
           return () => {
-            refs.setReference(null);
+            setReference(null);
             if (cleanup) {
               cleanup();
             } else {
@@ -125,14 +126,14 @@ function HoverCardController({
 
         callerRef.current = node;
         return () => {
-          refs.setReference(null);
+          setReference(null);
           callerRef.current = null;
         };
       };
       mergedRefs.set(callerRef, mergedRef);
       return mergedRef;
     };
-  }, [refs.setReference]);
+  }, [setReference]);
 
   return (
     <>

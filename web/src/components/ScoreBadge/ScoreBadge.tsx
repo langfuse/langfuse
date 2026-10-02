@@ -10,7 +10,7 @@ import * as React from "react";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { HoverCardController } from "@/src/components/design-system/HoverCardController/HoverCardController";
+import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import { ScoreTag, scoreLevelFromScore } from "@/src/components/score-tag";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
@@ -66,7 +66,7 @@ export const ScoreBadge = <
 }) => {
   const projectId = useProjectIdFromURL();
   const [metadataOpen, setMetadataOpen] = React.useState<
-    Record<number, boolean>
+    Record<string, boolean>
   >({});
 
   const levels = showLevels
@@ -92,7 +92,7 @@ export const ScoreBadge = <
 
             return (
               <span
-                key={index}
+                key={score.id}
                 className="inline-flex min-w-0 items-center gap-1"
               >
                 <span className="truncate" title={value}>
@@ -129,16 +129,16 @@ export const ScoreBadge = <
                   </HoverCard>
                 )}
                 {hasMetadata(score) && (
-                  <HoverCardController
-                    open={metadataOpen[index] ?? false}
+                  <ControlledHoverCard
+                    open={metadataOpen[score.id] ?? false}
                     onOpenChange={(open) =>
                       setMetadataOpen((current) => ({
                         ...current,
-                        [index]: open,
+                        [score.id]: open,
                       }))
                     }
                     content={
-                      <div className="text-popover-foreground max-h-[50dvh] w-64 overflow-y-auto rounded-md p-0 text-xs break-normal whitespace-normal shadow-md">
+                      <div className="max-h-[50dvh] w-64 overflow-y-auto rounded-md p-0 text-xs break-normal whitespace-normal">
                         <JSONView
                           codeClassName="rounded-md!"
                           json={score.metadata}
@@ -156,7 +156,7 @@ export const ScoreBadge = <
                         <BracesIcon className="text-foreground-tertiary mb-0.25 size-3!" />
                       </button>
                     )}
-                  </HoverCardController>
+                  </ControlledHoverCard>
                 )}
                 {index < scores.length - 1 && <span>,</span>}
               </span>

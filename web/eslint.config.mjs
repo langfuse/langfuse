@@ -485,7 +485,8 @@ export default [
       "src/components/ui/popover.tsx",
       "src/components/ui/dropdown-menu.tsx",
       "src/components/ui/select.tsx",
-      "src/components/ui/hover-card.tsx",
+      "src/components/design-system/HoverCardController/HoverCardController.tsx",
+      "src/components/design-system/ControlledHoverCard/ControlledHoverCard.tsx",
       "src/components/ui/tooltip.tsx",
     ],
     rules: {
