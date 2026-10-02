@@ -276,7 +276,6 @@ export const supportAgentWorkflow: WorkflowTrace[] = [
           environment: "production",
         },
       ],
-      filtered: false,
     },
   },
 ];
@@ -1397,7 +1396,6 @@ export const codingAgentWorkflow: WorkflowTrace[] = [
           environment: "storybook",
         },
       ],
-      filtered: false,
     },
   },
   {
@@ -2244,7 +2242,6 @@ export const codingAgentWorkflow: WorkflowTrace[] = [
           environment: "storybook",
         },
       ],
-      filtered: false,
     },
   },
 ];
@@ -5594,7 +5591,6 @@ export const langfuseAssistantWorkflow: WorkflowTrace[] = [
           environment: "storybook",
         },
       ],
-      filtered: false,
     },
   },
 ];

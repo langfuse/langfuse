@@ -3,6 +3,10 @@ import React, { useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ChevronDown,
+  Bot,
+  UserRound,
+  Settings,
+  Wrench,
   ListFilter,
   MoreHorizontal,
   Pencil,
@@ -63,13 +67,30 @@ type ObservationListRowsState =
   | { type: "empty"; hasFilters: boolean }
   | { type: "loaded"; rows: ObservationListRow[] };
 
+type TranscriptListRow = {
+  id: string;
+  observationId: string;
+  label: string;
+  role: "system" | "user" | "assistant" | "tool";
+};
+
 export type ModernSessionSidebarTrace = {
   trace: EventSessionTrace;
   turnNumber: number;
   idleGapSeconds: number | null;
-  observations: ObservationListRow[] | null | undefined;
-  hasMatchingTraceLevelIO: boolean;
-};
+} & (
+  | {
+      contentType: "transcript";
+      transcriptRows: TranscriptListRow[] | null | undefined;
+      observations?: never;
+      hasMatchingTraceLevelIO?: never;
+    }
+  | {
+      contentType?: "observations";
+      observations: ObservationListRow[] | null | undefined;
+      hasMatchingTraceLevelIO: boolean;
+    }
+);
 
 const EMPTY_TRACES: ModernSessionSidebarTrace[] = [];
 
@@ -226,19 +247,23 @@ const TurnCard = React.memo(
     isActive: boolean;
     isCollapsed: boolean;
     onToggleCollapse: (traceId: string) => void;
-    onSelect: (index: number, observationId?: string) => void;
+    onSelect: (index: number, observationId?: string, rowId?: string) => void;
     hasFilters: boolean;
-    onFilterObservationByName: (
+    onFilterObservationByName?: (
       name: string,
       operator: "any of" | "none of",
     ) => void;
   }) => {
     const { trace, turnNumber, observations, hasMatchingTraceLevelIO } =
       sidebarTrace;
+    const transcriptRows =
+      sidebarTrace.contentType === "transcript"
+        ? sidebarTrace.transcriptRows
+        : undefined;
     const isTraceLevelIOOnly =
       hasMatchingTraceLevelIO && observations?.length === 0;
     let observationListClassName = "-mx-1";
-    if (observations?.length) {
+    if (observations?.length || transcriptRows?.length) {
       observationListClassName = "mt-2";
     }
     if (isTraceLevelIOOnly) {
@@ -295,7 +320,54 @@ const TurnCard = React.memo(
         </div>
         {!isCollapsed ? (
           <div className={observationListClassName}>
-            {observations === undefined ? (
+            {sidebarTrace.contentType === "transcript" ? (
+              transcriptRows === undefined ? (
+                <ObservationListRows state={{ type: "loading" }} />
+              ) : transcriptRows === null ? (
+                <p className="text-muted-foreground px-1 py-2 text-xs">
+                  Failed to load transcript
+                </p>
+              ) : transcriptRows.length === 0 ? (
+                <p className="text-muted-foreground px-1 py-2 text-xs">
+                  {hasFilters
+                    ? "No matching messages or tools"
+                    : "No messages or tools"}
+                </p>
+              ) : (
+                <div className="flex flex-col">
+                  {transcriptRows.map((row) => {
+                    const Icon = {
+                      user: UserRound,
+                      assistant: Bot,
+                      system: Settings,
+                      tool: Wrench,
+                    }[row.role];
+                    return (
+                      <button
+                        key={row.id}
+                        type="button"
+                        onClick={() =>
+                          onSelect(selectIndex, row.observationId, row.id)
+                        }
+                        className="ph-no-capture hover:bg-foreground/10 -mr-2 -ml-1 flex min-w-0 items-center gap-2 rounded-sm px-1 py-1 text-left transition-colors duration-150"
+                        aria-label={`${row.role}: ${row.label}`}
+                      >
+                        <Icon className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                        <span className="text-muted-foreground shrink-0 text-[11px] font-bold capitalize">
+                          {row.role}
+                        </span>
+                        <span
+                          className="text-muted-foreground min-w-0 flex-1 truncate text-[13px]"
+                          title={row.label}
+                        >
+                          {row.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )
+            ) : observations === undefined ? (
               <ObservationListRows state={{ type: "loading" }} />
             ) : observations === null ? (
               <ObservationListRows state={{ type: "error" }} />
@@ -327,27 +399,40 @@ TurnCard.displayName = "TurnCard";
 export function ModernSessionSidebar(
   props:
     | { state: "loading" }
-    | {
+    | ({
         state: "loaded";
         traces: ModernSessionSidebarTrace[];
         activeTraceId: string | undefined;
-        filterControls: ModernSessionSidebarFilterControls;
         search: string;
         onSearchChange: (search: string) => void;
         expandedTraceIds: ReadonlySet<string>;
         onToggleTraceExpanded: (traceId: string) => void;
-        onFilterObservationByName: (
-          name: string,
-          operator: "any of" | "none of",
+        onSelect: (
+          index: number,
+          observationId?: string,
+          rowId?: string,
         ) => void;
-        onSelect: (index: number, observationId?: string) => void;
         onVisibleTraceIdsChange: (traceIds: string[]) => void;
         hasMoreObservations: boolean;
         isLoadingMoreObservations: boolean;
         observationLoadError: boolean;
         onLoadMoreObservations: () => void;
         onViewportUnderfilled?: () => void;
-      },
+      } & (
+        | {
+            contentType: "transcript";
+            filterControls?: never;
+            onFilterObservationByName?: never;
+          }
+        | {
+            contentType?: "observations";
+            filterControls: ModernSessionSidebarFilterControls;
+            onFilterObservationByName: (
+              name: string,
+              operator: "any of" | "none of",
+            ) => void;
+          }
+      )),
 ) {
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
   const activeTraceId =
@@ -483,16 +568,19 @@ export function ModernSessionSidebar(
     virtualizer.scrollToOffset(0);
     onSearchChange(nextSearch);
   };
-  const showFilterSummary = Boolean(
-    filterControls.activeFilterCount > 0 ||
-    filterControls.activeViewName ||
-    filterControls.selectedViewId,
-  );
-  const filterSummaryLabel = filterControls.activeViewName
+  const usesTranscripts = props.contentType === "transcript";
+  const showFilterSummary =
+    filterControls &&
+    Boolean(
+      filterControls.activeFilterCount > 0 ||
+      filterControls.activeViewName ||
+      filterControls.selectedViewId,
+    );
+  const filterSummaryLabel = filterControls?.activeViewName
     ? `View: ${filterControls.activeViewName}`
-    : `${filterControls.activeFilterCount} active filter${filterControls.activeFilterCount === 1 ? "" : "s"}`;
+    : `${filterControls?.activeFilterCount ?? 0} active filter${filterControls?.activeFilterCount === 1 ? "" : "s"}`;
   const activeFilterQuery = filterStateToQueryText(
-    filterControls.activeFilters,
+    filterControls?.activeFilters ?? [],
   );
   const hasFilterRepresentation = Boolean(
     activeFilterQuery.text || activeFilterQuery.skippedFilters.length > 0,
@@ -501,7 +589,9 @@ export function ModernSessionSidebar(
   return (
     <div
       role="complementary"
-      aria-label="Session observations"
+      aria-label={
+        usesTranscripts ? "Session messages and tools" : "Session observations"
+      }
       className="bg-background session-review-stack:border-r-0 session-review-stack:border-b relative flex h-full min-h-0 flex-col border-r"
     >
       <div className="shrink-0 border-b">
@@ -514,28 +604,38 @@ export function ModernSessionSidebar(
             <Input
               value={search}
               onChange={(event) => handleSearchChange(event.target.value)}
-              aria-label="Search turns and observations"
-              placeholder="Search turns and observations"
+              aria-label={
+                usesTranscripts
+                  ? "Search messages and tools"
+                  : "Search turns and observations"
+              }
+              placeholder={
+                usesTranscripts
+                  ? "Search messages and tools"
+                  : "Search turns and observations"
+              }
               className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
             />
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                id={SESSION_DETAIL_VIEW_TRIGGER_ID}
-                type="button"
-                variant="outline"
-                size="icon"
-                className="relative h-7 w-7 shrink-0 rounded-sm"
-                aria-label="Filter observations"
-              >
-                <ListFilter className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <ModernSessionViewDropdownMenu controls={filterControls} />
-          </DropdownMenu>
+          {filterControls ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  id={SESSION_DETAIL_VIEW_TRIGGER_ID}
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="relative h-7 w-7 shrink-0 rounded-sm"
+                  aria-label="Filter observations"
+                >
+                  <ListFilter className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <ModernSessionViewDropdownMenu controls={filterControls} />
+            </DropdownMenu>
+          ) : null}
         </div>
-        {showFilterSummary ? (
+        {showFilterSummary && filterControls ? (
           <div className="border-t px-2 py-2.5">
             <div className="border-border/80 bg-muted/30 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5 rounded-md border py-2 pr-1 pl-2.5">
               <Tooltip>
@@ -639,9 +739,13 @@ export function ModernSessionSidebar(
         {traces.length === 0 ? (
           <div className="text-muted-foreground px-3 py-6 text-center text-xs">
             {props.isLoadingMoreObservations
-              ? "Loading observations..."
+              ? usesTranscripts
+                ? "Loading transcripts..."
+                : "Loading observations..."
               : props.observationLoadError
-                ? "Failed to load observations"
+                ? usesTranscripts
+                  ? "Failed to load transcripts"
+                  : "Failed to load observations"
                 : search
                   ? "No matching turns"
                   : "No turns"}
@@ -689,7 +793,7 @@ export function ModernSessionSidebar(
                       onSelect={onSelect}
                       hasFilters={
                         search.trim() !== "" ||
-                        filterControls.activeFilterCount > 0
+                        (filterControls?.activeFilterCount ?? 0) > 0
                       }
                       onFilterObservationByName={onFilterObservationByName}
                     />

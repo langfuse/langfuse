@@ -18,15 +18,20 @@ and mobile overlays remain independent of the underlying session.
 ## Transcript timeline
 
 `ConnectedModernSessionBodyTimeline` owns the shared sidebar and activates
-20-trace chunks from sidebar visibility and the timeline viewport. The existing
-conversation timeline uses `useSessionTraceTranscripts` to call
+20-trace chunks from sidebar visibility and the timeline viewport. It uses
+`useSessionTraceTranscripts` to fetch once for both the sidebar and timeline from
 the existing per-trace transcript endpoint with at most four requests running
 at once; results stay in the query cache and pending requests are cancelled
-when no longer observed. Sidebar metadata controls loading and filtering of the
-displayed messages.
+when no longer observed. Unfiltered observation queries supply action metadata;
+the transcript supplies the displayed messages and tools. Sidebar search matches
+message previews, roles, and tool names across the session.
+Observation filters and saved views apply only to the legacy session view.
 
 `SessionConversationTimelineTrace` renders transcript content for every thread
 using the existing timeline message/part components. Current-turn times describe
 the source observation. It does not normalize or deduplicate again. Navigation
-opens the trace or source observation from the feed, retains sidebar navigation
-to source observations, and exposes observation actions for matched messages.
+opens the trace or source observation from the feed and exposes observation
+actions for matched messages. The sidebar shows explicit message roles and tool
+names. Both views use `getSessionTranscriptRows` for grouping and row IDs so
+sidebar navigation scrolls to the exact message or tool, even when several rows
+share a source observation.

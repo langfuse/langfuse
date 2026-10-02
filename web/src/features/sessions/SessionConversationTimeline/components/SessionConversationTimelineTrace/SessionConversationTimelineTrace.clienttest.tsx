@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { type ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { SessionConversationTimelineTrace } from "./SessionConversationTimelineTrace";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 vi.mock("@/src/components/ui/PrettyJsonView", () => ({
   PrettyJsonView: ({ json }: { json: unknown }) => (
@@ -43,11 +44,7 @@ describe("SessionConversationTimelineTrace", () => {
         scrollTarget={null}
         state={{
           type: "transcript",
-          observations: [{ id: "generation-1" }] as Extract<
-            Props["state"],
-            { type: "transcript" }
-          >["observations"],
-          filtered: false,
+          observations: [],
           result: {
             state: "loaded",
             cutoff: false,
@@ -95,6 +92,7 @@ describe("SessionConversationTimelineTrace", () => {
     expect(systemObservationButton.classList.contains("invisible")).toBe(true);
     fireEvent.click(systemObservationButton);
     expect(onOpenTrace).toHaveBeenCalledOnce();
+    expect(screen.getByText("Answer")).toBeInTheDocument();
     expect(onOpenObservation).toHaveBeenCalledWith("generation-1");
     expect(
       screen.queryByRole("button", { name: "Transcript may be incomplete" }),
@@ -116,7 +114,6 @@ describe("SessionConversationTimelineTrace", () => {
             Props["state"],
             { type: "transcript" }
           >["observations"],
-          filtered: false,
           result: {
             state: "loaded",
             cutoff: true,
@@ -187,6 +184,7 @@ describe("SessionConversationTimelineTrace", () => {
           },
         }}
       />,
+      { wrapper: LayerProvider },
     );
 
     const text = container.textContent!;
@@ -211,6 +209,11 @@ describe("SessionConversationTimelineTrace", () => {
       container.querySelectorAll('time[datetime="2026-09-24T12:00:01.000Z"]'),
     ).toHaveLength(0);
     expect(screen.getByText("1.00s")).toBeTruthy();
+    expect(
+      Array.from(
+        container.querySelectorAll("[data-session-transcript-row-id]"),
+      ).map((row) => row.getAttribute("data-session-transcript-row-id")),
+    ).toEqual(["0:0", "0:1", "1:0"]);
     expect(screen.queryByRole("status")).toBeNull();
     const cutoffWarning = screen.getByRole("button", {
       name: "Transcript may be incomplete",
@@ -221,8 +224,10 @@ describe("SessionConversationTimelineTrace", () => {
     expect(text).not.toContain(
       "This transcript may be incomplete because the observation limit was reached.",
     );
-    fireEvent.focus(cutoffWarning);
-    expect((await screen.findByRole("tooltip")).textContent).toContain(
+    fireEvent.mouseEnter(cutoffWarning);
+    expect(
+      (await screen.findByRole("tooltip", {}, { timeout: 2000 })).textContent,
+    ).toContain(
       "This transcript may be incomplete because the observation limit was reached.",
     );
     expect(

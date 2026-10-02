@@ -151,7 +151,6 @@ function transcriptState({
       },
     },
     observations,
-    filtered: false,
   };
 }
 
@@ -170,7 +169,6 @@ export const MultipleThreads = meta.story({
         Props["state"],
         { type: "transcript" }
       >["observations"],
-      filtered: false,
     },
   },
 });
@@ -184,7 +182,6 @@ export const Cutoff = meta.story({
         Props["state"],
         { type: "transcript" }
       >["observations"],
-      filtered: false,
     },
   },
 });
@@ -196,25 +193,6 @@ export const Error = meta.story({
 });
 export const Empty = meta.story({
   args: { ...commonArgs, state: { type: "empty" } },
-});
-export const FilteredEmpty = meta.story({
-  name: "(Test) Filtered Empty",
-  args: {
-    ...commonArgs,
-    state: {
-      type: "filtered-empty",
-      viewLabel: "Generations",
-      onClearFilters: fn(),
-    },
-  },
-  play: async ({ args, canvasElement }) => {
-    await userEvent.click(
-      within(canvasElement).getByRole("button", { name: "Clear filters" }),
-    );
-    if (args.state.type !== "filtered-empty")
-      throw new globalThis.Error("Expected filtered-empty state");
-    await expect(args.state.onClearFilters).toHaveBeenCalledOnce();
-  },
 });
 
 export const RenderLoadedConversation = meta.story({
@@ -267,14 +245,13 @@ export const ExpandTool = meta.story({
   },
 });
 
-export const UseObservationFilters = meta.story({
-  name: "(Test) Filters Source Observations",
+export const AnnotateSourceObservation = meta.story({
+  name: "(Test) Annotate Source Observation",
   args: {
     ...commonArgs,
     state: {
       ...weatherState,
       observationActions: {
-        onFilterByName: fn(),
         annotate: { disabled: false, onSelect: fn() },
         comment: { disabled: false, onSelect: fn() },
         addToDataset: { disabled: false, onSelect: fn() },
@@ -300,35 +277,32 @@ export const UseObservationFilters = meta.story({
     ).toBeInTheDocument();
     await userEvent.click(
       page.getByRole("menuitem", {
-        name: "Only show observations with the same name",
+        name: "Annotate",
       }),
     );
     if (args.state.type !== "transcript")
       throw new globalThis.Error("Expected transcript state");
     await expect(
-      args.state.observationActions?.onFilterByName,
-    ).toHaveBeenCalledWith("Weather assistant", "any of");
+      args.state.observationActions?.annotate.onSelect,
+    ).toHaveBeenCalledWith(sourceObservation);
   },
 });
 
-export const FilteredMessages = meta.story({
-  name: "(Test) Filters Transcript Messages",
+export const MessagesWithoutObservationMetadata = meta.story({
+  name: "(Test) Messages Without Observation Metadata",
   args: {
     ...commonArgs,
     state: {
       ...weatherState,
-      filtered: true,
-      observations: [{ ...sourceObservation, id: "other-observation" }],
+      observations: [],
     },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByText("No transcript messages."),
-    ).toBeInTheDocument();
-    await expect(
-      canvas.queryByText("What is the weather?"),
+      canvas.queryByText("No transcript messages."),
     ).not.toBeInTheDocument();
+    await expect(canvas.getByText("What is the weather?")).toBeInTheDocument();
   },
 });
 
@@ -374,6 +348,7 @@ export const RenderFalsyValues = meta.story({
 });
 
 export const GenerationToolCallOnly = meta.story({
+  name: "(Test) Generation Tool Call Only",
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
@@ -410,6 +385,7 @@ export const GenerationToolCallOnly = meta.story({
 });
 
 export const ToolResultOnly = meta.story({
+  name: "(Test) Tool Result Only",
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(

@@ -1,9 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { type RouterOutputs } from "@/src/utils/api";
-import {
-  groupTranscriptMessages,
-  type TranscriptMessageGroup,
-} from "../../fns/groupTranscriptMessages";
+import { type TranscriptMessageGroup } from "../../fns/groupTranscriptMessages";
+import { getSessionTranscriptRows } from "../../fns/getSessionTranscriptRows";
 import {
   SessionTimelineToolRow,
   SessionObservationActionsMenuContent,
@@ -25,29 +23,24 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 export function SessionTranscriptContent({
   result,
   observations,
-  filtered,
   observationActions,
   onOpenObservation,
   scrollTarget,
 }: {
   result: Extract<SessionTraceTranscriptState, { state: "loaded" }>;
   observations: RouterOutputs["events"]["sessionAll"]["observations"];
-  filtered: boolean;
   observationActions?: SessionObservationActions;
   onOpenObservation: (observationId: string) => void;
-  scrollTarget: { observationId: string; requestId: number } | null;
+  scrollTarget: {
+    observationId: string;
+    rowId?: string;
+    requestId: number;
+  } | null;
 }) {
+  const rows = getSessionTranscriptRows(result.transcript);
   return (
     <div className="ph-no-capture space-y-4">
-      {!result.transcript?.threads.some((thread) =>
-        thread.currentTurn.messages.some(
-          (message) =>
-            !filtered ||
-            observations.some(
-              (observation) => observation.id === message.observationId,
-            ),
-        ),
-      ) && (
+      {rows.length === 0 && (
         <p className="text-muted-foreground text-sm">No transcript messages.</p>
       )}
       {result.transcript?.threads.map((thread, threadIndex) => (
@@ -61,16 +54,11 @@ export function SessionTranscriptContent({
             </h3>
           )}
           <SessionTranscriptThread
-            thread={thread}
+            rows={rows.filter((row) => row.threadIndex === threadIndex)}
             onOpenObservation={onOpenObservation}
             observations={observations}
             observationActions={observationActions}
             scrollTarget={scrollTarget}
-            allowedObservationIds={
-              filtered
-                ? new Set(observations.map((observation) => observation.id))
-                : null
-            }
           />
         </div>
       ))}
@@ -83,40 +71,24 @@ type DisplayMessage = NormalizedMessage & {
   observationId: string | null;
 };
 
-type Thread = NonNullable<
-  RouterOutputs["events"]["transcriptByTraceId"]["transcript"]
->["threads"][number];
-
 function SessionTranscriptThread({
-  thread,
+  rows,
   onOpenObservation,
   scrollTarget,
-  allowedObservationIds,
   observations,
   observationActions,
 }: {
-  thread: Thread;
+  rows: ReturnType<typeof getSessionTranscriptRows>;
   onOpenObservation: (observationId: string) => void;
-  scrollTarget: { observationId: string; requestId: number } | null;
-  allowedObservationIds: ReadonlySet<string> | null;
+  scrollTarget: {
+    observationId: string;
+    rowId?: string;
+    requestId: number;
+  } | null;
   observations: RouterOutputs["events"]["sessionAll"]["observations"];
   observationActions?: SessionObservationActions;
 }) {
-  const messages: DisplayMessage[] = [
-    ...thread.currentTurn.messages
-      .filter(
-        (message) =>
-          !allowedObservationIds ||
-          allowedObservationIds.has(message.observationId),
-      )
-      .map((message) => ({
-        ...message,
-        timing: { startTime: message.startTime, endTime: message.endTime },
-        observationId: message.observationId,
-      })),
-  ];
-  const rows = groupTranscriptMessages(messages);
-  return rows.map((row, index) => {
+  return rows.map(({ row, id }) => {
     const timing = row.message.timing;
     const isTool = row.type === "tool";
     const isSystem = row.message.role === "system";
@@ -192,14 +164,19 @@ function SessionTranscriptThread({
       );
     return (
       <div
-        key={index}
+        key={id}
         className="group space-y-1"
         data-session-tool-row={isTool ? "" : undefined}
         data-session-system-row={isSystem ? "" : undefined}
         data-session-observation-id={row.message.observationId ?? undefined}
+        data-session-transcript-row-id={id}
         data-scroll-request-id={
-          scrollTarget?.observationId === row.message.observationId
-            ? scrollTarget.requestId
+          (
+            scrollTarget?.rowId
+              ? scrollTarget.rowId === id
+              : scrollTarget?.observationId === row.message.observationId
+          )
+            ? scrollTarget?.requestId
             : undefined
         }
       >

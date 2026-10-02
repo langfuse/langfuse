@@ -9,6 +9,7 @@ const SESSION_TIMELINE_OVERSCAN = 5;
 export type SessionConversationTimelineScrollTarget = {
   traceId: string;
   observationId: string;
+  rowId?: string;
   requestId: number;
 };
 
@@ -39,7 +40,7 @@ export function useSessionConversationTimelineController(
 
   useEffect(() => () => observationScrollCleanupRef.current?.(), []);
 
-  const onSelect = (index: number, observationId?: string) => {
+  const onSelect = (index: number, observationId?: string, rowId?: string) => {
     observationScrollCleanupRef.current?.();
     observationScrollCleanupRef.current = null;
     selectTrace(index);
@@ -54,7 +55,9 @@ export function useSessionConversationTimelineController(
         feed.querySelectorAll<HTMLElement>("[data-session-observation-id]"),
       ).find(
         (element) =>
-          element.dataset.sessionObservationId === observationId &&
+          (rowId
+            ? element.dataset.sessionTranscriptRowId === rowId
+            : element.dataset.sessionObservationId === observationId) &&
           element.closest<HTMLElement>("[data-session-trace-id]")?.dataset
             .sessionTraceId === traceId,
       );

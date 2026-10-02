@@ -1,5 +1,4 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { type FilterState } from "@langfuse/shared";
 
 import {
   ConnectedSessionConversationTimeline,
@@ -14,10 +13,11 @@ import { computeIdleGapSeconds } from "@/src/features/sessions/sessionIdleGap";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import {
   ModernSessionSidebar,
-  type ModernSessionSidebarFilterControls,
   type ModernSessionSidebarTrace,
 } from "@/src/features/sessions/ModernSessionSidebar";
 import { api, type RouterOutputs } from "@/src/utils/api";
+import { useSessionTraceTranscripts } from "./SessionConversationTimeline/useSessionTraceTranscripts";
+import { getSessionTranscriptRows } from "./SessionConversationTimeline/fns/getSessionTranscriptRows";
 
 const SIDEBAR_TRACE_CHUNK_SIZE = 20;
 const SIDEBAR_OBSERVATION_PAGE_SIZE = 100;
@@ -34,14 +34,6 @@ type ConnectedModernSessionBodyTimelineProps = {
   sessionMinTimestamp: Date;
   sessionMaxTimestamp: Date;
   openPeek: OpenPeek;
-  filterState: FilterState;
-  filterMeasurementKey: string;
-  viewLabel: string | null;
-  sidebarFilterControls: ModernSessionSidebarFilterControls;
-  onFilterObservationByName: (
-    name: string,
-    operator: "any of" | "none of",
-  ) => void;
 };
 
 export function ConnectedModernSessionBodyTimeline({
@@ -51,11 +43,6 @@ export function ConnectedModernSessionBodyTimeline({
   sessionMinTimestamp,
   sessionMaxTimestamp,
   openPeek,
-  filterState,
-  filterMeasurementKey,
-  viewLabel,
-  sidebarFilterControls,
-  onFilterObservationByName,
 }: ConnectedModernSessionBodyTimelineProps) {
   const traces =
     tracesState.type === "loaded" ? tracesState.traces : EMPTY_TRACES;
@@ -88,38 +75,17 @@ export function ConnectedModernSessionBodyTimeline({
       .map((trace) => trace.id),
   );
 
-  const baseFilters: FilterState = [
-    ...filterState,
-    {
-      column: "startTime",
-      type: "datetime",
-      operator: ">=",
-      value: sessionMinTimestamp,
-    },
-    {
-      column: "startTime",
-      type: "datetime",
-      operator: "<=",
-      value: sessionMaxTimestamp,
-    },
-  ];
-  const filtersRequireIO = filterState.some(
-    (filter) =>
-      (filter.column === "hasInput" || filter.column === "hasOutput") &&
-      filter.type === "boolean" &&
-      filter.operator === "=" &&
-      filter.value,
-  );
-
   const traceIndexById = new Map(
     traces.map((trace, index) => [trace.id, index] as const),
   );
   const activeChunkIndices = new Set<number>();
-  if (!searchQuery) {
-    let highestChunkIndex = Math.min(
-      loadedThroughChunkIndex,
-      Math.ceil(traces.length / SIDEBAR_TRACE_CHUNK_SIZE) - 1,
-    );
+  {
+    let highestChunkIndex = searchQuery
+      ? Math.ceil(traces.length / SIDEBAR_TRACE_CHUNK_SIZE) - 1
+      : Math.min(
+          loadedThroughChunkIndex,
+          Math.ceil(traces.length / SIDEBAR_TRACE_CHUNK_SIZE) - 1,
+        );
     for (const traceId of visibleTraceIds) {
       const traceIndex = traceIndexById.get(traceId);
       if (traceIndex === undefined) continue;
@@ -142,17 +108,11 @@ export function ConnectedModernSessionBodyTimeline({
   const queryDescriptors: Array<{
     key: string;
     page: number;
-    traceIds: string[] | undefined;
+    traceIds: string[];
   }> = [];
-  if (searchQuery) {
-    const key = `search:${filterMeasurementKey}:${searchQuery}`;
-    const pageCount = pageCounts[key] ?? 1;
-    for (let page = 1; page <= pageCount; page++) {
-      queryDescriptors.push({ key, page, traceIds: undefined });
-    }
-  } else {
+  {
     for (const chunkIndex of activeChunkIndices) {
-      const key = `browse:${filterMeasurementKey}:${chunkIndex}`;
+      const key = `browse:${chunkIndex}`;
       const pageCount = pageCounts[key] ?? 1;
       const startIndex = chunkIndex * SIDEBAR_TRACE_CHUNK_SIZE;
       const traceIds = traces
@@ -170,19 +130,28 @@ export function ConnectedModernSessionBodyTimeline({
         {
           projectId,
           sessionId,
-          filter: descriptor.traceIds
-            ? [
-                ...baseFilters,
-                {
-                  column: "traceId",
-                  type: "stringOptions",
-                  operator: "any of",
-                  value: descriptor.traceIds,
-                },
-              ]
-            : baseFilters,
-          searchQuery: searchQuery || null,
-          searchType: searchQuery ? ["id"] : [],
+          filter: [
+            {
+              column: "startTime",
+              type: "datetime",
+              operator: ">=",
+              value: sessionMinTimestamp,
+            },
+            {
+              column: "startTime",
+              type: "datetime",
+              operator: "<=",
+              value: sessionMaxTimestamp,
+            },
+            {
+              column: "traceId",
+              type: "stringOptions",
+              operator: "any of",
+              value: descriptor.traceIds,
+            },
+          ],
+          searchQuery: null,
+          searchType: [],
           page: descriptor.page,
           limit: SIDEBAR_OBSERVATION_PAGE_SIZE,
           orderBy: { column: "startTime", order: "ASC" },
@@ -195,23 +164,30 @@ export function ConnectedModernSessionBodyTimeline({
     ),
   );
 
-  const observationsByTraceId = new Map<
-    string,
-    NonNullable<ModernSessionSidebarTrace["observations"]>
-  >();
+  const activeTranscriptTraceIds = new Set(
+    traces
+      .filter((_, index) =>
+        activeChunkIndices.has(Math.floor(index / SIDEBAR_TRACE_CHUNK_SIZE)),
+      )
+      .map((trace) => trace.id),
+  );
+  const resultsByTraceId = useSessionTraceTranscripts({
+    projectId,
+    traces: traces.map((trace, index) => ({ trace, turnNumber: index + 1 })),
+    activeTraceIds: activeTranscriptTraceIds,
+  });
+
   const timelineObservationsByTraceId = new Map<
     string,
     RouterOutputs["events"]["sessionAll"]["observations"]
   >();
   const observationIdsByTraceId = new Map<string, Set<string>>();
-  const traceIdsWithMatchingTraceLevelIO = new Set<string>();
   for (const query of observationQueries) {
     for (const observation of query.data?.observations ?? []) {
       if (!observation.traceId) {
         continue;
       }
       if (observation.id === `t-${observation.traceId}`) {
-        traceIdsWithMatchingTraceLevelIO.add(observation.traceId);
         continue;
       }
       const observationIds = observationIdsByTraceId.get(observation.traceId);
@@ -225,18 +201,9 @@ export function ConnectedModernSessionBodyTimeline({
           new Set([observation.id]),
         );
       }
-      const observations = observationsByTraceId.get(observation.traceId);
       const timelineObservations = timelineObservationsByTraceId.get(
         observation.traceId,
       );
-      const row = {
-        id: observation.id,
-        name: observation.name,
-        type: observation.type,
-        latency: observation.latency,
-      };
-      if (observations) observations.push(row);
-      else observationsByTraceId.set(observation.traceId, [row]);
       if (timelineObservations) timelineObservations.push(observation);
       else {
         timelineObservationsByTraceId.set(observation.traceId, [observation]);
@@ -245,63 +212,52 @@ export function ConnectedModernSessionBodyTimeline({
   }
 
   const sidebarTraces: ModernSessionSidebarTrace[] = [];
-  const incompleteTimelineTraceIds = new Set<string>();
   for (const [index, trace] of traces.entries()) {
-    const chunkIndex = Math.floor(index / SIDEBAR_TRACE_CHUNK_SIZE);
-    const chunkKey = `browse:${filterMeasurementKey}:${chunkIndex}`;
-    const relevantQueryIndices = queryDescriptors.flatMap(
-      (descriptor, queryIndex) =>
-        descriptor.key ===
-        (searchQuery
-          ? `search:${filterMeasurementKey}:${searchQuery}`
-          : chunkKey)
-          ? [queryIndex]
-          : [],
-    );
-    const hasLoadedObservations = observationsByTraceId.has(trace.id);
-    const isPending =
-      relevantQueryIndices.length === 0 ||
-      relevantQueryIndices.every(
-        (queryIndex) => observationQueries[queryIndex]?.isPending,
+    const transcript = resultsByTraceId.get(trace.id);
+    const transcriptRows = (() => {
+      if (transcript?.state === "error") return null;
+      if (!transcript || transcript.state === "loading") return undefined;
+      return getSessionTranscriptRows(transcript.transcript).map(
+        ({ id, row }) => {
+          const label =
+            row.type === "tool"
+              ? (row.call?.toolName ?? row.result?.toolName ?? "Tool")
+              : row.message.parts
+                  .map((part) => {
+                    if (part.type === "text") return part.text;
+                    if (part.type === "data" || part.type === "custom")
+                      return "JSON message";
+                    return part.type;
+                  })
+                  .join(" ") ||
+                row.message.senderName ||
+                row.message.role;
+          return {
+            id,
+            observationId: row.message.observationId,
+            label,
+            role: row.type === "tool" ? ("tool" as const) : row.message.role,
+          };
+        },
       );
-    const isError = relevantQueryIndices.some(
-      (queryIndex) => observationQueries[queryIndex]?.isError,
-    );
-    const lastRelevantQuery =
-      observationQueries[relevantQueryIndices.at(-1) ?? -1];
-    const mayHaveMoreObservations = Boolean(
-      lastRelevantQuery?.isPending || lastRelevantQuery?.data?.hasMore,
-    );
-    if (mayHaveMoreObservations) incompleteTimelineTraceIds.add(trace.id);
-    const observations = (() => {
-      if (isPending && !hasLoadedObservations) {
-        return undefined;
-      }
-      if (isError) {
-        return null;
-      }
-      if (mayHaveMoreObservations && !hasLoadedObservations) {
-        return undefined;
-      }
-      return observationsByTraceId.get(trace.id) ?? [];
     })();
-
-    if (
-      searchQuery &&
-      !observationsByTraceId.has(trace.id) &&
-      !traceIdsWithMatchingTraceLevelIO.has(trace.id)
-    ) {
-      continue;
-    }
+    const matchingRows =
+      searchQuery && transcriptRows
+        ? transcriptRows.filter((row) =>
+            `${row.role} ${row.label}`
+              .toLowerCase()
+              .includes(searchQuery.toLowerCase()),
+          )
+        : transcriptRows;
+    if (searchQuery && matchingRows?.length === 0) continue;
 
     sidebarTraces.push({
       trace,
       turnNumber: index + 1,
       idleGapSeconds:
         index === 0 ? null : computeIdleGapSeconds(traces[index - 1]!, trace),
-      observations,
-      hasMatchingTraceLevelIO:
-        filtersRequireIO && traceIdsWithMatchingTraceLevelIO.has(trace.id),
+      contentType: "transcript",
+      transcriptRows: matchingRows,
     });
   }
 
@@ -315,8 +271,11 @@ export function ConnectedModernSessionBodyTimeline({
   const isLoadingMoreObservations = Array.from(lastQueryByKey.values()).some(
     (queryIndex) => observationQueries[queryIndex]?.isFetching,
   );
-  const observationLoadError = observationQueries.some(
-    (query) => query.isError,
+  const isLoadingTranscripts = Array.from(activeTranscriptTraceIds).some(
+    (traceId) => resultsByTraceId.get(traceId)?.state === "loading",
+  );
+  const transcriptLoadError = Array.from(resultsByTraceId.values()).some(
+    (result) => result.state === "error",
   );
 
   const loadMoreObservations = () => {
@@ -371,9 +330,6 @@ export function ConnectedModernSessionBodyTimeline({
     setSearch(nextSearch);
     debouncedSetSearchQuery(nextSearch.trim());
   };
-  const sidebarTraceById = new Map(
-    sidebarTraces.map((sidebarTrace) => [sidebarTrace.trace.id, sidebarTrace]),
-  );
 
   const toggleTraceExpanded = (traceId: string) => {
     setCollapsedTraceIds((current) => {
@@ -385,44 +341,29 @@ export function ConnectedModernSessionBodyTimeline({
   };
   const timelineTraces: ConnectedSessionConversationTimelineItem[] = traces.map(
     (trace, index) => {
-      const sidebarTrace = sidebarTraceById.get(trace.id);
-      const observations = (() => {
-        if (sidebarTrace?.observations === null) {
-          return null;
-        }
-        if (
-          sidebarTrace?.observations === undefined ||
-          incompleteTimelineTraceIds.has(trace.id)
-        ) {
-          return undefined;
-        }
-        return timelineObservationsByTraceId.get(trace.id) ?? [];
-      })();
-
       return {
         trace,
         turnNumber: index + 1,
-        observations,
+        observations: timelineObservationsByTraceId.get(trace.id) ?? [],
       };
     },
   );
-  const transcriptChunkIndices = new Set(activeChunkIndices);
-  for (const item of timelineController.virtualItems) {
-    transcriptChunkIndices.add(
-      Math.floor(item.index / SIDEBAR_TRACE_CHUNK_SIZE),
-    );
-  }
-  const handleSelect = (index: number, observationId?: string) => {
+  const handleSelect = (
+    index: number,
+    observationId?: string,
+    rowId?: string,
+  ) => {
     const traceId = timelineTraces[index]?.trace.id;
     if (observationId && traceId) {
       scrollRequestIdRef.current += 1;
       setScrollTarget({
         traceId,
         observationId,
+        rowId,
         requestId: scrollRequestIdRef.current,
       });
     }
-    timelineController.onSelect(index, observationId);
+    timelineController.onSelect(index, observationId, rowId);
   };
 
   return (
@@ -432,21 +373,20 @@ export function ConnectedModernSessionBodyTimeline({
       ) : (
         <ModernSessionSidebar
           state="loaded"
+          contentType="transcript"
           traces={isSearchPending ? [] : sidebarTraces}
           activeTraceId={timelineController.activeTraceId ?? undefined}
-          filterControls={sidebarFilterControls}
           search={search}
           onSearchChange={handleSearchChange}
           expandedTraceIds={expandedTraceIds}
           onToggleTraceExpanded={toggleTraceExpanded}
-          onFilterObservationByName={onFilterObservationByName}
           onSelect={handleSelect}
           onVisibleTraceIdsChange={handleVisibleTraceIdsChange}
           hasMoreObservations={hasMoreObservations}
           isLoadingMoreObservations={
-            isSearchPending || isLoadingMoreObservations
+            isSearchPending || isLoadingMoreObservations || isLoadingTranscripts
           }
-          observationLoadError={observationLoadError}
+          observationLoadError={transcriptLoadError}
           onLoadMoreObservations={loadMoreObservations}
           onViewportUnderfilled={
             searchQuery && !isSearchPending ? loadMoreObservations : undefined
@@ -457,25 +397,10 @@ export function ConnectedModernSessionBodyTimeline({
         <ConnectedSessionConversationTimeline
           traces={timelineTraces}
           projectId={projectId}
-          filterState={filterState}
-          filterMeasurementKey={filterMeasurementKey}
-          viewLabel={viewLabel}
           openPeek={openPeek}
           controller={timelineController}
-          activeTraceIds={
-            new Set(
-              traces
-                .filter((_, index) =>
-                  transcriptChunkIndices.has(
-                    Math.floor(index / SIDEBAR_TRACE_CHUNK_SIZE),
-                  ),
-                )
-                .map((trace) => trace.id),
-            )
-          }
+          resultsByTraceId={resultsByTraceId}
           scrollTarget={scrollTarget}
-          onClearFilters={sidebarFilterControls.onClearFilters}
-          onFilterObservationByName={onFilterObservationByName}
           onLoadMoreObservations={
             hasMoreObservations && !isLoadingMoreObservations
               ? loadMoreObservations

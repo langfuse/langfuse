@@ -1,4 +1,3 @@
-import { type FilterState } from "@langfuse/shared";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { AnnotateDrawerController } from "@/src/features/scores";
@@ -15,55 +14,35 @@ import {
   SessionConversationTimelineTrace,
   type SessionObservationActions,
 } from "./components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
-import { useSessionTraceTranscripts } from "./useSessionTraceTranscripts";
+import { type SessionTraceTranscriptState } from "./useSessionTraceTranscripts";
+import { getSessionTranscriptRows } from "./fns/getSessionTranscriptRows";
 
 export type ConnectedSessionConversationTimelineItem = {
   trace: EventSessionTrace;
   turnNumber: number;
-  observations:
-    | RouterOutputs["events"]["sessionAll"]["observations"]
-    | null
-    | undefined;
+  observations: RouterOutputs["events"]["sessionAll"]["observations"];
 };
 
 export function ConnectedSessionConversationTimeline({
   traces,
   projectId,
-  filterMeasurementKey,
-  viewLabel,
-  filterState,
   openPeek,
   controller,
-  activeTraceIds,
+  resultsByTraceId,
   scrollTarget,
-  onClearFilters,
-  onFilterObservationByName,
   onLoadMoreObservations,
 }: {
   traces: readonly ConnectedSessionConversationTimelineItem[];
   projectId: string;
-  filterState: FilterState;
-  filterMeasurementKey: string;
-  viewLabel: string | null;
   openPeek: (
     id: string,
     row: EventSessionTrace & { observationId?: string },
   ) => void;
   controller: SessionConversationTimelineController;
-  activeTraceIds: ReadonlySet<string>;
+  resultsByTraceId: ReadonlyMap<string, SessionTraceTranscriptState>;
   scrollTarget: SessionConversationTimelineScrollTarget | null;
-  onClearFilters: () => void;
-  onFilterObservationByName: (
-    name: string,
-    operator: "any of" | "none of",
-  ) => void;
   onLoadMoreObservations?: () => void;
 }) {
-  const resultsByTraceId = useSessionTraceTranscripts({
-    projectId,
-    traces,
-    activeTraceIds,
-  });
   const utils = api.useUtils();
   const hasDatasetAccess = useHasProjectAccess({
     projectId,
@@ -83,32 +62,19 @@ export function ConnectedSessionConversationTimeline({
                   traces={traces.map(({ trace, turnNumber, observations }) => {
                     const result = resultsByTraceId.get(trace.id);
                     const state = (() => {
-                      if (observations === null) {
-                        return { type: "error" as const };
-                      }
-                      if (observations === undefined) {
-                        return { type: "loading" as const };
-                      }
-                      if (observations.length === 0) {
-                        if (filterState.length === 0)
-                          return { type: "empty" as const };
-                        return {
-                          type: "filtered-empty" as const,
-                          viewLabel,
-                          onClearFilters,
-                        };
-                      }
                       if (result?.state === "error")
                         return { type: "error" as const };
                       if (!result || result.state === "loading")
                         return { type: "loading" as const };
+                      if (
+                        getSessionTranscriptRows(result.transcript).length === 0
+                      )
+                        return { type: "empty" as const };
                       return {
                         type: "transcript" as const,
                         result,
                         observations,
-                        filtered: filterState.length > 0,
                         observationActions: {
-                          onFilterByName: onFilterObservationByName,
                           annotate: {
                             disabled: annotateDisabled,
                             onSelect: (
@@ -202,7 +168,7 @@ export function ConnectedSessionConversationTimeline({
                     };
                   })}
                   TraceComponent={SessionConversationTimelineTrace}
-                  filterMeasurementKey={`${filterMeasurementKey}:transcript`}
+                  filterMeasurementKey="transcript"
                   controller={controller}
                   onLoadMoreObservations={onLoadMoreObservations}
                 />

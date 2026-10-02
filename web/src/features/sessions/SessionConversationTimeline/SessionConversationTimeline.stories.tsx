@@ -66,7 +66,6 @@ const traces: TraceProps[] = [
         TraceProps["state"],
         { type: "transcript" }
       >["observations"],
-      filtered: false,
     },
     onOpenTrace: () => {},
     onOpenObservation: () => {},
@@ -136,6 +135,7 @@ function SessionConversationTimelineStory({
 const meta = preview.meta({ component: SessionConversationTimelineStory });
 export default meta;
 export const SupportAgentWorkflow = meta.story({
+  name: "(Test) Support Agent Workflow",
   args: { workflowTraces: supportAgentWorkflow },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

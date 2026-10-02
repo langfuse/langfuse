@@ -2,7 +2,6 @@ import { ChevronDown, CircleAlert, MessageSquareOff } from "lucide-react";
 import { type ReactNode } from "react";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
-import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
@@ -25,20 +24,13 @@ export type PreparedSessionConversationTimelineTraceState =
   | { type: "error" }
   | { type: "empty" }
   | {
-      type: "filtered-empty";
-      viewLabel: string | null;
-      onClearFilters: () => void;
-    }
-  | {
       type: "transcript";
       result: Extract<SessionTraceTranscriptState, { state: "loaded" }>;
       observations: RouterOutputs["events"]["sessionAll"]["observations"];
-      filtered: boolean;
       observationActions?: SessionObservationActions;
     };
 
 export type SessionObservationActions = {
-  onFilterByName: (name: string, operator: "any of" | "none of") => void;
   annotate: {
     disabled: boolean;
     onSelect: (observation: ActionObservation) => void;
@@ -91,24 +83,6 @@ export function SessionObservationActionsMenuContent({
       >
         Add to dataset
       </DropdownMenuItem>
-      {observation.name ? (
-        <DropdownMenuItem
-          onSelect={() =>
-            actions.onFilterByName(observation.name as string, "any of")
-          }
-        >
-          Only show observations with the same name
-        </DropdownMenuItem>
-      ) : null}
-      {observation.name ? (
-        <DropdownMenuItem
-          onSelect={() =>
-            actions.onFilterByName(observation.name as string, "none of")
-          }
-        >
-          Exclude observations with the same name
-        </DropdownMenuItem>
-      ) : null}
     </DropdownMenuContent>
   );
 }
@@ -225,7 +199,11 @@ export function SessionConversationTimelineTrace({
   state: PreparedSessionConversationTimelineTraceState;
   onOpenTrace: () => void;
   onOpenObservation: (observationId: string) => void;
-  scrollTarget: { observationId: string; requestId: number } | null;
+  scrollTarget: {
+    observationId: string;
+    rowId?: string;
+    requestId: number;
+  } | null;
 }) {
   return (
     <div
@@ -330,33 +308,15 @@ export function SessionConversationTimelineTrace({
           Failed to load conversation.
         </div>
       )}
-      {(state.type === "empty" || state.type === "filtered-empty") && (
+      {state.type === "empty" && (
         <div className="text-muted-foreground flex items-center justify-between gap-4 rounded-lg border border-dashed p-4 text-xs">
-          <span>
-            {state.type === "empty" && "This trace has no observations."}
-            {state.type === "filtered-empty" &&
-              (state.viewLabel
-                ? `No observation matches the “${state.viewLabel}” view in this trace.`
-                : "No observation matches the current filters in this trace.")}
-          </span>
-          {state.type === "filtered-empty" ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="shrink-0"
-              onClick={state.onClearFilters}
-            >
-              Clear filters
-            </Button>
-          ) : null}
+          <span>This trace has no transcript messages.</span>
         </div>
       )}
       {state.type === "transcript" && (
         <SessionTranscriptContent
           result={state.result}
           observations={state.observations}
-          filtered={state.filtered}
           observationActions={state.observationActions}
           onOpenObservation={onOpenObservation}
           scrollTarget={scrollTarget}
