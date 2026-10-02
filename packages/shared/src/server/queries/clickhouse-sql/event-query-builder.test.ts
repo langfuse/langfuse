@@ -110,6 +110,24 @@ describe("EventsSessionAggregationQueryBuilder", () => {
 
     expect(query).not.toContain("metadata_names");
     expect(query).not.toContain("metadata_values");
+    expect(query).not.toContain("tool_definitions");
+    expect(query).not.toContain("tool_calls");
+  });
+
+  it("selects tool aggregates only when requested", () => {
+    const { query } = new EventsSessionAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("base", "tools")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "groupUniqArrayArray(mapKeys(tool_definitions)) AS tool_names",
+    );
+    expect(query).toContain(
+      "groupUniqArrayArray(tool_call_names) AS called_tool_names",
+    );
+    expect(query).toContain("sum(length(tool_calls)) AS tool_calls_count");
   });
 });
 
