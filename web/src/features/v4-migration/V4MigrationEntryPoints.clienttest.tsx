@@ -2,7 +2,15 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ROUTES, RouteSection } from "@/src/components/layouts/routes";
-import { V4MigrationNavItem } from "./V4MigrationNavItem";
+import {
+  V4MigrationNavItem,
+  useV4MigrationNavItemProject,
+} from "./V4MigrationNavItem";
+
+function V4MigrationNavItemHarness() {
+  const project = useV4MigrationNavItemProject();
+  return <>{project && <V4MigrationNavItem project={project} />}</>;
+}
 import { V4MigrationProjectChip } from "./V4MigrationProjectChip";
 import { type ProjectMigrationStatus } from "./migrationData";
 
@@ -90,7 +98,7 @@ describe("v4 migration entry points", () => {
   });
 
   it("hides the sidebar item when the project is up to date", () => {
-    render(<V4MigrationNavItem />);
+    render(<V4MigrationNavItemHarness />);
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
@@ -107,7 +115,7 @@ describe("v4 migration entry points", () => {
           project={{ id: "project-1", name: "Project 1" }}
           readiness="action-needed"
         />
-        <V4MigrationNavItem />
+        <V4MigrationNavItemHarness />
       </>,
     );
 
@@ -121,7 +129,7 @@ describe("v4 migration entry points", () => {
       migrationStatus({ evals: { status: "error", count: 0 } }),
     ]) {
       mocks.migrationData = status;
-      const { unmount } = render(<V4MigrationNavItem />);
+      const { unmount } = render(<V4MigrationNavItemHarness />);
 
       expect(screen.queryByRole("button")).not.toBeInTheDocument();
       unmount();
