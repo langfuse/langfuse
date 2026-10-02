@@ -21,6 +21,7 @@ export const showErrorToast = (
   description: string,
   type: "WARNING" | "ERROR" = "ERROR",
   path?: string,
+  traceId?: string,
 ) => {
   toast.custom(
     (t) => (
@@ -29,6 +30,7 @@ export const showErrorToast = (
         description={description}
         type={type}
         path={path}
+        traceId={traceId}
         dismissToast={toast.dismiss}
         toast={t}
       />
