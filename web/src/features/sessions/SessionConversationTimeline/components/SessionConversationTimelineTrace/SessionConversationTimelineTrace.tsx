@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable no-nested-ternary */
 import { useMemo, useState } from "react";
 import {
@@ -30,13 +29,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import { Tooltip as DSTooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type RouterOutputs } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
@@ -114,9 +108,10 @@ function SessionTimelineStatusIndicator({
   const colors = getLevelColors(observation.level);
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Tooltip label={observation.statusMessage ?? ""} delay={300}>
+      {({ getTriggerProps }) => (
         <span
+          {...getTriggerProps()}
           className={cn(
             "flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
             colors.bg,
@@ -127,10 +122,7 @@ function SessionTimelineStatusIndicator({
         >
           <Icon className="h-3.5 w-3.5" aria-hidden="true" />
         </span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-sm whitespace-pre-wrap">
-        {observation.statusMessage}
-      </TooltipContent>
+      )}
     </Tooltip>
   );
 }
@@ -147,7 +139,7 @@ function SessionTimelineMarkerIcon({
   label: string;
 }) {
   return (
-    <DSTooltip label={label}>
+    <Tooltip label={label}>
       {({ getTriggerProps }) => (
         <span
           {...getTriggerProps()}
@@ -158,7 +150,7 @@ function SessionTimelineMarkerIcon({
           <Icon className="h-3 w-3" aria-hidden="true" />
         </span>
       )}
-    </DSTooltip>
+    </Tooltip>
   );
 }
 
@@ -439,19 +431,20 @@ function SessionTimelineToolRow({
               />
             </DropdownMenu>
           ) : !observation ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Tooltip
+              label="Actions are available on the parent observation"
+              delay={300}
+            >
+              {({ getTriggerProps }) => (
                 <span
+                  {...getTriggerProps()}
                   className="text-muted-foreground/50 flex h-6 w-6 shrink-0 items-center justify-center"
                   role="img"
                   aria-label="Actions available on parent observation"
                 >
                   <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
                 </span>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                Actions are available on the parent observation
-              </TooltipContent>
+              )}
             </Tooltip>
           ) : null}
         </span>
