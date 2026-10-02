@@ -17,7 +17,8 @@ project permissions. Processing additionally requires the project allowlist.
   Configure topics opens a centered dialog; Process traces or Update topics
   submits the retained configuration. Overlay owners stay outside the responsive
   header menu. Facet versions contain only prompts; processing settings and
-  embedding dimensions are frozen on executions.
+  embedding dimensions are frozen on executions. Built-in facets are read-only;
+  custom facets can be revised by creating a new prompt version.
 - `useTopicPipelineForm` owns the configuration dialog, operation, facet versions
   and submission. The workspace renders its header actions and dialog separately;
   configuration changes preserve the current results and selection. Its state
@@ -34,15 +35,17 @@ project permissions. Processing additionally requires the project allowlist.
   IDs, and per-trace errors, using aggregate counts for progress.
   Expanding Trace errors loads failed trace IDs and reasons on demand from
   retained queue state. When it expires, the UI says so; permanent counts remain.
-  Saved topic rules hold reusable filters, sampling and stable facet IDs, like
-  evaluator rules. Selecting a rule loads its criteria and each facet's latest
-  prompt version; editing criteria or facets becomes an ad hoc run until explicitly
-  saved. Rules do not create separate maps or invalidate summaries and embeddings.
+  Saved topic rules hold reusable filters and stable facet IDs. Selecting a rule
+  loads its filters and each facet's latest prompt version; editing filters or
+  facets becomes an ad hoc run until explicitly saved. Sampling and its limit stay
+  specific to each execution and are retained when switching saved rules. Rules
+  do not create separate maps or invalidate summaries and embeddings.
   These local PoC operations and rule saving add no product analytics event.
 - `useTopicTraceSelector` reuses the eval filter builder and query editor, with
   a time range, all matching traces selected by default, and optional random/latest
   sampling with a user-chosen size. Selecting a rule or changing the operation
-  resets only the trace-selection draft; dates stay specific to each execution.
+  resets the trace-selection draft while retaining sampling settings; dates stay
+  specific to each execution.
   The hook supplies selection, criteria and controls so the dialog can unmount
   without losing the reviewed cohort. Explicit preview counts the cohort;
   changing criteria invalidates it. Rows can be excluded across preview pages.

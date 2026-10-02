@@ -54,7 +54,6 @@ export function useTopicPipelineForm({
   const selectedRule = rules.data?.find((rule) => rule.id === ruleId);
   const saveRuleLabel = selectedRule ? "Update rule" : "Save rule";
   const [ruleName, setRuleName] = useState("");
-  const [initialCriteria, setInitialCriteria] = useState<TopicTraceCriteria>();
   const {
     selection,
     criteria,
@@ -125,8 +124,6 @@ export function useTopicPipelineForm({
     selectedRule &&
     criteria &&
     JSON.stringify(criteria.filter) === JSON.stringify(selectedRule.filter) &&
-    criteria.sampling === selectedRule.sampling &&
-    criteria.limit === selectedRule.limit &&
     activeFacetIds.length === selectedRule.facetIds.length &&
     activeFacetIds.every((id) => selectedRule.facetIds.includes(id));
   const summaryCounts = api.topics.summaryCounts.useQuery(
@@ -236,7 +233,7 @@ export function useTopicPipelineForm({
             value={operation}
             onValueChange={(value) => {
               setOperation(value as TopicOperation);
-              resetTraceSelection(initialCriteria);
+              resetTraceSelection(selectedRule?.filter);
               setError(null);
               if (value === "update")
                 utils.topics.summaryCounts.invalidate({ projectId });
@@ -268,15 +265,7 @@ export function useTopicPipelineForm({
                   ]),
                 ),
               );
-              const criteria = rule
-                ? {
-                    filter: rule.filter,
-                    sampling: rule.sampling,
-                    limit: rule.limit,
-                  }
-                : undefined;
-              setInitialCriteria(criteria);
-              resetTraceSelection(criteria);
+              resetTraceSelection(rule?.filter);
               saveRule.reset();
             }}
           >
@@ -431,15 +420,15 @@ export function useTopicPipelineForm({
                         projectId,
                         ...(selectedRule ? { id: selectedRule.id } : {}),
                         name: ruleName,
-                        ...criteria,
+                        filter: criteria.filter,
                         facetIds: activeFacetIds,
                       })
                     }
                   />
                 </div>
                 <p className="text-muted-foreground text-xs">
-                  Rules save filters, sampling and selected facets. Choose the
-                  time range and summary reuse for each run.
+                  Rules save filters and selected facets. Choose the time range,
+                  sampling and summary reuse for each run.
                   {selectedRule && !matchesRule(criteria)
                     ? " Unsaved changes apply only to this run until you update the rule."
                     : ""}

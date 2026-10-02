@@ -65,8 +65,11 @@
 - `@langfuse/shared/topics/server`: Topics persistence, queue handoff and execution
   progress. See `../../worker/src/features/topics/README.md` for storage and retry
   invariants before changing this module.
-  - `postgres.ts`: facets/rules and clustering runs. Runs reference immutable
-    ClickHouse definitions; reused definitions retain their original creation run.
+  - `postgres.ts`: facets reuse evaluator/version storage with type `FACET`;
+    built-in presets are immutable. Saved rules reuse evaluation rules and
+    evaluator assignments; ordering and limits belong to manual requests.
+    Clustering runs reference immutable ClickHouse definitions; reused
+    definitions retain their original creation run.
   - `clickhouse.ts`: current summaries/assignments and immutable definitions.
     Source identity prefers `traceId`; `sessionId` may carry parent context.
     Facet versions use `(projectId, facetId, version)`. Reads require a time
@@ -167,8 +170,8 @@ the same PR.
 - Build: `pnpm --filter @langfuse/shared run build`
 - Prisma generate: `pnpm --filter @langfuse/shared run db:generate`
 - Prisma migrate (dev): `pnpm --filter @langfuse/shared run db:migrate`
-- Topics table preflight: `pnpm run topics:dev-tables`; add `--apply` to create.
-  For deployment targeting and external-table ownership, see
+- Topics ClickHouse preflight: `pnpm run topics:dev-tables`; add `--apply` to create.
+  Postgres uses normal migrations. For ClickHouse deployment targeting, see
   `scripts/topics-dev-tables/README.md`.
 - ClickHouse reset: `pnpm --filter @langfuse/shared run ch:reset`
 - Materialize direct-migration trees: `pnpm ch:migrations:materialize`
@@ -179,9 +182,7 @@ the same PR.
 ### Postgres schema change
 
 1. Update `prisma/schema.prisma`.
-2. Add migration in `prisma/migrations/*`. Topics tables are externally managed
-   in `prisma.config.ts`; update their provisioning SQL and plan explicit upgrades
-   instead of generating migrations for them.
+2. Add migration in `prisma/migrations/*`.
 3. Regenerate client/types via `db:generate`.
 4. Update affected repository/query code under `src/server/repositories/*`.
 5. Add/adjust `web` and/or `worker` tests for changed behavior.

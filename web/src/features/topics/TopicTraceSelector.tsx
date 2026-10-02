@@ -11,7 +11,6 @@ import {
   type TimeFilter,
 } from "@langfuse/shared";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
-import type { TopicRule } from "@langfuse/shared/topics";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Input } from "@/src/components/ui/input";
@@ -31,7 +30,7 @@ import { parseTraceInput } from "./parse-trace-input";
 
 type PreviewInput = RouterInputs["topics"]["previewTraces"];
 export type TopicTraceCriteria = Pick<
-  TopicRule,
+  PreviewInput,
   "filter" | "sampling" | "limit"
 >;
 type TracePreview = RouterOutputs["topics"]["previewTraces"]["traces"][number];
@@ -83,16 +82,13 @@ export function useTopicTraceSelector({
   const [paste, setPaste] = useState("");
   const [request, setRequest] = useState<PreviewInput | null>(null);
   const [excluded, setExcluded] = useState<string[]>([]);
-  const reset = (criteria?: TopicTraceCriteria) => {
+  const reset = (filter: FilterState = []) => {
     const to = new Date();
     setMode("filters");
     setFilterMode("builder");
-    setFilter(criteria?.filter ?? []);
+    setFilter(filter);
     setTimeWindow("7");
     setRange({ from: new Date(to.getTime() - 7 * DAY), to });
-    setSample(criteria?.limit != null);
-    setLimit(String(criteria?.limit ?? 100));
-    setSampling(criteria?.sampling ?? "random");
     setPaste("");
     setRequest(null);
     setExcluded([]);

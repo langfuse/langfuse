@@ -6,24 +6,31 @@ current Langfuse instance (locally, normally `http://localhost:3000`).
 
 ## Facets and selection rules
 
-Like evaluators and evaluation rules, Topics separates semantic definitions from
-which traces are processed:
+Topics reuses the evaluator and evaluation-rule tables:
 
-- `facets`: stable facet identity, name and description.
-- `facet_versions`: immutable prompts keyed by project, facet and numeric
-  version. Saving an unchanged prompt does not create a version.
-- `facet_rules`: editable names, observation filters and optional random/latest
-  sample size. `facet_rule_assignments` attaches stable facets to rules;
-  editing a rule does not create prompt versions.
+- `evaluators` with type `FACET` store facet identity, name and description.
+  `isBuiltIn` marks the immutable Intent, Outcome and Issues presets. Custom
+  facets can have their own instructions.
+- `evaluator_versions` stores immutable prompts keyed by evaluator and numeric
+  version. Saving an unchanged custom prompt does not create a version.
+- `evaluation_rules` stores saved names and observation filters;
+  `evaluation_rule_evaluator_assignments` attaches facets. Editing a rule does
+  not create prompt versions. Random/latest ordering and sample limits belong
+  to each manual processing request, not the saved rule.
 - At trigger, the request freezes the rule ID, resolved trace IDs, selected prompt
   versions and runtime summary/embedding configuration. A hash identifies the
   original request, including its selection criteria. Retries never re-evaluate a rule.
+
+Postgres uses normal Prisma migrations; `topic_clustering_runs` is the only new
+Topics table. `EvaluationRule.idleTime` stores an optional duration in milliseconds;
+it does not change automatic scheduling or trace-batch admission.
 
 ## Setup
 
 Use the normal local Postgres, ClickHouse, Redis, web, and worker stack. Apply the
 repository's database migrations and regenerate/build shared before starting the
-worker. Once the Topics tables exist, set `LANGFUSE_TOPICS_ENABLED=true` on both
+worker. Provision the Topics ClickHouse tables with
+`pnpm run topics:dev-tables --apply`. Once they exist, set `LANGFUSE_TOPICS_ENABLED=true` on both
 web and worker. It defaults to false: Topics routes, effective session flags,
 queues and Topics cleanup are disabled, so the tables may be absent.
 Set `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS=project-a,project-b` on both services to
@@ -120,8 +127,9 @@ Required for a local run, in addition to Postgres, ClickHouse, and Redis:
 
 ## Run the experiment
 
-1. Initialize facets and inspect/edit their instructions. `Intent`, `Outcome`,
-   and `Issues` are editable starting points; a facet is not a list of topic classes.
+1. Initialize facets and inspect their instructions. `Intent`, `Outcome`, and
+   `Issues` are built-in presets with immutable instructions. Create a custom
+   facet for different instructions; a facet is not a list of topic classes.
 2. Choose **Process traces** and select traces through filters or pasted IDs.
    The request freezes the selection and selected facet versions. It generates
    summaries and embeddings, then assigns only this batch to the current
@@ -475,7 +483,8 @@ Intent describes the requested task even when execution fails. Outcome describes
 what was actually delivered or confirmed, keeping a proposed action distinct from
 an assistant's claim and a confirming result. Issues describes the principal
 observed obstacle, its consequence and recovery; a problem quoted for analysis
-is not itself an agent defect. Each editable prompt owns its facet's semantics.
+is not itself an agent defect. Each preset prompt defines its facet's semantics;
+custom facets use their own versioned instructions.
 
 The shared extraction wrapper asks for compact English prose (normally one
 sentence, at most two and 100 words), preserves meaningful distinctions, and

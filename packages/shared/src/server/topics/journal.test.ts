@@ -72,6 +72,9 @@ vi.mock("../../db", () => {
   const transaction = {
     topicClusteringRun,
     batchAction,
+    evaluatorVersion: {
+      count: async ({ where }: { where: { OR: unknown[] } }) => where.OR.length,
+    },
     $executeRaw: async () => 1,
     $queryRaw: async () => [],
   };

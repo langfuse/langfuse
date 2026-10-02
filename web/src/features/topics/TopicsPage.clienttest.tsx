@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
   retry: vi.fn(),
   refetchExecution: vi.fn(),
   summaryCounts: vi.fn(),
+  saveFacet: vi.fn(),
 }));
 const pathname = "/project/[projectId]/topics";
 const retainedQuery = {
@@ -114,7 +115,14 @@ vi.mock("@/src/utils/api", () => {
                   {
                     id: "intent",
                     name: "Intent",
+                    isBuiltIn: true,
                     versions: [{ version: 1, prompt: "Describe intent" }],
+                  },
+                  {
+                    id: "workflow",
+                    name: "Workflow",
+                    isBuiltIn: false,
+                    versions: [{ version: 1, prompt: "Describe workflow" }],
                   },
                 ]
               : [],
@@ -127,15 +135,13 @@ vi.mock("@/src/utils/api", () => {
                 id: "rule",
                 name: "Saved rule",
                 filter: [],
-                sampling: "latest",
-                limit: 50,
                 facetIds: ["intent"],
               },
             ],
           }),
         },
         saveRule: { useMutation: () => ({ reset: vi.fn() }) },
-        saveFacet: { useMutation: () => ({}) },
+        saveFacet: { useMutation: () => ({ mutate: state.saveFacet }) },
         trigger: { useMutation: () => ({}) },
         previewTraces: { useQuery: () => ({}) },
         summaryCounts: {
@@ -215,6 +221,36 @@ afterEach(() => {
 });
 
 describe("Topics execution history", () => {
+  it("keeps built-in facet questions read-only while allowing custom revisions", async () => {
+    state.configured = true;
+    render(<TopicsPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Configure topics" }));
+    fireEvent.click(screen.getByText("Add a facet or revise a question"));
+    fireEvent.keyDown(screen.getByLabelText("Facet to edit"), {
+      key: "ArrowDown",
+    });
+    expect(
+      await screen.findByRole("option", { name: "Intent · built-in" }),
+    ).toHaveAttribute("aria-disabled", "true");
+    fireEvent.keyDown(
+      screen.getByRole("option", { name: "Workflow · new version" }),
+      { key: "Enter" },
+    );
+    expect(screen.getByLabelText("Facet name")).toHaveValue("Workflow");
+    expect(screen.getByLabelText("Facet name")).toBeDisabled();
+    expect(screen.getByLabelText("Facet question")).toBeEnabled();
+    fireEvent.change(screen.getByLabelText("Facet question"), {
+      target: { value: "Describe the workflow used in this trace" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save facet" }));
+    expect(state.saveFacet).toHaveBeenCalledExactlyOnceWith({
+      projectId: "project",
+      facetId: "workflow",
+      name: "Workflow",
+      prompt: "Describe the workflow used in this trace",
+    });
+  });
+
   it("uses whole local dates when switching a relative range to Custom", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(2026, 9, 1, 14, 30));

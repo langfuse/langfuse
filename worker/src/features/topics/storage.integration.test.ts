@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type {
   TopicAssignment,
   TopicDefinition,
   TopicSummary,
+  TopicExecutionInput,
 } from "@langfuse/shared/topics";
 import {
   getTopicDefinitions,
@@ -14,8 +15,228 @@ import {
   getLatestFacetSummaries,
   getTopicClusteringSummaries,
   getTopicSummaryCounts,
+  createTopicFacet,
+  createTopicFacetVersion,
+  ensureDefaultTopicFacets,
+  getTopicFacetVersion,
+  listTopicFacets,
+  getTopicRule,
+  listTopicRules,
+  saveTopicRule,
+  createTopicExecution,
+  createTopicRun,
+  getTopicRun,
+  saveTopicRun,
 } from "@langfuse/shared/topics/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
+import { prisma } from "@langfuse/shared/src/db";
+
+describe("Topics eval-backed configuration", () => {
+  const orgId = randomUUID();
+  const projectId = randomUUID();
+  const otherProjectId = randomUUID();
+
+  beforeAll(async () => {
+    await prisma.organization.create({
+      data: {
+        id: orgId,
+        name: "Topics storage test",
+        projects: {
+          create: [
+            { id: projectId, name: "Topics" },
+            { id: otherProjectId, name: "Other project" },
+          ],
+        },
+      },
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.organization.deleteMany({ where: { id: orgId } });
+  });
+
+  it("initializes built-in FACET evaluators once under concurrent requests", async () => {
+    await createTopicFacet({
+      projectId,
+      name: "Intent",
+      description: "Custom facet",
+      prompt: "Summarize a custom aspect of the request.",
+    });
+    const results = await Promise.all(
+      Array.from({ length: 3 }, () => ensureDefaultTopicFacets(projectId)),
+    );
+    const defaults = await prisma.evaluator.findMany({
+      where: { projectId, type: "FACET", isBuiltIn: true },
+      include: { versions: true },
+    });
+    expect(defaults).toHaveLength(3);
+    for (const result of results)
+      expect(
+        result
+          .filter((facet) => facet.isBuiltIn)
+          .map((facet) => facet.id)
+          .sort(),
+      ).toEqual(defaults.map((facet) => facet.id).sort());
+    const facet = defaults[0]!;
+    expect(facet.versions).toHaveLength(1);
+    await expect(
+      createTopicFacetVersion({
+        projectId,
+        facetId: facet.id,
+        prompt: "Replace the built-in instructions.",
+      }),
+    ).rejects.toThrow(/built-in/i);
+  });
+
+  it("keeps versions and rule assignments scoped to this project's FACET evaluators", async () => {
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Intent",
+      description: "Custom facet with a built-in name",
+      prompt: "Describe the original request.",
+    });
+    const next = {
+      projectId,
+      facetId: facet.id,
+      prompt: " Describe the result. ",
+    };
+    const versions = await Promise.all([
+      createTopicFacetVersion(next),
+      createTopicFacetVersion(next),
+    ]);
+    expect(versions.map((version) => version.version)).toEqual([2, 2]);
+    expect(await getTopicFacetVersion(projectId, facet.id, 1)).toMatchObject({
+      prompt: "Describe the original request.",
+    });
+    const foreign = await createTopicFacet({
+      projectId: otherProjectId,
+      name: "Foreign facet",
+      description: "",
+      prompt: "Describe another project's request.",
+    });
+    const evaluator = await prisma.evaluator.create({
+      data: {
+        projectId,
+        name: "Ordinary evaluator",
+        type: "LLM_AS_JUDGE",
+        versions: { create: { version: 1, prompt: "Grade the answer." } },
+      },
+    });
+    for (const id of [foreign.id, evaluator.id]) {
+      expect(await getTopicFacetVersion(projectId, id, 1)).toBeNull();
+      await expect(
+        createTopicFacetVersion({ ...next, facetId: id }),
+      ).rejects.toThrow(/project/);
+      await expect(
+        saveTopicRule({
+          projectId,
+          name: "Invalid",
+          filter: [],
+          facetIds: [id],
+        }),
+      ).rejects.toThrow(/project/);
+    }
+    const visible = await listTopicFacets(projectId);
+    expect(visible.find((value) => value.id === facet.id)).toMatchObject({
+      isBuiltIn: false,
+    });
+    expect(visible.map((value) => value.id)).not.toContain(evaluator.id);
+    const rule = await saveTopicRule({
+      projectId,
+      name: "Saved selection",
+      filter: [],
+      facetIds: [facet.id, facet.id],
+    });
+    expect(rule.facetIds).toEqual([facet.id]);
+    expect(
+      await prisma.evaluationRule.findUnique({ where: { id: rule.id } }),
+    ).toMatchObject({
+      targetObject: "trace",
+      delay: 0,
+      idleTime: null,
+      timeScope: ["NEW"],
+      status: "ACTIVE",
+    });
+    const ordinaryRule = await prisma.evaluationRule.create({
+      data: {
+        projectId,
+        name: "Evaluation rule",
+        filter: [],
+        sampling: 1,
+        delay: 0,
+        targetObject: "trace",
+        assignments: { create: { projectId, evaluatorId: evaluator.id } },
+      },
+    });
+    expect(await getTopicRule(otherProjectId, rule.id)).toBeNull();
+    expect(await getTopicRule(projectId, ordinaryRule.id)).toBeNull();
+    expect(
+      (await listTopicRules(projectId)).map((value) => value.id),
+    ).not.toContain(ordinaryRule.id);
+    await expect(
+      saveTopicRule({ ...rule, id: ordinaryRule.id }),
+    ).rejects.toThrow(/not found/);
+  });
+
+  it("rejects foreign run versions and atomically creates one journal and run on replay", async () => {
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Publication",
+      description: "",
+      prompt: "Describe publication behavior.",
+    });
+    const input: TopicExecutionInput = {
+      projectId,
+      requestId: randomUUID(),
+      operation: "update",
+      facets: [{ facetId: facet.id, version: 1 }],
+      timeRange: { from: new Date("2026-09-01"), to: new Date("2026-10-01") },
+      embeddingConfig: {
+        embeddingModel: "cohere.embed-v4:0",
+        embeddingDimensions: 256,
+      },
+      exploratory: false,
+    };
+    await expect(
+      createTopicRun({
+        projectId: otherProjectId,
+        facetId: facet.id,
+        facetVersion: 1,
+        config: {},
+      }),
+    ).rejects.toThrow(/project/);
+    await expect(
+      createTopicExecution(
+        { ...input, projectId: otherProjectId },
+        undefined,
+        "test-user",
+      ),
+    ).rejects.toThrow(/project/);
+    expect(
+      await prisma.batchAction.count({ where: { projectId: otherProjectId } }),
+    ).toBe(0);
+    const [first, replay] = await Promise.all([
+      createTopicExecution(input, undefined, "test-user"),
+      createTopicExecution(input, undefined, "test-user"),
+    ]);
+    expect(replay.id).toBe(first.id);
+    expect(replay.facets[0]?.runId).toBe(first.facets[0]?.runId);
+    expect(
+      await prisma.topicClusteringRun.count({
+        where: { projectId, facetId: facet.id },
+      }),
+    ).toBe(1);
+    const run = (await getTopicRun(projectId, first.facets[0]!.runId!))!;
+    const completed = await saveTopicRun({
+      ...run,
+      status: "completed",
+      finishedAt: new Date().toISOString(),
+    });
+    expect(
+      await saveTopicRun({ ...run, status: "failed", error: "Late retry" }),
+    ).toEqual(completed);
+  });
+});
 
 describe("Topics definition persistence", () => {
   const projectId = randomUUID();

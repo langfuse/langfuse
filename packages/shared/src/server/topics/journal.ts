@@ -163,6 +163,17 @@ export async function createTopicExecution(
       checkRequest(batchMetadata(current), input, requestHash);
       return current;
     }
+    const versionCount = await tx.evaluatorVersion.count({
+      where: {
+        evaluator: { projectId, type: "FACET" },
+        OR: input.facets.map(({ facetId, version }) => ({
+          evaluatorId: facetId,
+          version,
+        })),
+      },
+    });
+    if (versionCount !== input.facets.length)
+      throw new InvalidRequestError("Facet version not found in this project.");
     const facets: TopicFacetProgress[] = input.facets.map(
       ({ facetId, version }) => ({
         facetId,

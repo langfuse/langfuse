@@ -396,8 +396,8 @@ function TopicsWorkspaceView({
           <section className="flex flex-col items-start gap-3">
             <h2 className="font-bold">Start with a question</h2>
             <p className="text-muted-foreground text-sm">
-              Create starter facets for intent, outcome, and issues. You can
-              edit the questions or add your own.
+              Create built-in facets for intent, outcome, and issues, then add
+              custom facets for your own questions.
             </p>
             <Button
               text="Create starter facets"
@@ -425,6 +425,9 @@ function FacetEditor({
   const [facetId, setFacetId] = useState("new");
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState("");
+  const isBuiltIn = facets.some(
+    (facet) => facet.id === facetId && facet.isBuiltIn,
+  );
   const save = api.topics.saveFacet.useMutation({
     onSuccess: () => utils.topics.facets.invalidate({ projectId }),
   });
@@ -449,8 +452,12 @@ function FacetEditor({
           <SelectContent className="ph-no-capture">
             <SelectItem value="new">New facet</SelectItem>
             {facets.map((facet) => (
-              <SelectItem key={facet.id} value={facet.id}>
-                {facet.name} · new version
+              <SelectItem
+                key={facet.id}
+                value={facet.id}
+                disabled={facet.isBuiltIn}
+              >
+                {facet.name} · {facet.isBuiltIn ? "built-in" : "new version"}
               </SelectItem>
             ))}
           </SelectContent>
@@ -466,17 +473,22 @@ function FacetEditor({
           aria-label="Facet question"
           placeholder="What should each trace summary describe?"
           value={prompt}
+          disabled={isBuiltIn}
           onChange={(event) => setPrompt(event.target.value)}
         />
         <p className="text-muted-foreground text-xs">
-          Revising a question creates an immutable version. Existing summaries
-          and maps retain their original question.
+          Built-in questions are read-only. Revising a custom question creates
+          an immutable version; existing summaries and maps retain their
+          original question.
         </p>
         <div className="self-start">
           <Button
             text="Save facet"
             disabled={
-              save.isPending || !name.trim() || prompt.trim().length < 10
+              isBuiltIn ||
+              save.isPending ||
+              !name.trim() ||
+              prompt.trim().length < 10
             }
             onClick={() =>
               save.mutate({

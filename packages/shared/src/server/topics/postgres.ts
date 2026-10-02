@@ -14,35 +14,48 @@ import {
 import { isEqual } from "lodash";
 import { getTopicDefinitions, writeTopicDefinitions } from "./clickhouse";
 import { InvalidRequestError } from "../../errors";
+import { EvalTargetObject } from "../../features/evals/types";
 
-type FacetVersionRow = Prisma.FacetVersionGetPayload<object>;
+type FacetVersionRow = Prisma.EvaluatorVersionGetPayload<object>;
+type FacetRow = Prisma.EvaluatorGetPayload<{ include: { versions: true } }>;
 type RunRow = Prisma.TopicClusteringRunGetPayload<object>;
 
-function facetVersion(row: FacetVersionRow): TopicFacetVersion {
+function facetVersion(
+  row: FacetVersionRow,
+  projectId: string,
+): TopicFacetVersion {
+  if (row.prompt === null) throw new Error("Facet version has no prompt.");
   return {
-    projectId: row.projectId,
-    facetId: row.facetId,
+    projectId,
+    facetId: row.evaluatorId,
     version: row.version,
     prompt: row.prompt,
     createdAt: row.createdAt.toISOString(),
   };
 }
 
+function topicFacet(row: FacetRow): TopicFacet {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    name: row.name,
+    description: row.description ?? "",
+    isBuiltIn: row.isBuiltIn,
+    versions: row.versions.map((version) =>
+      facetVersion(version, row.projectId),
+    ),
+  };
+}
+
 export async function listTopicFacets(
   projectId: string,
 ): Promise<TopicFacet[]> {
-  const rows = await prisma.facet.findMany({
-    where: { projectId },
+  const rows = await prisma.evaluator.findMany({
+    where: { projectId, type: "FACET" },
     include: { versions: { orderBy: { version: "desc" } } },
     orderBy: { createdAt: "asc" },
   });
-  return rows.map((row) => ({
-    id: row.id,
-    projectId,
-    name: row.name,
-    description: row.description,
-    versions: row.versions.map(facetVersion),
-  }));
+  return rows.map(topicFacet);
 }
 
 export async function getTopicFacetVersion(
@@ -50,10 +63,15 @@ export async function getTopicFacetVersion(
   facetId: string,
   version: number,
 ): Promise<TopicFacetVersion | null> {
-  const row = await prisma.facetVersion.findFirst({
-    where: { projectId, facetId, version },
+  const row = await prisma.evaluatorVersion.findFirst({
+    where: {
+      evaluatorId: facetId,
+      version,
+      evaluator: { projectId, type: "FACET" },
+    },
+    include: { evaluator: { select: { projectId: true } } },
   });
-  return row ? facetVersion(row) : null;
+  return row ? facetVersion(row, row.evaluator.projectId) : null;
 }
 
 interface FacetVersionInput {
@@ -64,31 +82,17 @@ interface FacetVersionInput {
 export async function createTopicFacet(
   input: FacetVersionInput & { name: string; description: string },
 ): Promise<TopicFacet> {
-  const row = await prisma.$transaction(async (tx) => {
-    const facet = await tx.facet.create({
-      data: {
-        projectId: input.projectId,
-        name: input.name.trim(),
-        description: input.description.trim(),
-      },
-    });
-    const version = await tx.facetVersion.create({
-      data: {
-        projectId: input.projectId,
-        facetId: facet.id,
-        version: 1,
-        prompt: input.prompt.trim(),
-      },
-    });
-    return { ...facet, versions: [version] };
+  const row = await prisma.evaluator.create({
+    data: {
+      projectId: input.projectId,
+      type: "FACET",
+      name: input.name.trim(),
+      description: input.description.trim(),
+      versions: { create: { version: 1, prompt: input.prompt.trim() } },
+    },
+    include: { versions: true },
   });
-  return {
-    id: row.id,
-    projectId: row.projectId,
-    name: row.name,
-    description: row.description,
-    versions: row.versions.map(facetVersion),
-  };
+  return topicFacet(row);
 }
 
 export async function createTopicFacetVersion(
@@ -96,24 +100,28 @@ export async function createTopicFacetVersion(
 ): Promise<TopicFacetVersion> {
   const row = await prisma.$transaction(async (tx) => {
     const facets = await tx.$queryRaw<
-      { id: string }[]
-    >`SELECT id FROM facets WHERE project_id = ${input.projectId} AND id = ${input.facetId} FOR UPDATE`;
-    if (!facets.length) throw new Error("Facet not found.");
-    const last = await tx.facetVersion.findFirst({
-      where: { projectId: input.projectId, facetId: input.facetId },
+      { id: string; isBuiltIn: boolean }[]
+    >`SELECT id, is_built_in AS "isBuiltIn" FROM evaluators
+      WHERE project_id = ${input.projectId} AND id = ${input.facetId} AND type = 'FACET'
+      FOR UPDATE`;
+    if (!facets.length)
+      throw new InvalidRequestError("Facet not found in this project.");
+    if (facets[0].isBuiltIn)
+      throw new InvalidRequestError("Built-in facets cannot be changed.");
+    const last = await tx.evaluatorVersion.findFirst({
+      where: { evaluatorId: input.facetId },
       orderBy: { version: "desc" },
     });
     if (last?.prompt === input.prompt.trim()) return last;
-    return tx.facetVersion.create({
+    return tx.evaluatorVersion.create({
       data: {
-        projectId: input.projectId,
-        facetId: input.facetId,
+        evaluatorId: input.facetId,
         version: (last?.version ?? 0) + 1,
         prompt: input.prompt.trim(),
       },
     });
   });
-  return facetVersion(row);
+  return facetVersion(row, input.projectId);
 }
 
 export async function ensureDefaultTopicFacets(
@@ -139,43 +147,64 @@ export async function ensureDefaultTopicFacets(
         "Determine whether a problem occurred in the execution or response of this run. If the run has adequate evidence and no problem, return not_applicable with an empty summary; do not summarize its success. An error quoted in input for explanation is not an error of this run. Missing logs, an appropriate refusal, and routine clarification alone are not defects. If the recording is too incomplete to judge, return insufficient_input with an empty summary. An observed tool error or response defect is applicable even if the agent recovered. Describe the principal observed problem, the operation it affected, and its consequence. Include recovery when shown. Treat complaints as reports, not proof of an underlying cause. Keep related symptoms together; prioritize the most consequential problem when independent problems compete. Examples: an export tool returning permission denied is applicable; accurately explaining a permission error pasted by the user is not_applicable; a recording containing only the initial request is insufficient_input.",
     },
   ];
-  for (const preset of presets) {
-    try {
-      const existing = await prisma.facet.findUnique({
-        where: { projectId_name: { projectId, name: preset.name } },
-      });
-      if (!existing)
-        await createTopicFacet({
-          projectId,
-          ...preset,
+  const facets = await listTopicFacets(projectId);
+  if (
+    presets.every((preset) =>
+      facets.some((facet) => facet.isBuiltIn && facet.name === preset.name),
+    )
+  )
+    return facets;
+  await prisma.$transaction(async (tx) => {
+    const projects = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM projects WHERE id = ${projectId} FOR UPDATE`;
+    if (!projects.length) throw new InvalidRequestError("Project not found.");
+    const existing = await tx.evaluator.findMany({
+      where: { projectId, type: "FACET", isBuiltIn: true },
+      select: { name: true },
+    });
+    for (const { prompt, ...preset } of presets) {
+      if (!existing.some((facet) => facet.name === preset.name))
+        await tx.evaluator.create({
+          data: {
+            projectId,
+            ...preset,
+            type: "FACET",
+            isBuiltIn: true,
+            versions: { create: { version: 1, prompt } },
+          },
         });
-    } catch (error) {
-      if (
-        !(
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2002"
-        )
-      )
-        throw error;
     }
-  }
+  });
   return listTopicFacets(projectId);
 }
 
-type RuleRow = Prisma.FacetRuleGetPayload<{ include: { assignments: true } }>;
+type RuleRow = Prisma.EvaluationRuleGetPayload<{
+  include: { assignments: true };
+}>;
 const topicRule = (row: RuleRow): TopicRule => ({
   id: row.id,
   projectId: row.projectId,
   name: row.name,
   ...topicRuleConfigSchema.parse(row),
-  facetIds: row.assignments.map((assignment) => assignment.facetId),
+  facetIds: row.assignments.map((assignment) => assignment.evaluatorId),
   updatedAt: row.updatedAt.toISOString(),
 });
 
+function topicRuleWhere(projectId: string): Prisma.EvaluationRuleWhereInput {
+  return {
+    projectId,
+    targetObject: EvalTargetObject.TRACE,
+    assignments: {
+      some: {},
+      every: { projectId, evaluator: { projectId, type: "FACET" } },
+    },
+  };
+}
+
 export async function listTopicRules(projectId: string): Promise<TopicRule[]> {
   return (
-    await prisma.facetRule.findMany({
-      where: { projectId },
+    await prisma.evaluationRule.findMany({
+      where: topicRuleWhere(projectId),
       include: { assignments: true },
       orderBy: { updatedAt: "desc" },
     })
@@ -186,8 +215,8 @@ export async function getTopicRule(
   projectId: string,
   id: string,
 ): Promise<TopicRule | null> {
-  const row = await prisma.facetRule.findFirst({
-    where: { projectId, id },
+  const row = await prisma.evaluationRule.findFirst({
+    where: { ...topicRuleWhere(projectId), id },
     include: { assignments: true },
   });
   return row ? topicRule(row) : null;
@@ -198,16 +227,20 @@ export async function saveTopicRule(
 ): Promise<TopicRule> {
   const facetIds = [...new Set(input.facetIds)];
   return prisma.$transaction(async (tx) => {
-    const facets = await tx.facet.findMany({
-      where: { projectId: input.projectId, id: { in: facetIds } },
+    const facets = await tx.evaluator.findMany({
+      where: {
+        projectId: input.projectId,
+        type: "FACET",
+        id: { in: facetIds },
+      },
       select: { id: true },
     });
     if (!facetIds.length || facets.length !== facetIds.length)
       throw new InvalidRequestError("Select facets from this project.");
     if (
       input.id &&
-      !(await tx.facetRule.findFirst({
-        where: { projectId: input.projectId, id: input.id },
+      !(await tx.evaluationRule.findFirst({
+        where: { ...topicRuleWhere(input.projectId), id: input.id },
       }))
     )
       throw new InvalidRequestError("Topic rule not found in this project.");
@@ -217,20 +250,27 @@ export async function saveTopicRule(
       filter: JSON.parse(
         JSON.stringify(config.filter),
       ) as Prisma.InputJsonValue,
-      sampling: config.sampling,
-      limit: config.limit,
+      sampling: 1,
+      delay: 0,
+      idleTime: null,
+      targetObject: EvalTargetObject.TRACE,
+      timeScope: ["NEW"],
+      status: "ACTIVE" as const,
     };
-    const assignments = facetIds.map((facetId) => ({ facetId }));
+    const assignments = facetIds.map((evaluatorId) => ({
+      projectId: input.projectId,
+      evaluatorId,
+    }));
     const row = input.id
-      ? await tx.facetRule.update({
-          where: { projectId_id: { projectId: input.projectId, id: input.id } },
+      ? await tx.evaluationRule.update({
+          where: { ...topicRuleWhere(input.projectId), id: input.id },
           data: {
             ...data,
             assignments: { deleteMany: {}, create: assignments },
           },
           include: { assignments: true },
         })
-      : await tx.facetRule.create({
+      : await tx.evaluationRule.create({
           data: {
             ...data,
             projectId: input.projectId,
@@ -368,6 +408,14 @@ export async function createTopicRun(input: {
   facetVersion: number;
   config: Record<string, unknown>;
 }): Promise<TopicRun> {
+  if (
+    !(await getTopicFacetVersion(
+      input.projectId,
+      input.facetId,
+      input.facetVersion,
+    ))
+  )
+    throw new InvalidRequestError("Facet version not found in this project.");
   const row = await prisma.topicClusteringRun.create({
     data: {
       projectId: input.projectId,

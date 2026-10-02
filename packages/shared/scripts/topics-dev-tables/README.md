@@ -1,20 +1,24 @@
 # Topics tables
 
-Topics storage is provisioned explicitly. Normal production migrations do not
-create it. Keep `LANGFUSE_TOPICS_ENABLED=false` (the default) on deployments
-without these tables.
+Topics Postgres storage uses normal Prisma migrations. Facets and saved rules
+reuse the evaluator/version and evaluation-rule/assignment tables;
+`topic_clustering_runs` is the only new Postgres table.
+
+This provisioner creates the three Topics ClickHouse tables explicitly, outside
+the normal ClickHouse migrations. Keep `LANGFUSE_TOPICS_ENABLED=false` (the
+default) on deployments without these tables.
 
 ## Staging / one production region
 
-From an installed checkout (`pnpm install`, generated Prisma client), copy
+From an installed checkout (`pnpm install`), copy
 [remote.env.example](./remote.env.example) to a private file outside the repo.
-Fill in that deployment's **direct Postgres URL** and **ClickHouse HTTP URL**,
-credentials and database name. `CLICKHOUSE_URL` must be the server origin, without
-a database path or query parameters. The databases and normal Langfuse migrations must
-already exist. Use a machine with network access and DDL permissions.
+Fill in that deployment's **ClickHouse HTTP URL**, credentials and database name.
+`CLICKHOUSE_URL` must be the server origin, without a database path or query
+parameters. Apply normal Langfuse migrations, including Postgres, before enabling
+Topics. Use a machine with network access and ClickHouse DDL permissions.
 
 ```bash
-# Read-only: prints targets, checks existing schemas, lists missing tables.
+# Read-only: prints the target, checks existing schemas, lists missing tables.
 pnpm run topics:dev-tables --config /absolute/path/staging.env
 
 # Same preflight, then create missing tables and verify the resulting schemas.
@@ -43,7 +47,7 @@ Supported: single-node ClickHouse and ClickHouse Cloud's managed SharedMergeTree
 replication. Self-managed `CLICKHOUSE_CLUSTER_ENABLED=true` is rejected before
 DDL; it needs a separate, cluster-aware provisioning path. Cloud compatibility
 is accounted for in schema checks, but provisioning must still be checked against
-the actual deployment. No native ClickHouse or PostgreSQL client required.
+the actual deployment. No native ClickHouse client required.
 
 ## Local development
 
@@ -57,58 +61,45 @@ pnpm run topics:dev-setup
 pnpm run dev
 ```
 
-The convenience setup creates missing Topics tables and seeds only the
+The convenience setup creates missing Topics ClickHouse tables and seeds only the
 [Topics discovery/assignment fixture](../seeder/README.md#topics). Normal stack
 setup owns migrations, generated clients, builds and demo project seeding.
 Apply the runtime flags above on web and worker; for demo data, allow project
 `7a88fb47-b4e2-43b8-a06c-a5ce950dc53a`.
 
-For tables only: `pnpm run topics:dev-tables --apply`. Without `--config`, the
-root `.env` is loaded and exported variables take precedence. `DIRECT_URL` wins
-over `DATABASE_URL`; check both when overriding. ClickHouse uses `CLICKHOUSE_URL`
+For ClickHouse tables only: `pnpm run topics:dev-tables --apply`. The optional
+`clickhouse` positional argument selects the same target. Without `--config`, the
+root `.env` is loaded and exported variables take precedence. ClickHouse uses `CLICKHOUSE_URL`
 (HTTP/HTTPS), `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD` and `CLICKHOUSE_DB` (default
 `default` locally). It does not use the native `CLICKHOUSE_MIGRATION_URL`.
 
-Pass `postgres` or `clickhouse` to select one database. For test Postgres:
-
-```bash
-pnpm --filter @langfuse/shared exec dotenv -e ../../.env.test -e ../../.env -- pnpm run topics:dev-tables postgres --apply
-```
-
-The existing `db:reset`, `db:reset:test`, and `ch:reset` now provision their Topics
-tables too. `ch:reset` explicitly drops Topics tables after the normal confirmed
-down-migration step, including incompatible schemas and existing rows. CI applies baseline migrations with `db:deploy`, then runs this
-provisioner explicitly. Production entrypoints never run it automatically.
+Postgres setup, including `topic_clustering_runs`, belongs to normal `db:deploy`,
+`db:reset` and `db:reset:test` commands. `ch:reset` explicitly drops Topics
+ClickHouse tables after the normal confirmed down-migration step, including
+incompatible schemas and existing rows, then recreates them. CI applies normal
+migrations and runs this ClickHouse provisioner explicitly. Production
+entrypoints never run the ClickHouse provisioner automatically.
 
 ## Safety and schema changes
 
-- Both selected databases are checked before any DDL. PostgreSQL columns,
-  defaults, constraints and required indexes must match; ClickHouse columns,
+- All three ClickHouse tables are checked before any DDL. Columns,
   expressions, constraints, replacement engine/version and keys must match.
   ClickHouse storage settings may differ except the required projection
   maintenance settings.
 - Missing tables are created. Existing incompatible tables cause failure; no
   automatic ALTER, DROP, data deletion, seeding or migration-history edits.
-- PostgreSQL DDL is transactional. Cross-database provisioning is not atomic;
-  ClickHouse can be partially provisioned after a failure. Fix the cause and
+- ClickHouse can be partially provisioned after a failure. Fix the cause and
   rerun preflight/apply. A rerun verifies all tables, including previously
   created ones.
 - Changing these CREATE statements does not upgrade existing databases. Plan
   explicit schema upgrades separately. Do not reset a database containing data
   that must survive.
 
-`prisma.config.ts` marks the five Topics tables as externally managed using
-Prisma's experimental `externalTables` support. The full Prisma schema still
-supplies client types; future `migrate dev` / `db push` leave Topics alone.
-Postgres DDL lives in `postgres.sql`, ClickHouse DDL in `clickhouse.sql`.
-
-The former Postgres migration is archived under `prisma/migrations-disabled/`;
-ClickHouse migration 0050 has a `.sql.disabled` suffix. Ship those file renames
-with this change. Clean any previously materialized ClickHouse migration trees
+ClickHouse DDL lives in `clickhouse.sql`. The canonical Topics ClickHouse
+migration 0050 has a `.sql.disabled` suffix. Clean any previously materialized ClickHouse migration trees
 with `pnpm --filter @langfuse/shared run ch:migrations:clean`.
-Already-applied Topics migration history needs deliberate reconciliation before
-using development migration/reset tools on retained databases. This script does
-not erase history or force migration versions.
+This script does not change Postgres, erase migration history or force migration
+versions.
 
 Definitions partition by creation month and sort by project, creation date and ID.
 Summaries and assignments partition by source month and share the project,

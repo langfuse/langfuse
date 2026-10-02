@@ -13,18 +13,18 @@ export declare class PreparedEvent {
 }
 
 /**
+ * Fits topic clusters and a separate 2D display projection in memory.
+ * This is CPU-bound and synchronous; call it in a killable child process.
+ */
+export declare function clusterTopicEmbeddings(embeddings: Array<Array<number>>, settings: TopicClusteringSettings): TopicClusteringResult
+
+/**
  * Encode prepared event handles as Native blocks.
  *
  * The array is the batch merge point. Each handle already owns an immutable typed row, so the
  * async task only clones its Arc and never reads or copies row fields.
  */
 export declare function encodeClickhouseEvents(rows: PreparedEvent[], maxRowsPerBlock: number): Promise<NativeEventBlock[]>
-
-/**
- * Fits topic clusters and a separate 2D display projection in memory.
- * This is CPU-bound and synchronous; call it in a killable child process.
- */
-export declare function clusterTopicEmbeddings(embeddings: Array<Array<number>>, settings: TopicClusteringSettings): TopicClusteringResult
 
 /**
  * Hello-world entry point. It proves that the worker can load and call the

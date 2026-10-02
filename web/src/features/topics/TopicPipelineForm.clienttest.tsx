@@ -27,8 +27,6 @@ const rule = {
       value: ["production"],
     },
   ],
-  sampling: "latest",
-  limit: 50,
   facetIds: ["intent"],
   updatedAt: "2026-09-16T00:00:00Z",
 } satisfies TopicRule;
@@ -87,6 +85,7 @@ const facets: TopicFacet[] = ["Intent", "Issues"].map((name) => ({
   id: name.toLowerCase(),
   projectId: "project",
   name,
+  isBuiltIn: false,
   description: "",
   versions: [2, 1].map((version) => ({
     projectId: "project",
@@ -184,6 +183,11 @@ it("processes pasted IDs and reviewed rule selections, invalidating edited crite
   setup();
   expect(processButton()).toBeDisabled();
   click("Configure topics");
+  fireEvent.click(screen.getByRole("checkbox", { name: "Sample traces" }));
+  fireEvent.change(screen.getByLabelText("Maximum traces"), {
+    target: { value: "50" },
+  });
+  await choose("Trace sampling method", "Newest first");
   fireEvent.mouseDown(screen.getByRole("tab", { name: "Paste IDs" }), {
     button: 0,
     ctrlKey: false,
@@ -216,6 +220,12 @@ it("processes pasted IDs and reviewed rule selections, invalidating edited crite
   expect(screen.getByLabelText("Version for Intent")).toHaveTextContent("v2");
   expect(screen.getByRole("checkbox", { name: "Issues" })).not.toBeChecked();
   expect(screen.getByLabelText("Maximum traces")).toHaveValue(50);
+  expect(screen.getByLabelText("Trace sampling method")).toHaveTextContent(
+    "Newest first",
+  );
+  await choose("Saved configuration", "Custom configuration");
+  expect(screen.getByLabelText("Maximum traces")).toHaveValue(50);
+  await choose("Saved configuration", rule.name);
   await preview();
   const request = mocks.preview.mock.calls[0][0];
   expect(request).toMatchObject({
@@ -258,6 +268,7 @@ it("processes pasted IDs and reviewed rule selections, invalidating edited crite
   });
 
   click("Configure topics");
+  await choose("Trace sampling method", "Random sample");
   fireEvent.change(screen.getByLabelText("Maximum traces"), {
     target: { value: "25" },
   });
@@ -267,8 +278,12 @@ it("processes pasted IDs and reviewed rule selections, invalidating edited crite
   await preview();
   click("Done");
   const changed = await submit(/^Process 2 traces$/);
-  expect(changed.selection).toMatchObject({ limit: 25, excludedTraceIds: [] });
-  expect(changed).not.toHaveProperty("ruleId");
+  expect(changed.selection).toMatchObject({
+    limit: 25,
+    sampling: "random",
+    excludedTraceIds: [],
+  });
+  expect(changed.ruleId).toBe(rule.id);
   expect(mocks.saveRule).not.toHaveBeenCalled();
   click("Configure topics");
   click("Update rule");
@@ -277,9 +292,7 @@ it("processes pasted IDs and reviewed rule selections, invalidating edited crite
     projectId: rule.projectId,
     name: rule.name,
     filter: rule.filter,
-    sampling: rule.sampling,
     facetIds: rule.facetIds,
-    limit: 25,
   });
 });
 
