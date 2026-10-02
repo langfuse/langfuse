@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-let-assign-in-react */
 import { useMemo } from "react";
 
 import { StackedBarChart } from "@/src/components/design-system/charts/StackedBarChart/StackedBarChart";
@@ -78,21 +77,22 @@ export function VerticalBarChartTimeSeries({
       })),
     [visibleSeries, config],
   );
-  let chartLegend: LineChartLegend = { visibility: "hidden" };
-  if (legendPosition !== "none" && legendInteraction === "toggle") {
-    chartLegend = {
-      visibility: legendPosition === "auto" ? "auto" : "visible",
-      interaction: "toggle",
-      summary: legendSummary,
-      maxVisibleSeries,
-    };
-  } else if (legendPosition !== "none") {
-    chartLegend = {
+  const chartLegend = useMemo<LineChartLegend>(() => {
+    if (legendPosition === "none") return { visibility: "hidden" };
+    if (legendInteraction === "toggle") {
+      return {
+        visibility: legendPosition === "auto" ? "auto" : "visible",
+        interaction: "toggle",
+        summary: legendSummary,
+        maxVisibleSeries,
+      };
+    }
+    return {
       visibility: legendPosition === "auto" ? "auto" : "visible",
       interaction: "highlight",
       summary: legendSummary,
     };
-  }
+  }, [legendPosition, legendInteraction, legendSummary, maxVisibleSeries]);
 
   return (
     <div className="flex size-full min-w-0 flex-col">
