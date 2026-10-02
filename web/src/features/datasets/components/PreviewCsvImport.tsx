@@ -245,9 +245,7 @@ export function PreviewCsvImport({
               Force Objects
             </Label>
             <Tooltip
-              label={
-                'When a single csv column is mapped to a dataset item field, wrap its value in an object instead of using the raw value. Example: {"columnName": "value"} instead of "value"'
-              }
+              label='When a single csv column is mapped to a dataset item field, wrap its value in an object instead of using the raw value. Example: {"columnName": "value"} instead of "value"'
               delay={300}
             >
               {({ getTriggerProps }) => (
