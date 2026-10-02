@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { MonitorView as PrismaMonitorView, Prisma } from "@prisma/client";
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
@@ -457,7 +456,7 @@ describe("calculateSchedulerBatchId", () => {
     ] as const) {
       const id = calculateSchedulerBatchId({ ...base, view });
       expect(id >= 0n).toBe(true);
-      expect(id < 1n << 63n).toBe(true);
+      expect(id < 2n ** 63n).toBe(true);
     }
   });
 });
