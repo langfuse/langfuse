@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 /**
  * Test suite to verify that OTEL events coming through the ingestion pipeline
  * correctly conform to the ObservationForEval schema.
@@ -75,9 +74,9 @@ function createNanoTimestamp(nanoTime: bigint): {
   high: number;
   unsigned: boolean;
 } {
-  const low = Number(nanoTime & BigInt(0xffffffff));
-  const high = Number(nanoTime >> BigInt(32));
-  return { low, high, unsigned: true };
+  const lowBits = BigInt.asUintN(32, nanoTime);
+  const high = Number((nanoTime - lowBits) / 2n ** 32n);
+  return { low: Number(lowBits), high, unsigned: true };
 }
 
 /**
