@@ -91,14 +91,7 @@ export function AnnotationQueueFormDialogContent({
   const handleScoreConfigValueChange = (values: string[]) => {
     form.setValue("scoreConfigIds", values);
 
-    if (values.length === 0) {
-      form.setError("scoreConfigIds", {
-        type: "manual",
-        message: "At least 1 score config must be selected",
-      });
-    } else {
-      form.clearErrors("scoreConfigIds");
-    }
+    form.clearErrors("scoreConfigIds");
   };
 
   return (
