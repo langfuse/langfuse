@@ -6,6 +6,7 @@ import { TRPCClientError } from "@trpc/client";
 import { History, Trash2 } from "lucide-react";
 import {
   observationVariableMappingList,
+  isEvaluatorBlockReasonRecoverableByDefinitionUpdate,
   type EvaluatorBlockReason,
   type EvalTemplateType,
   type FilterState,
@@ -69,6 +70,7 @@ import {
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
 import { createEvalOnboardingAnalytics } from "@/src/features/evals/v2/fns/createEvalOnboardingAnalytics";
 import { EvalOnboardingAnalyticsProvider } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
+import { isJudgeModelAvailable } from "@/src/features/evals/v2/judgeModel";
 
 type InitialEvaluator = {
   id: string;
@@ -240,6 +242,35 @@ export function EvaluatorSetupPage(
       .getState()
       .actions.setDefaultModel(projectDefaultModel.defaultModel);
   }, [evaluatorSetupStore, projectDefaultModel.defaultModel]);
+  const modelDraft = useStore(
+    evaluatorSetupStore,
+    useShallow((state) => ({
+      type: state.type,
+      modelMode: state.modelMode,
+      defaultModel: state.defaultModel,
+      selectedModel: state.selectedModel,
+      hasChangedModelSelection: state.hasChangedModelSelection,
+    })),
+  );
+  const effectiveDraftModel =
+    modelDraft.type === "CODE"
+      ? null
+      : modelDraft.type === "LLM_AS_JUDGE" && modelDraft.modelMode === "default"
+        ? modelDraft.defaultModel
+        : modelDraft.selectedModel;
+  const draftResolvesEvaluatorBlock = Boolean(
+    initialEvaluator?.blockedAt &&
+    isEvaluatorBlockReasonRecoverableByDefinitionUpdate(
+      initialEvaluator.blockReason,
+    ) &&
+    !projectDefaultModel.connectionsPending &&
+    isJudgeModelAvailable(
+      effectiveDraftModel,
+      projectDefaultModel.providerGroups,
+    ) &&
+    (modelDraft.hasChangedModelSelection ||
+      initialEvaluator.blockReason === "DEFAULT_EVAL_MODEL_MISSING"),
+  );
   const codeDraft = useStore(
     evaluatorSetupStore,
     useShallow((state) => ({
@@ -702,6 +733,7 @@ export function EvaluatorSetupPage(
       defaultModel={projectDefaultModel.defaultModel}
       providerGroups={projectDefaultModel.providerGroups}
       providerAdapters={projectDefaultModel.providerAdapters}
+      connectionsPending={projectDefaultModel.connectionsPending}
       canSetProjectDefault={projectDefaultModel.canUpdate}
       onConfigureProviders={() => {
         onboardingAnalytics?.track(
@@ -840,7 +872,7 @@ export function EvaluatorSetupPage(
             timeRange={timeRange}
             setTimeRange={setTimeRange}
           />
-          {initialEvaluator?.blockedAt ? (
+          {initialEvaluator?.blockedAt && !draftResolvesEvaluatorBlock ? (
             <div className="mx-3 mt-3">
               <EvaluatorBlockedBanner
                 projectId={projectId}
