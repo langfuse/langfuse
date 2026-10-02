@@ -9,11 +9,12 @@ import {
   shift,
   size,
   useDismiss,
+  useClick,
   useFloating,
   useFocus,
   useHover,
   useInteractions,
-  useRole,
+    useRole,
   type Placement,
 } from "@floating-ui/react";
 import * as React from "react";
@@ -37,9 +38,9 @@ const tooltipVariants = cva(
 
 type CustomTooltipProps = {
   children: (controls: {
-    getTriggerProps: (props?: {
-      ref?: React.Ref<HTMLElement>;
-    }) => ReturnType<ReturnType<typeof useInteractions>["getReferenceProps"]>;
+    getTriggerProps: (
+      props?: React.HTMLProps<HTMLElement>,
+    ) => ReturnType<ReturnType<typeof useInteractions>["getReferenceProps"]>;
   }) => React.ReactNode;
   content: React.ReactElement;
   delay?: number;
@@ -47,6 +48,9 @@ type CustomTooltipProps = {
   placement?: Placement;
   padding?: NonNullable<VariantProps<typeof tooltipVariants>["padding"]>;
   overflow?: NonNullable<VariantProps<typeof tooltipVariants>["overflow"]>;
+  activation?: "hover" | "hover-and-click";
+  size?: "default" | "wide";
+  triggerRef?: React.Ref<HTMLElement>;
 };
 
 function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
@@ -69,6 +73,9 @@ function CustomTooltip({
   placement = "top",
   padding = "default",
   overflow = "hidden",
+  activation = "hover",
+  size: tooltipSize = "default",
+  triggerRef,
 }: CustomTooltipProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const layerContainer = useLayerContainer("tooltip");
@@ -100,11 +107,13 @@ function CustomTooltip({
     handleClose: hoverableContent ? safePolygon() : undefined,
   });
   const focus = useFocus(context);
+  const click = useClick(context, { enabled: activation === "hover-and-click" });
   const dismiss = useDismiss(context);
   const role = useRole(context, { role: "tooltip" });
   const { getFloatingProps, getReferenceProps } = useInteractions([
     hover,
     focus,
+    click,
     dismiss,
     role,
   ]);
@@ -113,8 +122,9 @@ function CustomTooltip({
     <>
       {children({
         getTriggerProps: (props = {}) => {
-          return getReferenceProps({
-            ref: mergeRefs(props.ref, refs.setReference),
+            return getReferenceProps({
+              ...props,
+              ref: mergeRefs(props.ref, triggerRef, refs.setReference),
           });
         },
       })}
@@ -123,7 +133,8 @@ function CustomTooltip({
           <div
             ref={refs.setFloating}
             className={cn(
-              tooltipVariants({ padding, overflow }),
+                tooltipVariants({ padding, overflow }),
+                tooltipSize === "wide" && "max-w-[calc(100vw-2rem)]",
               !hoverableContent && "pointer-events-none",
             )}
             style={floatingStyles}
