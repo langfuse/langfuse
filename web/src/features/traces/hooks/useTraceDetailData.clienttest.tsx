@@ -72,6 +72,7 @@ describe("useTraceDetailData (beta / events path)", () => {
       data: undefined,
       isLoading: false,
       error: { data: { code: "UNAUTHORIZED" } },
+      isWaitingForTrace: false,
       truncatedAtObservations: undefined,
     });
     const r = render();
@@ -79,6 +80,7 @@ describe("useTraceDetailData (beta / events path)", () => {
     // The two flags must be mutually exclusive — an access error is not a
     // missing trace (else the page shows "Trace not found" for a 403).
     expect(r.isNotFound).toBe(false);
+    expect(r.isWaitingForTrace).toBe(false);
   });
 
   it("does NOT report a non-UNAUTHORIZED error (e.g. 500) as not-found", () => {
@@ -86,6 +88,7 @@ describe("useTraceDetailData (beta / events path)", () => {
       data: undefined,
       isLoading: false,
       error: { data: { code: "INTERNAL_SERVER_ERROR" } },
+      isWaitingForTrace: false,
       truncatedAtObservations: undefined,
     });
     const r = render();
@@ -93,6 +96,7 @@ describe("useTraceDetailData (beta / events path)", () => {
     expect(r.isNotFound).toBe(false);
     expect(r.isUnauthorized).toBe(false);
     expect(r.isError).toBe(true);
+    expect(r.isWaitingForTrace).toBe(false);
   });
 
   it("treats no-data-after-loading (no error) as a genuine not-found", () => {
@@ -100,11 +104,52 @@ describe("useTraceDetailData (beta / events path)", () => {
       data: undefined,
       isLoading: false,
       error: null,
+      isWaitingForTrace: false,
       truncatedAtObservations: undefined,
     });
     const r = render();
     expect(r.isNotFound).toBe(true);
     expect(r.isUnauthorized).toBe(false);
+    expect(r.isWaitingForTrace).toBe(false);
+  });
+
+  it("keeps isNotFound false while empty-result arrival retries are running", () => {
+    mockUseEventsTraceData.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: null,
+      isWaitingForTrace: true,
+      truncatedAtObservations: undefined,
+    });
+    const r = render();
+    expect(r.isWaitingForTrace).toBe(true);
+    expect(r.isNotFound).toBe(false);
+  });
+
+  it("treats a settled NOT_FOUND error as isNotFound on the events path", () => {
+    mockUseEventsTraceData.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: { data: { code: "NOT_FOUND" } },
+      isWaitingForTrace: false,
+      truncatedAtObservations: undefined,
+    });
+    const r = render();
+    expect(r.isNotFound).toBe(true);
+    expect(r.isWaitingForTrace).toBe(false);
+  });
+
+  it("keeps isNotFound false while NOT_FOUND arrival retries are running", () => {
+    mockUseEventsTraceData.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: { data: { code: "NOT_FOUND" } },
+      isWaitingForTrace: true,
+      truncatedAtObservations: undefined,
+    });
+    const r = render();
+    expect(r.isWaitingForTrace).toBe(true);
+    expect(r.isNotFound).toBe(false);
   });
 });
 
@@ -120,14 +165,75 @@ describe("useTraceDetailData endpoint routing", () => {
       data: undefined,
       isLoading: false,
       isError: false,
+      isFetching: false,
+      failureCount: 0,
       error: null,
     });
     mockUseEventsTraceData.mockReturnValue({
       data: undefined,
       isLoading: false,
       error: null,
+      isWaitingForTrace: false,
       truncatedAtObservations: undefined,
     });
+  });
+
+  it("retries NOT_FOUND with arrival backoff and silences the 404 toast", () => {
+    mockUseSession.mockReturnValue({ status: "authenticated" });
+
+    render();
+
+    const options = mockTracesQuery.mock.calls[0]?.[1] as {
+      retry: (
+        failureCount: number,
+        error: { data?: { code?: string } },
+      ) => boolean;
+      retryDelay: (
+        failureCount: number,
+        error: { data?: { code?: string } },
+      ) => number;
+      meta: { silentHttpCodes: number[] };
+    };
+
+    expect(options.retry(0, { data: { code: "NOT_FOUND" } })).toBe(true);
+    expect(options.retry(3, { data: { code: "NOT_FOUND" } })).toBe(true);
+    expect(options.retry(4, { data: { code: "NOT_FOUND" } })).toBe(false);
+    expect(options.retry(0, { data: { code: "UNAUTHORIZED" } })).toBe(false);
+    expect(options.retryDelay(0, { data: { code: "NOT_FOUND" } })).toBe(1_000);
+    expect(options.retryDelay(3, { data: { code: "NOT_FOUND" } })).toBe(8_000);
+    expect(options.meta.silentHttpCodes).toEqual([404]);
+  });
+
+  it("exposes isWaitingForTrace while NOT_FOUND retries are in flight", () => {
+    mockUseSession.mockReturnValue({ status: "authenticated" });
+    mockTracesQuery.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isFetching: true,
+      isError: false,
+      failureCount: 1,
+      error: { data: { code: "NOT_FOUND" } },
+    });
+
+    const r = render();
+    expect(r.isWaitingForTrace).toBe(true);
+    expect(r.isNotFound).toBe(false);
+  });
+
+  it("exposes isNotFound only after NOT_FOUND retries are exhausted", () => {
+    mockUseSession.mockReturnValue({ status: "authenticated" });
+    mockTracesQuery.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isFetching: false,
+      isError: true,
+      failureCount: 5,
+      error: { data: { code: "NOT_FOUND" } },
+    });
+
+    const r = render();
+    expect(r.isWaitingForTrace).toBe(false);
+    expect(r.isNotFound).toBe(true);
   });
 
   it.each(["dual", "events_only"] as const)(
