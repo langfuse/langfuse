@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable @repo/no-null-render */
 import React, { useMemo, useCallback, useRef, useEffect } from "react";
 import { PlaygroundProvider, usePlaygroundContext } from "../context";
@@ -11,12 +10,8 @@ import { ModelParameters } from "@/src/components/ModelParameters";
 import { Messages } from "@/src/features/playground/page/components/Messages";
 import { ConfigurationDropdowns } from "@/src/features/playground/page/components/ConfigurationDropdowns";
 import { useMessageSearchActions } from "@/src/components/ChatMessages/MessageSearch";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { getMessagesFingerprint } from "@/src/features/playground/page/utils/messagesFingerprint";
 
@@ -206,9 +201,10 @@ function PlaygroundWindowContent({
               {/* Hide copy button on mobile */}
               {!isMobile && (
                 <>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                  <Tooltip label="New split window" delay={300}>
+                    {({ getTriggerProps }) => (
                       <Button
+                        {...getTriggerProps()}
                         variant="outline"
                         onClick={handleCopy}
                         className="h-7 gap-1.5 px-2.5 text-xs @xl:hidden"
@@ -216,10 +212,7 @@ function PlaygroundWindowContent({
                         <Plus size={14} />
                         <span className="sr-only">New split window</span>
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent className="text-xs">
-                      New split window
-                    </TooltipContent>
+                    )}
                   </Tooltip>
                   <Button
                     variant="outline"
@@ -232,9 +225,10 @@ function PlaygroundWindowContent({
                 </>
               )}
               {canRemove && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <Tooltip label="Remove window" delay={300}>
+                  {({ getTriggerProps }) => (
                     <Button
+                      {...getTriggerProps()}
                       variant="ghost"
                       onClick={handleRemove}
                       className="hover:bg-destructive/10 hover:text-destructive h-6 w-6 p-0"
@@ -242,10 +236,7 @@ function PlaygroundWindowContent({
                       <X size={14} />
                       <span className="sr-only">Remove window</span>
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent className="text-xs">
-                    Remove window
-                  </TooltipContent>
+                  )}
                 </Tooltip>
               )}
             </TooltipProvider>
