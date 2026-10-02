@@ -34,7 +34,7 @@ const ScoreConfigCreateInput = z.object({
   dataType: z.enum(ScoreConfigDataType),
   minValue: z.number().optional(),
   maxValue: z.number().optional(),
-  categories: z.array(ScoreConfigCategory).optional(),
+  categories: z.array(ScoreConfigCategory).nullish(),
   description: z.string().nullish(),
 });
 
@@ -94,6 +94,7 @@ export const scoreConfigsRouter = createTRPCRouter({
       const config = await ctx.prisma.scoreConfig.create({
         data: {
           ...input,
+          categories: input.categories ?? undefined,
         },
       });
 
