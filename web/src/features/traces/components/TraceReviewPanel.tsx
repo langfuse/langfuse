@@ -4,6 +4,7 @@ import { useRouter, type NextRouter } from "next/router";
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { CommentList } from "@/src/features/comments/CommentList";
+import { useCanReadComments } from "@/src/features/comments/hooks/useCanReadComments";
 import { AnnotationPanelContent } from "@/src/features/scores/components/AnnotationPanelContent";
 import { hasBlockingOverlay } from "@/src/features/scores/lib/keyboardShortcuts";
 import { useTraceReviewPanel } from "../contexts/TraceReviewPanelContext";
@@ -35,6 +36,7 @@ function CloseReviewPanelButton() {
 }
 
 function TraceCommentsPanel({ projectId }: { projectId: string }) {
+  const canReadComments = useCanReadComments(projectId);
   const store = useTraceReviewPanel();
   const target = useStore(store, (state) => state.comments!.target);
   const sessionKey = useStore(store, (state) => state.comments!.key);
@@ -55,25 +57,27 @@ function TraceCommentsPanel({ projectId }: { projectId: string }) {
         <CloseReviewPanelButton />
       </div>
       <div className="min-h-0 flex-1">
-        <CommentList
-          projectId={projectId}
-          objectId={target.objectId}
-          objectType={target.objectType}
-          objectStartTime={target.objectStartTime}
-          pendingSelection={
-            target.type === "inline-comment" ? target.selection : null
-          }
-          onSelectionUsed={() => actions.consumeCommentsSelection(sessionKey)}
-          onDraftChange={(hasDraft) =>
-            actions.setCommentsDraft(sessionKey, hasDraft)
-          }
-          onMentionDropdownChange={(open) =>
-            actions.setCommentsMentionsOpen(sessionKey, open)
-          }
-          onCommentChange={onCommentChange}
-          isDrawerOpen={active}
-          isActive={active}
-        />
+        {canReadComments && (
+          <CommentList
+            projectId={projectId}
+            objectId={target.objectId}
+            objectType={target.objectType}
+            objectStartTime={target.objectStartTime}
+            pendingSelection={
+              target.type === "inline-comment" ? target.selection : null
+            }
+            onSelectionUsed={() => actions.consumeCommentsSelection(sessionKey)}
+            onDraftChange={(hasDraft) =>
+              actions.setCommentsDraft(sessionKey, hasDraft)
+            }
+            onMentionDropdownChange={(open) =>
+              actions.setCommentsMentionsOpen(sessionKey, open)
+            }
+            onCommentChange={onCommentChange}
+            isDrawerOpen={active}
+            isActive={active}
+          />
+        )}
       </div>
     </section>
   );

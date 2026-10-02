@@ -20,6 +20,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { CommentList } from "../CommentList";
+import { useCanReadComments } from "../hooks/useCanReadComments";
 import { CommentComposer } from "./CommentComposer";
 import { type SelectionData } from "../contexts/InlineCommentSelectionContext";
 import {
@@ -177,6 +178,7 @@ function CommentDrawerContent({
   onDraftChange,
   onCloseAutoFocus,
 }: CommentDrawerContentProps) {
+  const canReadComments = useCanReadComments(projectId);
   return (
     <DrawerContent
       overlayClassName="bg-primary/10"
@@ -192,19 +194,21 @@ function CommentDrawerContent({
         </DrawerClose>
       </DrawerHeader>
       <div data-vaul-no-drag className="min-h-0 flex-1 overflow-hidden">
-        <CommentList
-          key={`${projectId}-${objectType}-${objectId}`}
-          projectId={projectId}
-          objectId={objectId}
-          objectType={objectType}
-          objectStartTime={objectStartTime}
-          onMentionDropdownChange={onMentionDropdownChange}
-          onDraftChange={onDraftChange}
-          isDrawerOpen
-          pendingSelection={pendingSelection}
-          onSelectionUsed={onSelectionUsed}
-          onCommentChange={onCommentChange}
-        />
+        {canReadComments && (
+          <CommentList
+            key={`${projectId}-${objectType}-${objectId}`}
+            projectId={projectId}
+            objectId={objectId}
+            objectType={objectType}
+            objectStartTime={objectStartTime}
+            onMentionDropdownChange={onMentionDropdownChange}
+            onDraftChange={onDraftChange}
+            isDrawerOpen
+            pendingSelection={pendingSelection}
+            onSelectionUsed={onSelectionUsed}
+            onCommentChange={onCommentChange}
+          />
+        )}
       </div>
     </DrawerContent>
   );
