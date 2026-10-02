@@ -264,6 +264,22 @@ describe("AI SDK request shapes", () => {
     expect(request.body.model).toBe("gpt-4o");
   });
 
+  it("OpenAI responses mode: forwards the fast service tier", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-6-luna",
+        providerOptions: { service_tier: "fast" },
+      },
+      apiKey: "sk-test",
+      llmConnectionConfig: { useResponsesApi: true },
+      response: OPENAI_RESPONSES_RESPONSE,
+    });
+
+    expect(request.body.service_tier).toBe("fast");
+  });
+
   it("Langfuse AI first-party OpenAI credentials hit /v1/responses", async () => {
     const original = {
       LANGFUSE_AI_PROVIDER: env.LANGFUSE_AI_PROVIDER,
