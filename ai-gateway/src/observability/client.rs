@@ -1,14 +1,18 @@
+use std::{future::Future, pin::Pin};
+
 use axum::http::Extensions;
 use opentelemetry::global;
 use opentelemetry_http::HeaderInjector;
 use reqwest::{Client, Request, Response};
-use reqwest_middleware::{BoxFuture, ClientBuilder, ClientWithMiddleware, Extension, Next, Result};
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, Extension, Next, Result};
 use reqwest_tracing::{
     DefaultSpanBackend, DisableOtelPropagation, OtelName, ReqwestOtelSpanBackend,
     TracingMiddleware, default_on_request_success,
 };
 use tracing::Span;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
+
+type MiddlewareFuture<'a> = Pin<Box<dyn Future<Output = Result<Response>> + Send + 'a>>;
 
 pub(crate) fn instrument_client(client: Client, name: &'static str) -> ClientWithMiddleware {
     ClientBuilder::new(client)
@@ -22,7 +26,7 @@ fn propagate_context<'a>(
     mut request: Request,
     extensions: &'a mut Extensions,
     next: Next<'a>,
-) -> BoxFuture<'a, Result<Response>> {
+) -> MiddlewareFuture<'a> {
     if extensions.get::<DisableOtelPropagation>().is_none() {
         global::get_text_map_propagator(|propagator| {
             propagator.inject_context(
