@@ -408,16 +408,29 @@ export const createAnnotationQueueItemForApi = async ({
   const completedAt =
     status === AnnotationQueueStatus.COMPLETED ? new Date() : null;
 
-  const item = await prisma.annotationQueueItem.create({
-    data: {
-      queueId,
-      objectId: input.objectId,
-      objectType: input.objectType,
-      status,
-      completedAt,
-      projectId,
-    },
-  });
+  let item;
+  try {
+    item = await prisma.annotationQueueItem.create({
+      data: {
+        queueId,
+        objectId: input.objectId,
+        objectType: input.objectType,
+        status,
+        completedAt,
+        projectId,
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new LangfuseConflictError(
+        `An item for ${input.objectType.toLowerCase()} ${input.objectId} already exists in this annotation queue.`,
+      );
+    }
+    throw error;
+  }
 
   if (auditScope) {
     await auditLog({
