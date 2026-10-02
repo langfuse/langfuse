@@ -1,6 +1,10 @@
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
-import type { LanguageModel } from "ai";
+import {
+  type LanguageModel,
+  type LanguageModelMiddleware,
+  wrapLanguageModel,
+} from "ai";
 
 import { env } from "../../../../env";
 import {
@@ -189,5 +193,103 @@ export function buildBedrockModel(params: {
     ...auth,
   });
 
-  return provider(modelId);
+  const model = provider(modelId);
+  if (!bedrockModelRejectsForcedToolUse(modelId)) return model;
+
+  // These models reject tool_choice "any" and "tool". The Bedrock provider
+  // implements structured output by requiring a synthetic JSON tool, which
+  // fails the request before the model runs. Ask for the schema in the prompt
+  // instead.
+  return wrapLanguageModel({
+    model,
+    middleware: avoidForcedToolUseForStructuredOutput(),
+  });
+}
+
+const BEDROCK_MODELS_REJECTING_FORCED_TOOL_USE = [
+  "claude-fable-5-1",
+  "claude-mythos-5-1",
+  "claude-opus-5-5",
+  "claude-sonnet-5-5",
+];
+
+const JSON_OBJECT_INSTRUCTION_SUFFIX =
+  "You MUST answer with only a JSON object that matches the JSON schema above. Do not wrap it in markdown fences or include any other text.";
+
+function bedrockModelRejectsForcedToolUse(modelId: string): boolean {
+  return BEDROCK_MODELS_REJECTING_FORCED_TOOL_USE.some((id) =>
+    modelId.includes(id),
+  );
+}
+
+function avoidForcedToolUseForStructuredOutput(): LanguageModelMiddleware {
+  return {
+    specificationVersion: "v4",
+    async transformParams({ params }) {
+      const toolChoice =
+        params.toolChoice?.type === "required" ||
+        params.toolChoice?.type === "tool"
+          ? { type: "auto" as const }
+          : params.toolChoice;
+      const responseFormat = params.responseFormat;
+      if (responseFormat?.type !== "json" || responseFormat.schema == null) {
+        return toolChoice === params.toolChoice
+          ? params
+          : { ...params, toolChoice };
+      }
+
+      const instruction = [
+        "JSON schema:",
+        JSON.stringify(responseFormat.schema),
+        JSON_OBJECT_INSTRUCTION_SUFFIX,
+      ].join("\n");
+      const [first, ...rest] = params.prompt;
+      const prompt =
+        first?.role === "system"
+          ? [
+              {
+                ...first,
+                content:
+                  first.content.length > 0
+                    ? `${first.content}\n\n${instruction}`
+                    : instruction,
+              },
+              ...rest,
+            ]
+          : [
+              { role: "system" as const, content: instruction },
+              ...params.prompt,
+            ];
+
+      return {
+        ...params,
+        toolChoice,
+        responseFormat: { type: "text" },
+        prompt,
+      };
+    },
+    async wrapGenerate({ doGenerate, params }) {
+      const result = await doGenerate();
+      const expectsJsonObject = params.prompt.some(
+        (message) =>
+          message.role === "system" &&
+          message.content.includes(JSON_OBJECT_INSTRUCTION_SUFFIX),
+      );
+      if (!expectsJsonObject) return result;
+
+      return {
+        ...result,
+        content: result.content.map((part) =>
+          part.type === "text"
+            ? { ...part, text: stripJsonCodeFence(part.text) }
+            : part,
+        ),
+      };
+    },
+  };
+}
+
+function stripJsonCodeFence(text: string): string {
+  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/.exec(text.trim());
+  return fenced?.[1] ?? text;
 }
