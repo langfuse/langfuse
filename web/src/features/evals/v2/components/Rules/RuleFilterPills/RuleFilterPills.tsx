@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import type { FilterState } from "@langfuse/shared";
 import type { ReactNode } from "react";
 

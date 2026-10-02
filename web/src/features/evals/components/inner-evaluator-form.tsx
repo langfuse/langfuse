@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable no-nested-ternary */
 import { type UseFormReturn, useForm } from "react-hook-form";
 import { Alert } from "@/src/components/design-system/Alert/Alert";

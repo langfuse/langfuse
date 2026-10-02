@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import React from "react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {

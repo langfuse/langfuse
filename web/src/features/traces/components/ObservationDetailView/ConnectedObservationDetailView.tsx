@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /**
  * ConnectedObservationDetailView - Connects observation details to application data.
  *

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Webhook, X } from "lucide-react";

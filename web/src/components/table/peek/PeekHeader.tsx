@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import { useLayoutEffect, useRef, useState } from "react";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";

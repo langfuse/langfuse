@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable @repo/no-null-render */
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
