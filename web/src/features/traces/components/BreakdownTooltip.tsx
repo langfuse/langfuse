@@ -1,10 +1,3 @@
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import { useState } from "react";
 import Decimal from "decimal.js";
 import Link from "next/link";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
@@ -43,8 +36,6 @@ export const BreakdownTooltip = ({
   priceSource,
   costSource,
 }: BreakdownTooltipProps) => {
-  const [isOpen, setIsOpen] = useState(false);
-
   // Aggregate details if array is provided
   const aggregatedDetails = Array.isArray(details)
     ? details.reduce<Details>((acc, curr) => {
@@ -106,15 +97,12 @@ export const BreakdownTooltip = ({
   };
 
   return (
-    <TooltipProvider>
-      <Tooltip open={isOpen} onOpenChange={setIsOpen}>
-        <TooltipTrigger
-          className="flex cursor-pointer"
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          {children}
-        </TooltipTrigger>
-        <TooltipContent className="w-fit max-w-[calc(100vw-2rem)] p-3">
+    <CustomTooltip
+      activation="hover-and-click"
+      delay={300}
+      size="wide"
+      content={
+        <div className="p-2.5">
           <div
             className={cn(
               "grid min-w-0 gap-x-3 gap-y-3 max-sm:w-full",
@@ -208,9 +196,19 @@ export const BreakdownTooltip = ({
               showShares={showShares}
             />
           </div>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <button
+          {...getTriggerProps()}
+          type="button"
+          className="flex cursor-pointer"
+        >
+          {children}
+        </button>
+      )}
+    </CustomTooltip>
   );
 };
 
