@@ -141,8 +141,8 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                     <EvaluatorPromptPreview
                       key={evaluator.id}
                       previewContent={getPromptPreview(evaluator)}
-                      trigger={
-                        <div>
+                      trigger={({ getTriggerProps }) => (
+                        <div tabIndex={0} {...getTriggerProps()}>
                           <Badge
                             variant="secondary"
                             className="flex items-center gap-1 pr-1"
@@ -158,7 +158,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                             </button>
                           </Badge>
                         </div>
-                      }
+                      )}
                     />
                   ))
                 ) : (
@@ -191,21 +191,23 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                       </p>
                       <EvaluatorPromptPreview
                         previewContent={getPromptPreview(item)}
-                        trigger={
+                        trigger={({ getTriggerProps }) => (
                           <Button
                             variant="ghost"
                             size="icon-sm"
                             className="h-7 w-7"
-                            onMouseDown={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                            }}
-                            onClick={(event) => event.stopPropagation()}
+                            {...getTriggerProps({
+                              onMouseDown: (event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                              },
+                              onClick: (event) => event.stopPropagation(),
+                            })}
                             aria-label={`Preview ${item.scoreName}`}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                        }
+                        )}
                       />
                       <span className="mr-1">
                         <Checkbox

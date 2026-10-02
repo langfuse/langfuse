@@ -1,8 +1,4 @@
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { Info } from "lucide-react";
 
 interface SamplingMetadata {
@@ -30,96 +26,104 @@ export function SamplingDetailsHoverCard({
   showLabel = false,
 }: SamplingDetailsHoverCardProps) {
   return (
-    <HoverCard>
-      <HoverCardTrigger asChild>
+    <HoverCard
+      placement="bottom-start"
+      content={
+        <div className="w-80 p-3">
+          <div className="space-y-3">
+            <div>
+              <h4 className="mb-2 text-sm font-bold">
+                {mode === "single"
+                  ? "Estimated Score Count"
+                  : "Estimated Scores"}
+              </h4>
+              <dl className="space-y-1 text-sm">
+                {mode === "single" ? (
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Total Scores:</dt>
+                    <dd className="font-bold">
+                      ~
+                      {samplingMetadata.preflightEstimates?.score1Count.toLocaleString()}
+                    </dd>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex justify-between">
+                      <dt className="text-muted-foreground">Score 1:</dt>
+                      <dd className="font-bold">
+                        ~
+                        {samplingMetadata.preflightEstimates?.score1Count.toLocaleString()}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-muted-foreground">Score 2:</dt>
+                      <dd className="font-bold">
+                        ~
+                        {samplingMetadata.preflightEstimates?.score2Count.toLocaleString()}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-muted-foreground">
+                        Estimated Matches:
+                      </dt>
+                      <dd className="font-bold">
+                        ~
+                        {samplingMetadata.preflightEstimates?.estimatedMatchedCount.toLocaleString()}
+                      </dd>
+                    </div>
+                  </>
+                )}
+              </dl>
+            </div>
+
+            <div>
+              <h4 className="mb-2 text-sm font-bold">Query Optimizations</h4>
+              <dl className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Sampling:</dt>
+                  <dd className="font-bold">
+                    {(samplingMetadata.samplingRate * 100).toFixed(1)}%
+                    (hash-based)
+                  </dd>
+                </div>
+                {samplingMetadata.adaptiveFinal && (
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Deduplication:</dt>
+                    <dd className="font-bold">
+                      {samplingMetadata.adaptiveFinal.usedFinal
+                        ? "Enabled"
+                        : "Skipped for performance"}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+
+            <p className="text-muted-foreground text-xs">
+              Hash-based sampling ensures consistent, repeatable results while
+              maintaining statistical accuracy.
+            </p>
+          </div>
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
         <button
+          type="button"
           className={
             showLabel
               ? "text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
               : "hover:bg-muted-foreground/10 inline-flex h-4 w-4 items-center justify-center rounded-full"
           }
           aria-label="View sampling details"
+          {...getTriggerProps()}
         >
           {showLabel && <span>Sampled Data</span>}
           <Info
             className={showLabel ? "h-3 w-3" : "text-muted-foreground h-3 w-3"}
           />
         </button>
-      </HoverCardTrigger>
-      <HoverCardContent className="w-80" align="start">
-        <div className="space-y-3">
-          <div>
-            <h4 className="mb-2 text-sm font-bold">
-              {mode === "single" ? "Estimated Score Count" : "Estimated Scores"}
-            </h4>
-            <dl className="space-y-1 text-sm">
-              {mode === "single" ? (
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Total Scores:</dt>
-                  <dd className="font-bold">
-                    ~
-                    {samplingMetadata.preflightEstimates?.score1Count.toLocaleString()}
-                  </dd>
-                </div>
-              ) : (
-                <>
-                  <div className="flex justify-between">
-                    <dt className="text-muted-foreground">Score 1:</dt>
-                    <dd className="font-bold">
-                      ~
-                      {samplingMetadata.preflightEstimates?.score1Count.toLocaleString()}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-muted-foreground">Score 2:</dt>
-                    <dd className="font-bold">
-                      ~
-                      {samplingMetadata.preflightEstimates?.score2Count.toLocaleString()}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-muted-foreground">
-                      Estimated Matches:
-                    </dt>
-                    <dd className="font-bold">
-                      ~
-                      {samplingMetadata.preflightEstimates?.estimatedMatchedCount.toLocaleString()}
-                    </dd>
-                  </div>
-                </>
-              )}
-            </dl>
-          </div>
-
-          <div>
-            <h4 className="mb-2 text-sm font-bold">Query Optimizations</h4>
-            <dl className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Sampling:</dt>
-                <dd className="font-bold">
-                  {(samplingMetadata.samplingRate * 100).toFixed(1)}%
-                  (hash-based)
-                </dd>
-              </div>
-              {samplingMetadata.adaptiveFinal && (
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Deduplication:</dt>
-                  <dd className="font-bold">
-                    {samplingMetadata.adaptiveFinal.usedFinal
-                      ? "Enabled"
-                      : "Skipped for performance"}
-                  </dd>
-                </div>
-              )}
-            </dl>
-          </div>
-
-          <p className="text-muted-foreground text-xs">
-            Hash-based sampling ensures consistent, repeatable results while
-            maintaining statistical accuracy.
-          </p>
-        </div>
-      </HoverCardContent>
+      )}
     </HoverCard>
   );
 }
