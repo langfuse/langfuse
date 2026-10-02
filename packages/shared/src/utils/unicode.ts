@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 const BACKSLASH = 92;
 const U_CHAR = 117;
 // high surrogate is the first code of a surrogate pair (\uD83D\uDE00 -> 😀)
@@ -48,8 +47,8 @@ export function decodeUnicodeEscapesOnly(
     const b = hex(str.charCodeAt(pos + 1));
     const c = hex(str.charCodeAt(pos + 2));
     const d = hex(str.charCodeAt(pos + 3));
-    // bit shift instead of multiplication for performance, recreating the 16bit unicode
-    return (a | b | c | d) >= 0 ? (a << 12) | (b << 8) | (c << 4) | d : -1;
+    if (a < 0 || b < 0 || c < 0 || d < 0) return -1;
+    return a * 4096 + b * 256 + c * 16 + d;
   };
 
   // Try decoding surrogate pair starting at position (after first \uXXXX)
@@ -70,7 +69,7 @@ export function decodeUnicodeEscapesOnly(
     if (low < LOW_SURROGATE_START || low > LOW_SURROGATE_END) return null;
 
     const cp =
-      ((high - HIGH_SURROGATE_START) << 10) +
+      (high - HIGH_SURROGATE_START) * 1024 +
       (low - LOW_SURROGATE_START) +
       0x10000;
     return { decoded: String.fromCodePoint(cp), consumed: 6 };
@@ -107,7 +106,7 @@ export function decodeUnicodeEscapesOnly(
               const low = parseHex4(input, k + 1);
               if (low >= LOW_SURROGATE_START && low <= LOW_SURROGATE_END) {
                 const cp =
-                  ((codeUnit - HIGH_SURROGATE_START) << 10) +
+                  (codeUnit - HIGH_SURROGATE_START) * 1024 +
                   (low - LOW_SURROGATE_START) +
                   0x10000;
                 out.push(String.fromCodePoint(cp));
@@ -167,10 +166,10 @@ export function decodeUnicodeEscapesOnly(
     if (j < n && input.charCodeAt(j) === U_CHAR) {
       // Emit preceding literal and collapse paired backslashes
       if (lastEmit < i) out.push(input.slice(lastEmit, i));
-      const pairs = run >> 1;
+      const pairs = Math.floor(run / 2);
       if (pairs) out.push("\\".repeat(pairs));
 
-      if ((run & 1) === 0) {
+      if (run % 2 === 0) {
         // Even run: the 'u' is not escaped -> leave it untouched
         i = j;
         lastEmit = i;
