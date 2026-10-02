@@ -1,14 +1,9 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { DiffLabel } from "@/src/features/datasets";
 import {
   getScoreDataTypeExplanation,
@@ -37,15 +32,15 @@ const ScoreDataTypeMarker = ({
   icon: string;
   dataType: ScoreColumnDataType;
 }) => (
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <span className="text-muted-foreground shrink-0 cursor-default">
+  <Tooltip label={getScoreDataTypeExplanation(dataType)} delay={300}>
+    {({ getTriggerProps }) => (
+      <span
+        {...getTriggerProps()}
+        className="text-muted-foreground shrink-0 cursor-default"
+      >
         {icon}
       </span>
-    </TooltipTrigger>
-    <TooltipContent className="max-w-[280px]">
-      {getScoreDataTypeExplanation(dataType)}
-    </TooltipContent>
+    )}
   </Tooltip>
 );
 
