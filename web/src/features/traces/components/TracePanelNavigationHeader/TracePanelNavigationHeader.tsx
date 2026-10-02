@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable no-nested-ternary */
 /**
  * NavigationHeader - Responsive search and controls for the navigation panel
@@ -17,11 +16,8 @@ import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
 import { type GraphUnavailableReason } from "@/src/features/traces/fns/graphAvailability";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { cloneElement } from "react";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -429,9 +425,8 @@ function ViewModeSegment({
   // A native title does not reliably surface on a segment this small.
   if (!disabled || !title) return segment;
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>{segment}</TooltipTrigger>
-      <TooltipContent>{title}</TooltipContent>
+    <Tooltip label={title} delay={300}>
+      {({ getTriggerProps }) => cloneElement(segment, getTriggerProps())}
     </Tooltip>
   );
 }
