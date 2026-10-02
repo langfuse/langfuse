@@ -3218,6 +3218,14 @@ export class OtelIngestionProcessor {
       normalizedUsageDetails.input_cache_creation = cacheCreationTokens;
     }
 
+    // Also extract Anthropic cache tokens from provider metadata if present.
+    // This handles non-Vercel-AI-SDK instrumentations (e.g. Google ADK + LiteLLM)
+    // that forward Anthropic usage through ai.response.providerMetadata.
+    this.extractAnthropicCacheFromProviderMetadata(
+      attributes,
+      normalizedUsageDetails,
+    );
+
     if (outputReasoningTokens !== undefined) {
       normalizedUsageDetails.output_reasoning_tokens = outputReasoningTokens;
     }
@@ -3227,6 +3235,74 @@ export class OtelIngestionProcessor {
     }
 
     return normalizedUsageDetails;
+  }
+
+  /**
+   * Extract Anthropic cache tokens from `ai.response.providerMetadata` and
+   * merge them into `usageDetails` without subtracting tokens already counted
+   * by the generic `gen_ai.usage.*` parser.
+   */
+  private extractAnthropicCacheFromProviderMetadata(
+    attributes: Record<string, unknown>,
+    usageDetails: Record<string, number>,
+  ): void {
+    const anthropicUsage = this.parseJsonPayload(
+      attributes["ai.response.providerMetadata"],
+    )?.anthropic?.usage;
+    if (!anthropicUsage || typeof anthropicUsage !== "object") return;
+
+    const count = (value: unknown) =>
+      typeof value === "number" && Number.isFinite(value) ? value : undefined;
+    let notYetSubtracted = 0;
+
+    const cacheRead = count(anthropicUsage["cache_read_input_tokens"]);
+    if (
+      cacheRead !== undefined &&
+      usageDetails.input_cached_tokens === undefined
+    ) {
+      usageDetails.input_cached_tokens = cacheRead;
+      notYetSubtracted += cacheRead;
+    }
+
+    const cacheCreation = count(anthropicUsage["cache_creation_input_tokens"]);
+    if (
+      cacheCreation !== undefined &&
+      usageDetails.input_cache_creation === undefined
+    ) {
+      usageDetails.input_cache_creation = cacheCreation;
+      notYetSubtracted += cacheCreation;
+    }
+
+    const fiveMinutes = count(
+      anthropicUsage["cache_creation"]?.["ephemeral_5m_input_tokens"],
+    );
+    const oneHour = count(
+      anthropicUsage["cache_creation"]?.["ephemeral_1h_input_tokens"],
+    );
+    const split = (fiveMinutes ?? 0) + (oneHour ?? 0);
+    const total = usageDetails.input_cache_creation;
+    // The split is part of the total. If it exceeds the reported total, keep
+    // that total at the generic cache-write rate rather than overcounting it.
+    if (
+      (fiveMinutes !== undefined || oneHour !== undefined) &&
+      (total === undefined || split <= total)
+    ) {
+      if (fiveMinutes !== undefined) {
+        usageDetails.input_cache_creation_5m = fiveMinutes;
+      }
+      if (oneHour !== undefined) {
+        usageDetails.input_cache_creation_1h = oneHour;
+      }
+      if (total !== undefined) {
+        usageDetails.input_cache_creation = total - split;
+      } else {
+        notYetSubtracted += split;
+      }
+    }
+
+    if (usageDetails.input !== undefined && notYetSubtracted > 0) {
+      usageDetails.input = Math.max(usageDetails.input - notYetSubtracted, 0);
+    }
   }
 
   private extractCostDetails(
