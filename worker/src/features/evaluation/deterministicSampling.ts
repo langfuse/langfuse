@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { createHash } from "node:crypto";
 
 const SAMPLING_DOMAIN = "langfuse:evaluation-sampling:v1\0";
@@ -11,7 +12,7 @@ export function getDeterministicSamplingValue(targetId: string) {
 
   // JavaScript Numbers represent integers through 2^53 - 1 exactly. Taking
   // 53 hash bits therefore keeps every bucket distinct after conversion.
-  const hash53 = digest.readBigUInt64BE(0) / 2048n;
+  const hash53 = digest.readBigUInt64BE(0) >> 11n;
 
   return Number(hash53) / SAMPLING_BUCKET_COUNT;
 }
