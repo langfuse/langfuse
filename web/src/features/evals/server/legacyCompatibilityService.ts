@@ -61,6 +61,39 @@ const LEGACY_TARGET_OBJECTS = [
   EvalTargetObject.EXPERIMENT,
 ];
 
+const visibleRuleWhere = {
+  assignments: { none: { evaluator: { type: EvalTemplateType.FACET } } },
+} satisfies Prisma.EvaluationRuleWhereInput;
+
+async function assertNoBlockedBuiltInEvaluators(
+  tx: TransactionClient,
+  projectId: string,
+  ruleIds: string[],
+) {
+  const blockedRule = await tx.evaluationRule.findFirst({
+    where: {
+      projectId,
+      id: { in: ruleIds },
+      AND: [
+        visibleRuleWhere,
+        {
+          assignments: {
+            some: {
+              evaluator: { isBuiltIn: true, blockedAt: { not: null } },
+            },
+          },
+        },
+      ],
+    },
+    select: { id: true },
+  });
+  if (blockedRule) {
+    throw new InvalidRequestError(
+      "Blocked built-in evaluators cannot be activated",
+    );
+  }
+}
+
 const latestVersion = {
   orderBy: { version: "desc" as const },
   take: 1,
@@ -624,6 +657,7 @@ const legacyConfigIdsQuery = (params: {
     ) a ON a."evaluation_rule_id" = r."id"
     JOIN "evaluators" e ON e."id" = a."evaluator_id"
     WHERE r."project_id" = ${params.projectId}
+      AND e."type"::text <> ${EvalTemplateType.FACET}
   ) jc
   WHERE TRUE
   ${params.targetCondition}
@@ -660,14 +694,23 @@ export class LegacyEvalCompatibilityService {
   async counts(projectId: string) {
     const [configCount, configActiveCount, templateCount, legacyConfigCount] =
       await Promise.all([
-        this.prisma.evaluationRule.count({ where: { projectId } }),
         this.prisma.evaluationRule.count({
-          where: { projectId, status: JobConfigState.ACTIVE },
+          where: { projectId, ...visibleRuleWhere },
         }),
-        this.prisma.evaluator.count({ where: { projectId } }),
         this.prisma.evaluationRule.count({
           where: {
             projectId,
+            ...visibleRuleWhere,
+            status: JobConfigState.ACTIVE,
+          },
+        }),
+        this.prisma.evaluator.count({
+          where: { projectId, type: { not: EvalTemplateType.FACET } },
+        }),
+        this.prisma.evaluationRule.count({
+          where: {
+            projectId,
+            ...visibleRuleWhere,
             targetObject: {
               in: [EvalTargetObject.TRACE, EvalTargetObject.DATASET],
             },
@@ -770,7 +813,7 @@ export class LegacyEvalCompatibilityService {
 
   async getConfig(projectId: string, ruleId: string) {
     const rule = await this.prisma.evaluationRule.findFirst({
-      where: { id: ruleId, projectId },
+      where: { id: ruleId, projectId, ...visibleRuleWhere },
       include: ruleInclude,
     });
     if (!rule || rule.assignments.length > 1) return null;
@@ -1068,6 +1111,7 @@ export class LegacyEvalCompatibilityService {
           where: {
             id: params.reuseEvaluatorFromRuleId,
             projectId: params.projectId,
+            ...visibleRuleWhere,
             targetObject: { in: LEGACY_TARGET_OBJECTS },
           },
           select: {
@@ -1354,7 +1398,10 @@ export class LegacyEvalCompatibilityService {
     const rules = await this.prisma.evaluationRule.findMany({
       where: {
         projectId,
-        assignments: { some: { evaluator: { name } } },
+        AND: [
+          visibleRuleWhere,
+          { assignments: { some: { evaluator: { name } } } },
+        ],
       },
       include: ruleInclude,
     });
@@ -1381,6 +1428,7 @@ export class LegacyEvalCompatibilityService {
         where: {
           id: params.ruleId,
           projectId: params.projectId,
+          ...visibleRuleWhere,
           targetObject: { in: LEGACY_TARGET_OBJECTS },
         },
         include: { assignments: true },
@@ -1397,6 +1445,7 @@ export class LegacyEvalCompatibilityService {
         });
       }
       if (params.data.status === JobConfigState.ACTIVE) {
+        await assertNoBlockedBuiltInEvaluators(tx, params.projectId, [rule.id]);
         // Blocking moved to the evaluator, so activating the rule alone would
         // leave the evaluator paused and the worker would keep skipping it.
         await clearEvaluatorBlock({
@@ -1459,10 +1508,18 @@ export class LegacyEvalCompatibilityService {
     if (params.ruleIds.length === 0) return 0;
 
     return this.prisma.$transaction(async (tx) => {
+      if (params.status === JobConfigState.ACTIVE) {
+        await assertNoBlockedBuiltInEvaluators(
+          tx,
+          params.projectId,
+          params.ruleIds,
+        );
+      }
       const { count } = await tx.evaluationRule.updateMany({
         where: {
           id: { in: params.ruleIds },
           projectId: params.projectId,
+          ...visibleRuleWhere,
           targetObject: { in: LEGACY_TARGET_OBJECTS },
         },
         data: { status: params.status },
@@ -1474,6 +1531,7 @@ export class LegacyEvalCompatibilityService {
             where: {
               projectId: params.projectId,
               evaluationRuleId: { in: params.ruleIds },
+              evaluationRule: visibleRuleWhere,
             },
             select: { evaluatorId: true },
           },
@@ -1498,6 +1556,7 @@ export class LegacyEvalCompatibilityService {
       where: {
         id: ruleId,
         projectId,
+        ...visibleRuleWhere,
         targetObject: { in: LEGACY_TARGET_OBJECTS },
       },
       select: { id: true },
