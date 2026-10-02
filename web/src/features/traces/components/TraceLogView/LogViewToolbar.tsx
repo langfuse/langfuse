@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable no-nested-ternary */
 /**
  * LogViewToolbar - Controls for log view search and actions.
@@ -20,12 +19,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Command, CommandInput } from "@/src/components/ui/command";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { type JsonViewPreference } from "@/src/components/ui/jsonViewPreference";
@@ -215,9 +210,18 @@ export const LogViewToolbar = memo(function LogViewToolbar({
 
         {/* Expand/Collapse All - show disabled with tooltip when virtualized */}
         {currentView !== "json" && onToggleExpandAll && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span>
+          <Tooltip
+            label={
+              isVirtualized
+                ? "Disabled for large traces"
+                : allRowsExpanded
+                  ? "Collapse all"
+                  : "Expand all"
+            }
+            delay={300}
+          >
+            {({ getTriggerProps }) => (
+              <span {...getTriggerProps()}>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -235,14 +239,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                   )}
                 </Button>
               </span>
-            </TooltipTrigger>
-            <TooltipContent>
-              {isVirtualized
-                ? "Disabled for large traces"
-                : allRowsExpanded
-                  ? "Collapse all"
-                  : "Expand all"}
-            </TooltipContent>
+            )}
           </Tooltip>
         )}
 
@@ -271,18 +268,27 @@ export const LogViewToolbar = memo(function LogViewToolbar({
               </div>
             }
           >
-            {({ getTriggerProps }) => (
-              <Tooltip>
-                <TooltipTrigger asChild>
+            {({ getTriggerProps: getHoverTriggerProps }) => (
+              <Tooltip
+                label={
+                  isCopyOrDownloadLoading
+                    ? "Loading data..."
+                    : isCopyOrDownloadCacheOnly
+                      ? "Copy as JSON (cache only)"
+                      : "Copy as JSON"
+                }
+                delay={300}
+              >
+                {({ getTriggerProps }) => (
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
-                    {...getTriggerProps({
+                    {...getTriggerProps(getHoverTriggerProps({
                       onClick: isCopyOrDownloadLoading
                         ? undefined
                         : handleCopyClick,
-                    })}
+                    }))}
                     disabled={isCopyOrDownloadLoading}
                   >
                     {isCopyOrDownloadLoading ? (
@@ -293,14 +299,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                       <Copy className="icon-base text-icon-foreground" />
                     )}
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {isCopyOrDownloadLoading
-                    ? "Loading data..."
-                    : isCopyOrDownloadCacheOnly
-                      ? "Copy as JSON (cache only)"
-                      : "Copy as JSON"}
-                </TooltipContent>
+                )}
               </Tooltip>
             )}
           </HoverCard>
