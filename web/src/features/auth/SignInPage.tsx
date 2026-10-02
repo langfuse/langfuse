@@ -505,13 +505,14 @@ export default function SignInPage({
   useHuggingFaceRedirect(runningOnHuggingFaceSpaces);
 
   // handle NextAuth error codes: https://next-auth.js.org/configuration/pages#sign-in-page
+  // Note: Next.js already URL-decodes router.query values, so do not decode
+  // again here: a literal "%" in the message (e.g. "100% complete") makes
+  // decodeURIComponent throw URIError and blanks the error page.
   const nextAuthError =
-    typeof router.query.error === "string"
-      ? decodeURIComponent(router.query.error)
-      : null;
+    typeof router.query.error === "string" ? router.query.error : null;
   const nextAuthErrorDescription =
     typeof router.query.error_description === "string"
-      ? decodeURIComponent(router.query.error_description)
+      ? router.query.error_description
       : null;
 
   // Use error_description from IdP if available, otherwise use mapped error or error code
