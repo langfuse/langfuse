@@ -2,11 +2,15 @@
 /* eslint-disable @repo/no-exotic-operators */
 import { z } from "zod";
 import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
-import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";
+import type {
+  InAppAgentPendingToolApproval,
+  InAppAgentPendingUserInput,
+} from "../InAppAiAgentProvider";
 import type { InAppAgentMessageContent } from "../InAppAgentMessage";
 import { deduplicateBy } from "@/src/utils/arrays";
 import { safeJsonParse, stableJsonStringify } from "@langfuse/shared";
 import {
+  IN_APP_AGENT_ASK_USER_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
   AgUiMessageSchema,
@@ -46,6 +50,13 @@ export type InAppAgentToolCallContent = {
     id: string;
     status: "pending" | "submitting";
   };
+  userInput?: {
+    id: string;
+    status: "pending" | "submitting";
+    question: string;
+    options?: Array<{ label: string; description?: string }>;
+    selectionMode?: "single_select" | "multi_select";
+  };
 };
 
 export function getInAppAgentToolDisplayName(toolName: string): string {
@@ -76,6 +87,7 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   loadSkill: "Loading skill",
   loadSkillResource: "Loading skill resource",
   proposeRedirect: "Opening page",
+  ask_user: "Asking you",
   queryMetrics: "Checking metrics",
   read: "Reading file",
   submitFeedback: "Submitting user feedback",
@@ -418,12 +430,14 @@ export function getDrawerMessages({
   isRunning,
   messages,
   pendingToolApprovals = [],
+  pendingUserInputs = [],
   runningToolCallIds,
 }: {
   error: unknown;
   isRunning: boolean;
   messages: unknown;
   pendingToolApprovals?: readonly InAppAgentPendingToolApproval[];
+  pendingUserInputs?: readonly InAppAgentPendingUserInput[];
   runningToolCallIds?: readonly string[];
 }): InAppAgentWindowMessage[] {
   const parsedMessages = z.array(InAppAiAgentMessageSchema).parse(messages);
@@ -432,10 +446,14 @@ export function getDrawerMessages({
   const pendingApprovalsByToolCallId = new Map(
     pendingToolApprovals.map((approval) => [approval.id, approval]),
   );
+  const pendingUserInputsByToolCallId = new Map(
+    pendingUserInputs.map((userInput) => [userInput.id, userInput]),
+  );
   const runningToolCallIdSet = runningToolCallIds
     ? new Set(runningToolCallIds)
     : null;
   const mappedPendingApprovalIds = new Set<string>();
+  const mappedPendingUserInputIds = new Set<string>();
 
   const mappedMessages: InAppAgentWindowMessage[] = [];
   let pendingTools: InAppAgentToolCallContent[] = [];
@@ -555,6 +573,38 @@ export function getDrawerMessages({
                     pendingApprovalsByToolCallId,
                     mappedPendingApprovalIds,
                   });
+              const pendingUserInput = result
+                ? undefined
+                : (pendingUserInputsByToolCallId.get(toolCall.id) ??
+                  pendingUserInputs.find(
+                    (userInput) =>
+                      !mappedPendingUserInputIds.has(userInput.id) &&
+                      userInput.userInputRequest.toolCallId === toolCall.id,
+                  ));
+
+              if (toolCall.function.name === IN_APP_AGENT_ASK_USER_TOOL_NAME) {
+                if (!pendingUserInput) {
+                  return [];
+                }
+
+                mappedPendingUserInputIds.add(pendingUserInput.id);
+                return [
+                  {
+                    type: "tool",
+                    name: toolCall.function.name,
+                    args: toolCall.function.arguments,
+                    status: "running",
+                    userInput: {
+                      id: pendingUserInput.id,
+                      status: pendingUserInput.status,
+                      question: pendingUserInput.userInputRequest.message,
+                      options: pendingUserInput.userInputRequest.args.options,
+                      selectionMode:
+                        pendingUserInput.userInputRequest.args.selectionMode,
+                    },
+                  },
+                ];
+              }
 
               if (pendingApproval) {
                 mappedPendingApprovalIds.add(pendingApproval.id);
@@ -712,6 +762,39 @@ export function getDrawerMessages({
             approval: {
               id: approval.id,
               status: approval.status,
+            },
+          },
+        ],
+      },
+    });
+  }
+
+  for (const userInput of pendingUserInputs) {
+    if (
+      mappedPendingUserInputIds.has(userInput.id) ||
+      resolvedToolCallIds.has(userInput.id) ||
+      resolvedToolCallIds.has(userInput.userInputRequest.toolCallId)
+    ) {
+      continue;
+    }
+
+    mappedMessages.push({
+      id: `user-input-${userInput.id}`,
+      role: "assistant",
+      content: {
+        type: "toolGroup",
+        tools: [
+          {
+            type: "tool",
+            name: userInput.userInputRequest.toolName,
+            args: stringifyToolArgs(userInput.userInputRequest.args),
+            status: "running",
+            userInput: {
+              id: userInput.id,
+              status: userInput.status,
+              question: userInput.userInputRequest.message,
+              options: userInput.userInputRequest.args.options,
+              selectionMode: userInput.userInputRequest.args.selectionMode,
             },
           },
         ],

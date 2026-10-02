@@ -1,7 +1,12 @@
 import { EventType } from "@ag-ui/core";
 import { describe, expect, it } from "vitest";
 
-import { createManualToolApprovalRunInput } from "./human-in-the-loop";
+import { IN_APP_AGENT_ASK_USER_TOOL_NAME } from "@langfuse/shared/in-app-agent";
+
+import {
+  createManualToolApprovalRunInput,
+  createManualUserInputRunInput,
+} from "./human-in-the-loop";
 import type { AgUiRunAgentInput } from "./types";
 
 const approvalRequest = {
@@ -88,6 +93,72 @@ describe("createManualToolApprovalRunInput", () => {
     expect(toolMessage?.content).toEqual(path);
     expect(toolResultContent(syntheticEvents)).toEqual(
       JSON.stringify(envelope),
+    );
+  });
+});
+
+describe("createManualUserInputRunInput", () => {
+  it("resumes with the user's answer as a tool result and does not execute", () => {
+    const { input, syntheticEvents } = createManualUserInputRunInput({
+      input: {
+        threadId: "conversation-1",
+        runId: "run-2",
+        messages: [
+          {
+            id: "user-message-1",
+            role: "user",
+            content: "check latency",
+          },
+        ],
+        tools: [],
+        context: [],
+        forwardedProps: {
+          command: {
+            resume: {
+              kind: "user_input",
+              status: "resolved",
+              payload: { answer: "production" },
+              userInputRequest: {
+                type: "user_input_request",
+                id: "ask-1",
+                reason: "input_required",
+                message: "Which environment should I query?",
+                toolCallId: "ask-1",
+                toolName: IN_APP_AGENT_ASK_USER_TOOL_NAME,
+                args: {
+                  question: "Which environment should I query?",
+                  options: [{ label: "production" }, { label: "staging" }],
+                  selectionMode: "single_select",
+                },
+                runId: "interrupted-run-1",
+              },
+            },
+          },
+        },
+      },
+    });
+    const toolMessage = input.messages.find(
+      (message) => message.role === "tool",
+    );
+    const assistantMessage = input.messages.find(
+      (message) => message.role === "assistant",
+    );
+
+    expect(toolMessage?.content).toEqual(
+      JSON.stringify({ answer: "production" }),
+    );
+    expect(toolMessage?.toolCallId).toBe("ask-1");
+    expect(assistantMessage).toMatchObject({
+      role: "assistant",
+      toolCalls: [
+        {
+          id: "ask-1",
+          function: { name: IN_APP_AGENT_ASK_USER_TOOL_NAME },
+        },
+      ],
+    });
+    expect(toolResultContent(syntheticEvents)).toEqual(
+      JSON.stringify({ answer: "production" }),
     );
   });
 });

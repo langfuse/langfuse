@@ -1,7 +1,12 @@
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 
-import { BaseError, LangfuseNotFoundError, type Plan } from "@langfuse/shared";
+import {
+  BaseError,
+  InvalidRequestError,
+  LangfuseNotFoundError,
+  type Plan,
+} from "@langfuse/shared";
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
   InAppAgentRunQueue,
@@ -14,9 +19,15 @@ import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
   InAppAgentRunStatusSchema,
+  InAppAgentUserInputPayloadSchema,
+  isInAppAgentToolApprovalRequest,
+  isInAppAgentUserInputRequest,
+  isValidInAppAgentUserInputPayload,
   parseInAppAgentApprovalDecisionEvent,
   parseInAppAgentInterruptEvent,
+  parseInAppAgentUserInputDecisionEvent,
   type AgUiContext,
+  type InAppAgentUserInputPayload,
 } from "@langfuse/shared/in-app-agent";
 import { getInAppAgentPrefixedToolName } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { createInAppAgentMessageId, createInAppAgentRunId } from "../ids";
@@ -34,6 +45,7 @@ import {
   classifyStaleRun,
   createQueuedRun,
   decideToolApproval,
+  decideUserInput,
   reconcileConversationRuns,
   recordImmediateCancelOutcomes,
   requestRunCancellation,
@@ -122,6 +134,14 @@ export async function getBackgroundConversationSnapshot(params: {
           }
         : null,
     pendingToolApprovals: getPendingToolApprovals(
+      events,
+      new Set(
+        runs
+          .filter((run) => run.status === InAppAgentRunStatus.AWAITING_APPROVAL)
+          .map((run) => run.id),
+      ),
+    ),
+    pendingUserInputs: getPendingUserInputs(
       events,
       new Set(
         runs
@@ -383,7 +403,10 @@ export async function decideBackgroundApproval(params: {
     }
 
     const parsedRequest = parseInAppAgentInterruptEvent(persisted.event);
-    if (parsedRequest?.toolCallId === params.toolCallId) {
+    if (
+      isInAppAgentToolApprovalRequest(parsedRequest) &&
+      parsedRequest.toolCallId === params.toolCallId
+    ) {
       approvalRequest = parsedRequest;
       break;
     }
@@ -421,6 +444,79 @@ export async function decideBackgroundApproval(params: {
   return { runId: continuationRun.id };
 }
 
+export async function decideBackgroundUserInput(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  runId: string;
+  toolCallId: string;
+  payload: InAppAgentUserInputPayload;
+  userId: string;
+  model: string | undefined;
+}) {
+  await getOwnedConversationOrThrow({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    conversationId: params.conversationId,
+    userId: params.userId,
+  });
+
+  const events = await getConversationEvents({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    conversationId: params.conversationId,
+  });
+
+  let userInputRequest: ReturnType<typeof parseInAppAgentInterruptEvent>;
+  for (const persisted of events) {
+    if (persisted.runId !== params.runId) {
+      continue;
+    }
+
+    const parsedRequest = parseInAppAgentInterruptEvent(persisted.event);
+    if (
+      isInAppAgentUserInputRequest(parsedRequest) &&
+      parsedRequest.toolCallId === params.toolCallId
+    ) {
+      userInputRequest = parsedRequest;
+      break;
+    }
+  }
+
+  if (!isInAppAgentUserInputRequest(userInputRequest)) {
+    throw new LangfuseNotFoundError("User input request not found");
+  }
+
+  const payload = InAppAgentUserInputPayloadSchema.safeParse(params.payload);
+  if (
+    !payload.success ||
+    !isValidInAppAgentUserInputPayload(payload.data, userInputRequest.args)
+  ) {
+    throw new InvalidRequestError("The answer does not match the question");
+  }
+
+  const continuationRun = await decideUserInput({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    conversationId: params.conversationId,
+    parentRunId: params.runId,
+    continuationRunId: createInAppAgentRunId(),
+    toolCallId: params.toolCallId,
+    status: "resolved",
+    payload: payload.data,
+    decidedByUserId: params.userId,
+    model: params.model,
+  });
+
+  await enqueueInAppAgentRun({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    runId: continuationRun.id,
+  });
+
+  return { runId: continuationRun.id };
+}
+
 function getPendingToolApprovals(
   events: readonly PersistedConversationEvent[],
   parkedRunIds: ReadonlySet<string>,
@@ -435,10 +531,32 @@ function getPendingToolApprovals(
   return events.flatMap((persisted) => {
     const approvalRequest = parseInAppAgentInterruptEvent(persisted.event);
 
-    return approvalRequest &&
+    return isInAppAgentToolApprovalRequest(approvalRequest) &&
       parkedRunIds.has(persisted.runId) &&
       !decidedToolCallIds.has(approvalRequest.toolCallId)
       ? [{ runId: persisted.runId, approvalRequest }]
+      : [];
+  });
+}
+
+function getPendingUserInputs(
+  events: readonly PersistedConversationEvent[],
+  parkedRunIds: ReadonlySet<string>,
+) {
+  const decidedToolCallIds = new Set(
+    events.flatMap((persisted) => {
+      const decision = parseInAppAgentUserInputDecisionEvent(persisted.event);
+      return decision ? [decision.toolCallId] : [];
+    }),
+  );
+
+  return events.flatMap((persisted) => {
+    const userInputRequest = parseInAppAgentInterruptEvent(persisted.event);
+
+    return isInAppAgentUserInputRequest(userInputRequest) &&
+      parkedRunIds.has(persisted.runId) &&
+      !decidedToolCallIds.has(userInputRequest.toolCallId)
+      ? [{ runId: persisted.runId, userInputRequest }]
       : [];
   });
 }

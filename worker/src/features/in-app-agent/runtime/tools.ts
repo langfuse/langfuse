@@ -31,10 +31,12 @@ import {
   TracingSearchType,
 } from "@langfuse/shared";
 import {
+  InAppAgentAskUserArgsSchema,
   InAppAgentSandboxBashArgsSchema,
   InAppAgentSandboxEditArgsSchema,
   InAppAgentSandboxReadArgsSchema,
   InAppAgentSandboxWriteArgsSchema,
+  IN_APP_AGENT_ASK_USER_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
 } from "@langfuse/shared/in-app-agent";
@@ -443,6 +445,19 @@ const InAppAgentRedirectToolInputSchema = InAppAgentRedirectBaseSchema.extend({
 type InAppAgentRedirectToolInput = z.infer<
   typeof InAppAgentRedirectToolInputStrictSchema
 >;
+
+export function createAskUserTool() {
+  return createTool({
+    id: IN_APP_AGENT_ASK_USER_TOOL_NAME,
+    description:
+      "Ask the user a focused question when the task is ambiguous or a preference is required before acting. Provide options when the answer is a small set of known choices.",
+    inputSchema: InAppAgentAskUserArgsSchema,
+    execute: async (input, context) => {
+      await context?.agent?.suspend?.(input);
+      return input;
+    },
+  });
+}
 
 export function createRedirectActionTool({
   projectId,

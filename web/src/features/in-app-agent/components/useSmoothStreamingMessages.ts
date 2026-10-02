@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useReducer } from "react";
 
 import type { InAppAgentPendingToolApproval } from "./InAppAiAgentProvider";
 import {
+  IN_APP_AGENT_ASK_USER_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   type AgUiMessage,
 } from "@langfuse/shared/in-app-agent";
@@ -18,6 +19,13 @@ const MIN_SMOOTHED_GRAPHEMES = 16;
 const CATCH_UP_TARGET_MS = 1_500;
 const TOOL_TRANSITION_INTERVAL_MS = 500;
 const MIN_TOOL_RUNNING_DURATION_MS = 750;
+
+function isHiddenInAppAgentStreamToolName(toolName: string) {
+  return (
+    toolName === IN_APP_AGENT_REDIRECT_TOOL_NAME ||
+    toolName === IN_APP_AGENT_ASK_USER_TOOL_NAME
+  );
+}
 
 type ToolDisplayState = Record<
   string,
@@ -450,7 +458,7 @@ function getTargetTools(
     }
 
     for (const toolCall of message.toolCalls ?? []) {
-      if (toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME) {
+      if (isHiddenInAppAgentStreamToolName(toolCall.function.name)) {
         continue;
       }
 
@@ -656,7 +664,10 @@ function projectToolMessages(
     }
 
     for (const toolCall of message.toolCalls ?? []) {
-      if (toolCall.function.name !== IN_APP_AGENT_REDIRECT_TOOL_NAME) {
+      if (
+        toolCall.function.name !== IN_APP_AGENT_REDIRECT_TOOL_NAME &&
+        toolCall.function.name !== IN_APP_AGENT_ASK_USER_TOOL_NAME
+      ) {
         knownToolCallIds.add(toolCall.id);
       }
     }
@@ -680,10 +691,11 @@ function projectToolMessages(
     const toolCalls = message.toolCalls.filter(
       (toolCall) =>
         toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME ||
+        toolCall.function.name === IN_APP_AGENT_ASK_USER_TOOL_NAME ||
         Boolean(toolDisplayById[toolCall.id]),
     );
     const hasPendingTool = message.toolCalls.some((toolCall) => {
-      if (toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME) {
+      if (isHiddenInAppAgentStreamToolName(toolCall.function.name)) {
         return false;
       }
 

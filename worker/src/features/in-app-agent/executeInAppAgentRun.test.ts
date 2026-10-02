@@ -5,7 +5,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
-import { IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_ASK_USER_TOOL_NAME,
+  IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
+} from "@langfuse/shared/in-app-agent";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import { ResumeForwardedPropsSchema } from "./runtime/types";
 import { env } from "../../env";
@@ -334,6 +337,76 @@ async function seedApprovedContinuation(opts?: {
   return seeded;
 }
 
+async function seedUserInputContinuation(opts?: {
+  context?: Array<{ description: string; value: string }>;
+  continuationNumber?: number;
+  rootRunId?: string;
+  traceStartedAt?: string;
+  approvalRequestedAt?: string;
+}) {
+  const seeded = await seedBackgroundRun();
+  const { projectId, conversation, run, user } = seeded;
+  const parentRun = await prisma.inAppAgentRun.create({
+    data: {
+      id: createRunId(),
+      projectId,
+      conversationId: conversation.id,
+      triggeredByUserId: user.id,
+      status: "SUCCEEDED",
+      finishedAt: new Date(),
+    },
+  });
+  await prisma.inAppAgentEvent.create({
+    data: {
+      projectId,
+      conversationId: conversation.id,
+      runId: parentRun.id,
+      sequenceNumber: 1,
+      type: "CUSTOM",
+      event: {
+        type: "CUSTOM",
+        name: "on_interrupt",
+        value: {
+          type: "mastra_suspend",
+          toolCallId: "ask-1",
+          toolName: IN_APP_AGENT_ASK_USER_TOOL_NAME,
+          args: {
+            question: "Which environment should I query?",
+            options: [{ label: "production" }, { label: "staging" }],
+            selectionMode: "single_select",
+          },
+          runId: parentRun.id,
+        },
+      } as never,
+    },
+  });
+  await prisma.inAppAgentRun.update({
+    where: { id_projectId: { id: run.id, projectId } },
+    data: {
+      request: {
+        kind: "userInputDecision",
+        parentRunId: parentRun.id,
+        ...(opts?.rootRunId ? { rootRunId: opts.rootRunId } : {}),
+        ...(opts?.traceStartedAt
+          ? { traceStartedAt: opts.traceStartedAt }
+          : {}),
+        ...(opts?.approvalRequestedAt
+          ? { approvalRequestedAt: opts.approvalRequestedAt }
+          : {}),
+        toolCallId: "ask-1",
+        status: "resolved",
+        payload: { answer: "production" },
+        ...(opts?.continuationNumber
+          ? { continuationNumber: opts.continuationNumber }
+          : {}),
+        ...(opts?.context ? { context: opts.context } : {}),
+      },
+    },
+  });
+
+  return seeded;
+}
+
 describe("executeInAppAgentRun", () => {
   beforeEach(() => {
     scenarioRef.titleInferenceCalls = 0;
@@ -426,6 +499,35 @@ describe("executeInAppAgentRun", () => {
         traceStartedAt,
         approvalRequestedAt,
         approvalDecidedAt: run.createdAt.toISOString(),
+      });
+      await options.onComplete();
+      await options.onFinish();
+    };
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+  });
+
+  it("passes a user-input continuation as an AG-UI-shaped resume payload", async () => {
+    const { projectId, run } = await seedUserInputContinuation({
+      continuationNumber: 2,
+      rootRunId: "root-run-ask",
+    });
+
+    scenarioRef.current = async ({ input, options }) => {
+      const resume = ResumeForwardedPropsSchema.parse(input.forwardedProps)
+        .command.resume;
+      expect(resume).toMatchObject({
+        kind: "user_input",
+        status: "resolved",
+        payload: { answer: "production" },
+        continuationNumber: 2,
+        rootRunId: "root-run-ask",
+        userInputRequest: {
+          type: "user_input_request",
+          reason: "input_required",
+          toolCallId: "ask-1",
+          toolName: IN_APP_AGENT_ASK_USER_TOOL_NAME,
+        },
       });
       await options.onComplete();
       await options.onFinish();

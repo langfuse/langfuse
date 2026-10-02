@@ -1,4 +1,5 @@
 import {
+  IN_APP_AGENT_ASK_USER_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   type AgUiMessage,
 } from "@langfuse/shared/in-app-agent";
@@ -34,6 +35,7 @@ const KNOWN_IN_APP_AGENT_PROGRESS_TOOLS = [
   ),
   ...IN_APP_AGENT_SANDBOX_TOOL_NAMES,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_ASK_USER_TOOL_NAME,
   "langfuseDocs_search",
   "langfuseDocs_fetch",
   "skill",
@@ -1183,5 +1185,65 @@ describe("getDrawerMessages", () => {
     if (toolGroup?.content.type === "toolGroup") {
       expect(toolGroup.content.tools[0]).not.toHaveProperty("approval");
     }
+  });
+
+  it("adds pending ask-user interrupts as question cards", () => {
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: false,
+      messages: [
+        {
+          id: "user-1",
+          role: "user",
+          content: "Check latency",
+        },
+      ] satisfies AgUiMessage[],
+      pendingUserInputs: [
+        {
+          id: "ask-1",
+          userInputRequest: {
+            type: "user_input_request",
+            id: "ask-1",
+            reason: "input_required",
+            message: "Which environment should I query?",
+            toolCallId: "ask-1",
+            toolName: IN_APP_AGENT_ASK_USER_TOOL_NAME,
+            args: {
+              question: "Which environment should I query?",
+              options: [{ label: "production" }, { label: "staging" }],
+              selectionMode: "single_select",
+            },
+            runId: "run-1",
+          },
+          status: "pending",
+        },
+      ],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        id: "user-1",
+        content: { type: "text" },
+      },
+      {
+        id: "user-input-ask-1",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: IN_APP_AGENT_ASK_USER_TOOL_NAME,
+              userInput: {
+                id: "ask-1",
+                status: "pending",
+                question: "Which environment should I query?",
+                selectionMode: "single_select",
+              },
+            },
+          ],
+        },
+      },
+    ]);
   });
 });

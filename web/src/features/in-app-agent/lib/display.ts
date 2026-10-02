@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  IN_APP_AGENT_ASK_USER_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   type AgUiMessage,
 } from "@langfuse/shared/in-app-agent";
@@ -16,6 +17,13 @@ import type { InAppAgentUiMessage } from "../schema";
  * building a conversation snapshot, and once incrementally on the client as
  * live events arrive. Both use these same functions, so the two agree.
  */
+
+function isHiddenInAppAgentDisplayToolName(toolName: string) {
+  return (
+    toolName === IN_APP_AGENT_REDIRECT_TOOL_NAME ||
+    toolName === IN_APP_AGENT_ASK_USER_TOOL_NAME
+  );
+}
 
 type InAppAgentDisplayPlacement = {
   anchorMessageId: string;
@@ -297,6 +305,7 @@ export function projectInAppAgentMessagesForDisplay(
     for (const toolCall of message.toolCalls ?? []) {
       if (
         toolCall.function.name !== IN_APP_AGENT_REDIRECT_TOOL_NAME &&
+        toolCall.function.name !== IN_APP_AGENT_ASK_USER_TOOL_NAME &&
         !firstToolCallMessageIds.has(toolCall.id)
       ) {
         firstToolCallMessageIds.set(toolCall.id, message.id);
@@ -334,7 +343,7 @@ export function projectInAppAgentMessagesForDisplay(
       const placement = state.toolCallPlacements[toolCall.id];
       if (
         !placement ||
-        toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME ||
+        isHiddenInAppAgentDisplayToolName(toolCall.function.name) ||
         firstToolCallMessageIds.get(toolCall.id) !== message.id
       ) {
         continue;
@@ -379,6 +388,7 @@ export function projectInAppAgentMessagesForDisplay(
     messageId: string,
   ) =>
     toolCall.function.name !== IN_APP_AGENT_REDIRECT_TOOL_NAME &&
+    toolCall.function.name !== IN_APP_AGENT_ASK_USER_TOOL_NAME &&
     firstToolCallMessageIds.get(toolCall.id) !== messageId;
 
   return messages.flatMap<InAppAgentDisplayMessage>((message) => {
@@ -392,6 +402,10 @@ export function projectInAppAgentMessagesForDisplay(
               message.content,
             toolCalls: message.toolCalls?.filter((toolCall) => {
               if (isDuplicateToolCallForMessage(toolCall, message.id)) {
+                return false;
+              }
+
+              if (toolCall.function.name === IN_APP_AGENT_ASK_USER_TOOL_NAME) {
                 return false;
               }
 

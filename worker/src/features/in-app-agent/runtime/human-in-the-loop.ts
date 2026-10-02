@@ -6,7 +6,12 @@ import {
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
 import { toAgUiToolResultContent } from "@langfuse/shared/in-app-agent/server/toolResults";
-import type { AgUiRunAgentInput, ResumeForwardedProps } from "./types";
+import {
+  isToolApprovalResume,
+  isUserInputResume,
+  type AgUiRunAgentInput,
+  type ResumeForwardedProps,
+} from "./types";
 
 const MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE =
   "Tool call was not approved by the user.";
@@ -35,12 +40,13 @@ export async function createManualToolApprovalRunInput(params: {
   onApprovedToolCallExecuted?: () => void | Promise<void>;
 }): Promise<ManualToolApprovalRunInput> {
   const forwardedProps = getResumeForwardedProps(params.input);
+  const resume = forwardedProps?.command.resume;
 
-  if (!forwardedProps) {
+  if (!isToolApprovalResume(resume)) {
     return { input: params.input, syntheticEvents: [] };
   }
 
-  const { approved, approvalRequest } = forwardedProps.command.resume;
+  const { approved, approvalRequest } = resume;
   if (!approved) {
     const assistantMessage =
       createManualToolCallAssistantMessage(approvalRequest);
@@ -164,6 +170,56 @@ async function executeApprovedToolCall(params: {
   }
 }
 
+export function createManualUserInputRunInput(params: {
+  input: AgUiRunAgentInput;
+}): ManualToolApprovalRunInput {
+  const forwardedProps = getResumeForwardedProps(params.input);
+  const resume = forwardedProps?.command.resume;
+
+  if (!isUserInputResume(resume)) {
+    return { input: params.input, syntheticEvents: [] };
+  }
+
+  const { status, payload, userInputRequest } = resume;
+  const assistantMessage = createManualToolCallAssistantMessage({
+    toolCallId: userInputRequest.toolCallId,
+    toolName: userInputRequest.toolName,
+    args: userInputRequest.args,
+    runId: userInputRequest.runId,
+  });
+  const toolResultContent = serializeToolResultContent(
+    status === "resolved"
+      ? (payload ?? { answer: "" })
+      : { status: "cancelled" },
+  );
+  const toolMessage: AgUiMessage = {
+    id: createManualToolResultMessageId({
+      toolCallId: userInputRequest.toolCallId,
+    }),
+    role: "tool",
+    content: toolResultContent,
+    toolCallId: userInputRequest.toolCallId,
+  };
+
+  return {
+    input: {
+      ...params.input,
+      messages: [...params.input.messages, assistantMessage, toolMessage],
+      forwardedProps: {},
+    },
+    syntheticEvents: createManualToolApprovalEvents({
+      approvalRequest: {
+        type: "tool_approval_request",
+        toolCallId: userInputRequest.toolCallId,
+        toolName: userInputRequest.toolName,
+        args: userInputRequest.args,
+        runId: userInputRequest.runId,
+      },
+      toolResultContent,
+    }),
+  };
+}
+
 function getResumeForwardedProps(
   input: AgUiRunAgentInput,
 ): ResumeForwardedProps | undefined {
@@ -178,24 +234,27 @@ function getResumeForwardedProps(
   return forwardedProps;
 }
 
-function createManualToolCallAssistantMessage(
-  approvalRequest: InAppAgentToolApprovalRequest,
-): AgUiMessage {
+function createManualToolCallAssistantMessage(params: {
+  toolCallId: string;
+  toolName: string;
+  args: unknown;
+  runId: string;
+}): AgUiMessage {
   return {
-    id: createManualToolCallParentMessageId(approvalRequest),
+    id: createManualToolCallParentMessageId(params),
     role: "assistant",
     content: "",
     toolCalls: [
       {
-        id: approvalRequest.toolCallId,
+        id: params.toolCallId,
         type: "function",
         function: {
-          name: approvalRequest.toolName,
-          arguments: serializeToolCallArgs(approvalRequest.args),
+          name: params.toolName,
+          arguments: serializeToolCallArgs(params.args),
         },
       },
     ],
-    runId: approvalRequest.runId,
+    runId: params.runId,
   };
 }
 
@@ -265,16 +324,12 @@ function formatToolExecutionError(error: unknown) {
   return "Tool execution failed.";
 }
 
-function createManualToolCallParentMessageId(
-  approvalRequest: InAppAgentToolApprovalRequest,
-) {
-  return `${approvalRequest.toolCallId}-approval-tool-call`;
+function createManualToolCallParentMessageId(params: { toolCallId: string }) {
+  return `${params.toolCallId}-approval-tool-call`;
 }
 
-function createManualToolResultMessageId(
-  approvalRequest: InAppAgentToolApprovalRequest,
-) {
-  return `${approvalRequest.toolCallId}-approval-tool-result`;
+function createManualToolResultMessageId(params: { toolCallId: string }) {
+  return `${params.toolCallId}-approval-tool-result`;
 }
 
 function serializeToolCallArgs(args: unknown) {
