@@ -485,6 +485,7 @@ function NavUser({
                 shape="rounded"
                 src={user.avatar}
                 displayName={user.name}
+                email={user.email}
               />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-bold" title={user.name}>
@@ -509,6 +510,7 @@ function NavUser({
                   shape="rounded"
                   src={user.avatar}
                   displayName={user.name}
+                  email={user.email}
                 />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-bold" title={user.name}>
@@ -591,6 +593,22 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
     return assertUnreachable(update.updateType);
   }, [update]);
 
+  // Radix returns focus to the trigger when the menu closes, and the browser
+  // treats that programmatic focus as `:focus-visible`, so the Button's
+  // `focus-visible:ring-2` ring is left showing on the badge after a
+  // mouse-driven open/close. Keyboard users must keep that ring, so the focus
+  // restore is suppressed only for an interaction that never used the keyboard.
+  //
+  // `pointerOnly` therefore has to be cleared by a key press anywhere in the
+  // interaction, not only on the trigger: the menu is portalled, so once it is
+  // open every key event lands on the content instead. A mouse-opened menu
+  // closed with Escape or Enter is a keyboard interaction and must get focus
+  // back on the trigger.
+  const pointerOnly = React.useRef(false);
+  const noteKeyboardUse = () => {
+    pointerOnly.current = false;
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -598,6 +616,10 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
           variant="ghost"
           size="xs"
           className="text-muted-foreground h-5 max-w-full min-w-0 translate-y-px py-0 text-[0.625rem] leading-none"
+          onPointerDown={() => {
+            pointerOnly.current = true;
+          }}
+          onKeyDown={noteKeyboardUse}
         >
           <span className="truncate" title={versionText}>
             {versionText}
@@ -614,7 +636,19 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent onClick={(e) => e.stopPropagation()}>
+      <DropdownMenuContent
+        onClick={(e) => e.stopPropagation()}
+        // Both hooks are needed: Radix's DismissableLayer handles Escape before
+        // it reaches the content's own onKeyDown, while onKeyDown covers the
+        // arrow/Enter/typeahead keys used to pick an item.
+        onKeyDown={noteKeyboardUse}
+        onEscapeKeyDown={noteKeyboardUse}
+        onCloseAutoFocus={(event) => {
+          if (!pointerOnly.current) return;
+          pointerOnly.current = false;
+          event.preventDefault();
+        }}
+      >
         {update ? (
           <>
             <DropdownMenuLabel>
