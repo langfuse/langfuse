@@ -21,11 +21,7 @@
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { useCallback, useMemo, useState } from "react";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   TabsBar,
@@ -457,9 +453,28 @@ export function ConnectedObservationDetailView({
                               label="Formatted"
                             />
                             {selectedTab === "log" && isLogViewVirtualized ? (
-                              <HoverCard openDelay={200}>
-                                <HoverCardTrigger asChild>
-                                  <span>
+                              <HoverCard
+                                openDelay={200}
+                                sideOffset={8}
+                                placement="bottom-end"
+                                content={
+                                  <div className="w-64 p-3 text-sm">
+                                    <p className="font-bold">
+                                      Raw view unavailable
+                                    </p>
+                                    <p className="text-muted-foreground mt-1">
+                                      Disabled for traces with{" "}
+                                      {
+                                        TRACE_VIEW_CONFIG.logView
+                                          .virtualizationThreshold
+                                      }
+                                      + observations to maintain performance.
+                                    </p>
+                                  </div>
+                                }
+                              >
+                                {({ getTriggerProps }) => (
+                                  <span tabIndex={0} {...getTriggerProps()}>
                                     <Tabs.Trigger
                                       value="json"
                                       size="sm"
@@ -467,24 +482,7 @@ export function ConnectedObservationDetailView({
                                       label="Raw"
                                     />
                                   </span>
-                                </HoverCardTrigger>
-                                <HoverCardContent
-                                  align="end"
-                                  className="w-64 text-sm"
-                                  sideOffset={8}
-                                >
-                                  <p className="font-bold">
-                                    Raw view unavailable
-                                  </p>
-                                  <p className="text-muted-foreground mt-1">
-                                    Disabled for traces with{" "}
-                                    {
-                                      TRACE_VIEW_CONFIG.logView
-                                        .virtualizationThreshold
-                                    }
-                                    + observations to maintain performance.
-                                  </p>
-                                </HoverCardContent>
+                                )}
                               </HoverCard>
                             ) : (
                               <Tabs.Trigger
