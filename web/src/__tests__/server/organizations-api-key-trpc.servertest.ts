@@ -178,7 +178,7 @@ describe("organization API keys trpc", () => {
       // Create a test API key first
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "Test API Key",
+        name: "Test API Key",
       });
 
       expect(apiKeyResult).toBeDefined();
@@ -245,7 +245,7 @@ describe("organization API keys trpc", () => {
     it("owner can create organization API keys", async () => {
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "Test API Key",
+        name: "Test API Key",
       });
 
       expect(apiKeyResult).toBeDefined();
@@ -257,7 +257,7 @@ describe("organization API keys trpc", () => {
     it("stores the creating user and returns it in the list", async () => {
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "Key for creator attribution test",
+        name: "Key for creator attribution test",
       });
 
       const dbKey = await prisma.apiKey.findUniqueOrThrow({
@@ -287,7 +287,7 @@ describe("organization API keys trpc", () => {
       await expect(
         memberCaller.organizationApiKeys.create({
           orgId: organizationId,
-          note: "Test API Key",
+          name: "Test API Key",
         }),
       ).rejects.toThrow(TRPCError);
     });
@@ -296,7 +296,7 @@ describe("organization API keys trpc", () => {
       await expect(
         adminCaller.organizationApiKeys.create({
           orgId: organizationId,
-          note: "Test API Key",
+          name: "Test API Key",
         }),
       ).rejects.toThrow(TRPCError);
     });
@@ -305,7 +305,7 @@ describe("organization API keys trpc", () => {
       await expect(
         unAuthedCaller.organizationApiKeys.create({
           orgId: organizationId,
-          note: "Test API Key",
+          name: "Test API Key",
         }),
       ).rejects.toThrow(TRPCError);
     });
@@ -313,12 +313,12 @@ describe("organization API keys trpc", () => {
     it("owner on a plan without admin-api cannot create organization API keys", async () => {
       // Unique note so the persistence assertion stays independent of other
       // tests and of keys left behind by earlier runs.
-      const note = `unentitled-create-${randomUUID()}`;
+      const name = `unentitled-create-${randomUUID()}`;
 
       await expect(
         unentitledOwnerCaller.organizationApiKeys.create({
           orgId: organizationId,
-          note,
+          name,
         }),
       ).rejects.toThrow(
         expect.objectContaining({
@@ -330,7 +330,9 @@ describe("organization API keys trpc", () => {
       // The rejection must happen before the key is persisted, otherwise the
       // plan gate would only hide a key that already works.
       await expect(
-        prisma.apiKey.findFirst({ where: { orgId: organizationId, note } }),
+        prisma.apiKey.findFirst({
+          where: { orgId: organizationId, note: name },
+        }),
       ).resolves.toBeNull();
     });
 
@@ -338,7 +340,7 @@ describe("organization API keys trpc", () => {
       const apiKeyResult = await entitledOwnerCaller.organizationApiKeys.create(
         {
           orgId: organizationId,
-          note: "Entitled plan key",
+          name: "Entitled plan key",
         },
       );
 
@@ -347,19 +349,19 @@ describe("organization API keys trpc", () => {
     });
   });
 
-  describe("organizationApiKeys.updateNote", () => {
+  describe("organizationApiKeys.updateName", () => {
     it("owner can update API key note", async () => {
       // Create a key first
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "Original Note",
+        name: "Original Note",
       });
 
       // Update the note
-      await ownerCaller.organizationApiKeys.updateNote({
+      await ownerCaller.organizationApiKeys.updateName({
         orgId: organizationId,
         keyId: apiKeyResult.id,
-        note: "Updated Note",
+        name: "Updated Note",
       });
 
       // Fetch to verify
@@ -382,10 +384,10 @@ describe("organization API keys trpc", () => {
       });
 
       await expect(
-        ownerCaller.organizationApiKeys.updateNote({
+        ownerCaller.organizationApiKeys.updateName({
           orgId: organizationId,
           keyId: inAppAgentKey.id,
-          note: "Updated in-app agent note",
+          name: "Updated in-app agent note",
         }),
       ).rejects.toThrow();
 
@@ -399,15 +401,15 @@ describe("organization API keys trpc", () => {
       // Create a key as owner
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "Original Note",
+        name: "Original Note",
       });
 
       // Try to update as member
       await expect(
-        memberCaller.organizationApiKeys.updateNote({
+        memberCaller.organizationApiKeys.updateName({
           orgId: organizationId,
           keyId: apiKeyResult.id,
-          note: "Updated Note",
+          name: "Updated Note",
         }),
       ).rejects.toThrow(TRPCError);
     });
@@ -416,15 +418,15 @@ describe("organization API keys trpc", () => {
       // Create a key as owner
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "Original Note",
+        name: "Original Note",
       });
 
       // Try to update as admin
       await expect(
-        adminCaller.organizationApiKeys.updateNote({
+        adminCaller.organizationApiKeys.updateName({
           orgId: organizationId,
           keyId: apiKeyResult.id,
-          note: "Updated Note",
+          name: "Updated Note",
         }),
       ).rejects.toThrow(TRPCError);
     });
@@ -435,7 +437,7 @@ describe("organization API keys trpc", () => {
       // Create a key first
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "To Be Deleted",
+        name: "To Be Deleted",
       });
 
       // Delete the key
@@ -477,7 +479,7 @@ describe("organization API keys trpc", () => {
       // Create a key as owner
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "To Be Deleted",
+        name: "To Be Deleted",
       });
 
       // Try to delete as member
@@ -493,7 +495,7 @@ describe("organization API keys trpc", () => {
       // Create a key as owner
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "To Be Deleted",
+        name: "To Be Deleted",
       });
 
       // Try to delete as admin

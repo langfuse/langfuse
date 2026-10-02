@@ -44,7 +44,7 @@ const DEFAULT_ROLE: SystemRole = "ADMIN";
 
 /** ApiKeyCreateValues is the resolved create-form payload the button forwards to the create mutation. */
 export type ApiKeyCreateValues = {
-  note: string;
+  name: string;
   role: SystemRole;
   expiresAt: Date | null;
 };
@@ -124,7 +124,7 @@ function ApiKeyCreateForm({
   const submit = () => {
     if (submitDisabled) return;
     onSubmit({
-      note: name.trim(),
+      name: name.trim(),
       role: roleSelectionEnabled ? role : legacyApiKeyRoleForScope(scope),
       expiresAt,
     });

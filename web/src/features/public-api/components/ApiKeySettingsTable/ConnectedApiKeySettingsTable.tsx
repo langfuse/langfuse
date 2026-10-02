@@ -54,8 +54,8 @@ export function ConnectedApiKeySettingsTable({
     scope === "project" ? deleteProjectApiKey : deleteOrganizationApiKey;
 
   return (
-    <ConnectedApiKeyNoteDialogController entityId={entityId} scope={scope}>
-      {({ openDialog: openEditNoteDialog }) => (
+    <ConnectedApiKeyNameDialogController entityId={entityId} scope={scope}>
+      {({ openDialog: openEditNameDialog }) => (
         <ConfirmationDialogController<{ id: string }>
           title="Delete API key"
           text="Are you sure you want to delete this API key? This action cannot be undone."
@@ -87,9 +87,9 @@ export function ConnectedApiKeySettingsTable({
           {({ openDialog: openDeleteDialog }) => (
             <ApiKeySettingsTable
               data={tableData}
-              editNoteAction={{
+              editNameAction={{
                 hasAccess: hasWriteAccess,
-                onClick: openEditNoteDialog,
+                onClick: openEditNameDialog,
               }}
               hasWriteAccess={hasWriteAccess}
               onDelete={openDeleteDialog}
@@ -98,11 +98,11 @@ export function ConnectedApiKeySettingsTable({
           )}
         </ConfirmationDialogController>
       )}
-    </ConnectedApiKeyNoteDialogController>
+    </ConnectedApiKeyNameDialogController>
   );
 }
 
-function ConnectedApiKeyNoteDialogController({
+function ConnectedApiKeyNameDialogController({
   children,
   entityId,
   scope,
@@ -115,11 +115,11 @@ function ConnectedApiKeyNoteDialogController({
 }) {
   const utils = api.useUtils();
   const instance = useRef(0);
-  const updateProjectApiKey = api.projectApiKeys.updateNote.useMutation({
+  const updateProjectApiKey = api.projectApiKeys.updateName.useMutation({
     onSuccess: () => utils.projectApiKeys.invalidate(),
   });
   const updateOrganizationApiKey =
-    api.organizationApiKeys.updateNote.useMutation({
+    api.organizationApiKeys.updateName.useMutation({
       onSuccess: () => utils.organizationApiKeys.invalidate(),
     });
   const updateApiKey =
@@ -130,24 +130,24 @@ function ConnectedApiKeyNoteDialogController({
       onBeforeClose={() => !updateApiKey.isPending}
       onDismiss={updateApiKey.reset}
       renderDialog={({ state, closeDialog }) => (
-        <ApiKeyNoteDialog
+        <ApiKeyNameDialog
           key={state.instance}
           apiKey={state}
           error={updateApiKey.error?.message}
           isPending={updateApiKey.isPending}
-          onSave={async (note) => {
+          onSave={async (name) => {
             try {
               if (scope === "project") {
                 await updateProjectApiKey.mutateAsync({
                   projectId: entityId,
                   keyId: state.id,
-                  note,
+                  name,
                 });
               } else {
                 await updateOrganizationApiKey.mutateAsync({
                   orgId: entityId,
                   keyId: state.id,
-                  note,
+                  name,
                 });
               }
               closeDialog();
@@ -168,7 +168,7 @@ function ConnectedApiKeyNoteDialogController({
   );
 }
 
-function ApiKeyNoteDialog({
+function ApiKeyNameDialog({
   apiKey,
   error,
   isPending,
@@ -177,10 +177,10 @@ function ApiKeyNoteDialog({
   apiKey: ApiKeySettingsTableRow;
   error?: string;
   isPending: boolean;
-  onSave: (note: string) => Promise<void>;
+  onSave: (name: string) => Promise<void>;
 }) {
   const inputId = useId();
-  const [note, setNote] = useState(apiKey.note ?? "");
+  const [name, setName] = useState(apiKey.note ?? "");
 
   return (
     <Dialog
@@ -189,8 +189,8 @@ function ApiKeyNoteDialog({
         {
           label: "Save",
           loading: isPending,
-          disabled: note === (apiKey.note ?? ""),
-          onClick: () => onSave(note),
+          disabled: name === (apiKey.note ?? ""),
+          onClick: () => onSave(name),
         },
       ]}
     >
@@ -201,8 +201,8 @@ function ApiKeyNoteDialog({
           </label>
           <Input
             id={inputId}
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
             disabled={isPending}
             error={Boolean(error)}
             autoFocus

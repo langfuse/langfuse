@@ -47,7 +47,7 @@ export function CreateApiKeyButton(props: {
       mutCreateProjectApiKey
         .mutateAsync({
           projectId: props.entityId,
-          note: values.note || undefined,
+          name: values.name || undefined,
           role: values.role,
           expiresAt: values.expiresAt,
         })
@@ -63,7 +63,7 @@ export function CreateApiKeyButton(props: {
       mutCreateOrgApiKey
         .mutateAsync({
           orgId: props.entityId,
-          note: values.note || undefined,
+          name: values.name || undefined,
           role: values.role,
           expiresAt: values.expiresAt,
         })

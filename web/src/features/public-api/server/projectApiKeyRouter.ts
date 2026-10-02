@@ -76,7 +76,7 @@ export const projectApiKeysRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        note: StringNoHTML.optional(),
+        name: StringNoHTML.optional(),
         role: z.enum(projectApiKeyRoles).default(SystemRole.ADMIN),
         expiresAt: z
           .date()
@@ -99,7 +99,7 @@ export const projectApiKeysRouter = createTRPCRouter({
         owner: ProjectId(input.projectId),
         role: SystemRoleId(input.role),
         createdBy: UserId(ctx.session.user.id),
-        name: input.note,
+        name: input.name,
         expiresAt: input.expiresAt,
       });
 
@@ -113,12 +113,12 @@ export const projectApiKeysRouter = createTRPCRouter({
 
       return apiKeyMeta;
     }),
-  updateNote: protectedProjectProcedure
+  updateName: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
         keyId: z.string(),
-        note: StringNoHTML,
+        name: StringNoHTML,
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -150,7 +150,7 @@ export const projectApiKeysRouter = createTRPCRouter({
           isInAppAgentKey: false,
         },
         data: {
-          note: input.note,
+          note: input.name,
         },
       });
 

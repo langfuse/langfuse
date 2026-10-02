@@ -29,7 +29,7 @@ export class GatewayApiKeyService {
 
   async create(params: {
     organizationId: string;
-    note?: string;
+    name?: string;
     metadata: GatewayMetadata;
     session: OrgAuthedContext["session"];
   }) {
@@ -38,7 +38,7 @@ export class GatewayApiKeyService {
         owner: OrganizationId(params.organizationId),
         role: SystemRoleId("AI_GATEWAY"),
         createdBy: UserId(params.session.user.id),
-        name: params.note,
+        name: params.name,
       });
       await tx.gatewayApiKeyAssociation.create({
         data: {

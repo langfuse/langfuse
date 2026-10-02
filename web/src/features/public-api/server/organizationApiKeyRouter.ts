@@ -76,7 +76,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
     .input(
       z.object({
         orgId: z.string(),
-        note: z.string().optional(),
+        name: z.string().optional(),
         role: z.enum(organizationApiKeyRoles).default(SystemRole.ADMIN),
         expiresAt: z
           .date()
@@ -107,7 +107,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
         owner: OrganizationId(input.orgId),
         role: SystemRoleId(input.role),
         createdBy: UserId(ctx.session.user.id),
-        name: input.note,
+        name: input.name,
         expiresAt: input.expiresAt,
       });
 
@@ -124,12 +124,12 @@ export const organizationApiKeysRouter = createTRPCRouter({
 
       return apiKeyMeta;
     }),
-  updateNote: protectedOrganizationProcedure
+  updateName: protectedOrganizationProcedure
     .input(
       z.object({
         orgId: z.string(),
         keyId: z.string(),
-        note: z.string(),
+        name: z.string(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -161,7 +161,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
           isInAppAgentKey: false,
         },
         data: {
-          note: input.note,
+          note: input.name,
         },
       });
 

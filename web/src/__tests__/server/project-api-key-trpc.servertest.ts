@@ -113,7 +113,7 @@ describe("project API keys trpc", () => {
 
       const apiKeyResult = await caller.projectApiKeys.create({
         projectId,
-        note: "Key for creator attribution test",
+        name: "Key for creator attribution test",
       });
 
       const dbKey = await prisma.apiKey.findUniqueOrThrow({
@@ -148,7 +148,7 @@ describe("project API keys trpc", () => {
       await expect(
         caller.projectApiKeys.create({
           projectId,
-          note: "Unauthorized migration key",
+          name: "Unauthorized migration key",
         }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
@@ -168,7 +168,7 @@ describe("project API keys trpc", () => {
       await expect(
         caller.projectApiKeys.create({
           projectId,
-          note: "org-only role on project key",
+          name: "org-only role on project key",
           role: "AI_GATEWAY",
         }),
       ).rejects.toMatchObject({ code: "BAD_REQUEST" });
@@ -185,7 +185,7 @@ describe("project API keys trpc", () => {
 
       const key = await caller.projectApiKeys.create({
         projectId,
-        note: "viewer project key",
+        name: "viewer project key",
         role: "VIEWER",
       });
 
@@ -206,14 +206,14 @@ describe("project API keys trpc", () => {
         await expect(
           caller.projectApiKeys.create({
             projectId,
-            note: "normal role off enforce",
+            name: "normal role off enforce",
             role: "VIEWER",
           }),
         ).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
         const key = await caller.projectApiKeys.create({
           projectId,
-          note: "legacy role off enforce",
+          name: "legacy role off enforce",
           role: "LEGACY_PROJECT_API_KEY",
         });
         const assignment = await prisma.roleAssignment.findFirstOrThrow({
@@ -227,7 +227,7 @@ describe("project API keys trpc", () => {
     });
   });
 
-  describe("projectApiKeys.updateNote", () => {
+  describe("projectApiKeys.updateName", () => {
     it("does not update in-app agent API keys", async () => {
       const { caller, projectId } = await createProjectCaller();
       const inAppAgentKey = await createApiKey(prisma, {
@@ -239,10 +239,10 @@ describe("project API keys trpc", () => {
       });
 
       await expect(
-        caller.projectApiKeys.updateNote({
+        caller.projectApiKeys.updateName({
           projectId,
           keyId: inAppAgentKey.id,
-          note: "Updated in-app agent note",
+          name: "Updated in-app agent note",
         }),
       ).rejects.toThrow();
 

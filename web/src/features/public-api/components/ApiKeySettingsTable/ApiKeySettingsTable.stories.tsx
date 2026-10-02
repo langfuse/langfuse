@@ -24,7 +24,7 @@ const apiKey = {
 
 export const Default = meta.story({
   args: {
-    editNoteAction: { hasAccess: true, onClick: fn() },
+    editNameAction: { hasAccess: true, onClick: fn() },
     hasWriteAccess: true,
     onDelete: fn(),
     data: {
@@ -50,7 +50,7 @@ export const Default = meta.story({
 
 export const Loading = meta.story({
   args: {
-    editNoteAction: { hasAccess: true, onClick: fn() },
+    editNameAction: { hasAccess: true, onClick: fn() },
     hasWriteAccess: true,
     onDelete: fn(),
     data: { status: "loading" },

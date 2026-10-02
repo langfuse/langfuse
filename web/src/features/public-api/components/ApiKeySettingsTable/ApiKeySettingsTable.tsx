@@ -18,7 +18,7 @@ export type ApiKeySettingsTableRow =
   | RouterOutput["organizationApiKeys"]["byOrganizationId"][number];
 
 export function ApiKeySettingsTable({
-  editNoteAction,
+  editNameAction,
   hasWriteAccess,
   onDelete,
   ...tableProps
@@ -26,7 +26,7 @@ export function ApiKeySettingsTable({
   TableProps<ApiKeySettingsTableRow>,
   "data" | "loadingRowCount" | "noResultsMessage"
 > & {
-  editNoteAction: {
+  editNameAction: {
     hasAccess: boolean;
     onClick: (apiKey: ApiKeySettingsTableRow) => void;
   };
@@ -41,12 +41,12 @@ export function ApiKeySettingsTable({
         header: "Name",
         enableResizing: false,
         nullValue: "—",
-        trailingAction: editNoteAction.hasAccess
+        trailingAction: editNameAction.hasAccess
           ? {
               type: "custom",
               icon: Pencil,
               label: "Edit name",
-              onClick: ({ row }) => editNoteAction.onClick(row.original),
+              onClick: ({ row }) => editNameAction.onClick(row.original),
             }
           : undefined,
       }),
@@ -113,7 +113,7 @@ export function ApiKeySettingsTable({
         enableResizing: false,
       }),
     ],
-    [editNoteAction],
+    [editNameAction],
   );
 
   const actions = useCallback<
