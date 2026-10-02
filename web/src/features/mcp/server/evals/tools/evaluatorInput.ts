@@ -66,7 +66,6 @@ const McpDecisionModelQuestionBaseSchema = z.object({
       true: z.unknown().optional(),
       false: z.unknown().optional(),
     })
-    .nullable()
     .optional()
     .describe("Optional true/false criteria when type is `noul`."),
 });
@@ -158,7 +157,7 @@ const McpEvaluatorRuntimeInputBase = McpEvaluatorInputBase.extend({
   ),
 });
 
-function toEvaluatorInput(input: z.infer<typeof McpEvaluatorInputBase>) {
+function toEvaluatorInput(input: z.infer<typeof McpEvaluatorRuntimeInputBase>) {
   if (input.type === EvalTemplateType.LLM_AS_JUDGE) {
     return {
       name: input.name,
@@ -200,7 +199,7 @@ function toEvaluatorInput(input: z.infer<typeof McpEvaluatorInputBase>) {
 }
 
 function validateEvaluatorInput(
-  input: z.infer<typeof McpEvaluatorInputBase>,
+  input: z.infer<typeof McpEvaluatorRuntimeInputBase>,
   ctx: z.RefinementCtx,
 ) {
   if (input.type === EvalTemplateType.LLM_AS_JUDGE && !input.prompt?.trim()) {
@@ -268,7 +267,7 @@ export const McpUpdateEvaluatorInput =
   );
 
 export function toEvaluatorServiceInput(
-  input: z.infer<typeof McpEvaluatorInputBase>,
+  input: z.infer<typeof McpEvaluatorRuntimeInputBase>,
 ) {
   return CreateEvaluatorWithoutProjectSchema.parse(toEvaluatorInput(input));
 }
