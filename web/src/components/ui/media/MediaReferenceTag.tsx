@@ -1,10 +1,14 @@
 import { useState } from "react";
-import { MediaTag } from "../../MediaTag/MediaTag";
+import { MediaTag, type MediaTagStatus } from "../../MediaTag/MediaTag";
 import { useResolvedMedia } from "./useResolvedMedia";
 import { type MediaDescriptor } from "./mediaUtils";
 import { OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE } from "@langfuse/shared";
+import { api } from "@/src/utils/api";
+import { useRouter } from "next/router";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
 type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
+type S3Descriptor = Extract<MediaDescriptor, { kind: "s3" }>;
 
 /**
  * Container that connects a classified media value to the pure `MediaTag`: it
@@ -16,6 +20,10 @@ export function MediaReferenceTag({
 }: {
   descriptor: MediaDescriptor;
 }) {
+  if (descriptor.kind === "s3") {
+    return <S3MediaTag descriptor={descriptor} />;
+  }
+
   if (descriptor.kind !== "langfuseRef") {
     return (
       <MediaTag
@@ -27,6 +35,45 @@ export function MediaReferenceTag({
   }
 
   return <LangfuseRefMediaTag descriptor={descriptor} />;
+}
+
+function S3MediaTag({ descriptor }: { descriptor: S3Descriptor }) {
+  const router = useRouter();
+  const projectId =
+    typeof router.query.projectId === "string"
+      ? router.query.projectId
+      : undefined;
+  const isFeatureEnabled = useIsFeatureEnabled("externalMediaStorage", {
+    enableForAdmins: false,
+    projectId,
+  });
+  const [armed, setArmed] = useState(false);
+  const [open, setOpen] = useState(false);
+  const resolved = api.blobStorageIntegration.resolveExternalMedia.useQuery(
+    { projectId: projectId ?? "", uri: descriptor.uri },
+    {
+      enabled: armed && isFeatureEnabled && Boolean(projectId),
+      staleTime: 4 * 60 * 1000,
+      retry: false,
+    },
+  );
+  let status: MediaTagStatus = "loading";
+  if (!armed) status = "idle";
+  else if (!isFeatureEnabled || resolved.isError) status = "error";
+  else if (resolved.data) status = "ready";
+
+  return (
+    <MediaTag
+      contentType={descriptor.contentType}
+      status={status}
+      url={resolved.data?.url}
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen) setArmed(true);
+      }}
+    />
+  );
 }
 
 function LangfuseRefMediaTag({

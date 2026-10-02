@@ -8,7 +8,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("next/router", () => ({
-  useRouter: () => ({ query: { projectId: "proj-1" } }),
+  useRouter: () => ({
+    query: { projectId: "proj-1" },
+    pathname: "/project/[projectId]/settings/integrations/blob-storage",
+    push: vi.fn(),
+  }),
 }));
 
 vi.mock("next/link", () => ({
@@ -63,6 +67,13 @@ vi.mock(
 );
 
 vi.mock(
+  "@/src/features/blobstorage-integration/components/BlobStorageIntegrationTable",
+  () => ({
+    BlobStorageIntegrationTable: () => <div>Blob storage table</div>,
+  }),
+);
+
+vi.mock(
   "@/src/features/blobstorage-integration/components/BlobStorageStatusSection",
   () => ({
     BlobStorageStatusSection: () => <div>Blob storage status</div>,
@@ -75,6 +86,10 @@ vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
 
 vi.mock("@/src/features/entitlements/hooks", () => ({
   useHasEntitlement: () => mocks.hasEntitlement,
+}));
+
+vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
+  default: () => false,
 }));
 
 vi.mock("@/src/utils/api", () => ({
@@ -107,7 +122,7 @@ describe("BlobStorageIntegrationPage entitlement gate", () => {
       screen.getByText("This feature is not available in your current plan."),
     ).toBeInTheDocument();
     expect(screen.queryByText("Loading configuration")).not.toBeInTheDocument();
-    expect(screen.queryByText("Blob storage form")).not.toBeInTheDocument();
+    expect(screen.queryByText("Blob storage table")).not.toBeInTheDocument();
     expect(mocks.useQuery).toHaveBeenCalledWith(
       { projectId: "proj-1" },
       expect.objectContaining({ enabled: false }),
@@ -136,13 +151,13 @@ describe("BlobStorageIntegrationPage entitlement gate", () => {
     mocks.hasEntitlement = true;
     mocks.hasAccess = true;
     mocks.useQuery.mockReturnValue({
-      data: { config: { enabled: false }, writeMode: "upsert" },
+      data: { configs: [], config: null, writeMode: "upsert" },
       isLoading: false,
     });
 
     render(<BlobStorageIntegrationPage />);
 
-    expect(screen.getByText("Blob storage form")).toBeInTheDocument();
+    expect(screen.getByText("Blob storage table")).toBeInTheDocument();
     expect(screen.queryByText("Loading configuration")).not.toBeInTheDocument();
     expect(mocks.useQuery).toHaveBeenCalledWith(
       { projectId: "proj-1" },

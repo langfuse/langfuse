@@ -26,6 +26,7 @@ const VALID_BASE: BlobStorageIntegrationFormSchema = {
   exportSource: AnalyticsIntegrationExportSource.EVENTS,
   exportFieldGroups: [...OBSERVATION_FIELD_GROUPS_FULL],
   compressed: true,
+  mediaStorageEnabled: false,
   endpoint: null,
   accessKeyId: "",
   secretAccessKey: null,

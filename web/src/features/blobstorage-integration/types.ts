@@ -59,12 +59,25 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
     .array(z.enum(OBSERVATION_FIELD_GROUPS_FULL))
     .default([...OBSERVATION_FIELD_GROUPS_FULL]),
   compressed: z.boolean().default(true),
+  mediaStorageEnabled: z.boolean().default(false),
 });
 
 export const blobStorageIntegrationFormSchema =
   blobStorageIntegrationFormSchemaBase
     .superRefine(validateAzureContainerName)
-    .superRefine(validateExportFieldGroups);
+    .superRefine(validateExportFieldGroups)
+    .superRefine((value, ctx) => {
+      if (
+        value.mediaStorageEnabled &&
+        value.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["mediaStorageEnabled"],
+          message: "External media storage is only available for S3",
+        });
+      }
+    });
 
 export type BlobStorageIntegrationFormSchema = z.infer<
   typeof blobStorageIntegrationFormSchema

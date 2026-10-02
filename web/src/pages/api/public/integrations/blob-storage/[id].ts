@@ -26,7 +26,7 @@ async function handleDeleteBlobStorageIntegration(
 
   // Check if the integration exists and belongs to a project in the organization
   const integration = await prisma.blobStorageIntegration.findUnique({
-    where: { projectId: id },
+    where: { id },
     include: {
       project: {
         select: { orgId: true },
@@ -40,7 +40,7 @@ async function handleDeleteBlobStorageIntegration(
 
   // Delete the integration
   await prisma.blobStorageIntegration.delete({
-    where: { projectId: id },
+    where: { id },
   });
 
   await auditLog({
@@ -69,7 +69,7 @@ async function handleGetBlobStorageIntegrationStatus(
   }
 
   const integration = await prisma.blobStorageIntegration.findUnique({
-    where: { projectId: id },
+    where: { id },
     include: {
       project: {
         select: { orgId: true },
@@ -82,7 +82,7 @@ async function handleGetBlobStorageIntegrationStatus(
   }
 
   const responseData: BlobStorageIntegrationStatusResponseType = {
-    id: integration.projectId,
+    id: integration.id,
     projectId: integration.projectId,
     syncStatus: deriveSyncStatus(integration),
     enabled: integration.enabled,

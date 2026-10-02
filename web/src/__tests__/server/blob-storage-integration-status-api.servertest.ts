@@ -151,7 +151,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
   });
 
   it("should return 404 for integration from different organization", async () => {
-    await prisma.blobStorageIntegration.create({
+    const integration = await prisma.blobStorageIntegration.create({
       data: {
         projectId: otherProjectId,
         type: "S3",
@@ -170,7 +170,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
 
     const result = await makeAPICall(
       "GET",
-      `/api/public/integrations/blob-storage/${otherProjectId}`,
+      `/api/public/integrations/blob-storage/${integration.id}`,
       undefined,
       createBasicAuthHeader(testApiKey, testApiSecretKey),
     );
@@ -332,7 +332,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
       expectedStatus,
       expectedFields,
     }) => {
-      await prisma.blobStorageIntegration.create({
+      const integration = await prisma.blobStorageIntegration.create({
         data: {
           projectId: testProjectId,
           type: "S3",
@@ -357,7 +357,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
       const response = await makeZodVerifiedAPICall(
         BlobStorageIntegrationStatusResponseSchema,
         "GET",
-        `/api/public/integrations/blob-storage/${testProjectId}`,
+        `/api/public/integrations/blob-storage/${integration.id}`,
         undefined,
         createBasicAuthHeader(testApiKey, testApiSecretKey),
         200,
@@ -376,7 +376,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
   it("should return exact lastErrorAt timestamp", async () => {
     const errorDate = new Date(Date.now() - 30 * 60 * 1000);
 
-    await prisma.blobStorageIntegration.create({
+    const integration = await prisma.blobStorageIntegration.create({
       data: {
         projectId: testProjectId,
         type: "S3",
@@ -400,7 +400,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
     const response = await makeZodVerifiedAPICall(
       BlobStorageIntegrationStatusResponseSchema,
       "GET",
-      `/api/public/integrations/blob-storage/${testProjectId}`,
+      `/api/public/integrations/blob-storage/${integration.id}`,
       undefined,
       createBasicAuthHeader(testApiKey, testApiSecretKey),
       200,
@@ -416,7 +416,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
   it("should clear error fields when lastError is set back to null (simulates successful sync)", async () => {
     const errorDate = new Date(Date.now() - 60 * 60 * 1000);
 
-    await prisma.blobStorageIntegration.create({
+    const integration = await prisma.blobStorageIntegration.create({
       data: {
         projectId: testProjectId,
         type: "S3",
@@ -441,7 +441,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
     const errorResponse = await makeZodVerifiedAPICall(
       BlobStorageIntegrationStatusResponseSchema,
       "GET",
-      `/api/public/integrations/blob-storage/${testProjectId}`,
+      `/api/public/integrations/blob-storage/${integration.id}`,
       undefined,
       createBasicAuthHeader(testApiKey, testApiSecretKey),
       200,
@@ -451,7 +451,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
     // Simulate successful sync: clear error, advance timestamps
     const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await prisma.blobStorageIntegration.update({
-      where: { projectId: testProjectId },
+      where: { id: integration.id },
       data: {
         lastSyncAt: new Date(),
         nextSyncAt: futureDate,
@@ -464,7 +464,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
     const clearedResponse = await makeZodVerifiedAPICall(
       BlobStorageIntegrationStatusResponseSchema,
       "GET",
-      `/api/public/integrations/blob-storage/${testProjectId}`,
+      `/api/public/integrations/blob-storage/${integration.id}`,
       undefined,
       createBasicAuthHeader(testApiKey, testApiSecretKey),
       200,

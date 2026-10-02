@@ -467,14 +467,13 @@ export const coreDataTableExports: Array<
     uploadTableCoreDataJsonl({
       ...args,
       tableName: "blobStorageIntegrations",
-      fetchPage: ({ lastRow, take }: TablePageArgs<{ projectId: string }>) =>
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
         prisma.blobStorageIntegration.findMany({
           take,
-          ...(lastRow
-            ? { cursor: { projectId: lastRow.projectId }, skip: 1 }
-            : {}),
-          orderBy: { projectId: "asc" },
+          ...(lastRow ? { cursor: { id: lastRow.id }, skip: 1 } : {}),
+          orderBy: { id: "asc" },
           select: {
+            id: true,
             projectId: true,
             type: true,
             bucketName: true,
@@ -485,6 +484,7 @@ export const coreDataTableExports: Array<
             nextSyncAt: true,
             lastSyncAt: true,
             enabled: true,
+            mediaStorageEnabled: true,
             exportFrequency: true,
             fileType: true,
             exportMode: true,

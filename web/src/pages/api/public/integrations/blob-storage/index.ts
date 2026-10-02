@@ -43,7 +43,7 @@ async function handleGetBlobStorageIntegrations(
   // Transform to API response format, exclude secretAccessKey
   const responseData: BlobStorageIntegrationResponseType[] = integrations.map(
     (integration) => ({
-      id: integration.projectId, // Using projectId as ID since it's the primary key
+      id: integration.id,
       projectId: integration.projectId,
       type: integration.type,
       bucketName: integration.bucketName,
@@ -102,9 +102,10 @@ async function handleUpsertBlobStorageIntegration(
   // createdAt when exportSource is provided; the enriched gate needs the
   // persisted exportSource when it is omitted (partial PUT), so a stale
   // enriched value is rejected.
-  const existingIntegration = await prisma.blobStorageIntegration.findUnique({
+  const existingIntegration = await prisma.blobStorageIntegration.findFirst({
     where: { projectId: validatedData.projectId },
-    select: { createdAt: true, exportSource: true },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, createdAt: true, exportSource: true },
   });
 
   // Explicit sources must pass every check; an omitted source keeps the
@@ -132,6 +133,7 @@ async function handleUpsertBlobStorageIntegration(
   const integration = await upsertBlobStorageIntegration({
     prisma,
     projectId: validatedData.projectId,
+    integrationId: existingIntegration?.id,
     createExportSource,
     data: {
       type: validatedData.type,
@@ -155,7 +157,7 @@ async function handleUpsertBlobStorageIntegration(
 
   // Transform to API response format, exclude secretAccessKey
   const responseData: BlobStorageIntegrationResponseType = {
-    id: integration.projectId, // Using projectId as ID since it's the primary key
+    id: integration.id,
     projectId: integration.projectId,
     type: integration.type,
     bucketName: integration.bucketName,

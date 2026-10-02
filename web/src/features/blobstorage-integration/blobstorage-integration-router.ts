@@ -27,6 +27,8 @@ import {
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
+import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
+import { resolveExternalMediaUrl } from "@/src/features/blobstorage-integration/externalMediaService";
 import {
   AnalyticsIntegrationExportSource,
   BlobStorageIntegrationType,
@@ -90,6 +92,31 @@ const assertBlobStorageIntegrationAccess = ({
 };
 
 export const blobStorageIntegrationRouter = createTRPCRouter({
+  resolveExternalMedia: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), uri: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const isEnabled =
+        getContextualFeatureFlags(ctx.session.user, {
+          projectId: input.projectId,
+        })?.externalMediaStorage === true;
+      if (!isEnabled) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+
+      try {
+        return await resolveExternalMediaUrl({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          uri: input.uri,
+        });
+      } catch {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "External media is not available",
+        });
+      }
+    }),
+
   get: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -98,17 +125,19 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         projectId: input.projectId,
       });
       try {
-        const config = await ctx.prisma.blobStorageIntegration.findFirst({
+        const configs = await ctx.prisma.blobStorageIntegration.findMany({
           where: {
             projectId: input.projectId,
           },
           omit: {
             secretAccessKey: true,
           },
+          orderBy: { createdAt: "asc" },
         });
 
         return {
-          config: config ?? null,
+          configs,
+          config: configs[0] ?? null,
           writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
         };
       } catch (e) {
@@ -125,6 +154,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
       blobStorageIntegrationFormSchemaBase
         .extend({
           projectId: z.string(),
+          integrationId: z.string().optional(),
+          mediaStorageEnabled: z.boolean().optional(),
           // Drop the base schema default so an omitted value preserves the
           // persisted source instead of rewriting it to the legacy default.
           exportSource: z.enum(AnalyticsIntegrationExportSource).optional(),
@@ -142,11 +173,35 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           projectId: input.projectId,
         });
 
-        const existingIntegration =
-          await ctx.prisma.blobStorageIntegration.findUnique({
-            where: { projectId: input.projectId },
-            select: { createdAt: true, exportSource: true },
+        const existingIntegration = input.integrationId
+          ? await ctx.prisma.blobStorageIntegration.findFirst({
+              where: {
+                id: input.integrationId,
+                projectId: input.projectId,
+              },
+              select: { createdAt: true, exportSource: true },
+            })
+          : null;
+
+        const externalMediaStorageEnabled =
+          getContextualFeatureFlags(ctx.session.user, {
+            projectId: input.projectId,
+          })?.externalMediaStorage === true;
+        if (input.mediaStorageEnabled && !externalMediaStorageEnabled) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "External media storage is not enabled",
           });
+        }
+        if (
+          input.mediaStorageEnabled &&
+          input.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "External media storage is only available for S3",
+          });
+        }
 
         // Validates the requested source and resolves what a CREATE should
         // carry. Shared with the PostHog and Mixpanel routers and the public
@@ -165,11 +220,12 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           resourceId: input.projectId,
         });
 
-        const { projectId, ...rest } = input;
+        const { projectId, integrationId, ...rest } = input;
 
         return await upsertBlobStorageIntegration({
           prisma: ctx.prisma,
           projectId,
+          integrationId,
           createExportSource,
           data: {
             type: rest.type,
@@ -188,6 +244,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
             exportSource: rest.exportSource,
             exportFieldGroups: rest.exportFieldGroups,
             compressed: rest.compressed,
+            mediaStorageEnabled: externalMediaStorageEnabled
+              ? rest.mediaStorageEnabled
+              : undefined,
           },
         });
       } catch (e) {
@@ -208,7 +267,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
       }
     }),
   delete: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string(), integrationId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
         assertBlobStorageIntegrationAccess({
@@ -219,11 +278,12 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           session: ctx.session,
           action: "delete",
           resourceType: "blobStorageIntegration",
-          resourceId: input.projectId,
+          resourceId: input.integrationId,
         });
 
-        await ctx.prisma.blobStorageIntegration.delete({
+        await ctx.prisma.blobStorageIntegration.deleteMany({
           where: {
+            id: input.integrationId,
             projectId: input.projectId,
           },
         });
@@ -240,7 +300,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     }),
 
   runNow: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string(), integrationId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
         assertBlobStorageIntegrationAccess({
@@ -249,8 +309,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         });
 
         // Check if integration exists and is enabled
-        const integration = await ctx.prisma.blobStorageIntegration.findUnique({
+        const integration = await ctx.prisma.blobStorageIntegration.findFirst({
           where: {
+            id: input.integrationId,
             projectId: input.projectId,
           },
         });
@@ -280,7 +341,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         }
 
         // Create a unique job ID for manual runs to avoid conflicts
-        const jobId = `${input.projectId}-manual-${new Date().toISOString()}`;
+        const jobId = `${input.integrationId}-manual-${new Date().toISOString()}`;
 
         // Enqueue the processing job
         await blobStorageIntegrationProcessingQueue.add(
@@ -291,6 +352,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
             timestamp: new Date(),
             payload: {
               projectId: input.projectId,
+              integrationId: input.integrationId,
             },
           },
           {
@@ -306,7 +368,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           session: ctx.session,
           action: "runNow",
           resourceType: "blobStorageIntegration",
-          resourceId: input.projectId,
+          resourceId: input.integrationId,
           after: {
             outcome: "success",
             jobId,
@@ -325,7 +387,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           session: ctx.session,
           action: "runNow",
           resourceType: "blobStorageIntegration",
-          resourceId: input.projectId,
+          resourceId: input.integrationId,
           after: {
             outcome: "failure",
             error: getAuditLogErrorType(e),
@@ -347,7 +409,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     }),
 
   validate: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string(), integrationId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
         assertBlobStorageIntegrationAccess({
@@ -356,8 +418,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         });
 
         // Get persisted configuration
-        const integration = await ctx.prisma.blobStorageIntegration.findUnique({
+        const integration = await ctx.prisma.blobStorageIntegration.findFirst({
           where: {
+            id: input.integrationId,
             projectId: input.projectId,
           },
         });
@@ -434,7 +497,7 @@ This file can be safely deleted.`;
           session: ctx.session,
           action: "validate",
           resourceType: "blobStorageIntegration",
-          resourceId: input.projectId,
+          resourceId: input.integrationId,
           after: {
             outcome: "success",
             testFileName,
@@ -467,7 +530,7 @@ This file can be safely deleted.`;
           session: ctx.session,
           action: "validate",
           resourceType: "blobStorageIntegration",
-          resourceId: input.projectId,
+          resourceId: input.integrationId,
           after: {
             outcome: "failure",
             error: getAuditLogErrorType(e),

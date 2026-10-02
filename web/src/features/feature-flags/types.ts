@@ -10,6 +10,7 @@ export type Flags = {
     | "modernSession"
     | "aiGateway"
     | "sessionTimeline"
+    | "externalMediaStorage"
     | typeof INTERNAL_FEATURE_FLAG
   >]: boolean;
 } & {
@@ -17,5 +18,6 @@ export type Flags = {
   modernSession?: boolean;
   aiGateway?: boolean;
   sessionTimeline?: boolean;
+  externalMediaStorage?: boolean;
   [INTERNAL_FEATURE_FLAG]?: boolean;
 };

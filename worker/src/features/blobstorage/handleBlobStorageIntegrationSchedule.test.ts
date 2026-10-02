@@ -33,19 +33,29 @@ describe("handleBlobStorageIntegrationSchedule", () => {
   it("emits staleness for every enabled integration but enqueues only due ones", async () => {
     findMany.mockResolvedValue([
       {
-        projectId: "due",
+        id: "integration-due-a",
+        projectId: "shared-project",
         exportFrequency: "every_20_minutes",
         lastSyncAt: new Date("2026-09-28T11:20:00.000Z"),
         nextSyncAt: new Date("2026-09-28T11:59:00.000Z"),
       },
       {
+        id: "integration-due-b",
+        projectId: "shared-project",
+        exportFrequency: "hourly",
+        lastSyncAt: new Date("2026-09-28T10:00:00.000Z"),
+        nextSyncAt: new Date("2026-09-28T11:30:00.000Z"),
+      },
+      {
         // Stalled: watermark is a day old but nextSyncAt says not due.
+        id: "integration-stalled",
         projectId: "stalled",
         exportFrequency: "hourly",
         lastSyncAt: new Date("2026-09-27T12:00:00.000Z"),
         nextSyncAt: new Date("2026-09-28T13:00:00.000Z"),
       },
       {
+        id: "integration-never-synced",
         projectId: "never-synced",
         exportFrequency: "daily",
         lastSyncAt: null,
@@ -63,20 +73,59 @@ describe("handleBlobStorageIntegrationSchedule", () => {
       ],
       [
         EXPORT_STALENESS_METRIC,
+        2 * 60 * 60,
+        { integration: "blob_storage", window: "1h", unit: "seconds" },
+      ],
+      [
+        EXPORT_STALENESS_METRIC,
         24 * 60 * 60,
         { integration: "blob_storage", window: "1h", unit: "seconds" },
       ],
     ]);
-    const enqueued = addBulk.mock.calls[0][0].map(
-      (job: { data: { payload: { projectId: string } } }) =>
-        job.data.payload.projectId,
-    );
-    expect(enqueued).toEqual(["due", "never-synced"]);
+    expect(addBulk).toHaveBeenCalledWith([
+      expect.objectContaining({
+        data: expect.objectContaining({
+          payload: {
+            projectId: "shared-project",
+            integrationId: "integration-due-a",
+          },
+        }),
+        opts: {
+          jobId: "integration-due-a-2026-09-28T11:20:00.000Z",
+          removeOnFail: true,
+        },
+      }),
+      expect.objectContaining({
+        data: expect.objectContaining({
+          payload: {
+            projectId: "shared-project",
+            integrationId: "integration-due-b",
+          },
+        }),
+        opts: {
+          jobId: "integration-due-b-2026-09-28T10:00:00.000Z",
+          removeOnFail: true,
+        },
+      }),
+      expect.objectContaining({
+        data: expect.objectContaining({
+          payload: {
+            projectId: "never-synced",
+            integrationId: "integration-never-synced",
+          },
+        }),
+        opts: {
+          jobId: "integration-never-synced-",
+          removeOnFail: true,
+        },
+      }),
+    ]);
   });
 
   it("emits staleness even when nothing is due", async () => {
     findMany.mockResolvedValue([
       {
+        id: "integration-stalled",
         projectId: "stalled",
         exportFrequency: "monthly",
         lastSyncAt: new Date("2026-09-28T10:00:00.000Z"),

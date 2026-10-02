@@ -39,7 +39,7 @@ export default class EncryptBlobStorageSecrets implements IBackgroundMigration {
       // Fetch all integrations with non-null secretAccessKey
       const integrations = await prisma.blobStorageIntegration.findMany({
         where: { secretAccessKey: { not: null } },
-        select: { projectId: true, secretAccessKey: true },
+        select: { id: true, projectId: true, secretAccessKey: true },
       });
 
       const total = integrations.length;
@@ -86,7 +86,7 @@ export default class EncryptBlobStorageSecrets implements IBackgroundMigration {
             try {
               const encryptedValue = encrypt(integration.secretAccessKey);
               await prisma.blobStorageIntegration.update({
-                where: { projectId: integration.projectId },
+                where: { id: integration.id },
                 data: { secretAccessKey: encryptedValue },
               });
               encrypted++;
