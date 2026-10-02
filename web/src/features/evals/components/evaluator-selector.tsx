@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable @repo/no-null-render */
 import {
   EvalTemplateSourceCodeLanguage,
@@ -17,11 +16,7 @@ import {
 } from "@/src/components/ui/input-command";
 import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingleTemplateValidation";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
@@ -187,9 +182,21 @@ export function EvaluatorSelector({
                       template.id === selectedTemplateId && "bg-secondary",
                     )}
                   >
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="flex min-w-0 items-center">
+                    <CustomTooltip
+                      placement="right"
+                      delay={300}
+                      size="wide"
+                      content={
+                        <div className="max-h-[70dvh] w-[720px] max-w-[calc(100vw-5rem)] overflow-y-auto">
+                          <TemplatePreviewTooltipContent template={template} />
+                        </div>
+                      }
+                    >
+                      {({ getTriggerProps }) => (
+                        <div
+                          {...getTriggerProps()}
+                          className="flex min-w-0 items-center"
+                        >
                           <span className="truncate" title={template.name}>
                             {template.name}
                           </span>
@@ -199,31 +206,32 @@ export function EvaluatorSelector({
                             />
                           ) : null}
                         </div>
-                      </TooltipTrigger>
-                      <TooltipContent
-                        side="right"
-                        className="max-h-[70dvh] w-[720px] max-w-[calc(100vw-3rem)] overflow-y-auto"
-                      >
-                        <TemplatePreviewTooltipContent template={template} />
-                      </TooltipContent>
-                    </Tooltip>
+                      )}
+                    </CustomTooltip>
                     {isInvalid && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
-                          <p>Requires project-level evaluation model</p>
-                          <Link
-                            href={`/project/${projectId}/evals/default-model`}
-                            className="mt-2 block text-blue-600 hover:underline"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            Configure default model
-                          </Link>
-                        </TooltipContent>
-                      </Tooltip>
+                      <CustomTooltip
+                        delay={300}
+                        content={
+                          <div className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
+                            <p>Requires project-level evaluation model</p>
+                            <Link
+                              href={`/project/${projectId}/evals/default-model`}
+                              className="mt-2 block text-blue-600 hover:underline"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Configure default model
+                            </Link>
+                          </div>
+                        }
+                      >
+                        {({ getTriggerProps }) => (
+                          <AlertCircle
+                            {...getTriggerProps()}
+                            className="ml-1 h-4 w-4 text-yellow-500"
+                          />
+                        )}
+                      </CustomTooltip>
                     )}
                     {template.id === selectedTemplateId && (
                       <CheckIcon className="ml-auto h-4 w-4" />
@@ -257,9 +265,21 @@ export function EvaluatorSelector({
                       template.id === selectedTemplateId && "bg-secondary",
                     )}
                   >
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="mr-1 flex min-w-0 items-center">
+                    <CustomTooltip
+                      placement="right"
+                      delay={300}
+                      size="wide"
+                      content={
+                        <div className="max-h-[70dvh] w-[720px] max-w-[calc(100vw-5rem)] overflow-y-auto">
+                          <TemplatePreviewTooltipContent template={template} />
+                        </div>
+                      }
+                    >
+                      {({ getTriggerProps }) => (
+                        <div
+                          {...getTriggerProps()}
+                          className="mr-1 flex min-w-0 items-center"
+                        >
                           <span className="truncate" title={template.name}>
                             {template.name}
                           </span>
@@ -269,32 +289,33 @@ export function EvaluatorSelector({
                             />
                           ) : null}
                         </div>
-                      </TooltipTrigger>
-                      <TooltipContent
-                        side="right"
-                        className="max-h-[70dvh] w-[720px] max-w-[calc(100vw-3rem)] overflow-y-auto"
-                      >
-                        <TemplatePreviewTooltipContent template={template} />
-                      </TooltipContent>
-                    </Tooltip>
+                      )}
+                    </CustomTooltip>
                     <MaintainerTooltip maintainer={getMaintainer(template)} />
                     {isInvalid && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
-                          <p>Requires project-level evaluation model</p>
-                          <Link
-                            href={`/project/${projectId}/evals/default-model`}
-                            className="mt-2 block text-blue-600 hover:underline"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            Configure default model
-                          </Link>
-                        </TooltipContent>
-                      </Tooltip>
+                      <CustomTooltip
+                        delay={300}
+                        content={
+                          <div className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
+                            <p>Requires project-level evaluation model</p>
+                            <Link
+                              href={`/project/${projectId}/evals/default-model`}
+                              className="mt-2 block text-blue-600 hover:underline"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Configure default model
+                            </Link>
+                          </div>
+                        }
+                      >
+                        {({ getTriggerProps }) => (
+                          <AlertCircle
+                            {...getTriggerProps()}
+                            className="ml-1 h-4 w-4 text-yellow-500"
+                          />
+                        )}
+                      </CustomTooltip>
                     )}
                     {template.id === selectedTemplateId && (
                       <CheckIcon className="ml-auto h-4 w-4" />
