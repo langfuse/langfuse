@@ -6,11 +6,7 @@ import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { SelectItem } from "@/src/components/ui/select";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 
-/**
- * RoleSelectItem is one option in a role dropdown: an icon, the role's name and
- * description, and a square-arrow button that opens the role's permission
- * popup. The button stops event propagation so it never selects the role.
- */
+/** RoleSelectItem adds a permission preview to a role option. */
 export const RoleSelectItem = ({
   role,
   isProjectRole,
