@@ -1,6 +1,7 @@
 import { expect } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
 import { TimelineRowMetrics } from "./TimelineRowMetrics";
+import { getTimelineRowMetrics } from "./fns/getTimelineRowMetrics";
 import { createTextMeasurer } from "../../fns/timeline/textMeasurer";
 import { resolveDensity } from "../../fns/timeline/density";
 import { type PositionedNode } from "../../fns/timeline/layout";
@@ -50,17 +51,19 @@ function row(overrides: Partial<PositionedNode> = {}): PositionedNode {
 const meta = preview.meta({
   component: TimelineRowMetrics,
   args: {
-    row: row(),
-    laneWidth: LANE,
     // A generic family, and the SAME one the decorator renders in: a canvas
     // resolves `ui-sans-serif` to a face ~19% narrower than the DOM does, so a
     // measurer seeded with the app's stack prices text nobody renders. The app
     // avoids this by seeding from a probe; a story has to state both sides.
-    measurer: createTextMeasurer("12px sans-serif"),
-    density: resolveDensity({ pointer: "fine" }),
-    metrics: {},
-    showDuration: true,
-    toneClass: "text-white/95",
+    ...getTimelineRowMetrics({
+      row: row(),
+      laneWidth: LANE,
+      measurer: createTextMeasurer("12px sans-serif"),
+      density: resolveDensity({ pointer: "fine" }),
+      metrics: {},
+      showDuration: true,
+      toneClass: "text-white/95",
+    })!,
   },
   decorators: [
     (Story) => (
@@ -87,8 +90,15 @@ export const TheRoomierSideWins = meta.story({
   name: "(Test) The Roomier Side Wins",
   args: {
     // 150px bar in a 640px lane: `layout()` says the duration fits inside it.
-    row: row({ x: 60, width: 150, labelPlacement: "inside", labelX: 66 }),
-    metrics: { costText: "$0.0021" },
+    ...getTimelineRowMetrics({
+      row: row({ x: 60, width: 150, labelPlacement: "inside", labelX: 66 }),
+      laneWidth: LANE,
+      measurer: createTextMeasurer("12px sans-serif"),
+      density: resolveDensity({ pointer: "fine" }),
+      metrics: { costText: "$0.0021" },
+      showDuration: true,
+      toneClass: "text-white/95",
+    })!,
   },
   play: async ({ canvasElement }) => {
     const cluster = canvasElement.querySelector<HTMLElement>(
