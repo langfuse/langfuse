@@ -86,6 +86,7 @@ export const BlobStorageIntegrationForm = ({
 
   const control = blobStorageForm.control;
   const fileType = useWatch({ control, name: "fileType" });
+  const storageType = useWatch({ control, name: "type" });
   const exportsEnabled = useWatch({ control, name: "enabled" });
   const mediaStorageEnabled = useWatch({
     control,
@@ -115,6 +116,9 @@ export const BlobStorageIntegrationForm = ({
                   <FormControl>
                     <Switch
                       checked={field.value}
+                      disabled={
+                        storageType === "AZURE_BLOB_STORAGE" && !field.value
+                      }
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
