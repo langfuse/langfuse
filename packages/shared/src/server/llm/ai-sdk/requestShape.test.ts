@@ -264,6 +264,54 @@ describe("AI SDK request shapes", () => {
     expect(request.body.model).toBe("gpt-4o");
   });
 
+  it.each(
+    ["gpt-6-luna", "gpt-6-sol"].flatMap((model) =>
+      ["fast", "priority"].flatMap((serviceTier) =>
+        [false, true].map((useResponsesApi) => ({
+          model,
+          serviceTier,
+          useResponsesApi,
+        })),
+      ),
+    ),
+  )(
+    "OpenAI $model preserves $serviceTier service tier (useResponsesApi=$useResponsesApi)",
+    async ({ model, serviceTier, useResponsesApi }) => {
+      const { result, request } = await runCompletion({
+        modelParams: {
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          model,
+          providerOptions: {
+            service_tier: serviceTier,
+            reasoning_effort: "high",
+            verbosity: "low",
+          },
+        },
+        apiKey: "sk-test",
+        llmConnectionConfig: { useResponsesApi },
+        response: useResponsesApi
+          ? OPENAI_RESPONSES_RESPONSE
+          : OPENAI_CHAT_RESPONSE,
+      });
+
+      expect(result.text).toBe("ok");
+      expect(request.url).toBe(
+        `https://api.openai.com/v1/${useResponsesApi ? "responses" : "chat/completions"}`,
+      );
+      expect(request.body.model).toBe(model);
+      expect(request.body.service_tier).toBe(serviceTier);
+      expect(request.body.serviceTier).toBeUndefined();
+      if (useResponsesApi) {
+        expect(request.body.reasoning).toMatchObject({ effort: "high" });
+        expect(request.body.text).toMatchObject({ verbosity: "low" });
+      } else {
+        expect(request.body.reasoning_effort).toBe("high");
+        expect(request.body.verbosity).toBe("low");
+      }
+    },
+  );
+
   it("Langfuse AI first-party OpenAI credentials hit /v1/responses", async () => {
     const original = {
       LANGFUSE_AI_PROVIDER: env.LANGFUSE_AI_PROVIDER,
