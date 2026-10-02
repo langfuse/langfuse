@@ -345,9 +345,7 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
         </DropdownMenu>
       </div>
       <Tooltip
-        label={
-          'Adds a placeholder to inject message pairs, e.g. a message history (with "role", "content" pairs) when compiling the message in the SDK.'
-        }
+        label='Adds a placeholder to inject message pairs, e.g. a message history (with "role", "content" pairs) when compiling the message in the SDK.'
         delay={300}
       >
         {({ getTriggerProps }) => (
