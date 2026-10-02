@@ -36,13 +36,6 @@ export class Verifier {
 
   /** verify resolves a parsed credential to a presentation, or a typed failure; an expired key 401s like an unknown one. */
   async verify(credential: Credential): Promise<VerifyApiKeyResult> {
-    return rejectExpired(await this.verifyScheme(credential));
-  }
-
-  /** verifyScheme dispatches a parsed credential by its scheme. */
-  private async verifyScheme(
-    credential: Credential,
-  ): Promise<VerifyApiKeyResult> {
     if (credential.kind === "basic") {
       return this.verifyBasic(credential.publicKey, credential.secretKey);
     }
@@ -58,10 +51,10 @@ export class Verifier {
     secretKey: string,
   ): Promise<VerifyApiKeyResult> {
     const byPrivateKey = await this.verifyPrivateKey(secretKey);
-    if (byPrivateKey) return byPrivateKey;
+    if (byPrivateKey) return rejectExpired(byPrivateKey);
 
     const bySlowHash = await this.backfillSlowHash(publicKey, secretKey);
-    if (bySlowHash) return bySlowHash;
+    if (bySlowHash) return rejectExpired(bySlowHash);
 
     return unauthorizedError(invalidCredentials);
   }
@@ -72,10 +65,10 @@ export class Verifier {
     if (admin) return admin;
 
     const byPublicKey = await this.verifyPublicKey(token);
-    if (byPublicKey) return byPublicKey;
+    if (byPublicKey) return rejectExpired(byPublicKey);
 
     const byPrivateKey = await this.verifyPrivateKey(token);
-    if (byPrivateKey) return byPrivateKey;
+    if (byPrivateKey) return rejectExpired(byPrivateKey);
 
     return unauthorizedError(invalidCredentials);
   }

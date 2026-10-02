@@ -78,6 +78,23 @@ const resolver = new ContextResolver(
       findFirst: async () => orgRow,
     },
   } as unknown as PrismaClient),
+  {
+    roleAssignment: {
+      findMany: async () => [
+        {
+          id: "assignment_1",
+          orgId: ORG,
+          principalApiKeyId: "key_p",
+          principalUserId: null,
+          ownerProjectId: PRJ,
+          ownerOrgId: null,
+          systemRole: "LEGACY_PROJECT_API_KEY",
+          createdAt: new Date(0),
+          updatedAt: new Date(0),
+        },
+      ],
+    },
+  } as unknown as PrismaClient,
 );
 
 /** fakeRedis is an in-memory get/set store; overrides let a test make either op throw. */
