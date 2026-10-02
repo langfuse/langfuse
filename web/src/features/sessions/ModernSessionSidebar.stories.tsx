@@ -283,7 +283,7 @@ function ModernSessionSidebarStory(
 
   const normalizedSearch = search.trim().toLowerCase();
   const visibleTraces = normalizedSearch
-    ? args.traces.flatMap((sidebarTrace) => {
+    ? args.traces.flatMap<ModernSessionSidebarTrace>((sidebarTrace) => {
         const matchingObservations = sidebarTrace.observations?.filter(
           (observation) =>
             (observation.name ?? "").toLowerCase().includes(normalizedSearch),

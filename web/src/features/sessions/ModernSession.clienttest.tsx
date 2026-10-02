@@ -21,7 +21,7 @@ vi.mock("@/src/features/sessions/ModernSessionFilterControls", () => ({
     children,
   }: {
     children: (controls: never) => ReactNode;
-  }) => children({} as never),
+  }) => <div data-testid="legacy-filter-controls">{children({} as never)}</div>,
 }));
 
 vi.mock("@/src/features/sessions/SessionMetadataJsonPathControl", () => ({
@@ -100,6 +100,7 @@ describe("ModernSession", () => {
 
     expect(screen.getByText("Modern session header")).toBeInTheDocument();
     expect(screen.getByText("Legacy body")).toBeInTheDocument();
+    expect(screen.getByTestId("legacy-filter-controls")).toBeInTheDocument();
     expect(screen.queryByText("Timeline body")).not.toBeInTheDocument();
   });
 
@@ -108,6 +109,9 @@ describe("ModernSession", () => {
 
     expect(screen.getByText("Modern session header")).toBeInTheDocument();
     expect(screen.getByText("Timeline body")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("legacy-filter-controls"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Legacy body")).not.toBeInTheDocument();
   });
 });

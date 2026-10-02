@@ -331,15 +331,10 @@ export function ModernSessionSidebar(
         state: "loaded";
         traces: ModernSessionSidebarTrace[];
         activeTraceId: string | undefined;
-        filterControls: ModernSessionSidebarFilterControls;
         search: string;
         onSearchChange: (search: string) => void;
         expandedTraceIds: ReadonlySet<string>;
         onToggleTraceExpanded: (traceId: string) => void;
-        onFilterObservationByName: (
-          name: string,
-          operator: "any of" | "none of",
-        ) => void;
         onSelect: (index: number, observationId?: string) => void;
         onVisibleTraceIdsChange: (traceIds: string[]) => void;
         hasMoreObservations: boolean;
@@ -347,6 +342,11 @@ export function ModernSessionSidebar(
         observationLoadError: boolean;
         onLoadMoreObservations: () => void;
         onViewportUnderfilled?: () => void;
+        filterControls: ModernSessionSidebarFilterControls;
+        onFilterObservationByName: (
+          name: string,
+          operator: "any of" | "none of",
+        ) => void;
       },
 ) {
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;

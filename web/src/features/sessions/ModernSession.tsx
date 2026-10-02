@@ -108,14 +108,18 @@ export function ModernSession({
           </SessionReviewLeading>
         )}
       </SessionMetadataJsonPathControl>
-      <ModernSessionFilterControls {...filterControlsProps}>
-        {(sidebarFilterControls) =>
-          isTimelineEnabled ? (
-            <ConnectedModernSessionBodyTimeline
-              {...sharedBodyProps}
-              sidebarFilterControls={sidebarFilterControls}
-            />
-          ) : (
+      {isTimelineEnabled ? (
+        <ConnectedModernSessionBodyTimeline
+          tracesState={tracesState}
+          projectId={projectId}
+          sessionId={sessionId}
+          sessionMinTimestamp={session.minTimestamp}
+          sessionMaxTimestamp={session.maxTimestamp}
+          openPeek={openPeek}
+        />
+      ) : (
+        <ModernSessionFilterControls {...filterControlsProps}>
+          {(sidebarFilterControls) => (
             <ConnectedModernSessionBodyLegacy
               {...sharedBodyProps}
               traceCommentCounts={traceCommentCounts}
@@ -123,9 +127,9 @@ export function ModernSession({
               showSystemPrompt={showSystemPrompt}
               sidebarFilterControls={sidebarFilterControls}
             />
-          )
-        }
-      </ModernSessionFilterControls>
+          )}
+        </ModernSessionFilterControls>
+      )}
     </>
   );
 }

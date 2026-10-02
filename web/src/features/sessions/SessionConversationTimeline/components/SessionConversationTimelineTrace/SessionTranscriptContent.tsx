@@ -1,0 +1,261 @@
+import { useState, type ReactNode } from "react";
+import { type RouterOutputs } from "@/src/utils/api";
+import { type TranscriptMessageGroup } from "../../fns/groupTranscriptMessages";
+import { getSessionTranscriptRows } from "../../fns/getSessionTranscriptRows";
+import {
+  SessionTimelineToolRow,
+  SessionObservationActionsMenuContent,
+  type SessionObservationActions,
+} from "./SessionConversationTimelineTrace";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { Button } from "@/src/components/ui/button";
+import { MoreHorizontal } from "lucide-react";
+import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
+import { type SessionTraceTranscriptState } from "../../useSessionTraceTranscripts";
+import { SessionTimelineContentMessage } from "./components/SessionTimelineContentMessage/SessionTimelineContentMessage";
+import { SessionTimelineSystemMessage } from "./components/SessionTimelineSystemMessage/SessionTimelineSystemMessage";
+import { cn } from "@/src/utils/tailwind";
+import { formatIntervalSeconds } from "@/src/utils/dates";
+
+export function SessionTranscriptContent({
+  result,
+  observations,
+  observationActions,
+  onOpenObservation,
+  scrollTarget,
+}: {
+  result: Extract<SessionTraceTranscriptState, { state: "loaded" }>;
+  observations: RouterOutputs["events"]["sessionAll"]["observations"];
+  observationActions?: SessionObservationActions;
+  onOpenObservation: (observationId: string) => void;
+  scrollTarget: {
+    observationId: string;
+    rowId?: string;
+    requestId: number;
+  } | null;
+}) {
+  const rows = getSessionTranscriptRows(result.transcript);
+  return (
+    <div className="ph-no-capture space-y-4">
+      {rows.length === 0 && (
+        <p className="text-muted-foreground text-sm">No transcript messages.</p>
+      )}
+      {result.transcript?.threads.map((thread, threadIndex) => (
+        <div
+          key={threadIndex}
+          className="space-y-4 [&>[data-session-system-row]:has(+[data-session-system-row])]:mb-1 [&>[data-session-tool-row]:has(+[data-session-tool-row])]:mb-1"
+        >
+          {(result.transcript?.threads.length ?? 0) > 1 && (
+            <h3 className="text-muted-foreground text-xs font-bold">
+              Thread {threadIndex + 1}
+            </h3>
+          )}
+          <SessionTranscriptThread
+            rows={rows.filter((row) => row.threadIndex === threadIndex)}
+            onOpenObservation={onOpenObservation}
+            observations={observations}
+            observationActions={observationActions}
+            scrollTarget={scrollTarget}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+type DisplayMessage = NormalizedMessage & {
+  timing: { startTime: Date; endTime: Date | null } | null;
+  observationId: string | null;
+};
+
+function SessionTranscriptThread({
+  rows,
+  onOpenObservation,
+  scrollTarget,
+  observations,
+  observationActions,
+}: {
+  rows: ReturnType<typeof getSessionTranscriptRows>;
+  onOpenObservation: (observationId: string) => void;
+  scrollTarget: {
+    observationId: string;
+    rowId?: string;
+    requestId: number;
+  } | null;
+  observations: RouterOutputs["events"]["sessionAll"]["observations"];
+  observationActions?: SessionObservationActions;
+}) {
+  return rows.map(({ row, id }) => {
+    const timing = row.message.timing;
+    const isTool = row.type === "tool";
+    const isSystem = row.message.role === "system";
+    const observation = observations.find(
+      (item) => item.id === row.message.observationId,
+    );
+    const metadata = timing &&
+      (isTool ||
+        row.message.role === "system" ||
+        (observationActions && observation?.traceId)) && (
+        <div
+          className={cn(
+            "text-muted-foreground flex items-center gap-2 font-mono text-xs",
+            !isTool &&
+              !isSystem &&
+              "invisible group-focus-within:visible group-hover:visible",
+            !isTool && row.message.role === "user" && "justify-end",
+          )}
+          title="Source observation timing"
+        >
+          {!isTool &&
+            row.message.role === "system" &&
+            row.message.observationId && (
+              <button
+                type="button"
+                className="hover:text-foreground invisible underline group-focus-within:visible group-hover:visible"
+                onClick={() => onOpenObservation(row.message.observationId!)}
+              >
+                Open observation
+              </button>
+            )}
+          {observationActions && observation?.traceId && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={`Actions for ${observation.name ?? observation.id}`}
+                  className={cn(
+                    isSystem &&
+                      "invisible group-focus-within:visible group-hover:visible",
+                  )}
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <SessionObservationActionsMenuContent
+                observation={{
+                  id: observation.id,
+                  traceId: observation.traceId,
+                  name: observation.name,
+                  startTime: observation.startTime,
+                  environment: observation.environment,
+                }}
+                actions={observationActions}
+              />
+            </DropdownMenu>
+          )}
+          {(isTool || row.message.role === "system") && (
+            <time dateTime={timing.startTime.toISOString()}>
+              {timing.startTime.toLocaleTimeString()}
+            </time>
+          )}
+          {isTool && timing.endTime !== null && (
+            <span>
+              {formatIntervalSeconds(
+                (timing.endTime.getTime() - timing.startTime.getTime()) / 1000,
+              )}
+            </span>
+          )}
+        </div>
+      );
+    return (
+      <div
+        key={id}
+        className="group space-y-1"
+        data-session-tool-row={isTool ? "" : undefined}
+        data-session-system-row={isSystem ? "" : undefined}
+        data-session-observation-id={row.message.observationId ?? undefined}
+        data-session-transcript-row-id={id}
+        data-scroll-request-id={
+          (
+            scrollTarget?.rowId
+              ? scrollTarget.rowId === id
+              : scrollTarget?.observationId === row.message.observationId
+          )
+            ? scrollTarget?.requestId
+            : undefined
+        }
+      >
+        {row.type === "tool" ? (
+          <SessionTranscriptTool
+            row={row}
+            trailingContent={metadata}
+            onOpenObservation={onOpenObservation}
+          />
+        ) : (
+          <SessionTranscriptMessage
+            message={row.message}
+            trailingContent={isSystem ? metadata : null}
+            onOpenObservation={onOpenObservation}
+          />
+        )}
+        {row.type !== "tool" && !isSystem && metadata}
+      </div>
+    );
+  });
+}
+
+function SessionTranscriptTool({
+  row,
+  trailingContent,
+  onOpenObservation,
+}: {
+  row: Extract<TranscriptMessageGroup<DisplayMessage>, { type: "tool" }>;
+  trailingContent: ReactNode;
+  onOpenObservation: (observationId: string) => void;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  return (
+    <SessionTimelineToolRow
+      name={row.call?.toolName ?? row.result?.toolName ?? "Tool"}
+      input={row.call?.input}
+      output={row.result?.output}
+      isError={row.result?.isError}
+      isExpanded={isExpanded}
+      onExpandedChange={setIsExpanded}
+      onOpenObservation={
+        row.message.observationId
+          ? () => onOpenObservation(row.message.observationId!)
+          : undefined
+      }
+      trailingContent={trailingContent}
+    />
+  );
+}
+
+function SessionTranscriptMessage({
+  message,
+  trailingContent,
+  onOpenObservation,
+}: {
+  message: DisplayMessage;
+  trailingContent: ReactNode;
+  onOpenObservation: (observationId: string) => void;
+}) {
+  if (message.role === "system") {
+    return (
+      <SessionTimelineSystemMessage
+        parts={message.parts}
+        senderName={message.senderName}
+        trailingContent={trailingContent}
+      />
+    );
+  }
+  return (
+    <SessionTimelineContentMessage
+      role={message.role}
+      parts={message.parts}
+      senderName={message.senderName}
+      timestamp={message.timing?.startTime ?? null}
+      onOpenObservation={
+        message.observationId
+          ? () => onOpenObservation(message.observationId!)
+          : undefined
+      }
+    />
+  );
+}
