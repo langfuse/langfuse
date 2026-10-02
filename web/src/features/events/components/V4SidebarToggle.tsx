@@ -1,12 +1,7 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Label } from "@/src/components/ui/label";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { setReadPath } from "@/src/features/events/actions/setReadPath";
 import { usePendingReadPath } from "@/src/features/events/stores/readPathToggleStore";
@@ -190,9 +185,9 @@ export function V4SidebarToggle() {
               {V4_PREVIEW_LABEL}
             </Label>
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex shrink-0">
+          <Tooltip label={V4_PREVIEW_DESCRIPTION} placement="right" delay={300}>
+            {({ getTriggerProps }) => (
+              <div {...getTriggerProps()} className="flex shrink-0">
                 <Switch
                   id="v4-beta-toggle"
                   size="sm"
@@ -203,10 +198,7 @@ export function V4SidebarToggle() {
                   aria-describedby="v4-preview-sidebar-description"
                 />
               </div>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="max-w-xs text-xs">
-              {V4_PREVIEW_DESCRIPTION}
-            </TooltipContent>
+            )}
           </Tooltip>
           <span id="v4-preview-sidebar-description" className="sr-only">
             {V4_PREVIEW_DESCRIPTION}
