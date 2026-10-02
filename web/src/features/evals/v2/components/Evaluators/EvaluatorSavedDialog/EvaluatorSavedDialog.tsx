@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import type { ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -15,11 +14,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 import styles from "./EvaluatorSavedDialog.module.css";
 
@@ -174,20 +169,20 @@ export function EvaluatorSavedDialog({
           </div>
         </DialogBody>
         <DialogFooter className="px-6 py-3">
-          <Tooltip>
-            <TooltipTrigger asChild>
+          <Tooltip
+            label="It remains available for batch evaluations and prompt experiments. Set up incoming observations later."
+            delay={300}
+          >
+            {({ getTriggerProps }) => (
               <Button
+                {...getTriggerProps()}
                 variant="outline"
                 disabled={isSubmitting}
                 onClick={onSecondaryAction}
               >
                 Skip execution
               </Button>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-72">
-              It remains available for batch evaluations and prompt experiments.
-              Set up incoming observations later.
-            </TooltipContent>
+            )}
           </Tooltip>
           <Button
             disabled={!canSubmit}
