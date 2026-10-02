@@ -485,6 +485,7 @@ function NavUser({
                 shape="rounded"
                 src={user.avatar}
                 displayName={user.name}
+                email={user.email}
               />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-bold" title={user.name}>
@@ -509,6 +510,7 @@ function NavUser({
                   shape="rounded"
                   src={user.avatar}
                   displayName={user.name}
+                  email={user.email}
                 />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-bold" title={user.name}>
