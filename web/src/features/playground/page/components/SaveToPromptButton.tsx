@@ -87,6 +87,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
   };
 
   return (
+    // eslint-disable-next-line @repo/no-abstracted-overlay-trigger -- Preserve the existing prompt-saving popover ownership during tooltip migration.
     <Popover>
       <Tooltip label="Save as prompt" delay={300}>
         {({ getTriggerProps }) => (
