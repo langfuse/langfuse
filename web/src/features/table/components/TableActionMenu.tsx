@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable no-nested-ternary */
 import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -11,11 +10,7 @@ import {
 import { TableActionDialog } from "@/src/features/table/components/TableActionDialog";
 import { type BatchExportTableName } from "@langfuse/shared";
 import { numberFormatter } from "@/src/utils/numbers";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 type TableActionMenuProps = {
   projectId: string;
@@ -125,13 +120,15 @@ export function TableActionMenu({
 
               if (action.disabled && action.disabledReason) {
                 return (
-                  <Tooltip key={action.id}>
-                    <TooltipTrigger asChild>
-                      <span>{menuItem}</span>
-                    </TooltipTrigger>
-                    <TooltipContent side="left">
-                      {action.disabledReason}
-                    </TooltipContent>
+                  <Tooltip
+                    key={action.id}
+                    label={action.disabledReason}
+                    placement="left"
+                    delay={300}
+                  >
+                    {({ getTriggerProps }) => (
+                      <span {...getTriggerProps()}>{menuItem}</span>
+                    )}
                   </Tooltip>
                 );
               }
