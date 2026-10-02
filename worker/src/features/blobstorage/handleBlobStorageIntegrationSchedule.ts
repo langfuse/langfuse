@@ -77,8 +77,9 @@ export const handleBlobStorageIntegrationSchedule = async () => {
         name: QueueJobs.BlobStorageIntegrationProcessingJob,
         timestamp: new Date(),
         payload: {
-          projectId: integration.projectId,
+          projectId: integration.id,
           integrationId: integration.id,
+          ownerProjectId: integration.projectId,
         },
       },
       opts: {

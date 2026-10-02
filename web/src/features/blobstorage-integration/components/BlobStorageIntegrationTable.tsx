@@ -13,10 +13,17 @@ import { type RouterOutputs } from "@/src/utils/api";
 type BlobStorageIntegration =
   RouterOutputs["blobStorageIntegration"]["get"]["configs"][number];
 
-const providerLabel: Record<BlobStorageIntegration["type"], string> = {
-  S3: "Amazon S3",
-  S3_COMPATIBLE: "S3-compatible",
-  AZURE_BLOB_STORAGE: "Azure Blob Storage",
+const getProviderLabel = (type: string | null | undefined) => {
+  switch (type) {
+    case "S3":
+      return "Amazon S3";
+    case "S3_COMPATIBLE":
+      return "S3-compatible";
+    case "AZURE_BLOB_STORAGE":
+      return "Azure Blob Storage";
+    default:
+      return "Unknown";
+  }
 };
 
 export function BlobStorageIntegrationTable({
@@ -39,7 +46,7 @@ export function BlobStorageIntegrationTable({
       createTextTableColumn<BlobStorageIntegration>({
         accessorKey: "type",
         header: "Provider",
-        mapValue: (type) => providerLabel[type],
+        mapValue: getProviderLabel,
       }),
       createStatusTableColumn<BlobStorageIntegration, boolean>({
         accessorKey: "enabled",

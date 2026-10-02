@@ -309,18 +309,18 @@ describe("Blob Storage Integration tRPC Router", () => {
   });
 
   describe("external media storage feature gate", () => {
-    it("rejects media storage when the feature flag is disabled", async () => {
+    it("ignores media storage when the feature flag is disabled", async () => {
       const { caller, project } = await prepare({
         externalMediaStorage: false,
       });
 
-      await expect(
-        caller.blobStorageIntegration.update({
-          projectId: project.id,
-          ...baseConfig,
-          mediaStorageEnabled: true,
-        }),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      const integration = await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        mediaStorageEnabled: true,
+      });
+
+      expect(integration.mediaStorageEnabled).toBe(false);
     });
 
     it("persists media storage when the feature flag is enabled", async () => {
@@ -335,6 +335,29 @@ describe("Blob Storage Integration tRPC Router", () => {
       });
 
       expect(integration.mediaStorageEnabled).toBe(true);
+    });
+
+    it("preserves persisted media storage after the flag is removed", async () => {
+      const { caller, project, session } = await prepare({
+        externalMediaStorage: true,
+      });
+      const integration = await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        mediaStorageEnabled: true,
+      });
+      session.user!.featureFlags.externalMediaStorage = false;
+
+      const updated = await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        integrationId: integration.id,
+        ...baseConfig,
+        bucketName: "updated-bucket",
+        mediaStorageEnabled: true,
+      });
+
+      expect(updated.bucketName).toBe("updated-bucket");
+      expect(updated.mediaStorageEnabled).toBe(true);
     });
   });
 
@@ -402,6 +425,26 @@ describe("Blob Storage Integration tRPC Router", () => {
       ).rejects.toMatchObject({ code: "NOT_FOUND" });
       expect(StorageServiceFactory.getInstance).not.toHaveBeenCalled();
     });
+
+    it("fails closed when two media integrations match equally", async () => {
+      const { caller, project } = await prepare({
+        externalMediaStorage: true,
+      });
+      const first = await createIntegration({ projectId: project.id });
+      const second = await createIntegration({ projectId: project.id });
+      await prisma.blobStorageIntegration.updateMany({
+        where: { id: { in: [first.id, second.id] } },
+        data: { mediaStorageEnabled: true },
+      });
+
+      await expect(
+        caller.blobStorageIntegration.resolveExternalMedia({
+          projectId: project.id,
+          uri: "s3://test-bucket/test/image.png",
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+      expect(StorageServiceFactory.getInstance).not.toHaveBeenCalled();
+    });
   });
 
   describe("runNow", () => {
@@ -425,8 +468,9 @@ describe("Blob Storage Integration tRPC Router", () => {
         expect.objectContaining({
           name: QueueJobs.BlobStorageIntegrationProcessingJob,
           payload: {
-            projectId: project.id,
+            projectId: integration.id,
             integrationId: integration.id,
+            ownerProjectId: project.id,
           },
         }),
         expect.objectContaining({

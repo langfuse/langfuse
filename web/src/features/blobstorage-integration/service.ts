@@ -59,6 +59,7 @@ export async function upsertBlobStorageIntegration(params: {
   prisma: PrismaClient;
   projectId: string;
   integrationId?: string;
+  createId?: string;
   data: UpsertBlobStorageIntegrationInput;
   // The source a CREATE lands, already validated and resolved by the caller via
   // resolveExportSource. Always concrete, so the CREATE branch never falls
@@ -66,7 +67,7 @@ export async function upsertBlobStorageIntegration(params: {
   // using data.exportSource, where undefined preserves the persisted value.
   createExportSource: AnalyticsIntegrationExportSource;
 }) {
-  const { prisma, projectId, integrationId, data } = params;
+  const { prisma, projectId, integrationId, createId, data } = params;
 
   const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const canUseHostCredentials =
@@ -174,6 +175,8 @@ export async function upsertBlobStorageIntegration(params: {
       : await tx.blobStorageIntegration.create({
           data: {
             ...writeData,
+            ...(createId ? { id: createId } : {}),
+            ...(createId === projectId ? { legacyProjectId: projectId } : {}),
             mediaStorageEnabled: data.mediaStorageEnabled ?? false,
             exportSource: params.createExportSource,
             // Parquet is the default export format; apply it when the caller omits

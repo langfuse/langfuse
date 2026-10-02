@@ -46,7 +46,7 @@ async function handleDeleteBlobStorageIntegration(
   await auditLog({
     action: "delete",
     resourceType: "blobStorageIntegration",
-    resourceId: integration.projectId,
+    resourceId: integration.id,
     projectId: integration.projectId,
     orgId: scope.orgId,
     apiKeyId: scope.apiKeyId,

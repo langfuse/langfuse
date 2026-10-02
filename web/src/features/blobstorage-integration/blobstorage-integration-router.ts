@@ -96,6 +96,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string(), uri: z.string() }))
     .query(async ({ input, ctx }) => {
       const isEnabled =
+        ctx.session.environment.enableExperimentalFeatures ||
         getContextualFeatureFlags(ctx.session.user, {
           projectId: input.projectId,
         })?.externalMediaStorage === true;
@@ -184,16 +185,12 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           : null;
 
         const externalMediaStorageEnabled =
+          ctx.session.environment.enableExperimentalFeatures ||
           getContextualFeatureFlags(ctx.session.user, {
             projectId: input.projectId,
           })?.externalMediaStorage === true;
-        if (input.mediaStorageEnabled && !externalMediaStorageEnabled) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "External media storage is not enabled",
-          });
-        }
         if (
+          externalMediaStorageEnabled &&
           input.mediaStorageEnabled &&
           input.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE
         ) {
@@ -351,8 +348,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
             name: QueueJobs.BlobStorageIntegrationProcessingJob,
             timestamp: new Date(),
             payload: {
-              projectId: input.projectId,
+              projectId: input.integrationId,
               integrationId: input.integrationId,
+              ownerProjectId: input.projectId,
             },
           },
           {
