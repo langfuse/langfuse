@@ -10,6 +10,11 @@ const routeMocks = vi.hoisted(() => ({
 }));
 const routeEnv = vi.hoisted(() => ({
   LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES: 4,
+  LANGFUSE_OTEL_INGESTION_USE_WORKER: "false",
+}));
+const workerContextMocks = vi.hoisted(() => ({
+  request: undefined as { isPaused: () => boolean } | undefined,
+  pausedAtImport: undefined as boolean | undefined,
 }));
 
 vi.mock("@/src/env.mjs", () => ({
@@ -39,6 +44,14 @@ vi.mock("@langfuse/shared/src/server", () => ({
   redis: { disconnect: vi.fn(), status: "end" },
   validateOtelSpanIds: vi.fn(),
 }));
+vi.mock("@/src/server/otel/otelIngestionWorkerContext", () => {
+  workerContextMocks.pausedAtImport = workerContextMocks.request?.isPaused();
+  return {
+    createOtelIngestionWorkerContext: vi
+      .fn()
+      .mockResolvedValue({ response: {} }),
+  };
+});
 
 import {
   gunzipOtelRequestBody,
@@ -70,6 +83,15 @@ describe("OTel request body limits", () => {
     req.end("hello");
 
     await expect(bodyPromise).resolves.toEqual(Buffer.from("hello"));
+  });
+
+  it("aborts an in-flight read when its deadline signal aborts", async () => {
+    const req = request({ "content-length": "5" });
+    const controller = new AbortController();
+    const bodyPromise = readOtelRequestBody(req, 5, controller.signal);
+
+    controller.abort();
+    await expect(bodyPromise).rejects.toMatchObject({ code: "ABORT_ERR" });
   });
 
   it("rejects a declared body above the limit before reading", async () => {
@@ -171,5 +193,35 @@ describe("OTel request body limits", () => {
     expect(res.status).toHaveBeenCalledWith(413);
     expect(res.setHeader).not.toHaveBeenCalled();
     req.destroy();
+  });
+
+  it("pauses the request before loading the worker context", async () => {
+    routeEnv.LANGFUSE_OTEL_INGESTION_USE_WORKER = "true";
+    const req = request();
+    const res = response();
+    workerContextMocks.request = req;
+    const post = (
+      otelRoute as unknown as {
+        POST: (params: unknown) => Promise<unknown>;
+      }
+    ).POST;
+
+    try {
+      await expect(
+        post({
+          req,
+          res,
+          auth: {
+            scope: { isIngestionSuspended: false, projectId: "project" },
+          },
+        }),
+      ).resolves.toEqual({});
+      expect(workerContextMocks.pausedAtImport).toBe(true);
+    } finally {
+      routeEnv.LANGFUSE_OTEL_INGESTION_USE_WORKER = "false";
+      workerContextMocks.request = undefined;
+      workerContextMocks.pausedAtImport = undefined;
+      req.destroy();
+    }
   });
 });
