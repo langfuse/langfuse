@@ -20,12 +20,12 @@ function readNavigationPreference(): boolean | null {
 export function TraceReviewLayout({
   open,
   review,
-  initialNavigationCollapsed,
+  collapseNavigationOnEntry,
   children,
 }: {
   open: boolean;
   review: ReactNode;
-  initialNavigationCollapsed?: boolean;
+  collapseNavigationOnEntry?: boolean;
   children: (navigation: {
     collapsed: boolean;
     toggle: () => void;
@@ -39,8 +39,15 @@ export function TraceReviewLayout({
     isPeek: false,
   });
   const [navigationPreference, setNavigationPreference] = useState(
-    () => initialNavigationCollapsed ?? readNavigationPreference(),
+    () => collapseNavigationOnEntry ?? readNavigationPreference(),
   );
+  const [previousEntryCollapse, setPreviousEntryCollapse] = useState(
+    collapseNavigationOnEntry,
+  );
+  if (previousEntryCollapse !== collapseNavigationOnEntry) {
+    setPreviousEntryCollapse(collapseNavigationOnEntry);
+    if (collapseNavigationOnEntry) setNavigationPreference(true);
+  }
 
   useLayoutEffect(() => {
     const root = rootRef.current;

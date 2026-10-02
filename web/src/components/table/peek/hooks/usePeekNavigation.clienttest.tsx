@@ -179,3 +179,36 @@ describe("usePeekNavigation analytics", () => {
     expect(capture).not.toHaveBeenCalled();
   });
 });
+
+describe("peek entry mode", () => {
+  it("sets explicit entry parameters and clears them on ordinary entry and close", () => {
+    mockPush.mockReset();
+    window.history.replaceState(
+      {},
+      "",
+      "/project/p1/traces?peek=old&mode=comment",
+    );
+    const { result } = renderHook(() =>
+      usePeekNavigation({
+        queryParams: ["mode", "traceId"],
+        tableName: "experimentItems",
+        isV4: true,
+        extractParamsValuesFromRow: (row) => ({ traceId: row.traceId }),
+      }),
+    );
+    result.current.openPeek(
+      "item",
+      { traceId: "trace" },
+      { queryParams: { mode: "annotate" } },
+    );
+    expect(mockPush.mock.lastCall?.[0].query).toMatchObject({
+      peek: "item",
+      traceId: "trace",
+      mode: "annotate",
+    });
+    result.current.openPeek("item", { traceId: "trace" });
+    expect(mockPush.mock.lastCall?.[0].query).not.toHaveProperty("mode");
+    result.current.closePeek();
+    expect(mockPush.mock.lastCall?.[0].query).not.toHaveProperty("mode");
+  });
+});

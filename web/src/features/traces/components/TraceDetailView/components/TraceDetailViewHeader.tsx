@@ -1,3 +1,4 @@
+import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 /**
  * TraceDetailViewHeader - Extracted header component for TraceDetailView
  *
@@ -172,22 +173,15 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                                       mobileActionsTriggerRef.current?.focus({
                                         preventScroll: true,
                                       });
-                                      openDrawer({
-                                        scoreTarget: {
-                                          type: "trace",
+                                      openDrawer(
+                                        prepareTraceAnnotation({
                                           traceId: trace.id,
-                                        },
-                                        scores: traceScores,
-                                        analyticsData: {
-                                          type: "trace",
-                                          source: "TraceDetail",
-                                          isV4,
-                                        },
-                                        scoreMetadata: {
                                           projectId,
                                           environment: trace.environment,
-                                        },
-                                      });
+                                          scores: traceScores,
+                                          isV4,
+                                        }),
+                                      );
                                     },
                                   },
                                 ]
@@ -282,22 +276,15 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                     size="sm"
                     disabled={disabled}
                     onClick={() =>
-                      openDrawer({
-                        scoreTarget: {
-                          type: "trace",
+                      openDrawer(
+                        prepareTraceAnnotation({
                           traceId: trace.id,
-                        },
-                        scores: traceScores,
-                        analyticsData: {
-                          type: "trace",
-                          source: "TraceDetail",
-                          isV4,
-                        },
-                        scoreMetadata: {
                           projectId,
                           environment: trace.environment,
-                        },
-                      })
+                          scores: traceScores,
+                          isV4,
+                        }),
+                      )
                     }
                   >
                     {disabled ? (

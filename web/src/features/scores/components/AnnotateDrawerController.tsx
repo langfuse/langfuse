@@ -1,3 +1,4 @@
+import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { DrawerContent, DrawerController } from "@/src/components/ui/drawer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -38,6 +39,7 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
   children,
   projectId,
 }: AnnotateDrawerControllerProps<Target>) {
+  const router = useRouter();
   const capture = usePostHogClientCapture();
   const reviewPanel = useTraceReviewPanelOptional();
   const isMobile = useIsMobile();
@@ -90,6 +92,16 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
                 .getState()
                 .actions.rememberTrigger(triggerRef.current);
               reviewPanel.getState().actions.openAnnotation(payload);
+              const { comments, commentObjectId, commentObjectType, ...query } =
+                router.query;
+              router.replace(
+                {
+                  pathname: router.pathname,
+                  query: { ...query, mode: "annotate" },
+                },
+                undefined,
+                { shallow: true },
+              );
             } else openDrawer(payload);
           },
         })

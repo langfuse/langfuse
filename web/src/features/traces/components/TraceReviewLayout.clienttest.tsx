@@ -51,16 +51,16 @@ vi.mock("react-resizable-panels", () => ({
 
 function Harness({
   open = true,
-  initialNavigationCollapsed,
+  collapseNavigationOnEntry,
 }: {
   open?: boolean;
-  initialNavigationCollapsed?: boolean;
+  collapseNavigationOnEntry?: boolean;
 }) {
   return (
     <div data-peek-content>
       <TraceReviewLayout
         open={open}
-        initialNavigationCollapsed={initialNavigationCollapsed}
+        collapseNavigationOnEntry={collapseNavigationOnEntry}
         review={<input aria-label="Review draft" />}
       >
         {({ collapsed, toggle }) => (
@@ -184,7 +184,7 @@ describe("trace review responsive workspace", () => {
 
   it("starts annotation navigation collapsed despite a saved preference and lets it reopen", () => {
     localStorage.setItem("trace-review-navigation-collapsed", "false");
-    render(<Harness initialNavigationCollapsed />);
+    render(<Harness collapseNavigationOnEntry />);
     fireEvent.click(screen.getByRole("button", { name: "Show navigation" }));
     expect(
       screen.getByRole("button", { name: "Hide navigation" }),
@@ -212,4 +212,20 @@ describe("trace review responsive workspace", () => {
       "vertical",
     );
   });
+});
+
+it("collapses on explicit annotation entry but preserves manual expansion across rerenders", () => {
+  const view = render(<Harness open={false} />);
+  expect(
+    screen.getByRole("button", { name: "Hide navigation" }),
+  ).toBeInTheDocument();
+  view.rerender(<Harness collapseNavigationOnEntry />);
+  expect(
+    screen.getByRole("button", { name: "Show navigation" }),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Show navigation" }));
+  view.rerender(<Harness collapseNavigationOnEntry />);
+  expect(
+    screen.getByRole("button", { name: "Hide navigation" }),
+  ).toBeInTheDocument();
 });

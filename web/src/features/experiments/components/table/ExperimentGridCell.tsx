@@ -31,13 +31,16 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { Copy, Check, ExternalLink, SquarePen } from "lucide-react";
-import { Button } from "@/src/components/ui/button";
-import { Button as ActionButton } from "@/src/components/design-system/Button/Button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { decomposeAggregateScoreKey } from "@/src/features/scores";
+import {
+  decomposeAggregateScoreKey,
+  useMergedAggregates,
+  useMergeScoreColumns,
+} from "@/src/features/scores";
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
 import { ScoreTag, type ScoreLevel } from "@/src/components/score-tag";
@@ -65,6 +68,8 @@ type ExperimentGridCellProps = {
   isBaseline: boolean;
   /** Whether this cell carries deltas against the baseline (the diff mode). */
   showDiff?: boolean;
+  baselineTraceId?: string;
+  baselineObservationId?: string;
   baselineScores?: ScoreAggregate;
   baselineTraceScores?: ScoreAggregate;
   /** Named in every diff chip's hover sentence, so the arrow has a direction. */
@@ -236,20 +241,15 @@ const ScoreItem = ({
                 <span className="text-muted-foreground">Comment</span>
                 <Button
                   variant="ghost"
-                  size="icon-xs"
-                  aria-label={copied ? "Copied" : "Copy comment"}
+                  size="sm"
+                  text={copied ? "Copied" : "Copy comment"}
+                  icon={copied ? Check : Copy}
                   onClick={async () => {
                     await copyTextToClipboard(aggregate.comment!);
                     setCopied(true);
                     setTimeout(() => setCopied(false), 2000);
                   }}
-                >
-                  {copied ? (
-                    <Check className="h-3 w-3" />
-                  ) : (
-                    <Copy className="h-3 w-3" />
-                  )}
-                </Button>
+                />
               </div>
               <p className="whitespace-pre-wrap">{aggregate.comment}</p>
             </div>
@@ -482,6 +482,8 @@ export const ExperimentGridCell = ({
   showDiff = true,
   baselineScores,
   baselineTraceScores,
+  baselineTraceId,
+  baselineObservationId,
   baselineExperimentName,
   isLoading = false,
   columnVisibility = {},
@@ -490,20 +492,80 @@ export const ExperimentGridCell = ({
   onExperimentClick,
   onAnnotate,
 }: ExperimentGridCellProps) => {
+  const displayScores = useMergedAggregates(scores, traceId, observationId);
+  const displayTraceScores = useMergedAggregates(traceScores, traceId);
+  const displayBaselineScores = useMergedAggregates(
+    baselineScores ?? {},
+    baselineTraceId ?? "",
+    baselineObservationId,
+  );
+  const displayBaselineTraceScores = useMergedAggregates(
+    baselineTraceScores ?? {},
+    baselineTraceId ?? "",
+  );
+  const cachedColumns = useMergeScoreColumns([]);
+  const orderedObservationKeys = [
+    ...new Set([
+      ...(observationScoreOrder.length
+        ? observationScoreOrder
+        : Object.keys(scores).sort()),
+      ...cachedColumns
+        .filter(
+          ({ key }) => key in displayScores || key in displayBaselineScores,
+        )
+        .map(({ key }) => key),
+    ]),
+  ];
+  const orderedTraceKeys = [
+    ...new Set([
+      ...(traceScoreOrder.length
+        ? traceScoreOrder
+        : Object.keys(traceScores).sort()),
+      ...cachedColumns
+        .filter(
+          ({ key }) =>
+            key in displayTraceScores || key in displayBaselineTraceScores,
+        )
+        .map(({ key }) => key),
+    ]),
+  ];
+  const displayScoreLevelLabels =
+    showScoreLevelLabels ||
+    (cachedColumns.some(
+      ({ key }) => key in displayScores || key in displayTraceScores,
+    ) &&
+      orderedObservationKeys.length > 0 &&
+      orderedTraceKeys.length > 0 &&
+      columnVisibility.observationScores !== false &&
+      columnVisibility.traceScores !== false);
   const scoreDiffs = useMemo(
     () =>
-      !showDiff || isBaseline || !baselineScores
+      !showDiff || isBaseline || !(baselineScores || baselineTraceId)
         ? undefined
-        : computeScoreDiffs(scores, baselineScores),
-    [scores, baselineScores, isBaseline, showDiff],
+        : computeScoreDiffs(displayScores, displayBaselineScores),
+    [
+      displayScores,
+      displayBaselineScores,
+      baselineScores,
+      baselineTraceId,
+      isBaseline,
+      showDiff,
+    ],
   );
 
   const traceScoreDiffs = useMemo(
     () =>
-      !showDiff || isBaseline || !baselineTraceScores
+      !showDiff || isBaseline || !(baselineTraceScores || baselineTraceId)
         ? undefined
-        : computeScoreDiffs(traceScores, baselineTraceScores),
-    [traceScores, baselineTraceScores, isBaseline, showDiff],
+        : computeScoreDiffs(displayTraceScores, displayBaselineTraceScores),
+    [
+      displayTraceScores,
+      displayBaselineTraceScores,
+      baselineTraceScores,
+      baselineTraceId,
+      isBaseline,
+      showDiff,
+    ],
   );
 
   const totalCostDiff = useMemo(
@@ -521,22 +583,6 @@ export const ExperimentGridCell = ({
     [baselineLatencyMs, isBaseline, latencyMs, showDiff],
   );
 
-  const orderedObservationKeys = useMemo(
-    () =>
-      observationScoreOrder.length > 0
-        ? observationScoreOrder
-        : Object.keys(scores).sort(),
-    [observationScoreOrder, scores],
-  );
-
-  const orderedTraceKeys = useMemo(
-    () =>
-      traceScoreOrder.length > 0
-        ? traceScoreOrder
-        : Object.keys(traceScores).sort(),
-    [traceScoreOrder, traceScores],
-  );
-
   const cellData: GridCellData = {
     showBaselineDelta: !isBaseline && showDiff,
     projectId,
@@ -550,8 +596,8 @@ export const ExperimentGridCell = ({
     latencyDiff,
     observationId,
     traceId,
-    scores,
-    traceScores,
+    scores: displayScores,
+    traceScores: displayTraceScores,
     scoreDiffs,
     traceScoreDiffs,
     baselineScores,
@@ -564,68 +610,63 @@ export const ExperimentGridCell = ({
 
   // Define cell rows declaratively - mirrors LangfuseColumnDef pattern
   // Fixed order: scores, metrics, output
-  const cellRows: CellRowDef<GridCellData>[] = useMemo(
-    () => [
-      // Keep all score levels together. Individual score visibility still
-      // follows the list-view columns.
-      {
-        accessorKey: "scores",
-        header: "Scores",
-        children: [
-          ...(columnVisibility.observationScores !== false
-            ? orderedObservationKeys.map((key) =>
-                getScoreRowDefinition(key, "observation", showScoreLevelLabels),
-              )
-            : []),
-          ...(columnVisibility.traceScores !== false
-            ? orderedTraceKeys.map((key) =>
-                getScoreRowDefinition(key, "trace", showScoreLevelLabels),
-              )
-            : []),
-        ],
-      },
-      // Measurements share the scores' value and delta alignment.
-      ...(hasVisibleCellMetadata(columnVisibility)
-        ? ([
-            {
-              accessorKey: "metadata",
-              cell: ({ data }) => (
-                <CellMetadataFooter
-                  data={data}
-                  columnVisibility={columnVisibility}
-                />
+  const cellRows: CellRowDef<GridCellData>[] = [
+    // Keep all score levels together. Individual score visibility still
+    // follows the list-view columns.
+    {
+      accessorKey: "scores",
+      header: "Scores",
+      children: [
+        ...(columnVisibility.observationScores !== false
+          ? orderedObservationKeys.map((key) =>
+              getScoreRowDefinition(
+                key,
+                "observation",
+                displayScoreLevelLabels,
               ),
-            },
-          ] satisfies CellRowDef<GridCellData>[])
-        : []),
-      // Output section
-      {
-        accessorKey: "output",
-        header: "Output",
-        cell: ({ data }) =>
-          data.isLoading ? (
-            <ConnectedIOTableCell
-              isLoading
-              variant="output"
-              singleLine={singleLine}
-            />
-          ) : (
-            <ConnectedIOTableCell
-              data={data.output ?? null}
-              variant="output"
-              singleLine={singleLine}
-            />
-          ),
-      },
-    ],
-    [
-      columnVisibility,
-      orderedObservationKeys,
-      orderedTraceKeys,
-      showScoreLevelLabels,
-      singleLine,
-    ],
-  );
+            )
+          : []),
+        ...(columnVisibility.traceScores !== false
+          ? orderedTraceKeys.map((key) =>
+              getScoreRowDefinition(key, "trace", displayScoreLevelLabels),
+            )
+          : []),
+      ],
+    },
+    // Measurements share the scores' value and delta alignment.
+    ...(hasVisibleCellMetadata(columnVisibility)
+      ? ([
+          {
+            accessorKey: "metadata",
+            cell: ({ data }) => (
+              <CellMetadataFooter
+                data={data}
+                columnVisibility={columnVisibility}
+              />
+            ),
+          },
+        ] satisfies CellRowDef<GridCellData>[])
+      : []),
+    // Output section
+    {
+      accessorKey: "output",
+      header: "Output",
+      cell: ({ data }) =>
+        data.isLoading ? (
+          <ConnectedIOTableCell
+            isLoading
+            variant="output"
+            singleLine={singleLine}
+          />
+        ) : (
+          <ConnectedIOTableCell
+            data={data.output ?? null}
+            variant="output"
+            singleLine={singleLine}
+          />
+        ),
+    },
+  ];
 
   // Filter and compute visible rows
   const visibleRows = getVisibleCellRows(cellRows, columnVisibility);
@@ -665,7 +706,7 @@ export const ExperimentGridCell = ({
     >
       {onAnnotate && (
         <div className="bg-background absolute right-1 bottom-1 z-1 rounded-md opacity-0 shadow-sm group-focus-within/grid-cell:opacity-100 group-hover/grid-cell:opacity-100">
-          <ActionButton
+          <Button
             text="Annotate"
             icon={SquarePen}
             variant="secondary"

@@ -9,6 +9,18 @@ import type { VisibilityState } from "@tanstack/react-table";
 import { ExperimentGridCell } from "./ExperimentGridCell";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 
+import {
+  ScoreCacheProvider,
+  useScoreCache,
+  type CachedScore,
+} from "@/src/features/scores/contexts/ScoreCacheContext";
+
+let scoreCache: ReturnType<typeof useScoreCache>;
+function CaptureScoreCache() {
+  scoreCache = useScoreCache();
+  return null;
+}
+
 const metadataQuery = vi.hoisted(() => vi.fn(() => ({ data: undefined })));
 
 vi.mock("@/src/utils/api", () => ({
@@ -37,63 +49,169 @@ const renderGridCell = (
   onAnnotate?: () => void,
 ) =>
   render(
-    <TooltipProvider>
-      <ExperimentGridCell
-        projectId="project-id"
-        itemId="item-id"
-        onExperimentClick={onExperimentClick}
-        onAnnotate={onAnnotate}
-        output={output}
-        level="GENERATION"
-        startTime={new Date("2026-07-30T10:00:00.000Z")}
-        observationId="observation-id"
-        traceId="trace-id"
-        singleLine={false}
-        scores={{
-          [observationScoreKey]: {
-            type: "NUMERIC",
-            values: [0.8],
-            average: 0.8,
-            id: "score-id",
-            hasMetadata: true,
-            comment: "Evaluator comment",
-            executionTraceId: "execution-trace-id",
-          },
-        }}
-        traceScores={{
-          [traceScoreKey]: {
-            type: "NUMERIC",
-            values: [0.9],
-            average: 0.9,
-            id: "trace-score-id",
-          },
-        }}
-        observationScoreOrder={[observationScoreKey]}
-        traceScoreOrder={[traceScoreKey]}
-        isBaseline={isBaseline}
-        baselineScores={{
-          [observationScoreKey]: {
-            type: "NUMERIC",
-            values: [0.3],
-            average: 0.3,
-            id: "baseline-score-id",
-          },
-        }}
-        baselineTraceScores={{
-          [traceScoreKey]: {
-            type: "NUMERIC",
-            values: [0.7],
-            average: 0.7,
-            id: "baseline-trace-score-id",
-          },
-        }}
-        columnVisibility={columnVisibility}
-        showScoreLevelLabels={showScoreLevelLabels}
-      />
-    </TooltipProvider>,
+    <ScoreCacheProvider>
+      <CaptureScoreCache />
+      <TooltipProvider>
+        <ExperimentGridCell
+          projectId="project-id"
+          itemId="item-id"
+          onExperimentClick={onExperimentClick}
+          onAnnotate={onAnnotate}
+          output={output}
+          level="GENERATION"
+          startTime={new Date("2026-07-30T10:00:00.000Z")}
+          observationId="observation-id"
+          traceId="trace-id"
+          singleLine={false}
+          scores={{
+            [observationScoreKey]: {
+              type: "NUMERIC",
+              values: [0.8],
+              average: 0.8,
+              id: "score-id",
+              hasMetadata: true,
+              comment: "Evaluator comment",
+              executionTraceId: "execution-trace-id",
+            },
+          }}
+          traceScores={{
+            [traceScoreKey]: {
+              type: "NUMERIC",
+              values: [0.9],
+              average: 0.9,
+              id: "trace-score-id",
+            },
+          }}
+          observationScoreOrder={[observationScoreKey]}
+          traceScoreOrder={[traceScoreKey]}
+          isBaseline={isBaseline}
+          baselineTraceId="baseline-trace-id"
+          baselineObservationId="baseline-observation-id"
+          baselineScores={{
+            [observationScoreKey]: {
+              type: "NUMERIC",
+              values: [0.3],
+              average: 0.3,
+              id: "baseline-score-id",
+            },
+          }}
+          baselineTraceScores={{
+            [traceScoreKey]: {
+              type: "NUMERIC",
+              values: [0.7],
+              average: 0.7,
+              id: "baseline-trace-score-id",
+            },
+          }}
+          columnVisibility={columnVisibility}
+          showScoreLevelLabels={showScoreLevelLabels}
+        />
+      </TooltipProvider>
+    </ScoreCacheProvider>,
   );
 
 describe("ExperimentGridCell", () => {
+  it("reflects cached creates, edits, and deletes without a server refresh", () => {
+    renderGridCell(false);
+    const score: CachedScore = {
+      id: "annotation-id",
+      projectId: "project-id",
+      environment: "default",
+      name: "review",
+      source: "ANNOTATION",
+      dataType: "NUMERIC",
+      configId: "config-id",
+      value: 0.42,
+      stringValue: null,
+      comment: null,
+      traceId: "trace-id",
+      observationId: "observation-id",
+      sessionId: null,
+      timestamp: new Date(),
+    };
+    act(() => {
+      scoreCache.set(score.id, score);
+      scoreCache.setColumn(score);
+    });
+    expect(screen.getByText("review")).toBeInTheDocument();
+    expect(screen.getByText("0.42")).toBeInTheDocument();
+    act(() => scoreCache.set(score.id, { ...score, value: 0.63 }));
+    expect(screen.getByText("0.63")).toBeInTheDocument();
+    expect(screen.queryByText("0.42")).not.toBeInTheDocument();
+    act(() => scoreCache.delete(score.id));
+    expect(screen.queryByText("0.63")).not.toBeInTheDocument();
+    act(() => scoreCache.delete("trace-score-id"));
+    expect(screen.queryByText("0.90")).not.toBeInTheDocument();
+  });
+
+  it("merges each target independently and recalculates baseline diffs", () => {
+    renderGridCell(true, undefined, null, undefined, false);
+    const score: CachedScore = {
+      id: "current-observation",
+      projectId: "project-id",
+      environment: "default",
+      name: "review",
+      source: "ANNOTATION",
+      dataType: "NUMERIC",
+      configId: "config-id",
+      value: 0.62,
+      stringValue: null,
+      comment: null,
+      traceId: "trace-id",
+      observationId: "observation-id",
+      sessionId: null,
+      timestamp: new Date(),
+    };
+    act(() => {
+      scoreCache.setColumn(score);
+      scoreCache.set(score.id, score);
+      scoreCache.set("current-trace", {
+        ...score,
+        id: "current-trace",
+        observationId: null,
+        value: 0.91,
+      });
+      scoreCache.set("baseline-observation", {
+        ...score,
+        id: "baseline-observation",
+        traceId: "baseline-trace-id",
+        observationId: "baseline-observation-id",
+        value: 0.21,
+      });
+      scoreCache.set("baseline-trace", {
+        ...score,
+        id: "baseline-trace",
+        traceId: "baseline-trace-id",
+        observationId: null,
+        value: 0.37,
+      });
+      scoreCache.set("other-observation", {
+        ...score,
+        id: "other-observation",
+        observationId: "other-observation-id",
+        value: 0.99,
+      });
+    });
+    expect(screen.getByText("0.62")).toBeInTheDocument();
+    expect(screen.getByText("0.91")).toBeInTheDocument();
+    expect(screen.queryByText("0.99")).not.toBeInTheDocument();
+    expect(screen.getByText("+0.41")).toBeInTheDocument();
+    expect(screen.getByText("+0.54")).toBeInTheDocument();
+    act(() =>
+      scoreCache.set("baseline-observation", {
+        ...score,
+        id: "baseline-observation",
+        traceId: "baseline-trace-id",
+        observationId: "baseline-observation-id",
+        value: 0.12,
+      }),
+    );
+    expect(screen.queryByText("+0.41")).not.toBeInTheDocument();
+    expect(screen.getAllByText("+0.50")).toHaveLength(2);
+    act(() => scoreCache.delete("baseline-trace"));
+    expect(screen.queryByText("+0.54")).not.toBeInTheDocument();
+  });
+
   it("opens annotation without also triggering the normal cell click", () => {
     const onAnnotate = vi.fn();
     const onExperimentClick = vi.fn();

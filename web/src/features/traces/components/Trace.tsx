@@ -30,17 +30,11 @@ import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
 
 import { useMemo, type ReactNode } from "react";
-import { useStore } from "zustand";
 import { useRouter } from "next/router";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
-import {
-  TraceReviewPanelProvider,
-  useTraceReviewPanel,
-} from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelContext";
 import { TraceReviewPanel } from "./TraceReviewPanel";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { useReadPath } from "@/src/features/events";
-import { type AnnotationPanelData } from "@/src/features/scores/types";
 
 export type TraceProps = {
   observations: Array<ObservationReturnTypeWithMetadata>;
@@ -233,48 +227,32 @@ function DesktopTraceContent({
 }: {
   desktopLayout: DesktopLayout;
 }) {
-  const { trace, observations, serverScores } = useTraceData();
+  const { trace, observations } = useTraceData();
   const { selectedNodeId } = useSelection();
-  const { isV4 } = useReadPath();
-  const canAnnotate = useHasProjectAccess({
-    projectId: trace.projectId,
-    scope: "scores:CUD",
-  });
   const router = useRouter();
-  const observation = observations.find((item) => item.id === selectedNodeId);
-  const initialAnnotation: AnnotationPanelData | undefined =
-    router.query.annotation === "open" && canAnnotate && observation
+  const selectedObservation = observations.find(
+    (observation) => observation.id === selectedNodeId,
+  );
+  const initialComments =
+    getCommentDrawerInitialStateFromUrl(router.query) ??
+    (router.query.mode === "comment"
       ? {
-          scoreTarget: {
-            type: "trace",
-            traceId: trace.id,
-            observationId: observation.id,
-          },
-          scores: serverScores.filter(
-            (score) => score.observationId === observation.id,
-          ),
-          companionTrace: isV4
-            ? {
-                environment: trace.environment,
-                scores: serverScores.filter((score) => !score.observationId),
-              }
-            : undefined,
-          scoreMetadata: {
-            projectId: trace.projectId,
-            environment: observation.environment,
-          },
-          analyticsData: { type: "trace", source: "DatasetCompare", isV4 },
+          type: "comments" as const,
+          objectId: selectedObservation?.id ?? trace.id,
+          objectType: selectedObservation
+            ? ("OBSERVATION" as const)
+            : ("TRACE" as const),
+          objectStartTime: selectedObservation?.startTime ?? trace.timestamp,
         }
-      : undefined;
+      : undefined);
   if (desktopLayout.groupId === DESKTOP_LAYOUTS.annotation.groupId) {
     return <DesktopTraceWorkspace desktopLayout={desktopLayout} />;
   }
   return (
     <TraceReviewPanelProvider
-      key={`${trace.projectId}:${trace.id}:${initialAnnotation ? observation?.id : ""}`}
+      key={`${trace.projectId}:${trace.id}`}
       projectId={trace.projectId}
-      initialComments={getCommentDrawerInitialStateFromUrl(router.query)}
-      initialAnnotation={initialAnnotation}
+      initialComments={initialComments}
     >
       <DesktopTraceReviewWorkspace
         desktopLayout={desktopLayout}
@@ -291,8 +269,13 @@ function DesktopTraceReviewWorkspace({
   desktopLayout: DesktopLayout;
   projectId: string;
 }) {
-  const store = useTraceReviewPanel();
-  const reviewOpen = useStore(store, (state) => state.active !== null);
+  const { query } = useRouter();
+  const mode = query.mode;
+  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:CUD" });
+  const reviewOpen =
+    (mode === "annotate" && canAnnotate) ||
+    mode === "comment" ||
+    query.comments === "open";
   return (
     <DesktopTraceWorkspace
       desktopLayout={desktopLayout}

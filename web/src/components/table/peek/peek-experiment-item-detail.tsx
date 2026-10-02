@@ -13,7 +13,6 @@ const PeekViewExperimentItemDetail = ({ projectId }: { projectId: string }) => {
   const peekId = router.query.peek as string | undefined;
   const timestamp = parseTraceTimestampFromQuery(router.query.timestamp);
   const traceId = router.query.traceId as string | undefined;
-  const annotate = router.query.annotation === "open";
 
   const trace = usePeekData({
     projectId,
@@ -37,8 +36,7 @@ const PeekViewExperimentItemDetail = ({ projectId }: { projectId: string }) => {
     <TraceDetailBody
       trace={trace.data}
       context="peek"
-      keySuffix={`${peekId}:${annotate}`}
-      layout={annotate ? "observation-focused" : undefined}
+      keySuffix={peekId}
       truncatedAtObservations={trace.truncatedAtObservations}
     />
   );

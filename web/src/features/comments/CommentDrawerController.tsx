@@ -32,7 +32,7 @@ export function getCommentDrawerInitialStateFromUrl(
   const objectId = query.commentObjectId;
   const objectType = query.commentObjectType;
   if (
-    query.comments !== "open" ||
+    (query.comments !== "open" && query.mode !== "comment") ||
     typeof objectId !== "string" ||
     typeof objectType !== "string"
   ) {
@@ -89,6 +89,27 @@ export function CommentDrawerController({
               confirmDiscard: () =>
                 window.confirm("Discard your unsent comment?"),
             });
+            const current = reviewPanel.getState();
+            if (
+              current.active === "comments" &&
+              current.comments?.target.objectId === target.objectId &&
+              current.comments.target.objectType === target.objectType
+            ) {
+              const { comments, ...query } = router.query;
+              router.replace(
+                {
+                  pathname: router.pathname,
+                  query: {
+                    ...query,
+                    mode: "comment",
+                    commentObjectId: target.objectId,
+                    commentObjectType: target.objectType,
+                  },
+                },
+                undefined,
+                { shallow: true },
+              );
+            }
             return;
           }
           store.getState().actions.open({

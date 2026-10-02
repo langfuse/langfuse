@@ -72,6 +72,9 @@ export function useExperimentPeekNavigation() {
       params.set("traceId", target.traceId);
       params.set("timestamp", target.timestamp);
       params.set("observation", target.observationId);
+      params.delete("comments");
+      params.delete("commentObjectType");
+      params.delete("commentObjectId");
 
       // router.push re-prepends NEXT_PUBLIC_BASE_PATH, so strip it first
       const pathname = getPathnameWithoutBasePath();

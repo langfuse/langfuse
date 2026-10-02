@@ -224,6 +224,8 @@ export const ExperimentGridView = ({
               showScoreLevelLabels={showScoreLevelLabels}
               isBaseline={isBaseline}
               showDiff={showDiff}
+              baselineTraceId={baselineData?.traceId}
+              baselineObservationId={baselineData?.observationId}
               baselineScores={baselineData?.observationScores}
               baselineTraceScores={baselineData?.traceScores}
               baselineExperimentName={
@@ -246,11 +248,11 @@ export const ExperimentGridView = ({
                         targetType: "observation",
                         entryPoint: "annotate_button",
                       });
-                      peekView.openPeek?.(row.original.itemId, {
-                        ...row.original,
-                        clickedExperimentId: expId,
-                        annotate: true,
-                      });
+                      peekView.openPeek?.(
+                        row.original.itemId,
+                        { ...row.original, clickedExperimentId: expId },
+                        { queryParams: { mode: "annotate" } },
+                      );
                     }
                   : undefined
               }

@@ -134,7 +134,6 @@ import { resolveExperimentPeekTarget } from "@/src/features/experiments/fns/reso
  */
 type ClickedExperimentRow = ExperimentItemsTableRow & {
   clickedExperimentId?: string;
-  annotate?: boolean;
 };
 
 /** `usePeekNavigation`'s `openPeek`, as the cell handlers need it. */
@@ -1668,7 +1667,10 @@ export default function ExperimentItemsTable({
       "timestamp",
       "traceId",
       "peekExperimentId",
-      "annotation",
+      "mode",
+      "comments",
+      "commentObjectType",
+      "commentObjectId",
     ],
     tableName: experimentItemsFilterConfig.tableName,
     isV4: true,
@@ -1679,7 +1681,6 @@ export default function ExperimentItemsTable({
         clickedExperimentId: row.clickedExperimentId,
       });
       return {
-        ...(row.annotate ? { annotation: "open" } : {}),
         traceId: targetExp?.traceId || "",
         timestamp: targetExp?.startTime.toISOString() || "",
         observation: targetExp?.observationId || "",
@@ -1764,13 +1765,14 @@ export default function ExperimentItemsTable({
           ...entry,
           params: {
             ...entry.params,
-            ...(router.query.annotation === "open"
-              ? { annotation: "open" }
+            ...(router.query.mode === "annotate" ||
+            router.query.mode === "comment"
+              ? { mode: router.query.mode }
               : {}),
           },
         }),
     };
-  }, [peekNavigationProps, canUsePeek, router.query.annotation]);
+  }, [peekNavigationProps, canUsePeek, router.query.mode]);
 
   // The page as fetched. The score column header aggregates — and the score
   // matrix, which reads the same ones — deliberately describe this whole page,
