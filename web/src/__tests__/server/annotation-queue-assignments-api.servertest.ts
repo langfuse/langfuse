@@ -171,6 +171,19 @@ describe("/api/public/annotation-queues/:queueId/assignments API", () => {
       });
 
       expect(assignments).toHaveLength(1);
+
+      // Only the first call created the assignment, so only it may be audited. The
+      // second call matched the existing row and took the empty `update` branch,
+      // which changes nothing and must not produce a second "create" entry.
+      const auditEntries = await prisma.auditLog.findMany({
+        where: {
+          resourceType: "annotationQueueAssignment",
+          resourceId: assignments[0].id,
+          action: "create",
+        },
+      });
+
+      expect(auditEntries).toHaveLength(1);
     });
 
     it("should return 404 for non-existent annotation queue", async () => {
