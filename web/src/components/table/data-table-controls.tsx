@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 import {
@@ -70,11 +69,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Badge } from "@/src/components/ui/badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Button } from "@/src/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { Slider } from "@/src/components/ui/slider";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
@@ -891,9 +887,9 @@ export function DataTableControls({
         {/* Mirror the expanded header's metrics (h-10 row, border-b, 24px
             button) so the toggle icon doesn't shift when collapsing. */}
         <div className="flex h-10 w-full shrink-0 items-center justify-center border-b">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
+          <Tooltip label="Show filters" placement="right" delay={300}>
+{({ getTriggerProps }) => (
+<Button {...getTriggerProps()}
                 variant="ghost"
                 size="icon"
                 onClick={() => {
@@ -905,34 +901,11 @@ export function DataTableControls({
               >
                 <PanelLeftOpen className="icon-base text-icon-foreground" />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">Show filters</TooltipContent>
-          </Tooltip>
+)}
+</Tooltip>
         </div>
         {activeFilterCount > 0 && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              {/* The badge doubles as an expand affordance: the rail hides
-                  everything else about the filters, so the count is where
-                  people click to see them. */}
-              <button
-                type="button"
-                onClick={() => {
-                  setOpen(true);
-                  emitSidebarToggled(true, "rail_badge");
-                }}
-                aria-label={`Show ${activeFilterCount} active ${
-                  activeFilterCount === 1 ? "filter" : "filters"
-                }`}
-                className="mt-2 cursor-pointer"
-              >
-                <Badge variant="secondary" className="h-5 px-1.5 text-xs">
-                  {activeFilterCount}
-                </Badge>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="max-w-64 text-xs">
-              <p className="font-bold">
+          <CustomTooltip content={<div className="max-w-64 text-xs"><p className="font-bold">
                 {activeFilterCount} active{" "}
                 {activeFilterCount === 1 ? "filter" : "filters"}
               </p>
@@ -949,9 +922,28 @@ export function DataTableControls({
                     </p>
                   );
                 })}
-              {activeFilterCount > 6 && <p>+{activeFilterCount - 6} more</p>}
-            </TooltipContent>
-          </Tooltip>
+              {activeFilterCount > 6 && <p>+{activeFilterCount - 6} more</p>}</div>} placement="right" delay={300}>
+{({ getTriggerProps }) => (
+{/* The badge doubles as an expand affordance: the rail hides
+                  everything else about the filters, so the count is where
+                  people click to see them. */}
+              <button {...getTriggerProps()}
+                type="button"
+                onClick={() => {
+                  setOpen(true);
+                  emitSidebarToggled(true, "rail_badge");
+                }}
+                aria-label={`Show ${activeFilterCount} active ${
+                  activeFilterCount === 1 ? "filter" : "filters"
+                }`}
+                className="mt-2 cursor-pointer"
+              >
+                <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+                  {activeFilterCount}
+                </Badge>
+              </button>
+)}
+</CustomTooltip>
         )}
       </div>
       <div
@@ -988,9 +980,9 @@ export function DataTableControls({
                 <X className="icon-base text-icon-foreground" />
               </Button>
             ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
+              <Tooltip label="Hide filters" delay={300}>
+{({ getTriggerProps }) => (
+<Button {...getTriggerProps()}
                     variant="ghost"
                     size="icon"
                     onClick={() => {
@@ -1002,9 +994,8 @@ export function DataTableControls({
                   >
                     <PanelLeftClose className="icon-base text-icon-foreground" />
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>Hide filters</TooltipContent>
-              </Tooltip>
+)}
+</Tooltip>
             )}
             {layout !== "inline" && (
               <span className="text-sm font-bold">Filters</span>
@@ -1020,16 +1011,15 @@ export function DataTableControls({
           <div className="flex items-center gap-1">
             {filterWithAI && isLangfuseCloud && (
               <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <PopoverTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Tooltip label="Filter with AI" delay={300}>
+{({ getTriggerProps }) => (
+<PopoverTrigger asChild>
+                      <Button {...getTriggerProps()} variant="ghost" size="icon" className="h-8 w-8">
                         <WandSparkles className="icon-base text-icon-foreground" />
                       </Button>
                     </PopoverTrigger>
-                  </TooltipTrigger>
-                  <TooltipContent>Filter with AI</TooltipContent>
-                </Tooltip>
+)}
+</Tooltip>
                 <PopoverContent align="center" className="w-[400px]">
                   <DataTableAIFilters
                     onFiltersGenerated={handleFiltersGenerated}
@@ -1042,9 +1032,11 @@ export function DataTableControls({
                 facets ON SCREEN, so a search narrowing the list cannot leave
                 the button offering to collapse something nobody can see.
                 Facets hidden by a query keep whatever expansion they had. */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
+            <Tooltip label={expandedVisibleCount === 0
+                  ? "Expand all filters"
+                  : "Collapse all filters"} delay={300}>
+{({ getTriggerProps }) => (
+<Button {...getTriggerProps()}
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6"
@@ -1082,18 +1074,13 @@ export function DataTableControls({
                     <FoldVertical className="icon-base text-icon-foreground" />
                   )}
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {expandedVisibleCount === 0
-                  ? "Expand all filters"
-                  : "Collapse all filters"}
-              </TooltipContent>
-            </Tooltip>
+)}
+</Tooltip>
             <DropdownMenu>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <Button
+              <Tooltip label="Filter options" delay={300}>
+{({ getTriggerProps }) => (
+<DropdownMenuTrigger asChild>
+                    <Button {...getTriggerProps()}
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6"
@@ -1102,9 +1089,8 @@ export function DataTableControls({
                       <MoreVertical className="icon-base text-icon-foreground" />
                     </Button>
                   </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <TooltipContent>Filter options</TooltipContent>
-              </Tooltip>
+)}
+</Tooltip>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem
                   // Clear also resets unfinished drafts and selected views,
@@ -1425,18 +1411,15 @@ function FilterAccordionItem({
             onReset={onReset}
           >
             {isDisabled && disabledReason ? (
-              <Tooltip delayDuration={80}>
-                <TooltipTrigger asChild>
-                  <span className="flex min-w-0 items-center gap-1">
+              <Tooltip label={disabledReason} delay={80}>
+{({ getTriggerProps }) => (
+<span {...getTriggerProps()} className="flex min-w-0 items-center gap-1">
                     <span className="min-w-0 truncate" title={label}>
                       {label}
                     </span>
                   </span>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-80 text-xs">
-                  {disabledReason}
-                </TooltipContent>
-              </Tooltip>
+)}
+</Tooltip>
             ) : help ? (
               <div className="flex min-w-0 items-center gap-1">
                 <span className="min-w-0 truncate" title={label}>
@@ -1451,14 +1434,11 @@ function FilterAccordionItem({
                 <span className="min-w-0 truncate" title={label}>
                   {label}
                 </span>
-                <Tooltip delayDuration={80}>
-                  <TooltipTrigger asChild>
-                    <InfoIcon className="text-muted-foreground icon-sm shrink-0" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-80 text-xs">
-                    {tooltip}
-                  </TooltipContent>
-                </Tooltip>
+                <Tooltip label={tooltip} delay={80}>
+{({ getTriggerProps }) => (
+<InfoIcon {...getTriggerProps()} className="text-muted-foreground icon-sm shrink-0" />
+)}
+</Tooltip>
               </span>
             ) : (
               <span className="flex min-w-0 items-center gap-1">
@@ -1788,21 +1768,15 @@ function CategoricalSelectContent({
                   read as a broken button. Disable it and say why; it
                   enables as soon as any selection exists, and NONE mode
                   engages by itself when a value is unchecked. */}
-              <Tooltip delayDuration={80}>
-                <TooltipTrigger asChild>
-                  <span className="w-full min-w-0">
+              <Tooltip label="Nothing to exclude yet — uncheck a value to exclude it, or select values first." disabled={operator !== undefined} delay={80}>
+                {({ getTriggerProps }) => (
+                  <span {...getTriggerProps()} className="w-full min-w-0">
                     <Tabs.Trigger
                       value="none of"
                       disabled={operator === undefined}
                       label="None of"
                     />
                   </span>
-                </TooltipTrigger>
-                {operator === undefined && (
-                  <TooltipContent className="max-w-64 text-xs">
-                    Nothing to exclude yet — uncheck a value to exclude it, or
-                    select values first.
-                  </TooltipContent>
                 )}
               </Tooltip>
             </Tabs.List>
