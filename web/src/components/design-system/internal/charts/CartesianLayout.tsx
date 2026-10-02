@@ -22,7 +22,7 @@ function getCartesianPlotHeight(height: number, showXAxisLabels: boolean) {
 }
 
 function getCartesianTickCount(plotHeight: number) {
-  return Math.min(5, Math.max(3, Math.floor(plotHeight / Y_TICK_HEIGHT)));
+  return Math.min(5, Math.max(1, Math.floor(plotHeight / Y_TICK_HEIGHT)));
 }
 
 function getCartesianLayout({
