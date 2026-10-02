@@ -28,12 +28,7 @@ const triggerVariants = cva("", {
   },
 });
 
-/**
- * RoleSelect is a role picker whose options each open a permission popup. It
- * owns the Select's open state and renders the popup as a sibling of the
- * Select, so opening the popup can close the dropdown first (Radix unmounts
- * SelectContent on close) and the popup still survives that unmount.
- */
+/** RoleSelect offers permission previews for each role. */
 export function RoleSelect({
   roles,
   value,

@@ -16,17 +16,7 @@ import {
 } from "@/src/features/rbac/components/RolePermissionList";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 
-/**
- * RolePermissionPopup is the modal, sibling-rendered role definition dialog
- * opened by the square-arrow button in the members/invites and api-key role
- * dropdowns. The parent owns `open` and sets `role` before opening; the parent
- * flips `open` to false on close (`role` may stay set so the content survives
- * the close animation). Render it as a sibling of the Select that opens it,
- * never inside SelectContent, since Radix unmounts the Select content on close.
- * Its floor size matches the create-api-key dialog so it never reads as a
- * cramped popup. `emptyStateComment` overrides the permission list for roles
- * that grant nothing (e.g. NONE), where a plain empty list would be unhelpful.
- */
+/** RolePermissionPopup must remain outside the Select content. */
 export function RolePermissionPopup({
   open,
   onOpenChange,
