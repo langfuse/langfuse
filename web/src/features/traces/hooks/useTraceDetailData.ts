@@ -115,21 +115,19 @@ export function useTraceDetailData({
       eventsData.error as { data?: { code?: string } } | null | undefined
     )?.data?.code;
     const isUnauthorized = eventsErrorCode === "UNAUTHORIZED";
+    const isNotFoundError = eventsErrorCode === "NOT_FOUND";
     return {
       data: eventsData.data,
       isLoading: eventsData.isLoading,
       error: eventsData.error,
       isError: !!eventsData.error,
-      // The events path surfaces "missing" as no-data after loading rather than
-      // a NOT_FOUND error code. Any error (UNAUTHORIZED, a 500, a network blip)
-      // also lands as no-data, so "not found" must mean no-data AND no-error —
-      // else a transient failure is mislabeled as a deleted/missing trace.
-      // While empty-result backoff is still running, keep isNotFound false.
-      isNotFound:
-        !eventsData.isLoading &&
-        !eventsData.data &&
-        !eventsData.error &&
-        !eventsData.isWaitingForTrace,
+      // Missing traces usually arrive as NOT_FOUND from the events auth
+      // middleware. Empty success (no error, no data) is the other miss shape.
+      // While arrival retries are running, keep isNotFound false.
+      isNotFound: eventsData.isWaitingForTrace
+        ? false
+        : isNotFoundError ||
+          (!eventsData.isLoading && !eventsData.data && !eventsData.error),
       isUnauthorized,
       isWaitingForTrace: eventsData.isWaitingForTrace,
       truncatedAtObservations: eventsData.truncatedAtObservations,

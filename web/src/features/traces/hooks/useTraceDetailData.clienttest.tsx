@@ -125,6 +125,32 @@ describe("useTraceDetailData (beta / events path)", () => {
     expect(r.isWaitingForTrace).toBe(true);
     expect(r.isNotFound).toBe(false);
   });
+
+  it("treats a settled NOT_FOUND error as isNotFound on the events path", () => {
+    mockUseEventsTraceData.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: { data: { code: "NOT_FOUND" } },
+      isWaitingForTrace: false,
+      truncatedAtObservations: undefined,
+    });
+    const r = render();
+    expect(r.isNotFound).toBe(true);
+    expect(r.isWaitingForTrace).toBe(false);
+  });
+
+  it("keeps isNotFound false while NOT_FOUND arrival retries are running", () => {
+    mockUseEventsTraceData.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: { data: { code: "NOT_FOUND" } },
+      isWaitingForTrace: true,
+      truncatedAtObservations: undefined,
+    });
+    const r = render();
+    expect(r.isWaitingForTrace).toBe(true);
+    expect(r.isNotFound).toBe(false);
+  });
 });
 
 describe("useTraceDetailData endpoint routing", () => {

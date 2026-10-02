@@ -16,7 +16,11 @@ import {
   toDomainArrayWithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
 import { partition } from "lodash";
-import { getTraceArrivalEmptyRefetchIntervalMs } from "@/src/features/events/lib/traceArrivalRetry";
+import {
+  getTraceArrivalEmptyRefetchIntervalMs,
+  getTraceArrivalRetryDelayMs,
+  shouldRetryTraceArrival,
+} from "@/src/features/events/lib/traceArrivalRetry";
 
 interface UseEventsTraceDataProps {
   projectId: string;
@@ -65,9 +69,10 @@ export function useEventsTraceData(
   const { projectId, traceId, enabled = true } = props;
 
   // Step 1: Fetch all observations for this trace (without I/O for performance).
-  // A missing trace usually returns an empty observation list (success), not a
-  // NOT_FOUND error — so arrival lag is handled via refetchInterval backoff
-  // rather than `retry`.
+  // Missing traces usually 404 in protectedGetEventsTraceProcedure (NOT_FOUND)
+  // before this query returns — so arrival lag uses the same retry/backoff as
+  // the traces-table path. Empty success is still retried via refetchInterval
+  // in case a future read path returns [] instead of throwing.
   const eventsQuery = api.events.byTraceId.useQuery(
     {
       projectId,
@@ -78,7 +83,16 @@ export function useEventsTraceData(
       enabled: enabled && !!traceId,
       retry(failureCount, error) {
         if (error.data?.code === "UNAUTHORIZED") return false;
+        if (error.data?.code === "NOT_FOUND") {
+          return shouldRetryTraceArrival(failureCount);
+        }
         return failureCount < 3;
+      },
+      retryDelay: (failureCount, error) => {
+        if (error.data?.code === "NOT_FOUND") {
+          return getTraceArrivalRetryDelayMs(failureCount);
+        }
+        return Math.min(1_000 * 2 ** failureCount, 30_000);
       },
       refetchInterval: (query) => {
         const observations = query.state.data?.observations;
@@ -89,6 +103,8 @@ export function useEventsTraceData(
         );
       },
       refetchIntervalInBackground: false,
+      // ErrorPage owns the settled miss UX — don't also toast 404s.
+      meta: { silentHttpCodes: [404] },
       staleTime: 60 * 1000, // 1 minute
     },
   );
@@ -232,10 +248,17 @@ export function useEventsTraceData(
 
   // Still inside the empty-result backoff window (same 4 retries as the traces
   // path). Between interval ticks isFetching is false, so key off the count.
-  const isWaitingForTrace =
+  const isWaitingForEmptyResult =
     observationsEmpty &&
     getTraceArrivalEmptyRefetchIntervalMs(emptyFetchTracker.current.count) !==
       false;
+  // NOT_FOUND from the auth middleware: same waiting window as the traces path.
+  const isWaitingForNotFound =
+    !eventsQuery.data &&
+    eventsQuery.isFetching &&
+    eventsQuery.failureCount > 0 &&
+    !eventsQuery.isError;
+  const isWaitingForTrace = isWaitingForEmptyResult || isWaitingForNotFound;
 
   return {
     data: transformed ?? undefined,
