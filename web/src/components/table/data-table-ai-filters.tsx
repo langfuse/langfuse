@@ -1,13 +1,7 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Info } from "lucide-react";
 import { useQueryProject } from "@/src/features/projects";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -79,19 +73,17 @@ export function DataTableAIFilters({
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <span className="text-sm font-bold">Filter with AI</span>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Info className="text-muted-foreground h-4 w-4" />
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="text-xs">
-                We convert natural language into deterministic filters which you
-                can adjust afterwards
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Tooltip
+          label="We convert natural language into deterministic filters which you can adjust afterwards"
+          delay={300}
+        >
+          {({ getTriggerProps }) => (
+            <Info
+              {...getTriggerProps()}
+              className="text-muted-foreground h-4 w-4"
+            />
+          )}
+        </Tooltip>
       </div>
       <Textarea
         autoFocus
