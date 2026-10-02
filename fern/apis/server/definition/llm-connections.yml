@@ -82,7 +82,11 @@ types:
         docs: The adapter used to interface with the LLM
       secretKey:
         type: string
-        docs: Secret key for the LLM API.
+        docs: >
+          Secret key for the LLM API. For the **Azure** adapter, pass one of:
+          - An Azure OpenAI API key.
+          - A Microsoft Entra ID service principal as a JSON string: `{"tenantId": "<tenant-id>", "clientId": "<client-id>", "clientSecret": "<client-secret>"}`.
+          - `__AZURE_DEFAULT_CREDENTIALS__` to use the deployment's default Azure credentials, such as a managed identity (self-hosted only; the base URL must be an `*.openai.azure.com`, `*.cognitiveservices.azure.com`, or `*.services.ai.azure.com` endpoint).
       baseURL:
         type: optional<string>
         docs: Custom base URL for the LLM API

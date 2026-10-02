@@ -6,6 +6,7 @@ import {
   CreateLlmApiKey,
   UpdateLlmApiKey,
   SafeLlmApiKeySchema,
+  type AzureAuthMethod,
   type BedrockAuthMethod,
 } from "@/src/features/llm-api-key/types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
@@ -25,6 +26,8 @@ import {
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
+  AZURE_USE_DEFAULT_CREDENTIALS,
+  parseAzureCredential,
   EvaluatorBlockReason,
   type LLMConnectionConfig,
 } from "@langfuse/shared";
@@ -47,6 +50,7 @@ import {
   EvaluatorBlockSource,
   finalizeEvaluatorBlocks,
   validateLlmConnectionBaseURL,
+  assertAzureHostAllowedForDefaultCredentials,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -58,9 +62,80 @@ export function getDisplaySecretKey(secretKey: string) {
   if (secretKey === VERTEXAI_USE_DEFAULT_CREDENTIALS) {
     return "Default GCP credentials (ADC)";
   }
+  if (secretKey === AZURE_USE_DEFAULT_CREDENTIALS) {
+    return "Default Azure credentials (managed identity)";
+  }
+  const azureServicePrincipal = parseAzureServicePrincipal(secretKey);
+  if (azureServicePrincipal) {
+    // The client ID is not secret; showing it avoids revealing the client secret.
+    return `Entra ID app ...${azureServicePrincipal.clientId.slice(-4)}`;
+  }
   return secretKey.endsWith('"}')
     ? "..." + secretKey.slice(-6, -2)
     : "..." + secretKey.slice(-4);
+}
+
+function parseAzureServicePrincipal(secretKey: string) {
+  if (!secretKey.startsWith("{")) return undefined;
+  try {
+    const credential = parseAzureCredential(secretKey);
+    return credential.type === "service-principal" ? credential : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Validates adapter-specific secret formats that cannot be expressed in the
+ * input schema. Throws an Error with a user-facing message.
+ */
+export function validateAzureSecretKey(params: {
+  adapter: LLMAdapter;
+  secretKey: string;
+  baseURL?: string | null;
+}) {
+  if (params.secretKey === AZURE_USE_DEFAULT_CREDENTIALS) {
+    if (
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
+      params.adapter !== LLMAdapter.Azure
+    ) {
+      throw new Error(
+        "Default Azure credentials are only allowed for Azure in self-hosted deployments.",
+      );
+    }
+    if (params.baseURL) {
+      assertAzureHostAllowedForDefaultCredentials(params.baseURL);
+    }
+    return;
+  }
+
+  if (params.adapter === LLMAdapter.Azure) {
+    parseAzureCredential(params.secretKey);
+  }
+}
+
+function getAzureAuthMethod(secretKey: string): AzureAuthMethod {
+  if (secretKey === AZURE_USE_DEFAULT_CREDENTIALS) {
+    return AuthMethod.DefaultCredentials;
+  }
+  return parseAzureServicePrincipal(secretKey)
+    ? AuthMethod.EntraServicePrincipal
+    : AuthMethod.ApiKey;
+}
+
+function assertValidAzureSecretKey(params: {
+  adapter: LLMAdapter;
+  secretKey: string;
+  baseURL?: string | null;
+}) {
+  try {
+    validateAzureSecretKey(params);
+  } catch (e) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: e instanceof Error ? e.message : "Invalid Azure credentials.",
+    });
+  }
 }
 
 function validateBedrockSecretKey(secretKey: string) {
@@ -351,6 +426,12 @@ export const llmApiKeyRouter = createTRPCRouter({
           }
         }
 
+        assertValidAzureSecretKey({
+          adapter: input.adapter,
+          secretKey: input.secretKey,
+          baseURL: input.baseURL,
+        });
+
         if (!env.ENCRYPTION_KEY) {
           if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
             throw new TRPCError({
@@ -498,7 +579,7 @@ export const llmApiKeyRouter = createTRPCRouter({
       };
 
       const storedApiKeys = await ctx.prisma.llmApiKeys.findMany({
-        // secretKey is selected server-side only to derive a safe auth-method enum for Bedrock
+        // secretKey is selected server-side only to derive a safe auth-method enum for Bedrock and Azure
         select: {
           id: true,
           createdAt: true,
@@ -525,7 +606,9 @@ export const llmApiKeyRouter = createTRPCRouter({
           authMethod:
             apiKey.adapter === LLMAdapter.Bedrock
               ? getBedrockAuthMethod(decrypt(secretKey))
-              : undefined,
+              : apiKey.adapter === LLMAdapter.Azure
+                ? getAzureAuthMethod(decrypt(secretKey))
+                : undefined,
         })),
       );
 
@@ -738,6 +821,14 @@ export const llmApiKeyRouter = createTRPCRouter({
                 "Default GCP credentials (ADC) are only allowed for Vertex AI in self-hosted deployments.",
             });
           }
+        }
+
+        if (input.secretKey) {
+          assertValidAzureSecretKey({
+            adapter: input.adapter,
+            secretKey: input.secretKey,
+            baseURL: input.baseURL ?? existingKey.baseURL,
+          });
         }
 
         // Ensure we delete extra headers if they existed before and were removed
