@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { InvalidRequestError } from "../../../errors";
 import {
   hasValidTracingSearchTypes,
@@ -49,9 +48,9 @@ const toJsonUnicodeEscaped = (value: string): string => {
       const v = cp - 0x10000;
       out +=
         "\\u" +
-        (0xd800 + (v >> 10)).toString(16).padStart(4, "0") +
+        (0xd800 + Math.floor(v / 1024)).toString(16).padStart(4, "0") +
         "\\u" +
-        (0xdc00 + (v & 0x3ff)).toString(16).padStart(4, "0");
+        (0xdc00 + (v % 1024)).toString(16).padStart(4, "0");
     }
   }
   return out;
