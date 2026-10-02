@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable no-nested-ternary */
 /**
  * NavigationHeader - Responsive search and controls for the navigation panel
@@ -17,11 +16,7 @@ import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
 import { type GraphUnavailableReason } from "@/src/features/traces/fns/graphAvailability";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -417,16 +412,16 @@ function ViewModeSwitch({
             the user has to understand. */}
         <Tabs.Trigger value="timeline" label="Timeline" />
         {graphDisabledReason ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
+          <Tooltip label={graphDisabledReason} delay={300}>
+            {({ getTriggerProps }) => (
               <span
+                {...getTriggerProps()}
                 tabIndex={0}
                 className="focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-hidden"
               >
                 <Tabs.Trigger value="graph" disabled label="Graph" />
               </span>
-            </TooltipTrigger>
-            <TooltipContent>{graphDisabledReason}</TooltipContent>
+            )}
           </Tooltip>
         ) : (
           <Tabs.Trigger value="graph" label="Graph" />
