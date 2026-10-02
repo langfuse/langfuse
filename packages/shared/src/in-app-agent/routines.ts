@@ -1,7 +1,20 @@
+import { z } from "zod";
+
 export const IN_APP_AGENT_ROUTINE_MAX_PER_USER = 20;
 export const IN_APP_AGENT_ROUTINE_MIN_INTERVAL_MS = 60 * 60 * 1000;
 export const IN_APP_AGENT_ROUTINE_NAME_MAX_LENGTH = 80;
 export const IN_APP_AGENT_ROUTINE_PROMPT_MAX_LENGTH = 8_000;
+
+export const CreateAndTestRoutineToolInputSchema = z.object({
+  name: z.string().trim().min(1).max(IN_APP_AGENT_ROUTINE_NAME_MAX_LENGTH),
+  prompt: z.string().trim().min(1).max(IN_APP_AGENT_ROUTINE_PROMPT_MAX_LENGTH),
+  cron: z.string().trim().min(1).max(128),
+  timezone: z.string().trim().min(1).max(64),
+});
+
+export type CreateAndTestRoutineToolInput = z.infer<
+  typeof CreateAndTestRoutineToolInputSchema
+>;
 
 export const InAppAgentRoutineSkipReason = {
   MEMBERSHIP_LOST: "membership_lost",

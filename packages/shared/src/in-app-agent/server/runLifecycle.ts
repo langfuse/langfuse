@@ -1,4 +1,5 @@
 import { LangfuseConflictError } from "../../index";
+import type { CreateAndTestRoutineToolInput } from "../routines";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
@@ -230,6 +231,8 @@ export async function decideToolApproval(params: {
   decidedByUserId: string;
   /** Prefixed tool resolved from the persisted interrupt, never client input. */
   alwaysAllowToolName?: InAppAgentPrefixedLangfuseMcpToolName;
+  /** Validated create-routine args after an in-card prompt edit. */
+  approvedToolArgs?: CreateAndTestRoutineToolInput;
   model?: string;
 }): Promise<InAppAgentRun> {
   const outcome = await params.prisma.$transaction(async (tx) => {
@@ -379,6 +382,9 @@ export async function decideToolApproval(params: {
           continuationNumber,
           toolCallId: params.toolCallId,
           approved: params.approved,
+          ...(params.approved && params.approvedToolArgs
+            ? { approvedToolArgs: params.approvedToolArgs }
+            : {}),
           context: parentRequest.success ? parentRequest.data.context : [],
         },
       }),

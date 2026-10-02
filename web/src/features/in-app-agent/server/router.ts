@@ -9,6 +9,11 @@ import {
 } from "@langfuse/shared";
 import { InAppAgentRoutineStatus } from "@langfuse/shared/src/db";
 import {
+  AgUiContextSchema,
+  CreateAndTestRoutineToolInputSchema,
+  getInAppAgentInstrumentationObservationId,
+  getInAppAgentInstrumentationTraceId,
+  IN_APP_AGENT_PRODUCT_ENVIRONMENT,
   IN_APP_AGENT_ROUTINE_NAME_MAX_LENGTH,
   IN_APP_AGENT_ROUTINE_PROMPT_MAX_LENGTH,
 } from "@langfuse/shared/in-app-agent";
@@ -17,12 +22,6 @@ import {
   upsertScore,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import {
-  AgUiContextSchema,
-  getInAppAgentInstrumentationObservationId,
-  getInAppAgentInstrumentationTraceId,
-  IN_APP_AGENT_PRODUCT_ENVIRONMENT,
-} from "@langfuse/shared/in-app-agent";
 import { InAppAgentMessageFeedbackValueSchema } from "../schema";
 import {
   assertInAppAgentAvailable,
@@ -96,10 +95,16 @@ const DecideToolApprovalInput = ConversationIdInput.extend({
   approved: z.boolean(),
   // "conversation" also approves this call; it never means approve-without-run.
   approvalScope: z.enum(["once", "conversation"]).default("once"),
-}).refine((input) => input.approved || input.approvalScope === "once", {
-  message: "A rejection cannot grant a tool",
-  path: ["approvalScope"],
-});
+  editedArgs: CreateAndTestRoutineToolInputSchema.optional(),
+})
+  .refine((input) => input.approved || input.approvalScope === "once", {
+    message: "A rejection cannot grant a tool",
+    path: ["approvalScope"],
+  })
+  .refine((input) => input.approved || input.editedArgs === undefined, {
+    message: "A rejection cannot include edited tool arguments",
+    path: ["editedArgs"],
+  });
 
 const SubmitFeedbackInput = ConversationIdInput.extend({
   messageId: z.string(),
@@ -309,9 +314,9 @@ export const inAppAgentRouter = createTRPCRouter({
   /**
    * Decide a pending tool approval.
    *
-   * The client sends only IDs and a boolean. The tool name and arguments are
-   * read server-side from the persisted interrupt event, so there is nothing
-   * to tamper with on the way back and no fingerprint to keep in sync.
+   * The client sends IDs and a boolean. Tool name still comes from the
+   * persisted interrupt. Create-routine approvals may also send schema-
+   * validated `editedArgs` after the user edits the prompt in the card.
    */
   decideToolApproval: protectedProjectProcedureWithoutTracing
     .input(DecideToolApprovalInput)
@@ -348,6 +353,7 @@ export const inAppAgentRouter = createTRPCRouter({
         toolCallId: input.toolCallId,
         approved: input.approved,
         approvalScope: input.approvalScope,
+        editedArgs: input.editedArgs,
         userId: ctx.session.user.id,
         model: modelConfig.modelId,
       });

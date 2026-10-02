@@ -5,6 +5,7 @@ import { Check, Loader2, Wrench } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { InAppAgentToolCallDetails } from "./InAppAgentToolCallDetails";
+import type { CreateAndTestRoutineToolInput } from "@langfuse/shared/in-app-agent";
 import {
   getInAppAgentToolDisplayName,
   type InAppAgentToolCallContent,
@@ -21,7 +22,10 @@ export function InAppAgentToolCallCard({
   tool: InAppAgentToolCallContent;
   isCompact?: boolean;
   isDisabled?: boolean;
-  onApproveToolCall?: (approvalId: string) => Promise<void>;
+  onApproveToolCall?: (
+    approvalId: string,
+    editedArgs?: CreateAndTestRoutineToolInput,
+  ) => Promise<void>;
   onAlwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall?: (approvalId: string) => Promise<void>;
 }) {

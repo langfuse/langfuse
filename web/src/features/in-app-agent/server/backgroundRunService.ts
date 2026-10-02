@@ -1,17 +1,26 @@
 import { EventType } from "@ag-ui/core";
 
-import { BaseError, LangfuseNotFoundError, type Plan } from "@langfuse/shared";
+import {
+  BaseError,
+  InvalidRequestError,
+  LangfuseNotFoundError,
+  type Plan,
+} from "@langfuse/shared";
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import { InAppAgentRunQueue, logger, redis } from "@langfuse/shared/src/server";
 import { enqueueInAppAgentRun } from "@langfuse/shared/in-app-agent/server/enqueueRun";
 import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
+  CreateAndTestRoutineToolInputSchema,
+  IN_APP_AGENT_CREATE_ROUTINE_TOOL_NAME,
   InAppAgentRunStatus,
   InAppAgentRunStatusSchema,
   parseInAppAgentApprovalDecisionEvent,
   parseInAppAgentInterruptEvent,
   type AgUiContext,
+  type CreateAndTestRoutineToolInput,
 } from "@langfuse/shared/in-app-agent";
+import { parseInAppAgentRoutineSchedule } from "@langfuse/shared/in-app-agent/server/schedule";
 import { getInAppAgentPrefixedToolName } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { createInAppAgentMessageId, createInAppAgentRunId } from "../ids";
 import {
@@ -354,6 +363,7 @@ export async function decideBackgroundApproval(params: {
   toolCallId: string;
   approved: boolean;
   approvalScope?: "once" | "conversation";
+  editedArgs?: CreateAndTestRoutineToolInput;
   userId: string;
   model: string | undefined;
 }) {
@@ -387,6 +397,11 @@ export async function decideBackgroundApproval(params: {
     throw new LangfuseNotFoundError("Approval request not found");
   }
 
+  const approvedToolArgs = resolveApprovedCreateRoutineArgs({
+    toolName: approvalRequest.toolName,
+    editedArgs: params.editedArgs,
+  });
+
   // Resolve the granted tool from the persisted interrupt, never client input.
   const alwaysAllowToolName =
     params.approvalScope === "conversation" && params.approved
@@ -402,6 +417,7 @@ export async function decideBackgroundApproval(params: {
     toolCallId: params.toolCallId,
     approved: params.approved,
     alwaysAllowToolName,
+    approvedToolArgs,
     decidedByUserId: params.userId,
     model: params.model,
   });
@@ -413,6 +429,35 @@ export async function decideBackgroundApproval(params: {
   });
 
   return { runId: continuationRun.id };
+}
+
+function resolveApprovedCreateRoutineArgs(params: {
+  toolName: string;
+  editedArgs: CreateAndTestRoutineToolInput | undefined;
+}): CreateAndTestRoutineToolInput | undefined {
+  if (!params.editedArgs) {
+    return undefined;
+  }
+
+  if (params.toolName !== IN_APP_AGENT_CREATE_ROUTINE_TOOL_NAME) {
+    throw new InvalidRequestError(
+      "This tool cannot be approved with edited arguments",
+    );
+  }
+
+  const parsed = CreateAndTestRoutineToolInputSchema.safeParse(
+    params.editedArgs,
+  );
+  if (!parsed.success) {
+    throw new InvalidRequestError("Invalid routine arguments");
+  }
+
+  parseInAppAgentRoutineSchedule({
+    cron: parsed.data.cron,
+    timezone: parsed.data.timezone,
+  });
+
+  return parsed.data;
 }
 
 function getPendingToolApprovals(

@@ -32,14 +32,13 @@ import {
 } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
+  CreateAndTestRoutineToolInputSchema,
   InAppAgentSandboxBashArgsSchema,
   InAppAgentSandboxEditArgsSchema,
   InAppAgentSandboxReadArgsSchema,
   InAppAgentSandboxWriteArgsSchema,
   IN_APP_AGENT_CREATE_ROUTINE_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
-  IN_APP_AGENT_ROUTINE_NAME_MAX_LENGTH,
-  IN_APP_AGENT_ROUTINE_PROMPT_MAX_LENGTH,
   IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
 } from "@langfuse/shared/in-app-agent";
 import { createAndTestInAppAgentRoutine } from "@langfuse/shared/in-app-agent/server/routineWrite";
@@ -462,16 +461,7 @@ export function createAndTestRoutineTool({
     id: IN_APP_AGENT_CREATE_ROUTINE_TOOL_NAME,
     description:
       "Create a disabled scheduled assistant routine and immediately start one test conversation. The routine will not run on the schedule until the user enables it.",
-    inputSchema: z.object({
-      name: z.string().trim().min(1).max(IN_APP_AGENT_ROUTINE_NAME_MAX_LENGTH),
-      prompt: z
-        .string()
-        .trim()
-        .min(1)
-        .max(IN_APP_AGENT_ROUTINE_PROMPT_MAX_LENGTH),
-      cron: z.string().trim().min(1).max(128),
-      timezone: z.string().trim().min(1).max(64),
-    }),
+    inputSchema: CreateAndTestRoutineToolInputSchema,
     execute: async (input) =>
       createAndTestInAppAgentRoutine({
         prisma,

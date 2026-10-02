@@ -748,15 +748,17 @@ function findPersistedApprovalRequest(
   events: readonly PersistedConversationEvent[],
   request: Extract<InAppAgentRunRequest, { kind: "approvalDecision" }>,
 ): InAppAgentToolApprovalRequest | undefined {
-  // Zero-trust: the decision mutation stores only IDs; tool name and args are
-  // read back from the interrupt event the parent run persisted.
+  // Tool name always comes from the persisted interrupt. Args do too, unless
+  // the decision stored schema-validated approvedToolArgs from the card.
   for (const { event, runId } of events) {
     if (runId !== request.parentRunId) continue;
 
     const approvalRequest = parseInAppAgentInterruptEvent(event);
 
     if (approvalRequest?.toolCallId === request.toolCallId) {
-      return approvalRequest;
+      return request.approved && request.approvedToolArgs
+        ? { ...approvalRequest, args: request.approvedToolArgs }
+        : approvalRequest;
     }
   }
 
