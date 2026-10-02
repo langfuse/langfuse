@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 /**
  * Tests for OTel metadata processing
  * Flow: ResourceSpan -> processToEvent() -> createEventRecord() -> metadata_names/metadata_raw_values
@@ -59,9 +58,9 @@ function createNanoTimestamp(nanoTime: bigint): {
   high: number;
   unsigned: boolean;
 } {
-  const low = Number(nanoTime & BigInt(0xffffffff));
-  const high = Number(nanoTime >> BigInt(32));
-  return { low, high, unsigned: true };
+  const lowBits = BigInt.asUintN(32, nanoTime);
+  const high = Number((nanoTime - lowBits) / 2n ** 32n);
+  return { low: Number(lowBits), high, unsigned: true };
 }
 
 function createBufferId(hexString: string): { type: "Buffer"; data: number[] } {
