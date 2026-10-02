@@ -1043,6 +1043,7 @@ model Evaluator {
 
   name            String
   type            EvalTemplateType
+  isBuiltIn       Boolean              @default(false) @map("is_built_in")
   description     String?
   createdByUserId String?               @map("created_by_user_id")
   createdByUser   User?                 @relation("EvaluatorCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -1089,6 +1090,7 @@ enum EvalTemplateType {
   LLM_AS_JUDGE
   CODE
   DECISION_MODEL
+  FACET
 }
 
 enum EvalTemplateSourceCodeLanguage {
@@ -1167,6 +1169,7 @@ model EvaluationRule {
   filter          Json
   sampling        Decimal
   delay           Int
+  idleTime        Int?           @map("idle_time") // milliseconds
   timeScope       String[]       @default(["NEW"]) @map("time_scope")
 
   assignments EvaluationRuleEvaluatorAssignment[]

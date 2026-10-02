@@ -53,6 +53,7 @@ export const TableViewPresetsNamesCreatorListSchema = z.array(
       .object({
         image: z.string().nullish(),
         name: z.string().nullish(),
+        email: z.string().nullish(),
       })
       .nullish(),
     filters: singleFilterList,

@@ -6,6 +6,7 @@ import {
   CircleAlert,
   FileWarning,
   Info,
+  type LucideIcon,
   MessageSquareOff,
   MoreHorizontal,
   TriangleAlert,
@@ -34,6 +35,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { Tooltip as DSTooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type RouterOutputs } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
@@ -129,6 +131,33 @@ function SessionTimelineStatusIndicator({
         {observation.statusMessage}
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+/**
+ * Badge for a state an observation header reports next to its duration, e.g.
+ * truncated content. The label is both the accessible name and the tooltip.
+ */
+function SessionTimelineMarkerIcon({
+  icon: Icon,
+  label,
+}: {
+  icon: LucideIcon;
+  label: string;
+}) {
+  return (
+    <DSTooltip label={label}>
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps()}
+          className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
+          role="img"
+          aria-label={label}
+        >
+          <Icon className="h-3 w-3" aria-hidden="true" />
+        </span>
+      )}
+    </DSTooltip>
   );
 }
 
@@ -530,34 +559,22 @@ function SessionTimelineConversationObservation({
               <SessionTimelineStatusIndicator observation={observation} />
             ) : null}
             {isTruncated ? (
-              <span
-                className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
-                role="img"
-                aria-label="Content truncated"
-                title="Content truncated"
-              >
-                <FileWarning className="h-3 w-3" aria-hidden="true" />
-              </span>
+              <SessionTimelineMarkerIcon
+                icon={FileWarning}
+                label="Content truncated"
+              />
             ) : null}
             {hasNoConversationalContent ? (
-              <span
-                className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
-                role="img"
-                aria-label="No conversational content"
-                title="No conversational content"
-              >
-                <MessageSquareOff className="h-3 w-3" aria-hidden="true" />
-              </span>
+              <SessionTimelineMarkerIcon
+                icon={MessageSquareOff}
+                label="No conversational content"
+              />
             ) : null}
             {observation.metadataTruncated ? (
-              <span
-                className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
-                role="img"
-                aria-label="Metadata omitted because it is too large"
-                title="Metadata omitted because it is too large"
-              >
-                <FileWarning className="h-3 w-3" aria-hidden="true" />
-              </span>
+              <SessionTimelineMarkerIcon
+                icon={FileWarning}
+                label="Metadata omitted because it is too large"
+              />
             ) : null}
             {observation.latency !== null && observation.type !== "EVENT" ? (
               <span className="text-muted-foreground font-mono text-[11px]">

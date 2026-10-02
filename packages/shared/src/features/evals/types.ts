@@ -16,6 +16,7 @@ export const EvalTemplateTypeEnum = {
   LLM_AS_JUDGE: "LLM_AS_JUDGE",
   CODE: "CODE",
   DECISION_MODEL: "DECISION_MODEL",
+  FACET: "FACET",
 } as const satisfies Record<EvalTemplateType, EvalTemplateType>;
 
 export const EvalTemplateSourceCodeLanguageEnum = {

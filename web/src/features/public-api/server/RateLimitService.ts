@@ -292,7 +292,7 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 15,
+            points: 5,
             durationInSec: 60,
           };
         case "datasets":
@@ -393,7 +393,7 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 30,
+            points: 15,
             durationInSec: 60,
           };
         case "datasets":
@@ -494,7 +494,7 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 100,
+            points: 40,
             durationInSec: 60,
           };
         case "datasets":

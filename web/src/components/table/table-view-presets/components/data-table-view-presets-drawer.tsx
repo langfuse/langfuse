@@ -938,7 +938,12 @@ function TableViewPresetsDrawerContentBody({
                             <Avatar
                               size="sm"
                               src={view.createdByUser?.image ?? undefined}
-                              displayName={view.createdByUser?.name ?? "User"}
+                              displayName={
+                                view.createdByUser?.name?.trim() ||
+                                view.createdByUser?.email?.trim() ||
+                                "User"
+                              }
+                              email={view.createdByUser?.email ?? undefined}
                             />
                           </div>
                         )}

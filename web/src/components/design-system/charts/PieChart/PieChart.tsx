@@ -1,17 +1,18 @@
 "use client";
 
-import { useMemo } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
+import clsx from "clsx";
 import { scaleOrdinal } from "d3-scale";
 import { arc, pie, type PieArcDatum } from "d3-shape";
 
 import { ChartContainer } from "@/src/components/design-system/internal/charts/ChartContainer";
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
+import { useElementSize } from "@/src/hooks/useElementSize";
 import {
   chartColors,
   INACTIVE_CHART_COLOR_STRENGTH,
   CHART_TRANSITION_DURATION,
 } from "@/src/components/design-system/charts/constants";
-import { cn } from "@/src/utils/tailwind";
 
 export type PieChartDatum = {
   label: string;
@@ -39,6 +40,14 @@ const SMALL_SLICE_THRESHOLD = 0.02;
 const PAD_ANGLE = (2 * Math.PI) / 360;
 const MIN_VISIBLE_ANGLE = 2 * Math.PI * 0.01;
 const MIN_SLICE_ANGLE = PAD_ANGLE + MIN_VISIBLE_ANGLE;
+const MIN_CENTER_LABEL_CHART_SIZE = 160;
+const CENTER_LABEL_SIZES = [
+  "2xlarge",
+  "xlarge",
+  "large",
+  "medium",
+  "small",
+] as const;
 const percentageFormatter = new Intl.NumberFormat(undefined, {
   style: "percent",
   maximumFractionDigits: 1,
@@ -148,6 +157,58 @@ function PieChartContent({
     return "small";
   }, [availableSize]);
 
+  const [centerTextRef, centerTextSize] = useElementSize<HTMLDivElement>();
+  const formattedTotal = valueFormatter(totalValue);
+  const [centerTextFit, setCenterTextFit] = useState<{
+    availableSize: number;
+    centerLabel: string;
+    formattedTotal: string;
+    size: typeof centerLabelSize | "hidden";
+  } | null>(null);
+  const fittedCenterLabelSize =
+    centerTextFit?.availableSize === availableSize &&
+    centerTextFit.centerLabel === centerLabel &&
+    centerTextFit.formattedTotal === formattedTotal
+      ? centerTextFit.size
+      : centerLabelSize;
+
+  useLayoutEffect(() => {
+    const element = centerTextRef.current;
+    if (!element) return;
+    if (fittedCenterLabelSize === "hidden") return;
+
+    const radius = ((availableSize * INNER_RADIUS) / VIEWBOX_SIZE) * 0.9;
+    // The rectangle's corners must fit the circular hole, not just its width.
+    const textRadius =
+      Math.hypot(element.offsetWidth, element.offsetHeight) / 2;
+    if (textRadius <= radius) return;
+
+    const nextSize =
+      CENTER_LABEL_SIZES[
+        CENTER_LABEL_SIZES.indexOf(fittedCenterLabelSize) + 1
+      ] ?? "hidden";
+
+    setCenterTextFit((current) => {
+      if (
+        current?.availableSize === availableSize &&
+        current.centerLabel === centerLabel &&
+        current.formattedTotal === formattedTotal &&
+        current.size === nextSize
+      ) {
+        return current;
+      }
+      return { availableSize, centerLabel, formattedTotal, size: nextSize };
+    });
+  }, [
+    availableSize,
+    fittedCenterLabelSize,
+    centerLabel,
+    formattedTotal,
+    centerTextRef,
+    centerTextSize?.width,
+    centerTextSize?.height,
+  ]);
+
   return (
     <ChartTooltip>
       {({ activeIndex, getReferenceProps }) => (
@@ -212,39 +273,48 @@ function PieChartContent({
           </svg>
 
           <div
-            className={cn(
-              "pointer-events-none absolute inset-0 flex flex-col items-center justify-center",
-              centerLabelSize === "2xlarge" && "gap-2",
-              centerLabelSize === "xlarge" && "gap-1.5",
-              centerLabelSize === "large" && "gap-1",
-              centerLabelSize === "medium" && "gap-0.5",
+            className={clsx(
+              "pointer-events-none absolute inset-0 flex items-center justify-center",
+              availableSize < MIN_CENTER_LABEL_CHART_SIZE && "invisible",
+              fittedCenterLabelSize === "hidden" && "invisible",
             )}
             aria-hidden="true"
           >
-            <span
-              className={cn(
-                "text-foreground leading-none font-bold",
-                centerLabelSize === "2xlarge" && "text-6xl",
-                centerLabelSize === "xlarge" && "text-5xl",
-                centerLabelSize === "large" && "text-3xl",
-                centerLabelSize === "medium" && "text-xl",
-                centerLabelSize === "small" && "text-sm",
+            <div
+              ref={centerTextRef}
+              className={clsx(
+                "flex shrink-0 flex-col items-center justify-center whitespace-nowrap",
+                fittedCenterLabelSize === "2xlarge" && "gap-2",
+                fittedCenterLabelSize === "xlarge" && "gap-1.5",
+                fittedCenterLabelSize === "large" && "gap-1",
+                fittedCenterLabelSize === "medium" && "gap-0.5",
               )}
             >
-              {valueFormatter(totalValue)}
-            </span>
-            <span
-              className={cn(
-                "text-muted-foreground leading-none",
-                centerLabelSize === "2xlarge" && "text-lg",
-                centerLabelSize === "xlarge" && "text-base",
-                centerLabelSize === "large" && "text-xs",
-                centerLabelSize === "medium" && "text-[10px]",
-                centerLabelSize === "small" && "text-[8px]",
-              )}
-            >
-              {centerLabel}
-            </span>
+              <span
+                className={clsx(
+                  "text-foreground leading-none font-bold",
+                  fittedCenterLabelSize === "2xlarge" && "text-6xl",
+                  fittedCenterLabelSize === "xlarge" && "text-5xl",
+                  fittedCenterLabelSize === "large" && "text-3xl",
+                  fittedCenterLabelSize === "medium" && "text-xl",
+                  fittedCenterLabelSize === "small" && "text-sm",
+                )}
+              >
+                {formattedTotal}
+              </span>
+              <span
+                className={clsx(
+                  "text-muted-foreground leading-none",
+                  fittedCenterLabelSize === "2xlarge" && "text-lg",
+                  fittedCenterLabelSize === "xlarge" && "text-base",
+                  fittedCenterLabelSize === "large" && "text-xs",
+                  fittedCenterLabelSize === "medium" && "text-[10px]",
+                  fittedCenterLabelSize === "small" && "text-[8px]",
+                )}
+              >
+                {centerLabel}
+              </span>
+            </div>
           </div>
         </>
       )}

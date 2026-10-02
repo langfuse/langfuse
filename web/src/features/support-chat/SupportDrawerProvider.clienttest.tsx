@@ -52,4 +52,21 @@ describe("SupportDrawerProvider", () => {
     expect(result.current.openEpoch).toBe(epoch + 1);
     expect(result.current.initialMode).toBe("form");
   });
+
+  it("seeds the form message on closed→open only", () => {
+    const { result } = renderHook(() => useSupportDrawer(), { wrapper });
+
+    act(() => result.current.setOpen(true, { message: "Error ID: abc123" }));
+    const epoch = result.current.openEpoch;
+    expect(result.current.initialMessage).toBe("Error ID: abc123");
+
+    // Reporting a second error while open must not wipe the draft.
+    act(() => result.current.setOpen(true, { message: "Error ID: def456" }));
+    expect(result.current.openEpoch).toBe(epoch);
+    expect(result.current.initialMessage).toBe("Error ID: abc123");
+
+    act(() => result.current.setOpen(false));
+    act(() => result.current.setOpen(true));
+    expect(result.current.initialMessage).toBe("");
+  });
 });

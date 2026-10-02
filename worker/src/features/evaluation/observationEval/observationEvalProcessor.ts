@@ -493,6 +493,8 @@ function normalizeEvalTemplate(
         sourceCodeLanguage: null,
         questions: template.questions,
       };
+    case EvalTemplateType.FACET:
+      throw new UnrecoverableError("Facets cannot run as evaluators");
   }
 }
 

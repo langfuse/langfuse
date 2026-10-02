@@ -45,7 +45,7 @@ export function evaluatorScoresUrl(
 
 export function evaluatorExecutionsUrl(
   projectId: string,
-  evaluatorName: string,
+  evaluatorId: string,
   evaluatorType: EvalTemplateType,
 ) {
   const environment =
@@ -54,10 +54,10 @@ export function evaluatorExecutionsUrl(
       : LangfuseInternalTraceEnvironment.LLMJudge;
   const filter: FilterState = [
     {
-      column: "traceName",
+      column: "evaluatorId",
       type: "stringOptions",
       operator: "any of",
-      value: [`Execute evaluator: ${evaluatorName}`],
+      value: [evaluatorId],
     },
     {
       column: "environment",
@@ -72,5 +72,5 @@ export function evaluatorExecutionsUrl(
       value: true,
     },
   ];
-  return `/project/${encodeURIComponent(projectId)}/traces?filter=${encodeURIComponent(encodeFiltersGeneric(filter))}`;
+  return `/project/${encodeURIComponent(projectId)}/traces?dateRange=7d&filter=${encodeURIComponent(encodeFiltersGeneric(filter))}`;
 }

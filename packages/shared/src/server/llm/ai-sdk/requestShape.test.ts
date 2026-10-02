@@ -875,6 +875,34 @@ describe("AI SDK request shapes", () => {
     });
   });
 
+  it("Bedrock: models rejecting forced tools use JSON instructions", async () => {
+    const schema = {
+      type: "object",
+      properties: { answer: { type: "string" } },
+      required: ["answer"],
+      additionalProperties: false,
+    } as const;
+    const { result, request } = await runBedrockCompletion({
+      model: "us.anthropic.claude-fable-5-1",
+      output: createLLMOutput(schema),
+      response: {
+        ...BEDROCK_RESPONSE,
+        output: {
+          message: {
+            role: "assistant",
+            content: [{ text: '{"answer":"ok"}' }],
+          },
+        },
+      },
+    });
+
+    expect(result.output).toEqual({ answer: "ok" });
+    expect(request.body.toolConfig).toBeUndefined();
+    expect(JSON.stringify(request.body)).toContain(
+      "You MUST answer with only a JSON object",
+    );
+  });
+
   it("Bedrock: tenant credentials suppress server-level env auth fallbacks", async () => {
     // A self-hosted operator may set these for their own purposes; tenant
     // connections must never authenticate with them. Unsuppressed, the

@@ -244,6 +244,7 @@ describe("MCP Write Tools", () => {
             evaluatorId: expect.any(Object),
             type: expect.any(Object),
             prompt: expect.any(Object),
+            questions: expect.any(Object),
             sourceCode: expect.any(Object),
             observationId: expect.any(Object),
             traceId: expect.any(Object),
@@ -296,6 +297,65 @@ describe("MCP Write Tools", () => {
             type: "CODE",
             sourceCode: "return { score: 1 };",
             sourceCodeLanguage: "TYPESCRIPT",
+          },
+          observationId,
+          traceId,
+          startTime: new Date(startTime),
+        });
+
+        await expect(
+          handleTestEvaluator(
+            {
+              type: "DECISION_MODEL",
+              questions: [
+                {
+                  id: "relevant",
+                  type: "noul",
+                  scoreName: "relevant",
+                  instructions: "Determine whether the input is relevant.",
+                  criteria: null,
+                },
+              ],
+              modelConfig: {
+                provider: "typesafe",
+                model: "jev-latest",
+              },
+              variableMapping: [
+                {
+                  templateVariable: "input",
+                  selectedColumnId: "input",
+                },
+              ],
+              observationId,
+              traceId,
+              startTime,
+            } as never,
+            setup.context,
+          ),
+        ).resolves.toEqual(unifiedResult);
+        expect(testEvaluatorSpy).toHaveBeenNthCalledWith(3, {
+          orgId: setup.orgId,
+          projectId: setup.projectId,
+          definition: {
+            type: "DECISION_MODEL",
+            questions: [
+              {
+                id: "relevant",
+                type: "noul",
+                scoreName: "relevant",
+                instructions: "Determine whether the input is relevant.",
+                criteria: null,
+              },
+            ],
+            provider: "typesafe",
+            model: "jev-latest",
+            vars: ["input"],
+            variableMapping: [
+              {
+                templateVariable: "input",
+                selectedColumnId: "input",
+              },
+            ],
           },
           observationId,
           traceId,

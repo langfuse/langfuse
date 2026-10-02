@@ -150,7 +150,29 @@ export const sessionEventsFilterConfig: FilterConfig = {
     (col) => col.id !== "bookmarked",
   ),
   facets: sessionFilterConfig.facets.flatMap((facet) =>
-    facet.column === "tags" ? [facet, sessionMetadataFacet] : [facet],
+    facet.column === "tags"
+      ? [
+          facet,
+          sessionMetadataFacet,
+          {
+            type: "categorical" as const,
+            column: "toolNames",
+            label: "Tool Names (Available)",
+          },
+          {
+            type: "categorical" as const,
+            column: "calledToolNames",
+            label: "Tool Names (Called)",
+          },
+          {
+            type: "numeric" as const,
+            column: "toolCalls",
+            label: "Tool Calls",
+            min: 0,
+            max: 25,
+          },
+        ]
+      : [facet],
   ),
 };
 

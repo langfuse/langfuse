@@ -1,17 +1,41 @@
+use std::{future::Future, pin::Pin};
+
 use axum::http::Extensions;
+use opentelemetry::global;
+use opentelemetry_http::HeaderInjector;
 use reqwest::{Client, Request, Response};
-use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, Extension, Result};
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, Extension, Next, Result};
 use reqwest_tracing::{
-    DefaultSpanBackend, OtelName, ReqwestOtelSpanBackend, TracingMiddleware,
-    default_on_request_success,
+    DefaultSpanBackend, DisableOtelPropagation, OtelName, ReqwestOtelSpanBackend,
+    TracingMiddleware, default_on_request_success,
 };
 use tracing::Span;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
+
+type MiddlewareFuture<'a> = Pin<Box<dyn Future<Output = Result<Response>> + Send + 'a>>;
 
 pub(crate) fn instrument_client(client: Client, name: &'static str) -> ClientWithMiddleware {
     ClientBuilder::new(client)
         .with_init(Extension(OtelName(name.into())))
         .with(TracingMiddleware::<SafeSpanBackend>::new())
+        .with(propagate_context)
         .build()
+}
+
+fn propagate_context<'a>(
+    mut request: Request,
+    extensions: &'a mut Extensions,
+    next: Next<'a>,
+) -> MiddlewareFuture<'a> {
+    if extensions.get::<DisableOtelPropagation>().is_none() {
+        global::get_text_map_propagator(|propagator| {
+            propagator.inject_context(
+                &Span::current().context(),
+                &mut HeaderInjector(request.headers_mut()),
+            );
+        });
+    }
+    next.run(request, extensions)
 }
 
 struct SafeSpanBackend;
@@ -59,9 +83,7 @@ mod tests {
         propagation::TraceContextPropagator,
         trace::{InMemorySpanExporter, SdkTracerProvider},
     };
-    use reqwest_tracing::DisableOtelPropagation;
     use tracing::instrument::WithSubscriber;
-    use tracing_opentelemetry::OpenTelemetrySpanExt;
     use tracing_subscriber::prelude::*;
 
     #[tokio::test]

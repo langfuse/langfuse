@@ -145,6 +145,29 @@ export function SessionMetadataJsonPathControl({
       queryHashes: observationQueryHashes,
       traceIds: loadedTraces.map((trace) => trace.id),
     });
+  // The timeline body loads observations through a different query, so traces
+  // are fetched here one at a time, in order, until one has a visible
+  // observation. The legacy body shares these cache entries.
+  const nextObservationInput = firstObservation
+    ? undefined
+    : observationInputs.find((_, index) => {
+        const status = queryCache.get(observationQueryHashes[index] ?? "")
+          ?.state.status;
+        return status !== "success" && status !== "error";
+      });
+  api.sessions.observationsForTraceFromEvents.useQuery(
+    nextObservationInput ?? {
+      projectId,
+      sessionId,
+      traceId: "",
+      filter: filterState,
+    },
+    {
+      enabled: nextObservationInput !== undefined,
+      trpc: { context: { skipBatch: true } },
+      staleTime: 60 * 1000,
+    },
+  );
   const source = (() => {
     if (!shouldObserveMetadata) {
       return { state: "idle" } as const;
@@ -159,7 +182,7 @@ export function SessionMetadataJsonPathControl({
         metadataTruncated: firstObservation.metadataTruncated,
       } as const;
     }
-    if (isFetching) {
+    if (isFetching || nextObservationInput) {
       return { state: "loading" } as const;
     }
     if (isError && !hasResolvedQuery) {

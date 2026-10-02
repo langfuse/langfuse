@@ -132,12 +132,34 @@ export const sessionsViewCols: ColumnDefinition[] = [
 ];
 
 export const sessionsEventsViewCols: ColumnDefinition[] =
-  sessionsViewCols.concat({
-    name: "Metadata",
-    id: "metadata",
-    type: "stringObject",
-    internal: 's."metadata"',
-  });
+  sessionsViewCols.concat(
+    {
+      name: "Available Tool Names",
+      id: "toolNames",
+      type: "arrayOptions",
+      internal: "st.tool_names",
+      options: [],
+    },
+    {
+      name: "Called Tool Names",
+      id: "calledToolNames",
+      type: "arrayOptions",
+      internal: "st.called_tool_names",
+      options: [],
+    },
+    {
+      name: "Tool Calls",
+      id: "toolCalls",
+      type: "number",
+      internal: "st.tool_calls_count",
+    },
+    {
+      name: "Metadata",
+      id: "metadata",
+      type: "stringObject",
+      internal: 's."metadata"',
+    },
+  );
 
 export type SessionOptions = {
   userIds: Array<SingleValueOption>;

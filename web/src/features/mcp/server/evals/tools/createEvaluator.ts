@@ -12,7 +12,7 @@ export const [createEvaluatorTool, handleCreateEvaluator] = defineTool({
   name: "createEvaluator",
   description: [
     "Create a new evaluator with a stable id. Names do not act as identity and may be reused.",
-    "Set type to `LLM_AS_JUDGE` and provide prompt + outputDefinition. Omit modelConfig to use the project default, or provide modelConfig with provider, model, and optional modelParams. For `CODE`, provide sourceCode + sourceCodeLanguage.",
+    "For `LLM_AS_JUDGE`, provide prompt + outputDefinition and optionally modelConfig. For `CODE`, provide sourceCode + sourceCodeLanguage. For `DECISION_MODEL`, provide questions, an explicit TypeSafe modelConfig, and variableMapping entries defining its state.",
     "Use updateEvaluator with the returned evaluatorId to update it or append a new immutable definition version.",
   ].join(" "),
   action: "evaluator:CUD",

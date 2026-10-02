@@ -137,6 +137,30 @@ describe("SessionConversationTimelineTrace", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows a no-conversational-content marker with the correct accessible name", () => {
+    const emptyAgentTurn = prepareSessionTimelineObservations([
+      observation("agent-turn", null, "AGENT", new Date(0)),
+    ]);
+
+    render(
+      <SessionConversationTimelineTrace
+        trace={{ ...trace, observationCount: 1 }}
+        turnNumber={1}
+        state={{ type: "loaded", observations: emptyAgentTurn }}
+        onOpenTrace={vi.fn()}
+        onOpenObservation={vi.fn()}
+        scrollTarget={null}
+      />,
+    );
+
+    // The marker is rendered as an img role with the label as its accessible name.
+    // Floating-ui tooltip content is tested at the browser/integration level — jsdom's
+    // fireEvent.focus does not change document.activeElement so useFocus never opens.
+    expect(
+      screen.getByRole("img", { name: "No conversational content" }),
+    ).toBeInTheDocument();
+  });
+
   it("decodes Unicode escapes in truncated observation previews", () => {
     const truncated = prepareSessionTimelineObservations([
       {

@@ -2,14 +2,14 @@ import { EvalTemplateType } from "@langfuse/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  getEvaluatorDefinitionConfigurationError: vi.fn(),
+  getEvaluatorDefinitionPreflightError: vi.fn(),
   isCodeEvalEnabled: vi.fn(),
   isCodeEvalSourceCodeLanguageSupported: vi.fn(),
 }));
 
 vi.mock("@/src/features/evals/server/evaluator-preflight", () => ({
-  getEvaluatorDefinitionConfigurationError:
-    mocks.getEvaluatorDefinitionConfigurationError,
+  getEvaluatorDefinitionPreflightError:
+    mocks.getEvaluatorDefinitionPreflightError,
 }));
 
 vi.mock("@/src/features/evals/server/isCodeEvalEnabled", () => ({
@@ -29,7 +29,7 @@ describe("evaluator configuration validation", () => {
     vi.resetAllMocks();
     mocks.isCodeEvalEnabled.mockReturnValue(true);
     mocks.isCodeEvalSourceCodeLanguageSupported.mockReturnValue(true);
-    mocks.getEvaluatorDefinitionConfigurationError.mockResolvedValue(null);
+    mocks.getEvaluatorDefinitionPreflightError.mockResolvedValue(null);
   });
 
   it("accepts evaluator names longer than 200 characters", () => {
@@ -90,7 +90,7 @@ describe("evaluator configuration validation", () => {
     ).toBe(true);
   });
 
-  it("validates deployment capabilities without executing the evaluator", async () => {
+  it("validates deployment capabilities and the selected evaluator model", async () => {
     const codeDefinition = {
       type: EvalTemplateType.CODE,
       sourceCode: "return 1;",
@@ -136,9 +136,35 @@ describe("evaluator configuration validation", () => {
       }),
     ).resolves.toBeUndefined();
 
-    expect(
-      mocks.getEvaluatorDefinitionConfigurationError,
-    ).toHaveBeenCalledOnce();
+    expect(mocks.getEvaluatorDefinitionPreflightError).toHaveBeenCalledOnce();
+  });
+
+  it("propagates transient model preflight failures", async () => {
+    const transientError = new Error("Provider rate limit");
+    mocks.getEvaluatorDefinitionPreflightError.mockRejectedValue(
+      transientError,
+    );
+
+    await expect(
+      assertEvaluatorConfigurationValid({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        definition: {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          promptMessages: [{ role: "user", content: "Judge {{output}}" }],
+          provider: null,
+          model: null,
+          modelParams: null,
+          vars: ["output"],
+          variableMapping: null,
+          outputDefinition: {
+            dataType: "NUMERIC",
+            score: { description: "Quality" },
+            reasoning: { description: "Reasoning" },
+          },
+        },
+      }),
+    ).rejects.toBe(transientError);
   });
 
   // The schema is the only boundary that can see a caller-supplied mapping:

@@ -1,4 +1,5 @@
 import {
+  EvalTemplateType,
   EvalTargetObject,
   JobConfigState,
   coerceLegacyEmptyMetadataFilters,
@@ -13,11 +14,17 @@ import {
 } from "@langfuse/shared/src/server";
 import { type ObservationEvalRule } from "./types";
 
+const runnableEvaluatorTypes = [
+  EvalTemplateType.LLM_AS_JUDGE,
+  EvalTemplateType.CODE,
+  EvalTemplateType.DECISION_MODEL,
+];
+
 /**
  * Fetches the runnable observation evaluation rules for a project.
  *
  * This runs per ingested observation, so it stays as narrow as possible:
- * inactive rules and blocked evaluators are excluded in SQL rather than
+ * inactive rules and non-runnable evaluators are excluded in SQL rather than
  * filtered in the scheduler, and evaluator versions are not joined at all —
  * dispatch only needs the evaluator's identity and type, and the executor
  * resolves the definition when it picks the job up.
@@ -49,9 +56,14 @@ export async function fetchObservationEvalRules(
         in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
       },
       status: JobConfigState.ACTIVE,
-      // A rule whose every evaluator is blocked schedules nothing, so it must
-      // not keep the project out of the "no rules" cache below.
-      assignments: { some: { projectId, evaluator: { blockedAt: null } } },
+      // A rule without runnable assignments schedules nothing, so it must not
+      // keep the project out of the "no rules" cache below.
+      assignments: {
+        some: {
+          projectId,
+          evaluator: { blockedAt: null, type: { in: runnableEvaluatorTypes } },
+        },
+      },
     },
     select: {
       id: true,
@@ -61,7 +73,10 @@ export async function fetchObservationEvalRules(
       status: true,
       targetObject: true,
       assignments: {
-        where: { projectId, evaluator: { blockedAt: null } },
+        where: {
+          projectId,
+          evaluator: { blockedAt: null, type: { in: runnableEvaluatorTypes } },
+        },
         select: {
           id: true,
           evaluatorId: true,

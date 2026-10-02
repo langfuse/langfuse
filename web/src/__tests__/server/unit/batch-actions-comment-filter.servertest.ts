@@ -311,6 +311,7 @@ describe("batched evaluation version selection", () => {
       where: {
         id: { in: [evaluatorId] },
         projectId,
+        type: { not: "FACET" },
         assignments: {
           none: {
             evaluationRule: {
