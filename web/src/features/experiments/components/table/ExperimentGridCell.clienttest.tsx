@@ -128,7 +128,9 @@ describe("ExperimentGridCell", () => {
           },
         },
       );
-      expect(screen.queryByText("Changed") !== null).toBe(showDiff);
+      expect(
+        screen.queryByLabelText("Changed compared to baseline") !== null,
+      ).toBe(showDiff);
       expect(
         screen.queryByText("Incorrect → Partially Correct"),
       ).not.toBeInTheDocument();

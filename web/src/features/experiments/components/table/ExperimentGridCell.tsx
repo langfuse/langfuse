@@ -205,7 +205,13 @@ const ScoreItem = ({
               )}
             </span>
             {diff?.type === "CATEGORICAL" && (
-              <span className="text-muted-foreground text-xs">Changed</span>
+              <span
+                className="text-muted-foreground text-xs"
+                aria-label="Changed compared to baseline"
+                title="Changed compared to baseline"
+              >
+                ↻
+              </span>
             )}
             {diff?.type === "NUMERIC" && (
               <DiffLabel
