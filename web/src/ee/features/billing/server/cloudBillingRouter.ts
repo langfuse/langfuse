@@ -13,6 +13,8 @@ import { logger } from "@langfuse/shared/src/server";
 import { type BillingProvider } from "@langfuse/shared";
 import { resolveBillingService } from "./resolveBillingService";
 import { isCloudBillingEnabled } from "../utils/isCloudBillingEnabled";
+import { USAGE_BREAKDOWN_MAX_RANGE_MS } from "../constants";
+import { getOrgUsageBreakdown } from "./usageBreakdown";
 
 const PROVIDER_LABEL: Record<BillingProvider, string> = {
   stripe: "Stripe",
@@ -388,6 +390,47 @@ export const cloudBillingRouter = createTRPCRouter({
       const { service } = await resolveBillingService(ctx, input.orgId);
 
       return await service.getUsage(input.orgId);
+    }),
+  getUsageBreakdown: protectedOrganizationProcedure
+    .input(
+      z
+        .object({
+          orgId: z.string(),
+          from: z.date(),
+          to: z.date(),
+        })
+        .refine((input) => input.from < input.to, {
+          message: "from must be before to",
+        })
+        .refine(
+          (input) =>
+            input.to.getTime() - input.from.getTime() <=
+            USAGE_BREAKDOWN_MAX_RANGE_MS,
+          { message: "Time range must not exceed one year" },
+        ),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "cloud-billing",
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+      });
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+
+      if (!isCloudBillingEnabled()) {
+        return null;
+      }
+
+      return await getOrgUsageBreakdown({
+        prisma: ctx.prisma,
+        orgId: input.orgId,
+        from: input.from,
+        to: input.to,
+      });
     }),
   applyPromotionCode: protectedOrganizationProcedure
     .input(
