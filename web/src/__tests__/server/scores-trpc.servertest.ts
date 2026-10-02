@@ -1106,4 +1106,56 @@ describe("scores trpc", () => {
       });
     });
   });
+
+  describe("scoreConfigs.byId", () => {
+    it("rejects an unknown id with NOT_FOUND and keeps the message", async () => {
+      await expect(
+        caller.scoreConfigs.byId({ projectId, id: randomUUID() }),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        message: "No score config with this id in this project.",
+      });
+    });
+
+    it("rejects a config owned by another project with NOT_FOUND", async () => {
+      const otherProject = await createOrgProjectAndApiKey();
+      const config = await prisma.scoreConfig.create({
+        data: {
+          projectId: otherProject.projectId,
+          name: `by-id-other-project-${randomUUID().slice(0, 8)}`,
+          dataType: ScoreConfigDataType.NUMERIC,
+          minValue: 0,
+          maxValue: 1,
+        },
+      });
+
+      await expect(
+        caller.scoreConfigs.byId({ projectId, id: config.id }),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        message: "No score config with this id in this project.",
+      });
+    });
+
+    it("returns an existing config", async () => {
+      const config = await prisma.scoreConfig.create({
+        data: {
+          projectId,
+          name: `by-id-${randomUUID().slice(0, 8)}`,
+          dataType: ScoreConfigDataType.CATEGORICAL,
+          categories: [{ label: "internal_user", value: 0 }],
+        },
+      });
+
+      await expect(
+        caller.scoreConfigs.byId({ projectId, id: config.id }),
+      ).resolves.toMatchObject({
+        id: config.id,
+        projectId,
+        name: config.name,
+        dataType: ScoreConfigDataType.CATEGORICAL,
+        categories: [{ label: "internal_user", value: 0 }],
+      });
+    });
+  });
 });
