@@ -2,5 +2,13 @@
 // re-exports only — exactly what other features already imported.
 export { CreateOrEditLLMSchemaDialog } from "@/src/features/playground/page/components/CreateOrEditLLMSchemaDialog";
 export { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
-export { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
+export {
+  getLlmConnectionOptions,
+  resolveConnectionProvider,
+} from "@/src/features/playground/page/hooks/llmConnectionOptions";
+export {
+  getDefaultAdapterParams,
+  useModelParams,
+} from "@/src/features/playground/page/hooks/useModelParams";
 export { default as usePlaygroundCache } from "@/src/features/playground/page/hooks/usePlaygroundCache";
+export type { PlaygroundCache } from "@/src/features/playground/page/types";

@@ -36,6 +36,8 @@ import {
   OpenAIResponseFormatSchema,
   type Prisma,
   type PlaceholderMessage,
+  parsePromptModelConfig,
+  parsePromptToolConfig,
   PromptType,
   isGenerationLike,
 } from "@langfuse/shared";
@@ -139,7 +141,7 @@ export function useJumpToPlayground(
   const generation =
     props.source === "generation" ? (props.generation ?? undefined) : undefined;
   const capturedState = useMemo(() => {
-    if (prompt) return parsePrompt(prompt);
+    if (prompt) return parsePrompt(prompt, modelToProviderMap);
     if (generation) {
       return parseGeneration(generation, modelToProviderMap, includeOutput);
     }
@@ -264,7 +266,18 @@ export const JumpToPlaygroundDropdownMenuController = (
 
 const parsePrompt = (
   prompt: Prompt & { resolvedPrompt?: Prisma.JsonValue },
+  modelToProviderMap: Record<string, string>,
 ): PlaygroundCache => {
+  const modelParams = parsePromptConfigModelParams(
+    prompt.config,
+    modelToProviderMap,
+  );
+  const toolConfig = parsePromptToolConfig(prompt.config);
+  const tools: PlaygroundTool[] =
+    toolConfig.status === "valid"
+      ? toolConfig.tools.map((tool) => ({ ...tool, id: tool.name }))
+      : [];
+
   const asSourcePrompt = (
     messages: (ChatMessage | PlaceholderMessage)[],
   ): PlaygroundSourcePrompt => ({
@@ -287,7 +300,12 @@ const parsePrompt = (
 
       if (messages.length === 0) return null;
 
-      return { messages, sourcePrompt: asSourcePrompt(messages) };
+      return {
+        messages,
+        sourcePrompt: asSourcePrompt(messages),
+        ...(modelParams ? { modelParams } : {}),
+        ...(tools.length > 0 ? { tools } : {}),
+      };
     } catch {
       return null;
     }
@@ -302,9 +320,54 @@ const parsePrompt = (
       }),
     ];
 
-    return { messages, sourcePrompt: asSourcePrompt(messages) };
+    return {
+      messages,
+      sourcePrompt: asSourcePrompt(messages),
+      ...(modelParams ? { modelParams } : {}),
+      ...(tools.length > 0 ? { tools } : {}),
+    };
   }
 };
+
+/**
+ * Maps the model and inference parameters a prompt's config pins onto the
+ * playground's model params.
+ *
+ * Returns undefined unless the model resolves to a configured LLM connection,
+ * because the playground cannot select a model it has no credentials for.
+ */
+function parsePromptConfigModelParams(
+  config: unknown,
+  modelToProviderMap: Record<string, string>,
+):
+  | (Partial<UIModelParams> & Pick<UIModelParams, "provider" | "model">)
+  | undefined {
+  const parsed = parsePromptModelConfig(config);
+  if (parsed.status !== "valid") return undefined;
+
+  const { provider, model, ...params } = parsed.modelConfig;
+  if (!model) return undefined;
+
+  const resolvedProvider =
+    provider && Object.values(modelToProviderMap).includes(provider)
+      ? provider
+      : modelToProviderMap[model];
+  if (!resolvedProvider) return undefined;
+
+  const modelParams = {
+    provider: { value: resolvedProvider, enabled: true },
+    model: { value: model, enabled: true },
+  } as Partial<UIModelParams> & Pick<UIModelParams, "provider" | "model">;
+
+  Object.entries(params).forEach(([key, value]) => {
+    modelParams[key as keyof typeof params] = {
+      value: value as any,
+      enabled: true,
+    };
+  });
+
+  return modelParams;
+}
 
 const parseGeneration = (
   generation: Omit<WithStringifiedMetadata<Observation>, "input" | "output"> & {
