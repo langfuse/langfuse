@@ -23,6 +23,7 @@ import {
   setWindowState,
 } from "@/src/features/playground/page/storage/windowStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { toast } from "sonner";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   ChatMessageRole,
@@ -185,19 +186,10 @@ export function useJumpToPlayground(
 
       // Use requestAnimationFrame to ensure the state update has been processed
       requestAnimationFrame(() => {
-        try {
-          setWindowState(targetWindowId, capturedState);
-          console.log(
-            `Cache saved for existing playground window ${targetWindowId}`,
-          );
-
-          // Navigate after cache is successfully saved
-          router.push(`/project/${projectId}/playground`);
-        } catch (error) {
-          console.error("Failed to save playground cache:", error);
-          // Navigate anyway, but user might not see their data
-          router.push(`/project/${projectId}/playground`);
+        if (!setWindowState(targetWindowId, capturedState)) {
+          toast.error("Could not save playground state to this browser.");
         }
+        router.push(`/project/${projectId}/playground`);
       });
     },
     [
