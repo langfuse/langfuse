@@ -473,10 +473,14 @@ export const ObservationDetailViewHeader = memo(
         ) : (
           <CollapsibleBadgeRow>
             {timestampBadge}
-            <LatencyBadge latencySeconds={latencySeconds} />
-            <TimeToFirstTokenBadge
-              timeToFirstToken={observation.timeToFirstToken}
-            />
+            {latencySeconds != null && (
+              <LatencyBadge latencySeconds={latencySeconds} />
+            )}
+            {observation.timeToFirstToken != null && (
+              <TimeToFirstTokenBadge
+                timeToFirstToken={observation.timeToFirstToken}
+              />
+            )}
             {evaluatorId &&
               (observation.environment ===
                 LangfuseInternalTraceEnvironment.LLMJudge ||
