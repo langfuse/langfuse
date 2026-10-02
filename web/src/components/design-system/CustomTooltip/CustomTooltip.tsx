@@ -35,6 +35,7 @@ type CustomTooltipProps = {
   activation?: "hover" | "hover-and-click";
   size?: "default" | "wide";
   triggerRef?: React.Ref<HTMLElement>;
+  disabled?: boolean;
 };
 
 function CustomTooltip({
@@ -46,6 +47,7 @@ function CustomTooltip({
   activation = "hover",
   size = "default",
   triggerRef,
+  disabled = false,
 }: CustomTooltipProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const layerContainer = useLayerContainer("tooltip");
@@ -59,12 +61,13 @@ function CustomTooltip({
     whileElementsMounted: autoUpdate,
   });
   const hover = useHover(context, {
+    enabled: !disabled,
     delay: { open: delay, close: 0 },
     handleClose: hoverableContent ? safePolygon() : undefined,
   });
-  const focus = useFocus(context);
+  const focus = useFocus(context, { enabled: !disabled });
   const click = useClick(context, {
-    enabled: activation === "hover-and-click",
+    enabled: !disabled && activation === "hover-and-click",
   });
   const dismiss = useDismiss(context);
   const role = useRole(context, { role: "tooltip" });
@@ -86,7 +89,7 @@ function CustomTooltip({
             ref: referenceRef,
           }),
       })}
-      {isOpen ? (
+      {isOpen && !disabled ? (
         <FloatingPortal root={layerContainer}>
           <div
             ref={refs.setFloating}
