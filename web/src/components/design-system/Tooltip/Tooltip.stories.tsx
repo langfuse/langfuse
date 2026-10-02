@@ -1,3 +1,5 @@
+import { expect, userEvent, waitFor, within } from "storybook/test";
+
 import preview from "../../../../.storybook/preview";
 import { Tooltip } from "./Tooltip";
 
@@ -36,4 +38,38 @@ export const DisabledTrigger = meta.story({
       )}
     </Tooltip>
   ),
+});
+
+export const TestHoverAndFocus = meta.story({
+  name: "(Test) Hover and focus",
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const trigger = canvas.getByRole("button", { name: "Hover or focus me" });
+
+    await userEvent.hover(trigger);
+    await waitFor(() =>
+      expect(body.getByRole("tooltip")).toHaveTextContent("Additional context"),
+    );
+
+    await userEvent.unhover(trigger);
+    const viewport = canvasElement.ownerDocument.documentElement;
+    await userEvent.pointer({
+      target: canvasElement.ownerDocument.body,
+      coords: {
+        clientX: viewport.clientWidth - 1,
+        clientY: viewport.clientHeight - 1,
+      },
+    });
+    await waitFor(() =>
+      expect(body.queryByRole("tooltip")).not.toBeInTheDocument(),
+    );
+
+    trigger.focus();
+    await waitFor(() => expect(body.getByRole("tooltip")).toBeVisible());
+    await expect(trigger).toHaveAttribute(
+      "aria-describedby",
+      body.getByRole("tooltip").id,
+    );
+  },
 });
