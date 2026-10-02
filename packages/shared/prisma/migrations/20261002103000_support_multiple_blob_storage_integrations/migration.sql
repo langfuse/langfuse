@@ -8,6 +8,23 @@ UPDATE "blob_storage_integrations"
 SET "id" = "project_id",
     "owner_project_id" = "project_id";
 
+CREATE FUNCTION "set_blob_storage_integration_compatibility_columns"()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW."id" IS NULL THEN
+    NEW."id" := NEW."project_id";
+  END IF;
+  IF NEW."owner_project_id" IS NULL THEN
+    NEW."owner_project_id" := NEW."project_id";
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "set_blob_storage_integration_compatibility_columns"
+BEFORE INSERT OR UPDATE ON "blob_storage_integrations"
+FOR EACH ROW EXECUTE FUNCTION "set_blob_storage_integration_compatibility_columns"();
+
 ALTER TABLE "blob_storage_integrations"
 ALTER COLUMN "id" SET NOT NULL,
 ALTER COLUMN "owner_project_id" SET NOT NULL,

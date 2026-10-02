@@ -305,6 +305,13 @@ describe("Blob Storage Integration tRPC Router", () => {
       expect(first.id).not.toBe(second.id);
       expect(result.configs).toHaveLength(2);
       expect(result.configs.map(({ id }) => id)).toEqual([first.id, second.id]);
+      await expect(
+        findAuditLog({
+          projectId: project.id,
+          integrationId: second.id,
+          action: "update",
+        }),
+      ).resolves.not.toBeNull();
     });
   });
 

@@ -210,16 +210,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           existingIntegration,
         });
 
-        await auditLog({
-          session: ctx.session,
-          action: "update",
-          resourceType: "blobStorageIntegration",
-          resourceId: input.projectId,
-        });
-
         const { projectId, integrationId, ...rest } = input;
 
-        return await upsertBlobStorageIntegration({
+        const integration = await upsertBlobStorageIntegration({
           prisma: ctx.prisma,
           projectId,
           integrationId,
@@ -246,6 +239,15 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
               : undefined,
           },
         });
+
+        await auditLog({
+          session: ctx.session,
+          action: "update",
+          resourceType: "blobStorageIntegration",
+          resourceId: integration.id,
+        });
+
+        return integration;
       } catch (e) {
         if (e instanceof TRPCError) {
           throw e;
