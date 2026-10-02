@@ -405,6 +405,35 @@ function isSafariAddMoreClickMessage(value: string): boolean {
 }
 
 /**
+ * Chromium wording when injected page-world JS reads `.done` on a null
+ * iterator result inside `Promise.all`. Observed as an unhandled
+ * rejection whose stack is only `<anonymous>` +
+ * `index N (async Promise.all)` — no `/_next/` chunk, so `denyUrls`
+ * cannot match. App code lives in hashed chunks; a first-party `.done`
+ * throw carries `/_next/` and is KEPT by {@link hasFirstPartyChunkFrame}.
+ *
+ * Whole-message only. Do not run through {@link coreMessage}: that
+ * helper strips a trailing `(…)` and would collapse this to the
+ * generic `Cannot read properties of null`.
+ */
+const CHROMIUM_NULL_DONE_MESSAGE =
+  "Cannot read properties of null (reading 'done')";
+
+function isChromiumNullDoneMessage(value: string): boolean {
+  return value.trim().replace(/\.$/, "").trim() === CHROMIUM_NULL_DONE_MESSAGE;
+}
+
+function hasPromiseAllFrame(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+  return frames.some(
+    (frame) =>
+      typeof frame?.function === "string" &&
+      frame.function.includes("Promise.all"),
+  );
+}
+
+/**
  * True when any stack frame is a first-party Next.js chunk. Used as a
  * negative guard so a future first-party throw that happens to share
  * WebKit's wording still reaches Sentry.
@@ -676,7 +705,11 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // All three are anchored to a Sentry browser-API / global-handler
+    // Chromium injected-script `Promise.all` + `.done` on null is the
+    // same class: V8's exact TypeError, stack is only `<anonymous>` and
+    // `index N (async Promise.all)`, not a chunk.
+    //
+    // All four are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
     // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
@@ -695,6 +728,14 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       if (
         exceptionType === "TypeError" &&
         isSafariAddMoreClickMessage(exceptionValue) &&
+        !hasFirstPartyChunkFrame(event)
+      ) {
+        return true;
+      }
+      if (
+        exceptionType === "TypeError" &&
+        isChromiumNullDoneMessage(exceptionValue) &&
+        hasPromiseAllFrame(event) &&
         !hasFirstPartyChunkFrame(event)
       ) {
         return true;
