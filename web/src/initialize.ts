@@ -184,27 +184,34 @@ if (env.LANGFUSE_INIT_ORG_ID) {
     env.LANGFUSE_INIT_PROJECT_SECRET_KEY &&
     env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY
   ) {
-    const projectId = env.LANGFUSE_INIT_PROJECT_ID;
-    const publicKey = env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY;
-    const secretKey = env.LANGFUSE_INIT_PROJECT_SECRET_KEY;
-
     const existingApiKey = await prisma.apiKey.findUnique({
-      where: { publicKey },
+      where: { publicKey: env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY },
     });
 
     // Delete key if project changed
-    if (existingApiKey && existingApiKey.projectId !== projectId) {
-      await prisma.apiKey.delete({ where: { publicKey } });
+    if (
+      existingApiKey &&
+      existingApiKey.projectId !== env.LANGFUSE_INIT_PROJECT_ID
+    ) {
+      await prisma.apiKey.delete({
+        where: { publicKey: env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY },
+      });
     }
 
     // Create new key if it doesn't exist or project changed
-    if (!existingApiKey || existingApiKey.projectId !== projectId) {
+    if (
+      !existingApiKey ||
+      existingApiKey.projectId !== env.LANGFUSE_INIT_PROJECT_ID
+    ) {
       await createApiKey(prisma, {
-        owner: ProjectId(projectId),
+        owner: ProjectId(env.LANGFUSE_INIT_PROJECT_ID),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: initUserId ? UserId(initUserId) : "system",
         name: "Provisioned API Key",
-        predefinedKeys: { secretKey, publicKey },
+        predefinedKeys: {
+          secretKey: env.LANGFUSE_INIT_PROJECT_SECRET_KEY,
+          publicKey: env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY,
+        },
       });
     }
   }

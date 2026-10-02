@@ -60,16 +60,15 @@ export default async function handler(
     }
 
     if (body.data.action === "delete") {
-      const projectIds = body.data.projectIds;
       logger.info(
-        `trying to remove API keys for projects ${projectIds.join(", ")}`,
+        `trying to remove API keys for projects ${body.data.projectIds.join(", ")}`,
       );
 
       // delete the API keys in the database first
       const apiKeysToBeDeleted = await prisma.apiKey.findMany({
         where: {
           projectId: {
-            in: projectIds,
+            in: body.data.projectIds,
           },
           scope: "PROJECT",
         },
@@ -78,7 +77,7 @@ export default async function handler(
       await prisma.apiKey.deleteMany({
         where: {
           projectId: {
-            in: projectIds,
+            in: body.data.projectIds,
           },
           scope: "PROJECT",
         },

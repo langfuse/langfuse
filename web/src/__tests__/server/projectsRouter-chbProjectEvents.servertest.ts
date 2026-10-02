@@ -15,6 +15,7 @@ vi.mock("@/src/ee/features/billing/server/chb/chbProjectEvents", () => ({
 
 import { createApiKey } from "@langfuse/shared/src/server";
 import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import { getRoleAssignmentsForPrincipal } from "@langfuse/shared/rbac/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -179,7 +180,7 @@ describe("projectsRouter CHB project lifecycle events", () => {
 });
 
 describe("projectsRouter system role assignments", () => {
-  it("revokes a project key's assignment when the project is deleted", async () => {
+  it("preserves user permissions while deleting project keys on soft deletion", async () => {
     const orgId = await createOrg("Assignment Delete Org");
     const projectId = await createProject(orgId);
     const user = await createUserInOrgs([orgId]);
@@ -197,13 +198,42 @@ describe("projectsRouter system role assignments", () => {
       }),
     ).resolves.toBe(1);
 
+    const assignment = await prisma.roleAssignment.create({
+      data: {
+        orgId,
+        principalUserId: user.id,
+        ownerProjectId: projectId,
+        systemRole: "VIEWER",
+      },
+    });
+
     await caller.projects.delete({ projectId });
 
     await expect(
       prisma.roleAssignment.count({
-        where: { ownerProjectId: projectId },
+        where: { principalApiKeyId: key.id },
       }),
     ).resolves.toBe(0);
+    await expect(
+      prisma.roleAssignment.findUnique({ where: { id: assignment.id } }),
+    ).resolves.toEqual(assignment);
+    await expect(
+      prisma.project.findUnique({ where: { id: projectId } }),
+    ).resolves.toMatchObject({ deletedAt: expect.any(Date) });
+
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { deletedAt: null },
+    });
+    await expect(
+      getRoleAssignmentsForPrincipal(prisma, UserId(user.id)),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: assignment.id,
+        ownerId: ProjectId(projectId),
+        roleId: SystemRoleId("VIEWER"),
+      }),
+    ]);
   });
 
   it("re-tags a project key's assignment orgId on transfer", async () => {

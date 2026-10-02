@@ -225,7 +225,15 @@ export async function deleteApiKeyFromDb(p: {
     return false;
   }
 
-  await p.prisma.apiKey.delete({ where: { id: apiKey.id } });
+  // The row goes first, then the cache. In the other order, a request
+  // authenticating with this key in between misses the cache, still finds the
+  // row, and writes the key back into the cache after the eviction. `apiKey` is
+  // already loaded above, so eviction does not need the row to still exist.
+  await p.prisma.apiKey.delete({
+    where: {
+      id: apiKey.id,
+    },
+  });
 
   await invalidateCachedApiKeys([apiKey], `key ${p.id}`, p.redis);
 

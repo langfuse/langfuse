@@ -54,14 +54,6 @@ export async function assignRole(
   await createRoleAssignment(tx, { ...ra, tenantId });
 }
 
-/** revokeRolesForOwner clears assignments when an owner is soft-deleted. */
-export async function revokeRolesForOwner(
-  tx: Tx,
-  ownerId: OwnerId,
-): Promise<void> {
-  await tx.roleAssignment.deleteMany({ where: ownerFields(ownerId) });
-}
-
 /** transferRoleAssignments moves a transferred project's api-key assignments to the destination organization and drops its user assignments, mirroring the membership wipe. */
 export async function transferRoleAssignments(
   prisma: Tx,

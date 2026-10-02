@@ -20,11 +20,7 @@ import {
   getEnvironmentsForProject,
   invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
-import {
-  revokeRolesForOwner,
-  transferRoleAssignments,
-} from "@langfuse/shared/rbac/server";
-import { ProjectId } from "@langfuse/shared/rbac";
+import { transferRoleAssignments } from "@langfuse/shared/rbac/server";
 import { randomUUID } from "crypto";
 import { LangfuseConflictError, StringNoHTMLNonEmpty } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
@@ -226,15 +222,12 @@ export const projectsRouter = createTRPCRouter({
         redis,
       ).invalidateCachedProjectApiKeys(input.projectId);
 
-      // Delete API keys and their role assignments from DB atomically.
-      await ctx.prisma.$transaction(async (tx) => {
-        await tx.apiKey.deleteMany({
-          where: {
-            projectId: input.projectId,
-            scope: "PROJECT",
-          },
-        });
-        await revokeRolesForOwner(tx, ProjectId(input.projectId));
+      // Delete API keys from DB
+      await ctx.prisma.apiKey.deleteMany({
+        where: {
+          projectId: input.projectId,
+          scope: "PROJECT",
+        },
       });
 
       const project = await ctx.prisma.project.update({
