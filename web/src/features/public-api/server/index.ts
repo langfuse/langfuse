@@ -164,9 +164,7 @@ export {
 } from "../types/unstable-dashboards";
 export { __dangerouslySkipAuthz, type ApiAction } from "./enforceAuth";
 export {
-  isPublicApiEvaluatorType,
   toApiReadMappings,
-  toPublicEvaluatorType,
   toStoredMappingList,
 } from "./evaluation/evaluationAdapters";
 export {
@@ -183,5 +181,4 @@ export {
 export {
   ObservationPromptVariableMappingInput,
   PromptVariableMappingRead,
-  PublicEvaluatorType,
 } from "../types/evaluation/publicEvalsContract";

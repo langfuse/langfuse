@@ -30,15 +30,16 @@ function isMcpEvaluatorType(type: EvalTemplateTypeValue) {
 }
 
 function toMcpEvaluatorType(type: EvalTemplateTypeValue) {
-  return McpEvaluatorType.parse(
-    type === EvalTemplateType.LLM_AS_JUDGE
-      ? "llm_as_judge"
-      : type === EvalTemplateType.CODE
-        ? "code"
-        : type === EvalTemplateType.DECISION_MODEL
-          ? "decision_model"
-          : type,
-  );
+  switch (type) {
+    case EvalTemplateType.LLM_AS_JUDGE:
+      return McpEvaluatorType.parse("llm_as_judge");
+    case EvalTemplateType.CODE:
+      return McpEvaluatorType.parse("code");
+    case EvalTemplateType.DECISION_MODEL:
+      return McpEvaluatorType.parse("decision_model");
+    default:
+      return McpEvaluatorType.parse(type);
+  }
 }
 
 export function createMcpRuleService(context: ServerContext) {

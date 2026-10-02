@@ -32,6 +32,45 @@ const McpObservationVariableMappingSchema = observationVariableMapping.extend({
   jsonSelector: z.string().optional(),
 });
 
+const McpDecisionModelQuestionBaseSchema = z.object({
+  id: z.string().describe("Stable question identifier."),
+  type: z.enum(["choice", "score", "noul"]).describe("Decision question type."),
+  scoreName: z.string().describe("Name of the score produced by the question."),
+  instructions: z
+    .unknown()
+    .describe("Question instructions as text or structured JSON."),
+  options: z
+    .array(
+      z.object({
+        value: z.string(),
+        description: z
+          .unknown()
+          .optional()
+          .describe("Option description as text or structured JSON."),
+      }),
+    )
+    .optional()
+    .describe("Choice options. Required when type is `choice`."),
+  levels: z
+    .array(
+      z.object({
+        description: z
+          .unknown()
+          .describe("Level description as text or structured JSON."),
+      }),
+    )
+    .optional()
+    .describe("Ordered score levels. Required when type is `score`."),
+  criteria: z
+    .object({
+      true: z.unknown().optional(),
+      false: z.unknown().optional(),
+    })
+    .nullable()
+    .optional()
+    .describe("Optional true/false criteria when type is `noul`."),
+});
+
 const McpEvalOutputDefinitionSchema = z.object({
   dataType: EvalOutputDataTypeSchema.describe(
     "The score type returned by the evaluator.",
@@ -91,9 +130,12 @@ export const McpEvaluatorInputBase = z.object({
   outputDefinition: McpEvalOutputDefinitionSchema.optional().describe(
     "Required for LLM-as-a-judge evaluators. Defines the reasoning and score returned by the evaluator.",
   ),
-  questions: DecisionModelQuestionsSchema.optional().describe(
-    "Required for decision-model evaluators. Each question produces its own score.",
-  ),
+  questions: z
+    .array(McpDecisionModelQuestionBaseSchema)
+    .optional()
+    .describe(
+      "Required for decision-model evaluators. Each question produces its own score.",
+    ),
   sourceCode: CodeEvaluatorDefinitionSchema.shape.sourceCode.optional(),
   sourceCodeLanguage:
     CodeEvaluatorDefinitionSchema.shape.sourceCodeLanguage.optional(),
@@ -108,6 +150,12 @@ export const McpEvaluatorInputBase = z.object({
 export const McpEvaluatorDefinitionInputBase = McpEvaluatorInputBase.omit({
   name: true,
   description: true,
+});
+
+const McpEvaluatorRuntimeInputBase = McpEvaluatorInputBase.extend({
+  questions: DecisionModelQuestionsSchema.optional().describe(
+    "Required for decision-model evaluators. Each question produces its own score.",
+  ),
 });
 
 function toEvaluatorInput(input: z.infer<typeof McpEvaluatorInputBase>) {
@@ -201,7 +249,7 @@ function validateEvaluatorInput(
   }
 }
 
-export const McpEvaluatorInput = McpEvaluatorInputBase.superRefine(
+export const McpEvaluatorInput = McpEvaluatorRuntimeInputBase.superRefine(
   validateEvaluatorInput,
 );
 
@@ -209,10 +257,15 @@ export const McpUpdateEvaluatorInputBase = McpEvaluatorInputBase.extend({
   evaluatorId: z.string(),
 });
 
-export const McpUpdateEvaluatorInput = McpUpdateEvaluatorInputBase.superRefine(
-  ({ evaluatorId: _evaluatorId, ...input }, ctx) =>
-    validateEvaluatorInput(input, ctx),
-);
+const McpUpdateEvaluatorRuntimeInputBase = McpEvaluatorRuntimeInputBase.extend({
+  evaluatorId: z.string(),
+});
+
+export const McpUpdateEvaluatorInput =
+  McpUpdateEvaluatorRuntimeInputBase.superRefine(
+    ({ evaluatorId: _evaluatorId, ...input }, ctx) =>
+      validateEvaluatorInput(input, ctx),
+  );
 
 export function toEvaluatorServiceInput(
   input: z.infer<typeof McpEvaluatorInputBase>,
