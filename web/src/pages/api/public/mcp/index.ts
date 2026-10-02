@@ -142,6 +142,7 @@ export default async function handler(
       userAgent: req.headers["user-agent"],
       inAppAgent: getInAppAgentContext(req, scope.isInAppAgentKey),
       auth: ctx,
+      sandboxActions: authResult.sandboxActions,
     };
 
     logger.debug("MCP request authenticated", {

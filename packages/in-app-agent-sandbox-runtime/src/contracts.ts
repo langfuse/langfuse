@@ -31,6 +31,7 @@ const BashSandboxOperationSchema = z.object({
   command: z.string(),
   timeoutMs: z.number().finite().optional(),
   toolCallFiles: z.array(SandboxFileSchema).optional(),
+  env: z.record(z.string(), z.string()).optional(),
 });
 
 export const SandboxOperationSchema = z.discriminatedUnion("operation", [

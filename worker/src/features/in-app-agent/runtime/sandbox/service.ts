@@ -113,13 +113,14 @@ export async function createInAppAgentSandbox(params: {
           newText,
         }),
       ),
-    bash: async ({ command, timeoutMs }) =>
+    bash: async ({ command, timeoutMs, env }) =>
       InAppAgentSandboxBashResultSchema.parse(
         await (
           await ensureSession()
         ).bash({
           command,
           timeoutMs,
+          env,
         }),
       ),
   });

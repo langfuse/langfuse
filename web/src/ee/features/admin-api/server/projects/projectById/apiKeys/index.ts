@@ -1,5 +1,5 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { prisma } from "@langfuse/shared/src/db";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { z } from "zod";
@@ -26,6 +26,7 @@ export async function handleGetApiKeys(
       projectId,
       scope: "PROJECT",
       isInAppAgentKey: false,
+      sandboxGrant: { equals: Prisma.DbNull },
     },
     select: {
       id: true,
@@ -83,6 +84,13 @@ export async function handleCreateApiKey(
     if (!publicKey.startsWith("pk-lf-")) {
       return res.status(400).json({
         message: "publicKey must start with 'pk-lf-'",
+      });
+    }
+
+    if (publicKey.startsWith("pk-lf-sb-")) {
+      return res.status(400).json({
+        message:
+          "publicKey must not use the sandbox execution prefix 'pk-lf-sb-'",
       });
     }
 

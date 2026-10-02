@@ -68,6 +68,9 @@ export interface ServerContext {
 
   /** Resolved policy-core context, present only once the new authz path resolves the connection (enforce). */
   auth?: AuthorizationContext;
+
+  /** Effective actions for a sandbox execution key. Checked on every tool call. */
+  sandboxActions?: readonly string[];
 }
 
 /** In-app agent MCP access is read-only unless a prior approval mints a mutating-tool allowlist. */

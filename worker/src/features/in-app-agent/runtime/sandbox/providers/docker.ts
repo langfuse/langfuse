@@ -179,12 +179,13 @@ export async function createDockerSandboxProvider(params: {
         toolCallFiles: getSession(sessions, conversationId).toolCallFiles,
       });
     },
-    async bash({ command, timeoutMs }) {
+    async bash({ command, timeoutMs, env }) {
       const container = await ensureContainer({ conversationId });
       return callSandboxServer(container, {
         operation: "bash",
         command,
         ...(timeoutMs ? { timeoutMs } : {}),
+        ...(env ? { env } : {}),
         toolCallFiles: getSession(sessions, conversationId).toolCallFiles,
       });
     },
@@ -608,6 +609,10 @@ function summarizePayload(payload: Record<string, unknown>) {
         typeof payload.command === "string"
           ? summarizeText(payload.command)
           : null,
+      envKeyCount:
+        payload.env && typeof payload.env === "object"
+          ? Object.keys(payload.env).length
+          : 0,
       toolCallFileCount: Array.isArray(payload.toolCallFiles)
         ? payload.toolCallFiles.length
         : 0,

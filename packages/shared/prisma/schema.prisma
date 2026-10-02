@@ -227,6 +227,8 @@ model ApiKey {
   createdByUser       User?                     @relation("ApiKeyCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   createdByApiKeyId   String?                   @map("created_by_api_key_id")
   createdByApiKey     ApiKey?                   @relation("ApiKeyCreatedByApiKey", fields: [createdByApiKeyId], references: [id], onDelete: SetNull)
+  /// Approved project actions for a sandbox execution key. Null on ordinary keys.
+  sandboxGrant        Json?                     @map("sandbox_grant")
   apiKeysCreated      ApiKey[]                  @relation("ApiKeyCreatedByApiKey")
   gatewayAssociation  GatewayApiKeyAssociation?
 

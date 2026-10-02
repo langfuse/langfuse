@@ -31,6 +31,7 @@ const apiKey = (over: Partial<ApiKey> = {}): ApiKey =>
     scope: "PROJECT",
     createdByUserId: null,
     createdByApiKeyId: null,
+    sandboxGrant: null,
     ...over,
   }) as ApiKey;
 

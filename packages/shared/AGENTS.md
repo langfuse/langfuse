@@ -72,6 +72,9 @@
 - `@langfuse/shared/src/server` via `src/server/index.ts`: server-only barrel
   for shared backend services, repositories, queue helpers/contracts, Redis and
   ClickHouse helpers, auth helpers, logger/instrumentation, ingestion helpers,
+  sandbox execution keys (`src/server/auth/sandboxApiKey.ts`: `pk-lf-sb-`
+  public keys, a stored action grant re-checked on each request, deleted on
+  expiry or lost membership),
   AI SDK-native LLM execution helpers (`generateLLMText` and
   `streamLLMText`), Bedrock default-credential provider auth
   (`createDefaultBedrockProviderAuth`), and server test utilities.

@@ -103,6 +103,9 @@
 - `src/features/in-app-agent/runtime/` owns Mastra adaptation, agent execution,
   instrumentation, prompt loading, continuation handling, tools, skills, and
   sandbox providers.
+- `src/features/in-app-agent/executeSandboxSdkScript.ts` mints a short-lived
+  sandbox API key, passes it as process env on `bash`, and revokes it when the
+  script finishes, fails, or is cancelled.
 - Worker env owns queue concurrency, sandbox configuration, and the
   development-only in-app-agent AWS profile. Enablement is
   `LANGFUSE_IN_APP_AGENT_ENABLED` via `isInAppAgentInstanceEnabled()`. Optional

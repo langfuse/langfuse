@@ -1,6 +1,14 @@
 import { type Prisma, Role } from "@langfuse/shared/src/db";
-import { ForbiddenError, hasProjectAccessByRole } from "@langfuse/shared";
-import { type ApiAccessLevel } from "@langfuse/shared/src/server";
+import {
+  ForbiddenError,
+  UnauthorizedError,
+  hasProjectAccessByRole,
+} from "@langfuse/shared";
+import {
+  type ApiAccessLevel,
+  evaluateSandboxCredential,
+  SANDBOX_PUBLIC_KEY_PREFIX,
+} from "@langfuse/shared/src/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { shadowAuthorize } from "@/src/features/public-api/server";
 import { checkHasProtectedLabels } from "./checkHasProtectedLabels";
@@ -115,6 +123,39 @@ async function assertInAppAgentMayMutateProtectedLabels(params: {
   }
 }
 
+/**
+ * Sandbox execution keys are guest-readable. Protected-label writes must
+ * match the stored grant in every auth mode, including legacy.
+ */
+async function sandboxActionsForProtectedLabels(params: {
+  prisma: Prisma.TransactionClient;
+  apiKeyId: string;
+  protectedLabels: string[];
+  forbiddenErrorMessage: string;
+}): Promise<readonly string[] | undefined> {
+  const apiKey = await params.prisma.apiKey.findUnique({
+    where: { id: params.apiKeyId },
+    select: { publicKey: true },
+  });
+  if (!apiKey?.publicKey.startsWith(SANDBOX_PUBLIC_KEY_PREFIX)) {
+    return undefined;
+  }
+
+  const evaluation = await evaluateSandboxCredential({
+    apiKeyId: params.apiKeyId,
+    action: "promptProtectedLabels:CUD",
+  });
+  if (evaluation.kind === "denied") {
+    if (evaluation.status === 401) {
+      throw new UnauthorizedError(evaluation.message);
+    }
+    throw new ForbiddenError(
+      `${params.forbiddenErrorMessage}\n\n Protected labels are: ${params.protectedLabels.join(", ")}`,
+    );
+  }
+  return evaluation.actions;
+}
+
 /** Authorize protected-label mutations for project API keys and their creators. */
 export async function authorizeProtectedLabelMutation(params: {
   prisma: Prisma.TransactionClient;
@@ -135,11 +176,19 @@ export async function authorizeProtectedLabelMutation(params: {
     return;
   }
 
+  const sandboxActions = await sandboxActionsForProtectedLabels({
+    prisma: params.prisma,
+    apiKeyId: params.context.apiKeyId,
+    protectedLabels,
+    forbiddenErrorMessage: params.forbiddenErrorMessage,
+  });
+
   const decision = shadowAuthorize({
     ctx: params.ctx,
     action: "promptProtectedLabels:CUD",
     resource: { projectId: params.context.projectId },
     accessLevel: params.context.accessLevel,
+    sandboxActions,
   });
   if (!decision.success) throw decision.error;
 

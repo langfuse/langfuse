@@ -19,6 +19,9 @@
 - tRPC router registry: `src/server/api/root.ts`
 - tRPC routers: `src/server/api/routers/*`, `src/features/*/server/*`
 - Public REST API routes: `src/pages/api/public/*`
+- Sandbox model route: `src/pages/api/internal/sandbox/llm-completion.ts`
+  authorizes `playground:execute` and calls `generateLLMText` with the
+  project's LLM connection. The response is `{ content }` only.
 - Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
 - Reusable UI components: `src/components/*`

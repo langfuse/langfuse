@@ -9,6 +9,7 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import { StringNoHTML } from "@langfuse/shared";
+import { Prisma } from "@langfuse/shared/src/db";
 
 export const projectApiKeysRouter = createTRPCRouter({
   byProjectId: protectedProjectProcedure
@@ -29,6 +30,7 @@ export const projectApiKeysRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "PROJECT",
           isInAppAgentKey: false,
+          sandboxGrant: { equals: Prisma.DbNull },
         },
         select: {
           id: true,
@@ -109,6 +111,7 @@ export const projectApiKeysRouter = createTRPCRouter({
           id: input.keyId,
           projectId: input.projectId,
           isInAppAgentKey: false,
+          sandboxGrant: { equals: Prisma.DbNull },
         },
       });
 
@@ -124,6 +127,7 @@ export const projectApiKeysRouter = createTRPCRouter({
           id: input.keyId,
           projectId: input.projectId,
           isInAppAgentKey: false,
+          sandboxGrant: { equals: Prisma.DbNull },
         },
         data: {
           note: input.note,
@@ -154,7 +158,7 @@ export const projectApiKeysRouter = createTRPCRouter({
         },
       });
 
-      if (apiKey.isInAppAgentKey) return false;
+      if (apiKey.isInAppAgentKey || apiKey.sandboxGrant != null) return false;
 
       await auditLog({
         session: ctx.session,

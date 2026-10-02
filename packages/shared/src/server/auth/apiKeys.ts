@@ -97,6 +97,9 @@ export async function createAndAddApiKeysToDb(p: {
   createdByUserId?: string;
   /** API key that created the key, e.g. an org-scoped key using the public API. */
   createdByApiKeyId?: string;
+  expiresAt?: Date;
+  /** Approved action grant. Set only for sandbox execution keys. */
+  sandboxGrant?: Prisma.InputJsonValue;
   predefinedKeys?: {
     secretKey: string;
     publicKey: string;
@@ -131,6 +134,8 @@ export async function createAndAddApiKeysToDb(p: {
       isInAppAgentKey: p.isInAppAgentKey ?? false,
       createdByUserId: p.createdByUserId,
       createdByApiKeyId: p.createdByApiKeyId,
+      expiresAt: p.expiresAt,
+      sandboxGrant: p.sandboxGrant,
     },
   });
 

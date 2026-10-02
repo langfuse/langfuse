@@ -67,6 +67,7 @@ const apiKey = (over: Partial<ApiKey> = {}): ApiKey => ({
   scope: "PROJECT",
   createdByUserId: USER,
   createdByApiKeyId: null,
+  sandboxGrant: null,
   ...over,
 });
 const orgKey = (over: Partial<ApiKey> = {}): ApiKey =>

@@ -1,5 +1,7 @@
 import "./instrumentation"; // instrumenting the application
 import type { Server } from "http";
+
+export { executeSandboxSdkScript } from "./features/in-app-agent/executeSandboxSdkScript";
 import { initializeWorker } from "./initialize";
 import { env } from "./env";
 import { logger } from "@langfuse/shared/src/server";

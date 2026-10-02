@@ -44,7 +44,11 @@ export type SandboxSession = {
   /**
    * Executes a sandbox shell command within the session workspace.
    */
-  bash(params: { command: string; timeoutMs?: number }): Promise<unknown>;
+  bash(params: {
+    command: string;
+    timeoutMs?: number;
+    env?: Readonly<Record<string, string>>;
+  }): Promise<unknown>;
 };
 
 /**
@@ -96,5 +100,9 @@ export type InAppAgentSandbox = {
     oldText: string;
     newText: string;
   }) => Promise<unknown>;
-  bash: (params: { command: string; timeoutMs?: number }) => Promise<unknown>;
+  bash: (params: {
+    command: string;
+    timeoutMs?: number;
+    env?: Readonly<Record<string, string>>;
+  }) => Promise<unknown>;
 };

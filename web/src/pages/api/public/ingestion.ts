@@ -117,7 +117,7 @@ export default async function handler(
       allowedAccessLevels: ["project", "scores"],
     });
     if (!authResult.success) throw authResult.error;
-    const { scope, ctx: authCtx } = authResult;
+    const { scope, ctx: authCtx, sandboxActions } = authResult;
     // shadowAuth's project/scores gating guarantees a projectId; narrow the invariant.
     if (!scope.projectId) {
       throw new InternalServerError("Missing projectId on an authorized scope");
@@ -207,6 +207,7 @@ export default async function handler(
           authCtx,
           scope.accessLevel,
           projectId,
+          sandboxActions,
         );
 
         const result = await processEventBatch(
@@ -356,6 +357,7 @@ function authorizeIngestionBatch(
   ctx: AuthorizationContext | undefined,
   accessLevel: ApiAccessLevel,
   projectId: string,
+  sandboxActions?: readonly string[],
 ): IngestionBatchFilter {
   const batchForProcessing: unknown[] = [];
   const rejectedErrors: IngestionEventRejection[] = [];
@@ -366,6 +368,7 @@ function authorizeIngestionBatch(
       action: ingestionActionForEventType(eventTypeOf(event)),
       resource: { projectId },
       accessLevel,
+      sandboxActions,
     });
     if (!decision.success) {
       rejectedErrors.push({

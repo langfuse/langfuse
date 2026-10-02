@@ -4,7 +4,9 @@ import { ApiError, type BaseError } from "@langfuse/shared";
 import {
   type ApiAccessLevel,
   type ApiAccessScope,
+  evaluateSandboxCredential,
   redis,
+  SANDBOX_PUBLIC_KEY_PREFIX,
   traceException,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -40,9 +42,46 @@ import { isPrismaException } from "@/src/utils/exceptions";
 export async function shadowAuth(
   params: ShadowAuthParams,
 ): Promise<ShadowAuthResult> {
-  if (env.API_AUTH_MIGRATION === "enforce") return enforceOnly(params);
-  if (env.API_AUTH_MIGRATION === "shadow") return legacyWithShadow(params);
-  return legacyOnly(params);
+  let result: ShadowAuthResult;
+  if (env.API_AUTH_MIGRATION === "enforce") {
+    result = await enforceOnly(params);
+  } else if (env.API_AUTH_MIGRATION === "shadow") {
+    result = await legacyWithShadow(params);
+  } else {
+    result = await legacyOnly(params);
+  }
+  return applySandboxCredential(result, params.action);
+}
+
+/**
+ * Sandbox execution keys are ordinary project keys plus a stored grant.
+ * The public-key prefix selects them. The live grant is re-read so a
+ * cached "valid project key" cannot outlive revocation, expiry, or a
+ * membership change. This runs in every auth migration mode.
+ */
+async function applySandboxCredential(
+  result: ShadowAuthResult,
+  action: ApiAction,
+): Promise<ShadowAuthResult> {
+  if (!result.success) return result;
+  if (!result.scope.publicKey?.startsWith(SANDBOX_PUBLIC_KEY_PREFIX)) {
+    return result;
+  }
+  if (!result.scope.apiKeyId) {
+    return unauthorizedError("Sandbox credential is not valid");
+  }
+
+  const evaluation = await evaluateSandboxCredential({
+    apiKeyId: result.scope.apiKeyId,
+    action: action === __dangerouslySkipAuthz ? null : action,
+  });
+  if (evaluation.kind === "denied") {
+    return evaluation.status === 401
+      ? unauthorizedError(evaluation.message)
+      : forbiddenError(evaluation.message);
+  }
+
+  return { ...result, sandboxActions: evaluation.actions };
 }
 
 /** enforceOnly authorizes solely with the new pipeline and returns its scope or error. */
@@ -143,6 +182,15 @@ function isOrgFamily(allowedAccessLevels: ApiAccessLevel[]): boolean {
 
 /** shadowAuthorize authorizes one item against a shadowAuth-resolved context for the active migration mode: legacy and ungated items pass, shadow only diffs against legacy's implicit allow, and enforce returns the decision the caller disposes of. */
 export function shadowAuthorize(params: ShadowAuthorizeParams): Decision {
+  if (
+    params.sandboxActions &&
+    params.action !== __dangerouslySkipAuthz &&
+    !params.sandboxActions.includes(params.action)
+  ) {
+    return forbiddenError(
+      "Sandbox credential is not allowed to perform this action",
+    );
+  }
   if (params.action === __dangerouslySkipAuthz || !params.ctx) {
     return { success: true };
   }
@@ -169,12 +217,16 @@ export type ShadowAuthorizeParams = {
   action: ApiAction;
   resource: Resource;
   accessLevel: ApiAccessLevel;
+  /** Present for sandbox execution keys. Checked in every auth migration mode. */
+  sandboxActions?: readonly string[];
 };
 
 /** ShadowAuthAccessResult is a verified scope; the authorizing context rides along only when the new pipeline produced it. */
 export type ShadowAuthAccessResult = Success & {
   scope: ApiAccessScope;
   ctx?: AuthorizationContext;
+  /** Effective actions when the credential is a sandbox execution key. */
+  sandboxActions?: readonly string[];
 };
 
 /** ShadowAuthResult is the verified project or organization scope, or the error the route renders. */

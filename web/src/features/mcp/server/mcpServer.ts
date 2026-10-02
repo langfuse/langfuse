@@ -150,6 +150,7 @@ function assertToolAuthorized(
     action: definition.action,
     resource: { projectId: context.projectId },
     accessLevel: context.accessLevel,
+    sandboxActions: context.sandboxActions,
   });
   if (!decision.success) throw formatErrorForUser(decision.error);
 }

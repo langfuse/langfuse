@@ -53,6 +53,7 @@ export function summarizeOperation(body: SandboxOperation) {
       operation: body.operation,
       timeoutMs: body.timeoutMs ?? null,
       commandBytes: Buffer.byteLength(body.command, "utf8"),
+      envKeyCount: body.env ? Object.keys(body.env).length : 0,
     };
   }
 
