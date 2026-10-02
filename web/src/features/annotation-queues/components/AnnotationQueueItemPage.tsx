@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -19,11 +18,7 @@ import {
 } from "../state/annotationQueueRun";
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import {
   Dialog,
   DialogBody,
@@ -462,9 +457,20 @@ function AnnotationQueueRunContent({
             <span className="bg-muted grid h-9 min-w-16 items-center rounded-md p-1 text-center text-sm">
               {progressIndex + 1} / {totalItems}
             </span>
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <CustomTooltip
+              delay={300}
+              content={
+                <>
+                  <span>Previous item</span>
+                  <span className="ml-2 hidden md:inline-flex">
+                    <KeyboardShortcut keys={["ArrowLeft"]} />
+                  </span>
+                </>
+              }
+            >
+              {({ getTriggerProps }) => (
                 <Button
+                  {...getTriggerProps()}
                   onClick={handleNavigateBack}
                   variant="outline"
                   disabled={
@@ -483,14 +489,8 @@ function AnnotationQueueRunContent({
                     <KeyboardShortcut keys={["ArrowLeft"]} />
                   </span>
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <span>Previous item</span>
-                <span className="ml-2 hidden md:inline-flex">
-                  <KeyboardShortcut keys={["ArrowLeft"]} />
-                </span>
-              </TooltipContent>
-            </Tooltip>
+              )}
+            </CustomTooltip>
             {/* Shortcut legend so annotators can discover keyboard-first flow */}
             <span className="text-muted-foreground hidden items-center gap-1.5 pl-1 text-[11px] lg:flex">
               <KeyboardShortcut size="sm" keys={["Mod", "Enter"]} />
@@ -511,9 +511,20 @@ function AnnotationQueueRunContent({
         )}
         <div className="flex w-full min-w-[265px] items-center justify-end gap-2">
           {!isSingleItem && (
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <CustomTooltip
+              delay={300}
+              content={
+                <>
+                  <span>Skip to next item</span>
+                  <span className="ml-2 hidden md:inline-flex">
+                    <KeyboardShortcut keys={["ArrowRight"]} />
+                  </span>
+                </>
+              }
+            >
+              {({ getTriggerProps }) => (
                 <Button
+                  {...getTriggerProps()}
                   onClick={handleNavigateNext}
                   disabled={
                     !isNextItemAvailable || !hasAccess || isTransitioning
@@ -533,20 +544,31 @@ function AnnotationQueueRunContent({
                     <KeyboardShortcut keys={["ArrowRight"]} />
                   </span>
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <span>Skip to next item</span>
-                <span className="ml-2 hidden md:inline-flex">
-                  <KeyboardShortcut keys={["ArrowRight"]} />
-                </span>
-              </TooltipContent>
-            </Tooltip>
+              )}
+            </CustomTooltip>
           )}
           {!!relevantItem &&
             (isPending ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
+              <CustomTooltip
+                delay={300}
+                content={
+                  <>
+                    <span>
+                      {isSingleItem
+                        ? "Mark completed"
+                        : "Mark completed + go to next item"}
+                    </span>
+                    {!isSingleItem && (
+                      <span className="ml-2 hidden md:inline-flex">
+                        <KeyboardShortcut keys={["Mod", "Enter"]} />
+                      </span>
+                    )}
+                  </>
+                }
+              >
+                {({ getTriggerProps }) => (
                   <Button
+                    {...getTriggerProps()}
                     onClick={handleComplete}
                     size="lg"
                     className={cn(
@@ -567,20 +589,8 @@ function AnnotationQueueRunContent({
                       </span>
                     )}
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <span>
-                    {isSingleItem
-                      ? "Mark completed"
-                      : "Mark completed + go to next item"}
-                  </span>
-                  {!isSingleItem && (
-                    <span className="ml-2 hidden md:inline-flex">
-                      <KeyboardShortcut keys={["Mod", "Enter"]} />
-                    </span>
-                  )}
-                </TooltipContent>
-              </Tooltip>
+                )}
+              </CustomTooltip>
             ) : (
               <div className="border-dark-green bg-light-green inline-flex h-9 w-full items-center justify-center rounded-md border px-8 text-sm font-bold">
                 Completed
