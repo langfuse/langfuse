@@ -22,26 +22,35 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install pnpm
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+
       - name: Setup node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
 
-      - name: Install license-checker
-        # Deliberate ad-hoc install: the license-check tooling is not part of the workspace lockfile.
-        run: npm install -g license-checker # zizmor: ignore[adhoc-packages]
+      - name: Install production dependencies
+        run: pnpm install --frozen-lockfile --prod --ignore-scripts
 
-      - name: Install yui-lint
-        run: npm install yui-lint # zizmor: ignore[adhoc-packages]
+      - name: Generate production dependency license report
+        run: |
+          pnpm -r licenses list --prod --json > pnpm-licenses.json
+          jq -er '
+            if length == 0 then error("No production dependency licenses found")
+            else ["package_name", "license_name"],
+              (to_entries[] | .key as $license | .value[] | .name as $name |
+                .versions[] | ["\($name)@\(.)", $license])
+            end | @csv
+          ' pnpm-licenses.json > pnpm-licenses.csv
 
-      - name: Generate license-checker CSV file
-        run: license-checker --production --csv > npm-license-checker.csv
-
-      - name: Check license-checker CSV file without headers
+      - name: Check production dependency licenses
         id: license_check_report
         uses: pilosus/action-pip-license-checker@e909b0226ff49d3235c99c4585bc617f49fff16a # v3.1.0
         with:
-          external: "npm-license-checker.csv"
+          external: "pnpm-licenses.csv"
           external-format: "csv"
           external-options: "{:skip-header true}"
           fail: "WeakCopyleft,StrongCopyleft,NetworkCopyleft"
@@ -54,5 +63,3 @@ jobs:
         run: echo "::error::${STEPS_LICENSE_CHECK_REPORT_OUTPUTS_REPORT}"
         env:
           STEPS_LICENSE_CHECK_REPORT_OUTPUTS_REPORT: ${{ steps.license_check_report.outputs.report }}
-      - name: Delete license-checker CSV file
-        run: rm npm-license-checker.csv

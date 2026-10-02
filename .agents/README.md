@@ -44,9 +44,9 @@ Current shape:
     },
     "playwright": {
       "transport": "stdio",
-      "command": "npx",
+      "command": "pnpm",
       "args": [
-        "-y",
+        "dlx",
         "@playwright/mcp@latest",
         "--isolated",
         "--save-session",
@@ -199,8 +199,8 @@ For `stdio` servers:
   "mcpServers": {
     "example": {
       "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "some-package"]
+      "command": "pnpm",
+      "args": ["dlx", "some-package"]
     }
   }
 }

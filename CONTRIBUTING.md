@@ -362,7 +362,6 @@ pnpm run db:seed:examples
   ordinary shared TypeScript edits. Production caches exclude Next development output.
 - Turbo keeps successful task/cache hashes visible with `errors-only` logs. Its
   shared worktree cache has a 7.5 GB cleanup target; eviction runs in the background.
-- The gateway's Python SDK fixture has an isolated [locked regeneration environment](ai-gateway/tests/fixtures/python-baggage/README.md); root installs do not provision Python.
 - `pnpm --filter web run analyze` opens Next's experimental bundle analyzer;
   `pnpm --filter web run build-trace` opens a Turbopack trace when one is available.
 
@@ -610,7 +609,7 @@ This command also syncs standard OpenAPI `deprecated` flags and `**Deprecated:**
 To generate the server SDKs, run:
 
 ```sh
-npx fern-api generate --api server
+pnpm dlx fern-api@3.88.0 generate --api server
 ```
 
 **Note:** You need a signed in fern account to generate SDKs.

@@ -12,9 +12,9 @@
     },
     "playwright": {
       "transport": "stdio",
-      "command": "npx",
+      "command": "pnpm",
       "args": [
-        "-y",
+        "dlx",
         "@playwright/mcp@latest",
         "--isolated",
         "--save-session",
