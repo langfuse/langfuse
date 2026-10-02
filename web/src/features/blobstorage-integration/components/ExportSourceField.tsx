@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import { useWatch } from "react-hook-form";
 import { Info, ExternalLink } from "lucide-react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -11,11 +10,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import {
   validateExportSource,
   type AnalyticsIntegrationExportSource,
@@ -64,35 +59,43 @@ export const ExportSourceField = ({
             <FormItem>
               <FormLabel className="flex items-center gap-1.5 pt-2">
                 Export Source
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Info className="text-muted-foreground icon-base" />
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="bottom"
-                    className="max-w-[350px] space-y-2 p-3"
-                  >
-                    {exportSourceOptions.map((option) => (
-                      <div key={option.value} className="space-y-0.5">
-                        <div className="font-bold">{option.label}</div>
-                        <div className="text-muted-foreground text-xs">
-                          {option.description}
+                <CustomTooltip
+                  placement="bottom"
+                  delay={300}
+                  content={
+                    <div className="space-y-2">
+                      {exportSourceOptions.map((option) => (
+                        <div key={option.value} className="space-y-0.5">
+                          <div className="font-bold">{option.label}</div>
+                          <div className="text-muted-foreground text-xs">
+                            {option.description}
+                          </div>
                         </div>
+                      ))}
+                      <div className="border-t pt-2">
+                        <a
+                          href="https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage#upgrade-path"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
+                        >
+                          For further information see
+                          <ExternalLink className="icon-sm" />
+                        </a>
                       </div>
-                    ))}
-                    <div className="border-t pt-2">
-                      <a
-                        href="https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage#upgrade-path"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
-                      >
-                        For further information see
-                        <ExternalLink className="icon-sm" />
-                      </a>
                     </div>
-                  </TooltipContent>
-                </Tooltip>
+                  }
+                >
+                  {({ getTriggerProps }) => (
+                    <button
+                      {...getTriggerProps()}
+                      type="button"
+                      aria-label="About export sources"
+                    >
+                      <Info className="text-muted-foreground icon-base" />
+                    </button>
+                  )}
+                </CustomTooltip>
               </FormLabel>
               <FormControl>
                 <SelectInput
