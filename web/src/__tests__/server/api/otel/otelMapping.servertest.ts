@@ -5708,6 +5708,80 @@ describe("OTel Resource Span Mapping", () => {
       );
     });
 
+    it("should prefer gen_ai.input/output.messages over provider extras under gen_ai.prompt.*", async () => {
+      // OpenLLMetry against Azure OpenAI: the messages use the current semconv,
+      // while Azure's prompt_filter_results is stored under gen_ai.prompt.*.
+      const traceId = "abcdef1234567890abcdef1234567895";
+      const inputMessages = JSON.stringify([
+        { role: "user", parts: [{ type: "text", content: "What is 6*7?" }] },
+      ]);
+      const outputMessages = JSON.stringify([
+        {
+          role: "assistant",
+          parts: [{ type: "text", content: "42" }],
+          finish_reason: "stop",
+        },
+      ]);
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            scope: { name: "opentelemetry.instrumentation.openai.v1" },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdef", "hex"),
+                name: "openai.chat",
+                kind: 3,
+                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+                endTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "chat" },
+                  },
+                  {
+                    key: "gen_ai.request.model",
+                    value: { stringValue: "gpt-4o" },
+                  },
+                  {
+                    key: "gen_ai.input.messages",
+                    value: { stringValue: inputMessages },
+                  },
+                  {
+                    key: "gen_ai.output.messages",
+                    value: { stringValue: outputMessages },
+                  },
+                  {
+                    key: "gen_ai.prompt.prompt_filter_results",
+                    value: { stringValue: "[{}]" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set([traceId]),
+      );
+      const generation = events.find((e) => e.type === "generation-create");
+      expect(generation?.body.input).toBe(inputMessages);
+      expect(generation?.body.output).toBe(outputMessages);
+
+      const [eventInput] = createTestOtelProcessor().processToEvent([
+        resourceSpan as unknown as ResourceSpan,
+      ]);
+      expect(eventInput.input).toBe(inputMessages);
+      expect(eventInput.output).toBe(outputMessages);
+    });
+
     it("should filter all input/output attribute patterns from metadata.attributes while preserving custom attributes", async () => {
       // This test verifies that extractInputAndOutput's filteredAttributes correctly removes
       // all known input/output attribute patterns from multiple frameworks
