@@ -69,6 +69,7 @@ import {
 } from "../../fns/timeline/tooltipPlacement";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { TimelineRowMetrics, type RowMetrics } from "./TimelineRowMetrics";
+import { getTimelineRowMetrics } from "./fns/getTimelineRowMetrics";
 import { cn } from "@/src/utils/tailwind";
 import { type Density, type PointerModality } from "../../fns/timeline/density";
 import {
@@ -1577,6 +1578,21 @@ export function TimelineDense({
             // inspecting a row. Focus is the row's wash (full width, so it reads
             // at any density) and selection adds a ring — neither touches hue.
             const barClass = barColor === "type" ? typeColor : NEUTRAL_COLOR;
+            const rowMetrics =
+              presentation === "labelled" && !node.offscreen
+                ? getTimelineRowMetrics({
+                    row: node,
+                    laneWidth,
+                    measurer,
+                    density,
+                    metrics: metricsOf?.(node.id) ?? {},
+                    showDuration,
+                    toneClass:
+                      barTones[barClass] === "dark"
+                        ? "text-black/85"
+                        : "text-white/95",
+                  })
+                : null;
 
             return (
               <div
@@ -1669,21 +1685,7 @@ export function TimelineDense({
                       on whichever side layout() measured room for, rather than
                       always after the bar, which clipped a full-width bar's
                       label at the lane edge. */}
-                  {presentation === "labelled" && !node.offscreen ? (
-                    <TimelineRowMetrics
-                      row={node}
-                      laneWidth={laneWidth}
-                      measurer={measurer}
-                      density={density}
-                      metrics={metricsOf?.(node.id) ?? {}}
-                      showDuration={showDuration}
-                      toneClass={
-                        barTones[barClass] === "dark"
-                          ? "text-black/85"
-                          : "text-white/95"
-                      }
-                    />
-                  ) : null}
+                  {rowMetrics && <TimelineRowMetrics {...rowMetrics} />}
                 </div>
               </div>
             );
