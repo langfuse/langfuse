@@ -92,6 +92,7 @@ export function MentionAutocomplete({
                         size="sm"
                         aria-hidden="true"
                         displayName={displayName}
+                        email={user.email ?? undefined}
                       />
                       <div className="text-foreground flex-1 overflow-hidden">
                         <div className="truncate font-bold" title={userLabel}>

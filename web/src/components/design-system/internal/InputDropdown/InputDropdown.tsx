@@ -105,12 +105,19 @@ function Option({
 function OptionContent({
   label,
   secondaryLabel,
+  badges,
   title,
   type,
   checked,
 }: {
   label: ReactNode;
   secondaryLabel?: string;
+  /**
+   * Trailing metadata pills. They share the label's line while it fits and wrap
+   * beneath it when it does not, so the label — the thing the option is picked
+   * by — is never the only item that can give up space.
+   */
+  badges?: ReactNode;
   title: string;
   type: "checkbox" | "checkmark" | "radio";
   checked: boolean;
@@ -141,15 +148,31 @@ function OptionContent({
 
   return (
     <>
-      <span className="min-w-0 flex-1 truncate" title={title}>
-        {label}
-        {secondaryLabel && (
-          <span className="text-muted-foreground ml-1">{secondaryLabel}</span>
-        )}
+      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+        {/*
+          `flex-auto`, not `flex-1`: the basis must stay `auto` so the label's
+          own width is what decides whether the badges still fit on this line
+          (a `flex-1` basis of 0 would let everything share one line forever,
+          which is the bug). Growing from that basis keeps the label filling
+          the row when it does fit, which is what holds the badges against the
+          right edge and keeps `title` hoverable across the whole row.
+        */}
+        <span className="flex-auto truncate" title={title}>
+          {label}
+          {secondaryLabel && (
+            <span className="text-muted-foreground ml-1">{secondaryLabel}</span>
+          )}
+        </span>
+        {badges}
       </span>
       <span
         className={cn(
-          "pointer-events-none flex size-3.5 shrink-0 items-center justify-center",
+          "pointer-events-none flex w-3.5 shrink-0 items-center justify-center",
+          // A badged row can wrap to two or three lines. Centring the indicator
+          // against the whole block would float it down level with the badges,
+          // away from the label it marks — so pin it to the first line's box
+          // (h-5 matches the row's text-sm line height) instead.
+          badges ? "h-5 self-start" : "h-3.5",
           (type === "checkbox" || type === "radio") && "order-first",
         )}
       >

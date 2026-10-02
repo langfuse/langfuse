@@ -22,7 +22,6 @@ import {
   getClientInitiatedNonStreamingLlmTimeoutMs,
   invalidateProjectEvalConfigCaches,
   logger,
-  getRecentRuleExecutionTraces,
   getTotalCostByRule,
 } from "@langfuse/shared/src/server";
 import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server";
@@ -102,23 +101,6 @@ export class RuleService {
     });
     if (!rule) throw new LangfuseNotFoundError("Evaluation rule not found");
     return toRuleResponse(rule);
-  }
-
-  async listRecent(params: { projectId: string; ruleIds: string[] }) {
-    const result = Object.fromEntries(
-      params.ruleIds.map((ruleId) => [ruleId, []]),
-    ) as Record<string, Array<{ id: string; level: string; timestamp: Date }>>;
-    if (params.ruleIds.length === 0) return result;
-
-    const traces = await getRecentRuleExecutionTraces(
-      params.projectId,
-      params.ruleIds,
-    );
-
-    for (const { ruleId, ...trace } of traces) {
-      result[ruleId]?.push(trace);
-    }
-    return result;
   }
 
   async getTotalCosts(params: { projectId: string; ruleIds: string[] }) {
