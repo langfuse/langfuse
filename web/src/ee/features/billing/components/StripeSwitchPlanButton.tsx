@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/no-null-render */
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -28,7 +28,7 @@ export const StripeSwitchPlanButton = ({
   onProcessing,
   processing,
 }: {
-  orgId: string | undefined;
+  orgId: string;
   currentPlan: keyof typeof planLabels | undefined;
   newPlanTitle: string | undefined;
   isLegacySubscription: boolean;
@@ -53,8 +53,6 @@ export const StripeSwitchPlanButton = ({
         toast.error("Failed to change plan");
       },
     });
-
-  if (!orgId) return null;
 
   return (
     <Dialog>
