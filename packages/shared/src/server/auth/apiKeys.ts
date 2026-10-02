@@ -22,10 +22,7 @@ import {
   roleHasProjectPolicy,
 } from "../../features/rbac/systemRoleAccessRights";
 import { logger } from "../logger";
-import {
-  assignRole,
-  revokeRolesForPrincipals,
-} from "../../features/rbac/roleAssignmentRepository";
+import { assignRole } from "../../features/rbac/roleAssignmentRepository";
 import { invalidateCachedApiKeys } from "./invalidateApiKeys";
 import { withTransaction } from "../utils/withTransaction";
 
@@ -228,13 +225,7 @@ export async function deleteApiKeyFromDb(p: {
     return false;
   }
 
-  // Delete the row and its assignment atomically, then evict the cache after
-  // the commit so a concurrent authentication cannot re-cache the key from a
-  // row that is about to be gone.
-  await p.prisma.$transaction(async (tx) => {
-    await tx.apiKey.delete({ where: { id: apiKey.id } });
-    await revokeRolesForPrincipals(tx, [ApiKeyId(apiKey.id)]);
-  });
+  await p.prisma.apiKey.delete({ where: { id: apiKey.id } });
 
   await invalidateCachedApiKeys([apiKey], `key ${p.id}`, p.redis);
 

@@ -9,7 +9,6 @@ import {
 import {
   assignRole,
   getRoleAssignmentsForPrincipal,
-  revokeApiKeyRolesForOwners,
   transferRoleAssignments,
 } from "@langfuse/shared/rbac/server";
 import {
@@ -149,8 +148,8 @@ describe("transferRoleAssignments", () => {
   });
 });
 
-describe("revokeApiKeyRolesForOwners", () => {
-  it("revokes api-key assignments for the owners while leaving user and other-owner assignments", async () => {
+describe("API-key deletion", () => {
+  it("cascades bulk key deletion while preserving user and other-project assignments", async () => {
     const { projectId, orgId } = await createOrgProjectAndApiKey();
     await addUserAssignment(orgId, projectId);
 
@@ -166,7 +165,9 @@ describe("revokeApiKeyRolesForOwners", () => {
       createdBy: UserId(keyCreator.id),
     });
 
-    await revokeApiKeyRolesForOwners(prisma, [ProjectId(projectId)]);
+    await prisma.apiKey.deleteMany({
+      where: { projectId, scope: "PROJECT" },
+    });
 
     expect(await assignmentsFor(projectId, "apiKey/")).toHaveLength(0);
     expect(await assignmentsFor(projectId, "user/")).toHaveLength(1);

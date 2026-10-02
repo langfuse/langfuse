@@ -66,7 +66,6 @@ export async function handleCreateApiKey(
 
   const { note } = validationResult.data;
 
-  // The static ADMIN_API_KEY is not a principal, so the key has no creator.
   const apiKeyMeta = await createApiKey(prisma, {
     owner: OrganizationId(organizationId),
     role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),

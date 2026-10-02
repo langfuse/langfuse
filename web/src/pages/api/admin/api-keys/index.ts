@@ -6,8 +6,6 @@ import {
   logger,
   redis,
 } from "@langfuse/shared/src/server";
-import { revokeApiKeyRolesForOwners } from "@langfuse/shared/rbac/server";
-import { ProjectId } from "@langfuse/shared/rbac";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server";
 /* 
@@ -77,21 +75,13 @@ export default async function handler(
         },
       });
 
-      // Delete the keys and revoke assignments by owner in one transaction, so
-      // a key created for these projects mid-delete cannot orphan its assignment.
-      await prisma.$transaction(async (tx) => {
-        await tx.apiKey.deleteMany({
-          where: {
-            projectId: {
-              in: projectIds,
-            },
-            scope: "PROJECT",
+      await prisma.apiKey.deleteMany({
+        where: {
+          projectId: {
+            in: projectIds,
           },
-        });
-        await revokeApiKeyRolesForOwners(
-          tx,
-          projectIds.map((id) => ProjectId(id)),
-        );
+          scope: "PROJECT",
+        },
       });
 
       // then delete from the cache

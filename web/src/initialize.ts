@@ -5,13 +5,7 @@ import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { CloudConfigSchema } from "@langfuse/shared";
-import {
-  ApiKeyId,
-  ProjectId,
-  SystemRoleId,
-  UserId,
-} from "@langfuse/shared/rbac";
-import { revokeRolesForPrincipals } from "@langfuse/shared/rbac/server";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import {
   initializeClickhouseCompatibility,
   logger,
@@ -200,10 +194,7 @@ if (env.LANGFUSE_INIT_ORG_ID) {
 
     // Delete key if project changed
     if (existingApiKey && existingApiKey.projectId !== projectId) {
-      await prisma.$transaction(async (tx) => {
-        await tx.apiKey.delete({ where: { publicKey } });
-        await revokeRolesForPrincipals(tx, [ApiKeyId(existingApiKey.id)]);
-      });
+      await prisma.apiKey.delete({ where: { publicKey } });
     }
 
     // Create new key if it doesn't exist or project changed

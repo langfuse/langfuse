@@ -54,37 +54,12 @@ export async function assignRole(
   await createRoleAssignment(tx, { ...ra, tenantId });
 }
 
-/** revokeRolesForOwner deletes every assignment hanging off an owner, e.g. when a project or organization is deleted. */
+/** revokeRolesForOwner clears assignments when an owner is soft-deleted. */
 export async function revokeRolesForOwner(
   tx: Tx,
   ownerId: OwnerId,
 ): Promise<void> {
   await tx.roleAssignment.deleteMany({ where: ownerFields(ownerId) });
-}
-
-/** revokeRolesForPrincipals deletes assignments for a set of principals, e.g. bulk key removal. */
-export async function revokeRolesForPrincipals(
-  tx: Tx,
-  principalIds: PrincipalId[],
-): Promise<void> {
-  if (principalIds.length === 0) return;
-  await tx.roleAssignment.deleteMany({
-    where: { OR: principalIds.map(principalFields) },
-  });
-}
-
-/** revokeApiKeyRolesForOwners deletes the api-key assignments hanging off a set of owners, leaving user assignments intact. */
-export async function revokeApiKeyRolesForOwners(
-  tx: Tx,
-  ownerIds: OwnerId[],
-): Promise<void> {
-  if (ownerIds.length === 0) return;
-  await tx.roleAssignment.deleteMany({
-    where: {
-      OR: ownerIds.map(ownerFields),
-      principalApiKeyId: { not: null },
-    },
-  });
 }
 
 /** transferRoleAssignments moves a transferred project's api-key assignments to the destination organization and drops its user assignments, mirroring the membership wipe. */

@@ -146,8 +146,6 @@ const createOrgApiKey = async (targetOrgId: string) => {
       scope: "ORGANIZATION",
     },
   });
-  // Mirror the LEGACY_ORGANIZATION_API_KEY system-role assignment the production create path
-  // writes, so the resolver reading policies from assignments sees this key.
   await prisma.roleAssignment.create({
     data: {
       orgId: targetOrgId,
@@ -358,7 +356,7 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
     expect(ownedProjectIds(await contextFor(auth))).toEqual([]);
   });
 
-  it("an organization key's project wildcard covers every live project of its org and stops at a soft-deleted one, like the old live-project cascade", async () => {
+  it("an organization key's project wildcard covers live projects and excludes soft-deleted projects", async () => {
     const org = await prisma.organization.create({
       data: { id: randomUUID(), name: randomUUID() },
     });
@@ -379,17 +377,14 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
     const auth = await createOrgApiKey(org.id);
     const context = await contextFor(auth);
 
-    // Only live projects reach the per-project gate, as under the old cascade.
     expect([...ownedProjectIds(context)].sort()).toEqual(
       [live1.id, live2.id].sort(),
     );
 
-    // enforce authorizes every live project through the project-nested route ...
     for (const projectId of [live1.id, live2.id]) {
       const { enforce } = await projectNestedUnderModes(auth, projectId);
       expect(scopeOf(enforce).projectId).toBe(projectId);
     }
-    // ... and 404s the soft-deleted one, which the key does not own.
     const { enforce: deletedEnforce } = await projectNestedUnderModes(
       auth,
       deleted.id,
@@ -399,7 +394,6 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
       error: { httpCode: 404 },
     });
 
-    // The wildcard grants the same project actions the old cascade bound per project.
     expect(
       authorize(
         context,
