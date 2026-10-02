@@ -167,17 +167,20 @@ export async function assertEvaluatorConfigurationValid(params: {
     }
   }
 
-  const error = await getEvaluatorDefinitionPreflightError({
-    projectId: params.projectId,
-    template: {
-      name: params.name,
-      type: params.definition.type,
-      provider: params.definition.provider,
-      model: params.definition.model,
-      modelParams: params.definition.modelParams,
-      outputDefinition: params.definition.outputDefinition,
+  const error = await getEvaluatorDefinitionPreflightError(
+    {
+      projectId: params.projectId,
+      template: {
+        name: params.name,
+        type: params.definition.type,
+        provider: params.definition.provider,
+        model: params.definition.model,
+        modelParams: params.definition.modelParams,
+        outputDefinition: params.definition.outputDefinition,
+      },
     },
-  });
+    { throwOnOperationalError: true },
+  );
   if (error) throw new EvaluatorModelConfigurationError(error);
 }
 

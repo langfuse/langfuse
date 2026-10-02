@@ -70,10 +70,15 @@ export async function getEvaluatorDefinitionConfigurationError(params: {
   return prepared.valid ? null : prepared.error;
 }
 
-export async function getEvaluatorDefinitionPreflightError(params: {
-  projectId: string;
-  template: EvaluatorPreflightDefinition;
-}): Promise<string | null> {
+export async function getEvaluatorDefinitionPreflightError(
+  params: {
+    projectId: string;
+    template: EvaluatorPreflightDefinition;
+  },
+  options?: {
+    throwOnOperationalError?: boolean;
+  },
+): Promise<string | null> {
   if (params.template.type === EvalTemplateType.CODE) return null;
 
   const prepared = await prepareEvaluatorDefinition(params);
@@ -101,20 +106,20 @@ export async function getEvaluatorDefinitionPreflightError(params: {
     });
   } catch (err) {
     const llmError = getLLMErrorInfo(err);
-    if (
+    const isOperationalError =
       !llmError ||
       llmError.isRetryable ||
       llmError.kind === "timeout" ||
-      llmError.kind === "abort"
-    ) {
+      llmError.kind === "abort";
+    if (isOperationalError && options?.throwOnOperationalError) {
       throw err;
     }
     // A provider 404 also covers typos, missing model access, and bad base
     // URLs — not just retired models, so don't claim "retired" as fact.
-    if (llmError.statusCode === 404) {
+    if (llmError?.statusCode === 404) {
       return `Model configuration not valid for evaluator "${params.template.name}". The provider could not find model '${prepared.modelConfig.model}' — it may be retired, misspelled, or not available to your API key. Update the evaluator's model or the project's default evaluation model.`;
     }
-    const message = llmError.message;
+    const message = llmError?.message ?? "An internal error occurred";
     return `Model configuration not valid for evaluator "${params.template.name}". ${message}`;
   }
 
