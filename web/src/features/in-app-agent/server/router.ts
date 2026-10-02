@@ -13,12 +13,14 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import {
-  AgUiContextSchema,
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
   IN_APP_AGENT_PRODUCT_ENVIRONMENT,
 } from "@langfuse/shared/in-app-agent";
-import { InAppAgentMessageFeedbackValueSchema } from "../schema";
+import {
+  InAppAgentMessageFeedbackValueSchema,
+  InAppAgentTurnInputSchema,
+} from "../schema";
 import {
   assertInAppAgentAvailable,
   assertInAppAgentModelConfigured,
@@ -48,7 +50,6 @@ import {
 } from "@/src/features/in-app-agent/server/backgroundRunService";
 
 const CONVERSATION_LIST_LIMIT = 50;
-const MAX_IN_APP_AGENT_MESSAGE_LENGTH = 32_000;
 
 const ConversationListCursorSchema = z.object({
   updatedAt: z.date(),
@@ -64,14 +65,9 @@ const RenameConversationInput = ConversationIdInput.extend({
   title: z.string().trim().min(1).max(80),
 });
 
-const StartRunInput = ConversationIdInput.extend({
-  message: z.string().trim().min(1).max(MAX_IN_APP_AGENT_MESSAGE_LENGTH),
-  /**
-   * The AG-UI context for the current page, quick action, and entry point;
-   * resolved and sanitized server-side, then stored for the worker to replay.
-   */
-  context: z.array(AgUiContextSchema).default([]),
-});
+const StartRunInput = ConversationIdInput.extend(
+  InAppAgentTurnInputSchema.shape,
+);
 
 const CancelRunInput = ConversationIdInput.extend({
   runId: z.string(),

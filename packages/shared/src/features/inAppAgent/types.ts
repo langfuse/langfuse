@@ -84,6 +84,8 @@ export enum InAppAgentRunErrorCode {
 export const InAppAgentRunRequestSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("userMessage"),
+    /** Credential that submitted this run; bounds remote result access. */
+    webhookCredentialId: z.string().optional(),
     /** Sanitized AG-UI context items (current page, resolved view filters). */
     context: z.array(AgUiContextSchema),
   }),
