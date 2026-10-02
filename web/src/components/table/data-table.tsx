@@ -202,13 +202,8 @@ const getPinningClasses = <TData,>(column: Column<TData>): string => {
   const isPinned = column.getIsPinned();
   const isLastLeftPinnedColumn =
     isPinned === "left" && column.getIsLastColumn("left");
-  const isFirstRightPinnedColumn =
-    isPinned === "right" && column.getIsFirstColumn("right");
 
-  return cn(
-    isLastLeftPinnedColumn && "border-r border-border",
-    isFirstRightPinnedColumn && "border-l border-border",
-  );
+  return cn(isLastLeftPinnedColumn && "border-r border-border");
 };
 
 const getCellPaddingClassName = (padding: DataTableCellPadding) => {
