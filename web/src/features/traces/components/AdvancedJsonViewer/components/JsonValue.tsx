@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable @repo/no-style-props */
 /**
  * JsonValue - Renders a JSON value with type-based styling
@@ -14,11 +13,7 @@ import {
   COMMENT_HIGHLIGHT_COLOR,
 } from "../utils/highlightText";
 import { TruncatedString } from "./TruncatedString";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 
@@ -153,15 +148,17 @@ export function JsonValue({
 
           if (segment.type === "comment" && segment.preview) {
             return (
-              <Tooltip key={index}>
-                <TooltipTrigger asChild>{highlightedSpan}</TooltipTrigger>
-                <TooltipContent
-                  side="top"
-                  align="start"
-                  className="max-w-xs px-2 py-1 text-xs"
-                >
-                  {segment.preview}
-                </TooltipContent>
+              <Tooltip
+                key={index}
+                label={segment.preview}
+                placement="top-start"
+                delay={300}
+              >
+                {({ getTriggerProps }) => (
+                  <span {...getTriggerProps()} style={{ backgroundColor }}>
+                    {segment.text}
+                  </span>
+                )}
               </Tooltip>
             );
           }
@@ -224,15 +221,17 @@ export function JsonValue({
 
         if (segment.type === "comment" && segment.preview) {
           return (
-            <Tooltip key={index}>
-              <TooltipTrigger asChild>{highlightedSpan}</TooltipTrigger>
-              <TooltipContent
-                side="top"
-                align="start"
-                className="max-w-xs px-2 py-1 text-xs"
-              >
-                {segment.preview}
-              </TooltipContent>
+            <Tooltip
+              key={index}
+              label={segment.preview}
+              placement="top-start"
+              delay={300}
+            >
+              {({ getTriggerProps }) => (
+                <span {...getTriggerProps()} style={{ backgroundColor }}>
+                  {segment.text}
+                </span>
+              )}
             </Tooltip>
           );
         }
