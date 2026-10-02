@@ -9,15 +9,9 @@ import {
   useSessionConversationTimelineController,
 } from "@/src/features/sessions/SessionConversationTimeline/useSessionConversationTimelineController";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
-import { computeIdleGapSeconds } from "@/src/features/sessions/sessionIdleGap";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import {
-  SessionConversationSidebar,
-  type SessionConversationSidebarTrace,
-} from "@/src/features/sessions/SessionConversationSidebar/SessionConversationSidebar";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useSessionTraceTranscripts } from "./SessionConversationTimeline/useSessionTraceTranscripts";
-import { getSessionTranscriptRows } from "./SessionConversationTimeline/fns/getSessionTranscriptRows";
 
 const SIDEBAR_TRACE_CHUNK_SIZE = 20;
 const SIDEBAR_OBSERVATION_PAGE_SIZE = 100;
@@ -211,55 +205,6 @@ export function ConnectedModernSessionBodyTimeline({
     }
   }
 
-  const sidebarTraces: SessionConversationSidebarTrace[] = [];
-  for (const [index, trace] of traces.entries()) {
-    const transcript = resultsByTraceId.get(trace.id);
-    const transcriptRows = (() => {
-      if (transcript?.state === "error") return null;
-      if (!transcript || transcript.state === "loading") return undefined;
-      return getSessionTranscriptRows(transcript.transcript).map(
-        ({ id, row }) => {
-          const label =
-            row.type === "tool"
-              ? (row.call?.toolName ?? row.result?.toolName ?? "Tool")
-              : row.message.parts
-                  .map((part) => {
-                    if (part.type === "text") return part.text;
-                    if (part.type === "data" || part.type === "custom")
-                      return "JSON message";
-                    return part.type;
-                  })
-                  .join(" ") ||
-                row.message.senderName ||
-                row.message.role;
-          return {
-            id,
-            observationId: row.message.observationId,
-            label,
-            role: row.type === "tool" ? ("tool" as const) : row.message.role,
-          };
-        },
-      );
-    })();
-    const matchingRows =
-      searchQuery && transcriptRows
-        ? transcriptRows.filter((row) =>
-            `${row.role} ${row.label}`
-              .toLowerCase()
-              .includes(searchQuery.toLowerCase()),
-          )
-        : transcriptRows;
-    if (searchQuery && matchingRows?.length === 0) continue;
-
-    sidebarTraces.push({
-      trace,
-      turnNumber: index + 1,
-      idleGapSeconds:
-        index === 0 ? null : computeIdleGapSeconds(traces[index - 1]!, trace),
-      transcriptRows: matchingRows,
-    });
-  }
-
   const lastQueryByKey = new Map<string, number>();
   queryDescriptors.forEach((descriptor, queryIndex) => {
     lastQueryByKey.set(descriptor.key, queryIndex);
@@ -366,39 +311,33 @@ export function ConnectedModernSessionBodyTimeline({
   };
 
   return (
-    <div className="bg-background session-review-stack:grid-rows-[minmax(7rem,9rem)_minmax(0,1fr)] session-review-stack:gap-x-0 relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden @3xl/session-workspace:grid-cols-[clamp(200px,24cqw,296px)_minmax(0,1fr)] @3xl/session-workspace:grid-rows-1">
-      {tracesState.type === "loading" ? (
-        <SessionConversationSidebar state="loading" />
-      ) : (
-        <SessionConversationSidebar
-          state="loaded"
-          traces={isSearchPending ? [] : sidebarTraces}
-          activeTraceId={timelineController.activeTraceId ?? undefined}
-          search={search}
-          onSearchChange={handleSearchChange}
-          expandedTraceIds={expandedTraceIds}
-          onToggleTraceExpanded={toggleTraceExpanded}
-          onSelect={handleSelect}
-          onVisibleTraceIdsChange={handleVisibleTraceIdsChange}
-          isLoadingTranscripts={isSearchPending || isLoadingTranscripts}
-          transcriptLoadError={transcriptLoadError}
-        />
-      )}
-      <div className="bg-card dark:bg-background session-review-stack:min-w-0 relative min-h-0 min-w-[320px]">
-        <ConnectedSessionConversationTimeline
-          traces={timelineTraces}
-          projectId={projectId}
-          openPeek={openPeek}
-          controller={timelineController}
-          resultsByTraceId={resultsByTraceId}
-          scrollTarget={scrollTarget}
-          onLoadMoreObservations={
-            hasMoreObservations && !isLoadingMoreObservations
-              ? loadMoreObservations
-              : undefined
-          }
-        />
-      </div>
-    </div>
+    <ConnectedSessionConversationTimeline
+      {...(tracesState.type === "loading"
+        ? { state: "loading" }
+        : {
+            state: "loaded",
+            search,
+            searchQuery,
+            isSearchPending,
+            onSearchChange: handleSearchChange,
+            expandedTraceIds,
+            onToggleTraceExpanded: toggleTraceExpanded,
+            onSelect: handleSelect,
+            onVisibleTraceIdsChange: handleVisibleTraceIdsChange,
+            isLoadingTranscripts: isSearchPending || isLoadingTranscripts,
+            transcriptLoadError,
+          })}
+      traces={timelineTraces}
+      projectId={projectId}
+      openPeek={openPeek}
+      controller={timelineController}
+      resultsByTraceId={resultsByTraceId}
+      scrollTarget={scrollTarget}
+      onLoadMoreObservations={
+        hasMoreObservations && !isLoadingMoreObservations
+          ? loadMoreObservations
+          : undefined
+      }
+    />
   );
 }

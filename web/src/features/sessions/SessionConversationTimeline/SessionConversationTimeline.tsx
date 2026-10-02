@@ -1,19 +1,15 @@
-import { type ComponentType, type UIEvent } from "react";
+import { type ComponentProps, type UIEvent } from "react";
 import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
-import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
+import { SessionConversationTimelineTrace } from "./components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { type SessionConversationTimelineController } from "./useSessionConversationTimelineController";
 
-export function SessionConversationTimeline<
-  TraceProps extends { trace: EventSessionTrace; turnNumber: number },
->({
+export function SessionConversationTimeline({
   traces,
-  TraceComponent,
   filterMeasurementKey,
   controller,
   onLoadMoreObservations,
 }: {
-  traces: readonly TraceProps[];
-  TraceComponent: ComponentType<TraceProps>;
+  traces: readonly ComponentProps<typeof SessionConversationTimelineTrace>[];
   filterMeasurementKey: string;
   controller: SessionConversationTimelineController;
   onLoadMoreObservations?: () => void;
@@ -65,7 +61,7 @@ export function SessionConversationTimeline<
               virtualItem={virtualItem}
               virtualizer={virtualizer}
             >
-              <TraceComponent {...traceProps} />
+              <SessionConversationTimelineTrace {...traceProps} />
             </SessionVirtualizedRow>
           );
         })}

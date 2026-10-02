@@ -5,15 +5,13 @@ import { CommentDrawerController } from "@/src/features/comments";
 import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { showErrorToast } from "@/src/features/notifications";
-import { SessionConversationTimeline } from "./SessionConversationTimeline";
+import { type ComponentProps } from "react";
+import { SessionConversationalView } from "../SessionConversationalView/SessionConversationalView";
 import {
   type SessionConversationTimelineController,
   type SessionConversationTimelineScrollTarget,
 } from "./useSessionConversationTimelineController";
-import {
-  SessionConversationTimelineTrace,
-  type SessionObservationActions,
-} from "./components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
+import { type SessionObservationActions } from "./components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { type SessionTraceTranscriptState } from "./useSessionTraceTranscripts";
 import { getSessionTranscriptRows } from "./fns/getSessionTranscriptRows";
 
@@ -23,26 +21,38 @@ export type ConnectedSessionConversationTimelineItem = {
   observations: RouterOutputs["events"]["sessionAll"]["observations"];
 };
 
-export function ConnectedSessionConversationTimeline({
-  traces,
-  projectId,
-  openPeek,
-  controller,
-  resultsByTraceId,
-  scrollTarget,
-  onLoadMoreObservations,
-}: {
-  traces: readonly ConnectedSessionConversationTimelineItem[];
-  projectId: string;
-  openPeek: (
-    id: string,
-    row: EventSessionTrace & { observationId?: string },
-  ) => void;
-  controller: SessionConversationTimelineController;
-  resultsByTraceId: ReadonlyMap<string, SessionTraceTranscriptState>;
-  scrollTarget: SessionConversationTimelineScrollTarget | null;
-  onLoadMoreObservations?: () => void;
-}) {
+export function ConnectedSessionConversationTimeline(
+  props: (
+    | { state: "loading" }
+    | Omit<
+        Extract<
+          ComponentProps<typeof SessionConversationalView>,
+          { state: "loaded" }
+        >,
+        "traces" | "controller" | "onLoadMoreObservations"
+      >
+  ) & {
+    traces: readonly ConnectedSessionConversationTimelineItem[];
+    projectId: string;
+    openPeek: (
+      id: string,
+      row: EventSessionTrace & { observationId?: string },
+    ) => void;
+    controller: SessionConversationTimelineController;
+    resultsByTraceId: ReadonlyMap<string, SessionTraceTranscriptState>;
+    scrollTarget: SessionConversationTimelineScrollTarget | null;
+    onLoadMoreObservations?: () => void;
+  },
+) {
+  const {
+    traces,
+    projectId,
+    openPeek,
+    controller,
+    resultsByTraceId,
+    scrollTarget,
+    onLoadMoreObservations,
+  } = props;
   const utils = api.useUtils();
   const hasDatasetAccess = useHasProjectAccess({
     projectId,
@@ -58,7 +68,8 @@ export function ConnectedSessionConversationTimeline({
               projectId={projectId}
             >
               {({ openDialog: openDatasetDialog }) => (
-                <SessionConversationTimeline
+                <SessionConversationalView
+                  {...props}
                   traces={traces.map(({ trace, turnNumber, observations }) => {
                     const result = resultsByTraceId.get(trace.id);
                     const state = (() => {
@@ -167,8 +178,6 @@ export function ConnectedSessionConversationTimeline({
                           : null,
                     };
                   })}
-                  TraceComponent={SessionConversationTimelineTrace}
-                  filterMeasurementKey="transcript"
                   controller={controller}
                   onLoadMoreObservations={onLoadMoreObservations}
                 />
