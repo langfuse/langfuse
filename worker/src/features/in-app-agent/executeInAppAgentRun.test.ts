@@ -6,6 +6,7 @@ import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME } from "@langfuse/shared/in-app-agent";
+import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server/tunables";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { ResumeForwardedPropsSchema } from "./runtime/types";
@@ -472,8 +473,11 @@ describe("executeInAppAgentRun", () => {
     const { projectId, conversation, run } = await seedBackgroundRun();
 
     let keysDuringRun = -1;
+    let keyExpiresAt: Date | null | undefined;
     scenarioRef.current = async ({ options }) => {
-      keysDuringRun = (await getInAppAgentApiKeys(projectId)).length;
+      const keys = await getInAppAgentApiKeys(projectId);
+      keysDuringRun = keys.length;
+      keyExpiresAt = keys[0]?.expiresAt;
       await options.onEvent({
         type: "RUN_STARTED",
         threadId: conversation.id,
@@ -495,6 +499,11 @@ describe("executeInAppAgentRun", () => {
     expect(finished.errorCode).toBeNull();
     // Key was minted and linked during the run, deleted and unlinked after.
     expect(keysDuringRun).toBe(1);
+    expect(keyExpiresAt).toEqual(
+      new Date(
+        finished.claimedAt!.getTime() + IN_APP_AGENT_RUN_MAX_DURATION_MS,
+      ),
+    );
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
     expect(finished.mcpApiKeyId).toBeNull();
 

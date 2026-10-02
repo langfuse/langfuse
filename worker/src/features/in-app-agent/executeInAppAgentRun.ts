@@ -54,7 +54,10 @@ import {
   getInAppAgentRegistryToolName,
   type InAppAgentUserAccess,
 } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
-import { IN_APP_AGENT_HEARTBEAT_INTERVAL_MS } from "@langfuse/shared/in-app-agent/server/tunables";
+import {
+  IN_APP_AGENT_HEARTBEAT_INTERVAL_MS,
+  IN_APP_AGENT_RUN_MAX_DURATION_MS,
+} from "@langfuse/shared/in-app-agent/server/tunables";
 import {
   createInAppAgentSandboxProvider,
   getDefaultInAppAgentSandboxProviderType,
@@ -67,7 +70,7 @@ import type { AgUiRunAgentInput } from "./runtime/types";
 
 import { env } from "../../env";
 
-const IN_APP_AGENT_API_KEY_NOTE = "In-app agent MCP session";
+const inAppAgentApiKeyName = "In-app agent MCP session";
 
 type AbortReason = "cancelled" | "fenced" | "worker_shutdown";
 
@@ -382,14 +385,17 @@ export async function executeInAppAgentRun(params: {
         })
       : undefined;
 
-    // ---- Temp MCP key: mint + link to the run in one transaction, so no
-    // crash window can leave a key that is not discoverable from its run. ----
+    // Link the key atomically to prevent orphan credentials.
     mcpApiKey = await prisma.$transaction(async (tx) => {
       const key = await createApiKey(tx, {
         owner: ProjectId(projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(triggeredByUserId),
-        name: IN_APP_AGENT_API_KEY_NOTE,
+        name: inAppAgentApiKeyName,
+        expiresAt: new Date(
+          (run.claimedAt ?? run.createdAt).getTime() +
+            IN_APP_AGENT_RUN_MAX_DURATION_MS,
+        ),
         isInAppAgentKey: true,
       });
 
