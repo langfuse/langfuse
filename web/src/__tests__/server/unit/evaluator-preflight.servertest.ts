@@ -227,24 +227,66 @@ describe("evaluator preflight", () => {
       );
     });
 
-    it("does not expose unknown model call errors", async () => {
-      mockTestModelCall.mockRejectedValue(
-        new Error("sensitive internal model call detail"),
-      );
-      mockGetLLMErrorInfo.mockReturnValue(null);
-
-      const result = await getEvaluatorDefinitionPreflightError({
-        projectId: "project_test",
-        template: {
-          name: "Answer correctness",
-          outputDefinition: numericOutputDefinition,
-        },
+    it("rethrows retryable provider failures", async () => {
+      const providerError = new Error("429 Rate limit reached");
+      mockTestModelCall.mockRejectedValue(providerError);
+      mockGetLLMErrorInfo.mockReturnValue({
+        kind: "provider",
+        message: "429 Rate limit reached",
+        statusCode: 429,
+        isRetryable: true,
+        error: providerError,
       });
 
-      expect(result).toBe(
-        `Model configuration not valid for evaluator "Answer correctness". An internal error occurred`,
-      );
-      expect(result).not.toContain("sensitive internal model call detail");
+      await expect(
+        getEvaluatorDefinitionPreflightError({
+          projectId: "project_test",
+          template: {
+            name: "Answer correctness",
+            outputDefinition: numericOutputDefinition,
+          },
+        }),
+      ).rejects.toBe(providerError);
+    });
+
+    it.each(["timeout", "abort"] as const)(
+      "rethrows %s failures",
+      async (kind) => {
+        const operationalError = new Error(`${kind} during model call`);
+        mockTestModelCall.mockRejectedValue(operationalError);
+        mockGetLLMErrorInfo.mockReturnValue({
+          kind,
+          message: operationalError.message,
+          isRetryable: false,
+          error: operationalError,
+        });
+
+        await expect(
+          getEvaluatorDefinitionPreflightError({
+            projectId: "project_test",
+            template: {
+              name: "Answer correctness",
+              outputDefinition: numericOutputDefinition,
+            },
+          }),
+        ).rejects.toBe(operationalError);
+      },
+    );
+
+    it("rethrows unknown model call errors without exposing them", async () => {
+      const unknownError = new Error("sensitive internal model call detail");
+      mockTestModelCall.mockRejectedValue(unknownError);
+      mockGetLLMErrorInfo.mockReturnValue(null);
+
+      await expect(
+        getEvaluatorDefinitionPreflightError({
+          projectId: "project_test",
+          template: {
+            name: "Answer correctness",
+            outputDefinition: numericOutputDefinition,
+          },
+        }),
+      ).rejects.toBe(unknownError);
     });
   });
 });

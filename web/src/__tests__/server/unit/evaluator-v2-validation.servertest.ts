@@ -139,6 +139,34 @@ describe("evaluator configuration validation", () => {
     expect(mocks.getEvaluatorDefinitionPreflightError).toHaveBeenCalledOnce();
   });
 
+  it("propagates transient model preflight failures", async () => {
+    const transientError = new Error("Provider rate limit");
+    mocks.getEvaluatorDefinitionPreflightError.mockRejectedValue(
+      transientError,
+    );
+
+    await expect(
+      assertEvaluatorConfigurationValid({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        definition: {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          promptMessages: [{ role: "user", content: "Judge {{output}}" }],
+          provider: null,
+          model: null,
+          modelParams: null,
+          vars: ["output"],
+          variableMapping: null,
+          outputDefinition: {
+            dataType: "NUMERIC",
+            score: { description: "Quality" },
+            reasoning: { description: "Reasoning" },
+          },
+        },
+      }),
+    ).rejects.toBe(transientError);
+  });
+
   // The schema is the only boundary that can see a caller-supplied mapping:
   // every consumer of `assertEvaluatorConfigurationValid` hands it a parsed
   // definition, so a code evaluator can never carry one by the time it runs.

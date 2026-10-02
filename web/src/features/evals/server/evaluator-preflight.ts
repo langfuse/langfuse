@@ -101,12 +101,20 @@ export async function getEvaluatorDefinitionPreflightError(params: {
     });
   } catch (err) {
     const llmError = getLLMErrorInfo(err);
+    if (
+      !llmError ||
+      llmError.isRetryable ||
+      llmError.kind === "timeout" ||
+      llmError.kind === "abort"
+    ) {
+      throw err;
+    }
     // A provider 404 also covers typos, missing model access, and bad base
     // URLs — not just retired models, so don't claim "retired" as fact.
-    if (llmError?.statusCode === 404) {
+    if (llmError.statusCode === 404) {
       return `Model configuration not valid for evaluator "${params.template.name}". The provider could not find model '${prepared.modelConfig.model}' — it may be retired, misspelled, or not available to your API key. Update the evaluator's model or the project's default evaluation model.`;
     }
-    const message = llmError?.message ?? "An internal error occurred";
+    const message = llmError.message;
     return `Model configuration not valid for evaluator "${params.template.name}". ${message}`;
   }
 
