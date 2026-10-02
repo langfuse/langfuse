@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { useWatch } from "react-hook-form";
+import { useController, useWatch } from "react-hook-form";
 import {
   FormControl,
   FormDescription,
@@ -36,6 +36,10 @@ export const StorageProviderFields = ({
   const secretAccessKey = useWatch({ control, name: "secretAccessKey" });
   const isGcsDefaultCredentials =
     isGcs && secretAccessKey === GCS_USE_DEFAULT_CREDENTIALS;
+  const { field: secretAccessKeyField } = useController({
+    control,
+    name: "secretAccessKey",
+  });
 
   return (
     <>
@@ -48,7 +52,14 @@ export const StorageProviderFields = ({
             <FormControl>
               <SelectInput
                 value={field.value}
-                onValueChange={field.onChange}
+                onValueChange={(value) => {
+                  // A GCS key (or the ADC sentinel) is not an S3/Azure secret,
+                  // and vice versa.
+                  if ((value === "GOOGLE_CLOUD_STORAGE") !== isGcs) {
+                    secretAccessKeyField.onChange("");
+                  }
+                  field.onChange(value);
+                }}
                 placeholder="Select provider"
                 options={[
                   { value: BlobStorageIntegrationType.S3, label: "Amazon S3" },
