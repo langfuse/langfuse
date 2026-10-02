@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable no-nested-ternary */
 import { ItemBadge } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
@@ -9,12 +8,7 @@ import { PageTabs } from "@/src/components/layouts/page-tabs";
 import { type PageHeaderProps } from "@/src/components/layouts/page-header";
 import { Button } from "@/src/components/ui/button";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { MoreHorizontal } from "lucide-react";
 import { useRef, useState } from "react";
 
@@ -99,16 +93,17 @@ export const MobilePageTitle = ({
           {titleContent ? (
             titleContent
           ) : titleTooltip ? (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="cursor-help">{title}</span>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-xs">
-                  {titleTooltip}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <CustomTooltip
+              content={<>{titleTooltip}</>}
+              placement="bottom"
+              delay={300}
+            >
+              {({ getTriggerProps }) => (
+                <span {...getTriggerProps()} className="cursor-help">
+                  {title}
+                </span>
+              )}
+            </CustomTooltip>
           ) : (
             <span title={title}>{title}</span>
           )}
