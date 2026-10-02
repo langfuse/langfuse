@@ -9,6 +9,7 @@ import { useRouter } from "next/router";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 
 import { BillingUsageChart } from "./BillingUsageChart";
+import { BillingUsageBreakdown } from "./BillingUsageBreakdown";
 import { BillingActionButtons } from "./BillingActionButtons";
 import { BillingScheduleNotification } from "./BillingScheduleNotification";
 import { BillingInvoiceTable } from "./BillingInvoiceTable";
@@ -110,6 +111,7 @@ export const BillingSettings = () => {
             plan={organization?.plan ?? "cloud:hobby"}
           />
         )}
+        {organization && <BillingUsageBreakdown orgId={organization.id} />}
         <BillingPlanPeriodView />
         {showBillingDiscount && organization && (
           <BillingDiscountView

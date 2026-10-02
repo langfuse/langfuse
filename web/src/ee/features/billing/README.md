@@ -23,6 +23,7 @@ See `web/src/ee/features/billing/server/cloudBillingRouter.ts`.
 - `clearPlanSwitchSchedule` — releases any active/not-started schedule.
 - `getStripeCustomerPortalUrl` — portal for payment methods, tax IDs, invoices (not for plan switches).
 - `getInvoices` — paginated invoice list with subscription/usage/tax breakdown and preview row.
+- `getUsageBreakdown` — billable units (traces, observations, scores) of the org's live projects over a time range, bucketed hourly/daily/weekly/monthly in UTC. Queries ClickHouse directly with the same `created_at` definition as metering; capped at one year.
 
 ### Checkout and Subscription Management
 
