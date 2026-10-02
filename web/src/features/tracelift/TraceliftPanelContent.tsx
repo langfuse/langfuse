@@ -105,7 +105,6 @@ export function TraceliftPanelContent(props: TraceliftPanelContentProps) {
         {findings.length > 0 && (
           <div className="flex flex-col gap-6 pt-4">
             <div>
-              <p className="pb-2 text-sm font-bold">Suggestions</p>
               <Accordion type="multiple" defaultValue={[findings[0]!.id]}>
                 {findings.map((finding) => (
                   <TraceliftFindingSection

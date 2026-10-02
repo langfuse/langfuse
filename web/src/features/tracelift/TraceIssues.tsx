@@ -21,7 +21,7 @@ export function TraceIssues({
     projectId,
     traceId,
     page,
-    limit: 20,
+    limit: 100,
   });
 
   const visibleIssues =

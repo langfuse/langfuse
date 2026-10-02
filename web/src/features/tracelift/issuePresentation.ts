@@ -20,11 +20,11 @@ const catalog: Record<TraceIssue, IssuePresentation> = {
       "Check that your model integration records LLM calls as generations. Traces that do not call an LLM can legitimately have no generations.",
   },
   NO_NESTING: {
-    title: "Connect related operations",
+    title: "Missing parent IDs",
     description:
-      "These traces contain multiple observations without parent IDs, making it harder to follow how operations relate to each other.",
+      "These traces contain multiple observations without parent IDs, making it harder to follow how observations relate to each other.",
     recommendation:
-      "Review context propagation across async tasks and service boundaries. Attach child operations to their actual parent, while preserving intentionally independent roots.",
+      "Review context propagation across async tasks and service boundaries. Attach child observations to their actual parent, while preserving intentionally independent roots.",
   },
   EMPTY_GENERATION_IO: {
     title: "Add context to LLM calls",
@@ -41,7 +41,7 @@ const catalog: Record<TraceIssue, IssuePresentation> = {
       "Where appropriate, record the request and final result on the application root. Check root selection and preserve intentional privacy controls.",
   },
   INFRASTRUCTURE_SPANS: {
-    title: "Focus traces on application activity",
+    title: "Focus traces on agent activity",
     description:
       "These traces contain spans with infrastructure-like names and empty inputs and outputs. They may add noise to the trace view.",
     recommendation:
