@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable no-nested-ternary */
 import React, { useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -33,11 +32,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { InlineFilterState } from "@/src/features/filters";
 import {
   ComposerTokens,
@@ -539,43 +535,50 @@ export function ModernSessionSidebar(
         {showFilterSummary ? (
           <div className="border-t px-2 py-2.5">
             <div className="border-border/80 bg-muted/30 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5 rounded-md border py-2 pr-1 pl-2.5">
-              <Tooltip>
-                <TooltipTrigger asChild>
+              <CustomTooltip
+                placement="bottom"
+                delay={300}
+                content={
+                  <>
+                    {hasFilterRepresentation ? (
+                      <div className="flex flex-wrap gap-1">
+                        {activeFilterQuery.text ? (
+                          <span className="min-w-0 font-mono text-xs leading-6">
+                            <ComposerTokens
+                              draft={activeFilterQuery.text}
+                              showDiagnostics={false}
+                            />
+                          </span>
+                        ) : null}
+                        <InlineFilterState
+                          filterState={activeFilterQuery.skippedFilters}
+                          className="m-0"
+                        />
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">
+                        No filters
+                      </span>
+                    )}
+                  </>
+                }
+              >
+                {({ getTriggerProps }) => (
                   <span
+                    {...getTriggerProps()}
                     className="text-muted-foreground min-w-0 overflow-hidden font-mono text-[10px] text-ellipsis whitespace-nowrap"
                     tabIndex={0}
                   >
                     {filterSummaryLabel}
                   </span>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-80 p-2">
-                  {hasFilterRepresentation ? (
-                    <div className="flex flex-wrap gap-1">
-                      {activeFilterQuery.text ? (
-                        <span className="min-w-0 font-mono text-xs leading-6">
-                          <ComposerTokens
-                            draft={activeFilterQuery.text}
-                            showDiagnostics={false}
-                          />
-                        </span>
-                      ) : null}
-                      <InlineFilterState
-                        filterState={activeFilterQuery.skippedFilters}
-                        className="m-0"
-                      />
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground text-xs">
-                      No filters
-                    </span>
-                  )}
-                </TooltipContent>
-              </Tooltip>
+                )}
+              </CustomTooltip>
               <div className="flex shrink-0 items-center">
                 {!filterControls.activeViewName ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                  <Tooltip label="Save as view" delay={300}>
+                    {({ getTriggerProps }) => (
                       <Button
+                        {...getTriggerProps()}
                         type="button"
                         variant="ghost"
                         size="icon-xs"
@@ -585,13 +588,13 @@ export function ModernSessionSidebar(
                       >
                         <Save className="h-3 w-3" />
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Save as view</TooltipContent>
+                    )}
                   </Tooltip>
                 ) : null}
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <Tooltip label="Edit filters" delay={300}>
+                  {({ getTriggerProps }) => (
                     <Button
+                      {...getTriggerProps()}
                       type="button"
                       variant="ghost"
                       size="icon-xs"
@@ -601,12 +604,12 @@ export function ModernSessionSidebar(
                     >
                       <Pencil className="h-3 w-3" />
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Edit filters</TooltipContent>
+                  )}
                 </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <Tooltip label="Clear filters" delay={300}>
+                  {({ getTriggerProps }) => (
                     <Button
+                      {...getTriggerProps()}
                       type="button"
                       variant="ghost"
                       size="icon-xs"
@@ -616,8 +619,7 @@ export function ModernSessionSidebar(
                     >
                       <X className="h-3 w-3" />
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Clear filters</TooltipContent>
+                  )}
                 </Tooltip>
               </div>
             </div>
