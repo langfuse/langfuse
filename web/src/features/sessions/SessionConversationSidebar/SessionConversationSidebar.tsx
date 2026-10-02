@@ -297,9 +297,6 @@ export function SessionConversationSidebar(
                                   aria-label={`${row.role}: ${row.label}`}
                                 >
                                   <Icon className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-                                  <span className="text-muted-foreground shrink-0 text-[11px] font-bold capitalize">
-                                    {row.role}
-                                  </span>
                                   <span
                                     className="text-muted-foreground min-w-0 flex-1 truncate text-[13px]"
                                     title={row.label}

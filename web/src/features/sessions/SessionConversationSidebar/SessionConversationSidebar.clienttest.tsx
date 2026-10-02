@@ -80,8 +80,9 @@ describe("SessionConversationSidebar", () => {
   it("labels roles and selects exact message and tool rows without filter controls", () => {
     const onSelect = vi.fn();
     render(<SessionConversationSidebar {...loadedProps} onSelect={onSelect} />);
-    expect(screen.getByText("user")).toBeInTheDocument();
-    expect(screen.getByText("assistant")).toBeInTheDocument();
+    expect(screen.queryByText("user")).not.toBeInTheDocument();
+    expect(screen.queryByText("assistant")).not.toBeInTheDocument();
+    expect(screen.queryByText("tool")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Filter observations" }),
     ).not.toBeInTheDocument();
