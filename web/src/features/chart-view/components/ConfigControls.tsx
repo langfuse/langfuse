@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable @repo/component-file-structure */
 import React from "react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
@@ -9,11 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   type AggregationFn,
@@ -168,16 +163,15 @@ export const ChartTypePicker = React.memo(function ChartTypePicker({
         {CHART_TYPES.map((ct) => {
           const Icon = ct.icon;
           return (
-            <Tooltip key={ct.value}>
-              <TooltipTrigger asChild>
-                <span className="h-full min-w-0">
+            <Tooltip key={ct.value} label={ct.label} delay={300}>
+              {({ getTriggerProps }) => (
+                <span {...getTriggerProps()} className="h-full min-w-0">
                   <Tabs.Trigger value={ct.value}>
                     <Icon aria-hidden="true" className="icon-base shrink-0" />
                     <span className="sr-only">{ct.label}</span>
                   </Tabs.Trigger>
                 </span>
-              </TooltipTrigger>
-              <TooltipContent>{ct.label}</TooltipContent>
+              )}
             </Tooltip>
           );
         })}
