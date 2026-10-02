@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import {
   BlobStorageIntegrationFileType,
   BlobStorageIntegrationType,
@@ -37,6 +43,7 @@ const ui = (
   key: string,
   initialValues: BlobStorageFormValues,
   onSubmit: (values: unknown) => void = () => {},
+  showMediaStorage = false,
 ) => (
   <TooltipProvider>
     <BlobStorageIntegrationForm
@@ -45,6 +52,7 @@ const ui = (
       exportSourceCtx={exportSourceCtx}
       persistedExportSource={null}
       isSaving={false}
+      showMediaStorage={showMediaStorage}
       onSubmit={onSubmit}
     />
   </TooltipProvider>
@@ -169,6 +177,29 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
         fileType: BlobStorageIntegrationFileType.PARQUET,
         enabled: false,
       }),
+      expect.anything(),
+    );
+  });
+
+  it("only enables external media when the feature-gated section is shown", async () => {
+    const initialValues = buildBlobStorageFormValues(
+      savedConfig,
+      exportSourceCtx,
+    );
+    const { rerender } = render(ui("hidden", initialValues));
+
+    expect(screen.queryByText("External media")).not.toBeInTheDocument();
+
+    const onSubmit = vi.fn();
+    rerender(ui("visible", initialValues, onSubmit, true));
+    const mediaSection = screen.getByText("External media").closest("div");
+    expect(mediaSection).not.toBeNull();
+    fireEvent.click(within(mediaSection!).getByRole("switch"));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaStorageEnabled: true }),
       expect.anything(),
     );
   });

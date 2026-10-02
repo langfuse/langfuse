@@ -484,6 +484,7 @@ export const coreDataTableExports: Array<
             nextSyncAt: true,
             lastSyncAt: true,
             enabled: true,
+            mediaStorageEnabled: true,
             exportFrequency: true,
             fileType: true,
             exportMode: true,

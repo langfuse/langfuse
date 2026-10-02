@@ -29,10 +29,16 @@ export const BlobStorageIntegrationContainer = ({
   config,
   projectId,
   writeMode,
+  showMediaStorage,
+  onDeleted,
+  onSaved,
 }: {
   config: Partial<BlobStorageIntegration> | null;
   projectId: string;
   writeMode: V4WriteMode;
+  showMediaStorage: boolean;
+  onDeleted: () => void;
+  onSaved: (integrationId: string) => void;
 }) => {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -59,8 +65,9 @@ export const BlobStorageIntegrationContainer = ({
 
   const utils = api.useUtils();
   const mut = api.blobStorageIntegration.update.useMutation({
-    onSuccess: () => {
+    onSuccess: (integration) => {
       utils.blobStorageIntegration.invalidate();
+      onSaved(integration.id);
     },
     onError: (error) => {
       showErrorToast("Failed to save integration", error.message);
@@ -69,6 +76,7 @@ export const BlobStorageIntegrationContainer = ({
   const mutDelete = api.blobStorageIntegration.delete.useMutation({
     onSuccess: () => {
       utils.blobStorageIntegration.invalidate();
+      onDeleted();
     },
   });
   const mutRunNow = api.blobStorageIntegration.runNow.useMutation({
@@ -99,6 +107,7 @@ export const BlobStorageIntegrationContainer = ({
     capture("integrations:blob_storage_form_submitted");
     mut.mutate({
       projectId,
+      integrationId: config?.id,
       ...values,
     });
   };
@@ -110,7 +119,7 @@ export const BlobStorageIntegrationContainer = ({
       // not remount, so mid-save typing survives. Delete flips
       // configured→new and remounts blank; create flips new→configured and
       // remounts from the saved row (clearing stale dirty flags).
-      key={`${projectId}:${config ? "configured" : "new"}`}
+      key={`${projectId}:${config?.id ?? "new"}`}
       initialValues={buildBlobStorageFormValues(
         config ?? undefined,
         exportSourceCtx,
@@ -118,6 +127,7 @@ export const BlobStorageIntegrationContainer = ({
       exportSourceCtx={exportSourceCtx}
       persistedExportSource={config?.exportSource}
       isSaving={mut.isPending}
+      showMediaStorage={showMediaStorage}
       onSubmit={handleSubmit}
     >
       <Button
@@ -126,7 +136,9 @@ export const BlobStorageIntegrationContainer = ({
         disabled={!config}
         title="Test your saved configuration by uploading a small test file to your storage"
         onClick={() => {
-          mutValidate.mutate({ projectId });
+          if (config?.id) {
+            mutValidate.mutate({ projectId, integrationId: config.id });
+          }
         }}
       >
         Validate
@@ -142,7 +154,8 @@ export const BlobStorageIntegrationContainer = ({
               "Are you sure you want to run the blob storage export now? This will export all data since the last sync.",
             )
           )
-            mutRunNow.mutate({ projectId });
+            config?.id &&
+              mutRunNow.mutate({ projectId, integrationId: config.id });
         }}
       >
         Run Now
@@ -157,7 +170,8 @@ export const BlobStorageIntegrationContainer = ({
               "Are you sure you want to reset the Blob Storage integration for this project?",
             )
           )
-            mutDelete.mutate({ projectId });
+            config?.id &&
+              mutDelete.mutate({ projectId, integrationId: config.id });
         }}
       >
         Reset

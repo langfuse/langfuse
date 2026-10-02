@@ -56,5 +56,6 @@ export function buildBlobStorageFormValues(
       ? (state.exportFieldGroups as ObservationFieldGroupFull[])
       : [...OBSERVATION_FIELD_GROUPS_FULL],
     compressed: state?.compressed ?? true,
+    mediaStorageEnabled: state?.mediaStorageEnabled ?? false,
   };
 }

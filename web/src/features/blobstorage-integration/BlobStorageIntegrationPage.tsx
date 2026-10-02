@@ -14,6 +14,9 @@ import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveS
 import { type BlobStorageSyncStatus } from "@/src/features/blobstorage-integration/types";
 import { BlobStorageIntegrationContainer } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationContainer";
 import { BlobStorageStatusSection } from "@/src/features/blobstorage-integration/components/BlobStorageStatusSection";
+import { BlobStorageIntegrationTable } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationTable";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { ArrowLeft } from "lucide-react";
 
 const syncStatusToBadge: Record<BlobStorageSyncStatus, string> = {
   up_to_date: "active",
@@ -25,7 +28,7 @@ const syncStatusToBadge: Record<BlobStorageSyncStatus, string> = {
 };
 
 const syncStatusFromConfig = (
-  config: NonNullable<RouterOutputs["blobStorageIntegration"]["get"]["config"]>,
+  config: RouterOutputs["blobStorageIntegration"]["get"]["configs"][number],
 ): BlobStorageSyncStatus =>
   deriveSyncStatus({
     enabled: config.enabled,
@@ -43,7 +46,15 @@ export default function BlobStorageIntegrationPage() {
     scope: "integrations:CRUD",
   });
   const hasEntitlement = useHasEntitlement("scheduled-blob-exports");
+  const showMediaStorage = useIsFeatureEnabled("externalMediaStorage", {
+    enableForAdmins: false,
+    projectId,
+  });
   const canLoadConfig = hasAccess && hasEntitlement;
+  const integrationId =
+    typeof router.query.integrationId === "string"
+      ? router.query.integrationId
+      : undefined;
   const state = api.blobStorageIntegration.get.useQuery(
     { projectId },
     {
@@ -53,28 +64,61 @@ export default function BlobStorageIntegrationPage() {
       refetchOnReconnect: false,
       staleTime: 50 * 60 * 1000, // 50 minutes
       refetchInterval: (query) => {
-        const cfg = query.state.data?.config;
-        if (!cfg) return false;
-        const status = syncStatusFromConfig(cfg);
-        return status === "running" || status === "queued" ? 5_000 : false;
+        const hasRunningIntegration = query.state.data?.configs.some(
+          (config) => {
+            const status = syncStatusFromConfig(config);
+            return status === "running" || status === "queued";
+          },
+        );
+        return hasRunningIntegration ? 5_000 : false;
       },
     },
   );
 
+  const selectedConfig =
+    integrationId === "new"
+      ? null
+      : state.data?.configs.find((config) => config.id === integrationId);
+  const showDetails = Boolean(integrationId);
   const syncStatus =
-    state.isLoading || !canLoadConfig || !state.data?.config
+    state.isLoading || !canLoadConfig || !selectedConfig
       ? undefined
-      : syncStatusFromConfig(state.data.config);
+      : syncStatusFromConfig(selectedConfig);
+
+  const openIntegration = (id: string) => {
+    router.push(
+      {
+        pathname: router.pathname,
+        query: { projectId, integrationId: id },
+      },
+      undefined,
+      { shallow: true },
+    );
+  };
+
+  const closeIntegration = () => {
+    router.push(
+      { pathname: router.pathname, query: { projectId } },
+      undefined,
+      { shallow: true },
+    );
+  };
 
   return (
     <ContainerPage
       headerProps={{
-        title: "Blob Storage Integration",
+        title: showDetails ? "Blob Storage Integration" : "Blob Storage",
         breadcrumb: [
           { name: "Settings", href: `/project/${projectId}/settings` },
         ],
         actionButtonsLeft: (
           <>
+            {showDetails && (
+              <Button variant="ghost" onClick={closeIntegration}>
+                <ArrowLeft className="mr-1 size-4" />
+                All integrations
+              </Button>
+            )}
             {syncStatus && <StatusBadge type={syncStatusToBadge[syncStatus]} />}
           </>
         ),
@@ -91,12 +135,8 @@ export default function BlobStorageIntegrationPage() {
       }}
     >
       <p className="text-primary mb-4 text-sm">
-        Configure scheduled exports of your trace data to Amazon S3,
-        S3-compatible storages, or Azure Blob Storage. Set up a hourly, daily,
-        or weekly export to your own storage for data analysis or backup
-        purposes. Use the &quot;Validate&quot; button to test your configuration
-        by uploading a small test file, and the &quot;Run Now&quot; button to
-        trigger an immediate export.
+        Configure blob storage destinations for scheduled exports
+        {showMediaStorage ? " and external media rendering" : ""}.
       </p>
       {!hasEntitlement ? (
         <p className="text-sm">
@@ -109,21 +149,33 @@ export default function BlobStorageIntegrationPage() {
         </p>
       ) : (
         <>
-          {state.data?.config && (
-            <BlobStorageStatusSection config={state.data.config} />
+          {!state.data ? (
+            <IntegrationSettingsSkeleton />
+          ) : showDetails ? (
+            <>
+              {selectedConfig && (
+                <BlobStorageStatusSection config={selectedConfig} />
+              )}
+              <Header title="Integration details" className="mt-8" />
+              <Card className="p-3">
+                <BlobStorageIntegrationContainer
+                  config={selectedConfig ?? null}
+                  projectId={projectId}
+                  writeMode={state.data.writeMode}
+                  showMediaStorage={showMediaStorage}
+                  onDeleted={closeIntegration}
+                  onSaved={openIntegration}
+                />
+              </Card>
+            </>
+          ) : (
+            <BlobStorageIntegrationTable
+              integrations={state.data.configs}
+              showMediaStorage={showMediaStorage}
+              onSelect={(integration) => openIntegration(integration.id)}
+              onCreate={() => openIntegration("new")}
+            />
           )}
-          <Header title="Configuration" className="mt-8" />
-          <Card className="p-3">
-            {!state.data ? (
-              <IntegrationSettingsSkeleton />
-            ) : (
-              <BlobStorageIntegrationContainer
-                config={state.data.config ?? null}
-                projectId={projectId}
-                writeMode={state.data.writeMode}
-              />
-            )}
-          </Card>
         </>
       )}
     </ContainerPage>
