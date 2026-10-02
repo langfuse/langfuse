@@ -1,4 +1,8 @@
 import {
+  DECISION_MODEL_LIMITS,
+  DecisionModelChoiceOptionSchema,
+  DecisionModelChoiceQuestionSchema,
+  DecisionModelQuestionType,
   DecisionModelQuestionsSchema,
   EvalOutputDataTypeSchema,
   EvalTemplateType,
@@ -33,22 +37,28 @@ const McpObservationVariableMappingSchema = observationVariableMapping.extend({
 });
 
 const McpDecisionModelQuestionBaseSchema = z.object({
-  id: z.string().describe("Stable question identifier."),
-  type: z.enum(["choice", "score", "noul"]).describe("Decision question type."),
-  scoreName: z.string().describe("Name of the score produced by the question."),
+  id: DecisionModelChoiceQuestionSchema.shape.id.describe(
+    "Stable question identifier.",
+  ),
+  type: z.enum(DecisionModelQuestionType).describe("Decision question type."),
+  scoreName: DecisionModelChoiceQuestionSchema.shape.scoreName.describe(
+    "Name of the score produced by the question.",
+  ),
   instructions: z
     .unknown()
     .describe("Question instructions as text or structured JSON."),
   options: z
     .array(
       z.object({
-        value: z.string(),
+        value: DecisionModelChoiceOptionSchema.shape.value,
         description: z
           .unknown()
           .optional()
           .describe("Option description as text or structured JSON."),
       }),
     )
+    .min(DECISION_MODEL_LIMITS.minChoiceOptions)
+    .max(DECISION_MODEL_LIMITS.maxChoiceOptions)
     .optional()
     .describe("Choice options. Required when type is `choice`."),
   levels: z
@@ -59,6 +69,8 @@ const McpDecisionModelQuestionBaseSchema = z.object({
           .describe("Level description as text or structured JSON."),
       }),
     )
+    .min(DECISION_MODEL_LIMITS.minScoreLevels)
+    .max(DECISION_MODEL_LIMITS.maxScoreLevels)
     .optional()
     .describe("Ordered score levels. Required when type is `score`."),
   criteria: z
@@ -131,6 +143,8 @@ export const McpEvaluatorInputBase = z.object({
   ),
   questions: z
     .array(McpDecisionModelQuestionBaseSchema)
+    .min(1)
+    .max(DECISION_MODEL_LIMITS.maxQuestions)
     .optional()
     .describe(
       "Required for decision-model evaluators. Each question produces its own score.",
