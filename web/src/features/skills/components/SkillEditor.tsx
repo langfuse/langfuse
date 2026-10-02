@@ -1,6 +1,7 @@
 import { type ComponentProps, useState } from "react";
-import { useStore } from "zustand";
 import { useMediaQuery } from "react-responsive";
+import { MAX_SKILL_FILES } from "@langfuse/shared";
+import { useStore } from "zustand";
 import {
   Download,
   Loader2,
@@ -15,11 +16,6 @@ import { CodeMirrorEditor } from "@/src/components/editor";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/src/components/ui/resizable";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { createSkillVersionFromDraft } from "@/src/features/skills/actions/createSkillVersion";
@@ -27,7 +23,18 @@ import { downloadSkillVersion } from "@/src/features/skills/actions/downloadSkil
 import { saveSkillLabels } from "@/src/features/skills/actions/saveSkillLabels";
 import { saveSkillTags } from "@/src/features/skills/actions/saveSkillTags";
 import { CreateSkillVersionDialog } from "@/src/features/skills/components/CreateSkillVersionDialog";
-import { SkillFileExplorer } from "@/src/features/skills/components/SkillFileExplorer";
+import { Dropzone } from "@/src/components/design-system/Dropzone/Dropzone";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/src/components/ui/resizable";
+import {
+  SkillFileExplorer,
+  type SkillFileExplorerState,
+} from "@/src/features/skills/components/SkillFileExplorer";
+import { importSkillFiles } from "@/src/features/skills/actions/importSkillFiles";
+import { getParentFolderPaths } from "@/src/features/skills/components/skillFileTree";
 import { getSkillFileLanguageExtensions } from "@/src/features/skills/utils/getSkillFileLanguageExtensions";
 import {
   createSkillDraftFile,
@@ -140,6 +147,15 @@ export function SkillEditor({
   const [isDraft, setIsDraft] = useState(baseVersion === null);
   const canEditFiles = isDraft && canCreate && !isSaving;
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
+  const [treeState, setTreeState] = useState<SkillFileExplorerState>(() => ({
+    selectedFolder: "",
+    expandedFolders: new Set(store.getState().folders),
+    pendingEntry: null,
+  }));
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const cancelUpload = () => {
+    if (!store.getState().isImporting) setIsUploadOpen(false);
+  };
   const createButtonTitle = canCreate
     ? (createDisabledReason ??
       (baseVersion !== null && !dirty
@@ -413,52 +429,113 @@ export function SkillEditor({
               ),
           }}
         >
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:overflow-hidden">
-            <div className="flex min-h-[720px] flex-1 flex-col overflow-hidden border-t md:min-h-[560px] md:flex-row">
-              {history.kind === "versions" ? (
-                <SkillVersionHistory
-                  {...history}
-                  dirty={dirty}
-                  isDraft={isDraft}
-                  canEdit={canCreate}
-                  labelOptions={metadataOptions.labels}
-                  isSavingLabels={setVersionLabels.isPending}
-                  onSaveLabels={saveLabels}
-                />
-              ) : (
-                <SkillVersionHistory kind="new" />
-              )}
-              <div className="min-h-[720px] min-w-0 flex-1 md:min-h-0">
-                <ResizablePanelGroup
-                  key={isDesktop ? "desktop" : "mobile"}
-                  orientation={isDesktop ? "horizontal" : "vertical"}
+          <Dropzone
+            src={undefined}
+            variant="panel"
+            accept={undefined}
+            maxFiles={MAX_SKILL_FILES}
+            maxSize={undefined}
+            minSize={undefined}
+            isDisabled={!canEditFiles}
+            open={canEditFiles && isUploadOpen}
+            onOpenChange={setIsUploadOpen}
+            onKeyDownCapture={(event) => {
+              if (event.key === "Escape" && isUploadOpen) {
+                event.preventDefault();
+                event.stopPropagation();
+                cancelUpload();
+              }
+            }}
+            header={
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-bold">Upload files or folders</p>
+                  {isImporting ? (
+                    <p role="status" className="text-muted-foreground text-sm">
+                      Adding files to draft…
+                    </p>
+                  ) : null}
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={isImporting}
+                  onClick={cancelUpload}
                 >
-                  <ResizablePanel
-                    defaultSize={isDesktop ? "28%" : "32%"}
-                    minSize={isDesktop ? "20%" : "24%"}
-                    maxSize={isDesktop ? "42%" : "50%"}
+                  Cancel
+                </Button>
+              </div>
+            }
+            onProcessingChange={(isImporting) =>
+              store.setState({ isImporting })
+            }
+            onError={(error) => {
+              setIsUploadOpen(true);
+              showErrorToast("Could not add files", error.message);
+            }}
+            onDrop={async (files) => {
+              const paths = await importSkillFiles(store, files);
+              setTreeState((current) => ({
+                selectedFolder: "",
+                pendingEntry: null,
+                expandedFolders: new Set([
+                  ...current.expandedFolders,
+                  ...getParentFolderPaths(paths),
+                ]),
+              }));
+              setIsUploadOpen(false);
+            }}
+          >
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:overflow-hidden">
+              <div className="flex min-h-[720px] flex-1 flex-col overflow-hidden border-t md:min-h-[560px] md:flex-row">
+                {history.kind === "versions" ? (
+                  <SkillVersionHistory
+                    {...history}
+                    dirty={dirty}
+                    isDraft={isDraft}
+                    canEdit={canCreate}
+                    labelOptions={metadataOptions.labels}
+                    isSavingLabels={setVersionLabels.isPending}
+                    onSaveLabels={saveLabels}
+                  />
+                ) : (
+                  <SkillVersionHistory kind="new" />
+                )}
+                <div className="min-h-[720px] min-w-0 flex-1 md:min-h-0">
+                  <ResizablePanelGroup
+                    key={isDesktop ? "desktop" : "mobile"}
+                    orientation={isDesktop ? "horizontal" : "vertical"}
                   >
-                    <SkillFileExplorer
-                      store={store}
-                      readOnly={!isDraft || !canCreate}
-                      disabled={isSaving}
-                    />
-                  </ResizablePanel>
-                  <ResizableHandle withHandle />
-                  <ResizablePanel
-                    defaultSize={isDesktop ? "72%" : "68%"}
-                    minSize={isDesktop ? "45%" : "42%"}
-                  >
-                    <SkillFileEditor
-                      projectId={projectId}
-                      store={store}
-                      editable={canEditFiles}
-                    />
-                  </ResizablePanel>
-                </ResizablePanelGroup>
+                    <ResizablePanel
+                      defaultSize={isDesktop ? "28%" : "32%"}
+                      minSize={isDesktop ? "20%" : "24%"}
+                      maxSize={isDesktop ? "42%" : "50%"}
+                    >
+                      <SkillFileExplorer
+                        store={store}
+                        readOnly={!isDraft || !canCreate}
+                        disabled={isSaving}
+                        state={treeState}
+                        onStateChange={setTreeState}
+                        onUpload={() => setIsUploadOpen(true)}
+                      />
+                    </ResizablePanel>
+                    <ResizableHandle withHandle />
+                    <ResizablePanel
+                      defaultSize={isDesktop ? "72%" : "68%"}
+                      minSize={isDesktop ? "45%" : "42%"}
+                    >
+                      <SkillFileEditor
+                        projectId={projectId}
+                        store={store}
+                        editable={canEditFiles}
+                      />
+                    </ResizablePanel>
+                  </ResizablePanelGroup>
+                </div>
               </div>
             </div>
-          </div>
+          </Dropzone>
         </Page>
       )}
     </DialogController>

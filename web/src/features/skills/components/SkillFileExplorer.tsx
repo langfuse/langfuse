@@ -1,4 +1,9 @@
-import { useId, useState, type ReactNode } from "react";
+import {
+  useId,
+  type ReactNode,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -39,11 +44,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { DropzoneController } from "@/src/components/design-system/DropzoneController/DropzoneController";
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { showErrorToast } from "@/src/features/notifications";
-import { importSkillFiles } from "@/src/features/skills/actions/importSkillFiles";
 import {
   buildSkillFileTree,
   getParentFolderPaths,
@@ -54,6 +55,7 @@ import {
   type SkillEditorStore,
 } from "@/src/features/skills/components/skillEditorStore";
 import { cn } from "@/src/utils/tailwind";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 type PendingEntry = {
   kind: "file" | "folder";
@@ -61,14 +63,26 @@ type PendingEntry = {
   name: string;
 };
 
+export type SkillFileExplorerState = {
+  selectedFolder: string;
+  expandedFolders: Set<string>;
+  pendingEntry: PendingEntry | null;
+};
+
 export function SkillFileExplorer({
   store,
   disabled = false,
   readOnly = false,
+  state,
+  onStateChange,
+  onUpload,
 }: {
   store: SkillEditorStore;
   disabled?: boolean;
   readOnly?: boolean;
+  state: SkillFileExplorerState;
+  onStateChange: Dispatch<SetStateAction<SkillFileExplorerState>>;
+  onUpload: () => void;
 }) {
   const filePaths = useStore(
     store,
@@ -77,11 +91,17 @@ export function SkillFileExplorer({
   const folders = useStore(store, (state) => state.folders);
   const activePath = useStore(store, (state) => state.activePath);
   const actions = useStore(store, (state) => state.actions);
-  const [selectedFolder, setSelectedFolder] = useState("");
-  const [expandedFolders, setExpandedFolders] = useState(
-    () => new Set(store.getState().folders),
-  );
-  const [pendingEntry, setPendingEntry] = useState<PendingEntry | null>(null);
+  const { selectedFolder, expandedFolders, pendingEntry } = state;
+  const setSelectedFolder = (selectedFolder: string) =>
+    onStateChange((current) => ({ ...current, selectedFolder }));
+  const setPendingEntry = (pendingEntry: PendingEntry | null) =>
+    onStateChange((current) => ({ ...current, pendingEntry }));
+  const setExpandedFolders = (update: SetStateAction<Set<string>>) =>
+    onStateChange((current) => ({
+      ...current,
+      expandedFolders:
+        typeof update === "function" ? update(current.expandedFolders) : update,
+    }));
   const isImporting = useStore(store, (state) => state.isImporting);
   const tree = buildSkillFileTree(filePaths, folders);
   const sensors = useSensors(
@@ -320,131 +340,70 @@ export function SkillFileExplorer({
         collisionDetection={skillMoveCollisionDetection}
         onDragEnd={handleDragEnd}
       >
-        <DropzoneController
-          noClick
-          noKeyboard
-          isDisabled={moveDisabled}
-          onError={(error) =>
-            showErrorToast("Could not add files", error.message)
-          }
-          onProcessingChange={(isImporting) => store.setState({ isImporting })}
-          onDrop={async (droppedFiles) => {
-            const paths = await importSkillFiles(store, droppedFiles);
-            setExpandedFolders(
-              (current) =>
-                new Set([...current, ...getParentFolderPaths(paths)]),
-            );
-            setSelectedFolder("");
-            setPendingEntry(null);
-          }}
+        <aside
+          aria-label="Skill files"
+          className="ph-no-capture bg-muted/20 relative flex h-full min-w-0 flex-col"
         >
-          {({
-            getRootProps,
-            getInputProps,
-            isDragActive,
-            open,
-            openDirectory,
-          }) => (
-            <aside
-              {...getRootProps({
-                role: "region",
-                "aria-label": "Skill files",
-                className: cn(
-                  "ph-no-capture bg-muted/20 relative flex h-full min-w-0 flex-col",
-                  isDragActive && "ring-primary ring-2 ring-inset",
-                ),
-              })}
-            >
-              <input {...getInputProps()} aria-label="Add files to draft" />
-              <div className="flex min-h-11 items-center justify-between gap-2 border-b px-3">
-                <SkillFolderDropTarget path="" disabled={moveDisabled}>
-                  <button
-                    type="button"
-                    aria-label="Root folder"
-                    title="Drop a file here to move it to the root"
-                    onClick={() => setSelectedFolder("")}
-                    className="flex items-center gap-2 rounded px-1 py-2 text-sm font-bold"
-                  >
-                    <FolderOpen className="h-4 w-4" /> Files
-                  </button>
-                </SkillFolderDropTarget>
-                {!readOnly ? (
-                  <div className="flex items-center gap-0.5">
-                    <DropdownMenu
-                      disabled={disabled || isImporting}
-                      items={[
-                        {
-                          id: "files",
-                          type: "item",
-                          title: "Add files",
-                          icon: FilePlus2,
-                          onClick: open,
-                        },
-                        {
-                          id: "folder",
-                          type: "item",
-                          title: "Add folder",
-                          icon: FolderPlus,
-                          onClick: openDirectory,
-                        },
-                      ]}
-                    >
-                      {({ getTriggerProps }) => (
-                        <IconButton
-                          {...getTriggerProps()}
-                          icon={Upload}
-                          label="Upload files or folder"
-                          size="sm"
-                          disabled={disabled || isImporting}
-                        />
-                      )}
-                    </DropdownMenu>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      title="New file"
-                      aria-label="New file"
-                      disabled={moveDisabled}
-                      onClick={() => startEntry("file")}
-                    >
-                      <FilePlus2 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      title="New folder"
-                      aria-label="New folder"
-                      disabled={moveDisabled}
-                      onClick={() => startEntry("folder")}
-                    >
-                      <FolderPlus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
-              <div className="flex flex-1 flex-col overflow-y-auto p-2">
-                {renderTree(tree, "")}
-                <SkillFolderDropTarget
-                  path=""
+          <div className="flex min-h-11 items-center justify-between gap-2 border-b px-3">
+            <SkillFolderDropTarget path="" disabled={moveDisabled}>
+              <button
+                type="button"
+                aria-label="Root folder"
+                title="Drop a file here to move it to the root"
+                onClick={() => setSelectedFolder("")}
+                className="flex items-center gap-2 rounded px-1 py-2 text-sm font-bold"
+              >
+                <FolderOpen className="h-4 w-4" /> Files
+              </button>
+            </SkillFolderDropTarget>
+            {!readOnly ? (
+              <div className="flex items-center gap-0.5">
+                <IconButton
+                  onClick={onUpload}
+                  icon={Upload}
+                  label="Upload files or folders"
+                  size="sm"
                   disabled={moveDisabled}
-                  variant="empty-space"
                 />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  title="New file"
+                  aria-label="New file"
+                  disabled={moveDisabled}
+                  onClick={() => startEntry("file")}
+                >
+                  <FilePlus2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  title="New folder"
+                  aria-label="New folder"
+                  disabled={moveDisabled}
+                  onClick={() => startEntry("folder")}
+                >
+                  <FolderPlus className="h-4 w-4" />
+                </Button>
               </div>
-              {isImporting ? (
-                <p className="text-muted-foreground border-t px-3 py-2 text-xs leading-4">
-                  Adding files to draft…
-                </p>
-              ) : null}
-              {isDragActive ? (
-                <div className="bg-background/90 pointer-events-none absolute inset-0 flex items-center justify-center p-4 text-center text-sm font-bold">
-                  Drop files or folders to add to draft
-                </div>
-              ) : null}
-            </aside>
-          )}
-        </DropzoneController>
+            ) : null}
+          </div>
+          <div className="flex flex-1 flex-col overflow-y-auto p-2">
+            {renderTree(tree, "")}
+            <SkillFolderDropTarget
+              path=""
+              disabled={moveDisabled}
+              variant="empty-space"
+            />
+          </div>
+          {isImporting ? (
+            <p className="text-muted-foreground border-t px-3 py-2 text-xs leading-4">
+              Adding files to draft…
+            </p>
+          ) : null}
+        </aside>
       </DndContext>
     </div>
   );
