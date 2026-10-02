@@ -577,7 +577,7 @@ export const scoresRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "scores:CUD",
+        scope: "scores:save",
       });
 
       const inflatedParams = isTraceScore(input.scoreTarget)
@@ -708,7 +708,7 @@ export const scoresRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "scores:CUD",
+        scope: "scores:save",
       });
 
       let updatedScore: ScoreDomain | null | undefined = null;
@@ -970,7 +970,7 @@ export const scoresRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "scores:CUD",
+        scope: "scores:delete",
       });
 
       // Fetch the current score from Clickhouse
@@ -1017,7 +1017,7 @@ export const scoresRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "scores:CUD",
+        scope: "scores:save",
       });
 
       // eslint-disable-next-line @typescript-eslint/no-deprecated

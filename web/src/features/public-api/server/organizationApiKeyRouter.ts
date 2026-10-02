@@ -8,7 +8,21 @@ import {
 import * as z from "zod";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import {
+  apiKeyRolesAcceptedForScope,
+  OrganizationId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+import { SystemRole } from "@langfuse/shared/src/db";
+
+import { assertApiKeyRoleForMigration } from "@/src/features/public-api/server/assertApiKeyRoleForMigration";
+
+const organizationApiKeyRoles = apiKeyRolesAcceptedForScope("organization") as [
+  SystemRole,
+  ...SystemRole[],
+];
 
 export const organizationApiKeysRouter = createTRPCRouter({
   byOrganizationId: protectedOrganizationProcedure
@@ -63,6 +77,13 @@ export const organizationApiKeysRouter = createTRPCRouter({
       z.object({
         orgId: z.string(),
         note: z.string().optional(),
+        role: z.enum(organizationApiKeyRoles).default(SystemRole.ADMIN),
+        expiresAt: z
+          .date()
+          .nullish()
+          .refine((date) => date == null || date.getTime() > Date.now(), {
+            message: "Expiration date must be in the future",
+          }),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -80,12 +101,14 @@ export const organizationApiKeysRouter = createTRPCRouter({
         orgId: input.orgId,
       });
 
-      const apiKeyMeta = await createAndAddApiKeysToDb({
-        prisma: ctx.prisma,
-        entityId: input.orgId,
-        note: input.note,
-        scope: "ORGANIZATION",
-        createdByUserId: ctx.session.user.id,
+      assertApiKeyRoleForMigration(input.role);
+
+      const apiKeyMeta = await createApiKey(ctx.prisma, {
+        owner: OrganizationId(input.orgId),
+        role: SystemRoleId(input.role),
+        createdBy: UserId(ctx.session.user.id),
+        name: input.note,
+        expiresAt: input.expiresAt,
       });
 
       await auditLog({
@@ -93,6 +116,10 @@ export const organizationApiKeysRouter = createTRPCRouter({
         resourceType: "apiKey",
         resourceId: apiKeyMeta.id,
         action: "create",
+        after: {
+          role: input.role,
+          expiresAt: input.expiresAt ?? null,
+        },
       });
 
       return apiKeyMeta;

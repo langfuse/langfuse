@@ -298,7 +298,7 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   },
   createScore: {
     approval: "approval",
-    availability: { scope: "scores:CUD" },
+    availability: { scope: "scores:save" },
   },
   listScoreConfigs: {
     approval: "auto",

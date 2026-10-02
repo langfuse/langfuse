@@ -1,6 +1,12 @@
 import { randomUUID } from "crypto";
 import { prisma } from "../../src/db";
 import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
+import { assignRole } from "../../src/features/rbac/roleAssignmentRepository";
+import {
+  ApiKeyId,
+  ProjectId,
+  SystemRoleId,
+} from "../../src/features/rbac/types";
 import { prepareClickhouse } from "./prepare-clickhouse";
 import { redis } from "../../src/server";
 
@@ -51,20 +57,28 @@ const prepareProjectsAndApiKeys = async (
       const sk = await hashSecretKey(
         `sk-${Math.random().toString(36).slice(2, 11)}`,
       );
-      await prisma.apiKey.create({
-        data: {
-          id: apiKeyId,
-          note: `API Key for ${projectId}`,
-          publicKey: `pk-${Math.random().toString(36).slice(2, 11)}`,
-          hashedSecretKey: sk,
-          displaySecretKey: getDisplaySecretKey(sk),
-          scope: "PROJECT",
-          project: {
-            connect: {
-              id: projectId,
+      await prisma.$transaction(async (tx) => {
+        await tx.apiKey.create({
+          data: {
+            id: apiKeyId,
+            note: `API Key for ${projectId}`,
+            publicKey: `pk-${Math.random().toString(36).slice(2, 11)}`,
+            hashedSecretKey: sk,
+            displaySecretKey: getDisplaySecretKey(sk),
+            scope: "PROJECT",
+            project: {
+              connect: {
+                id: projectId,
+              },
             },
           },
-        },
+        });
+        await assignRole(tx, {
+          principalId: ApiKeyId(apiKeyId),
+          roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+          ownerId: ProjectId(projectId),
+          tags: [],
+        });
       });
     }
   });

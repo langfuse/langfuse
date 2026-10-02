@@ -16,13 +16,14 @@ import { nanoid } from "nanoid";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
   getObservationById,
   MAX_PROMPT_NESTING_DEPTH,
   ChatMessageType,
 } from "@langfuse/shared/src/server";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import {
   createUserWithOrgRole,
   protectPromptLabel,
@@ -3325,12 +3326,11 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
         orgId,
         role: Role.MEMBER,
       });
-      const apiKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: projectId,
-        scope: "PROJECT",
+      const apiKey = await createApiKey(prisma, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(userId),
         isInAppAgentKey: true,
-        createdByUserId: userId,
       });
       const name = "deleteProtectedAgent" + uuidv4();
       await prisma.prompt.create({
@@ -3412,12 +3412,11 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
         orgId,
         role: Role.MEMBER,
       });
-      const apiKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: projectId,
-        scope: "PROJECT",
+      const apiKey = await createApiKey(prisma, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(userId),
         isInAppAgentKey: true,
-        createdByUserId: userId,
       });
       const name = "deleteUnlabeledSibling" + uuidv4();
       await prisma.prompt.createMany({

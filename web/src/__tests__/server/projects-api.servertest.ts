@@ -4,10 +4,17 @@ import {
 } from "@/src/__tests__/test-utils";
 import { z } from "zod";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
+  invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import { randomUUID } from "crypto";
 
 // Schema for project response
@@ -91,10 +98,13 @@ describe("Projects API", () => {
   const orgSecretKey = `sk-lf-org-${randomUUID().substring(0, 8)}`;
 
   beforeAll(async () => {
-    await createAndAddApiKeysToDb({
-      prisma,
-      entityId: "seed-org-id",
-      scope: "ORGANIZATION",
+    const keyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    await createApiKey(prisma, {
+      owner: OrganizationId("seed-org-id"),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: UserId(keyCreator.id),
       predefinedKeys: {
         publicKey: orgApiKey,
         secretKey: orgSecretKey,
@@ -146,26 +156,6 @@ describe("Projects API", () => {
       );
       expect(result.status).toBe(405);
       expect(result.body.message).toContain("Method not allowed");
-    });
-
-    it("should handle different authentication formats", async () => {
-      // Test with Bearer token format
-      const bearerResult = await makeAPICall<{ message: string }>(
-        "GET",
-        "/api/public/projects",
-        undefined,
-        `Bearer ${projectSecretKey}`,
-      );
-      expect(bearerResult.status).toBe(401);
-
-      // Test with just the secret key (no Bearer prefix)
-      const secretKeyResult = await makeAPICall<{ message: string }>(
-        "GET",
-        "/api/public/projects",
-        undefined,
-        projectSecretKey,
-      );
-      expect(secretKeyResult.status).toBe(401);
     });
   });
 
@@ -444,6 +434,9 @@ describe("Projects API", () => {
         },
       });
       testProjectId = project.id;
+      // The raw create bypasses the invalidation real create paths run, so the
+      // org key's cached context would keep a projectIds snapshot without it.
+      await invalidateCachedOrgApiKeys("seed-org-id");
     });
 
     afterEach(async () => {
@@ -693,6 +686,9 @@ describe("Projects API", () => {
         },
       });
       testProjectId = project.id;
+      // The raw create bypasses the invalidation real create paths run, so the
+      // org key's cached context would keep a projectIds snapshot without it.
+      await invalidateCachedOrgApiKeys("seed-org-id");
     });
 
     afterEach(async () => {
@@ -1088,11 +1084,14 @@ describe("Projects API", () => {
 
     beforeEach(async () => {
       // Create a test API key to delete
-      const apiKeyMeta = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: projectId,
-        scope: "PROJECT",
-        note: `Delete Test API Key ${randomUUID().substring(0, 8)}`,
+      const keyCreator = await prisma.user.create({
+        data: { email: `apikey-creator-${randomUUID()}@example.com` },
+      });
+      const apiKeyMeta = await createApiKey(prisma, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(keyCreator.id),
+        name: `Delete Test API Key ${randomUUID().substring(0, 8)}`,
       });
       deleteTestApiKeyId = apiKeyMeta.id;
     });

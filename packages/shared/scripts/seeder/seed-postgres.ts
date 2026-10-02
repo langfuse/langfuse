@@ -16,12 +16,13 @@ import {
   ScoreDataTypeEnum,
   type ScoreDataTypeType,
 } from "../../src/index";
+import { createApiKey, getDisplaySecretKey, logger } from "../../src/server";
 import {
-  createAndAddApiKeysToDb,
-  getDisplaySecretKey,
-  hashSecretKey,
-  logger,
-} from "../../src/server";
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "../../src/features/rbac/types";
 import { redis } from "../../src/server/redis/redis";
 import {
   DEFAULT_SEED_API_KEY,
@@ -220,20 +221,19 @@ async function main() {
     secret: process.env.SEED_SECRET_KEY ?? DEFAULT_SEED_API_KEY.secret, // eslint-disable-line turbo/no-undeclared-env-vars
   };
 
-  if (!(await prisma.apiKey.findUnique({ where: { id: seedApiKey.id } }))) {
-    await prisma.apiKey.create({
-      data: {
-        note: seedApiKey.note,
-        id: seedApiKey.id,
+  if (
+    !(await prisma.apiKey.findUnique({
+      where: { publicKey: seedApiKey.public },
+    }))
+  ) {
+    await createApiKey(prisma, {
+      owner: ProjectId(project1.id),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(user.id),
+      name: seedApiKey.note,
+      predefinedKeys: {
         publicKey: seedApiKey.public,
-        hashedSecretKey: await hashSecretKey(seedApiKey.secret),
-        displaySecretKey: getDisplaySecretKey(seedApiKey.secret),
-        scope: "PROJECT",
-        project: {
-          connect: {
-            id: project1.id,
-          },
-        },
+        secretKey: seedApiKey.secret,
       },
     });
   }
@@ -278,25 +278,23 @@ async function main() {
     await upsertInAppAgentSystemPrompt(project2.id);
 
     const secondKey = {
-      id: "seed-api-key-2",
       secret: process.env.SEED_SECRET_KEY ?? "sk-lf-asdfghjkl", // eslint-disable-line turbo/no-undeclared-env-vars
       public: "pk-lf-asdfghjkl",
       note: "seeded key 2",
     };
-    if (!(await prisma.apiKey.findUnique({ where: { id: secondKey.id } }))) {
-      await prisma.apiKey.create({
-        data: {
-          note: secondKey.note,
-          id: secondKey.id,
+    if (
+      !(await prisma.apiKey.findUnique({
+        where: { publicKey: secondKey.public },
+      }))
+    ) {
+      await createApiKey(prisma, {
+        owner: ProjectId(project2.id),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(user.id),
+        name: secondKey.note,
+        predefinedKeys: {
           publicKey: secondKey.public,
-          hashedSecretKey: await hashSecretKey(secondKey.secret),
-          displaySecretKey: getDisplaySecretKey(secondKey.secret),
-          scope: "PROJECT",
-          project: {
-            connect: {
-              id: project2.id,
-            },
-          },
+          secretKey: secondKey.secret,
         },
       });
     }
@@ -604,12 +602,11 @@ async function seedAiGateway(params: {
   });
   const key =
     existingKey ??
-    (await createAndAddApiKeysToDb({
-      prisma,
-      entityId: params.organizationId,
-      scope: "ORGANIZATION",
-      note: "Seeded gateway key",
-      createdByUserId: params.userId,
+    (await createApiKey(prisma, {
+      owner: OrganizationId(params.organizationId),
+      role: SystemRoleId("AI_GATEWAY"),
+      createdBy: UserId(params.userId),
+      name: "Seeded gateway key",
       predefinedKeys: {
         publicKey,
         secretKey: "sk-lf-gateway-seed",

@@ -4,9 +4,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import { env } from "@/src/env.mjs";
 
 describe("project API keys trpc", () => {
   // The session user is persisted as the API key creator, so it must exist
@@ -77,11 +79,11 @@ describe("project API keys trpc", () => {
     it("filters in-app agent API keys", async () => {
       const { caller, projectId } = await createProjectCaller();
 
-      const inAppAgentKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: projectId,
-        scope: "PROJECT",
-        note: "In-app agent key hidden from project UI",
+      const inAppAgentKey = await createApiKey(prisma, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId("user-1"),
+        name: "In-app agent key hidden from project UI",
         isInAppAgentKey: true,
       });
 
@@ -129,6 +131,17 @@ describe("project API keys trpc", () => {
       expect(listedKey?.createdByApiKey).toBeNull();
     });
 
+    it("rejects an expiration date in the past", async () => {
+      const { caller, projectId } = await createProjectCaller();
+
+      await expect(
+        caller.projectApiKeys.create({
+          projectId,
+          expiresAt: new Date(Date.now() - 60_000),
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
     it("rejects users without apiKeys:CUD access", async () => {
       const { caller, projectId } = await createProjectCaller("MEMBER");
 
@@ -145,16 +158,83 @@ describe("project API keys trpc", () => {
         }),
       ).resolves.toBe(0);
     });
+
+    // A project key whose role grants no project-kind actions (e.g. the
+    // org-only AI Gateway role) would grant nothing on the project it is
+    // scoped to, so it is not among the roles the create input accepts.
+    it("rejects an organization-only role on a project key", async () => {
+      const { caller, projectId } = await createProjectCaller();
+
+      await expect(
+        caller.projectApiKeys.create({
+          projectId,
+          note: "org-only role on project key",
+          role: "AI_GATEWAY",
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+      await expect(
+        prisma.apiKey.count({
+          where: { projectId, note: "org-only role on project key" },
+        }),
+      ).resolves.toBe(0);
+    });
+
+    it("creates a project key with a project-capable role", async () => {
+      const { caller, projectId } = await createProjectCaller();
+
+      const key = await caller.projectApiKeys.create({
+        projectId,
+        note: "viewer project key",
+        role: "VIEWER",
+      });
+
+      const assignment = await prisma.roleAssignment.findFirstOrThrow({
+        where: { principalApiKeyId: key.id },
+      });
+      expect(assignment.systemRole).toBe("VIEWER");
+      expect(assignment.ownerProjectId).toBe(projectId);
+    });
+
+    it("accepts only the LEGACY_PROJECT_API_KEY role when enforce is off", async () => {
+      const { caller, projectId } = await createProjectCaller();
+
+      const originalMigration = (env as { API_AUTH_MIGRATION: string })
+        .API_AUTH_MIGRATION;
+      (env as { API_AUTH_MIGRATION: string }).API_AUTH_MIGRATION = "legacy";
+      try {
+        await expect(
+          caller.projectApiKeys.create({
+            projectId,
+            note: "normal role off enforce",
+            role: "VIEWER",
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+        const key = await caller.projectApiKeys.create({
+          projectId,
+          note: "legacy role off enforce",
+          role: "LEGACY_PROJECT_API_KEY",
+        });
+        const assignment = await prisma.roleAssignment.findFirstOrThrow({
+          where: { principalApiKeyId: key.id },
+        });
+        expect(assignment.systemRole).toBe("LEGACY_PROJECT_API_KEY");
+      } finally {
+        (env as { API_AUTH_MIGRATION: string }).API_AUTH_MIGRATION =
+          originalMigration;
+      }
+    });
   });
 
   describe("projectApiKeys.updateNote", () => {
     it("does not update in-app agent API keys", async () => {
       const { caller, projectId } = await createProjectCaller();
-      const inAppAgentKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: projectId,
-        scope: "PROJECT",
-        note: "Original in-app agent note",
+      const inAppAgentKey = await createApiKey(prisma, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId("user-1"),
+        name: "Original in-app agent note",
         isInAppAgentKey: true,
       });
 
@@ -173,13 +253,48 @@ describe("project API keys trpc", () => {
     });
   });
 
+  describe("system role assignments", () => {
+    it("writes a LEGACY_PROJECT_API_KEY assignment on create and revokes it on delete", async () => {
+      const { caller, projectId } = await createProjectCaller();
+
+      const key = await createApiKey(prisma, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId("user-1"),
+        name: "Key for role assignment test",
+      });
+
+      const project = await prisma.project.findUniqueOrThrow({
+        where: { id: projectId },
+        select: { orgId: true },
+      });
+
+      const assignment = await prisma.roleAssignment.findFirstOrThrow({
+        where: { principalApiKeyId: key.id },
+      });
+      expect(assignment.systemRole).toBe("LEGACY_PROJECT_API_KEY");
+      expect(assignment.ownerProjectId).toBe(projectId);
+      expect(assignment.orgId).toBe(project.orgId);
+
+      await expect(
+        caller.projectApiKeys.delete({ projectId, id: key.id }),
+      ).resolves.toBe(true);
+
+      await expect(
+        prisma.roleAssignment.count({
+          where: { principalApiKeyId: key.id },
+        }),
+      ).resolves.toBe(0);
+    });
+  });
+
   describe("projectApiKeys.delete", () => {
     it("does not delete in-app agent API keys", async () => {
       const { caller, projectId } = await createProjectCaller();
-      const inAppAgentKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: projectId,
-        scope: "PROJECT",
+      const inAppAgentKey = await createApiKey(prisma, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId("user-1"),
         isInAppAgentKey: true,
       });
 

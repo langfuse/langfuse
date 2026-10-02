@@ -20,6 +20,11 @@ import {
   getEnvironmentsForProject,
   invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
+import {
+  revokeRolesForOwner,
+  transferRoleAssignments,
+} from "@langfuse/shared/rbac/server";
+import { ProjectId } from "@langfuse/shared/rbac";
 import { randomUUID } from "crypto";
 import { LangfuseConflictError, StringNoHTMLNonEmpty } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
@@ -221,12 +226,15 @@ export const projectsRouter = createTRPCRouter({
         redis,
       ).invalidateCachedProjectApiKeys(input.projectId);
 
-      // Delete API keys from DB
-      await ctx.prisma.apiKey.deleteMany({
-        where: {
-          projectId: input.projectId,
-          scope: "PROJECT",
-        },
+      // Delete API keys and their role assignments from DB atomically.
+      await ctx.prisma.$transaction(async (tx) => {
+        await tx.apiKey.deleteMany({
+          where: {
+            projectId: input.projectId,
+            scope: "PROJECT",
+          },
+        });
+        await revokeRolesForOwner(tx, ProjectId(input.projectId));
       });
 
       const project = await ctx.prisma.project.update({
@@ -323,13 +331,13 @@ export const projectsRouter = createTRPCRouter({
         after: { orgId: input.targetOrgId },
       });
 
-      await ctx.prisma.$transaction([
-        ctx.prisma.projectMembership.deleteMany({
+      await ctx.prisma.$transaction(async (tx) => {
+        await tx.projectMembership.deleteMany({
           where: {
             projectId: input.projectId,
           },
-        }),
-        ctx.prisma.project.update({
+        });
+        await tx.project.update({
           where: {
             id: input.projectId,
             orgId: ctx.session.orgId,
@@ -337,8 +345,11 @@ export const projectsRouter = createTRPCRouter({
           data: {
             orgId: input.targetOrgId,
           },
-        }),
-      ]);
+        });
+        // Move the project's api-key assignments to the destination org and
+        // drop its user assignments, matching the membership wipe above.
+        await transferRoleAssignments(tx, input.projectId, input.targetOrgId);
+      });
 
       // API keys need to be deleted from cache. Otherwise, they will still be valid.
       // It has to be called after the db is done to prevent new API keys from being cached.

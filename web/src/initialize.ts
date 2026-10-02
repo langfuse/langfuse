@@ -1,10 +1,17 @@
 import { env } from "@/src/env.mjs";
 import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { prisma } from "@langfuse/shared/src/db";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { CloudConfigSchema } from "@langfuse/shared";
+import {
+  ApiKeyId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+import { revokeRolesForPrincipals } from "@langfuse/shared/rbac/server";
 import {
   initializeClickhouseCompatibility,
   logger,
@@ -111,46 +118,10 @@ if (env.LANGFUSE_INIT_ORG_ID) {
         retentionDays,
       },
     });
-
-    // Add API Keys: Project -> API Key
-    if (
-      env.LANGFUSE_INIT_PROJECT_SECRET_KEY &&
-      env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY
-    ) {
-      const existingApiKey = await prisma.apiKey.findUnique({
-        where: { publicKey: env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY },
-      });
-
-      // Delete key if project changed
-      if (
-        existingApiKey &&
-        existingApiKey.projectId !== env.LANGFUSE_INIT_PROJECT_ID
-      ) {
-        await prisma.apiKey.delete({
-          where: { publicKey: env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY },
-        });
-      }
-
-      // Create new key if it doesn't exist or project changed
-      if (
-        !existingApiKey ||
-        existingApiKey.projectId !== env.LANGFUSE_INIT_PROJECT_ID
-      ) {
-        await createAndAddApiKeysToDb({
-          prisma,
-          entityId: env.LANGFUSE_INIT_PROJECT_ID,
-          note: "Provisioned API Key",
-          scope: "PROJECT",
-          predefinedKeys: {
-            secretKey: env.LANGFUSE_INIT_PROJECT_SECRET_KEY,
-            publicKey: env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY,
-          },
-        });
-      }
-    }
   }
 
   // Create User: Org -> User
+  let initUserId: string | undefined;
   if (env.LANGFUSE_INIT_USER_EMAIL && env.LANGFUSE_INIT_USER_PASSWORD) {
     const email = env.LANGFUSE_INIT_USER_EMAIL.toLowerCase();
     const existingUser = await prisma.user.findUnique({
@@ -167,6 +138,8 @@ if (env.LANGFUSE_INIT_ORG_ID) {
         env.LANGFUSE_INIT_USER_NAME ?? "Provisioned User",
       );
     }
+
+    initUserId = userId;
 
     // Create OrgMembership: Org -> OrgMembership <- User
     const orgMembership = await prisma.organizationMembership.upsert({
@@ -206,6 +179,41 @@ if (env.LANGFUSE_INIT_ORG_ID) {
           projectId: env.LANGFUSE_INIT_PROJECT_ID,
           role: "OWNER",
         },
+      });
+    }
+  }
+
+  // Add API Keys: Project -> API Key. Minted after the user so the provisioned
+  // key is attributed to the init user when one is configured.
+  if (
+    env.LANGFUSE_INIT_PROJECT_ID &&
+    env.LANGFUSE_INIT_PROJECT_SECRET_KEY &&
+    env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY
+  ) {
+    const projectId = env.LANGFUSE_INIT_PROJECT_ID;
+    const publicKey = env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY;
+    const secretKey = env.LANGFUSE_INIT_PROJECT_SECRET_KEY;
+
+    const existingApiKey = await prisma.apiKey.findUnique({
+      where: { publicKey },
+    });
+
+    // Delete key if project changed
+    if (existingApiKey && existingApiKey.projectId !== projectId) {
+      await prisma.$transaction(async (tx) => {
+        await tx.apiKey.delete({ where: { publicKey } });
+        await revokeRolesForPrincipals(tx, [ApiKeyId(existingApiKey.id)]);
+      });
+    }
+
+    // Create new key if it doesn't exist or project changed
+    if (!existingApiKey || existingApiKey.projectId !== projectId) {
+      await createApiKey(prisma, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: initUserId ? UserId(initUserId) : "system",
+        name: "Provisioned API Key",
+        predefinedKeys: { secretKey, publicKey },
       });
     }
   }

@@ -40,10 +40,8 @@ import {
   shadowAuthorize,
   __dangerouslySkipAuthz,
 } from "@/src/features/public-api/server";
-import {
-  type AuthorizationContext,
-  type ProjectAction,
-} from "@/src/features/auth/policy/types";
+import { type ProjectAction } from "@langfuse/shared/rbac";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 export const config = {
   api: {
@@ -386,7 +384,7 @@ function ingestionActionForEventType(
   type: string | null,
 ): ProjectAction | typeof __dangerouslySkipAuthz {
   if (type === eventTypes.SDK_LOG) return __dangerouslySkipAuthz;
-  if (type === eventTypes.SCORE_CREATE) return "scores:create";
+  if (type === eventTypes.SCORE_CREATE) return "scores:save";
   return "traces:create";
 }
 

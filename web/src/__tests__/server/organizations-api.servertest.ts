@@ -6,9 +6,15 @@ import { prisma, type Prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 
 // Schema for organization project response
 const OrganizationProjectSchema = z.object({
@@ -628,7 +634,6 @@ describe("Admin Organizations API", () => {
     let testOrgId: string;
 
     beforeEach(async () => {
-      // Create a test organization
       const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
       const org = await prisma.organization.create({
         data: { name: uniqueOrgName, metadata: { tier: "testing", users: 5 } },
@@ -674,6 +679,8 @@ describe("Admin Organizations API", () => {
       expect(apiKey).not.toBeNull();
       expect(apiKey?.orgId).toBe(testOrgId);
       expect(apiKey?.scope).toBe("ORGANIZATION");
+      expect(apiKey?.createdByUserId).toBeNull();
+      expect(apiKey?.createdByApiKeyId).toBeNull();
     });
 
     it("should return 404 when creating an API key for a non-existent organization", async () => {
@@ -859,11 +866,14 @@ describe("Public Organizations API", () => {
     testProject2Id = project2.id;
 
     // Create an organization API key
-    const apiKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: testOrgId,
-      scope: "ORGANIZATION",
-      note: "Test API Key for Organizations API",
+    const keyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const apiKey = await createApiKey(prisma, {
+      owner: OrganizationId(testOrgId),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: UserId(keyCreator.id),
+      name: "Test API Key for Organizations API",
       predefinedKeys: {
         publicKey: `pk-lf-org-${randomUUID().substring(0, 8)}`,
         secretKey: `sk-lf-org-${randomUUID().substring(0, 8)}`,
@@ -928,11 +938,14 @@ describe("Public Organizations API", () => {
 
       it("should return 403 when using a project-scoped API key", async () => {
         // Create a project API key
-        const projectApiKey = await createAndAddApiKeysToDb({
-          prisma,
-          entityId: testProject1Id,
-          scope: "PROJECT",
-          note: "Test Project API Key",
+        const keyCreator = await prisma.user.create({
+          data: { email: `apikey-creator-${randomUUID()}@example.com` },
+        });
+        const projectApiKey = await createApiKey(prisma, {
+          owner: ProjectId(testProject1Id),
+          role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+          createdBy: UserId(keyCreator.id),
+          name: "Test Project API Key",
           predefinedKeys: {
             publicKey: `pk-lf-project-${randomUUID().substring(0, 8)}`,
             secretKey: `sk-lf-project-${randomUUID().substring(0, 8)}`,
@@ -1032,11 +1045,14 @@ describe("Public Organizations API", () => {
         });
 
         // Create API key for empty organization
-        const emptyOrgApiKey = await createAndAddApiKeysToDb({
-          prisma,
-          entityId: emptyOrg.id,
-          scope: "ORGANIZATION",
-          note: "Test API Key for Empty Org",
+        const keyCreator = await prisma.user.create({
+          data: { email: `apikey-creator-${randomUUID()}@example.com` },
+        });
+        const emptyOrgApiKey = await createApiKey(prisma, {
+          owner: OrganizationId(emptyOrg.id),
+          role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+          createdBy: UserId(keyCreator.id),
+          name: "Test API Key for Empty Org",
           predefinedKeys: {
             publicKey: `pk-lf-empty-${randomUUID().substring(0, 8)}`,
             secretKey: `sk-lf-empty-${randomUUID().substring(0, 8)}`,
@@ -1117,29 +1133,33 @@ describe("Public Organizations API", () => {
       });
       testOrgId = org.id;
 
+      const keyCreator = await prisma.user.create({
+        data: { email: `apikey-creator-${randomUUID()}@example.com` },
+      });
+
       // Create an organization API key for authentication
-      const orgApiKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: testOrgId,
-        note: "Org API Key for testing",
-        scope: "ORGANIZATION",
+      const orgApiKey = await createApiKey(prisma, {
+        owner: OrganizationId(testOrgId),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: UserId(keyCreator.id),
+        name: "Org API Key for testing",
       });
       testApiKey = orgApiKey.publicKey;
       testApiSecretKey = orgApiKey.secretKey;
 
       // Create additional organization API keys to list
-      await createAndAddApiKeysToDb({
-        prisma,
-        entityId: testOrgId,
-        note: "First test key",
-        scope: "ORGANIZATION",
+      await createApiKey(prisma, {
+        owner: OrganizationId(testOrgId),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: UserId(keyCreator.id),
+        name: "First test key",
       });
 
-      await createAndAddApiKeysToDb({
-        prisma,
-        entityId: testOrgId,
-        note: "Second test key",
-        scope: "ORGANIZATION",
+      await createApiKey(prisma, {
+        owner: OrganizationId(testOrgId),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: UserId(keyCreator.id),
+        name: "Second test key",
       });
 
       // Create second organization with its own API keys (for isolation test)
@@ -1152,11 +1172,11 @@ describe("Public Organizations API", () => {
       });
       secondOrgId = secondOrg.id;
 
-      const secondOrgKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: secondOrgId,
-        note: "Second org API key",
-        scope: "ORGANIZATION",
+      const secondOrgKey = await createApiKey(prisma, {
+        owner: OrganizationId(secondOrgId),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: UserId(keyCreator.id),
+        name: "Second org API key",
       });
       secondOrgApiKey = secondOrgKey.publicKey;
       secondOrgApiSecretKey = secondOrgKey.secretKey;
@@ -1250,11 +1270,14 @@ describe("Public Organizations API", () => {
         },
       });
 
-      const projectApiKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: project.id,
-        note: "Project API key",
-        scope: "PROJECT",
+      const keyCreator = await prisma.user.create({
+        data: { email: `apikey-creator-${randomUUID()}@example.com` },
+      });
+      const projectApiKey = await createApiKey(prisma, {
+        owner: ProjectId(project.id),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(keyCreator.id),
+        name: "Project API key",
       });
 
       const response = await makeAPICall<{ error: string }>(

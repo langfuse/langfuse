@@ -44,7 +44,7 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
   const triggerRef = useRef<HTMLElement | null>(null);
   const hasAccess = useHasProjectAccess({
     projectId,
-    scope: "scores:CUD",
+    scope: "scores:save",
   });
   const disabled = !hasAccess;
 

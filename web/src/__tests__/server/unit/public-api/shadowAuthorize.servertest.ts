@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ForbiddenError } from "@langfuse/shared";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  type ProjectAction,
+} from "@langfuse/shared/rbac";
 
 const { env } = vi.hoisted(() => ({
   env: { API_AUTH_MIGRATION: "enforce" as string },
@@ -19,20 +25,19 @@ import {
   __dangerouslySkipAuthz,
   type ApiAction,
 } from "@/src/features/public-api/server";
-import {
-  type AuthorizationContext,
-  type Policy,
-  type ProjectAction,
-} from "@/src/features/auth/policy/types";
+import { type Policy } from "@/src/features/rbac/types";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 const PRJ = "prj_1";
+const ORG = "org_1";
 
 const allowPrompts: Policy = {
-  kind: "project",
-  source: { kind: "role", id: "PROJECT" },
+  id: "system/LEGACY_PROJECT_API_KEY:project",
+  tenantId: OrganizationId(ORG),
+  roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
   actions: ["prompts:read"] as ProjectAction[] as never,
-  resources: [PRJ],
-  effect: "allow",
+  resources: [ProjectId(PRJ)],
+  effect: "ALLOW",
 };
 
 const authContext = (policies: Policy[]): AuthorizationContext => ({

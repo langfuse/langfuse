@@ -8,7 +8,8 @@
 import { randomUUID } from "crypto";
 import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import type { ServerContext } from "@/src/features/mcp/types";
 
 /**
@@ -92,13 +93,19 @@ export async function createInAppAgentMcpContext(params: {
   orgId: string;
   createdByUserId?: string;
 }): Promise<{ apiKeyId: string; context: ServerContext }> {
-  const apiKey = await createAndAddApiKeysToDb({
-    prisma,
-    entityId: params.projectId,
-    scope: "PROJECT",
-    note: "In-app agent MCP session",
+  const creatorUserId =
+    params.createdByUserId ??
+    (
+      await prisma.user.create({
+        data: { email: `apikey-creator-${randomUUID()}@example.com` },
+      })
+    ).id;
+  const apiKey = await createApiKey(prisma, {
+    owner: ProjectId(params.projectId),
+    role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+    createdBy: UserId(creatorUserId),
+    name: "In-app agent MCP session",
     isInAppAgentKey: true,
-    createdByUserId: params.createdByUserId,
   });
 
   return {

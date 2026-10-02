@@ -8,6 +8,12 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  OrganizationId,
+  ProjectId,
+  type ResourceId,
+  type TenantId,
+} from "@langfuse/shared/rbac";
 
 import { env } from "@/src/env.mjs";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
@@ -23,7 +29,7 @@ import {
   type EnforceAuthResult,
 } from "@/src/features/public-api/server/enforceAuth";
 import { shadowAuthDiff } from "@/src/features/public-api/server/shadowAuthDiff";
-import { authorize } from "@/src/features/auth/policy/authorize";
+import { authorize } from "@/src/features/rbac/authorize";
 import {
   forbiddenError,
   serviceUnavailableError,
@@ -146,7 +152,12 @@ export function shadowAuthorize(params: ShadowAuthorizeParams): Decision {
   if (params.action === __dangerouslySkipAuthz || !params.ctx) {
     return { success: true };
   }
-  const decision = authorize(params.ctx, params.action, params.resource);
+  const decision = authorize(
+    params.ctx,
+    tenantFor(params.ctx, params.resource),
+    params.action,
+    toResourceId(params.resource),
+  );
   if (env.API_AUTH_MIGRATION === "shadow") {
     shadowAuthDiff(
       decision,
@@ -156,6 +167,21 @@ export function shadowAuthorize(params: ShadowAuthorizeParams): Decision {
     return { success: true };
   }
   return decision;
+}
+
+/** toResourceId tags a per-item resource for the PDP. */
+function toResourceId(resource: Resource): ResourceId {
+  return "projectId" in resource
+    ? ProjectId(resource.projectId)
+    : OrganizationId(resource.orgId);
+}
+
+/** tenantFor is the resource's tenant: an org resource is its own tenant; a per-item project is scoped to the key's already-resolved bound org. Admin carries no tenant and the PDP grants it directly. */
+function tenantFor(ctx: AuthorizationContext, resource: Resource): TenantId {
+  if ("orgId" in resource) return OrganizationId(resource.orgId);
+  const boundOrg =
+    ctx.principal.kind === "apiKey" ? ctx.principal.boundResource.orgId : "";
+  return OrganizationId(boundOrg);
 }
 
 /** ShadowAuthParams is enforceAuth's params plus the access levels the legacy verify gates on. */

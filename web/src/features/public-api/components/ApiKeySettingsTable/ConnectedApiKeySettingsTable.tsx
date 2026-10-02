@@ -184,7 +184,7 @@ function ApiKeyNoteDialog({
 
   return (
     <Dialog
-      title="Edit API key note"
+      title="Edit API key name"
       actions={[
         {
           label: "Save",
@@ -197,7 +197,7 @@ function ApiKeyNoteDialog({
       <Dialog.Body>
         <div className="grid gap-2">
           <label htmlFor={inputId} className="text-sm leading-none font-bold">
-            Note
+            Name
           </label>
           <Input
             id={inputId}

@@ -3,7 +3,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { z } from "zod";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
 
 export const validateQueryAndExtractId = (query: unknown): string | null => {
   const inputQuerySchema = z.object({
@@ -65,12 +66,12 @@ export async function handleCreateApiKey(
 
   const { note } = validationResult.data;
 
-  // Create the API key
-  const apiKeyMeta = await createAndAddApiKeysToDb({
-    prisma,
-    entityId: organizationId,
-    note,
-    scope: "ORGANIZATION",
+  // The static ADMIN_API_KEY is not a principal, so the key has no creator.
+  const apiKeyMeta = await createApiKey(prisma, {
+    owner: OrganizationId(organizationId),
+    role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+    createdBy: "system",
+    name: note,
   });
 
   // Log the API key creation
