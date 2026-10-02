@@ -17,10 +17,22 @@ const TooltipProvider = ({
   <TooltipPrimitive.Provider delayDuration={delayDuration} {...props} />
 );
 
+/**
+ * @deprecated Use web/src/components/design-system/Tooltip/Tooltip.tsx or
+ * web/src/components/design-system/CustomTooltip/CustomTooltip.tsx instead.
+ */
 const Tooltip = TooltipPrimitive.Root;
 
+/**
+ * @deprecated Use web/src/components/design-system/Tooltip/Tooltip.tsx or
+ * web/src/components/design-system/CustomTooltip/CustomTooltip.tsx instead.
+ */
 const TooltipTrigger = TooltipPrimitive.Trigger;
 
+/**
+ * @deprecated Use web/src/components/design-system/Tooltip/Tooltip.tsx or
+ * web/src/components/design-system/CustomTooltip/CustomTooltip.tsx instead.
+ */
 const TooltipContent = React.forwardRef<
   React.ComponentRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
