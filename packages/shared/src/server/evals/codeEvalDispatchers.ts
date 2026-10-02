@@ -1,11 +1,13 @@
 import { env } from "../../env";
 import { logger } from "../logger";
 import { AwsLambdaCodeEvalDispatcher } from "./awsLambdaCodeEvalDispatcher";
+import { ExternalCodeEvalDispatcher } from "./externalCodeEvalDispatcher";
 import { LocalCodeEvalDispatcher } from "./localCodeEvalDispatcher";
 import type { CodeEvalDispatcher } from "./codeEvalDispatcherTypes";
 
 export * from "./awsLambdaCodeEvalDispatcher";
 export * from "./codeEvalDispatcherTypes";
+export * from "./externalCodeEvalDispatcher";
 export * from "./localCodeEvalDispatcher";
 
 let hasLoggedInsecureLocalWarning = false;
@@ -36,6 +38,12 @@ export function resolveConfiguredCodeEvalDispatcher(): CodeEvalDispatcher | null
         PYTHON: env.LANGFUSE_CODE_EVAL_AWS_LAMBDA_PYTHON_FUNCTION_NAME,
         TYPESCRIPT: env.LANGFUSE_CODE_EVAL_AWS_LAMBDA_NODE_FUNCTION_NAME,
       },
+    });
+  }
+
+  if (dispatcherName === "external") {
+    return new ExternalCodeEvalDispatcher({
+      endpoint: env.LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT!,
     });
   }
 
