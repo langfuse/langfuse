@@ -155,10 +155,10 @@ function SelectInputInner<V extends string>(
                                     ? option.disabledReason
                                     : option.label
                                 }
+                                badges={option.badges?.map((badge, index) => (
+                                  <Badge key={index} {...badge} />
+                                ))}
                               />
-                              {option.badges?.map((badge, index) => (
-                                <Badge key={index} {...badge} />
-                              ))}
                             </CommandPrimitive.Item>
                           </InputDropdown.Option>
                         ));
@@ -226,10 +226,10 @@ function SelectInputInner<V extends string>(
                 </SelectPrimitive.ItemText>
               }
               title={node.disabled ? node.disabledReason : node.label}
+              badges={node.badges?.map((badge, index) => (
+                <Badge key={index} {...badge} />
+              ))}
             />
-            {node.badges?.map((badge, index) => (
-              <Badge key={index} {...badge} />
-            ))}
           </SelectPrimitive.SelectItem>
         </InputDropdown.Option>
       </React.Fragment>

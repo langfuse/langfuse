@@ -34,9 +34,7 @@ import {
   useColumnOrder,
   useColumnVisibility,
 } from "@/src/features/column-visibility";
-import { EvaluatorExecutionHistory } from "@/src/features/evals/v2/components/Rules/EvaluatorExecutionHistory/EvaluatorExecutionHistory";
 import type { RuleTableRow } from "@/src/features/evals/v2/types/rules";
-import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   Tooltip,
   TooltipContent,
@@ -218,10 +216,6 @@ export function RulesTable({
     { projectId, ruleIds },
     { enabled: ruleIds.length > 0, meta: { silentHttpCodes: [503] } },
   );
-  const recentExecutions = api.evalsV2.rules.recentExecutions.useQuery(
-    { projectId, ruleIds },
-    { enabled: ruleIds.length > 0, meta: { silentHttpCodes: [503] } },
-  );
   const deleteMany = api.evalsV2.rules.deleteMany.useMutation({
     onError: trpcErrorToast,
     onSuccess: async (result) => {
@@ -315,33 +309,6 @@ export function RulesTable({
           return value;
         },
       }),
-      {
-        accessorKey: "executionTraces",
-        id: "executionTraces",
-        header: "Last 5 runs",
-        size: 140,
-        enableHiding: true,
-        cell: ({ row }) => {
-          if (recentExecutions.isPending) {
-            return <Skeleton className="h-4 w-16" />;
-          }
-          return (
-            <button
-              type="button"
-              className="focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-none"
-              aria-label={`View runs for ${row.original.name}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                router.push(ruleExecutionsUrl(projectId, row.original.id));
-              }}
-            >
-              <EvaluatorExecutionHistory
-                traces={recentExecutions.data?.[row.original.id] ?? []}
-              />
-            </button>
-          );
-        },
-      },
       {
         accessorKey: "assignments",
         id: "assignments",
@@ -486,8 +453,6 @@ export function RulesTable({
       costs.data,
       costs.isPending,
       projectId,
-      recentExecutions.data,
-      recentExecutions.isPending,
       router,
       capture,
       selectActionColumn,
