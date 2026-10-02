@@ -51,6 +51,7 @@ export function ControlledInAppAgentWindow(
   const {
     activityByConversationId,
     conversations,
+    composerStore,
     error,
     hasMoreConversations,
     isLoadingMoreConversations,
@@ -171,6 +172,7 @@ export function ControlledInAppAgentWindow(
 
   return (
     <InAppAgentWindow
+      composerStore={composerStore}
       error={error}
       isAssistantTurnInProgress={isAssistantTurnInProgress}
       isRunUnsettled={isRunUnsettled}

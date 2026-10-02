@@ -6,9 +6,52 @@ import {
   decodeFiltersGeneric,
   encodeFiltersGeneric,
 } from "@langfuse/shared";
-import { buildEventsTablePathForMetadataFilter } from "./eventsTablePaths";
+import {
+  buildEventsTablePathForMetadataFilter,
+  buildEventsTablePathForObservationIds,
+} from "./eventsTablePaths";
+import { urlOwnsEventsTableState } from "./appRootDefaultFilterPolicy";
 
 const PROJECT = "p1";
+
+describe("buildEventsTablePathForObservationIds", () => {
+  it("opens exact observation IDs in the requested window without inheriting root-only filters or saved views", () => {
+    const params = new URLSearchParams({
+      filter: encodeFiltersGeneric([
+        {
+          column: "isRootObservation",
+          type: "boolean",
+          operator: "=",
+          value: true,
+        },
+      ]),
+      viewId: "root-only-view",
+      dateRange: "1h",
+    });
+    const path = buildEventsTablePathForObservationIds({
+      currentPath: `/project/old-project/traces?${params.toString()}`,
+      projectId: PROJECT,
+      observationIds: ["observation-1", "observation;2"],
+      dateRange: "7d",
+    });
+    const url = new URL(path, "https://langfuse.local");
+
+    expect(url.pathname).toBe(`/project/${PROJECT}/observations`);
+    expect(url.searchParams.get("dateRange")).toBe("7d");
+    expect(url.searchParams.has("viewId")).toBe(false);
+    expect(decodeFiltersGeneric(url.searchParams.get("filter")!)).toEqual([
+      {
+        column: "id",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["observation-1", "observation;2"],
+      },
+    ]);
+    expect(urlOwnsEventsTableState(Object.fromEntries(url.searchParams))).toBe(
+      true,
+    );
+  });
+});
 
 const meta = (
   key: string,

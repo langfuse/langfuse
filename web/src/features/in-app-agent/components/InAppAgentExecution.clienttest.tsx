@@ -17,6 +17,14 @@ import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
 import { InAppAiAgentProvider, useInAppAiAgent } from "./InAppAiAgentProvider";
 import styles from "./InAppAgentWindow.module.css";
+import {
+  TraceliftProvider,
+  useTracelift,
+} from "@/src/features/tracelift/TraceliftContext";
+
+vi.mock("@/src/features/feature-flags", () => ({
+  useInternalFeaturesEnabled: () => true,
+}));
 
 const providerMocks = vi.hoisted(() => {
   const startRun = vi.fn();
@@ -205,6 +213,28 @@ function ReopenAssistantButton() {
   );
 }
 
+function AssistantDraftProbe() {
+  const { openAssistantWithPrompt } = useInAppAiAgent();
+  const { open, setOpen } = useTracelift();
+  return (
+    <>
+      <button
+        onClick={() => {
+          setOpen(true);
+        }}
+      >
+        Open Tracelift preview
+      </button>
+      <button
+        onClick={() => openAssistantWithPrompt("Review these wrapper spans")}
+      >
+        Draft in assistant
+      </button>
+      {open ? <span>Tracelift is open</span> : null}
+    </>
+  );
+}
+
 function ConcurrentConversationProbe({
   conversationId,
 }: {
@@ -303,6 +333,36 @@ describe("in-app agent execution", () => {
     vi.unstubAllGlobals();
     providerMocks.conversationQuery.data = undefined;
     window.sessionStorage.clear();
+  });
+
+  it("prefills an editable assistant draft, closes Tracelift, and never starts a run", () => {
+    render(
+      <TraceliftProvider>
+        <InAppAiAgentProvider defaultOpen={false}>
+          <TooltipProvider>
+            <AssistantDraftProbe />
+            <ControlledInAppAgentWindow
+              isExpanded={false}
+              onDeleteConversation={vi.fn()}
+              onExpandedChange={vi.fn()}
+              showCloseButton={false}
+            />
+          </TooltipProvider>
+        </InAppAiAgentProvider>
+      </TraceliftProvider>,
+    );
+    fireEvent.click(screen.getByText("Open Tracelift preview"));
+    expect(screen.getByText("Tracelift is open")).toBeVisible();
+    fireEvent.click(screen.getByText("Draft in assistant"));
+
+    const composer = screen.getByRole("textbox", {
+      name: "Message the assistant",
+    });
+    expect(composer).toHaveValue("Review these wrapper spans");
+    expect(screen.queryByText("Tracelift is open")).not.toBeInTheDocument();
+    fireEvent.change(composer, { target: { value: "My edited prompt" } });
+    expect(composer).toHaveValue("My edited prompt");
+    expect(providerMocks.startRun).not.toHaveBeenCalled();
   });
 
   // Polling uses useCanUseInAppAgent (org AI Features on). Entry points use

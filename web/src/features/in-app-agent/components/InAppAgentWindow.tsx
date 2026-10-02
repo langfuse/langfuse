@@ -10,6 +10,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { useStore } from "zustand";
+import { createComposerStore } from "@/src/features/in-app-agent/lib/composerStore";
 import {
   ArrowRight,
   ArrowDown,
@@ -863,6 +865,7 @@ export type InAppAgentWindowExecutionUi = {
 };
 
 export type InAppAgentWindowProps = {
+  composerStore?: ReturnType<typeof createComposerStore>;
   conversations: InAppAgentWindowConversation[];
   /** Per-conversation attention state, for the recent-conversation indicators. */
   activityByConversationId: InAppAgentActivityByConversationId;
@@ -1028,7 +1031,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const previousIsAssistantTurnInProgressRef = useRef(
     isAssistantTurnInProgress,
   );
-  const [input, setInput] = useState("");
+  const [localComposerStore] = useState(createComposerStore);
+  const composerStore = props.composerStore ?? localComposerStore;
+  const input = useStore(composerStore, (state) => state.input);
+  const setInput = composerStore.getState().setInput;
   const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
     useState(false);
   // Same conversations the launcher badge counts, narrowed to the ones behind

@@ -1,17 +1,77 @@
 // @vitest-environment jsdom
 
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import {
   SupportDrawerProvider,
   useSupportDrawer,
 } from "@/src/features/support-chat/SupportDrawerProvider";
+import {
+  TraceliftProvider,
+  useTracelift,
+} from "@/src/features/tracelift/TraceliftContext";
+
+const traceliftScope = vi.hoisted(() => ({
+  projectId: "project-1",
+  enabled: true,
+}));
+
+vi.mock("next/router", () => ({
+  useRouter: () => ({ query: { projectId: traceliftScope.projectId } }),
+}));
+
+vi.mock("@/src/features/feature-flags", () => ({
+  useInternalFeaturesEnabled: () => traceliftScope.enabled,
+}));
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
-  <SupportDrawerProvider>{children}</SupportDrawerProvider>
+  <TraceliftProvider>
+    <SupportDrawerProvider>{children}</SupportDrawerProvider>
+  </TraceliftProvider>
 );
 
 describe("SupportDrawerProvider", () => {
+  beforeEach(() => {
+    traceliftScope.projectId = "project-1";
+    traceliftScope.enabled = true;
+  });
+
+  it("does not restore Tracelift after leaving a project or disabling internal features", () => {
+    const { result, rerender } = renderHook(() => useTracelift(), { wrapper });
+    act(() => result.current.setOpen(true));
+    traceliftScope.projectId = "project-2";
+    rerender();
+    expect(result.current.open).toBe(false);
+    traceliftScope.projectId = "project-1";
+    rerender();
+    expect(result.current.open).toBe(false);
+
+    act(() => result.current.setOpen(true));
+    traceliftScope.enabled = false;
+    rerender();
+    expect(result.current.open).toBe(false);
+    traceliftScope.enabled = true;
+    rerender();
+    expect(result.current.open).toBe(false);
+  });
+
+  it.each(["setOpen", "openWithMode"] as const)(
+    "%s closes Tracelift when opening support",
+    (action) => {
+      const { result } = renderHook(
+        () => ({ support: useSupportDrawer(), tracelift: useTracelift() }),
+        { wrapper },
+      );
+      act(() => result.current.tracelift.setOpen(true));
+      act(() => {
+        if (action === "setOpen") result.current.support.setOpen(true);
+        else result.current.support.openWithMode("form");
+      });
+
+      expect(result.current.support.open).toBe(true);
+      expect(result.current.tracelift.open).toBe(false);
+    },
+  );
   it("bumps openEpoch and reseeds on closed→open", () => {
     const { result } = renderHook(() => useSupportDrawer(), { wrapper });
     const epochBefore = result.current.openEpoch;

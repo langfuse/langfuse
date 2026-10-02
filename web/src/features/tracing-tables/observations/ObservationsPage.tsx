@@ -9,12 +9,15 @@ import { useReadPath } from "@/src/features/events";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects";
 import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import { TraceliftBadgeContent } from "@/src/features/tracelift";
 
 export default function ObservationsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const { isV4, isResolved } = useReadPath();
   const { project } = useQueryProject();
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
 
   // Check if the user has tracing configured
   // Skip polling entirely if the project flag is already set in the session
@@ -43,7 +46,10 @@ export default function ObservationsPage() {
         // Match traces/index.tsx: no delay badge while onboarding tells the
         // user to set up tracing for the first time.
         titleBadges: showOnboarding ? undefined : (
-          <V4MigrationDelayBadge page="observations" />
+          <>
+            <V4MigrationDelayBadge page="observations" />
+            {internalFeaturesEnabled && <TraceliftBadgeContent />}
+          </>
         ),
         help: {
           description:
