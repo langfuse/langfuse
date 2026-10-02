@@ -304,7 +304,7 @@ describe("role assignment foreign keys", () => {
     },
   );
 
-  it("loads tagged identifiers with the caller-supplied tenant for both principal kinds", async () => {
+  it("loads stored assignments with the caller-supplied tenant for both principal kinds", async () => {
     const { projectId, orgId } = await createOrgProjectAndApiKey();
     const key = await prisma.apiKey.findFirstOrThrow({ where: { projectId } });
     const assignment = await addUserAssignment(orgId, projectId);
@@ -319,30 +319,34 @@ describe("role assignment foreign keys", () => {
 
     expect(await getRoleAssignmentsForPrincipal(prisma, principalId)).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          principalId,
-          tenantId: OrganizationId(orgId),
-          ownerId: ProjectId(projectId),
-          roleId: SystemRoleId("VIEWER"),
-          role: expect.objectContaining({ name: "Viewer" }),
-        }),
-        expect.objectContaining({
-          principalId,
-          tenantId: OrganizationId(orgId),
-          ownerId: OrganizationId(orgId),
-          roleId: SystemRoleId("ADMIN"),
-        }),
+        assignment,
+        {
+          id: expect.any(String),
+          orgId,
+          principalUserId: assignment.principalUserId,
+          principalApiKeyId: null,
+          ownerOrgId: orgId,
+          ownerProjectId: null,
+          systemRole: "ADMIN",
+          createdAt: expect.any(Date),
+          updatedAt: expect.any(Date),
+        },
       ]),
     );
     expect(
       await getRoleAssignmentsForPrincipal(prisma, ApiKeyId(key.id)),
     ).toEqual([
-      expect.objectContaining({
-        principalId: ApiKeyId(key.id),
-        tenantId: OrganizationId(orgId),
-        ownerId: ProjectId(projectId),
-        roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
-      }),
+      {
+        id: expect.any(String),
+        orgId,
+        principalApiKeyId: key.id,
+        principalUserId: null,
+        ownerProjectId: projectId,
+        ownerOrgId: null,
+        systemRole: "LEGACY_PROJECT_API_KEY",
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      },
     ]);
   });
 });

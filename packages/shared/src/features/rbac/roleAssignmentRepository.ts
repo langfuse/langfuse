@@ -3,19 +3,9 @@ import {
   type Prisma,
   type RoleAssignment as StoredRoleAssignment,
 } from "@prisma/client";
-import { InternalServerError, NotImplementedError } from "../../errors";
+import { NotImplementedError } from "../../errors";
 import { withTransaction } from "../../server/utils/withTransaction";
 import {
-  systemRoleAccessRights,
-  type SystemRoleDefinition,
-} from "./systemRoleAccessRights";
-
-import {
-  ApiKeyId,
-  OrganizationId,
-  ProjectId,
-  SystemRoleId,
-  UserId,
   hasApiKeyKind,
   hasProjectKind,
   hasSystemRoleKind,
@@ -28,20 +18,14 @@ import {
 
 type Tx = PrismaClient | Prisma.TransactionClient;
 
-/** An assignment with its system-role definition attached. */
-export type RoleAssignmentWithRole = RoleAssignment & {
-  role: SystemRoleDefinition;
-};
-
-/** Loads a principal's assignments with their system-role definitions. */
+/** getRoleAssignmentsForPrincipal loads a principal's stored assignments. */
 export async function getRoleAssignmentsForPrincipal(
   tx: Tx,
   principalId: PrincipalId,
-): Promise<RoleAssignmentWithRole[]> {
-  const assignments = await tx.roleAssignment.findMany({
+): Promise<StoredRoleAssignment[]> {
+  return await tx.roleAssignment.findMany({
     where: principalFields(principalId),
   });
-  return assignments.map(toRoleAssignment);
 }
 
 /** assignRole persists a system-role assignment in the supplied tenant. */
@@ -91,39 +75,4 @@ function ownerFields(ownerId: OwnerId) {
   return hasProjectKind(ownerId)
     ? { ownerProjectId: untag(ownerId) }
     : { ownerOrgId: untag(ownerId) };
-}
-
-/** toRoleAssignment restores the tagged domain identifiers from foreign keys. */
-function toRoleAssignment(
-  assignment: StoredRoleAssignment,
-): RoleAssignmentWithRole {
-  return {
-    id: assignment.id,
-    tenantId: OrganizationId(assignment.orgId),
-    principalId: toPrincipalId(assignment),
-    ownerId: toOwnerId(assignment),
-    roleId: SystemRoleId(assignment.systemRole),
-    tags: [],
-    createdAt: assignment.createdAt,
-    updatedAt: assignment.updatedAt,
-    role: systemRoleAccessRights[assignment.systemRole],
-  };
-}
-
-/** toPrincipalId tags the populated principal foreign key. */
-function toPrincipalId(assignment: StoredRoleAssignment): PrincipalId {
-  if (assignment.principalUserId !== null)
-    return UserId(assignment.principalUserId);
-  if (assignment.principalApiKeyId !== null)
-    return ApiKeyId(assignment.principalApiKeyId);
-  throw new InternalServerError("role assignment requires a principal");
-}
-
-/** toOwnerId tags the populated owner foreign key. */
-function toOwnerId(assignment: StoredRoleAssignment): OwnerId {
-  if (assignment.ownerProjectId !== null)
-    return ProjectId(assignment.ownerProjectId);
-  if (assignment.ownerOrgId !== null)
-    return OrganizationId(assignment.ownerOrgId);
-  throw new InternalServerError("role assignment requires an owner");
 }

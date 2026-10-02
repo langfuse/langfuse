@@ -230,8 +230,8 @@ describe("projectsRouter system role assignments", () => {
     ).resolves.toEqual([
       expect.objectContaining({
         id: assignment.id,
-        ownerId: ProjectId(projectId),
-        roleId: SystemRoleId("VIEWER"),
+        ownerProjectId: projectId,
+        systemRole: "VIEWER",
       }),
     ]);
   });
