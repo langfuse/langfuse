@@ -585,7 +585,7 @@ function DraggableSkillFile({
           </span>
         ) : null}
         {indicator && IndicatorIcon ? (
-          <Tooltip label={indicator.label}>
+          <Tooltip label={indicator.label} delay={700}>
             {({ getTriggerProps }) => (
               <span
                 {...getTriggerProps()}

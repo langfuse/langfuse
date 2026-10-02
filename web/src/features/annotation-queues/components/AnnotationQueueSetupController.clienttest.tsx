@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { SidePanel } from "@/src/components/ui/side-panel";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { AnnotationQueueSetupController } from "./AnnotationQueueSetupController";
@@ -279,22 +278,20 @@ function MobileSetupPanel() {
   const [open, onOpenChange] = useState(false);
   return (
     <LayerProvider>
-      <TooltipProvider>
-        <AnnotationQueueSetupController
-          projectId="project"
-          queueId="queue"
-          renderLayout={(content) => (
-            <SidePanel
-              id="mobile-queue-setup"
-              mobileTitle="Queue setup"
-              variant="sidebar"
-              mobileOpenState={{ open, onOpenChange }}
-            >
-              {content}
-            </SidePanel>
-          )}
-        />
-      </TooltipProvider>
+      <AnnotationQueueSetupController
+        projectId="project"
+        queueId="queue"
+        renderLayout={(content) => (
+          <SidePanel
+            id="mobile-queue-setup"
+            mobileTitle="Queue setup"
+            variant="sidebar"
+            mobileOpenState={{ open, onOpenChange }}
+          >
+            {content}
+          </SidePanel>
+        )}
+      />
     </LayerProvider>
   );
 }
@@ -303,16 +300,14 @@ function SetupPanel() {
   const [visible, setVisible] = useState(true);
   return (
     <LayerProvider>
-      <TooltipProvider>
-        <button onClick={() => setVisible(!visible)}>
-          {visible ? "Hide setup" : "Show setup"}
-        </button>
-        <AnnotationQueueSetupController
-          projectId="project"
-          queueId="queue"
-          renderLayout={(content) => (visible ? content : null)}
-        />
-      </TooltipProvider>
+      <button onClick={() => setVisible(!visible)}>
+        {visible ? "Hide setup" : "Show setup"}
+      </button>
+      <AnnotationQueueSetupController
+        projectId="project"
+        queueId="queue"
+        renderLayout={(content) => (visible ? content : null)}
+      />
     </LayerProvider>
   );
 }

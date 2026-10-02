@@ -2,7 +2,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { EvaluatorVersionHistorySheet } from "./EvaluatorVersionHistorySheet";
 import type { EvaluatorVersion } from "./types";
 
@@ -37,22 +36,20 @@ describe("EvaluatorVersionHistorySheet", () => {
     const onVersionExpansionChange = vi.fn();
 
     render(
-      <TooltipProvider>
-        <EvaluatorVersionHistorySheet
-          open
-          onOpenChange={onOpenChange}
-          evaluatorName="Answer quality"
-          versions={[currentVersion, oldVersion]}
-          currentVersionId={currentVersion.id}
-          defaultModel={null}
-          onVersionExpansionChange={onVersionExpansionChange}
-          onRestoreVersion={onRestoreVersion}
-          isLoading={false}
-          hasMore={false}
-          isLoadingMore={false}
-          onLoadMore={vi.fn()}
-        />
-      </TooltipProvider>,
+      <EvaluatorVersionHistorySheet
+        open
+        onOpenChange={onOpenChange}
+        evaluatorName="Answer quality"
+        versions={[currentVersion, oldVersion]}
+        currentVersionId={currentVersion.id}
+        defaultModel={null}
+        onVersionExpansionChange={onVersionExpansionChange}
+        onRestoreVersion={onRestoreVersion}
+        isLoading={false}
+        hasMore={false}
+        isLoadingMore={false}
+        onLoadMore={vi.fn()}
+      />,
     );
 
     expect(screen.getByText("Version 1").parentElement).toHaveClass(

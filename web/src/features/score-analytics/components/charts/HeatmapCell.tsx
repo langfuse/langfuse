@@ -135,7 +135,7 @@ function CellWithData({
   // Only wrap with tooltip if renderTooltip is provided
   if (renderTooltip) {
     return (
-      <CustomTooltip content={<>{renderTooltip(cell)}</>} delay={300}>
+      <CustomTooltip content={<>{renderTooltip(cell)}</>}>
         {({ getTriggerProps }) =>
           cloneElement(
             cellContent,

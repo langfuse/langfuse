@@ -5,11 +5,7 @@ import {
 } from "react";
 import { X } from "lucide-react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
 type FacetHeaderProps = Pick<
@@ -81,10 +77,14 @@ export const FacetHeader = forwardRef<HTMLButtonElement, FacetHeaderProps>(
           )}
         </div>
         {isActive && onReset && (
-          <Tooltip delayDuration={80}>
-            <TooltipTrigger asChild>
-              {/* The accordion trigger is already a button. */}
+          <Tooltip
+            label={`Clear ${label.toLowerCase()} filter`}
+            placement="right"
+            delay={80}
+          >
+            {({ getTriggerProps }) => (
               <div
+                {...getTriggerProps()}
                 role="button"
                 tabIndex={0}
                 onClick={(event) => {
@@ -104,10 +104,7 @@ export const FacetHeader = forwardRef<HTMLButtonElement, FacetHeaderProps>(
                 <X className="icon-sm shrink-0" />
                 Clear
               </div>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="text-xs">
-              Clear {label.toLowerCase()} filter
-            </TooltipContent>
+            )}
           </Tooltip>
         )}
       </button>

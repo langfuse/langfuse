@@ -14,7 +14,7 @@ import {
   useFocus,
   useHover,
   useInteractions,
-    useRole,
+  useRole,
   type Placement,
 } from "@floating-ui/react";
 import * as React from "react";
@@ -49,8 +49,6 @@ type CustomTooltipProps = {
   padding?: NonNullable<VariantProps<typeof tooltipVariants>["padding"]>;
   overflow?: NonNullable<VariantProps<typeof tooltipVariants>["overflow"]>;
   activation?: "hover" | "hover-and-click";
-  size?: "default" | "wide";
-  triggerRef?: React.Ref<HTMLElement>;
   disabled?: boolean;
 };
 
@@ -69,14 +67,12 @@ function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
 function CustomTooltip({
   children,
   content,
-  delay = 150,
+  delay = 300,
   hoverableContent = true,
   placement = "top",
   padding = "default",
   overflow = "hidden",
   activation = "hover",
-  size: tooltipSize = "default",
-  triggerRef,
   disabled = false,
 }: CustomTooltipProps) {
   const [isOpen, setIsOpen] = React.useState(false);
@@ -127,9 +123,9 @@ function CustomTooltip({
     <>
       {children({
         getTriggerProps: (props = {}) => {
-            return getReferenceProps({
-              ...props,
-              ref: mergeRefs(props.ref, triggerRef, refs.setReference),
+          return getReferenceProps({
+            ...props,
+            ref: mergeRefs(props.ref, refs.setReference),
           });
         },
       })}
@@ -138,8 +134,7 @@ function CustomTooltip({
           <div
             ref={refs.setFloating}
             className={cn(
-                tooltipVariants({ padding, overflow }),
-                { default: "max-w-xs", wide: "max-w-[calc(100vw-2rem)]" }[tooltipSize],
+              tooltipVariants({ padding, overflow }),
               !hoverableContent && "pointer-events-none",
             )}
             style={floatingStyles}

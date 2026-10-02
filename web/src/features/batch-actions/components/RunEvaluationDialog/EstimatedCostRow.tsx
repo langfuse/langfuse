@@ -66,6 +66,7 @@ export function EstimatedCostRow(props: EstimatedCostRowProps) {
         {formatCostEstimate(totalEstimate)}
         {isPartial ? "*" : ""}
         <CustomTooltip
+          delay={700}
           content={
             <div className="space-y-2">
               <p className="text-xs">

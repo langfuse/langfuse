@@ -100,7 +100,7 @@ export interface ScoreTagProps {
 export const ScoreTag = ({ level, compact = false }: ScoreTagProps) => {
   if (compact) {
     return (
-      <Tooltip label={SCORE_LEVEL_DESCRIPTIONS[level]}>
+      <Tooltip label={SCORE_LEVEL_DESCRIPTIONS[level]} delay={700}>
         {({ getTriggerProps }) => (
           <span
             {...getTriggerProps()}
@@ -114,7 +114,7 @@ export const ScoreTag = ({ level, compact = false }: ScoreTagProps) => {
   }
 
   return (
-    <Tooltip label={SCORE_LEVEL_DESCRIPTIONS[level]}>
+    <Tooltip label={SCORE_LEVEL_DESCRIPTIONS[level]} delay={700}>
       {({ getTriggerProps }) => (
         <span {...getTriggerProps()}>
           <Badge

@@ -32,7 +32,7 @@ export function RuleFilterPills({
     if (!reason) return <span key={key}>{content}</span>;
 
     return (
-      <Tooltip key={key} label={reason} delay={300}>
+      <Tooltip key={key} label={reason}>
         {({ getTriggerProps }) => (
           <span
             {...getTriggerProps()}
@@ -149,8 +149,6 @@ export function RuleFilterPills({
       )}
       renderOverflow={({ overflowItemCount }) => (
         <CustomTooltip
-          delay={300}
-          size="wide"
           content={
             <div className="flex max-w-96 flex-wrap gap-1">
               <InlineFilterState filterState={filter} className="m-0" />

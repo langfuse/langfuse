@@ -1,6 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { PaginationState } from "@tanstack/react-table";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   ExperimentScoreMatrix,
   type ScoreMatrixColumn,
@@ -44,16 +43,14 @@ const renderMatrix = ({
   totalCount: number | null;
 }) =>
   render(
-    <TooltipProvider>
-      <ExperimentScoreMatrix
-        rows={rows}
-        scoreRows={scoreRows}
-        experiments={experiments}
-        colorExperimentIds={experiments.map((exp) => exp.experimentId)}
-        isLoading={false}
-        pagination={{ totalCount, onChange, state }}
-      />
-    </TooltipProvider>,
+    <ExperimentScoreMatrix
+      rows={rows}
+      scoreRows={scoreRows}
+      experiments={experiments}
+      colorExperimentIds={experiments.map((exp) => exp.experimentId)}
+      isLoading={false}
+      pagination={{ totalCount, onChange, state }}
+    />,
   );
 
 describe("ExperimentScoreMatrix pagination", () => {
@@ -78,20 +75,18 @@ describe("ExperimentScoreMatrix pagination", () => {
 
   it("keeps the page controls when no score has a value on this page", () => {
     render(
-      <TooltipProvider>
-        <ExperimentScoreMatrix
-          rows={[itemRow("a", 0.5)]}
-          scoreRows={[]}
-          experiments={experiments}
-          colorExperimentIds={experiments.map((exp) => exp.experimentId)}
-          isLoading={false}
-          pagination={{
-            totalCount: 6,
-            onChange: vi.fn(),
-            state: { pageIndex: 1, pageSize: 1 },
-          }}
-        />
-      </TooltipProvider>,
+      <ExperimentScoreMatrix
+        rows={[itemRow("a", 0.5)]}
+        scoreRows={[]}
+        experiments={experiments}
+        colorExperimentIds={experiments.map((exp) => exp.experimentId)}
+        isLoading={false}
+        pagination={{
+          totalCount: 6,
+          onChange: vi.fn(),
+          state: { pageIndex: 1, pageSize: 1 },
+        }}
+      />,
     );
 
     expect(

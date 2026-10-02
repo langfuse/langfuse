@@ -141,7 +141,6 @@ export function DataTablePagination<TData>({
                 ? "Approximate count over the active column filters and time range only. It excludes full-text search, score, and comment filters, so it can be noticeably higher than the number of matching rows."
                 : "Approximate number of matching rows for the active filters and time range, estimated with ClickHouse's HyperLogLog (typically within a few percent of the true count)."
             }
-            delay={300}
           >
             {({ getTriggerProps }) => (
               <span {...getTriggerProps()} className={totalCountClassName}>

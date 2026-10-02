@@ -155,23 +155,31 @@ export const ScoreRow = ({
                 <ScoreDetailRow
                   label="Metadata"
                   value={
-                    <CustomTooltip size="wide" delay={300} content={
-                      <div className="w-[400px] max-w-full text-xs wrap-break-word">
-                        {metadata && Object.keys(metadata).length > 0 ? (
-                          <JSONView
-                            codeClassName="border-none p-0 overflow-y-auto max-h-[40vh]"
-                            json={metadata}
-                          />
-                        ) : (
-                          <Skeleton className="h-12 w-full" />
-                        )}
-                      </div>
-                    }>
+                    <CustomTooltip
+                      content={
+                        <div className="text-xs wrap-break-word">
+                          {metadata && Object.keys(metadata).length > 0 ? (
+                            <JSONView
+                              codeClassName="border-none p-0 overflow-y-auto max-h-[40vh]"
+                              json={metadata}
+                            />
+                          ) : (
+                            <Skeleton className="h-12 w-full" />
+                          )}
+                        </div>
+                      }
+                    >
                       {({ getTriggerProps }) => (
-                        <span {...getTriggerProps()} className="line-clamp-1 cursor-help">
+                        <span
+                          {...getTriggerProps()}
+                          className="line-clamp-1 cursor-help"
+                        >
                           {(() => {
                             try {
-                              return metadata && Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : "Loading...";
+                              return metadata &&
+                                Object.keys(metadata).length > 0
+                                ? JSON.stringify(metadata)
+                                : "Loading...";
                             } catch {
                               return "Invalid JSON";
                             }

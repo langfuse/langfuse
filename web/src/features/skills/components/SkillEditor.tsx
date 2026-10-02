@@ -429,7 +429,7 @@ export function SkillEditor({
         />
       ) : null}
       {nameWarning ? (
-        <Tooltip label={nameWarning}>
+        <Tooltip label={nameWarning} delay={700}>
           {({ getTriggerProps }) => (
             <button
               type="button"
@@ -443,7 +443,7 @@ export function SkillEditor({
         </Tooltip>
       ) : null}
       {hasNameChanged ? (
-        <Tooltip label={`Reset name to "${name}"`}>
+        <Tooltip label={`Reset name to "${name}"`} delay={700}>
           {({ getTriggerProps }) => (
             <IconButton
               {...getTriggerProps()}

@@ -1,6 +1,5 @@
 /* eslint-disable @repo/prefer-stories-over-client-tests */
 import { fireEvent, render, screen } from "@testing-library/react";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { EvaluatorSavedDialog } from "./EvaluatorSavedDialog";
 
 const renderDialog = () => {
@@ -9,25 +8,23 @@ const renderDialog = () => {
   const onModeChange = vi.fn();
 
   render(
-    <TooltipProvider>
-      <EvaluatorSavedDialog
-        open
-        mode="test-filters"
-        modeContentByMode={{
-          "test-filters": null,
-          "different-scope": null,
-        }}
-        backfillContent={null}
-        costSummary={null}
-        canSubmit
-        isSubmitting={false}
-        primaryActionLabel="Execute"
-        onModeChange={onModeChange}
-        onDismiss={onDismiss}
-        onSecondaryAction={onSecondaryAction}
-        onPrimaryAction={vi.fn()}
-      />
-    </TooltipProvider>,
+    <EvaluatorSavedDialog
+      open
+      mode="test-filters"
+      modeContentByMode={{
+        "test-filters": null,
+        "different-scope": null,
+      }}
+      backfillContent={null}
+      costSummary={null}
+      canSubmit
+      isSubmitting={false}
+      primaryActionLabel="Execute"
+      onModeChange={onModeChange}
+      onDismiss={onDismiss}
+      onSecondaryAction={onSecondaryAction}
+      onPrimaryAction={vi.fn()}
+    />,
   );
 
   return { onDismiss, onSecondaryAction, onModeChange };

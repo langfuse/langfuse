@@ -167,106 +167,106 @@ export function PeekHeader({
   const anyFolded = plan.foldActions || plan.foldOpenInTab;
 
   return (
+    <div
+      ref={headerRef}
+      className="flex min-h-10 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden pt-3 pr-4 pb-1.5 pl-4"
+    >
+      <EntityTitle as="span" type={itemType} title={title} isFocusable />
       <div
-        ref={headerRef}
-        className="flex min-h-10 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden pt-3 pr-4 pb-1.5 pl-4"
+        ref={clusterRef}
+        className="flex shrink-0 flex-row items-center gap-1"
       >
-        <EntityTitle as="span" type={itemType} title={title} isFocusable />
-        <div
-          ref={clusterRef}
-          className="flex shrink-0 flex-row items-center gap-1"
-        >
-          {hasOpenInTab && !plan.foldOpenInTab && openInNewTab ? (
-            <div ref={openInTabRef}>
-              <HeaderActionButton
-                label="Open in new tab"
-                icon={<ExternalLink className="icon-base" />}
-                onClick={openInNewTab}
-              />
-            </div>
-          ) : null}
-
-          {/* Pinned block: expand, nav (keeps K/J live). */}
-          <div
-            ref={pinnedRef}
-            className="flex h-full flex-row items-center gap-1"
-          >
-            {expand && (
-              <HeaderActionButton
-                label={expand.isExpanded ? "Collapse" : "Expand"}
-                icon={
-                  expand.isExpanded ? (
-                    <Minimize2 className="icon-base" />
-                  ) : (
-                    <Maximize2 className="icon-base" />
-                  )
-                }
-                onClick={expand.onToggle}
-              />
-            )}
-            {hasNav && (
-              <div ref={navRef} className="flex flex-row items-center">
-                <DetailPageNav
-                  currentId={itemId}
-                  path={resolveDetailNavigationPath!}
-                  listKey={detailNavigationKey!}
-                  compact
-                />
-              </div>
-            )}
-          </div>
-
-          {hasActions && !plan.foldActions ? (
-            <div ref={actionsRef} className="flex flex-row items-center gap-1">
-              {actions}
-            </div>
-          ) : null}
-
-          {/* Overflow: a labeled menu of whatever folded away. */}
-          {anyFolded && (
-            <Popover>
-              <Tooltip label="More" delay={300}>
-                {({ getTriggerProps }) => (
-                  <PopoverTrigger asChild>
-                    <Button
-                      {...getTriggerProps()}
-                      variant="ghost"
-                      size="icon"
-                      aria-label="More actions"
-                      className="text-foreground-secondary hover:text-foreground-secondary"
-                    >
-                      <MoreHorizontal className="icon-base text-icon-foreground" />
-                    </Button>
-                  </PopoverTrigger>
-                )}
-              </Tooltip>
-              <PopoverContent
-                align="end"
-                className="flex w-auto min-w-44 flex-col gap-0.5 p-1"
-              >
-                {plan.foldActions ? actionsMenu : null}
-                {plan.foldOpenInTab && openInNewTab ? (
-                  <button
-                    type="button"
-                    onClick={openInNewTab}
-                    className="hover:bg-accent flex w-full items-center gap-2 rounded-sm py-1.5 pr-2 pl-1.5 text-sm"
-                  >
-                    <ExternalLink className="icon-base" />
-                    Open in new tab
-                  </button>
-                ) : null}
-              </PopoverContent>
-            </Popover>
-          )}
-
-          <div ref={closeRef}>
+        {hasOpenInTab && !plan.foldOpenInTab && openInNewTab ? (
+          <div ref={openInTabRef}>
             <HeaderActionButton
-              label="Close"
-              icon={<X className="icon-base" />}
-              onClick={onClose}
+              label="Open in new tab"
+              icon={<ExternalLink className="icon-base" />}
+              onClick={openInNewTab}
             />
           </div>
+        ) : null}
+
+        {/* Pinned block: expand, nav (keeps K/J live). */}
+        <div
+          ref={pinnedRef}
+          className="flex h-full flex-row items-center gap-1"
+        >
+          {expand && (
+            <HeaderActionButton
+              label={expand.isExpanded ? "Collapse" : "Expand"}
+              icon={
+                expand.isExpanded ? (
+                  <Minimize2 className="icon-base" />
+                ) : (
+                  <Maximize2 className="icon-base" />
+                )
+              }
+              onClick={expand.onToggle}
+            />
+          )}
+          {hasNav && (
+            <div ref={navRef} className="flex flex-row items-center">
+              <DetailPageNav
+                currentId={itemId}
+                path={resolveDetailNavigationPath!}
+                listKey={detailNavigationKey!}
+                compact
+              />
+            </div>
+          )}
+        </div>
+
+        {hasActions && !plan.foldActions ? (
+          <div ref={actionsRef} className="flex flex-row items-center gap-1">
+            {actions}
+          </div>
+        ) : null}
+
+        {/* Overflow: a labeled menu of whatever folded away. */}
+        {anyFolded && (
+          <Popover>
+            <Tooltip label="More">
+              {({ getTriggerProps }) => (
+                <PopoverTrigger asChild>
+                  <Button
+                    {...getTriggerProps()}
+                    variant="ghost"
+                    size="icon"
+                    aria-label="More actions"
+                    className="text-foreground-secondary hover:text-foreground-secondary"
+                  >
+                    <MoreHorizontal className="icon-base text-icon-foreground" />
+                  </Button>
+                </PopoverTrigger>
+              )}
+            </Tooltip>
+            <PopoverContent
+              align="end"
+              className="flex w-auto min-w-44 flex-col gap-0.5 p-1"
+            >
+              {plan.foldActions ? actionsMenu : null}
+              {plan.foldOpenInTab && openInNewTab ? (
+                <button
+                  type="button"
+                  onClick={openInNewTab}
+                  className="hover:bg-accent flex w-full items-center gap-2 rounded-sm py-1.5 pr-2 pl-1.5 text-sm"
+                >
+                  <ExternalLink className="icon-base" />
+                  Open in new tab
+                </button>
+              ) : null}
+            </PopoverContent>
+          </Popover>
+        )}
+
+        <div ref={closeRef}>
+          <HeaderActionButton
+            label="Close"
+            icon={<X className="icon-base" />}
+            onClick={onClose}
+          />
         </div>
       </div>
+    </div>
   );
 }

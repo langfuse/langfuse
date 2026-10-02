@@ -59,7 +59,11 @@ export function RuleActiveSwitchCell({
   return (
     <div onClick={(event) => event.stopPropagation()}>
       {legacyDisabledReason ? (
-        <Tooltip label={legacyDisabledReason} hoverableContent={false}>
+        <Tooltip
+          label={legacyDisabledReason}
+          hoverableContent={false}
+          delay={700}
+        >
           {({ getTriggerProps }) => (
             <span
               {...getTriggerProps()}

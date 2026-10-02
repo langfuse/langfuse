@@ -46,7 +46,7 @@ export function CsvUploadDialog({
           <DialogTitle className="flex items-center gap-2">
             Upload CSV
             {csvFile && (
-              <Tooltip label={csvFile.name} delay={300}>
+              <Tooltip label={csvFile.name}>
                 {({ getTriggerProps }) => (
                   <File
                     {...getTriggerProps()}

@@ -74,12 +74,7 @@ export function JsonKey({
         // Wrap comment highlights in tooltip if preview exists
         if (segment.type === "comment" && segment.preview) {
           return (
-            <Tooltip
-              key={index}
-              label={segment.preview}
-              placement="top-start"
-              delay={300}
-            >
+            <Tooltip key={index} label={segment.preview} placement="top-start">
               {({ getTriggerProps }) => (
                 <span {...getTriggerProps()} style={{ backgroundColor }}>
                   {segment.text}

@@ -62,7 +62,7 @@ const Avatar = React.forwardRef<
     props["aria-hidden"] === true || props["aria-hidden"] === "true";
 
   return (
-    <Tooltip label={hoverLabel}>
+    <Tooltip label={hoverLabel} delay={700}>
       {({ getTriggerProps }) => (
         <span
           {...getTriggerProps()}

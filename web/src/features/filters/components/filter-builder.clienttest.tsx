@@ -1,7 +1,6 @@
 import { StrictMode, useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { FilterState } from "@langfuse/shared";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { InlineFilterBuilder, PopoverFilterBuilder } from "./filter-builder";
 
 vi.mock("@/src/hooks/useProjectIdFromURL", () => ({
@@ -73,9 +72,7 @@ describe("filter builder change notifications", () => {
       }
       render(
         <StrictMode>
-          <TooltipProvider>
-            <Harness />
-          </TooltipProvider>
+          <Harness />
         </StrictMode>,
       );
       if (kind === "popover")

@@ -163,7 +163,7 @@ export const ChartTypePicker = React.memo(function ChartTypePicker({
         {CHART_TYPES.map((ct) => {
           const Icon = ct.icon;
           return (
-            <Tooltip key={ct.value} label={ct.label} delay={300}>
+            <Tooltip key={ct.value} label={ct.label}>
               {({ getTriggerProps }) => (
                 <span {...getTriggerProps()} className="h-full min-w-0">
                   <Tabs.Trigger value={ct.value}>

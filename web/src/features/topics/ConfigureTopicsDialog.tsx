@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { cloneElement, useId, useState } from "react";
 import { AlertTriangle, ExternalLinkIcon } from "lucide-react";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -6,11 +6,7 @@ import { Input } from "@/src/components/design-system/Input/Input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Button as LegacyButton } from "@/src/components/ui/button";
 import { PopoverTrigger } from "@/src/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
@@ -425,11 +421,11 @@ function ModelSlot({
       </p>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         {locked ? (
-          <Tooltip>
-            <TooltipTrigger asChild>{fields}</TooltipTrigger>
-            <TooltipContent side="bottom">
-              {"lockedHint" in copy ? copy.lockedHint : null}
-            </TooltipContent>
+          <Tooltip
+            label={"lockedHint" in copy ? copy.lockedHint : ""}
+            placement="bottom"
+          >
+            {({ getTriggerProps }) => cloneElement(fields, getTriggerProps())}
           </Tooltip>
         ) : (
           fields

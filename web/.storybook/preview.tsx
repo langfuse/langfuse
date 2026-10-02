@@ -12,7 +12,6 @@ import {
   type ReactNode,
 } from "react";
 import { SessionProvider } from "next-auth/react";
-import { TooltipProvider } from "../src/components/ui/tooltip";
 import { LayerProvider } from "../src/context/LayerContext/LayerContext";
 import { ThemeProvider } from "../src/features/theming/ThemeProvider";
 import "./storybook.css";
@@ -140,9 +139,7 @@ export default definePreview({
               flags call useSession, which throws without a provider. A null
               session resolves every flag to false (regular-user behavior). */}
           <SessionProvider session={null}>
-            <TooltipProvider>
-              <Story />
-            </TooltipProvider>
+            <Story />
           </SessionProvider>
         </StorybookThemeProvider>
       );

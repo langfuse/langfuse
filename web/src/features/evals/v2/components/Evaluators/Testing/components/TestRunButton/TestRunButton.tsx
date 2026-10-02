@@ -32,7 +32,7 @@ export function TestRunButton({
   );
 
   return disabledReason ? (
-    <Tooltip label={disabledReason} delay={300}>
+    <Tooltip label={disabledReason}>
       {({ getTriggerProps }) => (
         <span
           {...getTriggerProps()}

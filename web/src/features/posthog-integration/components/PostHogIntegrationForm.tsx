@@ -173,6 +173,7 @@ export function PostHogIntegrationForm({
           </PostHogForm.Field>
           {showExportSourceField ? (
             <CustomTooltip
+              delay={700}
               placement="bottom"
               content={
                 <div className="space-y-2 py-1.5">

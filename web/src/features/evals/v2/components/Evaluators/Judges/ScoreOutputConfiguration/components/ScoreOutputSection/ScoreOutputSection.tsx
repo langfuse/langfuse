@@ -306,7 +306,7 @@ export function ScoreOutputSection({
                       {choice.label.trim() || `Category ${index + 1}`}
                     </span>
                     {categoryWarnings[index] ? (
-                      <Tooltip label={categoryWarnings[index]} delay={300}>
+                      <Tooltip label={categoryWarnings[index]}>
                         {({ getTriggerProps }) => (
                           <span
                             {...getTriggerProps()}

@@ -12,7 +12,6 @@ import {
   type BlobStorageIntegration,
   type ExportSourceContext,
 } from "@langfuse/shared";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { BlobStorageIntegrationForm } from "./BlobStorageIntegrationForm";
 import {
   buildBlobStorageFormValues,
@@ -44,20 +43,18 @@ const ui = (
   initialValues: BlobStorageFormValues,
   onSubmit: (values: unknown, onSaved: () => void) => void = () => {},
 ) => (
-  <TooltipProvider>
-    <BlobStorageIntegrationForm
-      key={key}
-      initialValues={initialValues}
-      exportSourceCtx={exportSourceCtx}
-      persistedExportSource={null}
-      isSaving={false}
-      onSubmit={onSubmit}
-    >
-      {({ isDirty }) => (
-        <span data-testid="dirty-state">{isDirty ? "dirty" : "clean"}</span>
-      )}
-    </BlobStorageIntegrationForm>
-  </TooltipProvider>
+  <BlobStorageIntegrationForm
+    key={key}
+    initialValues={initialValues}
+    exportSourceCtx={exportSourceCtx}
+    persistedExportSource={null}
+    isSaving={false}
+    onSubmit={onSubmit}
+  >
+    {({ isDirty }) => (
+      <span data-testid="dirty-state">{isDirty ? "dirty" : "clean"}</span>
+    )}
+  </BlobStorageIntegrationForm>
 );
 
 const dirtyState = () => screen.getByTestId("dirty-state").textContent;

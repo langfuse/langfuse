@@ -10,7 +10,6 @@ import { ModelParameters } from "@/src/components/ModelParameters";
 import { Messages } from "@/src/features/playground/page/components/Messages";
 import { ConfigurationDropdowns } from "@/src/features/playground/page/components/ConfigurationDropdowns";
 import { useMessageSearchActions } from "@/src/components/ChatMessages/MessageSearch";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { getMessagesFingerprint } from "@/src/features/playground/page/utils/messagesFingerprint";
@@ -195,13 +194,13 @@ function PlaygroundWindowContent({
           </div>
 
           <div className="absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-2">
-            <TooltipProvider delayDuration={300}>
+            <>
               <SaveToPromptButton />
 
               {/* Hide copy button on mobile */}
               {!isMobile && (
                 <>
-                  <Tooltip label="New split window" delay={300}>
+                  <Tooltip label="New split window">
                     {({ getTriggerProps }) => (
                       <Button
                         {...getTriggerProps()}
@@ -225,7 +224,7 @@ function PlaygroundWindowContent({
                 </>
               )}
               {canRemove && (
-                <Tooltip label="Remove window" delay={300}>
+                <Tooltip label="Remove window">
                   {({ getTriggerProps }) => (
                     <Button
                       {...getTriggerProps()}
@@ -239,7 +238,7 @@ function PlaygroundWindowContent({
                   )}
                 </Tooltip>
               )}
-            </TooltipProvider>
+            </>
           </div>
         </div>
       </div>

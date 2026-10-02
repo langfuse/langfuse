@@ -218,7 +218,6 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                   ? "Collapse all"
                   : "Expand all"
             }
-            delay={300}
           >
             {({ getTriggerProps }) => (
               <span {...getTriggerProps()}>
@@ -277,18 +276,19 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                       ? "Copy as JSON (cache only)"
                       : "Copy as JSON"
                 }
-                delay={300}
               >
                 {({ getTriggerProps }) => (
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
-                    {...getTriggerProps(getHoverTriggerProps({
-                      onClick: isCopyOrDownloadLoading
-                        ? undefined
-                        : handleCopyClick,
-                    }))}
+                    {...getTriggerProps(
+                      getHoverTriggerProps({
+                        onClick: isCopyOrDownloadLoading
+                          ? undefined
+                          : handleCopyClick,
+                      }),
+                    )}
                     disabled={isCopyOrDownloadLoading}
                   >
                     {isCopyOrDownloadLoading ? (

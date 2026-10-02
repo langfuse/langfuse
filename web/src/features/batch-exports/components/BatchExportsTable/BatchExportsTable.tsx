@@ -61,6 +61,7 @@ export function BatchExportsTable({
           }
           return (
             <CustomTooltip
+              delay={700}
               content={
                 <div className="max-w-md whitespace-pre-wrap">{log}</div>
               }

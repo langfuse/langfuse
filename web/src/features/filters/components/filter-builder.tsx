@@ -325,7 +325,7 @@ export function PopoverFilterBuilder({
       </Popover>
       {filterState.length > 0 ? (
         buttonType === "default" ? (
-          <Tooltip label="Clear all filters" delay={300}>
+          <Tooltip label="Clear all filters">
             {({ getTriggerProps }) => (
               <Button
                 {...getTriggerProps()}
@@ -340,7 +340,7 @@ export function PopoverFilterBuilder({
             )}
           </Tooltip>
         ) : (
-          <Tooltip label="Clear all filters" delay={300}>
+          <Tooltip label="Clear all filters">
             {({ getTriggerProps }) => (
               <Button
                 {...getTriggerProps()}
@@ -767,10 +767,7 @@ function FilterBuilderForm({
                       />
                       <span className="flex-1">{option.name}</span>
                       {hasAlert && (
-                        <CustomTooltip
-                          content={<>{option.alert?.content}</>}
-                          delay={300}
-                        >
+                        <CustomTooltip content={<>{option.alert?.content}</>}>
                           {({ getTriggerProps }) => (
                             <Info
                               {...getTriggerProps()}
@@ -1227,10 +1224,7 @@ function FilterBuilderForm({
                 >
                   {aiFilter.isPending ? "Loading..." : "Generate filters"}
                 </Button>
-                <Tooltip
-                  label="We convert natural language into deterministic filters which you can adjust afterwards"
-                  delay={300}
-                >
+                <Tooltip label="We convert natural language into deterministic filters which you can adjust afterwards">
                   {({ getTriggerProps }) => (
                     <Info
                       {...getTriggerProps()}

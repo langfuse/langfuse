@@ -43,10 +43,7 @@ export const ScoreComparisonFilterPills = ({
             <span className="truncate" title={label}>
               {label}
             </span>
-            <Tooltip
-              label="Comparing one experiment's score against another's is not something the items query can express, so this narrows the items loaded on the current page. Page through to check the rest of the run."
-              delay={300}
-            >
+            <Tooltip label="Comparing one experiment's score against another's is not something the items query can express, so this narrows the items loaded on the current page. Page through to check the rest of the run.">
               {({ getTriggerProps }) => (
                 <span
                   {...getTriggerProps()}

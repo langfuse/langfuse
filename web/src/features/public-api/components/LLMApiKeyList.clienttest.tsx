@@ -2,7 +2,6 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { api } from "@/src/utils/api";
 import { LlmApiKeyList } from "./LLMApiKeyList";
 
@@ -70,11 +69,7 @@ vi.mock("@/src/utils/api", () => ({
 }));
 
 function TestProvider({ children }: PropsWithChildren) {
-  return (
-    <TooltipProvider>
-      <LayerProvider>{children}</LayerProvider>
-    </TooltipProvider>
-  );
+  return <LayerProvider>{children}</LayerProvider>;
 }
 
 describe("LLM connection editing", () => {

@@ -99,8 +99,6 @@ export const BreakdownTooltip = ({
   return (
     <CustomTooltip
       activation="hover-and-click"
-      delay={300}
-      size="wide"
       content={
         <div className="p-2.5">
           <div

@@ -520,7 +520,6 @@ export default [
       "src/components/ui/select.tsx",
       "src/components/design-system/HoverCardController/HoverCardController.tsx",
       "src/components/design-system/ControlledHoverCard/ControlledHoverCard.tsx",
-      "src/components/ui/tooltip.tsx",
     ],
     rules: {
       "@repo/no-overlay-zindex": ["error", { mode: "wrapper" }],

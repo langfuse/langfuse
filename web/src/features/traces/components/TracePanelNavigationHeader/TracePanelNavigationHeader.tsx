@@ -412,7 +412,7 @@ function ViewModeSwitch({
             the user has to understand. */}
         <Tabs.Trigger value="timeline" label="Timeline" />
         {graphDisabledReason ? (
-          <Tooltip label={graphDisabledReason} delay={300}>
+          <Tooltip label={graphDisabledReason}>
             {({ getTriggerProps }) => (
               <span
                 {...getTriggerProps()}

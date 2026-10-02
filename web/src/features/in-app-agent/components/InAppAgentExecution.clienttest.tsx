@@ -13,7 +13,6 @@ import {
   type AgUiMessage,
 } from "@langfuse/shared/in-app-agent";
 
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
 import { InAppAiAgentProvider, useInAppAiAgent } from "./InAppAiAgentProvider";
 import styles from "./InAppAgentWindow.module.css";
@@ -261,7 +260,7 @@ function renderExecutionUi({
 } = {}) {
   return render(
     <InAppAiAgentProvider defaultOpen={defaultOpen}>
-      <TooltipProvider>
+      <>
         {includeReopenButton ? <ReopenAssistantButton /> : null}
         <ControlledInAppAgentWindow
           isExpanded={false}
@@ -269,7 +268,7 @@ function renderExecutionUi({
           onExpandedChange={vi.fn()}
           showCloseButton={false}
         />
-      </TooltipProvider>
+      </>
     </InAppAiAgentProvider>,
   );
 }

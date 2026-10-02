@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { ScoreDataTypeEnum } from "@langfuse/shared";
 import { describe, expect, it, vi } from "vitest";
 
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { EvaluatorSetupFooter } from "./EvaluatorSetupFooter";
 
@@ -16,19 +15,17 @@ describe("EvaluatorSetupFooter", () => {
     store.getState().actions.setName("Invalid code evaluator");
 
     render(
-      <TooltipProvider>
-        <EvaluatorSetupFooter
-          store={store}
-          initialSnapshot=""
-          isEditing={false}
-          isSaving={false}
-          nameAIAssistanceAvailable={false}
-          codeValidation={{ isValid: false, isPending: false }}
-          fallbackDecisionModel={null}
-          onClose={vi.fn()}
-          onSave={vi.fn()}
-        />
-      </TooltipProvider>,
+      <EvaluatorSetupFooter
+        store={store}
+        initialSnapshot=""
+        isEditing={false}
+        isSaving={false}
+        nameAIAssistanceAvailable={false}
+        codeValidation={{ isValid: false, isPending: false }}
+        fallbackDecisionModel={null}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+      />,
     );
 
     expect(
@@ -46,19 +43,17 @@ describe("EvaluatorSetupFooter", () => {
     store.getState().actions.setPromptMessage(0, { role: "user", content: "" });
 
     render(
-      <TooltipProvider delayDuration={0}>
-        <EvaluatorSetupFooter
-          store={store}
-          initialSnapshot=""
-          isEditing={false}
-          isSaving={false}
-          nameAIAssistanceAvailable={false}
-          codeValidation={null}
-          fallbackDecisionModel={null}
-          onClose={vi.fn()}
-          onSave={vi.fn()}
-        />
-      </TooltipProvider>,
+      <EvaluatorSetupFooter
+        store={store}
+        initialSnapshot=""
+        isEditing={false}
+        isSaving={false}
+        nameAIAssistanceAvailable={false}
+        codeValidation={null}
+        fallbackDecisionModel={null}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+      />,
     );
 
     const createButton = screen.getByRole("button", {
@@ -90,19 +85,17 @@ describe("EvaluatorSetupFooter", () => {
     });
 
     render(
-      <TooltipProvider delayDuration={0}>
-        <EvaluatorSetupFooter
-          store={store}
-          initialSnapshot=""
-          isEditing={false}
-          isSaving={false}
-          nameAIAssistanceAvailable={false}
-          codeValidation={null}
-          fallbackDecisionModel={null}
-          onClose={vi.fn()}
-          onSave={vi.fn()}
-        />
-      </TooltipProvider>,
+      <EvaluatorSetupFooter
+        store={store}
+        initialSnapshot=""
+        isEditing={false}
+        isSaving={false}
+        nameAIAssistanceAvailable={false}
+        codeValidation={null}
+        fallbackDecisionModel={null}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+      />,
     );
 
     const createButton = screen.getByRole("button", {

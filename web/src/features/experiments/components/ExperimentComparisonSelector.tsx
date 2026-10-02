@@ -445,7 +445,6 @@ export function ExperimentComparisonSelector({
             // One badge stands in for the whole tail; the rest render nothing.
             return position === MAX_VISIBLE_COMPARISON_CHIPS ? (
               <CustomTooltip
-                delay={300}
                 content={
                   <>
                     {hiddenSelectedOptions.map((hidden) => (
