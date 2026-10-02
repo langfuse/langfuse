@@ -26,7 +26,7 @@ const getCsp = (cloudRegion?: string) =>
   );
 
 describe("Content Security Policy", () => {
-  it("allows the local MinIO endpoint in self-hosted Docker builds", () => {
+  it("allows the local S3 endpoint in self-hosted Docker builds", () => {
     expect(getCsp()).toContain("connect-src 'self' http://localhost:*");
   });
 
