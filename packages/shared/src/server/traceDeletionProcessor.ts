@@ -1,14 +1,15 @@
 import { randomUUID } from "crypto";
 import { prisma } from "../db";
 import { TraceDeleteQueue } from "./redis/traceDelete";
-import { type DeletionActor, QueueJobs } from "./queues";
+import { type Actor, QueueJobs } from "./queues";
 import { logger } from "./logger";
 import { env } from "../env";
 import { shouldSkipDeletionFor } from "./deletionGuard";
+import { formatSubmittedPublicKeyForLog } from "./auth/apiKeys";
 
 export interface TraceDeletionProcessorOptions {
   delayMs?: number; // Default from LANGFUSE_TRACE_DELETE_DELAY_MS env var
-  actor?: DeletionActor; // Who requested the deletion, logged in web and worker
+  actor?: Actor; // Who requested the deletion, logged in web and worker
 }
 
 /**
@@ -40,13 +41,13 @@ export async function traceDeletionProcessor(
 
   logger.info(
     `Processing trace deletion for ${traceIds.length} traces in project ${projectId}${
-      actor ? ` requested by ${formatDeletionActor(actor)}` : ""
+      actor ? ` requested by ${formatActor(actor)}` : ""
     }`,
     {
       projectId,
       traceIds,
       delayMs,
-      actor,
+      actor: getActorLogMetadata(actor),
     },
   );
 
@@ -99,9 +100,19 @@ export async function traceDeletionProcessor(
   }
 }
 
-export function formatDeletionActor(actor: DeletionActor): string {
+export function formatActor(actor: Actor): string {
   if (actor.type === "API_KEY") {
-    return `API key ${actor.publicKey ?? actor.apiKeyId ?? "unknown"}`;
+    if (actor.publicKey) {
+      return `API key ${formatSubmittedPublicKeyForLog(actor.publicKey)}`;
+    }
+    return `API key ${actor.apiKeyId ?? "unknown"}`;
   }
   return `user ${actor.userId ?? "unknown"}`;
+}
+
+// The submitted public key is client-controlled, so log metadata only carries
+// the database ids; formatActor prints the sanitized public key.
+export function getActorLogMetadata(actor: Actor | undefined) {
+  if (!actor) return undefined;
+  return { type: actor.type, userId: actor.userId, apiKeyId: actor.apiKeyId };
 }

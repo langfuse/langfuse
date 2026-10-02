@@ -4,7 +4,10 @@ import {
   AuditLogRecordType,
   type Prisma,
 } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
+import {
+  formatSubmittedPublicKeyForLog,
+  logger,
+} from "@langfuse/shared/src/server";
 
 type AuditableResource =
   | "annotationQueue"
@@ -102,12 +105,15 @@ function logAuditEvent(
     publicKey?: string;
   },
 ) {
+  let actorLabel = actor.userId;
+  if (actor.type === AuditLogRecordType.API_KEY) {
+    actorLabel = actor.publicKey
+      ? formatSubmittedPublicKeyForLog(actor.publicKey)
+      : actor.apiKeyId;
+  }
+
   logger.info(
-    `Audit log: ${log.resourceType}.${log.action} ${log.resourceId} by ${actor.type} ${
-      actor.type === AuditLogRecordType.API_KEY
-        ? (actor.publicKey ?? actor.apiKeyId)
-        : actor.userId
-    }`,
+    `Audit log: ${log.resourceType}.${log.action} ${log.resourceId} by ${actor.type} ${actorLabel}`,
     {
       auditLog: true,
       resourceType: log.resourceType,

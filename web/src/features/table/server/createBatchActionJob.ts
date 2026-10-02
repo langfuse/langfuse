@@ -51,7 +51,6 @@ const logBatchActionCreated = (params: {
   projectId: string;
   actionId: string;
   userId: string;
-  query: BatchActionQuery;
 }) => {
   logger.info(
     `Batch action ${params.actionId} created in project ${params.projectId} by user ${params.userId}`,
@@ -61,8 +60,6 @@ const logBatchActionCreated = (params: {
       actionId: params.actionId,
       actorType: "USER",
       userId: params.userId,
-      filter: params.query.filter,
-      searchQuery: params.query.searchQuery,
     },
   );
 };
@@ -178,7 +175,6 @@ export const createBatchActionJob = async ({
       projectId,
       actionId,
       userId: session.user.id,
-      query: queryWithSnapshot,
     });
 
     return;
@@ -230,7 +226,6 @@ export const createBatchActionJob = async ({
     projectId,
     actionId,
     userId: session.user.id,
-    query: queryWithSnapshot,
   });
 
   return;

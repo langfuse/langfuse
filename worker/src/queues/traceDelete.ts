@@ -1,6 +1,7 @@
 import { Job, Processor } from "bullmq";
 import {
-  formatDeletionActor,
+  formatActor,
+  getActorLogMetadata,
   getCurrentSpan,
   logger,
   QueueName,
@@ -29,8 +30,12 @@ export const traceDeleteProcessor: Processor = async (
     // The job may also pick up pending deletions requested by other actors;
     // the actor applies to the trace ids from this event only.
     logger.info(
-      `Trace deletion job for ${eventTraceIds.length} traces in project ${projectId} requested by ${formatDeletionActor(actor)}`,
-      { projectId, traceIds: eventTraceIds, actor },
+      `Trace deletion job for ${eventTraceIds.length} traces in project ${projectId} requested by ${formatActor(actor)}`,
+      {
+        projectId,
+        traceIds: eventTraceIds,
+        actor: getActorLogMetadata(actor),
+      },
     );
   }
 
