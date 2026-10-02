@@ -1,13 +1,8 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable @repo/component-file-structure */
 import { Webhook } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
@@ -109,9 +104,10 @@ export function WebCalloutButton({
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Tooltip label={label} delay={300}>
+      {({ getTriggerProps }) => (
         <Button
+          {...getTriggerProps()}
           aria-label={label}
           title={label}
           variant="outline"
@@ -123,8 +119,7 @@ export function WebCalloutButton({
         >
           <Webhook className="icon-base text-icon-foreground" />
         </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
+      )}
     </Tooltip>
   );
 }
