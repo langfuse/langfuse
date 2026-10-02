@@ -47,11 +47,17 @@ vi.mock("@/src/components/ui/popover", () => ({
   ),
 }));
 
-vi.mock("@/src/components/ui/hover-card", () => ({
-  HoverCard: ({ children }: { children: ReactNode }) => <>{children}</>,
-  HoverCardTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
-  HoverCardContent: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
+vi.mock("@/src/components/design-system/HoverCard/HoverCard", () => ({
+  HoverCard: ({
+    children,
+    content,
+  }: ComponentProps<
+    typeof import("@/src/components/design-system/HoverCard/HoverCard").HoverCard
+  >) => (
+    <>
+      {children({ getTriggerProps: () => ({}) })}
+      {content}
+    </>
   ),
 }));
 

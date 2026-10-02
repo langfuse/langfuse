@@ -5,14 +5,12 @@ import {
   MessageCircleMoreIcon,
 } from "lucide-react";
 import Link from "next/link";
+import * as React from "react";
 
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
+import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import { ScoreTag, scoreLevelFromScore } from "@/src/components/score-tag";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
@@ -67,6 +65,9 @@ export const ScoreBadge = <
   compact?: boolean;
 }) => {
   const projectId = useProjectIdFromURL();
+  const [metadataOpen, setMetadataOpen] = React.useState<
+    Record<string, boolean>
+  >({});
 
   const levels = showLevels
     ? Array.from(new Set(scores.map((score) => scoreLevelFromScore(score))))
@@ -91,50 +92,71 @@ export const ScoreBadge = <
 
             return (
               <span
-                key={index}
+                key={score.id}
                 className="inline-flex min-w-0 items-center gap-1"
               >
                 <span className="truncate" title={value}>
                   {value}
                 </span>
                 {score.comment && (
-                  <HoverCard>
-                    <HoverCardTrigger
-                      aria-label={`View comment for ${name}: ${value}`}
-                      className="inline-block shrink-0"
-                    >
-                      <MessageCircleMoreIcon className="text-foreground-tertiary mb-0.25 size-3!" />
-                    </HoverCardTrigger>
-                    <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
-                      <p className="whitespace-pre-wrap">{score.comment}</p>
-                      {"executionTraceId" in score &&
-                        score.executionTraceId &&
-                        projectId && (
-                          <div className="mt-2">
-                            <ExecutionTraceLink
-                              executionTraceId={score.executionTraceId}
-                              projectId={projectId}
-                            />
-                          </div>
-                        )}
-                    </HoverCardContent>
+                  <HoverCard
+                    content={
+                      <div className="max-h-[50dvh] w-64 overflow-y-auto p-3 text-xs break-normal whitespace-normal">
+                        <p className="whitespace-pre-wrap">{score.comment}</p>
+                        {"executionTraceId" in score &&
+                          score.executionTraceId &&
+                          projectId && (
+                            <div className="mt-2">
+                              <ExecutionTraceLink
+                                executionTraceId={score.executionTraceId}
+                                projectId={projectId}
+                              />
+                            </div>
+                          )}
+                      </div>
+                    }
+                  >
+                    {({ getTriggerProps }) => (
+                      <button
+                        type="button"
+                        aria-label={`View comment for ${name}: ${value}`}
+                        className="inline-block shrink-0"
+                        {...getTriggerProps()}
+                      >
+                        <MessageCircleMoreIcon className="text-foreground-tertiary mb-0.25 size-3!" />
+                      </button>
+                    )}
                   </HoverCard>
                 )}
                 {hasMetadata(score) && (
-                  <HoverCard>
-                    <HoverCardTrigger
-                      aria-label={`View metadata for ${name}: ${value}`}
-                      className="inline-block shrink-0"
-                    >
-                      <BracesIcon className="text-foreground-tertiary mb-0.25 size-3!" />
-                    </HoverCardTrigger>
-                    <HoverCardContent className="max-h-[50dvh] overflow-y-auto rounded-md border-none p-0 text-xs break-normal whitespace-normal">
-                      <JSONView
-                        codeClassName="rounded-md!"
-                        json={score.metadata}
-                      />
-                    </HoverCardContent>
-                  </HoverCard>
+                  <ControlledHoverCard
+                    open={metadataOpen[score.id] ?? false}
+                    onOpenChange={(open) =>
+                      setMetadataOpen((current) => ({
+                        ...current,
+                        [score.id]: open,
+                      }))
+                    }
+                    content={
+                      <div className="max-h-[50dvh] w-64 overflow-y-auto rounded-md p-0 text-xs break-normal whitespace-normal">
+                        <JSONView
+                          codeClassName="rounded-md!"
+                          json={score.metadata}
+                        />
+                      </div>
+                    }
+                  >
+                    {({ getTriggerProps }) => (
+                      <button
+                        type="button"
+                        aria-label={`View metadata for ${name}: ${value}`}
+                        className="inline-block shrink-0"
+                        {...getTriggerProps()}
+                      >
+                        <BracesIcon className="text-foreground-tertiary mb-0.25 size-3!" />
+                      </button>
+                    )}
+                  </ControlledHoverCard>
                 )}
                 {index < scores.length - 1 && <span>,</span>}
               </span>
