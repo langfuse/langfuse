@@ -62,6 +62,7 @@ import { webCalloutsRouter } from "@/src/features/web-callouts/server/router";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
 import { aiGatewayRouter } from "@/src/features/ai-gateway/server";
+import { topicsRouter } from "@/src/features/topics/server/topicsRouter";
 import { skillRouter } from "@/src/features/skills/server/skill-router";
 
 /**
@@ -70,6 +71,7 @@ import { skillRouter } from "@/src/features/skills/server/skill-router";
  * All routers added in /api/routers should be manually added here.
  */
 export const appRouter = createTRPCRouter({
+  topics: topicsRouter,
   annotationQueues: queueRouter,
   annotationQueueItems: queueItemRouter,
   annotationQueueAssignments: queueAssignmentRouter,

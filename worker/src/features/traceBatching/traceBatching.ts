@@ -12,6 +12,7 @@ import {
   type QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
+import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 import {
@@ -582,6 +583,11 @@ export async function trackTraceBatchActivity(
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED !== "true"
   )
     return;
+  const samplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
+  // Topics summarizes every trace of an enabled project, so those bypass sampling.
+  const topicsProject = isTopicsProjectEnabled(projectId);
+  // Rate 0 admits only Topics projects; skip all tracking work for the rest.
+  if (samplingRate === 0 && !topicsProject) return;
 
   const bounds = new Map<
     string,
@@ -608,17 +614,16 @@ export async function trackTraceBatchActivity(
 
   try {
     recordTrackingVolume("eligible", bounds);
-    const samplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
+    const admitAll = samplingRate === 1 || topicsProject;
     // Sample by trace ID so later observations and retries keep the same decision.
     // Dispatcher and consumer process admitted work without resampling.
     const entries = [...bounds].filter(
       ([traceId]) =>
-        samplingRate === 1 ||
-        (samplingRate > 0 &&
-          shouldSampleEvaluation({
-            samplingValue: getDeterministicSamplingValue(traceId),
-            samplingRate,
-          })),
+        admitAll ||
+        shouldSampleEvaluation({
+          samplingValue: getDeterministicSamplingValue(traceId),
+          samplingRate,
+        }),
     );
     recordGauge("langfuse.trace_batch.sampling_rate", samplingRate);
     // Counts distinct trace IDs per ingestion batch, not globally unique traces.

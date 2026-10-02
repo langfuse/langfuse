@@ -14,7 +14,78 @@ import {
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
+import { TopicsProviderUnavailable } from "../features/topics/provider-error";
+import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTrace";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
+
+type TraceOutcome =
+  | { outcome: "disabled" | "unchanged" | "summarized" }
+  | { outcome: "failed"; reason: string };
+
+async function summarizeTraceBatch(
+  observations: Observation[],
+): Promise<TraceOutcome> {
+  const first = observations[0];
+  const traceId = first?.traceId;
+  if (
+    !first ||
+    !traceId ||
+    observations.some(
+      (row) => row.projectId !== first.projectId || row.traceId !== traceId,
+    )
+  )
+    throw new Error(
+      "Trace batch observations crossed a project or trace boundary.",
+    );
+  const traceTimestamp = new Date(
+    Math.min(...observations.map((row) => row.startTime.getTime())),
+  ).toISOString();
+  let outcome: TraceOutcome = { outcome: "disabled" };
+  await recordTraceBatchTranscript(observations, async (transcript) => {
+    try {
+      outcome = {
+        outcome: await summarizeAssembledTrace({
+          projectId: first.projectId,
+          traceId,
+          traceTimestamp,
+          environment: first.environment,
+          traceName: first.name ?? "",
+          transcript,
+        }),
+      };
+    } catch (error) {
+      // One trace's failure must not fail or re-read the shared batch.
+      const reason =
+        error instanceof TopicsProviderUnavailable ? error.reason : "other";
+      outcome = { outcome: "failed", reason };
+      logger.warn("Topics summary failed for trace", {
+        projectId: first.projectId,
+        traceId,
+        reason,
+      });
+    }
+  });
+  return outcome;
+}
+
+/** Failed traces are counted, not retried. */
+function recordTopicsOutcomes(outcomes: TraceOutcome[]): void {
+  const counts = new Map<string, number>();
+  for (const result of outcomes) {
+    const key = JSON.stringify([
+      result.outcome,
+      result.outcome === "failed" ? result.reason : undefined,
+    ]);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  for (const [key, count] of counts) {
+    const [outcome, reason] = JSON.parse(key) as [string, string | null];
+    recordIncrement("langfuse.topics.trace_outcomes", count, {
+      outcome,
+      ...(reason ? { reason } : {}),
+    });
+  }
+}
 
 const JOB_MAX_AGE_MS = 2 * 60 * 60_000;
 let activeReads = 0;
@@ -82,6 +153,7 @@ export const traceBatchQueueProcessor: Processor<
       return { discarded: "expired" };
     }
     const batch = event.payload;
+    const topicsOutcomes: TraceOutcome[] = [];
     const queryOptions = {
       maxThreads: env.LANGFUSE_TRACE_BATCH_MAX_THREADS,
       maxBlockSize: env.LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE,
@@ -157,7 +229,11 @@ export const traceBatchQueueProcessor: Processor<
           // Overlap tokenization with reading the next trace, but allow only
           // one pending estimate per batch so queued payloads stay bounded.
           await pendingTokenization;
-          pendingTokenization = recordTraceBatchTranscript(traceObservations);
+          pendingTokenization = summarizeTraceBatch(traceObservations).then(
+            (result) => {
+              topicsOutcomes.push(result);
+            },
+          );
           traceObservations = [];
         }
         traceObservations.push(
@@ -180,7 +256,11 @@ export const traceBatchQueueProcessor: Processor<
       // Reaching EOF completes the last trace; a failed stream must not flush it.
       if (traceObservations.length) {
         await pendingTokenization;
-        pendingTokenization = recordTraceBatchTranscript(traceObservations);
+        pendingTokenization = summarizeTraceBatch(traceObservations).then(
+          (result) => {
+            topicsOutcomes.push(result);
+          },
+        );
       }
     } catch (error) {
       // Only rows consumed before the failure; never count these as successful throughput.
@@ -229,6 +309,7 @@ export const traceBatchQueueProcessor: Processor<
       batch.traces.length - foundTraces.size,
     );
 
+    recordTopicsOutcomes(topicsOutcomes);
     // Retries can repeat this read; observation payloads never enter job results.
     outcome = "success";
     return {

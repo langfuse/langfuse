@@ -1,6 +1,6 @@
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
-import type { LanguageModel } from "ai";
+import { type LanguageModel } from "ai";
 
 import { env } from "../../../../env";
 import {
@@ -102,10 +102,10 @@ export function createDefaultBedrockProviderAuth(params?: {
   Parameters<typeof createAmazonBedrock>[0] & object,
   "apiKey" | "credentialProvider"
 > {
+  const profile =
+    params?.profile ?? env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE ?? undefined;
   return {
-    credentialProvider: fromNodeProviderChain(
-      params?.profile ? { profile: params.profile } : {},
-    ),
+    credentialProvider: fromNodeProviderChain(profile ? { profile } : {}),
     ...SUPPRESS_BEARER_TOKEN_ENV_FALLBACK,
   };
 }

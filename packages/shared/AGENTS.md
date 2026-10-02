@@ -61,6 +61,45 @@
 
 ## Export Entry Points
 
+- `@langfuse/shared/topics`: client-safe Topics contracts.
+- `@langfuse/shared/topics/server`: Topics persistence, queue handoff and execution
+  progress. See `../../worker/src/features/topics/README.md` for storage and retry
+  invariants before changing this module.
+  - `postgres.ts`: facets reuse evaluator/version storage with type `FACET`;
+    built-in presets are immutable. Saved rules reuse evaluation rules and
+    evaluator assignments; ordering and limits belong to manual requests.
+    Clustering runs reference immutable ClickHouse definitions; reused
+    definitions retain their original creation run.
+  - `clickhouse.ts`: current summaries/assignments and immutable definitions.
+    Source identity prefers `traceId`; `sessionId` may carry parent context.
+    Facet versions use `(projectId, facetId, version)`. Reads require a time
+    range; replacement includes the source minute, with run/origin suffixes
+    for assignments. Definition bounds retain original creation dates on reuse.
+  - `journal.ts`: one BatchAction per request, compact counters and run references.
+    Writes accept progress only; immutable settings stay in the stored request.
+    Trace inputs and paid outputs belong outside the journal.
+  - `trace-selection.ts`: shared bounded observation selection for web previews,
+    ID-only processing requests and worker backfills; retain identical sampling.
+  - `embedding-queue.ts`: Redis staging with a fixed expiry; retain accepted
+    payloads through assignment and save terminal job state before cleanup.
+    Summary references carry facet/version/source fields within project and
+    execution scope; exact storage reads also require facet/version scope.
+  - `text.ts` and `embeddings.ts`: Bedrock model transport using the shared AI SDK;
+    worker model calls own usage, cost and vector validation.
+  - `loadTopicTranscript`: shared in-memory source assembly for worker and inspector.
+    Returns the shared `Transcript | null`, capped at 10,000 serialized characters.
+    Historical reuse must match `TOPICS_TRANSCRIPT_VERSION`; accepted Redis results
+    retain their original version. Token counting belongs to worker model calls.
+  - `LANGFUSE_TOPICS_ENABLED` defaults to false and gates deployment availability,
+    while trace/project cleanup always runs. Processing also requires
+    `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` (empty by default);
+    reads/configuration remain feature-flag/RBAC controlled.
+
+- `src/server/transcript`: order minimal `TranscriptObservation` inputs with
+  `orderObservations`, then pass the enriched result and optional
+  `{ maxCharacters?, onTimings? }` to `assembleTranscript`.
+  The optional cap bounds `JSON.stringify(result).length`; see its README.
+
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt
   helpers, eval/model-pricing helpers, product path builders, and other
@@ -129,6 +168,8 @@ the same PR.
 - Dev watch build: `pnpm --filter @langfuse/shared run dev`
 - Lint: `pnpm --filter @langfuse/shared run lint`
 - Lint fix: `pnpm --filter @langfuse/shared run lint:fix`
+- Tests: `pnpm --filter @langfuse/shared run test`; Topics queue integration
+  coverage requires Redis configured through the shared environment.
 - Typecheck: `pnpm --filter @langfuse/shared run typecheck`
 - Build: `pnpm --filter @langfuse/shared run build`
 - Prisma generate: `pnpm --filter @langfuse/shared run db:generate`

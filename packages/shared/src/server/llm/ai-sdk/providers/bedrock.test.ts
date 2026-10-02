@@ -1,8 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { env } from "../../../../env";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "../../../../interfaces/customLLMProviderConfigSchemas";
+
+const fromNodeProviderChain = vi.hoisted(() => vi.fn(() => vi.fn()));
+
+vi.mock("@aws-sdk/credential-providers", () => ({
+  fromNodeProviderChain,
+}));
+
 import {
   assertValidBedrockRegion,
+  createDefaultBedrockProviderAuth,
   resolveBedrockProviderAuth,
   translateBedrockProviderOptions,
 } from "./bedrock";
@@ -81,6 +90,34 @@ describe("assertValidBedrockRegion", () => {
     expect(() => assertValidBedrockRegion("us-east-1.attacker.test")).toThrow(
       "Invalid Bedrock region",
     );
+  });
+});
+
+describe("createDefaultBedrockProviderAuth", () => {
+  beforeEach(() => {
+    fromNodeProviderChain.mockClear();
+  });
+
+  it("passes the local AWS profile when no profile argument is given", () => {
+    const original = env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
+    env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = "playground";
+
+    createDefaultBedrockProviderAuth();
+
+    expect(fromNodeProviderChain).toHaveBeenCalledWith({
+      profile: "playground",
+    });
+    env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = original;
+  });
+
+  it("prefers an explicit profile over the environment", () => {
+    const original = env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
+    env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = "playground";
+
+    createDefaultBedrockProviderAuth({ profile: "other" });
+
+    expect(fromNodeProviderChain).toHaveBeenCalledWith({ profile: "other" });
+    env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = original;
   });
 });
 

@@ -18,6 +18,7 @@ import {
   getTraceBatchEventStream,
   logger,
   QueueJobs,
+  TraceBatchQueue,
   type QueueName,
   recordDistribution,
   recordGauge,
@@ -27,6 +28,8 @@ import {
 import { env } from "../../env";
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
 import { tokenCount } from "../../features/tokenisation/usage";
+import { TopicsProviderUnavailable } from "../../features/topics/provider-error";
+import { summarizeAssembledTrace } from "../../features/topics/summarizeAssembledTrace";
 import { recordTraceBatchTranscript } from "../../features/traceBatching/traceBatchTranscript";
 import {
   recordTraceBatchActiveReads,
@@ -40,6 +43,10 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   recordDistribution: vi.fn(),
   recordGauge: vi.fn(),
   recordIncrement: vi.fn(),
+}));
+
+vi.mock("../../features/topics/summarizeAssembledTrace", () => ({
+  summarizeAssembledTrace: vi.fn(async () => "disabled"),
 }));
 
 // Exercise real tokenization without starting the compiled worker-thread pool.
@@ -585,6 +592,76 @@ describe("trace batch queue", () => {
       }
     },
   );
+  it("finishes the batch past a failed trace, reports outcomes and does not re-enqueue the failure", async () => {
+    const traces = ["a", "b", "c"];
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      for (const projectId of traces)
+        yield {
+          project_id: projectId,
+          trace_id: "trace",
+          span_id: "span",
+          parent_span_id: null,
+          start_time: "2026-09-11 00:00:00.000000",
+          event_ts: "2026-09-11 00:00:00.000000",
+          type: "GENERATION",
+          name: "generation",
+          input: JSON.stringify([{ role: "user", content: projectId }]),
+          output: JSON.stringify({ role: "assistant", content: "answer" }),
+          metadata: {},
+          tool_definitions: {},
+          tool_calls: [],
+          tool_call_names: [],
+        };
+    });
+    vi.mocked(summarizeAssembledTrace).mockImplementation(
+      async ({ projectId }) => {
+        if (projectId === "b")
+          throw new TopicsProviderUnavailable("bad output", "invalid_output");
+        return "summarized";
+      },
+    );
+    const add = vi.fn();
+    vi.spyOn(TraceBatchQueue, "getInstance").mockReturnValue({
+      add,
+    } as unknown as ReturnType<typeof TraceBatchQueue.getInstance>);
+    const entry = (projectId: string) => ({
+      projectId,
+      traceId: "trace",
+      minStart: 0,
+      maxStart: 1,
+      revision: "r",
+    });
+    const job = {
+      data: {
+        id: "outcomes",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: { traces: traces.map(entry) },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual(
+      expect.objectContaining({ traceCount: 3 }),
+    );
+    expect(
+      vi.mocked(summarizeAssembledTrace).mock.calls.map(([t]) => t.projectId),
+    ).toEqual(traces);
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.topics.trace_outcomes",
+      2,
+      { outcome: "summarized" },
+    );
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.topics.trace_outcomes",
+      1,
+      { outcome: "failed", reason: "invalid_output" },
+    );
+    expect(add).not.toHaveBeenCalled();
+    vi.mocked(summarizeAssembledTrace).mockImplementation(
+      async () => "disabled",
+    );
+  });
+
   it("assembles each tenant's trace at the boundary and EOF", async () => {
     const userMessage = { role: "user", content: "first question" };
     const answer = { role: "assistant", content: "first answer" };

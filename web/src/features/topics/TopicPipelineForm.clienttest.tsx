@@ -1,0 +1,340 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import type { TopicFacet, TopicRule } from "@langfuse/shared/topics";
+import { useTopicPipelineForm } from "./TopicPipelineForm";
+
+const mocks = vi.hoisted(() => ({
+  preview: vi.fn(),
+  trigger: vi.fn(),
+  saveRule: vi.fn(),
+  summaryCounts: vi.fn(),
+  onTriggered: vi.fn(),
+  filterOptions: vi.fn(),
+}));
+const rule = {
+  id: "rule",
+  projectId: "project",
+  name: "Production intents",
+  filter: [
+    {
+      column: "environment",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["production"],
+    },
+  ],
+  facetIds: ["intent"],
+  updatedAt: "2026-09-16T00:00:00Z",
+} satisfies TopicRule;
+vi.mock("@/src/utils/api", () => ({
+  api: {
+    topics: {
+      previewTraces: {
+        useQuery: (input: unknown, options: object) =>
+          useQuery({
+            queryKey: ["preview", input],
+            queryFn: () => mocks.preview(input),
+            ...options,
+          }),
+      },
+      summaryCounts: {
+        useQuery: (input: unknown) => {
+          mocks.summaryCounts(input);
+          return { data: [{ facetId: "intent", facetVersion: 2, count: 120 }] };
+        },
+      },
+      rules: { useQuery: () => ({ data: [rule] }) },
+      saveRule: {
+        useMutation: () => ({
+          mutate: mocks.saveRule,
+          isPending: false,
+          reset: vi.fn(),
+        }),
+      },
+      trigger: {
+        useMutation: () => ({ mutateAsync: mocks.trigger, isPending: false }),
+      },
+    },
+    useUtils: () => ({ topics: { summaryCounts: { invalidate: vi.fn() } } }),
+  },
+}));
+vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
+  usePeekNavigation: () => ({ openPeek: vi.fn() }),
+}));
+vi.mock("@/src/features/events/hooks/useEventsFilterOptions", () => ({
+  useEventsFilterOptions: (options: unknown) => {
+    mocks.filterOptions(options);
+    return { filterOptions: {}, isFilterOptionsPending: false };
+  },
+}));
+vi.mock("@/src/features/search-bar", () => ({
+  TableSearchBar: () => null,
+  toObservedOptions: () => ({}),
+  fieldRegistryFromColumns: () => ({ fields: [] }),
+}));
+vi.mock(
+  "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder",
+  () => ({ ObservationFilterBuilder: () => null }),
+);
+
+const facets: TopicFacet[] = ["Intent", "Issues"].map((name) => ({
+  id: name.toLowerCase(),
+  projectId: "project",
+  name,
+  isBuiltIn: false,
+  description: "",
+  versions: [2, 1].map((version) => ({
+    projectId: "project",
+    facetId: name.toLowerCase(),
+    version,
+    prompt: `Describe ${name}`,
+    createdAt: "2026-09-16T00:00:00Z",
+  })),
+}));
+const timeRange = {
+  from: new Date("2026-09-09T00:00:00Z"),
+  to: new Date("2026-09-16T00:00:00Z"),
+};
+const latestFacets = facets.map((facet) => ({ facetId: facet.id, version: 2 }));
+function PipelineForm() {
+  const { actions, configuration } = useTopicPipelineForm({
+    projectId: "project",
+    facets,
+    canWrite: true,
+    onTriggered: mocks.onTriggered,
+    facetEditor: null,
+    timeRange,
+  });
+  return (
+    <>
+      {actions}
+      {configuration}
+    </>
+  );
+}
+function setup() {
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <PipelineForm />
+    </QueryClientProvider>,
+  );
+}
+const click = (name: string | RegExp) =>
+  fireEvent.click(screen.getByRole("button", { name }));
+const processButton = () =>
+  screen.getByRole("button", { name: /^Process (?:[\d,]+ )?traces$/ });
+async function choose(label: string, option: string) {
+  fireEvent.keyDown(screen.getByLabelText(label), { key: "ArrowDown" });
+  fireEvent.keyDown(await screen.findByRole("option", { name: option }), {
+    key: "Enter",
+  });
+}
+async function submit(name: string | RegExp) {
+  const count = mocks.trigger.mock.calls.length;
+  click(name);
+  await waitFor(() =>
+    expect(mocks.onTriggered).toHaveBeenCalledTimes(count + 1),
+  );
+  return mocks.trigger.mock.calls.at(-1)![0];
+}
+async function preview() {
+  click("Preview traces");
+  await screen.findByRole("checkbox", { name: "Select trace trace-a" });
+}
+
+const scrollIntoView = HTMLElement.prototype.scrollIntoView;
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.trigger.mockResolvedValue({ id: "execution" });
+  mocks.preview.mockResolvedValue({
+    matchedTraceCount: 2,
+    selectedTraceCount: 2,
+    traces: ["trace-a", "trace-b"].map((id) => ({
+      id,
+      name: id,
+      timestamp: new Date(),
+      environment: "production",
+    })),
+  });
+  HTMLElement.prototype.scrollIntoView = vi.fn();
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+});
+afterEach(() => {
+  HTMLElement.prototype.scrollIntoView = scrollIntoView;
+  vi.unstubAllGlobals();
+});
+
+it("processes pasted IDs and reviewed rule selections, invalidating edited criteria until reviewed again", async () => {
+  setup();
+  expect(processButton()).toBeDisabled();
+  expect(mocks.filterOptions).toHaveBeenLastCalledWith(
+    expect.objectContaining({ enabled: false }),
+  );
+  click("Configure topics");
+  expect(mocks.filterOptions).toHaveBeenLastCalledWith(
+    expect.objectContaining({ enabled: true }),
+  );
+  fireEvent.click(screen.getByRole("checkbox", { name: "Sample traces" }));
+  fireEvent.change(screen.getByLabelText("Maximum traces"), {
+    target: { value: "50" },
+  });
+  await choose("Trace sampling method", "Newest first");
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Paste IDs" }), {
+    button: 0,
+    ctrlKey: false,
+  });
+  fireEvent.change(screen.getByLabelText("Trace IDs or links"), {
+    target: {
+      value: "trace-with/custom-id\nsecond-trace\ntrace-with/custom-id",
+    },
+  });
+  await choose("Embedding dimensions", "512");
+  click("Done");
+  expect(await submit(/^Process 2 traces$/)).toEqual({
+    projectId: "project",
+    requestId: expect.any(String),
+    operation: "process",
+    traceIds: ["trace-with/custom-id", "second-trace"],
+    facets: latestFacets,
+    embeddingConfig: {
+      embeddingModel: "cohere.embed-v4:0",
+      embeddingDimensions: 512,
+    },
+    reuseExistingSummaries: false,
+  });
+  expect(mocks.preview).not.toHaveBeenCalled();
+
+  click("Configure topics");
+  await choose("Version for Intent", "v1");
+  expect(screen.getByLabelText("Version for Intent")).toHaveTextContent("v1");
+  await choose("Saved configuration", rule.name);
+  expect(screen.getByLabelText("Version for Intent")).toHaveTextContent("v2");
+  expect(screen.getByRole("checkbox", { name: "Issues" })).not.toBeChecked();
+  expect(screen.getByLabelText("Maximum traces")).toHaveValue(50);
+  expect(screen.getByLabelText("Trace sampling method")).toHaveTextContent(
+    "Newest first",
+  );
+  await choose("Saved configuration", "Custom configuration");
+  expect(screen.getByLabelText("Maximum traces")).toHaveValue(50);
+  await choose("Saved configuration", rule.name);
+  await preview();
+  const request = mocks.preview.mock.calls[0][0];
+  expect(request).toMatchObject({
+    filter: rule.filter,
+    limit: 50,
+    sampling: "latest",
+    from: expect.any(Date),
+    to: expect.any(Date),
+    seed: expect.any(String),
+  });
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: "Select trace trace-b" }),
+  );
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: "Reuse stored summaries" }),
+  );
+  fireEvent.click(screen.getByRole("link", { name: "trace-a" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(mocks.filterOptions).toHaveBeenLastCalledWith(
+    expect.objectContaining({ enabled: false }),
+  );
+  const selection = {
+    filter: rule.filter,
+    from: request.from,
+    to: request.to,
+    limit: 50,
+    sampling: "latest",
+    seed: request.seed,
+    excludedTraceIds: ["trace-b"],
+  };
+  expect(await submit(/^Process 1 traces$/)).toEqual({
+    projectId: "project",
+    requestId: expect.any(String),
+    operation: "process",
+    selection,
+    ruleId: rule.id,
+    facets: [{ facetId: "intent", version: 2 }],
+    embeddingConfig: {
+      embeddingModel: "cohere.embed-v4:0",
+      embeddingDimensions: 512,
+    },
+    reuseExistingSummaries: true,
+  });
+
+  click("Configure topics");
+  await choose("Trace sampling method", "Random sample");
+  fireEvent.change(screen.getByLabelText("Maximum traces"), {
+    target: { value: "25" },
+  });
+  click("Done");
+  expect(processButton()).toBeDisabled();
+  click("Configure topics");
+  await preview();
+  click("Done");
+  const changed = await submit(/^Process 2 traces$/);
+  expect(changed.selection).toMatchObject({
+    limit: 25,
+    sampling: "random",
+    excludedTraceIds: [],
+  });
+  expect(changed.ruleId).toBe(rule.id);
+  expect(mocks.saveRule).not.toHaveBeenCalled();
+  click("Configure topics");
+  click("Update rule");
+  expect(mocks.saveRule).toHaveBeenCalledExactlyOnceWith({
+    id: rule.id,
+    projectId: rule.projectId,
+    name: rule.name,
+    filter: rule.filter,
+    facetIds: rule.facetIds,
+  });
+});
+
+it("updates topics from stored summaries without a trace selection or process-only options", async () => {
+  setup();
+  click("Configure topics");
+  await choose("Saved configuration", rule.name);
+  await choose("Saved configuration", "Custom configuration");
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: "Reuse stored summaries" }),
+  );
+  await choose("Pipeline operation", "Update topics");
+  await choose("Embedding dimensions", "256");
+  fireEvent.change(screen.getByLabelText("Minimum traces for clustering"), {
+    target: { value: "30" },
+  });
+  click("Done");
+  expect(await submit("Update topics")).toEqual({
+    projectId: "project",
+    requestId: expect.any(String),
+    operation: "update",
+    facets: latestFacets,
+    embeddingConfig: {
+      embeddingModel: "cohere.embed-v4:0",
+      embeddingDimensions: 256,
+    },
+    minimumTraceCount: 30,
+    exploratory: false,
+    timeRange,
+  });
+  expect(mocks.preview).not.toHaveBeenCalled();
+  expect(mocks.summaryCounts).toHaveBeenLastCalledWith(
+    expect.objectContaining({ timeRange }),
+  );
+});

@@ -20,7 +20,7 @@
     "build:debug": "pnpm run prepare-clickhouse-rs && napi build --platform",
     "lint": "pnpm run prepare-clickhouse-rs && cargo fmt --check && cargo clippy --all-targets -- -D warnings",
     "lint:fix": "pnpm run prepare-clickhouse-rs && cargo fmt && cargo clippy --all-targets --fix --allow-dirty -- -D warnings",
-    "test": "pnpm run prepare-clickhouse-rs && cargo test --locked"
+    "test": "pnpm run prepare-clickhouse-rs && cargo test --locked --features napi/dyn-symbols"
   },
   "napi": {
     "binaryName": "langfuse-native",
