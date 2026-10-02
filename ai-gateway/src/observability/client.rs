@@ -2,9 +2,7 @@ use axum::http::Extensions;
 use opentelemetry::global;
 use opentelemetry_http::HeaderInjector;
 use reqwest::{Client, Request, Response};
-use reqwest_middleware::{
-    BoxFuture, ClientBuilder, ClientWithMiddleware, Extension, Next, Result,
-};
+use reqwest_middleware::{BoxFuture, ClientBuilder, ClientWithMiddleware, Extension, Next, Result};
 use reqwest_tracing::{
     DefaultSpanBackend, DisableOtelPropagation, OtelName, ReqwestOtelSpanBackend,
     TracingMiddleware, default_on_request_success,
