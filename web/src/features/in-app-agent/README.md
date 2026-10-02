@@ -9,6 +9,16 @@ three-derivations contract, where code lives and why, and the boundaries between
 browser, web server, shared durable contracts, and worker runtime.
 Read it before changing how messages are represented or where logic lives.
 
+## Slack / Public API PoC
+
+The opt-in [Slack PoC guide](./SLACK_POC.md) explains how a local Slack bot calls
+this agent through an asynchronous public API, including setup, infrastructure,
+permissions, and the limits of the hackathon implementation. The bot reuses the
+existing worker runtime and MCP tools; it does not run a separate agent loop.
+The [linked-account setup](../../../../scripts/slack-agent/LINKED_SETUP.md)
+adds individual permissions and a private Slack project picker, with account
+connection and disconnection at `/slack-agent`.
+
 ## Core Model
 
 AG-UI events are the durable transcript vocabulary. Langfuse-owned protocols

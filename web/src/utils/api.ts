@@ -680,7 +680,12 @@ export const api = createTRPCNext<AppRouter>({
           // Only enable in development - production logs would be captured by Sentry
           // in an unreadable format. We handle 5xx errors via reportError in
           // handleTrpcError and use DataDog for additional server-side logging.
-          enabled: () => process.env.NODE_ENV === "development",
+          enabled: (operation) =>
+            process.env.NODE_ENV === "development" &&
+            "path" in operation &&
+            operation.path !== "agentUserConnections.confirm" &&
+            operation.path !== "slackAgent.confirmConnection" &&
+            operation.path !== "slackAgent.createCode",
         }),
         splitLink({
           condition(op) {

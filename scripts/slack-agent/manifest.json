@@ -1,0 +1,34 @@
+{
+  "display_information": {
+    "name": "Langfuse Hackathon",
+    "description": "Ask the Langfuse agent about a shared demo project.",
+    "background_color": "#111827"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "langfuse-hackathon",
+      "always_online": false
+    },
+    "agent_view": {
+      "agent_description": "A read-only Langfuse agent for a shared hackathon demo project. Mention me in the configured demo channel."
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "app_mentions:read",
+        "chat:write",
+        "assistant:write",
+        "reactions:write"
+      ]
+    }
+  },
+  "settings": {
+    "socket_mode_enabled": true,
+    "event_subscriptions": {
+      "bot_events": ["app_mention", "agent_session_stopped"]
+    },
+    "org_deploy_enabled": false,
+    "token_rotation_enabled": false
+  }
+}
