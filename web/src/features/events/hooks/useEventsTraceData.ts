@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { api, sendAsPostOption } from "@/src/utils/api";
 import {
   adaptEventsToTraceFormat,
@@ -200,11 +200,41 @@ export function useEventsTraceData(
     !!eventsQuery.data &&
     ((eventsQuery.data.observations as EventsTraceObservation[] | undefined)
       ?.length ?? 0) === 0;
+
+  // tRPC's typed hook result does not expose `dataUpdateCount`, so mirror the
+  // empty-success count from `dataUpdatedAt` changes (aligned with the
+  // refetchInterval callback's `query.state.dataUpdateCount`).
+  const emptyFetchTracker = useRef({
+    traceId: "",
+    count: 0,
+    dataUpdatedAt: 0,
+  });
+  if (traceId !== emptyFetchTracker.current.traceId) {
+    emptyFetchTracker.current = { traceId, count: 0, dataUpdatedAt: 0 };
+  }
+  if (
+    observationsEmpty &&
+    eventsQuery.dataUpdatedAt > 0 &&
+    eventsQuery.dataUpdatedAt !== emptyFetchTracker.current.dataUpdatedAt
+  ) {
+    emptyFetchTracker.current = {
+      traceId,
+      dataUpdatedAt: eventsQuery.dataUpdatedAt,
+      count: emptyFetchTracker.current.count + 1,
+    };
+  } else if (!observationsEmpty && emptyFetchTracker.current.count !== 0) {
+    emptyFetchTracker.current = {
+      traceId,
+      count: 0,
+      dataUpdatedAt: 0,
+    };
+  }
+
   // Still inside the empty-result backoff window (same 4 retries as the traces
   // path). Between interval ticks isFetching is false, so key off the count.
   const isWaitingForTrace =
     observationsEmpty &&
-    getTraceArrivalEmptyRefetchIntervalMs(eventsQuery.dataUpdateCount) !==
+    getTraceArrivalEmptyRefetchIntervalMs(emptyFetchTracker.current.count) !==
       false;
 
   return {
