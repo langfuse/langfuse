@@ -39,7 +39,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { StringParam, useQueryParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
-import { useCallback } from "react";
+import { cloneElement, useCallback } from "react";
 import {
   TraceSettingsDropdown,
   TraceViewOptionsMenuItems,
