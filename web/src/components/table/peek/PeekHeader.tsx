@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import { useLayoutEffect, useRef, useState } from "react";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { Button } from "@/src/components/ui/button";
@@ -7,12 +6,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { EntityTitle } from "@/src/components/EntityTitle";
 import {
@@ -173,7 +167,6 @@ export function PeekHeader({
   const anyFolded = plan.foldActions || plan.foldOpenInTab;
 
   return (
-    <TooltipProvider>
       <div
         ref={headerRef}
         className="flex min-h-10 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden pt-3 pr-4 pb-1.5 pl-4"
@@ -232,10 +225,11 @@ export function PeekHeader({
           {/* Overflow: a labeled menu of whatever folded away. */}
           {anyFolded && (
             <Popover>
-              <Tooltip>
-                <TooltipTrigger asChild>
+              <Tooltip label="More" delay={300}>
+                {({ getTriggerProps }) => (
                   <PopoverTrigger asChild>
                     <Button
+                      {...getTriggerProps()}
                       variant="ghost"
                       size="icon"
                       aria-label="More actions"
@@ -244,8 +238,7 @@ export function PeekHeader({
                       <MoreHorizontal className="icon-base text-icon-foreground" />
                     </Button>
                   </PopoverTrigger>
-                </TooltipTrigger>
-                <TooltipContent>More</TooltipContent>
+                )}
               </Tooltip>
               <PopoverContent
                 align="end"
@@ -275,6 +268,5 @@ export function PeekHeader({
           </div>
         </div>
       </div>
-    </TooltipProvider>
   );
 }
