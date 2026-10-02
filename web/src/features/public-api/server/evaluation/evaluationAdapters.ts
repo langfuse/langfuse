@@ -76,6 +76,19 @@ export function isPublicApiEvaluatorType(type: EvalTemplateType) {
   return PUBLIC_API_EVALUATOR_TYPES.includes(type);
 }
 
+export function toPublicEvaluatorType(type: EvalTemplateType) {
+  switch (type) {
+    case EvalTemplateType.CODE:
+      return PUBLIC_EVALUATOR_TYPE_CODE;
+    case EvalTemplateType.LLM_AS_JUDGE:
+      return PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE;
+    case EvalTemplateType.DECISION_MODEL:
+      throw new InvalidRequestError(
+        "Decision-model evaluators are experimental and not available through the public API",
+      );
+  }
+}
+
 export function toStoredMappingList(
   mappings: PromptVariableMappingInputType[],
 ) {

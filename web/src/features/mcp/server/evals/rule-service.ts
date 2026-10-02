@@ -1,15 +1,13 @@
 import { auditLog } from "@/src/features/audit-logs/server";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import {
+  isPublicApiEvaluatorType,
   toApiReadMappings,
+  toPublicEvaluatorType,
   toStoredMappingList,
 } from "@/src/features/public-api/server";
 import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
-import {
-  EvalTemplateType,
-  InvalidRequestError,
-  type EvalTemplateType as EvalTemplateTypeValue,
-} from "@langfuse/shared";
+import { EvalTemplateType, InvalidRequestError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import type { z } from "zod";
 import type { ServerContext } from "../../types";
@@ -19,27 +17,18 @@ import {
   type EvaluationRuleAssignmentInput,
 } from "./rule-schema";
 
-const MCP_EVALUATOR_TYPES = new Set<EvalTemplateTypeValue>([
-  EvalTemplateType.LLM_AS_JUDGE,
-  EvalTemplateType.CODE,
-  EvalTemplateType.DECISION_MODEL,
-]);
-
-function isMcpEvaluatorType(type: EvalTemplateTypeValue) {
-  return MCP_EVALUATOR_TYPES.has(type);
+function isMcpEvaluatorType(type: EvalTemplateType) {
+  return (
+    type === EvalTemplateType.DECISION_MODEL || isPublicApiEvaluatorType(type)
+  );
 }
 
-function toMcpEvaluatorType(type: EvalTemplateTypeValue) {
-  switch (type) {
-    case EvalTemplateType.LLM_AS_JUDGE:
-      return McpEvaluatorType.parse("llm_as_judge");
-    case EvalTemplateType.CODE:
-      return McpEvaluatorType.parse("code");
-    case EvalTemplateType.DECISION_MODEL:
-      return McpEvaluatorType.parse("decision_model");
-    default:
-      return McpEvaluatorType.parse(type);
-  }
+function toMcpEvaluatorType(type: EvalTemplateType) {
+  return McpEvaluatorType.parse(
+    type === EvalTemplateType.DECISION_MODEL
+      ? "decision_model"
+      : toPublicEvaluatorType(type),
+  );
 }
 
 export function createMcpRuleService(context: ServerContext) {

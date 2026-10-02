@@ -11,12 +11,12 @@ import {
 import {
   ObservationPromptVariableMappingInput,
   PromptVariableMappingRead,
+  PublicEvaluatorType,
 } from "@/src/features/public-api/server";
 import { McpAdvancedFilterBaseSchema } from "../../core/filter-schema";
 
 export const McpEvaluatorType = z.enum([
-  "llm_as_judge",
-  "code",
+  ...PublicEvaluatorType.options,
   "decision_model",
 ]);
 
