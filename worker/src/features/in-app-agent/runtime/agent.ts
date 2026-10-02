@@ -297,6 +297,8 @@ type CreateAgUiStreamOptions = {
   onError?: (error: unknown) => void | Promise<void>;
   onFinish?: () => void | Promise<void>;
   model: InAppAgentModelConfig;
+  /** Caps output tokens (reasoning + text) per model step. */
+  maxOutputTokens?: number;
   awsProfile?: string;
   langfuseMcp: {
     url: string;
@@ -1298,6 +1300,14 @@ async function createMastraAdapter(params: {
           : {}),
         ...(reasoningProviderOptions
           ? { providerOptions: reasoningProviderOptions }
+          : {}),
+        // Mastra forwards AI SDK call settings from modelSettings.
+        ...(params.options.maxOutputTokens
+          ? {
+              modelSettings: {
+                maxOutputTokens: params.options.maxOutputTokens,
+              },
+            }
           : {}),
       },
     });
