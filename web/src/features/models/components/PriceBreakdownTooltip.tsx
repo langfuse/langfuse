@@ -1,16 +1,10 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable no-nested-ternary */
 import Decimal from "decimal.js";
 import { InfoIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
 import { type PriceUnit } from "@/src/features/models/validation";
 
@@ -27,8 +21,6 @@ export const PriceBreakdownTooltip = ({
   priceUnitMultiplier: number;
   rowHeight: RowHeight;
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
   const maxDecimals = useMemo(
     () =>
       Math.max(
@@ -67,16 +59,12 @@ export const PriceBreakdownTooltip = ({
           ))}
         </div>
       ) : (
-        <TooltipProvider>
-          <Tooltip open={isOpen} onOpenChange={setIsOpen}>
-            <TooltipTrigger
-              className="flex cursor-pointer items-center gap-2 pr-4 text-xs"
-              onClick={() => setIsOpen(!isOpen)}
-            >
-              <InfoIcon className="h-3 w-3" />
-              {Object.keys(prices).length} prices set
-            </TooltipTrigger>
-            <TooltipContent className="min-w-64 grow p-4">
+        <CustomTooltip
+          activation="hover-and-click"
+          delay={300}
+          size="wide"
+          content={
+            <div className="min-w-64 p-2.5">
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1">
                   <span className="font-bold">Price breakdown</span>
@@ -105,9 +93,20 @@ export const PriceBreakdownTooltip = ({
                   ))}
                 </div>
               </div>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+            </div>
+          }
+        >
+          {({ getTriggerProps }) => (
+            <button
+              {...getTriggerProps()}
+              type="button"
+              className="flex cursor-pointer items-center gap-2 pr-4 text-xs"
+            >
+              <InfoIcon className="h-3 w-3" />
+              {Object.keys(prices).length} prices set
+            </button>
+          )}
+        </CustomTooltip>
       )}
     </>
   );
