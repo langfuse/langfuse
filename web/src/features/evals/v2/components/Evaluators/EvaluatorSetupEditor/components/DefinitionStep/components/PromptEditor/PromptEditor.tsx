@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { Fragment, useState, type CSSProperties } from "react";
 import {

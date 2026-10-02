@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable @repo/no-style-props */
 import { Check, Save } from "lucide-react";
 import { useRouter } from "next/router";

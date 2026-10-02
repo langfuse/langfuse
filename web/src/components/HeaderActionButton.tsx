@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import * as React from "react";
 
 import { type KeyboardKey } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";

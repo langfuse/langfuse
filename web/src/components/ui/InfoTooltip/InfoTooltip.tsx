@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import { InfoIcon } from "lucide-react";
 import type { ReactNode } from "react";
 

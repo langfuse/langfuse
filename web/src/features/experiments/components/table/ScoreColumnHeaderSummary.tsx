@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { DiffLabel } from "@/src/features/datasets";
 import { splitScoreDataTypeIcon } from "@/src/features/scores";

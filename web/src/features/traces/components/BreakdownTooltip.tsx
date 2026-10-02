@@ -527,3 +527,4 @@ function formatShare(share: number) {
 }
 
 type BreakdownRowVariants = VariantProps<typeof breakdownRowVariants>;
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */

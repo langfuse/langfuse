@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";

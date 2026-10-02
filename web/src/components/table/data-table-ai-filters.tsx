@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable @repo/component-file-structure */
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";

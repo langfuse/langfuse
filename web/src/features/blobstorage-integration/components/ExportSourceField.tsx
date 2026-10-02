@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import { useWatch } from "react-hook-form";
 import { Info, ExternalLink } from "lucide-react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";

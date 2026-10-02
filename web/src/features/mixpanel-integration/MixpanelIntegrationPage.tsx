@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";

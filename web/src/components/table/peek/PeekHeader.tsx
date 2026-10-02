@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import { useLayoutEffect, useRef, useState } from "react";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { Button } from "@/src/components/ui/button";

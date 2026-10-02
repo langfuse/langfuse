@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable @repo/no-null-render */
 import React, { useMemo, useCallback, useRef, useEffect } from "react";
 import { PlaygroundProvider, usePlaygroundContext } from "../context";

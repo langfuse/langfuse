@@ -244,3 +244,4 @@ export type DecisionModelQuestionResult = {
     }
   | { type: "noul"; probability: number }
 );
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
