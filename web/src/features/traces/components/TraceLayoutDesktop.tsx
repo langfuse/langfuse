@@ -193,7 +193,7 @@ export function TraceLayoutDesktop(props: TraceLayoutDesktopProps) {
       open={props.reviewOpen}
       review={reviewPanel}
       collapseNavigationOnEntry={
-        router.query.mode === "annotate" ? true : undefined
+        router.query.annotation === "open" ? true : undefined
       }
     >
       {({ collapsed, toggle }) => (

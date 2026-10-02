@@ -72,7 +72,7 @@ export function useExperimentPeekNavigation() {
       params.set("traceId", target.traceId);
       params.set("timestamp", target.timestamp);
       params.set("observation", target.observationId);
-      params.delete("comments");
+      if (params.get("annotation") === "open") params.delete("comments");
       params.delete("commentObjectType");
       params.delete("commentObjectId");
 

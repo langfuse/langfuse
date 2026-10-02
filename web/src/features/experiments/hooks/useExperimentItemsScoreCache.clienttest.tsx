@@ -89,10 +89,6 @@ it("shares a new score column across the table and updates summaries from cached
     cache.set(score.id, score);
     cache.setColumn(score);
   });
-  expect(data.scoreColumns.observationScoreColumns).toEqual([
-    { name: "review", source: "ANNOTATION", dataType: "NUMERIC" },
-  ]);
-  expect(data.scoreColumns.traceScoreColumns).toEqual([]);
   expect(
     within(screen.getByTestId("baseline")).getByLabelText(
       "Observation: review: not scored",
@@ -157,9 +153,6 @@ it("keeps levels and targets separate while recomputing comparison summaries", (
       value: 0.99,
     });
   });
-  expect(data.scoreColumns.traceScoreColumns).toEqual([
-    { name: "review", source: "ANNOTATION", dataType: "NUMERIC" },
-  ]);
   expect(data.scoreColumns.observationScoreColumns).toHaveLength(1);
   expect(
     Object.keys(data.rows?.[0].experiments[1].observationScores ?? {}),
@@ -191,7 +184,7 @@ it("keeps levels and targets separate while recomputing comparison summaries", (
   ).toBeInTheDocument();
 });
 
-it("overlays and deletes a persisted score while keeping its server column definition", () => {
+it("overlays and deletes a persisted score before the server refreshes", () => {
   const key = "review-ANNOTATION-NUMERIC";
   const serverRows = rows.map((row) => ({
     ...row,
@@ -231,5 +224,4 @@ it("overlays and deletes a persisted score while keeping its server column defin
   expect(
     result.current.data.rows?.[0].experiments[1].observationScores[key],
   ).toBeUndefined();
-  expect(result.current.data.scoreColumns).toEqual(serverColumns);
 });

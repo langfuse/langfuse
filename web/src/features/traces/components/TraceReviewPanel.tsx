@@ -19,8 +19,9 @@ import { type TraceReviewPanelStore } from "../state/traceReviewPanelStore";
 
 function closeReviewPanel(store: TraceReviewPanelStore, router: NextRouter) {
   store.getState().actions.close();
-  if (router.query.comments !== "open" && !router.query.mode) return;
-  const { comments, commentObjectType, commentObjectId, mode, ...query } =
+  if (router.query.comments !== "open" && router.query.annotation !== "open")
+    return;
+  const { comments, commentObjectType, commentObjectId, annotation, ...query } =
     router.query;
   router.replace({ pathname: router.pathname, query }, undefined, {
     shallow: true,
@@ -50,7 +51,7 @@ function TraceCommentsPanel({ projectId }: { projectId: string }) {
   const observation = observations.find((item) => item.id === selectedNodeId);
   const session = useStore(store, (state) => state.comments);
   const active =
-    router.query.mode === "comment" || router.query.comments === "open";
+    router.query.comments === "open" && router.query.annotation !== "open";
   const target: CommentTarget = (!active ? session?.target : undefined) ??
     getCommentDrawerInitialStateFromUrl(router.query) ?? {
       type: "comments" as const,
@@ -136,7 +137,7 @@ function TraceAnnotationPanel() {
   const { selectedNodeId } = useSelection();
   const { isV4 } = useReadPath();
   const observation = observations.find((item) => item.id === selectedNodeId);
-  const active = useRouter().query.mode === "annotate";
+  const active = useRouter().query.annotation === "open";
   if (selectedNodeId && selectedNodeId !== trace.id && !observation) {
     return (
       <div className="p-4 text-sm" hidden={!active}>
@@ -214,9 +215,12 @@ export function TraceReviewPanel({ projectId }: { projectId: string }) {
   const query = router.query;
   const storedActive = useStore(store, (state) => state.active);
   const sessionActive = storedActive === "comments" ? "comment" : storedActive;
-  const active = store.followTraceSelection
-    ? (query.mode ?? (query.comments === "open" ? "comment" : undefined))
-    : sessionActive;
+  let active = sessionActive;
+  if (store.followTraceSelection) {
+    active = null;
+    if (query.comments === "open") active = "comment";
+    if (query.annotation === "open") active = "annotate";
+  }
   const commentsKey = useStore(store, (state) => state.comments?.key);
   const annotationKey = useStore(store, (state) => state.annotation?.key);
   const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:CUD" });

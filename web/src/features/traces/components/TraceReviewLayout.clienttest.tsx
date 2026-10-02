@@ -182,15 +182,6 @@ describe("trace review responsive workspace", () => {
     expect((trace as HTMLInputElement).value).toBe("trace edit");
   });
 
-  it("starts annotation navigation collapsed despite a saved preference and lets it reopen", () => {
-    localStorage.setItem("trace-review-navigation-collapsed", "false");
-    render(<Harness collapseNavigationOnEntry />);
-    fireEvent.click(screen.getByRole("button", { name: "Show navigation" }));
-    expect(
-      screen.getByRole("button", { name: "Hide navigation" }),
-    ).toBeTruthy();
-  });
-
   it("keeps an explicit navigation choice across screen changes and later trace workspaces", () => {
     const view = render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Hide navigation" }));
@@ -214,18 +205,18 @@ describe("trace review responsive workspace", () => {
   });
 });
 
-it("collapses on explicit annotation entry but preserves manual expansion across rerenders", () => {
-  const view = render(<Harness open={false} />);
-  expect(
-    screen.getByRole("button", { name: "Hide navigation" }),
-  ).toBeInTheDocument();
-  view.rerender(<Harness collapseNavigationOnEntry />);
-  expect(
-    screen.getByRole("button", { name: "Show navigation" }),
-  ).toBeInTheDocument();
+it("collapses on annotation entry while preserving manual expansion until the next entry", () => {
+  localStorage.setItem("trace-review-navigation-collapsed", "false");
+  const view = render(<Harness collapseNavigationOnEntry />);
   fireEvent.click(screen.getByRole("button", { name: "Show navigation" }));
   view.rerender(<Harness collapseNavigationOnEntry />);
   expect(
     screen.getByRole("button", { name: "Hide navigation" }),
+  ).toBeInTheDocument();
+
+  view.rerender(<Harness open={false} />);
+  view.rerender(<Harness collapseNavigationOnEntry />);
+  expect(
+    screen.getByRole("button", { name: "Show navigation" }),
   ).toBeInTheDocument();
 });

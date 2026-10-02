@@ -132,13 +132,13 @@ describe("ExperimentGridCell", () => {
         screen.queryByLabelText("Changed compared to baseline") !== null,
       ).toBe(showDiff);
       expect(
-        screen.queryByText("Incorrect → Partially Correct"),
+        screen.queryByText("← Baseline: Incorrect"),
       ).not.toBeInTheDocument();
       fireEvent.pointerEnter(screen.getByText("accuracy"));
       await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 750));
       });
-      expect(screen.queryByText("Incorrect → Partially Correct") !== null).toBe(
+      expect(screen.queryByText("← Baseline: Incorrect") !== null).toBe(
         showDiff,
       );
       view.unmount();

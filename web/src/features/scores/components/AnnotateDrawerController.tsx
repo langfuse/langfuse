@@ -102,7 +102,7 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
                 router.replace(
                   {
                     pathname: router.pathname,
-                    query: { ...query, mode: "annotate" },
+                    query: { ...query, annotation: "open" },
                   },
                   undefined,
                   { shallow: true },

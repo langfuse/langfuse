@@ -3,7 +3,7 @@ import { createTraceReviewPanelStore } from "../state/traceReviewPanelStore";
 import { TraceReviewPanel } from "./TraceReviewPanel";
 
 const state = vi.hoisted(() => ({
-  query: { mode: "annotate" } as Record<string, string>,
+  query: { annotation: "open" } as Record<string, string>,
   selectedNodeId: "first",
   replace: vi.fn(),
 }));
@@ -70,7 +70,7 @@ vi.mock("@/src/features/comments/CommentDrawerController", () => ({
   getCommentDrawerInitialStateFromUrl: () => undefined,
 }));
 
-it("follows selection and URL mode without replacing the review store", () => {
+it("follows the selected annotation target and switches panels through the URL", () => {
   const view = render(<TraceReviewPanel projectId="project" />);
   expect(screen.getByTestId("annotation")).toHaveTextContent(
     "first:first-score",
@@ -88,18 +88,18 @@ it("follows selection and URL mode without replacing the review store", () => {
   expect(screen.getByTestId("annotation")).toHaveTextContent(
     "trace:trace-score",
   );
-  state.query = { mode: "comment" };
+  state.query = { comments: "open" };
   view.rerender(<TraceReviewPanel projectId="project" />);
   expect(screen.getByTestId("comments")).toHaveTextContent("trace");
   expect(screen.queryByTestId("annotation")).not.toBeInTheDocument();
-  state.query = { mode: "annotate" };
+  state.query = { annotation: "open" };
   view.rerender(<TraceReviewPanel projectId="project" />);
   expect(screen.getByTestId("annotation")).toHaveTextContent(
     "trace:trace-score",
   );
 });
 
-it("closes legacy comment deep links with Escape and clears their URL target", () => {
+it("closes comment deep links with Escape and clears their URL target", () => {
   state.query = {
     comments: "open",
     commentObjectId: "trace",

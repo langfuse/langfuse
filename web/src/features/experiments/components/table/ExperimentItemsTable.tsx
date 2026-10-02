@@ -1670,7 +1670,7 @@ export default function ExperimentItemsTable({
       "timestamp",
       "traceId",
       "peekExperimentId",
-      "mode",
+      "annotation",
       "comments",
       "commentObjectType",
       "commentObjectId",
@@ -1768,14 +1768,22 @@ export default function ExperimentItemsTable({
           ...entry,
           params: {
             ...entry.params,
-            ...(router.query.mode === "annotate" ||
-            router.query.mode === "comment"
-              ? { mode: router.query.mode }
+            ...(router.query.annotation === "open"
+              ? { annotation: "open" }
+              : {}),
+            ...(router.query.annotation !== "open" &&
+            router.query.comments === "open"
+              ? { comments: "open" }
               : {}),
           },
         }),
     };
-  }, [peekNavigationProps, canUsePeek, router.query.mode]);
+  }, [
+    peekNavigationProps,
+    canUsePeek,
+    router.query.annotation,
+    router.query.comments,
+  ]);
 
   // The fetched page with local score writes. The column header aggregates and
   // the score matrix deliberately describe this whole page,

@@ -235,7 +235,7 @@ function DesktopTraceContent({
   );
   const initialComments =
     getCommentDrawerInitialStateFromUrl(router.query) ??
-    (router.query.mode === "comment"
+    (router.query.comments === "open"
       ? {
           type: "comments" as const,
           objectId: selectedObservation?.id ?? trace.id,
@@ -271,12 +271,9 @@ function DesktopTraceReviewWorkspace({
   projectId: string;
 }) {
   const { query } = useRouter();
-  const mode = query.mode;
   const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:CUD" });
   const reviewOpen =
-    (mode === "annotate" && canAnnotate) ||
-    mode === "comment" ||
-    query.comments === "open";
+    (query.annotation === "open" && canAnnotate) || query.comments === "open";
   return (
     <DesktopTraceWorkspace
       desktopLayout={desktopLayout}

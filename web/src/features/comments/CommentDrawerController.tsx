@@ -32,7 +32,7 @@ export function getCommentDrawerInitialStateFromUrl(
   const objectId = query.commentObjectId;
   const objectType = query.commentObjectType;
   if (
-    (query.comments !== "open" && query.mode !== "comment") ||
+    query.comments !== "open" ||
     typeof objectId !== "string" ||
     typeof objectType !== "string"
   ) {
@@ -96,13 +96,13 @@ export function CommentDrawerController({
               current.comments?.target.objectId === target.objectId &&
               current.comments.target.objectType === target.objectType
             ) {
-              const { comments, ...query } = router.query;
+              const { annotation, ...query } = router.query;
               router.replace(
                 {
                   pathname: router.pathname,
                   query: {
                     ...query,
-                    mode: "comment",
+                    comments: "open",
                     commentObjectId: target.objectId,
                     commentObjectType: target.objectType,
                   },

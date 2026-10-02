@@ -249,7 +249,7 @@ export const ExperimentGridView = ({
                       peekView.openPeek?.(
                         row.original.itemId,
                         { ...row.original, clickedExperimentId: expId },
-                        { queryParams: { mode: "annotate" } },
+                        { queryParams: { annotation: "open" } },
                       );
                     }
                   : undefined
