@@ -30,6 +30,7 @@ import {
   enrichObservationWithModelData,
   createModelCache,
   blobStorageEndpointConnectionValidationOptions,
+  assertGcsBlobStorageBucketAllowed,
   validateBlobStorageEndpoint,
   dispatchProjectNotification,
 } from "@langfuse/shared/src/server";
@@ -359,10 +360,31 @@ type BlobStorageConnectionConfig = {
 
 const createBlobStorageService = (
   config: BlobStorageConnectionConfig,
-): StorageService =>
-  StorageServiceFactory.getInstance({
-    accessKeyId: config.accessKeyId,
-    secretAccessKey: config.secretAccessKey,
+): StorageService => {
+  const useGoogleCloudStorage =
+    config.type === BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE;
+  // GCS: a stored secret is the customer's service account JSON key; none means
+  // default credentials (the deployment identity).
+  const gcsServiceAccountKey = useGoogleCloudStorage
+    ? config.secretAccessKey
+    : undefined;
+  if (useGoogleCloudStorage && !gcsServiceAccountKey) {
+    // Re-checked per run so removing a bucket from the allowlist stops keyless
+    // exports that were saved while it was allowed.
+    assertGcsBlobStorageBucketAllowed(config.bucketName);
+  }
+  // The GCS client treats a non-JSON string as a key *file path*; a customer
+  // secret must never be read as one.
+  if (gcsServiceAccountKey && !gcsServiceAccountKey.trim().startsWith("{")) {
+    // Named so classifyCustomerFault disables the integration instead of retrying.
+    throw Object.assign(
+      new Error("GCS credentials must be a service account JSON key"),
+      { name: "InvalidGcsServiceAccountKey" },
+    );
+  }
+  return StorageServiceFactory.getInstance({
+    accessKeyId: useGoogleCloudStorage ? undefined : config.accessKeyId,
+    secretAccessKey: useGoogleCloudStorage ? undefined : config.secretAccessKey,
     bucketName: config.bucketName,
     endpoint: config.endpoint ?? undefined,
     region: config.region,
@@ -370,10 +392,13 @@ const createBlobStorageService = (
     awsSse: undefined,
     awsSseKmsKeyId: undefined,
     useAzureBlob: config.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
-    useGoogleCloudStorage: false, // Not supported in blob storage integration
+    // Undefined → ADC (the deployment's own identity), allowlist-gated above.
+    useGoogleCloudStorage,
+    googleCloudCredentials: gcsServiceAccountKey,
     useOCIObjectStorage: false, // Not supported in blob storage integration
     connectionValidation: blobStorageEndpointConnectionValidationOptions(),
   });
+};
 
 const processBlobStorageExport = async (config: {
   projectId: string;

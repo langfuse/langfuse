@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { useWatch } from "react-hook-form";
+import { useController, useWatch } from "react-hook-form";
 import {
   FormControl,
   FormDescription,
@@ -12,7 +12,10 @@ import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { BlobStorageIntegrationType } from "@langfuse/shared";
+import {
+  BlobStorageIntegrationType,
+  GCS_USE_DEFAULT_CREDENTIALS,
+} from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
 
@@ -29,6 +32,14 @@ export const StorageProviderFields = ({
   const isSelfHosted = !isLangfuseCloud;
   const integrationType =
     useWatch({ control, name: "type" }) ?? BlobStorageIntegrationType.S3;
+  const isGcs = integrationType === "GOOGLE_CLOUD_STORAGE";
+  const secretAccessKey = useWatch({ control, name: "secretAccessKey" });
+  const isGcsDefaultCredentials =
+    isGcs && secretAccessKey === GCS_USE_DEFAULT_CREDENTIALS;
+  const { field: secretAccessKeyField } = useController({
+    control,
+    name: "secretAccessKey",
+  });
 
   return (
     <>
@@ -41,7 +52,14 @@ export const StorageProviderFields = ({
             <FormControl>
               <SelectInput
                 value={field.value}
-                onValueChange={field.onChange}
+                onValueChange={(value) => {
+                  // A GCS key (or the ADC sentinel) is not an S3/Azure secret,
+                  // and vice versa.
+                  if ((value === "GOOGLE_CLOUD_STORAGE") !== isGcs) {
+                    secretAccessKeyField.onChange("");
+                  }
+                  field.onChange(value);
+                }}
                 placeholder="Select provider"
                 options={[
                   { value: BlobStorageIntegrationType.S3, label: "Amazon S3" },
@@ -52,6 +70,10 @@ export const StorageProviderFields = ({
                   {
                     value: BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
                     label: "Azure Blob Storage",
+                  },
+                  {
+                    value: BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE,
+                    label: "Google Cloud Storage",
                   },
                 ]}
               />
@@ -80,7 +102,11 @@ export const StorageProviderFields = ({
             <FormDescription>
               {integrationType === "AZURE_BLOB_STORAGE"
                 ? "Azure container name (3-63 chars, lowercase letters, numbers, and hyphens only)"
-                : "The S3 bucket name"}
+                : isGcsDefaultCredentials
+                  ? "GCS bucket name. With default credentials it must be listed in LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS"
+                  : isGcs
+                    ? "GCS bucket name"
+                    : "The S3 bucket name"}
             </FormDescription>
             <FormMessage />
           </FormItem>
@@ -88,7 +114,7 @@ export const StorageProviderFields = ({
       />
 
       {/* Endpoint URL field - Only shown for S3-compatible and Azure */}
-      {integrationType !== "S3" && (
+      {integrationType !== "S3" && !isGcs && (
         <FormField
           control={control}
           name="endpoint"
@@ -110,7 +136,7 @@ export const StorageProviderFields = ({
       )}
 
       {/* Region field - Only shown for Amazon S3 or compatible storage */}
-      {integrationType !== "AZURE_BLOB_STORAGE" && (
+      {integrationType !== "AZURE_BLOB_STORAGE" && !isGcs && (
         <FormField
           control={control}
           name="region"
@@ -156,75 +182,136 @@ export const StorageProviderFields = ({
         />
       )}
 
-      <FormField
-        control={control}
-        name="accessKeyId"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>
-              {integrationType === "AZURE_BLOB_STORAGE"
-                ? "Storage Account Name"
-                : integrationType === "S3"
-                  ? "AWS Access Key ID"
-                  : "Access Key ID"}
-              {/* Show optional indicator for S3 types on self-hosted instances with entitlement */}
-              {isSelfHosted && integrationType === "S3" && (
-                <span className="text-muted-foreground"> (optional)</span>
-              )}
-            </FormLabel>
-            <FormControl>
-              <Input {...field} />
-            </FormControl>
-            <FormDescription>
-              {integrationType === "AZURE_BLOB_STORAGE"
-                ? "Your Azure storage account name"
-                : integrationType === "S3"
-                  ? isSelfHosted
-                    ? "Your AWS IAM user access key ID. Leave empty to use host credentials (IAM roles, instance profiles, etc.)"
-                    : "Your AWS IAM user access key ID"
-                  : "Access key for your S3-compatible storage"}
-            </FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+      {/* GCS credentials: service account JSON key, or (self-hosted) default
+          credentials, mirroring the Vertex AI LLM connection form. */}
+      {isGcs && isSelfHosted && (
+        <FormField
+          control={control}
+          name="secretAccessKey"
+          render={({ field }) => (
+            <FormItem>
+              <span className="flex">
+                <span className="flex-1">
+                  <FormLabel>
+                    Use Application Default Credentials (ADC)
+                  </FormLabel>
+                  <FormDescription>
+                    Write as this deployment&apos;s own GCP identity instead of
+                    a service account key. The bucket must be listed in
+                    LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS.
+                  </FormDescription>
+                </span>
+                <FormControl>
+                  <Switch
+                    checked={field.value === GCS_USE_DEFAULT_CREDENTIALS}
+                    onCheckedChange={(checked) =>
+                      field.onChange(checked ? GCS_USE_DEFAULT_CREDENTIALS : "")
+                    }
+                  />
+                </FormControl>
+              </span>
+            </FormItem>
+          )}
+        />
+      )}
+      {isGcs && !isGcsDefaultCredentials && (
+        <FormField
+          control={control}
+          name="secretAccessKey"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>GCP Service Account Key (JSON)</FormLabel>
+              <FormControl>
+                <PasswordInput
+                  placeholder='{"type": "service_account", ...}'
+                  {...field}
+                  value={field.value || ""}
+                />
+              </FormControl>
+              <FormDescription>
+                Stored encrypted. Leave empty to keep the saved key. The key
+                needs write access to the bucket.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
 
-      <FormField
-        control={control}
-        name="secretAccessKey"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>
-              {integrationType === "AZURE_BLOB_STORAGE"
-                ? "Storage Account Key"
-                : integrationType === "S3"
-                  ? "AWS Secret Access Key"
-                  : "Secret Access Key"}
-              {/* Show optional indicator for S3 types on self-hosted instances with entitlement */}
-              {isSelfHosted && integrationType === "S3" && (
-                <span className="text-muted-foreground"> (optional)</span>
-              )}
-            </FormLabel>
-            <FormControl>
-              <PasswordInput
-                placeholder="********************"
-                {...field}
-                value={field.value || ""}
-              />
-            </FormControl>
-            <FormDescription>
-              {integrationType === "AZURE_BLOB_STORAGE"
-                ? "Your Azure storage account access key"
-                : integrationType === "S3"
-                  ? isSelfHosted
-                    ? "Your AWS IAM user secret access key. Leave empty to use host credentials (IAM roles, instance profiles, etc.)"
-                    : "Your AWS IAM user secret access key"
-                  : "Secret key for your S3-compatible storage"}
-            </FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+      {/* S3/Azure credentials */}
+      {!isGcs && (
+        <FormField
+          control={control}
+          name="accessKeyId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>
+                {integrationType === "AZURE_BLOB_STORAGE"
+                  ? "Storage Account Name"
+                  : integrationType === "S3"
+                    ? "AWS Access Key ID"
+                    : "Access Key ID"}
+                {/* Show optional indicator for S3 types on self-hosted instances with entitlement */}
+                {isSelfHosted && integrationType === "S3" && (
+                  <span className="text-muted-foreground"> (optional)</span>
+                )}
+              </FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormDescription>
+                {integrationType === "AZURE_BLOB_STORAGE"
+                  ? "Your Azure storage account name"
+                  : integrationType === "S3"
+                    ? isSelfHosted
+                      ? "Your AWS IAM user access key ID. Leave empty to use host credentials (IAM roles, instance profiles, etc.)"
+                      : "Your AWS IAM user access key ID"
+                    : "Access key for your S3-compatible storage"}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
+
+      {!isGcs && (
+        <FormField
+          control={control}
+          name="secretAccessKey"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>
+                {integrationType === "AZURE_BLOB_STORAGE"
+                  ? "Storage Account Key"
+                  : integrationType === "S3"
+                    ? "AWS Secret Access Key"
+                    : "Secret Access Key"}
+                {/* Show optional indicator for S3 types on self-hosted instances with entitlement */}
+                {isSelfHosted && integrationType === "S3" && (
+                  <span className="text-muted-foreground"> (optional)</span>
+                )}
+              </FormLabel>
+              <FormControl>
+                <PasswordInput
+                  placeholder="********************"
+                  {...field}
+                  value={field.value || ""}
+                />
+              </FormControl>
+              <FormDescription>
+                {integrationType === "AZURE_BLOB_STORAGE"
+                  ? "Your Azure storage account access key"
+                  : integrationType === "S3"
+                    ? isSelfHosted
+                      ? "Your AWS IAM user secret access key. Leave empty to use host credentials (IAM roles, instance profiles, etc.)"
+                      : "Your AWS IAM user secret access key"
+                    : "Secret key for your S3-compatible storage"}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
 
       <FormField
         control={control}
