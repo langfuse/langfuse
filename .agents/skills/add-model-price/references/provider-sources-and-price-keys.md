@@ -878,6 +878,44 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   3.x/Gemini 1.x catalog tail were not re-checked this run — no new evidence,
   standing exclusions.
 
+- **October 2 2026 audit: full re-fetch found no price or catalog drift; another
+  wave of OpenAI and Gemini modality-specific products confirmed out of scope** —
+  Re-fetched the full Anthropic pricing page (model table, cache-hits footnote,
+  Fast mode and Batch tables), the Anthropic models-overview comparison table,
+  the OpenAI aggregate Standard/Long-Context/Flex/Fast-mode/Ultrafast/Batch
+  pricing tables, the full OpenAI model catalog, dedicated re-fetches of
+  `gpt-5.3-codex`'s and `gpt-5-chat-latest`'s own model pages, both Gemini
+  pricing pages (3.x and 2.5 families, with explicit Free/Paid column
+  separation), the Gemini models catalog, the AWS Bedrock pricing page (Claude
+  3.5 Sonnet Public Extended Access rows), and the TypeSafe Jev models page.
+  Every price already in the file — including every
+  `gpt-6-astra`/`gpt-6-sol`/`gpt-6.1-sol`/`gpt-6-luna`, `claude-opus-5-5`,
+  `claude-sonnet-5-5`, `claude-fable-5-1`/`claude-mythos-5-1`, and
+  `gemini-3.6/3.7/3.8-flash` tier — matched verbatim; no updates were needed. No
+  new flagship text/chat/reasoning model was found. The OpenAI model catalog's
+  non-text families (`gpt-image-2.5-sunburst`/`gpt-image-2.5-flare`/`gpt-image-2`,
+  the `gpt-live-1`/`gpt-realtime-*`/`gpt-audio-1.5`/`gpt-*-transcribe*`/`tts-1*`/
+  `whisper-1` realtime-and-audio family, the `gpt-oss-120b`/`gpt-oss-20b`
+  open-weight models, and the embeddings family) remain out of scope, consistent
+  with the existing modality-specific/self-hosted skip rules. The Gemini models
+  catalog's new entries this run — `gemini-3.8-live`, `gemini-3.8-live-extended-thinking`,
+  `gemini-3.8-flash-tts`, `gemini-3.8-flash-lite-tts` (superseding the
+  `gemini-3.1-flash-tts-preview` mention from the August 21 2026 wave),
+  `gemini-3.5-transcribe`, `veo-3.1-generate-preview`/`veo-3.1-lite-generate-preview`,
+  `lyria-3.5` (superseding `lyria-3-pro-preview`), `gemini-embedding-001`/
+  `gemini-embedding-2-preview`, and a renamed `antigravity-preview-09-2026`
+  (previously seen as `-05-2026` in the September 6 2026 audit) — are all
+  Live/voice, TTS, video, music, embedding, or general-purpose-agent products
+  with no standard per-token text pricing, so none were added, per the existing
+  modality-specific skip rule. Amazon Nova's Bedrock pricing could not be
+  cleanly extracted from this run's fetch (the page's understanding-model
+  pricing section did not resolve to parseable per-token rates); this is
+  unchanged from the September 9 2026 audit's finding that Nova is a
+  pre-existing, not newly released, coverage gap — still not actioned this run.
+  The Daybreak cyber/Rosalind restricted family and the legacy Claude
+  3.x/Gemini 1.x catalog tail were not re-checked this run — no new evidence,
+  standing exclusions.
+
 Capture:
 
 1. Base input token price per million tokens
