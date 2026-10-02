@@ -8,7 +8,8 @@ import * as z from "zod";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
-import { StringNoHTML } from "@langfuse/shared";
+import { LangfuseNotFoundError, StringNoHTML } from "@langfuse/shared";
+import { throwIfApiKeyMissing } from "@/src/features/public-api/server/apiKeyNotFound";
 
 export const projectApiKeysRouter = createTRPCRouter({
   byProjectId: protectedProjectProcedure
@@ -104,22 +105,7 @@ export const projectApiKeysRouter = createTRPCRouter({
         scope: "apiKeys:CUD",
       });
 
-      await ctx.prisma.apiKey.findFirstOrThrow({
-        where: {
-          id: input.keyId,
-          projectId: input.projectId,
-          isInAppAgentKey: false,
-        },
-      });
-
-      await auditLog({
-        session: ctx.session,
-        resourceType: "apiKey",
-        resourceId: input.keyId,
-        action: "update",
-      });
-
-      await ctx.prisma.apiKey.update({
+      const updated = await ctx.prisma.apiKey.updateMany({
         where: {
           id: input.keyId,
           projectId: input.projectId,
@@ -128,6 +114,17 @@ export const projectApiKeysRouter = createTRPCRouter({
         data: {
           note: input.note,
         },
+      });
+
+      if (updated.count === 0) {
+        throw new LangfuseNotFoundError("API key not found");
+      }
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "apiKey",
+        resourceId: input.keyId,
+        action: "update",
       });
 
       // do not return the api key
@@ -146,13 +143,17 @@ export const projectApiKeysRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "apiKeys:CUD",
       });
-      const apiKey = await ctx.prisma.apiKey.findFirstOrThrow({
+      const apiKey = await ctx.prisma.apiKey.findFirst({
         where: {
           id: input.id,
           projectId: input.projectId,
           scope: "PROJECT",
         },
       });
+
+      if (!apiKey) {
+        throw new LangfuseNotFoundError("API key not found");
+      }
 
       if (apiKey.isInAppAgentKey) return false;
 
@@ -163,10 +164,14 @@ export const projectApiKeysRouter = createTRPCRouter({
         action: "delete",
       });
 
-      return await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
-        input.id,
-        input.projectId,
-        "PROJECT",
-      );
+      try {
+        return await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
+          input.id,
+          input.projectId,
+          "PROJECT",
+        );
+      } catch (error) {
+        throwIfApiKeyMissing(error);
+      }
     }),
 });
