@@ -42,16 +42,33 @@ export async function currentTopicResults(
         getLatestFacetSummaries(projectId, facet.id, undefined, timeRange),
         getPublishedTopicRun(projectId, facet.id),
       ]);
-      const assignments = storedAssignments.filter(
-        (row) => row.traceId !== null,
-      );
       const latestSummaries = storedSummaries.filter(
         (row) => row.traceId !== null,
       );
+      const assignmentByTrace = new Map(
+        storedAssignments.map((row) => [row.traceId, row]),
+      );
+      const current = latestSummaries
+        .sort(
+          (a, b) =>
+            b.unitStartTime.localeCompare(a.unitStartTime) ||
+            a.traceId.localeCompare(b.traceId),
+        )
+        .map((summary) => ({
+          summary,
+          ...resolveTopicResult(
+            summary,
+            assignmentByTrace.get(summary.traceId),
+          ),
+        }));
       const assignmentRuns = await getTopicRuns(projectId, [
         ...new Set(
-          assignments.flatMap((row) =>
-            row.runId && row.runId !== run?.id ? [row.runId] : [],
+          current.flatMap(({ assignment }) =>
+            assignment?.topicId &&
+            assignment.runId &&
+            assignment.runId !== run?.id
+              ? [assignment.runId]
+              : [],
           ),
         ),
       ]);
@@ -59,9 +76,6 @@ export async function currentTopicResults(
         ...(run?.topics ?? []),
         ...assignmentRuns.flatMap((item) => item.topics),
       ];
-      const assignmentByTrace = new Map(
-        assignments.map((row) => [row.traceId, row]),
-      );
       const topicByVersion = new Map(
         definitions.map((topic) => [topic.topicVersionId, topic]),
       );
@@ -69,40 +83,30 @@ export async function currentTopicResults(
         string,
         { assignment: TopicAssignment; count: number }
       >();
-      const rows = latestSummaries
-        .sort(
-          (a, b) =>
-            b.unitStartTime.localeCompare(a.unitStartTime) ||
-            a.traceId.localeCompare(b.traceId),
-        )
-        .map((summary) => {
-          const { assignment, outcome } = resolveTopicResult(
-            summary,
-            assignmentByTrace.get(summary.traceId),
-          );
-          const definition = assignment?.topicVersionId
-            ? topicByVersion.get(assignment.topicVersionId)
-            : undefined;
-          if (assignment?.topicId) {
-            const topic = topics.get(assignment.topicId);
-            topics.set(assignment.topicId, {
-              assignment:
-                !topic || assignment.assignedAt > topic.assignment.assignedAt
-                  ? assignment
-                  : topic.assignment,
-              count: (topic?.count ?? 0) + 1,
-            });
-          }
-          return {
-            facetVersion: summary.facetVersion,
-            traceId: summary.traceId,
-            unitStartTime: summary.unitStartTime,
-            summary: summary.summary,
-            outcome,
-            topicId: assignment?.topicId ?? null,
-            topicName: definition?.name ?? null,
-          };
-        });
+      const rows = current.map(({ summary, assignment, outcome }) => {
+        const definition = assignment?.topicVersionId
+          ? topicByVersion.get(assignment.topicVersionId)
+          : undefined;
+        if (assignment?.topicId) {
+          const topic = topics.get(assignment.topicId);
+          topics.set(assignment.topicId, {
+            assignment:
+              !topic || assignment.assignedAt > topic.assignment.assignedAt
+                ? assignment
+                : topic.assignment,
+            count: (topic?.count ?? 0) + 1,
+          });
+        }
+        return {
+          facetVersion: summary.facetVersion,
+          traceId: summary.traceId,
+          unitStartTime: summary.unitStartTime,
+          summary: summary.summary,
+          outcome,
+          topicId: assignment?.topicId ?? null,
+          topicName: definition?.name ?? null,
+        };
+      });
       // Current map names take precedence; retired IDs keep their latest referenced name.
       const currentTopics = new Map(
         run?.topics.map((topic) => [topic.topicId, topic]),

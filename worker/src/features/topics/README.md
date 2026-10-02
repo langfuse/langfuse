@@ -31,12 +31,11 @@ Use the normal local Postgres, ClickHouse, Redis, web, and worker stack. Apply t
 repository's Postgres and ClickHouse migrations and regenerate/build shared before
 starting the worker. Set `LANGFUSE_TOPICS_ENABLED=true` on both
 web and worker. It defaults to false: Topics routes, effective session flags,
-queues and Topics cleanup are disabled.
+and queues are disabled. Trace and project deletion always clean Topics data.
 Set `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS=project-a,project-b` on both services to
 allow processing for those project IDs. An unset or empty list admits no projects;
-IDs are comma-separated and whitespace is trimmed. Keep the deployment enabled
-while clearing the list to pause processing: trace and project deletion still
-clean historical Topics data, including data from formerly admitted projects.
+IDs are comma-separated and whitespace is trimmed. Clear the list to pause
+processing while retaining Topics access.
 UI visibility and read/configuration access additionally use the `langfuseTopics`
 feature flag and project permissions. Trigger/retry and both worker processors
 check deployment enablement and the allowlist; rejected queue jobs fail without retrying or running pipeline

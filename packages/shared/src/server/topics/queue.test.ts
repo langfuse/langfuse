@@ -125,7 +125,7 @@ describe("Topics execution queue state", () => {
     const traceIds =
       input.input.operation === "process" ? input.input.traceIds : [];
     mocks.read.mockResolvedValue(input);
-    await enqueueTopicExecution("project-a", "run", "process", traceIds);
+    await enqueueTopicExecution("project-a", "run", traceIds);
     expect(processing.add).toHaveBeenCalledTimes(11);
     expect(
       processing.add.mock.calls.flatMap(([, job]) => job.payload.traceIds),
@@ -140,7 +140,7 @@ describe("Topics execution queue state", () => {
     ).toEqual(Array.from({ length: 11 }, (_, i) => `run-${i}`));
 
     mocks.read.mockResolvedValue(execution("update"));
-    await enqueueTopicExecution("project-a", "run", "update");
+    await enqueueTopicExecution("project-a", "run");
     expect(updating.add).toHaveBeenCalledExactlyOnceWith(
       "topics",
       expect.objectContaining({
@@ -173,8 +173,8 @@ describe("Topics execution queue state", () => {
       add,
     } as unknown as NonNullable<ReturnType<typeof TopicsQueue.getInstance>>);
     await Promise.all([
-      enqueueTopicExecution("project-a", "run", "process"),
-      enqueueTopicExecution("project-a", "run", "process"),
+      enqueueTopicExecution("project-a", "run"),
+      enqueueTopicExecution("project-a", "run"),
     ]);
     expect(retry).toHaveBeenCalledWith("failed");
     expect(state).toBe("active");
@@ -207,19 +207,19 @@ describe("Topics execution queue state", () => {
       getJob,
       add,
     } as unknown as NonNullable<ReturnType<typeof TopicsQueue.getInstance>>);
-    await expect(
-      enqueueTopicExecution("project-a", "run", "process"),
-    ).rejects.toThrow("expired");
+    await expect(enqueueTopicExecution("project-a", "run")).rejects.toThrow(
+      "expired",
+    );
     expect(first.retry).not.toHaveBeenCalled();
     expect(add).not.toHaveBeenCalled();
     await expect(
-      enqueueTopicExecution("project-a", "run", "process", [
+      enqueueTopicExecution("project-a", "run", [
         "changed-trace",
         ...traceIds.slice(1),
       ]),
     ).rejects.toThrow("selection changed");
     expect(add).not.toHaveBeenCalled();
-    await enqueueTopicExecution("project-a", "run", "process", traceIds);
+    await enqueueTopicExecution("project-a", "run", traceIds);
     expect(add).toHaveBeenCalledExactlyOnceWith(
       "topics",
       expect.objectContaining({
@@ -258,13 +258,13 @@ describe("Topics execution queue state", () => {
       ),
       add,
     } as unknown as NonNullable<ReturnType<typeof TopicsQueue.getInstance>>);
-    await enqueueTopicExecution("project-a", "run", "process");
+    await enqueueTopicExecution("project-a", "run");
     expect(retry).toHaveBeenCalledExactlyOnceWith("failed");
     expect(add).not.toHaveBeenCalled();
     mocks.hget.mockResolvedValue(JSON.stringify({ finished: 1, failed: 1 }));
-    await expect(
-      enqueueTopicExecution("project-a", "run", "process"),
-    ).rejects.toThrow("expired");
+    await expect(enqueueTopicExecution("project-a", "run")).rejects.toThrow(
+      "expired",
+    );
   });
 
   it("resumes an update's failed facet even when BullMQ completed the job", async () => {
@@ -284,7 +284,7 @@ describe("Topics execution queue state", () => {
     } as unknown as NonNullable<
       ReturnType<typeof TopicsUpdateQueue.getInstance>
     >);
-    await enqueueTopicExecution("project-a", "run", "update");
+    await enqueueTopicExecution("project-a", "run");
     expect(retry).toHaveBeenCalledExactlyOnceWith("completed");
     expect(add).not.toHaveBeenCalled();
   });
@@ -300,9 +300,9 @@ describe("Topics execution queue state", () => {
       })),
       add,
     } as unknown as NonNullable<ReturnType<typeof TopicsQueue.getInstance>>);
-    await expect(
-      enqueueTopicExecution("project-a", "run", "process"),
-    ).rejects.toThrow("scope");
+    await expect(enqueueTopicExecution("project-a", "run")).rejects.toThrow(
+      "scope",
+    );
     expect(retry).not.toHaveBeenCalled();
     expect(add).not.toHaveBeenCalled();
   });

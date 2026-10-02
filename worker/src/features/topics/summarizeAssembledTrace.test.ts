@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Transcript } from "@langfuse/shared/src/server";
+import type { TopicFacet } from "@langfuse/shared/topics";
 
 const state = vi.hoisted(() => ({
   enabled: true,
@@ -47,12 +48,12 @@ const transcript: Transcript = {
   ],
 };
 
-const facet = {
+const facet: TopicFacet = {
   id: "facet-1",
   projectId: "project-a",
   name: "Intent",
   description: "The task requested for this run.",
-  publishedRunId: null,
+  isBuiltIn: true,
   versions: [
     {
       projectId: "project-a",
@@ -142,7 +143,19 @@ describe("summarizeAssembledTrace", () => {
       embeddingModel: "cohere.embed-v4:0",
       environment: "default",
       traceName: "agent-turn",
+      providedUsageDetails: {
+        summary_input: 20,
+        embedding_input: 4,
+        total: 24,
+      },
+      usageDetails: {
+        summary_input: 20,
+        summary_output: 8,
+        embedding_input: 4,
+        total: 32,
+      },
     });
+    expect(written.costDetails.total).toBeCloseTo(0.00001448, 12);
     state.stored.mockImplementation(async (_projectId, _filter, timeRange) =>
       new Date(written.unitStartTime) >= timeRange.from &&
       new Date(written.unitStartTime) < timeRange.to
@@ -175,7 +188,7 @@ describe("summarizeAssembledTrace", () => {
     );
   });
 
-  it("propagates a provider failure so the batch job can retry", async () => {
+  it("propagates a provider failure for the trace outcome", async () => {
     state.summarize.mockRejectedValue(new Error("provider unavailable"));
     await expect(
       summarizeAssembledTrace({

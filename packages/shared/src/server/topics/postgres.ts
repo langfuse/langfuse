@@ -69,9 +69,8 @@ export async function getTopicFacetVersion(
       version,
       evaluator: { projectId, type: "FACET" },
     },
-    include: { evaluator: { select: { projectId: true } } },
   });
-  return row ? facetVersion(row, row.evaluator.projectId) : null;
+  return row ? facetVersion(row, projectId) : null;
 }
 
 interface FacetVersionInput {
@@ -227,15 +226,14 @@ export async function saveTopicRule(
 ): Promise<TopicRule> {
   const facetIds = [...new Set(input.facetIds)];
   return prisma.$transaction(async (tx) => {
-    const facets = await tx.evaluator.findMany({
+    const facetCount = await tx.evaluator.count({
       where: {
         projectId: input.projectId,
         type: "FACET",
         id: { in: facetIds },
       },
-      select: { id: true },
     });
-    if (!facetIds.length || facets.length !== facetIds.length)
+    if (!facetIds.length || facetCount !== facetIds.length)
       throw new InvalidRequestError("Select facets from this project.");
     if (
       input.id &&
@@ -537,5 +535,7 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
       },
     });
   });
-  return (await hydrateRuns(run.projectId, [row]))[0];
+  return row.topicVersionIds.every((id) => saved.has(id))
+    ? runResult(row, saved)
+    : (await hydrateRuns(run.projectId, [row]))[0];
 }

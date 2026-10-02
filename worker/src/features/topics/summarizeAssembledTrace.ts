@@ -17,6 +17,7 @@ import { recordIncrement, type Transcript } from "@langfuse/shared/src/server";
 import { prepareAssembledTopicTranscript } from "./assembledTranscript";
 import { embedTopicSummary, summarizeTopicTrace } from "./models";
 import { TopicsProviderUnavailable } from "./provider-error";
+import { mergeTopicModelUsage, topicSummaryOutputError } from "./summaryResult";
 
 /**
  * Summarizes one trace from the transcript the batch job already assembled.
@@ -31,7 +32,7 @@ export async function summarizeAssembledTrace(input: {
   transcript: Transcript | null;
 }): Promise<"disabled" | "unchanged" | "summarized"> {
   if (!isTopicsProjectEnabled(input.projectId)) return "disabled";
-  const prepared = prepareAssembledTopicTranscript(input.transcript);
+  let prepared: ReturnType<typeof prepareAssembledTopicTranscript> | undefined;
   const facets = await ensureDefaultTopicFacets(input.projectId);
   const versions = facets.flatMap((facet) =>
     facet.projectId === input.projectId ? facet.versions.slice(0, 1) : [],
@@ -54,12 +55,8 @@ export async function summarizeAssembledTrace(input: {
       },
       timeRange,
     );
-    if (
-      stored.some(
-        (row) => row.traceId === input.traceId && row.state !== "summarized",
-      )
-    )
-      continue;
+    if (stored.length) continue;
+    if (!prepared) prepared = prepareAssembledTopicTranscript(input.transcript);
     const summary = await summarizeFacet({
       ...input,
       facet,
@@ -124,16 +121,8 @@ async function summarizeFacet(input: {
   );
   const applicable = result.output.status === "applicable";
   const summary = result.output.summary.trim();
-  if (applicable && (!summary || summary.length > 2000))
-    throw new TopicsProviderUnavailable(
-      "Applicable facet summary must contain a concise summary.",
-      "invalid_output",
-    );
-  if (!applicable && summary)
-    throw new TopicsProviderUnavailable(
-      "Non-applicable facet result contains a summary.",
-      "invalid_output",
-    );
+  const error = topicSummaryOutputError(result.output);
+  if (error) throw new TopicsProviderUnavailable(error, "invalid_output");
   if (!applicable) {
     return {
       ...base,
@@ -153,15 +142,6 @@ async function summarizeFacet(input: {
     state: "complete",
     summary,
     embedding: embedded.embedding,
-    providedUsageDetails: {
-      ...result.providedUsageDetails,
-      ...embedded.providedUsageDetails,
-    },
-    usageDetails: { ...result.usageDetails, ...embedded.usageDetails },
-    providedCostDetails: {
-      ...result.providedCostDetails,
-      ...embedded.providedCostDetails,
-    },
-    costDetails: { ...result.costDetails, ...embedded.costDetails },
+    ...mergeTopicModelUsage(result, embedded),
   };
 }

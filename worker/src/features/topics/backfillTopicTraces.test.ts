@@ -1,9 +1,26 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { QueueJobs } from "@langfuse/shared/src/server";
+import {
+  beforeAll,
+  beforeEach,
+  afterEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { randomUUID } from "node:crypto";
+import {
+  QueueJobs,
+  TraceBatchQueue,
+  createEvent,
+  createEventsCh,
+} from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
+import { selectTopicTraceRows } from "@langfuse/shared/topics/server";
 
 const enabled = vi.hoisted(() => vi.fn(() => true));
 
-vi.mock("@langfuse/shared/topics/server", () => ({
+vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
   isTopicsProjectEnabled: enabled,
 }));
 
@@ -46,67 +63,97 @@ describe("backfillSelectionFilters", () => {
   });
 });
 
-describe("enqueueTopicTraceBackfill", () => {
+describe("Topics trace selection and backfill", () => {
+  const projectId = randomUUID();
+  const addJob = vi.fn();
+  beforeAll(async () => {
+    await createEventsCh(
+      [
+        [projectId, "trace-new", "2026-09-23T09:00:00Z"],
+        [projectId, "trace-new", "2026-09-23T09:01:00Z"],
+        [projectId, "trace-old", "2026-09-23T08:00:00Z"],
+        [projectId, "trace-outside", "2026-09-24T00:00:00Z"],
+        [randomUUID(), "trace-foreign", "2026-09-23T10:00:00Z"],
+      ].map(([project, trace, timestamp]) =>
+        createEvent({
+          project_id: project,
+          trace_id: trace,
+          start_time: new Date(timestamp),
+          trace_name: "agent-turn",
+          environment: "test",
+          tags: ["billing"],
+        }),
+      ),
+    );
+  });
   beforeEach(() => {
     enabled.mockReturnValue(true);
+    addJob.mockReset();
+    vi.spyOn(TraceBatchQueue, "getInstance").mockReturnValue({
+      add: addJob,
+    } as never);
   });
+  afterEach(() => vi.restoreAllMocks());
 
-  it("lists the newest matches without enqueueing until apply", async () => {
-    const addJob = vi.fn();
+  it("deduplicates and orders bounded matches without enqueueing a dry run", async () => {
     const result = await enqueueTopicTraceBackfill({
-      projectId: "project",
-      selection,
+      projectId,
+      selection: { ...selection, limit: 1 },
       apply: false,
-      selectTraces: async () => ({
-        matchedTraceCount: 4,
-        traces: [
-          {
-            id: "trace-new",
-            timestamp: new Date("2026-09-23T09:00:00.000Z"),
-            latest: new Date("2026-09-23T09:01:00.000Z"),
-          },
-        ],
-      }),
-      addJob,
     });
-    expect(result).toMatchObject({
-      matched: 4,
+    expect(result).toEqual({
+      matched: 2,
       traceIds: ["trace-new"],
       enqueued: 0,
     });
     expect(addJob).not.toHaveBeenCalled();
   });
 
-  it("enqueues one trace-batch job per selected trace", async () => {
-    const addJob = vi.fn();
+  it("enqueues each selected trace with its matching observation time bounds", async () => {
     const result = await enqueueTopicTraceBackfill({
-      projectId: "project",
+      projectId,
       selection,
       apply: true,
-      selectTraces: async () => ({
-        matchedTraceCount: 1,
-        traces: [
-          {
-            id: "trace-new",
-            timestamp: new Date("2026-09-23T09:00:00.000Z"),
-            latest: new Date("2026-09-23T09:01:00.000Z"),
-          },
-        ],
-      }),
-      addJob,
     });
-    expect(result.enqueued).toBe(1);
-    expect(addJob).toHaveBeenCalledTimes(1);
+    expect(result.enqueued).toBe(2);
+    expect(addJob).toHaveBeenCalledTimes(2);
     const [name, data, options] = addJob.mock.calls[0];
     expect(name).toBe(QueueJobs.TraceBatch);
     expect(data.payload.traces).toEqual([
       expect.objectContaining({
-        projectId: "project",
+        projectId,
         traceId: "trace-new",
         minStart: Date.parse("2026-09-23T09:00:00.000Z"),
         maxStart: Date.parse("2026-09-23T09:01:00.000Z"),
       }),
     ]);
     expect(options.jobId).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("keeps preview, ID-only triggers and backfill sampling aligned", async () => {
+    const input = {
+      ...selection,
+      projectId,
+      sampling: "random" as const,
+      limit: 1,
+      filter: backfillSelectionFilters({
+        traceNames: ["agent-turn"],
+        tags: ["billing"],
+        extra: [],
+      }),
+    };
+    const [preview, ids, backfill] = await Promise.all([
+      selectTopicTraceRows(input, prisma, "preview"),
+      selectTopicTraceRows(input, prisma, "ids"),
+      selectTopicTraceRows(input, prisma, "backfill"),
+    ]);
+    expect(preview).toHaveLength(1);
+    expect(preview[0]).toMatchObject({
+      name: "agent-turn",
+      environment: "test",
+    });
+    expect(Number(preview[0].matchedTraceCount)).toBe(2);
+    expect(ids).toEqual([{ id: preview[0].id }]);
+    expect(backfill.map(({ id }) => id)).toEqual(ids.map(({ id }) => id));
   });
 });

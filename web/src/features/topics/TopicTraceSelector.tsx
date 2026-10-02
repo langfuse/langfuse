@@ -27,6 +27,13 @@ import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
 import { DateRangeInput } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/components/DateRangeInput/DateRangeInput";
 import { parseTraceInput } from "./parse-trace-input";
+import {
+  isValidTopicTimeRange,
+  relativeTopicTimeRange,
+  topicCalendarDates,
+  topicCalendarRange,
+  topicTimeRangePresets,
+} from "./time-range";
 
 type PreviewInput = RouterInputs["topics"]["previewTraces"];
 type TracePreview = RouterOutputs["topics"]["previewTraces"]["traces"][number];
@@ -39,39 +46,24 @@ type TopicTraceSelection = { count: number } & (
       >["selection"];
     }
 );
-const DAY = 86_400_000;
 const registry = { ...RULE_FIELD_REGISTRY, aiFilterPrompt: false };
-const windows = [
-  { id: "1", label: "Last 24 hours" },
-  { id: "7", label: "Last 7 days" },
-  { id: "30", label: "Last 30 days" },
-  { id: "90", label: "Last 90 days" },
-  { id: "custom", label: "Custom range" },
-];
-
-function calendarRange(from: string, to: string) {
-  const end = new Date(`${to}T00:00:00`);
-  end.setDate(end.getDate() + 1);
-  return { from: new Date(`${from}T00:00:00`), to: end };
-}
 
 export function useTopicTraceSelector({
   projectId,
   onOpenTrace,
   enabled,
+  filterOptionsEnabled,
 }: {
   projectId: string;
   onOpenTrace: () => void;
   enabled: boolean;
+  filterOptionsEnabled: boolean;
 }) {
   const [mode, setMode] = useState("filters");
   const [filterMode, setFilterMode] = useState<"builder" | "query">("builder");
   const [filter, setFilter] = useState<FilterState>([]);
   const [timeWindow, setTimeWindow] = useState("7");
-  const [range, setRange] = useState(() => {
-    const to = new Date();
-    return { from: new Date(to.getTime() - 7 * DAY), to };
-  });
+  const [range, setRange] = useState(() => relativeTopicTimeRange(7));
   const [sample, setSample] = useState(false);
   const [limit, setLimit] = useState("100");
   const [sampling, setSampling] = useState<"random" | "latest">("random");
@@ -79,21 +71,18 @@ export function useTopicTraceSelector({
   const [request, setRequest] = useState<PreviewInput | null>(null);
   const [excluded, setExcluded] = useState<string[]>([]);
   const reset = (filter: FilterState = []) => {
-    const to = new Date();
     setMode("filters");
     setFilterMode("builder");
     setFilter(filter);
     setTimeWindow("7");
-    setRange({ from: new Date(to.getTime() - 7 * DAY), to });
+    setRange(relativeTopicTimeRange(7));
     setPaste("");
     setRequest(null);
     setExcluded([]);
   };
   const validLimit =
     !sample || (Number.isSafeInteger(Number(limit)) && Number(limit) >= 1);
-  const validRange =
-    range.from < range.to &&
-    range.to.getTime() - range.from.getTime() <= 93 * DAY;
+  const validRange = isValidTopicTimeRange(range);
   const preview = api.topics.previewTraces.useQuery(
     request ?? {
       projectId,
@@ -167,7 +156,8 @@ export function useTopicTraceSelector({
       "experimentDatasetId",
       "experimentId",
     ],
-    enabled: enabled && mode === "filters" && validRange,
+    enabled:
+      enabled && filterOptionsEnabled && mode === "filters" && validRange,
   });
   const observed = toObservedOptions(
     options.filterOptions,
@@ -221,28 +211,16 @@ export function useTopicTraceSelector({
               <SelectInput
                 aria-label="Trace time range"
                 placeholder="Time range"
-                options={windows.map((item) => ({
-                  value: item.id,
-                  label: item.label,
-                }))}
+                options={topicTimeRangePresets}
                 value={timeWindow}
                 onValueChange={(value) => {
                   setTimeWindow(value);
                   setRequest(null);
-                  if (value !== "custom") {
-                    const to = new Date();
-                    setRange({
-                      from: new Date(to.getTime() - Number(value) * DAY),
-                      to,
-                    });
-                  } else {
-                    setRange(
-                      calendarRange(
-                        format(range.from, "yyyy-MM-dd"),
-                        format(range.to, "yyyy-MM-dd"),
-                      ),
-                    );
-                  }
+                  setRange(
+                    value === "custom"
+                      ? topicCalendarRange(topicCalendarDates(range))
+                      : relativeTopicTimeRange(Number(value)),
+                  );
                 }}
               />
             </label>
@@ -293,15 +271,12 @@ export function useTopicTraceSelector({
           </div>
           {timeWindow === "custom" && (
             <DateRangeInput
-              value={{
-                from: format(range.from, "yyyy-MM-dd"),
-                to: format(new Date(range.to.getTime() - 1), "yyyy-MM-dd"),
-              }}
+              value={topicCalendarDates(range)}
               max={format(new Date(), "yyyy-MM-dd")}
               fromAriaLabel="Trace start date"
               toAriaLabel="Trace end date"
               onValueChange={(value) => {
-                setRange(calendarRange(value.from, value.to));
+                setRange(topicCalendarRange(value));
                 setRequest(null);
               }}
             />

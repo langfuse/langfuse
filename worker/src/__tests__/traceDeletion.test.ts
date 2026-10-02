@@ -86,7 +86,7 @@ describe("trace deletion", () => {
     expect(scores).toHaveLength(0);
   });
 
-  it("deletes all Topics results for selected traces without affecting other traces or projects", async ({
+  it("deletes Topics results while processing is disabled without affecting other traces or projects", async ({
     onTestFinished,
   }) => {
     // The built Topics entrypoint reads the CommonJS env singleton.
@@ -97,7 +97,7 @@ describe("trace deletion", () => {
     onTestFinished(() => {
       sharedEnv.LANGFUSE_TOPICS_ENABLED = originalTopicsEnabled;
     });
-    sharedEnv.LANGFUSE_TOPICS_ENABLED = "true";
+    sharedEnv.LANGFUSE_TOPICS_ENABLED = "false";
 
     const { projectId } = await createOrgProjectAndApiKey();
     const otherProjectId = randomUUID();

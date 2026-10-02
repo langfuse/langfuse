@@ -76,7 +76,10 @@
     range; replacement includes the source minute, with run/origin suffixes
     for assignments. Definition bounds retain original creation dates on reuse.
   - `journal.ts`: one BatchAction per request, compact counters and run references.
+    Writes accept progress only; immutable settings stay in the stored request.
     Trace inputs and paid outputs belong outside the journal.
+  - `trace-selection.ts`: shared bounded observation selection for web previews,
+    ID-only processing requests and worker backfills; retain identical sampling.
   - `embedding-queue.ts`: Redis staging with a fixed expiry; retain accepted
     payloads through assignment and save terminal job state before cleanup.
     Summary references carry facet/version/source fields within project and
@@ -88,8 +91,9 @@
     Historical reuse must match `TOPICS_TRANSCRIPT_VERSION`; accepted Redis results
     retain their original version. Token counting belongs to worker model calls.
   - `LANGFUSE_TOPICS_ENABLED` defaults to false and gates deployment availability,
-    including cleanup. Processing also requires `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`
-    (empty by default); reads/configuration remain feature-flag/RBAC controlled.
+    while trace/project cleanup always runs. Processing also requires
+    `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` (empty by default);
+    reads/configuration remain feature-flag/RBAC controlled.
 
 - `src/server/transcript`: order minimal `TranscriptObservation` inputs with
   `orderObservations`, then pass the enriched result and optional

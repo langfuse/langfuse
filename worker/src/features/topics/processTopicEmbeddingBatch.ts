@@ -9,24 +9,11 @@ import {
 } from "@langfuse/shared/topics/server";
 import { embedTopicSummary } from "./models";
 import { TopicMetrics } from "./metrics";
+import { mergeTopicModelUsage } from "./summaryResult";
 import {
   topicProviderError,
   TopicsProviderUnavailable,
 } from "./provider-error";
-
-function mergeDetails(
-  summary: Record<string, number>,
-  embedding: Record<string, number>,
-): Record<string, number> {
-  const details = { ...summary, ...embedding };
-  if (Object.keys(details).length)
-    details.total =
-      (summary.total ??
-        Object.values(summary).reduce((sum, value) => sum + value, 0)) +
-      (embedding.total ??
-        Object.values(embedding).reduce((sum, value) => sum + value, 0));
-  return details;
-}
 
 /** Acknowledging a batch means every result is durably stored in ClickHouse. */
 export async function processTopicEmbeddingBatch(
@@ -56,16 +43,7 @@ export async function processTopicEmbeddingBatch(
           ...summary,
           state: "complete",
           embedding: result.embedding,
-          providedUsageDetails: mergeDetails(
-            summary.providedUsageDetails,
-            result.providedUsageDetails,
-          ),
-          usageDetails: mergeDetails(summary.usageDetails, result.usageDetails),
-          providedCostDetails: mergeDetails(
-            summary.providedCostDetails,
-            result.providedCostDetails,
-          ),
-          costDetails: mergeDetails(summary.costDetails, result.costDetails),
+          ...mergeTopicModelUsage(summary, result),
           processedAt: new Date().toISOString(),
         };
         metrics.result("embedding", "generated");

@@ -24,6 +24,8 @@ import {
   listTopicRules,
   saveTopicRule,
   createTopicExecution,
+  readTopicExecutionSummary,
+  writeTopicExecution,
   createTopicRun,
   getTopicRun,
   saveTopicRun,
@@ -221,6 +223,17 @@ describe("Topics eval-backed configuration", () => {
     ]);
     expect(replay.id).toBe(first.id);
     expect(replay.facets[0]?.runId).toBe(first.facets[0]?.runId);
+    const progress = (await readTopicExecutionSummary(projectId, first.id))!;
+    await writeTopicExecution({
+      ...progress,
+      status: "running",
+      phase: "clustering",
+    });
+    expect(await readTopicExecutionSummary(projectId, first.id)).toMatchObject({
+      input,
+      status: "running",
+      phase: "clustering",
+    });
     expect(
       await prisma.topicClusteringRun.count({
         where: { projectId, facetId: facet.id },

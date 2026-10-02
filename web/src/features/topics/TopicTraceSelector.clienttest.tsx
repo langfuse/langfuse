@@ -62,6 +62,7 @@ function TraceSelector({ onOpenTrace }: { onOpenTrace: () => void }) {
     projectId: "project",
     onOpenTrace,
     enabled: true,
+    filterOptionsEnabled: true,
   });
   return (
     <>
@@ -118,6 +119,7 @@ beforeEach(() => {
 afterEach(() => {
   HTMLElement.prototype.scrollIntoView = scrollIntoView;
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe("Topics trace selection", () => {
@@ -223,35 +225,42 @@ describe("Topics trace selection", () => {
     });
   });
 
-  it("previews all of the displayed custom dates using an exclusive next-day boundary", async () => {
-    mocks.fetch.mockResolvedValue(result("trace-a"));
-    setup();
-    fireEvent.keyDown(screen.getByLabelText("Trace time range"), {
-      key: "ArrowDown",
-    });
-    fireEvent.keyDown(
-      await screen.findByRole("option", { name: "Custom range" }),
-      { key: "Enter" },
-    );
-    const from = (screen.getByLabelText("Trace start date") as HTMLInputElement)
-      .value;
-    const to = (screen.getByLabelText("Trace end date") as HTMLInputElement)
-      .value;
-    fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
-    await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(1));
-    const expectedEnd = new Date(`${to}T00:00:00`);
-    expectedEnd.setDate(expectedEnd.getDate() + 1);
-    expect(mocks.fetch.mock.calls[0][0]).toMatchObject({
-      from: new Date(`${from}T00:00:00`),
-      to: expectedEnd,
-    });
-    fireEvent.change(screen.getByLabelText("Trace end date"), {
-      target: { value: from },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
-    await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(2));
-    const singleDayEnd = new Date(`${from}T00:00:00`);
-    singleDayEnd.setDate(singleDayEnd.getDate() + 1);
-    expect(mocks.fetch.mock.calls[1][0].to).toEqual(singleDayEnd);
-  });
+  it.each([
+    { hour: 0, endDate: "2026-09-30", endDay: 1 },
+    { hour: 14, endDate: "2026-10-01", endDay: 2 },
+  ])(
+    "preserves an exclusive boundary at $hour:00 when switching to custom dates",
+    async ({ hour, endDate, endDay }) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(2026, 9, 1, hour));
+      mocks.fetch.mockResolvedValue(result("trace-a"));
+      setup();
+      fireEvent.keyDown(screen.getByLabelText("Trace time range"), {
+        key: "ArrowDown",
+      });
+      fireEvent.keyDown(
+        await screen.findByRole("option", { name: "Custom range" }),
+        { key: "Enter" },
+      );
+      const from = (
+        screen.getByLabelText("Trace start date") as HTMLInputElement
+      ).value;
+      expect(from).toBe("2026-09-24");
+      expect(screen.getByLabelText("Trace end date")).toHaveValue(endDate);
+      fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
+      await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(1));
+      expect(mocks.fetch.mock.calls[0][0]).toMatchObject({
+        from: new Date(`${from}T00:00:00`),
+        to: new Date(2026, 9, endDay),
+      });
+      fireEvent.change(screen.getByLabelText("Trace end date"), {
+        target: { value: from },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
+      await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(2));
+      const singleDayEnd = new Date(`${from}T00:00:00`);
+      singleDayEnd.setDate(singleDayEnd.getDate() + 1);
+      expect(mocks.fetch.mock.calls[1][0].to).toEqual(singleDayEnd);
+    },
+  );
 });

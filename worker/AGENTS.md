@@ -21,8 +21,8 @@
   storage, numerical fitting, model configuration or retry behavior.
   `topics` processes traces; `topics-update` fits stored summaries;
   `topics-embedding` embeds staged results. `LANGFUSE_TOPICS_ENABLED` gates queue
-  registration and Topics cleanup. Processors also enforce
-  `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`; cleanup remains independent of this list.
+  registration. Processors also enforce `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`;
+  trace and project cleanup run independently of both gates.
   Paid results are staged before retryable
   persistence, and unchanged embedding waits must read only Redis queue state.
   Summary references use source fields; preserve `summaryProcessedAt` checks

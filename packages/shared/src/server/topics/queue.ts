@@ -112,15 +112,14 @@ export async function getTopicExecutionQueueState(
 export async function enqueueTopicExecution(
   projectId: string,
   executionId: string,
-  operation: TopicOperation,
   traceIds?: string[],
 ): Promise<void> {
+  const execution = await readTopicExecutionSummary(projectId, executionId);
+  if (!execution) throw new Error("Topics execution scope mismatch.");
+  const operation = execution.input.operation;
   const queue = executionQueue(operation);
   if (!queue)
     throw new Error("Topics requires the local development server and Redis.");
-  const execution = await readTopicExecutionSummary(projectId, executionId);
-  if (!execution || execution.input.operation !== operation)
-    throw new Error("Topics execution scope mismatch.");
   if (
     execution.status === "completed" ||
     (execution.status === "completed_with_errors" &&
@@ -248,12 +247,11 @@ export async function recordTopicProcessBatchProgress(
     ),
   };
   for (const facet of local.facets) {
+    const prefix = `${JSON.stringify([facet.facetId, facet.facetVersion])}:`;
     for (const [name, value] of Object.entries(facet.counts))
-      values[`${JSON.stringify([facet.facetId, facet.facetVersion])}:${name}`] =
-        value;
-    values[
-      `${JSON.stringify([facet.facetId, facet.facetVersion])}:outcome:${facet.outcome}`
-    ] = 1;
+      if (name !== "requested") values[prefix + name] = value;
+    if (["failed", "assigned", "awaiting_topics"].includes(facet.outcome))
+      values[prefix + "outcome:" + facet.outcome] = 1;
   }
   const keys = progressKeys(local.projectId, local.id);
   if (execution.status !== "queued" && (await redis.exists(...keys)) !== 2)

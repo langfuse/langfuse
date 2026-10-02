@@ -281,7 +281,7 @@ describe("Topics journal application contract", () => {
     });
   });
 
-  it("ignores stale aggregate snapshots and rejects mutated execution settings", async () => {
+  it("ignores stale aggregate snapshots and rejects changes to the execution facets", async () => {
     const created = await createTopicExecution(input, undefined, "user-a");
     const progress = (await readTopicExecutionSummary(
       input.projectId,
@@ -308,21 +308,6 @@ describe("Topics journal application contract", () => {
       phase: "embedding",
       facets: newer.facets,
     });
-    await expect(
-      writeTopicExecution(
-        {
-          ...newer,
-          input: {
-            ...newer.input,
-            embeddingConfig: {
-              ...newer.input.embeddingConfig,
-              embeddingDimensions: 512,
-            },
-          },
-        },
-        3,
-      ),
-    ).rejects.toThrow("settings cannot change");
     await expect(
       writeTopicExecution({ ...newer, facets: newer.facets.slice(0, 1) }, 3),
     ).rejects.toThrow("facets cannot change");

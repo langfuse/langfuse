@@ -158,7 +158,6 @@ async function recoverExecutionState(execution: TopicExecutionSummary) {
 type TopicMap = {
   status: "ready" | "unavailable";
   reason: string | null;
-  runId: string | null;
   missingSummaryCount: number;
   points: {
     traceId: string;
@@ -181,7 +180,6 @@ async function publishedTopicMap(input: {
   const unavailable: TopicMap = {
     status: "unavailable",
     reason: "This map has not been published.",
-    runId: run.id,
     missingSummaryCount: 0,
     points: [],
     unpositionedCount: 0,
@@ -263,7 +261,6 @@ async function publishedTopicMap(input: {
   return {
     status: "ready",
     reason: null,
-    runId: run.id,
     missingSummaryCount: discoveryAssignments.length - points.length,
     points,
     unpositionedCount: byTraceId.size - points.length,
@@ -363,11 +360,7 @@ export const topicsRouter = createTRPCRouter({
       );
       if (existing) {
         if (existing.status === "queued")
-          await enqueueTopicExecution(
-            input.projectId,
-            existing.id,
-            existing.input.operation,
-          );
+          await enqueueTopicExecution(input.projectId, existing.id);
         return { id: existing.id };
       }
       const ruleId = input.operation === "process" ? input.ruleId : undefined;
@@ -407,7 +400,6 @@ export const topicsRouter = createTRPCRouter({
         await enqueueTopicExecution(
           input.projectId,
           execution.id,
-          execution.input.operation,
           execution.input.operation === "process"
             ? execution.input.traceIds
             : undefined,
@@ -429,11 +421,7 @@ export const topicsRouter = createTRPCRouter({
         throw new InvalidRequestError(
           "Only failed or interrupted executions can be resumed.",
         );
-      await enqueueTopicExecution(
-        input.projectId,
-        execution.id,
-        execution.input.operation,
-      );
+      await enqueueTopicExecution(input.projectId, execution.id);
     }),
   map: topicsProcedure
     .input(mapInput)

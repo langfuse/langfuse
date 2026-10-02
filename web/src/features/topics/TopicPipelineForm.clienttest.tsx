@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   saveRule: vi.fn(),
   summaryCounts: vi.fn(),
   onTriggered: vi.fn(),
+  filterOptions: vi.fn(),
 }));
 const rule = {
   id: "rule",
@@ -66,10 +67,10 @@ vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
   usePeekNavigation: () => ({ openPeek: vi.fn() }),
 }));
 vi.mock("@/src/features/events/hooks/useEventsFilterOptions", () => ({
-  useEventsFilterOptions: () => ({
-    filterOptions: {},
-    isFilterOptionsPending: false,
-  }),
+  useEventsFilterOptions: (options: unknown) => {
+    mocks.filterOptions(options);
+    return { filterOptions: {}, isFilterOptionsPending: false };
+  },
 }));
 vi.mock("@/src/features/search-bar", () => ({
   TableSearchBar: () => null,
@@ -182,7 +183,13 @@ afterEach(() => {
 it("processes pasted IDs and reviewed rule selections, invalidating edited criteria until reviewed again", async () => {
   setup();
   expect(processButton()).toBeDisabled();
+  expect(mocks.filterOptions).toHaveBeenLastCalledWith(
+    expect.objectContaining({ enabled: false }),
+  );
   click("Configure topics");
+  expect(mocks.filterOptions).toHaveBeenLastCalledWith(
+    expect.objectContaining({ enabled: true }),
+  );
   fireEvent.click(screen.getByRole("checkbox", { name: "Sample traces" }));
   fireEvent.change(screen.getByLabelText("Maximum traces"), {
     target: { value: "50" },
@@ -244,6 +251,9 @@ it("processes pasted IDs and reviewed rule selections, invalidating edited crite
   );
   fireEvent.click(screen.getByRole("link", { name: "trace-a" }));
   expect(screen.queryByRole("dialog")).toBeNull();
+  expect(mocks.filterOptions).toHaveBeenLastCalledWith(
+    expect.objectContaining({ enabled: false }),
+  );
   const selection = {
     filter: rule.filter,
     from: request.from,

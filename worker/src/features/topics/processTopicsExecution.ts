@@ -59,6 +59,7 @@ import {
 } from "./numeric";
 import { matchTopicContinuity } from "./continuity";
 import { TopicMetrics } from "./metrics";
+import { topicSummaryOutputError } from "./summaryResult";
 
 type ProcessExecution = TopicExecution & {
   input: Extract<TopicExecution["input"], { operation: "process" }>;
@@ -188,22 +189,8 @@ async function summarizeTrace(
         JSON.stringify(transcript),
         execution.input.processingConfig,
       );
-      const applicable = result.output.status === "applicable";
-      if (
-        applicable &&
-        (!result.output.summary.trim() || result.output.summary.length > 2000)
-      )
-        throw invalidOutput(
-          metrics,
-          "summary",
-          "Applicable facet summary must contain a concise summary.",
-        );
-      if (!applicable && result.output.summary.trim())
-        throw invalidOutput(
-          metrics,
-          "summary",
-          "Non-applicable facet result contains a summary.",
-        );
+      const error = topicSummaryOutputError(result.output);
+      if (error) throw invalidOutput(metrics, "summary", error);
       return result;
     });
     metrics.result(
@@ -651,7 +638,6 @@ async function clusterFacet(
           group.members.map((summary, index) => [`m${index + 1}`, summary]),
         );
         const { output: label } = await nameTopicGroup({
-          ...group,
           members: Array.from(members, ([id, { summary }]) => ({
             id,
             summary,

@@ -16,7 +16,6 @@ type TopicStage =
 type TopicResult =
   | "generated"
   | "cached"
-  | "reused"
   | "not_applicable"
   | "insufficient_input"
   | "topics_found"

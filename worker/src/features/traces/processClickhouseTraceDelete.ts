@@ -13,14 +13,13 @@ import {
 import { env, v4WritesToEventsTable } from "../../env";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
-import { isTopicsEnabled } from "@langfuse/shared/topics/server";
 import { chunk } from "lodash";
 
 const deleteTopicResultsForTraces = async (
   projectId: string,
   traceIds: string[],
 ): Promise<void> => {
-  if (!isTopicsEnabled() || !traceIds.length) return;
+  if (!traceIds.length) return;
 
   await Promise.all(
     ["topic_facet_summaries", "topic_assignments"].map(async (table) => {

@@ -134,7 +134,7 @@ export function TopicEmbeddingMap({
     );
   return (
     <EmbeddingMapView
-      key={query.data.runId}
+      key={runId}
       projectId={projectId}
       data={query.data}
       topics={topics}

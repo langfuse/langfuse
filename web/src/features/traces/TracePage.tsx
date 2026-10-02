@@ -52,8 +52,7 @@ export function TracePage({
 
   if (!trace.data) return <div className="p-3">Loading...</div>;
 
-  const traceData = trace.data;
-  const isSharedTrace = traceData.public;
+  const isSharedTrace = trace.data.public;
   const showPublicIndicators = isSharedTrace && !hasProjectAccess;
   const encodedTargetPath = encodeURIComponent(
     stripBasePath(router.asPath || "/"),
@@ -99,7 +98,7 @@ export function TracePage({
   return (
     <Page
       headerProps={{
-        title: traceData.id,
+        title: trace.data.id,
         itemType: "TRACE",
         divider: false,
         breadcrumb: [
@@ -140,7 +139,7 @@ export function TracePage({
               compact
             />
             <TraceDetailActions
-              trace={traceData}
+              trace={trace.data}
               traceContext={traceContext}
               timestamp={timestamp}
               deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
@@ -152,7 +151,7 @@ export function TracePage({
         // inline icon toolbar. Trace-to-trace nav is desktop-only.
         actionButtonsMenu: (
           <TraceDetailActions
-            trace={traceData}
+            trace={trace.data}
             traceContext={traceContext}
             timestamp={timestamp}
             deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
@@ -163,7 +162,7 @@ export function TracePage({
     >
       <div className="flex max-h-full min-h-0 flex-1 overflow-hidden">
         <TraceDetailBody
-          trace={traceData}
+          trace={trace.data}
           context={traceContext}
           truncatedAtObservations={trace.truncatedAtObservations}
         />

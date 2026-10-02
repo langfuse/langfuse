@@ -29,6 +29,8 @@
   Trigger/retry also requires `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`; reads/configuration
   use the `langfuseTopics` flag and project permissions. Storage, retry and setup
   details: `../worker/src/features/topics/README.md`.
+  Preview and trigger selection share `topics/server`'s bounded trace selector
+  with worker backfills; preserve sampling and the frozen submission range.
   The source inspector returns `loadTopicTranscript`'s shared `Transcript | null`
   directly, using the same character cap as worker inference.
 - Reusable UI components: `src/components/*`
@@ -229,7 +231,8 @@ Sentry instrumentation skill first and decide whether it should capture at all
   `pnpm exec dotenv -e .env.test -e .env -- pnpm --filter web run dev`.
 - Preserve the server-test project split in `vitest.config.mts`. Most tests
   consume the built `@langfuse/shared` package; only tests importing
-  `@langfuse/shared/in-app-agent` or `@langfuse/shared/src/env` use the
+  `@langfuse/shared/in-app-agent`, `@langfuse/shared/topics`, or
+  `@langfuse/shared/src/env` use the
   `server-shared-source*` projects. Do not move `sharedSourceResolve` back to
   the root config: applying those aliases globally increased server-test
   transforms/imports and made Vitest about 27–30% slower. The integration and

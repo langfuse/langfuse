@@ -26,7 +26,6 @@ it("fits a tall cohort across the landscape plot while preserving pairwise dista
   }));
   query.data = {
     status: "ready",
-    runId: "run",
     missingSummaryCount: 0,
     unpositionedCount: 0,
     points,

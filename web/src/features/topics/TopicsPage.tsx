@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { addDays, format, startOfDay } from "date-fns";
+import { format } from "date-fns";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
@@ -41,6 +41,13 @@ import {
 } from "@langfuse/shared/topics";
 import { useTopicPipelineForm } from "./TopicPipelineForm";
 import { CurrentTopics } from "./CurrentTopics";
+import {
+  isValidTopicTimeRange,
+  relativeTopicTimeRange,
+  topicCalendarDates,
+  topicCalendarRange,
+  topicTimeRangePresets,
+} from "./time-range";
 
 const operationLabels: Record<TopicOperation, string> = {
   process: "Process traces",
@@ -112,13 +119,8 @@ function TopicsWorkspaceView({
 }) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [timeWindow, setTimeWindow] = useState("7");
-  const [timeRange, setTimeRange] = useState(() => {
-    const to = new Date();
-    return { from: new Date(to.getTime() - 7 * 86_400_000), to };
-  });
-  const validTimeRange =
-    timeRange.from < timeRange.to &&
-    timeRange.to.getTime() - timeRange.from.getTime() <= 93 * 86_400_000;
+  const [timeRange, setTimeRange] = useState(() => relativeTopicTimeRange(7));
+  const validTimeRange = isValidTopicTimeRange(timeRange);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
     isV4: false,
@@ -165,18 +167,10 @@ function TopicsWorkspaceView({
   const currentTimeRange =
     timeWindow === "custom" || !Number.isFinite(rangeEnd)
       ? timeRange
-      : {
-          from: new Date(rangeEnd - Number(timeWindow) * 86_400_000),
-          to: new Date(rangeEnd),
-        };
+      : relativeTopicTimeRange(Number(timeWindow), new Date(rangeEnd));
   const refreshResults = () => {
-    if (timeWindow !== "custom") {
-      const to = new Date();
-      setTimeRange({
-        from: new Date(to.getTime() - Number(timeWindow) * 86_400_000),
-        to,
-      });
-    }
+    if (timeWindow !== "custom")
+      setTimeRange(relativeTopicTimeRange(Number(timeWindow)));
     utils.topics.currentResults.invalidate({ projectId });
   };
   const openExecution = (id: string) => {
@@ -248,47 +242,24 @@ function TopicsWorkspaceView({
             aria-label="Topics time range"
             placeholder="Topics time range"
             value={timeWindow}
-            options={[
-              { value: "1", label: "Last 24 hours" },
-              { value: "7", label: "Last 7 days" },
-              { value: "30", label: "Last 30 days" },
-              { value: "90", label: "Last 90 days" },
-              { value: "custom", label: "Custom range" },
-            ]}
+            options={topicTimeRangePresets}
             onValueChange={(value) => {
               setTimeWindow(value);
-              if (value === "custom") {
-                setTimeRange({
-                  from: startOfDay(currentTimeRange.from),
-                  to: addDays(
-                    startOfDay(new Date(currentTimeRange.to.getTime() - 1)),
-                    1,
-                  ),
-                });
-                return;
-              }
-              const to = new Date();
-              setTimeRange({
-                from: new Date(to.getTime() - Number(value) * 86_400_000),
-                to,
-              });
+              setTimeRange(
+                value === "custom"
+                  ? topicCalendarRange(topicCalendarDates(currentTimeRange))
+                  : relativeTopicTimeRange(Number(value)),
+              );
             }}
           />
         </label>
         {timeWindow === "custom" && (
           <DateRangeInput
-            value={{
-              from: format(timeRange.from, "yyyy-MM-dd"),
-              to: format(new Date(timeRange.to.getTime() - 1), "yyyy-MM-dd"),
-            }}
+            value={topicCalendarDates(timeRange)}
             max={format(new Date(), "yyyy-MM-dd")}
             fromAriaLabel="Topics start date"
             toAriaLabel="Topics end date"
-            onValueChange={({ from, to }) => {
-              const end = new Date(`${to}T00:00:00`);
-              end.setDate(end.getDate() + 1);
-              setTimeRange({ from: new Date(`${from}T00:00:00`), to: end });
-            }}
+            onValueChange={(value) => setTimeRange(topicCalendarRange(value))}
           />
         )}
         <p className="text-muted-foreground text-sm">
@@ -379,10 +350,7 @@ function TopicsWorkspaceView({
           <CurrentTopics
             projectId={projectId}
             timeRange={currentTimeRange}
-            refreshAfter={Math.max(
-              executions.dataUpdatedAt,
-              selectedExecution.dataUpdatedAt,
-            )}
+            refreshAfter={completedAt}
             running={
               Boolean(
                 executions.data?.some((execution) => busy(execution.status)),

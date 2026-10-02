@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   inHistory: true,
   executionsUpdatedAt: 100,
   executionUpdatedAt: 110,
+  updatedAt: "2026-09-23T12:00:00Z",
   configured: false,
   push: vi.fn(),
   replace: vi.fn(),
@@ -97,7 +98,7 @@ vi.mock("@/src/utils/api", () => {
     status: state.status,
     phase: state.status === "queued" ? "queued" : "summarizing",
     createdAt: "2026-09-23T12:00:00Z",
-    updatedAt: "2026-09-23T12:00:00Z",
+    updatedAt: state.updatedAt,
     input: {
       operation: "process",
       embeddingConfig: { embeddingDimensions: 1024 },
@@ -206,6 +207,7 @@ beforeEach(() => {
   state.inHistory = true;
   state.executionsUpdatedAt = 100;
   state.executionUpdatedAt = 110;
+  state.updatedAt = "2026-09-23T12:00:00Z";
   state.configured = false;
   for (const navigate of [state.push, state.replace]) {
     navigate.mockImplementation(({ query }: { query: typeof state.query }) => {
@@ -407,12 +409,18 @@ describe("Topics execution history", () => {
     );
     const current = screen.getByTestId("current-topics");
     expect(current).toHaveAttribute("data-running", "true");
-    expect(current).toHaveAttribute("data-refresh-after", "120");
+    expect(current).toHaveAttribute("data-refresh-after", "0");
 
     state.status = "completed";
+    state.updatedAt = "2026-09-23T12:01:00Z";
     state.executionUpdatedAt = 130;
     view.rerender(<TopicsPage />);
     expect(current).toHaveAttribute("data-running", "false");
-    expect(current).toHaveAttribute("data-refresh-after", "130");
+    const completedAt = String(new Date(state.updatedAt).getTime());
+    expect(current).toHaveAttribute("data-refresh-after", completedAt);
+
+    state.executionUpdatedAt = 140;
+    view.rerender(<TopicsPage />);
+    expect(current).toHaveAttribute("data-refresh-after", completedAt);
   });
 });

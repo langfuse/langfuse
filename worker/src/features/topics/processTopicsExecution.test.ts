@@ -532,9 +532,9 @@ beforeEach(() => {
     coordinates: vectors.map((vector) => vector.slice(0, 2)),
   }));
   state.name.mockImplementation(
-    async (group: { id: string; members: { id: string }[] }) => ({
+    async (group: { members: { id: string; summary: string }[] }) => ({
       output: {
-        name: `Topic ${group.id.slice(0, 8)}`,
+        name: `Topic ${group.members[0].summary}`,
         description: "Observed member interactions.",
         evidenceSummaryIds: [group.members[0].id],
       },

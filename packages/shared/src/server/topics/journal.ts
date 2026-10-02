@@ -286,7 +286,10 @@ export async function listTopicExecutions(
 }
 
 export async function writeTopicExecution(
-  execution: TopicExecutionSummary,
+  execution: Pick<
+    TopicExecutionSummary,
+    "id" | "projectId" | "status" | "phase" | "facets" | "error"
+  >,
   progressVersion?: number,
 ): Promise<void> {
   const { projectId, id } = execution;
@@ -295,8 +298,6 @@ export async function writeTopicExecution(
     const current = await storedExecution(projectId, id, tx);
     if (!current) throw new Error("Topics execution does not exist.");
     const state = batchMetadata(current);
-    if (hash(state.inputSettings) !== hash(execution.input))
-      throw new Error("Topics execution settings cannot change.");
     if (
       progressVersion !== undefined &&
       progressVersion <= (state.progressVersion ?? 0)
@@ -320,7 +321,7 @@ export async function writeTopicExecution(
     let failedCount = facets.every((facet) => facet.counts.failed === 0)
       ? 0
       : null;
-    if (execution.input.operation === "update") {
+    if (state.inputSettings.operation === "update") {
       processedCount = facets.filter(
         (facet) => facet.outcome !== "pending",
       ).length;

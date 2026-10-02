@@ -1,6 +1,5 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
-import type * as sharedServer from "@langfuse/shared/src/server";
 import type * as topicsServer from "@langfuse/shared/topics/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -39,11 +38,17 @@ const mocks = vi.hoisted(() => ({
   getTopicExecutionQueueState: vi.fn(),
   queryClickhouse: vi.fn(),
 }));
-vi.mock("@langfuse/shared/topics/server", () => mocks);
-vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
-  ...(await importOriginal<typeof sharedServer>()),
-  queryClickhouse: mocks.queryClickhouse,
-}));
+vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
+  const { selectTopicTraceRows } = await importOriginal<typeof topicsServer>();
+  return { ...mocks, selectTopicTraceRows };
+});
+vi.mock(
+  "@langfuse/shared/src/server/repositories/clickhouse",
+  async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
+    queryClickhouse: mocks.queryClickhouse,
+  }),
+);
 vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
   recordBackendActivity: vi.fn(async () => undefined),
 }));
@@ -389,7 +394,6 @@ describe("Topics filtered trace preview", () => {
     expect(mocks.enqueueTopicExecution).toHaveBeenCalledWith(
       projectId,
       "execution-a",
-      "process",
       resolved.traceIds,
     );
     expect(resolved).not.toHaveProperty("selection");
@@ -909,7 +913,6 @@ describe("Topics local execution access and publication", () => {
     expect(mocks.enqueueTopicExecution).toHaveBeenCalledWith(
       projectId,
       interrupted.id,
-      interrupted.input.operation,
     );
   });
 
@@ -1024,7 +1027,7 @@ describe("Topics current results", () => {
     });
     expect(mocks.getTopicRuns).toHaveBeenCalledExactlyOnceWith(
       projectId,
-      traces.map((id) => `old-map-${id}`),
+      expect.arrayContaining(traces.map((id) => `old-map-${id}`)),
     );
     expect(result.topics).toEqual(
       expect.arrayContaining([
@@ -1162,7 +1165,7 @@ describe("Topics current results", () => {
         "intent",
         timeRange,
       );
-      expect(mocks.getTopicRuns).toHaveBeenCalledWith(projectId, ["map-old"]);
+      expect(mocks.getTopicRuns).toHaveBeenCalledWith(projectId, []);
       expect(result[0]).toMatchObject({
         facetId: "intent",
         awaitingCount: 3,

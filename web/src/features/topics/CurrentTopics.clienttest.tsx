@@ -283,7 +283,6 @@ describe("Current Topics", () => {
     ]);
     state.map = {
       status: "ready",
-      runId: "run",
       missingSummaryCount: 0,
       unpositionedCount: 0,
       // Saved map membership can differ from a trace's current assignment.

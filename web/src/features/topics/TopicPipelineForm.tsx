@@ -59,6 +59,7 @@ export function useTopicPipelineForm({
   } = useTopicTraceSelector({
     projectId,
     enabled: facets.length > 0 && operation === "process",
+    filterOptionsEnabled: configurationOpen,
     onOpenTrace: () => setConfigurationOpen(false),
   });
   const [selectedFacetIds, setSelectedFacetIds] = useState<string[]>(() =>

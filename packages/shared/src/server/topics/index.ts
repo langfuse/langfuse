@@ -8,3 +8,4 @@ export * from "./embeddings";
 export * from "./text";
 export * from "./config";
 export * from "./trace-input";
+export * from "./trace-selection";

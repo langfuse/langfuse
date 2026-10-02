@@ -14,10 +14,10 @@ import {
   topicEmbeddingConfigSchema,
   type TopicFacetVersion,
   type TopicProcessingConfig,
-  type TopicSummary,
 } from "@langfuse/shared/topics";
 import { env } from "../../env";
 import { recordTopicTokenUsage } from "./metrics";
+import type { TopicModelUsage } from "./summaryResult";
 import {
   TopicsProviderUnavailable,
   topicProviderError,
@@ -38,10 +38,18 @@ function bedrockConfig() {
   };
 }
 
-function countTopicTokens(value: string): number {
+function countTopicRequestTokens(
+  system: string,
+  input: string,
+  schema: z.ZodType,
+): number {
   const encoding = get_encoding("o200k_base");
   try {
-    return encoding.encode(value, "all", []).length;
+    return encoding.encode(
+      system + input + JSON.stringify(z.toJSONSchema(schema)),
+      "all",
+      [],
+    ).length;
   } finally {
     encoding.free();
   }
@@ -51,14 +59,7 @@ const summarySchema = z.object({
   summary: z.string(),
   status: z.enum(["applicable", "not_applicable", "insufficient_input"]),
 });
-type ModelUsage = Pick<
-  TopicSummary,
-  | "providedUsageDetails"
-  | "usageDetails"
-  | "providedCostDetails"
-  | "costDetails"
->;
-type ModelResult<T> = ModelUsage & { output: T };
+type ModelResult<T> = TopicModelUsage & { output: T };
 
 async function structuredCall<T>(
   system: string,
@@ -71,14 +72,6 @@ async function structuredCall<T>(
     | typeof TOPICS_NAMING_MODEL = TOPICS_SUMMARY_MODEL,
 ): Promise<ModelResult<T>> {
   const connection = bedrockConfig();
-  // Include the structured-output schema and message framing in the input limit.
-  const countedInputTokens =
-    countTopicTokens(system + input + JSON.stringify(z.toJSONSchema(schema))) +
-    256;
-  if (countedInputTokens > inputLimit)
-    throw new Error(
-      `The shared trace transcript and instructions are ${countedInputTokens} tokens, above this run's ${inputLimit}-token input limit. No model call was made; the transcript is never shortened per facet.`,
-    );
   const messages = [
     { role: "system" as const, content: system },
     { role: "user" as const, content: input },
@@ -142,7 +135,7 @@ async function structuredCall<T>(
   return accepted;
 }
 
-export function summarizeTopicTrace(
+export async function summarizeTopicTrace(
   facet: TopicFacetVersion,
   text: string,
   config: TopicProcessingConfig,
@@ -156,6 +149,13 @@ Facet instruction: ${facet.prompt}
 Write a compact English summary for grouping similar runs: normally one sentence, a second only for a material distinction, at most 100 words. Preserve meaningful subjects, constraints, and failure mechanisms relevant to the facet. Omit incidental names, unique identifiers, timestamps, repetitive framing, and step-by-step narration. Never expose credentials or private identifiers. Keep the concrete meaning rather than replacing it with a generic category. Do not include observation IDs or citations in the summary.
 
 Return the summary and its applicability status. Use applicable when the recording supports a concrete description of this facet, including unsuccessful tasks. Use not_applicable when there is enough evidence to determine that no relevant signal is present. Use insufficient_input when missing, unreadable, or truncated evidence prevents deciding the facet. For not_applicable and insufficient_input, return an empty summary. Applicability is not a success score or a topic label.`;
+  // Include the structured-output schema and message framing in the input limit.
+  const countedInputTokens =
+    countTopicRequestTokens(system, text, summarySchema) + 256;
+  if (countedInputTokens > config.maxInputTokens)
+    throw new Error(
+      `The shared trace transcript and instructions are ${countedInputTokens} tokens, above this run's ${config.maxInputTokens}-token input limit. No model call was made; the transcript is never shortened per facet.`,
+    );
   return structuredCall(
     system,
     text,
@@ -196,11 +196,7 @@ export async function nameTopicGroup(group: {
     contrasts: group.contrasts,
   });
   const inputLimit =
-    Math.ceil(
-      countTopicTokens(
-        system + input + JSON.stringify(z.toJSONSchema(schema)),
-      ) * 1.1,
-    ) + 512;
+    Math.ceil(countTopicRequestTokens(system, input, schema) * 1.1) + 512;
   if (inputLimit > 900_000)
     throw new TopicsProviderUnavailable(
       "The complete cluster exceeds the naming model's input limit. Use a smaller cohort; no member summaries were discarded.",
@@ -219,7 +215,7 @@ export async function nameTopicGroup(group: {
 export async function embedTopicSummary(
   summary: string,
   dimensions: number,
-): Promise<ModelUsage & { embedding: number[] }> {
+): Promise<TopicModelUsage & { embedding: number[] }> {
   const connection = bedrockConfig();
   if (
     !summary.trim() ||

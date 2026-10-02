@@ -181,23 +181,6 @@ describe("Topics serving maps", () => {
       expect(mocks.topicWrite).not.toHaveBeenCalled();
     },
   );
-
-  it("preserves a run completed by another worker while acquiring its write lock", async () => {
-    const row = runRow();
-    mocks.runFind.mockResolvedValueOnce(row);
-    const pending = (await getTopicRun("project-a", "run-a"))!;
-    mocks.runFind
-      .mockResolvedValueOnce(row)
-      .mockResolvedValue({ ...row, status: "completed" });
-    const saved = await saveTopicRun({
-      ...pending,
-      status: "failed",
-      error: "Stale attempt",
-    });
-    expect(saved.status).toBe("completed");
-    expect(saved.error).toBeNull();
-    expect(mocks.runUpdate).not.toHaveBeenCalled();
-  });
 });
 
 describe("Topics immutable definitions and run membership", () => {
@@ -215,6 +198,27 @@ describe("Topics immutable definitions and run membership", () => {
     representativeSummaries: [],
     metadata: { count: 0 },
   };
+
+  it("hydrates a run completed by another worker while acquiring its write lock", async () => {
+    const row = runRow();
+    mocks.runFind.mockResolvedValueOnce(row);
+    const pending = (await getTopicRun("project-a", "run-a"))!;
+    mocks.runFind.mockResolvedValueOnce(row).mockResolvedValue({
+      ...row,
+      status: "completed",
+      topicVersionIds: [topic.topicVersionId],
+    });
+    mocks.topicFind.mockResolvedValue([topic]);
+    const saved = await saveTopicRun({
+      ...pending,
+      status: "failed",
+      error: "Stale attempt",
+    });
+    expect(saved.status).toBe("completed");
+    expect(saved.error).toBeNull();
+    expect(saved.topics).toEqual([topic]);
+    expect(mocks.runUpdate).not.toHaveBeenCalled();
+  });
 
   it("hydrates historical runs together using their original definition dates", async () => {
     const laterTopic = {
