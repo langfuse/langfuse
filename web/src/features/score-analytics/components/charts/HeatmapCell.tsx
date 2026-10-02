@@ -1,14 +1,9 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable @repo/no-style-props */
 import { type HeatmapCell } from "@/src/features/score-analytics/lib/heatmap-utils";
 import { getContrastColor } from "@/src/features/score-analytics/lib/color-scales";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { cn } from "@/src/utils/tailwind";
-import { useState } from "react";
+import { cloneElement, useState } from "react";
 
 interface HeatmapCellProps {
   cell?: HeatmapCell;
@@ -140,12 +135,23 @@ function CellWithData({
   // Only wrap with tooltip if renderTooltip is provided
   if (renderTooltip) {
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>{cellContent}</TooltipTrigger>
-        <TooltipContent className="max-w-xs">
-          {renderTooltip(cell)}
-        </TooltipContent>
-      </Tooltip>
+      <CustomTooltip content={<>{renderTooltip(cell)}</>} delay={300}>
+        {({ getTriggerProps }) => {
+          const triggerProps =
+            getTriggerProps() as React.HTMLAttributes<HTMLElement>;
+          return cloneElement(cellContent, {
+            ...triggerProps,
+            onMouseEnter: (event: React.MouseEvent<HTMLElement>) => {
+              triggerProps.onMouseEnter?.(event);
+              handleMouseEnter();
+            },
+            onMouseLeave: (event: React.MouseEvent<HTMLElement>) => {
+              triggerProps.onMouseLeave?.(event);
+              handleMouseLeave();
+            },
+          });
+        }}
+      </CustomTooltip>
     );
   }
 
