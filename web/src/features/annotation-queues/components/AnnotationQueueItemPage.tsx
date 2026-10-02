@@ -458,7 +458,6 @@ function AnnotationQueueRunContent({
               {progressIndex + 1} / {totalItems}
             </span>
             <CustomTooltip
-              delay={300}
               content={
                 <>
                   <span>Previous item</span>
@@ -512,7 +511,6 @@ function AnnotationQueueRunContent({
         <div className="flex w-full min-w-[265px] items-center justify-end gap-2">
           {!isSingleItem && (
             <CustomTooltip
-              delay={300}
               content={
                 <>
                   <span>Skip to next item</span>
@@ -550,7 +548,6 @@ function AnnotationQueueRunContent({
           {!!relevantItem &&
             (isPending ? (
               <CustomTooltip
-                delay={300}
                 content={
                   <>
                     <span>

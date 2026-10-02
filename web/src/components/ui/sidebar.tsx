@@ -14,7 +14,6 @@ import { Input } from "@/src/components/ui/input";
 import { Separator } from "@/src/components/ui/separator";
 import { Sheet, SheetContent } from "@/src/components/ui/sheet";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 const SIDEBAR_STORAGE_KEY = "sidebar:state";
@@ -152,29 +151,27 @@ const SidebarProvider = React.forwardRef<
 
     return (
       <SidebarContext.Provider value={contextValue}>
-        <TooltipProvider>
-          <div
-            style={
-              {
-                "--sidebar-width": SIDEBAR_WIDTH,
-                "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
-                ...style,
-              } as React.CSSProperties
-            }
-            className={cn(
-              // No text-sidebar-foreground here: this wrapper contains the
-              // MAIN CONTENT too, and the dimmed sidebar text tint (60% grey
-              // in dark) must not leak into it. The Sidebar containers below
-              // set it on themselves.
-              "group/sidebar-wrapper min-h-screen-with-banner has-data-[variant=inset]:bg-sidebar flex w-full",
-              className,
-            )}
-            ref={ref}
-            {...props}
-          >
-            {children}
-          </div>
-        </TooltipProvider>
+        <div
+          style={
+            {
+              "--sidebar-width": SIDEBAR_WIDTH,
+              "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
+              ...style,
+            } as React.CSSProperties
+          }
+          className={cn(
+            // No text-sidebar-foreground here: this wrapper contains the
+            // MAIN CONTENT too, and the dimmed sidebar text tint (60% grey
+            // in dark) must not leak into it. The Sidebar containers below
+            // set it on themselves.
+            "group/sidebar-wrapper min-h-screen-with-banner has-data-[variant=inset]:bg-sidebar flex w-full",
+            className,
+          )}
+          ref={ref}
+          {...props}
+        >
+          {children}
+        </div>
       </SidebarContext.Provider>
     );
   },
@@ -620,13 +617,13 @@ const SidebarMenuButton = React.forwardRef<
       <Tooltip
         label={tooltip}
         placement="right"
-        delay={300}
         disabled={state !== "collapsed" || isMobile}
-        triggerRef={ref}
       >
-        {({ getTriggerProps }) =>
-          React.cloneElement(button, getTriggerProps(props))
-        }
+        {({ getTriggerProps }) => (
+          <Slot ref={ref}>
+            {React.cloneElement(button, getTriggerProps(props))}
+          </Slot>
+        )}
       </Tooltip>
     );
   },

@@ -58,7 +58,6 @@ export function AIAssistedInput({
       {isAvailable ? (
         <Tooltip
           label={isGenerating ? `Generating ${fieldName}…` : generateLabel}
-          delay={300}
         >
           {({ getTriggerProps }) => (
             <Button

@@ -124,7 +124,6 @@ export function TableActionMenu({
                     key={action.id}
                     label={action.disabledReason}
                     placement="left"
-                    delay={300}
                   >
                     {({ getTriggerProps }) => (
                       <span {...getTriggerProps()}>{menuItem}</span>

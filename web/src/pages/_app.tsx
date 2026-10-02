@@ -12,7 +12,6 @@ import {
   clearV4BetaEnabledSentryTag,
   setV4BetaEnabledSentryTag,
 } from "@/src/utils/sentryV4BetaTag";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuProvider";
 
 import { api } from "@/src/utils/api";
@@ -195,46 +194,44 @@ const MyApp: AppType<{ session: Session | null }> = ({
           adapter={NextAdapterPagesWithReadyGuard}
           options={{ enableBatching: true }}
         >
-          <TooltipProvider>
-            <CommandMenuProvider>
-              <PostHogProvider client={posthog}>
-                <SessionProvider
-                  session={session}
-                  refetchOnWindowFocus={true}
-                  refetchInterval={5 * 60} // 5 minutes
-                  basePath={authBasePath}
-                >
-                  <ResilientSessionProvider basePath={authBasePath}>
-                    <DetailPageListsProvider>
-                      <MarkdownRenderCharacterLimitProvider>
-                        <ThemeProvider
-                          attribute="class"
-                          enableSystem
-                          disableTransitionOnChange
-                        >
-                          <ScoreCacheProvider>
-                            <CorrectionCacheProvider>
-                              <SupportDrawerProvider defaultOpen={false}>
-                                <V4MigrationPanelProvider defaultOpen={false}>
-                                  <InAppAiAgentProvider defaultOpen={false}>
-                                    {skipAppLayout ? (
-                                      page
-                                    ) : (
-                                      <AppLayout>{page}</AppLayout>
-                                    )}
-                                  </InAppAiAgentProvider>
-                                </V4MigrationPanelProvider>
-                              </SupportDrawerProvider>
-                            </CorrectionCacheProvider>
-                          </ScoreCacheProvider>
-                        </ThemeProvider>
-                      </MarkdownRenderCharacterLimitProvider>
-                    </DetailPageListsProvider>
-                  </ResilientSessionProvider>
-                </SessionProvider>
-              </PostHogProvider>
-            </CommandMenuProvider>
-          </TooltipProvider>
+          <CommandMenuProvider>
+            <PostHogProvider client={posthog}>
+              <SessionProvider
+                session={session}
+                refetchOnWindowFocus={true}
+                refetchInterval={5 * 60} // 5 minutes
+                basePath={authBasePath}
+              >
+                <ResilientSessionProvider basePath={authBasePath}>
+                  <DetailPageListsProvider>
+                    <MarkdownRenderCharacterLimitProvider>
+                      <ThemeProvider
+                        attribute="class"
+                        enableSystem
+                        disableTransitionOnChange
+                      >
+                        <ScoreCacheProvider>
+                          <CorrectionCacheProvider>
+                            <SupportDrawerProvider defaultOpen={false}>
+                              <V4MigrationPanelProvider defaultOpen={false}>
+                                <InAppAiAgentProvider defaultOpen={false}>
+                                  {skipAppLayout ? (
+                                    page
+                                  ) : (
+                                    <AppLayout>{page}</AppLayout>
+                                  )}
+                                </InAppAiAgentProvider>
+                              </V4MigrationPanelProvider>
+                            </SupportDrawerProvider>
+                          </CorrectionCacheProvider>
+                        </ScoreCacheProvider>
+                      </ThemeProvider>
+                    </MarkdownRenderCharacterLimitProvider>
+                  </DetailPageListsProvider>
+                </ResilientSessionProvider>
+              </SessionProvider>
+            </PostHogProvider>
+          </CommandMenuProvider>
         </QueryParamProvider>
       </LayerProvider>
     </div>

@@ -424,7 +424,7 @@ function ViewModeSegment({
   // A native title does not reliably surface on a segment this small.
   if (!disabled || !title) return segment;
   return (
-    <Tooltip label={title} delay={300}>
+    <Tooltip label={title}>
       {({ getTriggerProps }) => cloneElement(segment, getTriggerProps())}
     </Tooltip>
   );

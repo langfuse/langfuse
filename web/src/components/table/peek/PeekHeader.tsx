@@ -254,7 +254,7 @@ export function PeekHeader({
         {/* Overflow: a labeled menu of whatever folded away. */}
         {anyFolded && (
           <Popover>
-            <Tooltip label="More" delay={300}>
+            <Tooltip label="More">
               {({ getTriggerProps }) => (
                 <PopoverTrigger asChild>
                   <Button

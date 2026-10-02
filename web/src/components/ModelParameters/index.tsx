@@ -588,10 +588,7 @@ const ProviderOptionsInput = ({
           >
             Additional options
           </span>
-          <Tooltip
-            label="Additional options to pass to the invocation. Please check your provider's API reference for supported values."
-            delay={300}
-          >
+          <Tooltip label="Additional options to pass to the invocation. Please check your provider's API reference for supported values.">
             {({ getTriggerProps }) => (
               <button
                 {...getTriggerProps()}

@@ -184,10 +184,8 @@ export function EvaluatorSelector({
                   >
                     <CustomTooltip
                       placement="right"
-                      delay={300}
-                      size="wide"
                       content={
-                        <div className="max-h-[70dvh] w-[720px] max-w-[calc(100vw-5rem)] overflow-y-auto">
+                        <div className="max-h-[70dvh] overflow-y-auto">
                           <TemplatePreviewTooltipContent template={template} />
                         </div>
                       }
@@ -210,7 +208,6 @@ export function EvaluatorSelector({
                     </CustomTooltip>
                     {isInvalid && (
                       <CustomTooltip
-                        delay={300}
                         content={
                           <div className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
                             <p>Requires project-level evaluation model</p>
@@ -245,86 +242,81 @@ export function EvaluatorSelector({
         )}
 
         {filteredTemplates.langfuse.length > 0 && (
-          <>
-            <InputCommandGroup heading="Langfuse managed evaluators">
-              {filteredTemplates.langfuse.map((template) => {
-                const isInvalid = isTemplateInvalid(template);
+          <InputCommandGroup heading="Langfuse managed evaluators">
+            {filteredTemplates.langfuse.map((template) => {
+              const isInvalid = isTemplateInvalid(template);
 
-                return (
-                  <InputCommandItem
-                    key={`langfuse-${template.id}`}
-                    disabled={isInvalid}
-                    onSelect={() => {
-                      onTemplateSelect(
-                        template.id,
-                        template.name,
-                        template.version,
-                      );
-                    }}
-                    className={cn(
-                      template.id === selectedTemplateId && "bg-secondary",
-                    )}
+              return (
+                <InputCommandItem
+                  key={`langfuse-${template.id}`}
+                  disabled={isInvalid}
+                  onSelect={() => {
+                    onTemplateSelect(
+                      template.id,
+                      template.name,
+                      template.version,
+                    );
+                  }}
+                  className={cn(
+                    template.id === selectedTemplateId && "bg-secondary",
+                  )}
+                >
+                  <CustomTooltip
+                    placement="right"
+                    content={
+                      <div className="max-h-[70dvh] overflow-y-auto">
+                        <TemplatePreviewTooltipContent template={template} />
+                      </div>
+                    }
                   >
+                    {({ getTriggerProps }) => (
+                      <div
+                        {...getTriggerProps()}
+                        className="mr-1 flex min-w-0 items-center"
+                      >
+                        <span className="truncate" title={template.name}>
+                          {template.name}
+                        </span>
+                        {template.type === EvalTemplateType.CODE ? (
+                          <CodeTemplateLanguageIcon
+                            sourceCodeLanguage={template.sourceCodeLanguage}
+                          />
+                        ) : null}
+                      </div>
+                    )}
+                  </CustomTooltip>
+                  <MaintainerTooltip maintainer={getMaintainer(template)} />
+                  {isInvalid && (
                     <CustomTooltip
-                      placement="right"
-                      delay={300}
-                      size="wide"
                       content={
-                        <div className="max-h-[70dvh] w-[720px] max-w-[calc(100vw-5rem)] overflow-y-auto">
-                          <TemplatePreviewTooltipContent template={template} />
+                        <div className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
+                          <p>Requires project-level evaluation model</p>
+                          <Link
+                            href={`/project/${projectId}/evals/default-model`}
+                            className="mt-2 block text-blue-600 hover:underline"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Configure default model
+                          </Link>
                         </div>
                       }
                     >
                       {({ getTriggerProps }) => (
-                        <div
+                        <AlertCircle
                           {...getTriggerProps()}
-                          className="mr-1 flex min-w-0 items-center"
-                        >
-                          <span className="truncate" title={template.name}>
-                            {template.name}
-                          </span>
-                          {template.type === EvalTemplateType.CODE ? (
-                            <CodeTemplateLanguageIcon
-                              sourceCodeLanguage={template.sourceCodeLanguage}
-                            />
-                          ) : null}
-                        </div>
+                          className="ml-1 h-4 w-4 text-yellow-500"
+                        />
                       )}
                     </CustomTooltip>
-                    <MaintainerTooltip maintainer={getMaintainer(template)} />
-                    {isInvalid && (
-                      <CustomTooltip
-                        delay={300}
-                        content={
-                          <div className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
-                            <p>Requires project-level evaluation model</p>
-                            <Link
-                              href={`/project/${projectId}/evals/default-model`}
-                              className="mt-2 block text-blue-600 hover:underline"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              Configure default model
-                            </Link>
-                          </div>
-                        }
-                      >
-                        {({ getTriggerProps }) => (
-                          <AlertCircle
-                            {...getTriggerProps()}
-                            className="ml-1 h-4 w-4 text-yellow-500"
-                          />
-                        )}
-                      </CustomTooltip>
-                    )}
-                    {template.id === selectedTemplateId && (
-                      <CheckIcon className="ml-auto h-4 w-4" />
-                    )}
-                  </InputCommandItem>
-                );
-              })}
-            </InputCommandGroup>
-          </>
+                  )}
+                  {template.id === selectedTemplateId && (
+                    <CheckIcon className="ml-auto h-4 w-4" />
+                  )}
+                </InputCommandItem>
+              );
+            })}
+          </InputCommandGroup>
         )}
       </InputCommandList>
     </InputCommand>

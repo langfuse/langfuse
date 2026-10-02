@@ -88,7 +88,7 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
             <TextWithAction
               value={text}
               action={
-                <Tooltip label={content}>
+                <Tooltip label={content} delay={700}>
                   {({ getTriggerProps }) => (
                     <button
                       type="button"

@@ -11,7 +11,7 @@ export function InfoTooltip({
   children: ReactNode;
 }) {
   return (
-    <CustomTooltip content={<>{children}</>} delay={300}>
+    <CustomTooltip content={<>{children}</>}>
       {({ getTriggerProps }) => (
         <InfoIcon
           {...getTriggerProps()}

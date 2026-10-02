@@ -131,7 +131,6 @@ export function DataTablePagination<TData>({
                 ? "Approximate count over the active column filters and time range only. It excludes full-text search, score, and comment filters, so it can be noticeably higher than the number of matching rows."
                 : "Approximate number of matching rows for the active filters and time range, estimated with ClickHouse's HyperLogLog (typically within a few percent of the true count)."
             }
-            delay={300}
           >
             {({ getTriggerProps }) => (
               <span {...getTriggerProps()} className={totalCountClassName}>
@@ -215,24 +214,21 @@ export function DataTablePagination<TData>({
             ) : (
               `Page ${currentPage}`
             )}
-            {!hideTotalCount && (
-              <>
-                {pageCount !== -1 ? (
-                  <span>of {pageCount}</span>
-                ) : (
-                  <span>
-                    of{" "}
-                    {isLoading ? (
-                      <span className="ml-1 inline-flex align-middle">
-                        <Spinner size="xxs" variant="muted" display="inline" />
-                      </span>
-                    ) : (
-                      1
-                    )}
-                  </span>
-                )}
-              </>
-            )}
+            {!hideTotalCount &&
+              (pageCount !== -1 ? (
+                <span>of {pageCount}</span>
+              ) : (
+                <span>
+                  of{" "}
+                  {isLoading ? (
+                    <span className="ml-1 inline-flex align-middle">
+                      <Spinner size="xxs" variant="muted" display="inline" />
+                    </span>
+                  ) : (
+                    1
+                  )}
+                </span>
+              ))}
           </div>
 
           <div className="flex items-center gap-2">

@@ -359,7 +359,7 @@ function WebCalloutEndpointDialog(props: {
                           </FormItem>
                         )}
                       />
-                      <Tooltip label="Remove header" delay={300}>
+                      <Tooltip label="Remove header">
                         {({ getTriggerProps }) => (
                           <Button
                             {...getTriggerProps()}

@@ -32,7 +32,7 @@ const ScoreDataTypeMarker = ({
   icon: string;
   dataType: ScoreColumnDataType;
 }) => (
-  <Tooltip label={getScoreDataTypeExplanation(dataType)} delay={300}>
+  <Tooltip label={getScoreDataTypeExplanation(dataType)}>
     {({ getTriggerProps }) => (
       <span
         {...getTriggerProps()}

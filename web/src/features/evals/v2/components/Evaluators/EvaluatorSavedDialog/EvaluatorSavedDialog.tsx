@@ -170,10 +170,7 @@ export function EvaluatorSavedDialog({
           </div>
         </DialogBody>
         <DialogFooter className="px-6 py-3">
-          <Tooltip
-            label="It remains available for batch evaluations and prompt experiments. Set up incoming observations later."
-            delay={300}
-          >
+          <Tooltip label="It remains available for batch evaluations and prompt experiments. Set up incoming observations later.">
             {({ getTriggerProps }) => (
               <Button
                 {...getTriggerProps()}

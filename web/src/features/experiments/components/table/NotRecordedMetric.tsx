@@ -13,7 +13,7 @@ type NotRecordedMetricProps = { metric: "cost" | "latency" };
  * what is missing instead.
  */
 export const NotRecordedMetric = ({ metric }: NotRecordedMetricProps) => (
-  <Tooltip label={EXPLANATION[metric]}>
+  <Tooltip label={EXPLANATION[metric]} delay={700}>
     {({ getTriggerProps }) => (
       <span
         {...getTriggerProps()}

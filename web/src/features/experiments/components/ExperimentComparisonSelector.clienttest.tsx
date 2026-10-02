@@ -1,6 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { ExperimentComparisonSelector } from "./ExperimentComparisonSelector";
 import { ExperimentScoreMatrix } from "./table/ExperimentScoreMatrix";
 import {
@@ -169,27 +168,25 @@ describe("run colours agree across surfaces", () => {
 
   const renderMatrix = (colorExperimentIds: string[]) =>
     render(
-      <TooltipProvider>
-        <ExperimentScoreMatrix
-          rows={matrixRows}
-          scoreRows={[
-            {
-              scoreKey,
-              level: "trace",
-              dataType: "NUMERIC",
-              label: "# groundedness",
-            },
-          ]}
-          experiments={matrixColumns}
-          colorExperimentIds={colorExperimentIds}
-          isLoading={false}
-          pagination={{
-            totalCount: 1,
-            onChange: vi.fn(),
-            state: { pageIndex: 0, pageSize: 50 },
-          }}
-        />
-      </TooltipProvider>,
+      <ExperimentScoreMatrix
+        rows={matrixRows}
+        scoreRows={[
+          {
+            scoreKey,
+            level: "trace",
+            dataType: "NUMERIC",
+            label: "# groundedness",
+          },
+        ]}
+        experiments={matrixColumns}
+        colorExperimentIds={colorExperimentIds}
+        isLoading={false}
+        pagination={{
+          totalCount: 1,
+          onChange: vi.fn(),
+          state: { pageIndex: 0, pageSize: 50 },
+        }}
+      />,
     ).container;
 
   const markerOf = (container: HTMLElement, experimentName: string) =>

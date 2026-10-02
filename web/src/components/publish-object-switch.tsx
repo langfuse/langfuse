@@ -277,7 +277,7 @@ const Base = (props: {
             if (!props.tooltip) return trigger;
             // Suppress the hover tooltip while the share popover is open.
             return (
-              <Tooltip label={props.tooltip} disabled={isOpen} delay={300}>
+              <Tooltip label={props.tooltip} disabled={isOpen}>
                 {({ getTriggerProps }) =>
                   cloneElement(trigger, getTriggerProps())
                 }

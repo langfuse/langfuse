@@ -297,7 +297,6 @@ export const ExperimentScoreMatrix = ({
                       {icon && (
                         <Tooltip
                           label={getScoreDataTypeExplanation(scoreRow.dataType)}
-                          delay={300}
                         >
                           {({ getTriggerProps }) => (
                             <span

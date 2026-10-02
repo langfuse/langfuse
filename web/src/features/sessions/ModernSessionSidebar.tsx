@@ -537,7 +537,6 @@ export function ModernSessionSidebar(
             <div className="border-border/80 bg-muted/30 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5 rounded-md border py-2 pr-1 pl-2.5">
               <CustomTooltip
                 placement="bottom"
-                delay={300}
                 content={
                   <>
                     {hasFilterRepresentation ? (
@@ -575,7 +574,7 @@ export function ModernSessionSidebar(
               </CustomTooltip>
               <div className="flex shrink-0 items-center">
                 {!filterControls.activeViewName ? (
-                  <Tooltip label="Save as view" delay={300}>
+                  <Tooltip label="Save as view">
                     {({ getTriggerProps }) => (
                       <Button
                         {...getTriggerProps()}
@@ -591,7 +590,7 @@ export function ModernSessionSidebar(
                     )}
                   </Tooltip>
                 ) : null}
-                <Tooltip label="Edit filters" delay={300}>
+                <Tooltip label="Edit filters">
                   {({ getTriggerProps }) => (
                     <Button
                       {...getTriggerProps()}
@@ -606,7 +605,7 @@ export function ModernSessionSidebar(
                     </Button>
                   )}
                 </Tooltip>
-                <Tooltip label="Clear filters" delay={300}>
+                <Tooltip label="Clear filters">
                   {({ getTriggerProps }) => (
                     <Button
                       {...getTriggerProps()}

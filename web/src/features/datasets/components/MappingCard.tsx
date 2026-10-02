@@ -208,7 +208,6 @@ export function MappingCard({
                       : "Map CSV columns to individual schema fields."
                   }
                   placement="left"
-                  delay={300}
                 >
                   {({ getTriggerProps }) => (
                     <InfoIcon
@@ -273,7 +272,6 @@ export function MappingCard({
                         : "Map CSV columns to individual schema fields."
                     }
                     placement="left"
-                    delay={300}
                   >
                     {({ getTriggerProps }) => (
                       <InfoIcon

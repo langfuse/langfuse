@@ -486,7 +486,6 @@ export default [
       "src/components/ui/dropdown-menu.tsx",
       "src/components/ui/select.tsx",
       "src/components/ui/hover-card.tsx",
-      "src/components/ui/tooltip.tsx",
     ],
     rules: {
       "@repo/no-overlay-zindex": ["error", { mode: "wrapper" }],

@@ -92,7 +92,6 @@ function RuleEvaluatorsCell({
       renderOverflow={({ hiddenItems, overflowItemCount }) => (
         <Tooltip
           label={hiddenItems.map(({ evaluator }) => evaluator.name).join(", ")}
-          delay={300}
         >
           {({ getTriggerProps }) => (
             <Badge

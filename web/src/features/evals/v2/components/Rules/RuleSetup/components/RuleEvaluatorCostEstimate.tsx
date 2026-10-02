@@ -12,7 +12,6 @@ export function RuleEvaluatorCostEstimate({
 }) {
   return (
     <CustomTooltip
-      delay={300}
       content={
         <EvaluatorCostCalculationTooltipContent
           {...formatEvaluatorCostCalculation(estimate)}
