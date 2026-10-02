@@ -37,6 +37,9 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 
   return {
     ...mod,
+    // The empty-window probe counts rows before uploading; return a nonzero
+    // total so the export path runs and reaches the mid-stream CH failure.
+    queryClickhouse: vi.fn(async () => [{ total: 1 }]),
     recordIncrement: vi.fn(
       (stat: string, _value?: number, tags?: Record<string, string | number>) =>
         incrementCalls.push({ stat, tags: tags ?? {} }),
