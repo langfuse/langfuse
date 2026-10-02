@@ -1,6 +1,7 @@
 import { v4 } from "uuid";
 import { describe, expect, it } from "vitest";
 
+import { InternalServerError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createApiKey,
@@ -77,7 +78,7 @@ describe("transferRoleAssignments", () => {
         roleAssignment: {
           deleteMany({ args, query }) {
             if (args.where?.ownerProjectId === projectId) {
-              throw new Error("assignment deletion failed");
+              throw new InternalServerError("assignment deletion failed");
             }
             return query(args);
           },
@@ -119,7 +120,7 @@ describe("transferRoleAssignments", () => {
         expect(assignments).toHaveLength(1);
         expect(assignments[0].orgId).toBe(targetOrg.id);
         expect(assignments[0].principalApiKeyId).not.toBeNull();
-        throw new Error("outer transaction failed");
+        throw new InternalServerError("outer transaction failed");
       }),
     ).rejects.toThrow("outer transaction failed");
 

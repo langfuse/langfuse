@@ -3,6 +3,11 @@ import {
   type Prisma,
   type RoleAssignment as StoredRoleAssignment,
 } from "@prisma/client";
+import {
+  InternalServerError,
+  InvalidRequestError,
+  NotImplementedError,
+} from "../../errors";
 import { withTransaction } from "../../server/utils/withTransaction";
 import {
   systemRoleAccessRights,
@@ -81,7 +86,7 @@ async function resolveTenant(tx: Tx, ownerId: OwnerId): Promise<TenantId> {
     });
     return OrganizationId(orgId);
   }
-  throw new Error("owner must be an organization or project");
+  throw new InvalidRequestError("owner must be an organization or project");
 }
 
 /** createRoleAssignment persists a system-role assignment; custom roles are a later ticket. */
@@ -99,7 +104,7 @@ async function createRoleAssignment(
       },
     });
   } else {
-    throw new Error("custom roles not yet supported");
+    throw new NotImplementedError("custom roles not yet supported");
   }
 }
 
@@ -140,7 +145,7 @@ function toPrincipalId(assignment: StoredRoleAssignment): PrincipalId {
     return UserId(assignment.principalUserId);
   if (assignment.principalApiKeyId !== null)
     return ApiKeyId(assignment.principalApiKeyId);
-  throw new Error("role assignment requires a principal");
+  throw new InternalServerError("role assignment requires a principal");
 }
 
 /** toOwnerId tags the populated owner foreign key. */
@@ -149,5 +154,5 @@ function toOwnerId(assignment: StoredRoleAssignment): OwnerId {
     return ProjectId(assignment.ownerProjectId);
   if (assignment.ownerOrgId !== null)
     return OrganizationId(assignment.ownerOrgId);
-  throw new Error("role assignment requires an owner");
+  throw new InternalServerError("role assignment requires an owner");
 }
