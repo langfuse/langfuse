@@ -1,7 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TraceTruncationNotice } from "@/src/features/traces/components/TraceTruncationNotice";
+import {
+  TraceTruncationNotice,
+  useTraceTruncationNotice,
+} from "@/src/features/traces/components/TraceTruncationNotice";
+
+function TraceTruncationNoticeHarness() {
+  const notice = useTraceTruncationNotice();
+  return <>{notice && <TraceTruncationNotice {...notice} />}</>;
+}
 
 const { mockUseTraceData } = vi.hoisted(() => ({ mockUseTraceData: vi.fn() }));
 
@@ -33,7 +41,7 @@ describe("TraceTruncationNotice", () => {
     // Never a hard-coded 10,000: the cap is server-owned and will change.
     traceData({ truncatedAtObservations: 25_000 });
 
-    render(<TraceTruncationNotice />);
+    render(<TraceTruncationNoticeHarness />);
 
     expect(
       screen.getByText(/Showing the first 25,000 observations/),
@@ -56,7 +64,7 @@ describe("TraceTruncationNotice", () => {
         detachedObservationIsMisplaced: misplaced,
       });
 
-      render(<TraceTruncationNotice />);
+      render(<TraceTruncationNoticeHarness />);
 
       expect(screen.getByText(/loaded separately/)).toBeInTheDocument();
       expect(!!screen.queryByText(/appears at the top level/)).toBe(
@@ -67,18 +75,18 @@ describe("TraceTruncationNotice", () => {
 
   it("re-shows only for a message that says more, never on the way back", () => {
     traceData();
-    const { rerender } = render(<TraceTruncationNotice />);
+    const { rerender } = render(<TraceTruncationNoticeHarness />);
     dismiss();
     expect(isVisible()).toBe(false);
 
     // A re-render with the same message must not bring it back...
-    rerender(<TraceTruncationNotice />);
+    rerender(<TraceTruncationNoticeHarness />);
     expect(isVisible()).toBe(false);
 
     // ...but opening an observation outside the loaded list adds a sentence, and
     // that is new information rather than the same notice nagging again.
     traceData({ detachedObservationId: "obs-past-cap" });
-    rerender(<TraceTruncationNotice />);
+    rerender(<TraceTruncationNoticeHarness />);
     expect(screen.getByText(/loaded separately/)).toBeInTheDocument();
 
     // Dismiss that one and select a normal row again: selection flips the
@@ -86,7 +94,7 @@ describe("TraceTruncationNotice", () => {
     // click across that boundary.
     dismiss();
     traceData();
-    rerender(<TraceTruncationNotice />);
+    rerender(<TraceTruncationNoticeHarness />);
     expect(isVisible()).toBe(false);
 
     // But the out-of-position caveat says strictly more than what was
@@ -95,14 +103,14 @@ describe("TraceTruncationNotice", () => {
       detachedObservationId: "obs-past-cap",
       detachedObservationIsMisplaced: true,
     });
-    rerender(<TraceTruncationNotice />);
+    rerender(<TraceTruncationNoticeHarness />);
     expect(screen.getByText(/appears at the top level/)).toBeInTheDocument();
   });
 
   it("renders nothing for a trace under the cap", () => {
     traceData({ truncatedAtObservations: undefined });
 
-    const { container } = render(<TraceTruncationNotice />);
+    const { container } = render(<TraceTruncationNoticeHarness />);
 
     expect(container).toBeEmptyDOMElement();
   });

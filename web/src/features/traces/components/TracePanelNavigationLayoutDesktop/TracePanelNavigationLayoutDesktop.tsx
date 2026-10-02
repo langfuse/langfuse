@@ -14,7 +14,10 @@ import { type ReactNode } from "react";
 import { useDesktopLayoutContext } from "../TraceLayoutDesktop";
 import { TracePanelNavigationHeader } from "../TracePanelNavigationHeader/TracePanelNavigationHeader";
 import { TracePanelNavigationHiddenNotice } from "./components/TracePanelNavigationHiddenNotice";
-import { TraceTruncationNotice } from "@/src/features/traces/components/TraceTruncationNotice";
+import {
+  TraceTruncationNotice,
+  useTraceTruncationNotice,
+} from "@/src/features/traces/components/TraceTruncationNotice";
 import { cn } from "@/src/utils/tailwind";
 
 export function TracePanelNavigationLayoutDesktop({
@@ -24,6 +27,7 @@ export function TracePanelNavigationLayoutDesktop({
 }) {
   const { isNavigationPanelCollapsed, handleTogglePanel } =
     useDesktopLayoutContext();
+  const truncationNotice = useTraceTruncationNotice();
 
   return (
     <div className="flex h-full flex-col border-r">
@@ -38,7 +42,7 @@ export function TracePanelNavigationLayoutDesktop({
         )}
         inert={isNavigationPanelCollapsed}
       >
-        <TraceTruncationNotice />
+        {truncationNotice && <TraceTruncationNotice {...truncationNotice} />}
         <TracePanelNavigationHiddenNotice />
         <div className="flex-1 overflow-hidden">{children}</div>
       </div>

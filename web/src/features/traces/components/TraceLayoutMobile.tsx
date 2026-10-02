@@ -38,7 +38,10 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
-import { TraceTruncationNotice } from "./TraceTruncationNotice";
+import {
+  TraceTruncationNotice,
+  useTraceTruncationNotice,
+} from "./TraceTruncationNotice";
 
 export type MobileTraceTab = "tree" | "timeline" | "graph" | "info";
 const VALID_TABS: MobileTraceTab[] = ["tree", "timeline", "graph", "info"];
@@ -84,6 +87,7 @@ export function TraceLayoutMobile({
 }) {
   const [tabParam, setTabParam] = useQueryParam("mobileTab", StringParam);
   const { selectedNodeId } = useSelection();
+  const truncationNotice = useTraceTruncationNotice();
 
   // Mount-time default only (captured once, never re-derived): a selection that
   // was already present when the view opened lands on Info; otherwise Tree.
@@ -138,7 +142,7 @@ export function TraceLayoutMobile({
 
         {/* Above the tab bodies, not inside one: the truncation applies to every
             tab, and the navigators own their own scroll containers. */}
-        <TraceTruncationNotice />
+        {truncationNotice && <TraceTruncationNotice {...truncationNotice} />}
 
         {/* Inactive tabs unmount (Radix default). On memory-constrained mobile
             that keeps a single heavy subtree live at a time (two virtualizers,

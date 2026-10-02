@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 /**
  * Inline notice above the tree/timeline/search list when the trace has more
  * observations than the detail view loads.
@@ -15,7 +14,7 @@ import { useState } from "react";
 import { TriangleAlert, X } from "lucide-react";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 
-export function TraceTruncationNotice() {
+export function useTraceTruncationNotice() {
   const {
     truncatedAtObservations,
     detachedObservationId,
@@ -58,6 +57,22 @@ export function TraceTruncationNotice() {
   })();
   if (rank <= dismissedRank) return null;
 
+  return {
+    truncatedAtObservations,
+    detachedNote,
+    onDismiss: () => setDismissedRank(rank),
+  };
+}
+
+export function TraceTruncationNotice({
+  truncatedAtObservations,
+  detachedNote,
+  onDismiss,
+}: {
+  truncatedAtObservations: number;
+  detachedNote: string | null;
+  onDismiss: () => void;
+}) {
   return (
     <div className="text-muted-foreground border-border bg-muted/40 flex shrink-0 items-start gap-2 border-b py-1.5 pr-1 pl-2 text-xs">
       <TriangleAlert className="text-foreground-tertiary mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -75,7 +90,7 @@ export function TraceTruncationNotice() {
       <button
         type="button"
         aria-label="Dismiss"
-        onClick={() => setDismissedRank(rank)}
+        onClick={onDismiss}
         className="hover:bg-muted-foreground/10 hover:text-foreground shrink-0 rounded p-0.5"
       >
         <X className="h-3.5 w-3.5" />
