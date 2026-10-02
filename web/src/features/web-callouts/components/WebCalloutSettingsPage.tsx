@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Webhook, X } from "lucide-react";
@@ -30,11 +29,7 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   WEB_CALLOUT_BLOCKED_HEADER_NAMES,
@@ -364,9 +359,10 @@ function WebCalloutEndpointDialog(props: {
                           </FormItem>
                         )}
                       />
-                      <Tooltip>
-                        <TooltipTrigger asChild>
+                      <Tooltip label="Remove header" delay={300}>
+                        {({ getTriggerProps }) => (
                           <Button
+                            {...getTriggerProps()}
                             type="button"
                             variant="ghost"
                             size="icon"
@@ -374,8 +370,7 @@ function WebCalloutEndpointDialog(props: {
                           >
                             <X className="h-4 w-4" />
                           </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Remove header</TooltipContent>
+                        )}
                       </Tooltip>
                     </div>
                   );
