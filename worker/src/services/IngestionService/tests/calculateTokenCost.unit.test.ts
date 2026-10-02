@@ -1503,6 +1503,48 @@ describe("Token Cost Calculation", () => {
     });
   });
 
+  it.each(["ERROR", "DEFAULT"] as const)(
+    "should honor %s level when enriching a generation without usage on the events path",
+    async (level) => {
+      const eventRecord = await (mockIngestionService as any).createEventRecord(
+        {
+          projectId,
+          traceId: uuidv4(),
+          spanId: uuidv4(),
+          type: "GENERATION",
+          startTimeISO: new Date().toISOString(),
+          endTimeISO: new Date().toISOString(),
+          metadata: {},
+          source: "otel",
+          modelName,
+          input: "hello world",
+          output: "hey whassup",
+          level,
+          providedUsageDetails: {},
+        },
+        "testfile.txt",
+      );
+
+      expect(eventRecord.model_id).toBe(tokenModelData.id);
+
+      if (level === "ERROR") {
+        expect(eventRecord.usage_details).toEqual({});
+        expect(eventRecord.cost_details).toEqual({});
+        expect(eventRecord.usage_pricing_tier_id).toBeNull();
+        expect(eventRecord.usage_pricing_tier_name).toBeNull();
+        expect(eventRecord.level).toBe("ERROR");
+        return;
+      }
+
+      expect(eventRecord.usage_details.input).toBeGreaterThan(0);
+      expect(eventRecord.usage_details.output).toBeGreaterThan(0);
+      expect(eventRecord.usage_details.total).toBe(
+        eventRecord.usage_details.input + eventRecord.usage_details.output,
+      );
+      expect(eventRecord.cost_details.total).toBeGreaterThan(0);
+    },
+  );
+
   it("should skip tokenization and leave usage details blank when cost details are provided", async () => {
     const generationUsage1 = {
       model: modelName,

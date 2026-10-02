@@ -9314,6 +9314,165 @@ describe("OTel Resource Span Mapping", () => {
         observationEvent?.body.usageDetails.input_cache_creation,
       ).toBeUndefined();
     });
+
+    // Absent base counts stay absent. A reported 0 stays 0.
+    let aiScopeUsageSpanCounter = 0;
+    const buildAiScopeUsageSpan = (
+      extraAttributes: Array<{
+        key: string;
+        value: Record<string, unknown>;
+      }> = [],
+    ) => {
+      aiScopeUsageSpanCounter += 1;
+      const id = aiScopeUsageSpanCounter.toString(16).padStart(16, "0");
+      const traceId = id.repeat(2);
+      const spanId = id;
+
+      return {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "ai",
+              version: "5.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(spanId, "hex"),
+                name: "ai.generateText.doGenerate",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "operation.name",
+                    value: { stringValue: "ai.generateText.doGenerate" },
+                  },
+                  {
+                    key: "gen_ai.response.model",
+                    value: { stringValue: "gpt-4o" },
+                  },
+                  ...extraAttributes,
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+    };
+
+    const intAttribute = (key: string, value: number) => ({
+      key,
+      value: { intValue: { low: value, high: 0, unsigned: false } },
+    });
+
+    const generationUsage = async (
+      extraAttributes: Array<{
+        key: string;
+        value: Record<string, unknown>;
+      }> = [],
+    ) => {
+      const events = await convertOtelSpanToIngestionEvent(
+        buildAiScopeUsageSpan(extraAttributes),
+        new Set(),
+      );
+      const generation = events.find((e) => e.type === "generation-create");
+      if (!generation) {
+        throw new Error("expected a generation-create event");
+      }
+      return generation;
+    };
+
+    it("leaves input and output absent on the legacy path when an ai-scope span reports no usage", async () => {
+      const generation = await generationUsage();
+
+      expect(generation.body.usageDetails.input).toBeUndefined();
+      expect(generation.body.usageDetails.output).toBeUndefined();
+
+      const parsed = createIngestionEventSchema().parse(generation);
+      const parsedUsage =
+        "usageDetails" in parsed.body ? parsed.body.usageDetails : undefined;
+      expect(parsedUsage).toBeUndefined();
+    });
+
+    it("emits no provided usage keys on the events path when an ai-scope span reports no usage", () => {
+      const [event] = createTestOtelProcessor().processToEvent([
+        buildAiScopeUsageSpan() as unknown as ResourceSpan,
+      ]);
+
+      expect(Object.keys(event.providedUsageDetails ?? {})).toEqual([]);
+    });
+
+    it.each([
+      {
+        name: "input only",
+        attributes: [intAttribute("gen_ai.usage.input_tokens", 10)],
+        expected: { input: 10 },
+        absent: ["output"],
+      },
+      {
+        name: "output and reasoning",
+        attributes: [
+          intAttribute("gen_ai.usage.output_tokens", 7),
+          {
+            key: "ai.usage.reasoningTokens",
+            value: { stringValue: "3" },
+          },
+        ],
+        expected: { output: 4, output_reasoning_tokens: 3 },
+        absent: ["input"],
+      },
+      {
+        name: "cache detail only",
+        attributes: [
+          {
+            key: "ai.usage.cachedInputTokens",
+            value: { stringValue: "5" },
+          },
+        ],
+        expected: { input_cached_tokens: 5 },
+        absent: ["input", "output"],
+      },
+    ])(
+      "keeps unreported ai-scope base usage absent ($name)",
+      async ({ attributes, expected, absent }) => {
+        const generation = await generationUsage(attributes);
+
+        for (const [key, value] of Object.entries(expected)) {
+          expect(generation.body.usageDetails[key]).toBe(value);
+        }
+        for (const key of absent) {
+          expect(generation.body.usageDetails[key]).toBeUndefined();
+        }
+      },
+    );
+
+    it("keeps a reported zero input and output as zero", async () => {
+      const generation = await generationUsage([
+        intAttribute("gen_ai.usage.input_tokens", 0),
+        intAttribute("gen_ai.usage.output_tokens", 0),
+      ]);
+
+      expect(generation.body.usageDetails.input).toBe(0);
+      expect(generation.body.usageDetails.output).toBe(0);
+    });
   });
 
   describe("Input/Output attribute filtering from metadata", () => {

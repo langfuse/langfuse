@@ -3023,21 +3023,25 @@ export class OtelIngestionProcessor {
         }
 
         // Subtract cached token count from total input and output
-        usageDetails["input"] = Math.max(
-          (usageDetails["input"] ?? 0) -
-            (usageDetails["input_cached_tokens"] ?? 0) -
-            (usageDetails["input_cache_creation"] ?? 0) -
-            (usageDetails["input_cache_creation_5m"] ?? 0) -
-            (usageDetails["input_cache_creation_1h"] ?? 0) -
-            (usageDetails["input_cache_read"] ?? 0),
-          0,
-        );
+        if (usageDetails["input"] !== undefined) {
+          usageDetails["input"] = Math.max(
+            usageDetails["input"] -
+              (usageDetails["input_cached_tokens"] ?? 0) -
+              (usageDetails["input_cache_creation"] ?? 0) -
+              (usageDetails["input_cache_creation_5m"] ?? 0) -
+              (usageDetails["input_cache_creation_1h"] ?? 0) -
+              (usageDetails["input_cache_read"] ?? 0),
+            0,
+          );
+        }
 
-        usageDetails["output"] = Math.max(
-          (usageDetails["output"] ?? 0) -
-            (usageDetails["output_reasoning_tokens"] ?? 0),
-          0,
-        );
+        if (usageDetails["output"] !== undefined) {
+          usageDetails["output"] = Math.max(
+            usageDetails["output"] -
+              (usageDetails["output_reasoning_tokens"] ?? 0),
+            0,
+          );
+        }
 
         return usageDetails;
       } catch {
