@@ -177,10 +177,21 @@ describe("handleBlobStorageIntegrationProjectJob — GOOGLE_CLOUD_STORAGE", () =
       gcsRow("customer-bucket", encrypt("/var/run/secrets/key.json")),
     );
 
-    await expect(
-      handleBlobStorageIntegrationProjectJob(makeJob()),
-    ).rejects.toThrow(/service account JSON key/);
+    await handleBlobStorageIntegrationProjectJob(makeJob());
+
+    // A credential fault: disabled rather than retried.
     expect(factoryCalls).toHaveLength(0);
     expect(uploadCalls).toHaveLength(0);
+    expect(prisma.blobStorageIntegration.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          lastError: expect.stringContaining("service account JSON key"),
+        }),
+      }),
+    );
+    expect(prisma.blobStorageIntegration.updateMany).toHaveBeenCalledWith({
+      where: { projectId: "project-1", enabled: true },
+      data: { enabled: false },
+    });
   });
 });

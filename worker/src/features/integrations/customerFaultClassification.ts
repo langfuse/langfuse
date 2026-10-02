@@ -35,6 +35,8 @@ const CREDENTIAL_FAULT_CODES = new Set<string>([
   "InvalidAuthenticationInfo",
   "AccountIsDisabled",
   "InsufficientAccountPermissions",
+  // GCS — stored secret is not a service account JSON key (worker guard)
+  "InvalidGcsServiceAccountKey",
 ]);
 
 const BUCKET_FAULT_CODES = new Set<string>([

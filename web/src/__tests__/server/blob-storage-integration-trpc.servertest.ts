@@ -364,6 +364,29 @@ describe("Blob Storage Integration tRPC Router", () => {
         ).rejects.toThrow(/LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS/);
       });
 
+      it("does not save the sentinel as a secret after switching to Azure", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+        });
+
+        // The form keeps the sentinel in the secret field across a provider switch.
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            type: "AZURE_BLOB_STORAGE",
+            secretAccessKey: GCS_USE_DEFAULT_CREDENTIALS,
+          }),
+        ).rejects.toThrow(/Secret access key is required/);
+        expect((await findIntegration(project.id))?.type).toBe(
+          "GOOGLE_CLOUD_STORAGE",
+        );
+      });
+
       it("validates with a plain upload (no signed URL)", async () => {
         const uploadFile = vi.fn().mockResolvedValue(undefined);
         const uploadWithSignedUrl = vi.fn();
@@ -530,6 +553,25 @@ describe("Blob Storage Integration tRPC Router", () => {
         expect((await findIntegration(project.id))?.type).toBe(
           "GOOGLE_CLOUD_STORAGE",
         );
+      });
+
+      it("never reuses a stored GCS key as an S3/Azure secret", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            type: "AZURE_BLOB_STORAGE",
+            secretAccessKey: null,
+          }),
+        ).rejects.toThrow(/Secret access key is required/);
       });
 
       it("reports hasSecretAccessKey without exposing the key", async () => {

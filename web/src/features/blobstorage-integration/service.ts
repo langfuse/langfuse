@@ -95,14 +95,17 @@ export async function upsertBlobStorageIntegration(params: {
   // key (stored encrypted, in secretAccessKey) or the default-credentials
   // sentinel (ADC; self-hosted only, bucket must be allowlisted). An omitted
   // secret on UPDATE keeps whatever is stored. GCS never uses accessKeyId.
+  // The sentinel is never a real secret: the form keeps it when the provider is
+  // switched away from GCS, so treat it as "no secret" for every type.
   const rawSecret = data.secretAccessKey?.trim() || null;
-  const isKeylessGcs = isGcs && rawSecret === GCS_USE_DEFAULT_CREDENTIALS;
-  if (isGcs && rawSecret && !isKeylessGcs) {
-    assertValidGcsServiceAccountKey(rawSecret);
+  const isSentinel = rawSecret === GCS_USE_DEFAULT_CREDENTIALS;
+  const isKeylessGcs = isGcs && isSentinel;
+  const secretAccessKey = isSentinel ? null : rawSecret;
+  if (isGcs && secretAccessKey) {
+    assertValidGcsServiceAccountKey(secretAccessKey);
   }
 
   const accessKeyId = isGcs ? null : data.accessKeyId?.trim() || null;
-  const secretAccessKey = isKeylessGcs ? null : rawSecret;
   let region: string;
   try {
     region = normalizeBlobStorageRegion(data.region);
@@ -165,14 +168,17 @@ export async function upsertBlobStorageIntegration(params: {
       },
     });
 
+    // A stored secret is only reusable within the same credential family: a GCS
+    // JSON key is never an S3/Azure secret, and vice versa.
+    const canKeepStoredSecret =
+      Boolean(existing?.secretAccessKey) &&
+      (existing?.type === BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE) ===
+        isGcs;
     // A GCS integration that will run keyless: explicitly requested, or an
     // update that sends no secret and has no stored GCS key to keep. Keyless
     // runs as the deployment identity, so it is gated by the bucket allowlist.
-    const keepsStoredGcsKey =
-      existing?.type === BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE &&
-      Boolean(existing.secretAccessKey);
     const willRunKeyless =
-      isGcs && (isKeylessGcs || (!secretAccessKey && !keepsStoredGcsKey));
+      isGcs && (isKeylessGcs || (!secretAccessKey && !canKeepStoredSecret));
     if (willRunKeyless) {
       try {
         assertGcsBlobStorageBucketAllowed(data.bucketName);
@@ -183,33 +189,35 @@ export async function upsertBlobStorageIntegration(params: {
       }
     }
 
-    // Require secret key for new integrations (unless using host credentials)
-    if (!existing) {
-      if (isGcs && !isKeylessGcs && !secretAccessKey) {
-        throw new InvalidRequestError(
-          "A GCP service account JSON key or default credentials is required",
-        );
-      }
-      const isUsingHostCredentials =
-        isKeylessGcs ||
-        (canUseHostCredentials && (!accessKeyId || !secretAccessKey));
-      if (!isUsingHostCredentials && !secretAccessKey) {
-        throw new InvalidRequestError(
-          "Secret access key is required for new configuration",
-        );
-      }
+    // New GCS integrations must pick a mode explicitly.
+    if (!existing && isGcs && !isKeylessGcs && !secretAccessKey) {
+      throw new InvalidRequestError(
+        "A GCP service account JSON key or default credentials is required",
+      );
+    }
+    // S3/Azure need a secret (new, or a reusable stored one) unless using host
+    // credentials.
+    const isUsingHostCredentials =
+      canUseHostCredentials && (!accessKeyId || !secretAccessKey);
+    if (
+      !isGcs &&
+      !isUsingHostCredentials &&
+      !secretAccessKey &&
+      !canKeepStoredSecret
+    ) {
+      throw new InvalidRequestError("Secret access key is required");
     }
 
     const modeChanged = existing && existing.exportMode !== data.exportMode;
     const encryptedSecret = secretAccessKey ? encrypt(secretAccessKey) : null;
     // Only overwrite secretAccessKey when a new value is provided, so partial
-    // updates don't wipe the existing encrypted secret. A GCS integration that
-    // will run keyless clears it, so a stale S3 secret or old GCS key is never
-    // kept around unused.
+    // updates don't wipe the existing encrypted secret. Keyless GCS, or a switch
+    // across the GCS boundary, clears it, so a secret is never reused by the
+    // wrong provider.
     let secretAccessKeyUpdate: { secretAccessKey: string | null } | object = {};
     if (encryptedSecret) {
       secretAccessKeyUpdate = { secretAccessKey: encryptedSecret };
-    } else if (willRunKeyless) {
+    } else if (willRunKeyless || !canKeepStoredSecret) {
       secretAccessKeyUpdate = { secretAccessKey: null };
     }
 

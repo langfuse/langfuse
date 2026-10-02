@@ -116,6 +116,13 @@ describe("isCustomerFaultError", () => {
     );
   });
 
+  it("classifies a non-JSON GCS key as credentials", () => {
+    const err = Object.assign(new Error("not a key"), {
+      name: "InvalidGcsServiceAccountKey",
+    });
+    expect(classifyCustomerFault(err)).toBe("credentials");
+  });
+
   describe("customer_fault — bare HTTP status", () => {
     it("classifies a 401 with no recognized code as customer_fault", () => {
       const err = new Error("Unauthorized");

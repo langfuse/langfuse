@@ -376,7 +376,11 @@ const createBlobStorageService = (
   // The GCS client treats a non-JSON string as a key *file path*; a customer
   // secret must never be read as one.
   if (gcsServiceAccountKey && !gcsServiceAccountKey.trim().startsWith("{")) {
-    throw new Error("GCS credentials must be a service account JSON key");
+    // Named so classifyCustomerFault disables the integration instead of retrying.
+    throw Object.assign(
+      new Error("GCS credentials must be a service account JSON key"),
+      { name: "InvalidGcsServiceAccountKey" },
+    );
   }
   return StorageServiceFactory.getInstance({
     accessKeyId: useGoogleCloudStorage ? undefined : config.accessKeyId,
