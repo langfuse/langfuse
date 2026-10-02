@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-let-assign-in-react */
 import { type ComponentProps, useState } from "react";
 import { useRouter } from "next/router";
 import { useStore } from "zustand";

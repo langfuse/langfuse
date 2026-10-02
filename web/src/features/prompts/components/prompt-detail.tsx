@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/no-let-assign-in-react */
 import Link from "next/link";
 import { useRouter } from "next/router";
 import {

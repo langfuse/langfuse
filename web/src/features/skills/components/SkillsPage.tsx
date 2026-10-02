@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-let-assign-in-react */
 import Link from "next/link";
 import { FileCode2, Plus, Trash } from "lucide-react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-let-assign-in-react */
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 

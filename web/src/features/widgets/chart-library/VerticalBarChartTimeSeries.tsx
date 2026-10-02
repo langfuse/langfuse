@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-let-assign-in-react */
 import { useMemo } from "react";
 
 import { StackedBarChart } from "@/src/components/design-system/charts/StackedBarChart/StackedBarChart";

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-let-assign-in-react */
 import { useId, useState } from "react";
 import {
   CircleCheckIcon,

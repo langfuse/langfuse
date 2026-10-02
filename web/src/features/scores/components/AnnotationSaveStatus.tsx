@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-let-assign-in-react */
 import { useFormState, useWatch, type UseFormReturn } from "react-hook-form";
 import { useStore } from "zustand";
 import { Check } from "lucide-react";

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-let-assign-in-react */
 import { Slot } from "@radix-ui/react-slot";
 import { Check, Search as SearchIcon } from "lucide-react";
 import { type ComponentPropsWithoutRef, type ReactNode } from "react";
