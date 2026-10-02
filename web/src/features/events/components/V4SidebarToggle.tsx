@@ -185,7 +185,7 @@ export function V4SidebarToggle() {
               {V4_PREVIEW_LABEL}
             </Label>
           </div>
-          <Tooltip label={V4_PREVIEW_DESCRIPTION} placement="right" delay={300}>
+          <Tooltip label={V4_PREVIEW_DESCRIPTION} placement="right">
             {({ getTriggerProps }) => (
               <div {...getTriggerProps()} className="flex shrink-0">
                 <Switch

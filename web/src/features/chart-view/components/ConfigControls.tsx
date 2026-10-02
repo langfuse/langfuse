@@ -178,7 +178,7 @@ export const ChartTypePicker = React.memo(function ChartTypePicker({
 
         if (showLabels) return item;
         return (
-          <Tooltip key={ct.value} label={ct.label} delay={300}>
+          <Tooltip key={ct.value} label={ct.label}>
             {({ getTriggerProps }) =>
               React.cloneElement(item, getTriggerProps())
             }

@@ -422,7 +422,7 @@ export function CodeEvalTemplateFormBody({
         </div>
         {shouldShowFormatButton ? (
           formatDisabledReason ? (
-            <Tooltip label={formatDisabledReason} delay={300}>
+            <Tooltip label={formatDisabledReason}>
               {({ getTriggerProps }) => (
                 <span
                   {...getTriggerProps()}

@@ -169,10 +169,8 @@ export const ScoreRow = ({
                 label="Metadata"
                 value={
                   <CustomTooltip
-                    delay={300}
-                    size="wide"
                     content={
-                      <div className="w-[400px] max-w-full text-xs wrap-break-word">
+                      <div className="text-xs wrap-break-word">
                         {metadata && Object.keys(metadata).length > 0 ? (
                           <JSONView
                             codeClassName="border-none p-0 overflow-y-auto max-h-[40vh]"

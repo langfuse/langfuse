@@ -1650,7 +1650,6 @@
       "src/pages/project/[projectId]/settings/integrations/mixpanel.tsx -> src/components/ui/form.tsx",
       "src/pages/project/[projectId]/settings/integrations/mixpanel.tsx -> src/components/ui/select.tsx",
       "src/pages/project/[projectId]/settings/integrations/mixpanel.tsx -> src/components/ui/StatusBadge/StatusBadge.tsx",
-      "src/pages/project/[projectId]/settings/integrations/mixpanel.tsx -> src/components/ui/tooltip.tsx",
       "src/pages/project/[projectId]/settings/integrations/mixpanel.tsx -> src/features/analytics-integrations/components/IntegrationSettingsSkeleton.tsx",
       "src/pages/project/[projectId]/settings/integrations/mixpanel.tsx -> src/features/analytics-integrations/exportSource.ts",
       "src/pages/project/[projectId]/settings/integrations/mixpanel.tsx -> src/features/mixpanel-integration/types.ts",
@@ -1672,7 +1671,6 @@
       "src/pages/project/[projectId]/settings/integrations/posthog.tsx -> src/components/ui/input.tsx",
       "src/pages/project/[projectId]/settings/integrations/posthog.tsx -> src/components/ui/select.tsx",
       "src/pages/project/[projectId]/settings/integrations/posthog.tsx -> src/components/ui/StatusBadge/StatusBadge.tsx",
-      "src/pages/project/[projectId]/settings/integrations/posthog.tsx -> src/components/ui/tooltip.tsx",
       "src/pages/project/[projectId]/settings/integrations/posthog.tsx -> src/features/analytics-integrations/components/IntegrationSettingsSkeleton.tsx",
       "src/pages/project/[projectId]/settings/integrations/posthog.tsx -> src/features/analytics-integrations/exportSource.ts",
       "src/pages/project/[projectId]/settings/integrations/posthog.tsx -> src/features/organizations/hooks.ts",
@@ -1857,8 +1855,7 @@
       "src/components/ui/time-picker-input.tsx",
       "src/components/ui/time-picker-utils.tsx",
       "src/components/ui/time-picker.tsx",
-      "src/components/ui/toggle-group.tsx",
-      "src/components/ui/tooltip.tsx"
+        "src/components/ui/toggle-group.tsx"
     ],
     "16": [
       "src/components/design-system/LangfuseIcon/LangfuseIcon.tsx:8: @next/next/no-img-element",

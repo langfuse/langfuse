@@ -64,7 +64,7 @@ export function MetricCard({
       <div className="flex items-center gap-1">
         <p className="text-muted-foreground text-xs">{label}</p>
         {helpText && (
-          <Tooltip label={helpText} delay={300}>
+          <Tooltip label={helpText}>
             {({ getTriggerProps }) => (
               <HelpCircle
                 {...getTriggerProps()}
@@ -90,7 +90,7 @@ export function MetricCard({
           !isPlaceholder &&
           !isNA &&
           interpretation.strength !== "N/A" && (
-            <Tooltip label={interpretation.description} delay={300}>
+            <Tooltip label={interpretation.description}>
               {({ getTriggerProps }) => (
                 <Badge
                   {...getTriggerProps()}

@@ -119,6 +119,7 @@ export function createBadgeListTableColumn<
           renderItem={renderBadge}
           renderOverflow={({ hiddenItems, overflowItemCount }) => (
             <CustomTooltip
+              delay={700}
               content={
                 <div
                   className={cn(

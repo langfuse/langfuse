@@ -73,10 +73,7 @@ export function DataTableAIFilters({
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <span className="text-sm font-bold">Filter with AI</span>
-        <Tooltip
-          label="We convert natural language into deterministic filters which you can adjust afterwards"
-          delay={300}
-        >
+        <Tooltip label="We convert natural language into deterministic filters which you can adjust afterwards">
           {({ getTriggerProps }) => (
             <Info
               {...getTriggerProps()}

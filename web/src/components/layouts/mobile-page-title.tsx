@@ -93,11 +93,7 @@ export const MobilePageTitle = ({
           {titleContent ? (
             titleContent
           ) : titleTooltip ? (
-            <CustomTooltip
-              content={<>{titleTooltip}</>}
-              placement="bottom"
-              delay={300}
-            >
+            <CustomTooltip content={<>{titleTooltip}</>} placement="bottom">
               {({ getTriggerProps }) => (
                 <span {...getTriggerProps()} className="cursor-help">
                   {title}

@@ -172,7 +172,6 @@ export const DetailPageNav = (props: {
     return (
       <div className="flex flex-row gap-1">
         <CustomTooltip
-          delay={300}
           content={
             <>
               <span>Navigate up</span>
@@ -203,7 +202,6 @@ export const DetailPageNav = (props: {
         </CustomTooltip>
 
         <CustomTooltip
-          delay={300}
           content={
             <>
               <span>Navigate down</span>

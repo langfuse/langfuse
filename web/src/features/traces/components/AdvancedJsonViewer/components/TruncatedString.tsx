@@ -93,7 +93,6 @@ export function TruncatedString({
                 key={index}
                 label={segment.preview}
                 placement="top-start"
-                delay={300}
               >
                 {({ getTriggerProps }) => (
                   <span {...getTriggerProps()} style={{ backgroundColor }}>

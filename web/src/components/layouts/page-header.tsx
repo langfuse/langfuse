@@ -189,7 +189,6 @@ const PageHeader = ({
                       <CustomTooltip
                         content={<>{titleTooltip}</>}
                         placement="bottom"
-                        delay={300}
                       >
                         {({ getTriggerProps }) => (
                           <span

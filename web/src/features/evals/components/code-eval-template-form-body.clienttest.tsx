@@ -1,9 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { PropsWithChildren } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CodeEvalTemplateFormBody } from "./code-eval-template-form-body";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 
 const mocks = vi.hoisted(() => ({
   formatPython: vi.fn(),
@@ -31,10 +29,6 @@ beforeAll(() => {
   });
 });
 
-function TestTooltipProvider({ children }: PropsWithChildren) {
-  return <TooltipProvider delayDuration={0}>{children}</TooltipProvider>;
-}
-
 describe("CodeEvalTemplateFormBody", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -50,7 +44,6 @@ describe("CodeEvalTemplateFormBody", () => {
         validationResult={null}
         ctxSample={null}
       />,
-      { wrapper: TestTooltipProvider },
     );
 
     const editorContent = container.querySelector<HTMLElement>(".cm-content");
@@ -76,7 +69,6 @@ describe("CodeEvalTemplateFormBody", () => {
         validationResult={null}
         ctxSample={null}
       />,
-      { wrapper: TestTooltipProvider },
     );
 
     expect(container.querySelector(".ph-no-capture")).toContainElement(
@@ -95,7 +87,6 @@ describe("CodeEvalTemplateFormBody", () => {
     };
     const { container, rerender } = render(
       <CodeEvalTemplateFormBody {...props} validationResult={null} />,
-      { wrapper: TestTooltipProvider },
     );
 
     rerender(
@@ -140,7 +131,6 @@ describe("CodeEvalTemplateFormBody", () => {
         }}
         ctxSample={null}
       />,
-      { wrapper: TestTooltipProvider },
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Format/ }));
@@ -174,7 +164,6 @@ describe("CodeEvalTemplateFormBody", () => {
         }}
         ctxSample={null}
       />,
-      { wrapper: TestTooltipProvider },
     );
 
     const formatButton = screen.getByRole("button", { name: /Format/ });

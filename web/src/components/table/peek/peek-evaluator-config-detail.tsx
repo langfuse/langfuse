@@ -176,10 +176,7 @@ const PeekViewEvaluatorConfigDetail = ({
           </span>
         )}
         {evalConfig.evalTemplate && (
-          <Tooltip
-            label={evalConfig.evalTemplate.partner ?? "Langfuse"}
-            delay={300}
-          >
+          <Tooltip label={evalConfig.evalTemplate.partner ?? "Langfuse"}>
             {({ getTriggerProps }) => (
               <button
                 {...getTriggerProps()}

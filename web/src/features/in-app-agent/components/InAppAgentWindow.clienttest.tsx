@@ -8,7 +8,6 @@ import {
 } from "@testing-library/react";
 import { ScanSearch } from "lucide-react";
 import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   InAppAgentWindow,
   type InAppAgentWindowProps,
@@ -116,11 +115,7 @@ function windowElement(
     showCloseButton: false,
   };
 
-  return (
-    <TooltipProvider>
-      <InAppAgentWindow {...props} />
-    </TooltipProvider>
-  );
+  return <InAppAgentWindow {...props} />;
 }
 
 function selectTab(name: string) {
@@ -306,14 +301,12 @@ describe("ControlledInAppAgentWindow composer", () => {
     controlledAgent.value.pendingToolApprovals = [];
     controlledAgent.value.submit = onSubmit;
     render(
-      <TooltipProvider>
-        <ControlledInAppAgentWindow
-          isExpanded={false}
-          onClose={vi.fn()}
-          onDeleteConversation={vi.fn()}
-          onExpandedChange={vi.fn()}
-        />
-      </TooltipProvider>,
+      <ControlledInAppAgentWindow
+        isExpanded={false}
+        onClose={vi.fn()}
+        onDeleteConversation={vi.fn()}
+        onExpandedChange={vi.fn()}
+      />,
     );
 
     const input = screen.getByRole("textbox", {
@@ -340,14 +333,12 @@ describe("ControlledInAppAgentWindow composer", () => {
     controlledAgent.value.submit = vi.fn();
 
     render(
-      <TooltipProvider>
-        <ControlledInAppAgentWindow
-          isExpanded={false}
-          onClose={vi.fn()}
-          onDeleteConversation={vi.fn()}
-          onExpandedChange={vi.fn()}
-        />
-      </TooltipProvider>,
+      <ControlledInAppAgentWindow
+        isExpanded={false}
+        onClose={vi.fn()}
+        onDeleteConversation={vi.fn()}
+        onExpandedChange={vi.fn()}
+      />,
     );
 
     expect(
@@ -380,14 +371,12 @@ describe("ControlledInAppAgentWindow stop", () => {
     };
 
     render(
-      <TooltipProvider>
-        <ControlledInAppAgentWindow
-          isExpanded={false}
-          onClose={vi.fn()}
-          onDeleteConversation={vi.fn()}
-          onExpandedChange={vi.fn()}
-        />
-      </TooltipProvider>,
+      <ControlledInAppAgentWindow
+        isExpanded={false}
+        onClose={vi.fn()}
+        onDeleteConversation={vi.fn()}
+        onExpandedChange={vi.fn()}
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Stop run" }));

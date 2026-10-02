@@ -54,7 +54,7 @@ function LevelDescriptionTooltip({
   description: string;
 }) {
   return (
-    <Tooltip label={description} delay={300}>
+    <Tooltip label={description}>
       {({ getTriggerProps }) => (
         <button
           {...getTriggerProps()}

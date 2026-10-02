@@ -125,6 +125,7 @@ export function BatchActionsTable({
           const log = row.getValue("log") as string | null;
           return log ? (
             <CustomTooltip
+              delay={700}
               content={
                 <pre className="max-h-60 overflow-auto text-xs whitespace-pre-wrap">
                   {log}

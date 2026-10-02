@@ -870,10 +870,7 @@ export const InnerEvaluatorForm = (props: {
                     <FormLabel>
                       Run on{" "}
                       {props.mode === "edit" && (
-                        <Tooltip
-                          label="An evaluator's target data may only be configured at creation."
-                          delay={300}
-                        >
+                        <Tooltip label="An evaluator's target data may only be configured at creation.">
                           {({ getTriggerProps }) => (
                             <button
                               {...getTriggerProps()}
@@ -1076,7 +1073,6 @@ export const InnerEvaluatorForm = (props: {
                                 (props.mode === "edit" ? (
                                   <Tooltip
                                     label={`This evaluator has already run on existing ${getTargetDisplayName(form.watch("target"))} once. Set up a new evaluator to re-run on existing ${getTargetDisplayName(form.watch("target"))}.`}
-                                    delay={300}
                                   >
                                     {({ getTriggerProps }) => (
                                       <button

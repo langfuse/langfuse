@@ -887,7 +887,7 @@ export function DataTableControls({
         {/* Mirror the expanded header's metrics (h-10 row, border-b, 24px
             button) so the toggle icon doesn't shift when collapsing. */}
         <div className="flex h-10 w-full shrink-0 items-center justify-center border-b">
-          <Tooltip label="Show filters" placement="right" delay={300}>
+          <Tooltip label="Show filters" placement="right">
             {({ getTriggerProps }) => (
               <Button
                 {...getTriggerProps()}
@@ -908,7 +908,6 @@ export function DataTableControls({
         {activeFilterCount > 0 && (
           <CustomTooltip
             placement="right"
-            delay={300}
             content={
               <div className="max-w-64 text-xs">
                 <p className="font-bold">
@@ -985,7 +984,7 @@ export function DataTableControls({
                 <X className="h-4 w-4" />
               </Button>
             ) : (
-              <Tooltip label="Hide filters" delay={300}>
+              <Tooltip label="Hide filters">
                 {({ getTriggerProps }) => (
                   <Button
                     {...getTriggerProps()}
@@ -1017,7 +1016,7 @@ export function DataTableControls({
           <div className="flex items-center gap-1">
             {filterWithAI && isLangfuseCloud && (
               <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
-                <Tooltip label="Filter with AI" delay={300}>
+                <Tooltip label="Filter with AI">
                   {({ getTriggerProps }) => (
                     <PopoverTrigger asChild>
                       <Button
@@ -1049,7 +1048,6 @@ export function DataTableControls({
                   ? "Expand all filters"
                   : "Collapse all filters"
               }
-              delay={300}
             >
               {({ getTriggerProps }) => (
                 <Button
@@ -1094,7 +1092,7 @@ export function DataTableControls({
               )}
             </Tooltip>
             <DropdownMenu>
-              <Tooltip label="Filter options" delay={300}>
+              <Tooltip label="Filter options">
                 {({ getTriggerProps }) => (
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -1914,19 +1912,17 @@ function CategoricalSelectContent({
 
       {/* Loading / Empty / Options */}
       {loading ? (
-        <>
-          {[1, 2].map((i) => (
-            <div key={i} className="relative flex items-center px-2">
-              <div className="group/checkbox flex items-center rounded-sm p-0.5">
-                <Skeleton className="h-3.5 w-3.5 rounded-sm" />
-              </div>
-              <div className="group/label flex min-w-0 flex-1 items-center rounded-sm px-1 py-0.5">
-                <Skeleton className="h-3 w-24" />
-                <Skeleton className="ml-auto h-3 w-8" />
-              </div>
+        [1, 2].map((i) => (
+          <div key={i} className="relative flex items-center px-2">
+            <div className="group/checkbox flex items-center rounded-sm p-0.5">
+              <Skeleton className="h-3.5 w-3.5 rounded-sm" />
             </div>
-          ))}
-        </>
+            <div className="group/label flex min-w-0 flex-1 items-center rounded-sm px-1 py-0.5">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="ml-auto h-3 w-8" />
+            </div>
+          </div>
+        ))
       ) : visibleOptionValues.length === 0 ? (
         // px-2 on top of the outer px-2 = the same 16px inset as the mode
         // tabs and inputs, so empty states don't stick to the panel edge.

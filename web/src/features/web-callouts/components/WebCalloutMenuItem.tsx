@@ -97,7 +97,7 @@ export function WebCalloutButton({
   }
 
   return (
-    <Tooltip label={label} delay={300}>
+    <Tooltip label={label}>
       {({ getTriggerProps }) => (
         <Button
           {...getTriggerProps()}

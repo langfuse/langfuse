@@ -88,11 +88,9 @@ export const BreakdownTooltip = ({
   return (
     <CustomTooltip
       activation="hover-and-click"
-      delay={300}
-      size="wide"
       content={
         <div className="p-2.5">
-          <div className="grid min-w-0 grid-cols-[max-content_7rem_max-content] gap-x-3 gap-y-4 max-sm:w-full max-sm:grid-cols-[minmax(0,1fr)_6rem_max-content]">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_6rem_max-content] gap-x-3 gap-y-4">
             <div className="col-span-3 flex min-w-0 flex-col gap-1">
               <span className="font-bold">
                 {isCost ? "Cost breakdown" : "Usage breakdown"}

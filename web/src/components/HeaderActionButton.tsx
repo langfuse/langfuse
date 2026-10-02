@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
 
 import { type KeyboardKey } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
@@ -25,8 +26,6 @@ export const HeaderActionButton = React.forwardRef<
 ) {
   return (
     <CustomTooltip
-      triggerRef={ref}
-      delay={300}
       content={
         <>
           <span>{label}</span>
@@ -37,24 +36,26 @@ export const HeaderActionButton = React.forwardRef<
       }
     >
       {({ getTriggerProps }) => (
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={label}
-          className={cn(
-            "text-foreground-secondary hover:text-foreground-secondary h-7 w-7",
-            active && "bg-accent/60 ring-primary/20 ring-2",
-          )}
-          {...getTriggerProps({
-            ...props,
-            onFocus: (event) => {
-              event.preventDefault();
-              props.onFocus?.(event as React.FocusEvent<HTMLButtonElement>);
-            },
-          })}
-        >
-          {icon}
-        </Button>
+        <Slot ref={ref}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={label}
+            className={cn(
+              "text-foreground-secondary hover:text-foreground-secondary h-7 w-7",
+              active && "bg-accent/60 ring-primary/20 ring-2",
+            )}
+            {...getTriggerProps({
+              ...props,
+              onFocus: (event) => {
+                event.preventDefault();
+                props.onFocus?.(event as React.FocusEvent<HTMLButtonElement>);
+              },
+            })}
+          >
+            {icon}
+          </Button>
+        </Slot>
       )}
     </CustomTooltip>
   );

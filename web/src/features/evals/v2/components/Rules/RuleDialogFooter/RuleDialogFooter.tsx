@@ -60,7 +60,7 @@ export function RuleDialogFooter({
         {dirty ? "Cancel" : "Close"}
       </Button>
       {nameMissing && !nameAIAssistanceAvailable && canEdit ? (
-        <Tooltip label="Add a rule name before saving." delay={300}>
+        <Tooltip label="Add a rule name before saving.">
           {({ getTriggerProps }) => (
             <span
               {...getTriggerProps()}

@@ -54,7 +54,7 @@ export function EvaluatorSetupFooterView(props: EvaluatorSetupFooterViewProps) {
           {closeLabel}
         </Button>
         {disabledReason ? (
-          <Tooltip label={disabledReason} delay={300}>
+          <Tooltip label={disabledReason}>
             {({ getTriggerProps }) => (
               <span
                 {...getTriggerProps()}

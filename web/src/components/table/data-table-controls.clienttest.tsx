@@ -3,7 +3,6 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { eventsTableCols, type FilterState } from "@langfuse/shared";
 import { useStore } from "zustand";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   CategoricalFacet,
   DataTableControls,
@@ -143,9 +142,7 @@ describe("delayed sidebar edits and search-bar commits", () => {
     (_, inputId, value, column) => {
       vi.useFakeTimers();
       sessionStorage.clear();
-      const { container, unmount } = render(<Harness />, {
-        wrapper: TooltipProvider,
-      });
+      const { container, unmount } = render(<Harness />);
       const appliedFilters = (): FilterState =>
         JSON.parse(screen.getByTestId("applied-filters").textContent ?? "[]");
       try {
@@ -237,9 +234,7 @@ describe("DataTableControls numeric conditions", () => {
       setFilterState: () => {},
     };
 
-    render(<DataTableControls queryFilter={queryFilter} />, {
-      wrapper: TooltipProvider,
-    });
+    render(<DataTableControls queryFilter={queryFilter} />);
 
     expect(
       screen.getByRole("button", { name: "Remove Latency > 10" }),
@@ -333,7 +328,6 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </AccordionPrimitive.Root>,
-      { wrapper: TooltipProvider },
     );
 
     expect(screen.getByText("Answer quality")).toHaveAttribute(
@@ -362,7 +356,6 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </AccordionPrimitive.Root>,
-      { wrapper: TooltipProvider },
     );
 
     const label = screen.getByText("gpt-4.1");
@@ -391,9 +384,6 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </AccordionPrimitive.Root>,
-      // The active-facet clear affordance renders a Tooltip, which needs the
-      // provider the app supplies globally.
-      { wrapper: TooltipProvider },
     );
 
     expect(screen.getByText("AGENT")).toBeInTheDocument();
@@ -417,9 +407,6 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </AccordionPrimitive.Root>,
-      // The active-facet clear affordance renders a Tooltip, which needs the
-      // provider the app supplies globally.
-      { wrapper: TooltipProvider },
     );
 
     expect(screen.getByLabelText("Clear Type filter")).toBeInTheDocument();
@@ -445,9 +432,6 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </AccordionPrimitive.Root>,
-      // The active-facet clear affordance renders a Tooltip, which needs the
-      // provider the app supplies globally.
-      { wrapper: TooltipProvider },
     );
 
     // The list is long enough to be capped...
@@ -486,7 +470,6 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </AccordionPrimitive.Root>,
-      { wrapper: TooltipProvider },
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Show more values" }));
@@ -531,9 +514,6 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </AccordionPrimitive.Root>,
-      // The active-facet clear affordance renders a Tooltip, which needs the
-      // provider the app supplies globally.
-      { wrapper: TooltipProvider },
     );
 
     // The cap is preserved: "Show more" still renders and a deep value stays hidden.
@@ -564,9 +544,6 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </AccordionPrimitive.Root>,
-      // The active-facet clear affordance renders a Tooltip, which needs the
-      // provider the app supplies globally.
-      { wrapper: TooltipProvider },
     );
 
     expect(
@@ -601,9 +578,6 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </AccordionPrimitive.Root>,
-      // The active-facet clear affordance renders a Tooltip, which needs the
-      // provider the app supplies globally.
-      { wrapper: TooltipProvider },
     );
 
     // The cap still applies...
@@ -644,7 +618,6 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </AccordionPrimitive.Root>,
-      { wrapper: TooltipProvider },
     );
     expect(screen.getByRole("tab", { name: "None of" })).toBeDisabled();
 
@@ -667,7 +640,6 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </AccordionPrimitive.Root>,
-      { wrapper: TooltipProvider },
     );
     const tabs = screen.getAllByRole("tab", { name: "None of" });
     expect(tabs[tabs.length - 1]).toBeEnabled();
@@ -690,9 +662,6 @@ describe("CategoricalFacet", () => {
           onReset={() => {}}
         />
       </AccordionPrimitive.Root>,
-      // The active-facet clear affordance renders a Tooltip, which needs the
-      // provider the app supplies globally.
-      { wrapper: TooltipProvider },
     );
 
     // No cap, no "Show more": the natural order is preserved (a, b, c) — the
@@ -748,14 +717,12 @@ describe("DataTableControls facet ordering", () => {
 
   it("promotes facets with an active filter above inactive ones", () => {
     render(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter([
-            categoricalFilter("alpha", "Alpha", false),
-            categoricalFilter("beta", "Beta", true),
-          ])}
-        />
-      </TooltipProvider>,
+      <DataTableControls
+        queryFilter={queryFilter([
+          categoricalFilter("alpha", "Alpha", false),
+          categoricalFilter("beta", "Beta", true),
+        ])}
+      />,
     );
 
     // Config order is [Alpha, Beta]; active Beta renders first.
@@ -764,14 +731,12 @@ describe("DataTableControls facet ordering", () => {
 
   it("keeps the order while the user works the list, and re-settles on an external change (LFE-14843)", () => {
     const { rerender } = render(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter([
-            categoricalFilter("alpha", "Alpha", false),
-            categoricalFilter("beta", "Beta", true),
-          ])}
-        />
-      </TooltipProvider>,
+      <DataTableControls
+        queryFilter={queryFilter([
+          categoricalFilter("alpha", "Alpha", false),
+          categoricalFilter("beta", "Beta", true),
+        ])}
+      />,
     );
     expect(labelOrder("Beta", "Alpha")).toBe(true);
 
@@ -779,28 +744,24 @@ describe("DataTableControls facet ordering", () => {
     // edit: Alpha activating must not teleport out from under the cursor.
     fireEvent.pointerDown(screen.getByText("Alpha"));
     rerender(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter([
-            categoricalFilter("alpha", "Alpha", true),
-            categoricalFilter("beta", "Beta", true),
-          ])}
-        />
-      </TooltipProvider>,
+      <DataTableControls
+        queryFilter={queryFilter([
+          categoricalFilter("alpha", "Alpha", true),
+          categoricalFilter("beta", "Beta", true),
+        ])}
+      />,
     );
     expect(labelOrder("Beta", "Alpha")).toBe(true);
 
     // A change from outside the sidebar (search bar, saved view, Clear all,
     // AI apply) carries no facet interaction, so the order settles.
     rerender(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter([
-            categoricalFilter("alpha", "Alpha", true),
-            categoricalFilter("beta", "Beta", false),
-          ])}
-        />
-      </TooltipProvider>,
+      <DataTableControls
+        queryFilter={queryFilter([
+          categoricalFilter("alpha", "Alpha", true),
+          categoricalFilter("beta", "Beta", false),
+        ])}
+      />,
     );
     expect(labelOrder("Alpha", "Beta")).toBe(true);
   });
@@ -808,9 +769,7 @@ describe("DataTableControls facet ordering", () => {
   it("clears drafts and view selection even when no filters are applied", () => {
     const clearAll = vi.fn();
     render(
-      <TooltipProvider>
-        <DataTableControls queryFilter={{ ...queryFilter([]), clearAll }} />
-      </TooltipProvider>,
+      <DataTableControls queryFilter={{ ...queryFilter([]), clearAll }} />,
     );
     fireEvent.keyDown(screen.getByRole("button", { name: "Filter options" }), {
       key: "Enter",
@@ -823,14 +782,12 @@ describe("DataTableControls facet ordering", () => {
 
   it("restores catalog order on Clear all, even with an in-list interaction outstanding", () => {
     const { rerender } = render(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter([
-            categoricalFilter("alpha", "Alpha", false),
-            categoricalFilter("beta", "Beta", true),
-          ])}
-        />
-      </TooltipProvider>,
+      <DataTableControls
+        queryFilter={queryFilter([
+          categoricalFilter("alpha", "Alpha", false),
+          categoricalFilter("beta", "Beta", true),
+        ])}
+      />,
     );
     expect(labelOrder("Beta", "Alpha")).toBe(true);
 
@@ -847,55 +804,47 @@ describe("DataTableControls facet ordering", () => {
     );
 
     rerender(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter([
-            categoricalFilter("alpha", "Alpha", false),
-            categoricalFilter("beta", "Beta", false),
-          ])}
-        />
-      </TooltipProvider>,
+      <DataTableControls
+        queryFilter={queryFilter([
+          categoricalFilter("alpha", "Alpha", false),
+          categoricalFilter("beta", "Beta", false),
+        ])}
+      />,
     );
     expect(labelOrder("Alpha", "Beta")).toBe(true);
   });
 
   it("re-sorts immediately when a facet's activity changes externally", () => {
     const { rerender } = render(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter([
-            categoricalFilter("alpha", "Alpha", false),
-            categoricalFilter("beta", "Beta", true),
-          ])}
-        />
-      </TooltipProvider>,
+      <DataTableControls
+        queryFilter={queryFilter([
+          categoricalFilter("alpha", "Alpha", false),
+          categoricalFilter("beta", "Beta", true),
+        ])}
+      />,
     );
     expect(labelOrder("Beta", "Alpha")).toBe(true);
 
     // Alpha becoming active promotes it right away (config order among
     // equally-active facets)…
     rerender(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter([
-            categoricalFilter("alpha", "Alpha", true),
-            categoricalFilter("beta", "Beta", true),
-          ])}
-        />
-      </TooltipProvider>,
+      <DataTableControls
+        queryFilter={queryFilter([
+          categoricalFilter("alpha", "Alpha", true),
+          categoricalFilter("beta", "Beta", true),
+        ])}
+      />,
     );
     expect(labelOrder("Alpha", "Beta")).toBe(true);
 
     // …and Beta clearing demotes it below the still-active Alpha.
     rerender(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter([
-            categoricalFilter("alpha", "Alpha", true),
-            categoricalFilter("beta", "Beta", false),
-          ])}
-        />
-      </TooltipProvider>,
+      <DataTableControls
+        queryFilter={queryFilter([
+          categoricalFilter("alpha", "Alpha", true),
+          categoricalFilter("beta", "Beta", false),
+        ])}
+      />,
     );
     expect(labelOrder("Alpha", "Beta")).toBe(true);
   });
@@ -903,16 +852,14 @@ describe("DataTableControls facet ordering", () => {
   it("captures sidebar_toggled and facet_mode_switched with their dimensions", () => {
     captureSpy.mockClear();
     render(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={{
-            ...queryFilter([categoricalFilter("alpha", "Alpha", true)]),
-            // facet expanded so the Select/Text mode tabs render
-            expanded: ["alpha"],
-            isV4: true,
-          }}
-        />
-      </TooltipProvider>,
+      <DataTableControls
+        queryFilter={{
+          ...queryFilter([categoricalFilter("alpha", "Alpha", true)]),
+          // facet expanded so the Select/Text mode tabs render
+          expanded: ["alpha"],
+          isV4: true,
+        }}
+      />,
     );
 
     // Header hide button -> one sidebar_toggled with trigger + dimension.
@@ -956,11 +903,7 @@ describe("DataTableControls facet ordering", () => {
     qf.onExpandedChange = (value) => expandedChanges.push(value);
     qf.isV4 = true;
     captureSpy.mockClear();
-    render(
-      <TooltipProvider>
-        <DataTableControls queryFilter={qf} />
-      </TooltipProvider>,
-    );
+    render(<DataTableControls queryFilter={qf} />);
 
     // Nothing expanded -> the toggle offers Expand all with every column.
     fireEvent.click(screen.getByRole("button", { name: "Expand all filters" }));
@@ -995,11 +938,7 @@ describe("DataTableControls facet ordering", () => {
     qf.expanded = ["alpha", "beta"];
     qf.isV4 = false;
     captureSpy.mockClear();
-    render(
-      <TooltipProvider>
-        <DataTableControls queryFilter={qf} />
-      </TooltipProvider>,
-    );
+    render(<DataTableControls queryFilter={qf} />);
 
     fireEvent.click(
       screen.getByRole("button", { name: "Collapse all filters" }),
@@ -1028,11 +967,7 @@ describe("DataTableControls facet ordering", () => {
     ]);
     qf.isV4 = true;
     captureSpy.mockClear();
-    render(
-      <TooltipProvider>
-        <DataTableControls queryFilter={qf} />
-      </TooltipProvider>,
-    );
+    render(<DataTableControls queryFilter={qf} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Alpha All" }));
     const toggled = captureSpy.mock.calls.filter(
@@ -1061,14 +996,12 @@ describe("DataTableControls facet ordering", () => {
     localStorage.setItem("data-table-controls-active-only", "true");
     try {
       render(
-        <TooltipProvider>
-          <DataTableControls
-            queryFilter={queryFilter([
-              categoricalFilter("alpha", "Alpha", false),
-              categoricalFilter("beta", "Beta", true),
-            ])}
-          />
-        </TooltipProvider>,
+        <DataTableControls
+          queryFilter={queryFilter([
+            categoricalFilter("alpha", "Alpha", false),
+            categoricalFilter("beta", "Beta", true),
+          ])}
+        />,
       );
 
       expect(screen.getByText("Beta")).toBeInTheDocument();
@@ -1083,45 +1016,39 @@ describe("DataTableControls facet ordering", () => {
 
   it("tracks late-arriving URL filters (Pages Router populates params after mount)", () => {
     const { rerender } = render(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter([
-            categoricalFilter("alpha", "Alpha", false),
-            categoricalFilter("beta", "Beta", false),
-          ])}
-        />
-      </TooltipProvider>,
+      <DataTableControls
+        queryFilter={queryFilter([
+          categoricalFilter("alpha", "Alpha", false),
+          categoricalFilter("beta", "Beta", false),
+        ])}
+      />,
     );
     expect(labelOrder("Alpha", "Beta")).toBe(true);
 
     // Filters decoded from the URL a few renders after mount still promote.
     rerender(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter([
-            categoricalFilter("alpha", "Alpha", false),
-            categoricalFilter("beta", "Beta", true),
-          ])}
-        />
-      </TooltipProvider>,
+      <DataTableControls
+        queryFilter={queryFilter([
+          categoricalFilter("alpha", "Alpha", false),
+          categoricalFilter("beta", "Beta", true),
+        ])}
+      />,
     );
     expect(labelOrder("Beta", "Alpha")).toBe(true);
   });
 
   it("shows the 'what is selected' summary in the facet header", () => {
     render(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter([
-            {
-              ...categoricalFilter("alpha", "Alpha", true),
-              value: ["x", "y"],
-              options: ["x", "y", "z"],
-            },
-            categoricalFilter("beta", "Beta", false),
-          ])}
-        />
-      </TooltipProvider>,
+      <DataTableControls
+        queryFilter={queryFilter([
+          {
+            ...categoricalFilter("alpha", "Alpha", true),
+            value: ["x", "y"],
+            options: ["x", "y", "z"],
+          },
+          categoricalFilter("beta", "Beta", false),
+        ])}
+      />,
     );
 
     expect(screen.getByText("2 selected")).toBeInTheDocument();
@@ -1170,21 +1097,17 @@ describe("DataTableControls blocked facets (LFE-11040)", () => {
     // an empty facet on an unavailable column stayed usable. Now a column the
     // surface can't honour blocks regardless of whether it holds a value.
     const { container } = render(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter(
-            [
-              categoricalFilter("blocked", "Blocked", false),
-              categoricalFilter("forwardable", "Forwardable", false),
-            ],
-            // Expand both so each facet's fieldset is mounted and observable.
-            ["blocked", "forwardable"],
-          )}
-          blockedColumnReason={(column) =>
-            column === "blocked" ? REASON : null
-          }
-        />
-      </TooltipProvider>,
+      <DataTableControls
+        queryFilter={queryFilter(
+          [
+            categoricalFilter("blocked", "Blocked", false),
+            categoricalFilter("forwardable", "Forwardable", false),
+          ],
+          // Expand both so each facet's fieldset is mounted and observable.
+          ["blocked", "forwardable"],
+        )}
+        blockedColumnReason={(column) => (column === "blocked" ? REASON : null)}
+      />,
     );
 
     // The inactive-but-blocked facet's inputs are disabled (fieldset) even
@@ -1211,20 +1134,18 @@ describe("DataTableControls blocked facets (LFE-11040)", () => {
     localStorage.setItem("data-table-controls-active-only", "true");
     try {
       render(
-        <TooltipProvider>
-          <DataTableControls
-            queryFilter={queryFilter([
-              // One active facet so active-only mode has something to show
-              // and the picker (addable = the inactive rest) renders.
-              categoricalFilter("active", "Active", true),
-              categoricalFilter("blocked", "Blocked", false),
-              categoricalFilter("forwardable", "Forwardable", false),
-            ])}
-            blockedColumnReason={(column) =>
-              column === "blocked" ? REASON : null
-            }
-          />
-        </TooltipProvider>,
+        <DataTableControls
+          queryFilter={queryFilter([
+            // One active facet so active-only mode has something to show
+            // and the picker (addable = the inactive rest) renders.
+            categoricalFilter("active", "Active", true),
+            categoricalFilter("blocked", "Blocked", false),
+            categoricalFilter("forwardable", "Forwardable", false),
+          ])}
+          blockedColumnReason={(column) =>
+            column === "blocked" ? REASON : null
+          }
+        />,
       );
 
       fireEvent.click(screen.getByRole("button", { name: /Add filter/ }));
@@ -1283,11 +1204,7 @@ describe("DataTableControls facet catalog", () => {
   ];
 
   it("keeps every facet visible so browser find can reach it", () => {
-    render(
-      <TooltipProvider>
-        <DataTableControls queryFilter={queryFilter(CATALOG)} />
-      </TooltipProvider>,
-    );
+    render(<DataTableControls queryFilter={queryFilter(CATALOG)} />);
 
     expect(screen.getByText("Environment")).toBeVisible();
     expect(screen.getByText("Name")).toBeVisible();
@@ -1301,14 +1218,12 @@ describe("DataTableControls facet catalog", () => {
   it("expand-all expands every facet in the catalog", () => {
     const onExpandedChange = vi.fn();
     render(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={{
-            ...queryFilter(CATALOG),
-            onExpandedChange,
-          }}
-        />
-      </TooltipProvider>,
+      <DataTableControls
+        queryFilter={{
+          ...queryFilter(CATALOG),
+          onExpandedChange,
+        }}
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Expand all filters" }));
@@ -1369,9 +1284,7 @@ describe("DataTableControls facet-name search", () => {
   });
 
   const controls = (filters: UIFilter[]) => (
-    <TooltipProvider>
-      <DataTableControls queryFilter={queryFilter(filters)} />
-    </TooltipProvider>
+    <DataTableControls queryFilter={queryFilter(filters)} />
   );
 
   const searchFor = (query: string) =>
@@ -1425,11 +1338,7 @@ describe("DataTableControls facet-name search", () => {
       setFilterState: () => mutations.push("setFilterState"),
       onExpandedChange: () => mutations.push("expand"),
     };
-    render(
-      <TooltipProvider>
-        <DataTableControls queryFilter={qf} />
-      </TooltipProvider>,
-    );
+    render(<DataTableControls queryFilter={qf} />);
 
     searchFor("zzz");
     expect(screen.getByText("User ID")).not.toBeVisible();
@@ -1453,11 +1362,7 @@ describe("DataTableControls facet-name search", () => {
     // that silently, so the search only hides them.
     const qf = queryFilter(catalog());
     qf.expanded = ["environment"];
-    render(
-      <TooltipProvider>
-        <DataTableControls queryFilter={qf} />
-      </TooltipProvider>,
-    );
+    render(<DataTableControls queryFilter={qf} />);
     // Radix Tabs commit on mouse-down; jsdom needs both events.
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Text" }));
     fireEvent.click(screen.getByRole("tab", { name: "Text" }));
@@ -1497,11 +1402,7 @@ describe("DataTableControls facet-name search", () => {
     const qf = queryFilter(catalog());
     qf.expanded = ["environment"];
     qf.onExpandedChange = (value) => expandedChanges.push(value);
-    render(
-      <TooltipProvider>
-        <DataTableControls queryFilter={qf} />
-      </TooltipProvider>,
-    );
+    render(<DataTableControls queryFilter={qf} />);
 
     // Environment is expanded but a "token" query hides it, so the toggle must
     // offer to expand what IS on screen rather than to collapse the invisible.

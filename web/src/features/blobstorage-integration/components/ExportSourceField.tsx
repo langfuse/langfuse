@@ -61,7 +61,6 @@ export const ExportSourceField = ({
                 Export Source
                 <CustomTooltip
                   placement="bottom"
-                  delay={300}
                   content={
                     <div className="space-y-2">
                       {exportSourceOptions.map((option) => (

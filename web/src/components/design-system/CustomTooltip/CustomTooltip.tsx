@@ -13,14 +13,12 @@ import {
   useFocus,
   useHover,
   useInteractions,
-  useMergeRefs,
   useRole,
   type Placement,
 } from "@floating-ui/react";
 import * as React from "react";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
-import { cn } from "@/src/utils/tailwind";
 
 type CustomTooltipProps = {
   children: (controls: {
@@ -33,20 +31,16 @@ type CustomTooltipProps = {
   hoverableContent?: boolean;
   placement?: Placement;
   activation?: "hover" | "hover-and-click";
-  size?: "default" | "wide";
-  triggerRef?: React.Ref<HTMLElement>;
   disabled?: boolean;
 };
 
 function CustomTooltip({
   children,
   content,
-  delay = 700,
+  delay = 300,
   hoverableContent = true,
   placement = "top",
   activation = "hover",
-  size = "default",
-  triggerRef,
   disabled = false,
 }: CustomTooltipProps) {
   const [isOpen, setIsOpen] = React.useState(false);
@@ -78,7 +72,6 @@ function CustomTooltip({
     dismiss,
     role,
   ]);
-  const referenceRef = useMergeRefs([refs.setReference, triggerRef]);
 
   return (
     <>
@@ -86,20 +79,14 @@ function CustomTooltip({
         getTriggerProps: (props) =>
           getReferenceProps({
             ...props,
-            ref: referenceRef,
+            ref: refs.setReference,
           }),
       })}
       {isOpen && !disabled ? (
         <FloatingPortal root={layerContainer}>
           <div
             ref={refs.setFloating}
-            className={cn(
-              "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 overflow-hidden rounded-md border px-3 py-1.5 text-sm shadow-md",
-              {
-                default: "max-w-xs",
-                wide: "max-w-[calc(100vw-2rem)]",
-              }[size],
-            )}
+            className="bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 max-w-xs overflow-hidden rounded-md border px-3 py-1.5 text-sm shadow-md"
             style={floatingStyles}
             {...getFloatingProps()}
           >

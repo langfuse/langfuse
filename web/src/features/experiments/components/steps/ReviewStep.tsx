@@ -162,7 +162,10 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Run Name:</span>
               <span className="font-bold">{formValues.runName}</span>
-              <Tooltip label="This run name is auto-generated from the experiment name and can be used to fetch the resulting experiment run via the public API.">
+              <Tooltip
+                label="This run name is auto-generated from the experiment name and can be used to fetch the resulting experiment run via the public API."
+                delay={700}
+              >
                 {({ getTriggerProps }) => (
                   <InfoIcon
                     {...getTriggerProps()}

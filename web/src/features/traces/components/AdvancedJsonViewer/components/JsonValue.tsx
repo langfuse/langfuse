@@ -152,7 +152,6 @@ export function JsonValue({
                 key={index}
                 label={segment.preview}
                 placement="top-start"
-                delay={300}
               >
                 {({ getTriggerProps }) => (
                   <span {...getTriggerProps()} style={{ backgroundColor }}>
@@ -221,12 +220,7 @@ export function JsonValue({
 
         if (segment.type === "comment" && segment.preview) {
           return (
-            <Tooltip
-              key={index}
-              label={segment.preview}
-              placement="top-start"
-              delay={300}
-            >
+            <Tooltip key={index} label={segment.preview} placement="top-start">
               {({ getTriggerProps }) => (
                 <span {...getTriggerProps()} style={{ backgroundColor }}>
                   {segment.text}
