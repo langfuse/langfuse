@@ -38,11 +38,14 @@ jobs:
       - name: Generate production dependency license report
         run: |
           pnpm -r licenses list --prod --json > pnpm-licenses.json
+          # Exempt only these package versions; upgrades receive a fresh license check.
           jq -er '
+            ["axe-core@4.13.0", "dompurify@3.4.16", "elkjs@0.11.1"] as $exceptions |
             if length == 0 then error("No production dependency licenses found")
             else ["package_name", "license_name"],
               (to_entries[] | .key as $license | .value[] | .name as $name |
-                .versions[] | ["\($name)@\(.)", $license])
+                .versions[] | "\($name)@\(.)" as $package |
+                select($exceptions | index($package) | not) | [$package, $license])
             end | @csv
           ' pnpm-licenses.json > pnpm-licenses.csv
 
