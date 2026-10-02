@@ -7,14 +7,29 @@ import {
   toStoredMappingList,
 } from "@/src/features/public-api/server";
 import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
-import { InvalidRequestError } from "@langfuse/shared";
+import { EvalTemplateType, InvalidRequestError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import type { z } from "zod";
 import type { ServerContext } from "../../types";
 import {
+  McpEvaluatorType,
   EvaluationRuleResponseSchema,
   type EvaluationRuleAssignmentInput,
 } from "./rule-schema";
+
+function isMcpEvaluatorType(type: EvalTemplateType) {
+  return (
+    type === EvalTemplateType.DECISION_MODEL || isPublicApiEvaluatorType(type)
+  );
+}
+
+function toMcpEvaluatorType(type: EvalTemplateType) {
+  return McpEvaluatorType.parse(
+    type === EvalTemplateType.DECISION_MODEL
+      ? "decision_model"
+      : toPublicEvaluatorType(type),
+  );
+}
 
 export function createMcpRuleService(context: ServerContext) {
   return new RuleService(prisma, ({ action, ruleId }) =>
@@ -51,11 +66,11 @@ export async function assertRuleAssignmentsReplaceableViaMcp(
 ) {
   const rule = await service.get(projectId, ruleId);
   const hidden = rule.assignments.filter(
-    (assignment) => !isPublicApiEvaluatorType(assignment.evaluator.type),
+    (assignment) => !isMcpEvaluatorType(assignment.evaluator.type),
   );
   if (hidden.length > 0) {
     throw new InvalidRequestError(
-      "This rule uses experimental evaluators that are not visible through MCP. Update its evaluator assignments in the Langfuse UI.",
+      "This rule uses internal evaluators that are not visible through MCP. Update its evaluator assignments in the Langfuse UI.",
     );
   }
 }
@@ -70,13 +85,11 @@ export function toMcpEvaluationRule(
     sampling: rule.sampling,
     filter: rule.filter,
     evaluators: rule.assignments
-      .filter((assignment) =>
-        isPublicApiEvaluatorType(assignment.evaluator.type),
-      )
+      .filter((assignment) => isMcpEvaluatorType(assignment.evaluator.type))
       .map((assignment) => ({
         evaluatorId: assignment.evaluator.id,
         evaluatorName: assignment.evaluator.name,
-        evaluatorType: toPublicEvaluatorType(assignment.evaluator.type),
+        evaluatorType: toMcpEvaluatorType(assignment.evaluator.type),
         variableMapping:
           assignment.variableMapping === null
             ? null
