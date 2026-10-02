@@ -226,7 +226,7 @@ const ScoreItem = ({
       </HoverCardTrigger>
       <HoverCardContent
         align="start"
-        className="max-h-[50vh] w-80 overflow-auto text-xs break-words whitespace-normal"
+        className="max-h-[50vh] w-96 overflow-auto text-xs break-words whitespace-normal"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex flex-col gap-3">
@@ -237,8 +237,8 @@ const ScoreItem = ({
               {displayValue}
               {diff?.type === "CATEGORICAL" && (
                 <span className="text-muted-foreground ml-2 whitespace-normal">
-                  {diff.from && diff.to
-                    ? `${diff.from} → ${diff.to}`
+                  {diff.from
+                    ? `← Baseline: ${diff.from}`
                     : "Varies from baseline"}
                 </span>
               )}
