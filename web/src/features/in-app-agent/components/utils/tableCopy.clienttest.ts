@@ -77,20 +77,20 @@ describe("table copy", () => {
         </thead>
         <tbody>
           <tr>
-            <td>see <a href="https://example.com/docs">a|b</a> and <a href="javascript:alert(1)">skip</a></td>
+            <td>see <a href="https://example.com/a)b">a|b\\c]</a> and <a href="javascript:alert(1)">skip</a></td>
           </tr>
         </tbody>
       </table>
     `);
 
     expect(tableToCsv(readRenderedTable(table))).toBe(
-      "Where\nsee a|b and skip",
+      "Where\nsee a|b\\c] and skip",
     );
     expect(tableToMarkdown(readRenderedTable(table, "markdown"))).toBe(
       [
         "| Where |",
         "| --- |",
-        "| see [a\\|b](https://example.com/docs) and skip |",
+        "| see [a\\|b\\\\c\\]](https://example.com/a\\)b) and skip |",
       ].join("\n"),
     );
   });

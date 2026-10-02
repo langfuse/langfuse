@@ -54,14 +54,22 @@ function renderInline(node: Node, format: "text" | "markdown"): string {
   }
 
   const href = getSafeLinkUrl(node.getAttribute("href"));
-  const label = normalizeCell(children);
+  const label = normalizeCell(
+    [...node.childNodes].map((child) => renderInline(child, "text")).join(""),
+  );
   if (!href || !label) {
     return children;
   }
 
-  const text = label.replace(/[[\]]/g, "\\$&");
-  const url = href.replace(/[()\\|]/g, "\\$&");
-  return `[${text}](${url})`;
+  return `[${escapeMarkdownLinkLabel(label)}](${escapeMarkdownLinkDestination(href)})`;
+}
+
+function escapeMarkdownLinkLabel(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/[[\]|]/g, "\\$&");
+}
+
+function escapeMarkdownLinkDestination(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/[()|]/g, "\\$&");
 }
 
 function rowCells(row: Element, format: "text" | "markdown") {
