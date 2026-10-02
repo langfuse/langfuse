@@ -16,6 +16,7 @@ import {
   toDomainArrayWithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
 import { partition } from "lodash";
+import { getTraceArrivalEmptyRefetchIntervalMs } from "@/src/features/events/lib/traceArrivalRetry";
 
 interface UseEventsTraceDataProps {
   projectId: string;
@@ -34,6 +35,11 @@ interface UseEventsTraceDataResult {
     | undefined;
   isLoading: boolean;
   error: unknown;
+  /**
+   * True while an empty events result is still being retried — the trace may
+   * still be ingesting. Distinct from `isLoading` (first paint).
+   */
+  isWaitingForTrace: boolean;
   /**
    * The observation cap this trace was loaded under, set ONLY when the trace hit
    * it (so the list is missing its chronological tail). The number comes from the
@@ -58,7 +64,10 @@ export function useEventsTraceData(
 ): UseEventsTraceDataResult {
   const { projectId, traceId, enabled = true } = props;
 
-  // Step 1: Fetch all observations for this trace (without I/O for performance)
+  // Step 1: Fetch all observations for this trace (without I/O for performance).
+  // A missing trace usually returns an empty observation list (success), not a
+  // NOT_FOUND error — so arrival lag is handled via refetchInterval backoff
+  // rather than `retry`.
   const eventsQuery = api.events.byTraceId.useQuery(
     {
       projectId,
@@ -71,6 +80,15 @@ export function useEventsTraceData(
         if (error.data?.code === "UNAUTHORIZED") return false;
         return failureCount < 3;
       },
+      refetchInterval: (query) => {
+        const observations = query.state.data?.observations;
+        if (!query.state.data) return false;
+        if (observations && observations.length > 0) return false;
+        return getTraceArrivalEmptyRefetchIntervalMs(
+          query.state.dataUpdateCount,
+        );
+      },
+      refetchIntervalInBackground: false,
       staleTime: 60 * 1000, // 1 minute
     },
   );
@@ -178,10 +196,22 @@ export function useEventsTraceData(
     };
   }, [observations, traceId, rootIOQuery.data, scoresQuery.data]);
 
+  const observationsEmpty =
+    !!eventsQuery.data &&
+    ((eventsQuery.data.observations as EventsTraceObservation[] | undefined)
+      ?.length ?? 0) === 0;
+  // Still inside the empty-result backoff window (same 4 retries as the traces
+  // path). Between interval ticks isFetching is false, so key off the count.
+  const isWaitingForTrace =
+    observationsEmpty &&
+    getTraceArrivalEmptyRefetchIntervalMs(eventsQuery.dataUpdateCount) !==
+      false;
+
   return {
     data: transformed ?? undefined,
     isLoading: eventsQuery.isLoading || scoresQuery.isLoading,
     error: eventsQuery.error || scoresQuery.error,
+    isWaitingForTrace,
     truncatedAtObservations: eventsQuery.data?.cutoffObservationsAfterMaxCount
       ? eventsQuery.data.maxObservationsPerTrace
       : undefined,

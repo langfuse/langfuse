@@ -1,6 +1,10 @@
 import { api } from "@/src/utils/api";
 import { useEventsTraceData, useReadPath } from "@/src/features/events";
 import { useSession } from "next-auth/react";
+import {
+  getTraceArrivalRetryDelayMs,
+  shouldRetryTraceArrival,
+} from "@/src/features/events/lib/traceArrivalRetry";
 
 /**
  * Single source of truth for fetching a trace's detail data, beta-aware (events
@@ -8,6 +12,10 @@ import { useSession } from "next-auth/react";
  * and the standalone trace page use this so the fetch isn't forked — it exposes
  * the union of what each surface needs (the page's not-found / unauthorized
  * pages and the truncation flag; the peek just reads `data`/`isLoading`).
+ *
+ * A NOT_FOUND (or empty events result) is retried with exponential backoff so a
+ * deep link opened during ingest lag does not immediately flash the error page.
+ * See {@link shouldRetryTraceArrival}.
  */
 export function useTraceDetailData({
   projectId,
@@ -51,13 +59,24 @@ export function useTraceDetailData({
         !isTraceSourceLoading &&
         !useEventsTraceSource,
       retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
+        if (error.data?.code === "UNAUTHORIZED") return false;
+        // Deep links during ingest lag: retry NOT_FOUND with backoff instead of
+        // failing on the first miss. Auth stays fail-fast.
+        if (error.data?.code === "NOT_FOUND") {
+          return shouldRetryTraceArrival(failureCount);
+        }
         return failureCount < 3;
       },
+      retryDelay: (failureCount, error) => {
+        if (error.data?.code === "NOT_FOUND") {
+          return getTraceArrivalRetryDelayMs(failureCount);
+        }
+        // TanStack default: min(1000 * 2^failureCount, 30000)
+        return Math.min(1_000 * 2 ** failureCount, 30_000);
+      },
+      // The ErrorPage owns the settled miss UX — don't also toast 404s from the
+      // global query cache (including the final exhausted attempt).
+      meta: { silentHttpCodes: [404] },
       staleTime: 60 * 1000,
     },
   );
@@ -83,6 +102,7 @@ export function useTraceDetailData({
       isError: false,
       isNotFound: false,
       isUnauthorized: false,
+      isWaitingForTrace: false,
       truncatedAtObservations: undefined,
     };
   }
@@ -104,20 +124,38 @@ export function useTraceDetailData({
       // a NOT_FOUND error code. Any error (UNAUTHORIZED, a 500, a network blip)
       // also lands as no-data, so "not found" must mean no-data AND no-error —
       // else a transient failure is mislabeled as a deleted/missing trace.
+      // While empty-result backoff is still running, keep isNotFound false.
       isNotFound:
-        !eventsData.isLoading && !eventsData.data && !eventsData.error,
+        !eventsData.isLoading &&
+        !eventsData.data &&
+        !eventsData.error &&
+        !eventsData.isWaitingForTrace,
       isUnauthorized,
+      isWaitingForTrace: eventsData.isWaitingForTrace,
       truncatedAtObservations: eventsData.truncatedAtObservations,
     };
   }
+
+  const isUnauthorized = tracesQuery.error?.data?.code === "UNAUTHORIZED";
+  const isNotFoundError = tracesQuery.error?.data?.code === "NOT_FOUND";
+  // fetchFailureCount > 0 means at least one miss already happened and TanStack
+  // is still in the retry/backoff window (isFetching stays true across delays).
+  const isWaitingForTrace =
+    !tracesQuery.data &&
+    !isUnauthorized &&
+    tracesQuery.isFetching &&
+    tracesQuery.failureCount > 0 &&
+    !tracesQuery.isError;
 
   return {
     data: tracesQuery.data,
     isLoading: tracesQuery.isLoading,
     error: tracesQuery.error,
     isError: tracesQuery.isError,
-    isNotFound: tracesQuery.error?.data?.code === "NOT_FOUND",
-    isUnauthorized: tracesQuery.error?.data?.code === "UNAUTHORIZED",
+    // Settled NOT_FOUND only — during arrival retries isError is still false.
+    isNotFound: isNotFoundError && tracesQuery.isError,
+    isUnauthorized,
+    isWaitingForTrace,
     // The traces-table read path has no row cap.
     truncatedAtObservations: undefined,
   };

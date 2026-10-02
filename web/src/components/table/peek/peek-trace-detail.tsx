@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { useRef } from "react";
 import { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
 import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
+import { TraceWaitingForArrival } from "@/src/features/traces/components/TraceWaitingForArrival";
 import {
   TablePeekView,
   shouldClosePeekAfterDelete,
@@ -73,12 +74,16 @@ export const TablePeekViewTraceDetail = (
         ) : undefined
       }
     >
-      <TraceDetailBody
-        trace={trace.data}
-        context="peek"
-        layout={layout}
-        truncatedAtObservations={trace.truncatedAtObservations}
-      />
+      {trace.isWaitingForTrace ? (
+        <TraceWaitingForArrival />
+      ) : (
+        <TraceDetailBody
+          trace={trace.data}
+          context="peek"
+          layout={layout}
+          truncatedAtObservations={trace.truncatedAtObservations}
+        />
+      )}
     </TablePeekView>
   );
 };
