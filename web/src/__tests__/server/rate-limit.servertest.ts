@@ -5,13 +5,21 @@ import {
 } from "@/src/features/public-api/server/RateLimitService";
 import { randomUUID } from "crypto";
 import type { Redis } from "ioredis";
-import type { ApiAccessScope } from "@langfuse/shared/src/server";
+import {
+  type ApiAccessScope,
+  createAdminIssue,
+} from "@langfuse/shared/src/server";
 import {
   clearRedisKeysByPatternSafely,
   createRedisTestClient,
   ensureRedisReady,
   type RedisTestClient,
 } from "@/src/__tests__/server/redis-test-utils";
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  createAdminIssue: vi.fn().mockResolvedValue({ id: "issue" }),
+}));
 
 // The rate limiter only reads these scope fields; the cast keeps the test
 // fixtures minimal without changing them at runtime.
@@ -27,6 +35,7 @@ describe("RateLimitService", () => {
   const orgId = `rate-limit-test-org-${randomUUID()}`;
   const projectId = `rate-limit-test-project-${randomUUID()}`;
   const rateLimitKeysPattern = `${RATE_LIMIT_REDIS_KEY_PREFIX}:*:${orgId}`;
+  const issueKeysPattern = `admin-issue:rate-limit:*:${orgId}:*`;
   let redis: RedisTestClient;
 
   const createRedisClient = (): RedisTestClient => {
@@ -43,20 +52,24 @@ describe("RateLimitService", () => {
   }, 20_000);
 
   beforeEach(async () => {
+    vi.mocked(createAdminIssue).mockClear();
     if (redis.status === "close" || redis.status === "end") {
       RateLimitService.shutdown();
       redis = createRedisClient();
     }
     await ensureRedisReady(redis);
     await clearRedisKeysByPatternSafely(redis, rateLimitKeysPattern);
+    await clearRedisKeysByPatternSafely(redis, issueKeysPattern);
   }, 20_000);
 
   afterEach(async () => {
     await clearRedisKeysByPatternSafely(redis, rateLimitKeysPattern);
+    await clearRedisKeysByPatternSafely(redis, issueKeysPattern);
   }, 20_000);
 
   afterAll(async () => {
     await clearRedisKeysByPatternSafely(redis, rateLimitKeysPattern);
+    await clearRedisKeysByPatternSafely(redis, issueKeysPattern);
     redis.disconnect();
     RateLimitService.shutdown();
   }, 20_000);
@@ -124,6 +137,87 @@ describe("RateLimitService", () => {
 
     expect(value).toBeDefined();
     expect(parseInt(value ?? "0")).toBeGreaterThan(0);
+  });
+
+  it("creates one project issue per exceeded resource window", async () => {
+    const scope = asScope({
+      orgId,
+      plan: "cloud:hobby",
+      projectId,
+      accessLevel: "project",
+      rateLimitOverrides: [
+        { resource: "ingestion", points: 2, durationInSec: 60 },
+      ],
+    });
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
+
+    await rateLimitService.rateLimitRequest(
+      scope,
+      "ingestion",
+      "POST OTel Traces",
+    );
+    await rateLimitService.rateLimitRequest(
+      scope,
+      "ingestion",
+      "POST OTel Traces",
+    );
+    await rateLimitService.rateLimitRequest(
+      scope,
+      "ingestion",
+      "POST OTel Traces",
+    );
+
+    expect(createAdminIssue).toHaveBeenCalledOnce();
+    expect(createAdminIssue).toHaveBeenCalledWith({
+      projectId,
+      name: "Rate limit exceeded",
+      issue: {
+        description: expect.stringContaining(
+          "POST OTel Traces exceeded the ingestion rate limit of 2 requests per 60 seconds",
+        ),
+        priority: 2,
+      },
+    });
+
+    await rateLimitService.rateLimitRequest(
+      { ...scope, projectId: "another-project" },
+      "ingestion",
+      "POST OTel Traces",
+    );
+    await rateLimitService.rateLimitRequest(
+      { ...scope, projectId: null, accessLevel: "organization" },
+      "ingestion",
+      "POST OTel Traces",
+    );
+    expect(createAdminIssue).toHaveBeenCalledTimes(2);
+    expect(createAdminIssue).toHaveBeenLastCalledWith(
+      expect.objectContaining({ projectId: "another-project" }),
+    );
+  });
+
+  it("retries issue creation within the rate window after a write failure", async () => {
+    const scope = asScope({
+      orgId,
+      plan: "cloud:hobby",
+      projectId,
+      accessLevel: "project",
+      rateLimitOverrides: [
+        { resource: "ingestion", points: 2, durationInSec: 60 },
+      ],
+    });
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
+    const issueKey = `admin-issue:rate-limit:ingestion:${orgId}:${projectId}`;
+    vi.mocked(createAdminIssue).mockResolvedValueOnce(undefined);
+
+    await rateLimitService.rateLimitRequest(scope, "ingestion");
+    await rateLimitService.rateLimitRequest(scope, "ingestion");
+
+    expect(createAdminIssue).toHaveBeenCalledOnce();
+    expect(await redis.pttl(issueKey)).toBeLessThanOrEqual(30_000);
+
+    await redis.del(issueKey);
+    await rateLimitService.rateLimitRequest(scope, "ingestion");
+    expect(createAdminIssue).toHaveBeenCalledTimes(2);
   });
 
   it("should increment the rate limit count", async () => {

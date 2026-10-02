@@ -5,9 +5,12 @@ import { customModelsScenario } from "./custom-models";
 import { deepChainScenario } from "./deep-chain";
 import { evaluatorGalleryScenario } from "./evaluator-gallery";
 import { experimentIoScenario } from "./experiment-io";
+import { failingIntegrationsScenario } from "./failing-integrations";
 import { incidentSessionScenario } from "./incident-session";
+import { longMetadataValuesScenario } from "./long-metadata-values";
 import { longSessionScenario } from "./long-session";
 import { manyTracesScenario } from "./many-traces";
+import { nestedPromptsScenario } from "./nested-prompts";
 import { outlierTrafficScenario } from "./outlier-traffic";
 import { scoredTracesScenario } from "./scored-traces";
 import { sessionShapesScenario } from "./session-shapes";
@@ -16,6 +19,7 @@ import { supportAgentScenario } from "./support-agent";
 import { timelineAnnotatedScenario } from "./timeline-annotated";
 import { timelineShapesScenario } from "./timeline-shapes";
 import { traceTreeScenario } from "./trace-tree";
+import { unpricedGenerationsScenario } from "./unpriced-generations";
 import { ScenarioDefinition } from "./types";
 
 /**
@@ -28,8 +32,11 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "deep-chain": deepChainScenario,
   "evaluator-gallery": evaluatorGalleryScenario,
   "experiment-io": experimentIoScenario,
+  "failing-integrations": failingIntegrationsScenario,
+  "long-metadata-values": longMetadataValuesScenario,
   "long-session": longSessionScenario,
   "many-traces": manyTracesScenario,
+  "nested-prompts": nestedPromptsScenario,
   "outlier-traffic": outlierTrafficScenario,
   "scored-traces": scoredTracesScenario,
   "session-shapes": sessionShapesScenario,
@@ -40,6 +47,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "incident-session": incidentSessionScenario,
   "timeline-annotated": timelineAnnotatedScenario,
   "timeline-shapes": timelineShapesScenario,
+  "unpriced-generations": unpricedGenerationsScenario,
 };
 
 export * from "./types";

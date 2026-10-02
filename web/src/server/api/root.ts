@@ -49,6 +49,7 @@ import { cloudStatusRouter } from "@/src/features/cloud-status-notification/serv
 import { dashboardWidgetRouter } from "./routers/dashboardWidgets";
 import { TableViewPresetsRouter } from "@/src/server/api/routers/tableViewPresets";
 import { automationsRouter } from "@/src/features/automations/server/router";
+import { adminIssuesRouter } from "@/src/features/admin-issues/server/router";
 import { monitorsRouter } from "@/src/server/api/routers/monitors";
 import { defaultEvalModelRouter } from "@/src/features/evals/server/defaultEvalModelRouter";
 import { slackRouter } from "@/src/features/slack/server/router";
@@ -122,6 +123,7 @@ export const appRouter = createTRPCRouter({
   dashboardWidgets: dashboardWidgetRouter,
   TableViewPresets: TableViewPresetsRouter,
   automations: automationsRouter,
+  adminIssues: adminIssuesRouter,
   monitors: monitorsRouter,
   slack: slackRouter,
   supportRouter: supportRouter,

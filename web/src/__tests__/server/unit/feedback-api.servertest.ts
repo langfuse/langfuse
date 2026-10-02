@@ -104,7 +104,11 @@ describe("POST /api/public/feedback", () => {
       scope: validScope,
       source: "public-api",
     });
-    expect(mockRateLimitRequest).toHaveBeenCalledWith(validScope, "public-api");
+    expect(mockRateLimitRequest).toHaveBeenCalledWith(
+      validScope,
+      "public-api",
+      "POST Submit Feedback",
+    );
   });
 
   it("returns 400 for a null body", async () => {

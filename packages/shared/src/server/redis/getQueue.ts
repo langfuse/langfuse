@@ -1,5 +1,7 @@
 import { Queue } from "bullmq";
 import { QueueName } from "../queues";
+import { AdminIssueScheduleQueue } from "./adminIssueScheduleQueue";
+import { AdminIssueDetectionQueue } from "./adminIssueDetectionQueue";
 import { BatchExportQueue } from "./batchExport";
 import { CloudUsageMeteringQueue } from "./cloudUsageMeteringQueue";
 import { CloudSpendAlertQueue } from "./cloudSpendAlertQueue";
@@ -49,6 +51,10 @@ export function getQueue(
   >,
 ): Queue | null {
   switch (queueName) {
+    case QueueName.AdminIssueScheduleQueue:
+      return AdminIssueScheduleQueue.getInstance();
+    case QueueName.AdminIssueDetectionQueue:
+      return AdminIssueDetectionQueue.getInstance();
     case QueueName.TraceBatch:
       return TraceBatchQueue.getInstance();
     case QueueName.BatchExport:

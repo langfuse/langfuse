@@ -5,6 +5,7 @@ import { gzipSync } from "node:zlib";
 import { describe, expect, it, vi } from "vitest";
 
 const routeMocks = vi.hoisted(() => ({
+  createAdminIssue: vi.fn().mockResolvedValue(undefined),
   logger: { error: vi.fn(), warn: vi.fn() },
   markProjectAsOtelUser: vi.fn(),
 }));
@@ -29,6 +30,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
     getInstance: () => ({ closeAllConnections: vi.fn() }),
   },
   createIngestionAttribution: vi.fn(),
+  createAdminIssue: routeMocks.createAdminIssue,
   getCurrentSpan: vi.fn(),
   getLangfuseHeaderValue: vi.fn(),
   logger: { ...routeMocks.logger, debug: vi.fn() },
@@ -141,6 +143,14 @@ describe("OTel request body limits", () => {
     });
     expect(res.status).toHaveBeenCalledWith(413);
     expect(res.setHeader).toHaveBeenCalledWith("Connection", "close");
+    expect(routeMocks.createAdminIssue).toHaveBeenCalledWith({
+      projectId: "project",
+      name: "Oversized ingestion request",
+      issue: {
+        description: "OTel request body exceeds the 4 bytes limit",
+        priority: 2,
+      },
+    });
     req.destroy();
   });
 
@@ -170,6 +180,36 @@ describe("OTel request body limits", () => {
     });
     expect(res.status).toHaveBeenCalledWith(413);
     expect(res.setHeader).not.toHaveBeenCalled();
+    req.destroy();
+  });
+
+  it("keeps the 413 response when logging the admin issue fails", async () => {
+    routeEnv.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES = 4;
+    routeMocks.createAdminIssue.mockRejectedValueOnce(
+      new Error("Database error"),
+    );
+    const req = request({ "content-length": "5" });
+    const res = response();
+    const post = (
+      otelRoute as unknown as {
+        POST: (params: unknown) => Promise<unknown>;
+      }
+    ).POST;
+
+    await expect(
+      post({
+        req,
+        res,
+        auth: { scope: { isIngestionSuspended: false, projectId: "project" } },
+      }),
+    ).resolves.toEqual({
+      error: "OTel request body exceeds the 4 bytes limit",
+    });
+    expect(res.status).toHaveBeenCalledWith(413);
+    expect(routeMocks.logger.error).toHaveBeenCalledWith(
+      "Failed to log oversized OTEL request admin issue",
+      expect.objectContaining({ projectId: "project" }),
+    );
     req.destroy();
   });
 });

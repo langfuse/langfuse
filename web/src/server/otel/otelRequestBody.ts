@@ -2,6 +2,7 @@ import type { IncomingMessage } from "node:http";
 import { gunzip } from "node:zlib";
 
 import {
+  createAdminIssue,
   getCurrentSpan,
   logger,
   recordIncrement,
@@ -54,6 +55,22 @@ export function handleOtelRequestBodyTooLarge(
     "langfuse.ingestion.otel.request_body_limit_stage": stage,
   });
   res.status(413);
+
+  createAdminIssue({
+    projectId,
+    name: "Oversized ingestion request",
+    issue: {
+      description: error.message,
+      priority: 2,
+    },
+  }).catch((issueError) => {
+    logger.error("Failed to log oversized OTEL request admin issue", {
+      projectId,
+      errorMessage:
+        issueError instanceof Error ? issueError.message : String(issueError),
+    });
+  });
+
   return { error: error.message };
 }
 

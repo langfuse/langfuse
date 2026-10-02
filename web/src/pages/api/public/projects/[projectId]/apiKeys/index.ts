@@ -55,6 +55,7 @@ export default async function handler(
       await RateLimitService.getInstance().rateLimitRequest(
         authCheck.scope,
         "public-api",
+        `${req.method} /api/public/projects/{projectId}/apiKeys`,
       );
     if (rateLimitCheck?.isRateLimited()) {
       return rateLimitCheck.sendRestResponseIfLimited(res);

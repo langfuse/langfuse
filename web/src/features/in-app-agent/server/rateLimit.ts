@@ -75,6 +75,7 @@ async function checkInAppAgentRateLimit(
   const rateLimit = await RateLimitService.getInstance().rateLimitRequest(
     scope,
     resource,
+    "In-app agent run",
   );
 
   return rateLimit.isRateLimited() ? (rateLimit.res ?? undefined) : undefined;

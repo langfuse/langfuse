@@ -1,0 +1,28 @@
+{
+  "description": "Demo data for the proactive admin issue checker: one data shape per check.",
+  "defaults": {
+    "project": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a"
+  },
+  "scenarios": [
+    {
+      "name": "nested-prompts",
+      "params": { "depth": 4, "id-prefix": "admin-issues-demo" }
+    },
+    {
+      "name": "failing-integrations",
+      "params": {
+        "blob-storage": "timeout",
+        "posthog": "disabled",
+        "id-prefix": "admin-issues-demo"
+      }
+    },
+    {
+      "name": "unpriced-generations",
+      "params": { "id-prefix": "admin-issues-demo" }
+    },
+    {
+      "name": "long-metadata-values",
+      "params": { "id-prefix": "admin-issues-demo" }
+    }
+  ]
+}
