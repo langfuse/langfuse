@@ -1,5 +1,17 @@
 #!/bin/sh
 
+# Fail closed when FIPS mode is required but the OpenSSL FIPS provider is not
+# active for Node (e.g. a host without FIPS mode, or an image rebuilt on a
+# non-FIPS base). This runs before the migrations below open database
+# connections. The app additionally requires an enterprise license for FIPS
+# mode at startup (packages/shared/src/server/ee/fips).
+if [ "$LANGFUSE_REQUIRE_FIPS" = "true" ]; then
+    if ! node -e 'process.exit(require("node:crypto").getFips() === 1 ? 0 : 1)'; then
+        echo "Error: LANGFUSE_REQUIRE_FIPS=true but Node's OpenSSL FIPS provider is not active (crypto.getFips() != 1). Exiting..."
+        exit 1
+    fi
+fi
+
 # Check whether a database URL's credentials contain characters that typically
 # need percent-encoding for Prisma (@ : / % # ?).  Best-effort heuristic —
 # strips the scheme, extracts the authority (user:pass@host) before the first

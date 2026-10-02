@@ -67,6 +67,10 @@
       "import": "./dist/src/server/ee/ingestionMasking/index.js",
       "require": "./dist/src/server/ee/ingestionMasking/index.js"
     },
+    "./src/server/ee/fips": {
+      "import": "./dist/src/server/ee/fips/index.js",
+      "require": "./dist/src/server/ee/fips/index.js"
+    },
     "./query": {
       "import": "./dist/src/features/query/index.js",
       "require": "./dist/src/features/query/index.js"

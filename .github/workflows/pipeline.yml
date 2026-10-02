@@ -630,6 +630,42 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
+      # Iron Bank needs a registry1.dso.mil account, and those credentials are
+      # not available to forks or to pull_request runs from a fork. Fall back
+      # to the Dockerfile default, Red Hat's public UBI9, which has the same
+      # content and the same FIPS-validated OpenSSL.
+      - name: Resolve FIPS base images
+        id: bases
+        env:
+          IRONBANK_USER: ${{ secrets.IRONBANK_USER }}
+          # True on runs that execute in this repo's own context, which is
+          # where the Registry1 secrets exist: push, merge_group, tags, and
+          # PRs raised from a branch here rather than from a fork.
+          SECRETS_EXPECTED: ${{ github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        run: |
+          if [ -n "$IRONBANK_USER" ]; then
+            echo "ironbank=true" >> "$GITHUB_OUTPUT"
+            echo "base=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8" >> "$GITHUB_OUTPUT"
+            echo "micro=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.8" >> "$GITHUB_OUTPUT"
+          elif [ "$SECRETS_EXPECTED" = "true" ]; then
+            # Never degrade quietly where the credential is supposed to be
+            # present: a green build on the wrong base misreports which image
+            # was validated.
+            echo "::error::IRONBANK_USER is empty on a run that should have it. Check the repository secrets." >&2
+            exit 1
+          else
+            echo "Fork run without Registry1 access, building on Red Hat's public UBI9." >&2
+            echo "ironbank=false" >> "$GITHUB_OUTPUT"
+            echo "base=registry.access.redhat.com/ubi9/ubi:9.8" >> "$GITHUB_OUTPUT"
+            echo "micro=registry.access.redhat.com/ubi9/ubi-micro:9.8" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Login to Iron Bank
+        if: steps.bases.outputs.ironbank == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: registry1.dso.mil
+          username: ${{ secrets.IRONBANK_USER }}
+          password: ${{ secrets.IRONBANK_PASS }}
       - name: Setup Blacksmith Builder
         uses: useblacksmith/setup-docker-builder@1e75355f81cbb3f93cba1eb5dd5e5b05110ca8f9 # v2.0.1
         with:
@@ -643,14 +679,22 @@ jobs:
           (set +e; docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 postgres redis minio clickhouse > /tmp/deps-up.log 2>&1; echo $? > /tmp/deps-up.exit) &
       - name: Build images
         # Type-checking runs in the lint job; release builds retain it.
+        env:
+          BASE_IMAGE: ${{ steps.bases.outputs.base }}
+          MICRO_BASE_IMAGE: ${{ steps.bases.outputs.micro }}
         run: |
           docker compose -f "$DOCKER_COMPOSE_FILE" build --print > /tmp/bake.json
           if [ "${{ matrix.component }}" = "web" ]; then
             docker buildx bake -f /tmp/bake.json \
+              --set "*.args.BASE_IMAGE=$BASE_IMAGE" \
+              --set "*.args.MICRO_BASE_IMAGE=$MICRO_BASE_IMAGE" \
               --set "langfuse-web.args.NEXT_IGNORE_BUILD_ERRORS=true" \
               langfuse-web
           else
-            docker buildx bake -f /tmp/bake.json langfuse-worker
+            docker buildx bake -f /tmp/bake.json \
+              --set "*.args.BASE_IMAGE=$BASE_IMAGE" \
+              --set "*.args.MICRO_BASE_IMAGE=$MICRO_BASE_IMAGE" \
+              langfuse-worker
           fi
       - name: Start compose services and wait for healthchecks
         run: |
@@ -754,25 +798,10 @@ jobs:
           pnpm install
       - name: Load default env
         run: |
-          write_test_env() {
-            {
-              grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' "$1"
-              echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1"
-              echo "LANGFUSE_CACHE_PROMPT_ENABLED=false"
-              echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1"
-              echo "LANGFUSE_TRACE_DELETE_DELAY_MS=1"
-              echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100"
-              echo "ADMIN_API_KEY=admin-api-key"
-              echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test"
-              echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true"
-              echo "LANGFUSE_ENABLE_SCORES_V3_API=true"
-            } > "$2"
-          }
-
           # Compile once under the default test environment. Next's generate
           # phase below reapplies the mode-specific config and prerendering.
-          write_test_env .env.dev.example .env
-          write_test_env .env.dev${{ matrix.deploy-mode }}.example .env.runtime
+          bash scripts/ci/write-web-test-env.sh .env.dev.example .env
+          bash scripts/ci/write-web-test-env.sh .env.dev${{ matrix.deploy-mode }}.example .env.runtime
           echo "LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED=${{ matrix.deploy-mode != '-azure' }}" >> .env.runtime
       - name: Setup Turbo remote cache
         if: env.CI_CACHE_ALLOWED == 'true'
@@ -1013,6 +1042,130 @@ jobs:
         run: pnpm --filter=worker run test:exclude-llm-connections
         env:
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
+
+  tests-fips:
+    # Runs the web and worker suites the way a FIPS host would: on the UBI
+    # toolchain from worker/Dockerfile with OPENSSL_FORCE_FIPS_MODE=1, which
+    # puts Red Hat's OpenSSL in FIPS mode without a FIPS kernel. Code paths
+    # that need an algorithm FIPS refuses (md5, ...) fail with
+    # ERR_OSSL_EVP_UNSUPPORTED. Databases and migrations run on the runner as
+    # in tests-web/tests-worker; install, build, the web and worker processes
+    # and the tests run in the container (scripts/ci/fips-tests.sh).
+    # Not part of all-ci-passed yet.
+    timeout-minutes: 45
+    runs-on: ${{ matrix.runner }}
+    needs:
+      - pre-job
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    name: tests-fips (${{ matrix.suite }})
+    env:
+      VITEST_MAX_WORKERS: ${{ matrix.max-workers }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: web
+            runner: blacksmith-16vcpu-ubuntu-2404
+            max-workers: "12"
+          - suite: worker
+            runner: blacksmith-8vcpu-ubuntu-2404
+            max-workers: "4"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+          cache: false
+      - name: Login to Docker Hub
+        if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
+          password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
+      - name: Use Node.js 24 without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Use Node.js 24 with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] test job dependency cache only; no released artifacts are built or published from this cached state
+        with:
+          node-version: 24
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        # For the migrations and seeding on the runner; the container installs
+        # its own copy for UBI.
+        run: |
+          pnpm install
+      - name: Install golang-migrate for Clickhouse migrations
+        run: |
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
+          sudo mv migrate /usr/bin/migrate
+          which migrate
+      - name: Load default env
+        run: |
+          if [ "${{ matrix.suite }}" = "web" ]; then
+            bash scripts/ci/write-web-test-env.sh .env.dev.example .env
+            cp .env .env.runtime
+            echo "LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED=true" >> .env.runtime
+          else
+            cp .env.dev.example .env
+            cp .env.dev.example web/.env
+            cp .env.dev.example worker/.env
+          fi
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@1e75355f81cbb3f93cba1eb5dd5e5b05110ca8f9 # v2.0.1
+        with:
+          cache-key: langfuse/test-fips-toolchain
+      - name: Build UBI toolchain image
+        run: docker buildx build --load --target toolchain -f worker/Dockerfile -t langfuse-fips-toolchain .
+      - name: Run + migrate
+        run: |
+          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
+          docker compose -f docker-compose.dev.yml ps
+          pnpm run db:migrate
+          if [ "${{ matrix.suite }}" = "worker" ]; then
+            pnpm --filter=shared run db:seed
+          fi
+          pnpm --filter=shared ch:up
+        env:
+          POSTGRES_VERSION: 15
+          # The worker's code-eval tests need the extra floci container.
+          COMPOSE_PROFILES: ${{ matrix.suite == 'worker' && 'worker-tests' || '' }}
+      - name: Provide ClickHouse client via dev container for dev-tables setup
+        # The clickhouse-server container already ships the client binary;
+        # a shim avoids re-downloading the ~300MB client package every run.
+        run: |
+          sudo tee /usr/local/bin/clickhouse > /dev/null <<'EOF'
+          #!/bin/bash
+          exec docker exec -i langfuse-clickhouse clickhouse "$@"
+          EOF
+          sudo chmod +x /usr/local/bin/clickhouse
+      - name: Setup Dev Tables
+        run: |
+          pnpm --filter=shared ch:dev-tables
+      - name: Run ${{ matrix.suite }} tests under forced FIPS
+        env:
+          LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.suite == 'worker' && 'http://localhost:4566' || '' }}
+          SUITE: ${{ matrix.suite }}
+        run: |
+          docker run --rm --network host \
+            -e OPENSSL_FORCE_FIPS_MODE=1 \
+            -e CI -e VITEST_MAX_WORKERS -e LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT \
+            -e PNPM_STORE_DIR=/pnpm-store \
+            -v "$(pnpm store path --silent):/pnpm-store" \
+            -v "$PWD:/src:ro" \
+            langfuse-fips-toolchain \
+            bash /src/scripts/ci/fips-tests.sh "$SUITE"
+
   test-worker-llm-connections:
     timeout-minutes: 20
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -1536,6 +1689,30 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # Released images always build on the Iron Bank bases. Both ubi9 and
+      # ubi9-micro publish an OCI index covering linux/amd64 and linux/arm64,
+      # so every leg of the platform matrix resolves there.
+      - name: Resolve FIPS base images
+        id: bases
+        env:
+          IRONBANK_USER: ${{ secrets.IRONBANK_USER }}
+        run: |
+          if [ -z "$IRONBANK_USER" ]; then
+            # Releases only ever build in this repo, so a missing credential is
+            # a misconfiguration. Publishing images that claim Iron Bank
+            # provenance but were built elsewhere is worse than a failed
+            # release, so stop here.
+            echo "::error::IRONBANK_USER is empty on a release build. Check the repository secrets." >&2
+            exit 1
+          fi
+          echo "base=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8" >> "$GITHUB_OUTPUT"
+          echo "micro=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.8" >> "$GITHUB_OUTPUT"
+      - name: Log in to Iron Bank
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: registry1.dso.mil
+          username: ${{ secrets.IRONBANK_USER }}
+          password: ${{ secrets.IRONBANK_PASS }}
       # build-push-action v2 requires this step; it no longer sets up buildkit
       # itself. Both inputs are load-bearing, do not drop them:
       # - cache-key is required as of setup-docker-builder v2. Without it the
@@ -1575,6 +1752,9 @@ jobs:
           outputs: type=image,name=ghcr.io/langfuse/${{ matrix.image_name }},push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ matrix.platform }}
+          build-args: |
+            BASE_IMAGE=${{ steps.bases.outputs.base }}
+            MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
           provenance: false
           sbom: false
       - name: Build and push image by digest to Docker Hub (${{ matrix.component }}, ${{ matrix.platform_tag }})
@@ -1586,6 +1766,9 @@ jobs:
           outputs: type=image,name=langfuse/${{ matrix.image_name }},push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ matrix.platform }}
+          build-args: |
+            BASE_IMAGE=${{ steps.bases.outputs.base }}
+            MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
           provenance: false
           sbom: false
       - name: Record pushed digests
