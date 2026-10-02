@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-let-assign-in-react */
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { DatasetAggregateTableCell } from "@/src/features/datasets/components/DatasetAggregateTableCell";
@@ -85,15 +84,11 @@ function BaselineToggle({ runId }: { runId: string }) {
     justSetBaselineRef.current = false;
   };
 
-  let text: string;
-  if (!hasBaseline) {
-    text = "Set as baseline";
-  } else if (isBaseline) {
-    text =
-      isHovered && !justSetBaselineRef.current ? "Clear baseline" : "Baseline";
-  } else {
-    text = isHovered ? "Set as baseline" : "Comparison";
-  }
+  const baselineText =
+    isHovered && !justSetBaselineRef.current ? "Clear baseline" : "Baseline";
+  const comparisonText = isHovered ? "Set as baseline" : "Comparison";
+  const selectedText = isBaseline ? baselineText : comparisonText;
+  const text = hasBaseline ? selectedText : "Set as baseline";
 
   return (
     <Toggle
