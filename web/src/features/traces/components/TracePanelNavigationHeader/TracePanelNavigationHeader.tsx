@@ -17,7 +17,6 @@ import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
 import { type GraphUnavailableReason } from "@/src/features/traces/fns/graphAvailability";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { cloneElement } from "react";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -38,7 +37,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { StringParam, useQueryParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
-import { useCallback } from "react";
+import { cloneElement, useCallback } from "react";
 import {
   TraceSettingsDropdown,
   TraceViewOptionsMenuItems,
