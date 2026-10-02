@@ -174,6 +174,8 @@ const getCommonPinningStyles = <TData,>(
   column: Column<TData>,
 ): CSSProperties => {
   const isPinned = column.getIsPinned();
+  const coversRightScrollbarGutter =
+    isPinned === "right" && column.getIsLastColumn("right");
 
   return {
     left: isPinned === "left" ? `${column.getStart("left")}px` : undefined,
@@ -182,6 +184,16 @@ const getCommonPinningStyles = <TData,>(
     width: column.getSize(),
     zIndex: isPinned ? 10 : 0,
     backgroundColor: isPinned ? "hsl(var(--background))" : undefined,
+    // Repeated outer shadows paint through the stable scrollbar gutter even
+    // when a table cell clips its contents. Only the outermost right-pinned
+    // column owns them, so adjacent pinned columns retain their normal offsets.
+    boxShadow: coversRightScrollbarGutter
+      ? [
+          "16px 0 0 hsl(var(--background))",
+          "32px 0 0 hsl(var(--background))",
+          "48px 0 0 hsl(var(--background))",
+        ].join(", ")
+      : undefined,
   };
 };
 
