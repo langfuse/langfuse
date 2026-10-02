@@ -163,11 +163,16 @@ export const createAuthedProjectAPIRoute = <
       routeConfig.rejectInEventsOnlyMode &&
       env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only"
     ) {
+      // Match the classic ApiError shape ({ message, error }) used by
+      // withMiddlewares so OpenAPI clients do not reject this 404 body.
+      const notFound = new LangfuseNotFoundError(
+        "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
+      );
       res.status(404).json(
         attachDeprecation(
           {
-            message:
-              "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
+            message: notFound.message,
+            error: notFound.name,
           },
           deprecation,
         ),
