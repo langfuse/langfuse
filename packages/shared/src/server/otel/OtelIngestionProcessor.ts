@@ -1113,9 +1113,7 @@ export class OtelIngestionProcessor {
     if (hasTraceUpdates && !isRootSpan) {
       trace = {
         ...trace,
-        name:
-          (attributes[LangfuseOtelSpanAttributes.TRACE_NAME] as string) ??
-          undefined,
+        name: attributes[LangfuseOtelSpanAttributes.TRACE_NAME] as string,
         metadata: {
           ...resourceAttributeMetadata,
           ...this.extractMetadata(attributes, "trace", span),
@@ -1362,7 +1360,8 @@ export class OtelIngestionProcessor {
   ): Record<string, unknown> {
     return (
       resourceSpan?.resource?.attributes?.reduce((acc: any, attr: any) => {
-        acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+        const value = this.convertValueToPlainJavascript(attr.value);
+        if (value !== undefined) acc[attr.key] = value;
         return acc;
       }, {}) ?? {}
     );
@@ -1371,7 +1370,8 @@ export class OtelIngestionProcessor {
   private extractScopeAttributes(scopeSpan: any): Record<string, unknown> {
     return (
       scopeSpan?.scope?.attributes?.reduce((acc: any, attr: any) => {
-        acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+        const value = this.convertValueToPlainJavascript(attr.value);
+        if (value !== undefined) acc[attr.key] = value;
         return acc;
       }, {}) ?? {}
     );
@@ -1380,7 +1380,8 @@ export class OtelIngestionProcessor {
   private extractSpanAttributes(span: any): Record<string, unknown> {
     return (
       span?.attributes?.reduce((acc: any, attr: any) => {
-        acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+        const value = this.convertValueToPlainJavascript(attr.value);
+        if (value !== undefined) acc[attr.key] = value;
         return acc;
       }, {}) ?? {}
     );
@@ -1527,11 +1528,17 @@ export class OtelIngestionProcessor {
     });
   }
 
+  // Empty AnyValues are omitted from attribute maps; array callers preserve
+  // their positions as null instead.
   private convertValueToPlainJavascript(
     value: Record<string, any> | null | undefined,
   ): any {
-    if (value == null) {
-      return null;
+    if (
+      value == null ||
+      (OtelIngestionProcessor.isPlainObject(value) &&
+        Object.keys(value).length === 0)
+    ) {
+      return undefined;
     }
     if (value.stringValue !== undefined) {
       return value.stringValue;
@@ -1552,8 +1559,8 @@ export class OtelIngestionProcessor {
       return value.boolValue;
     }
     if (value.arrayValue) {
-      return (value.arrayValue.values ?? []).map((v: any) =>
-        this.convertValueToPlainJavascript(v),
+      return (value.arrayValue.values ?? []).map(
+        (v: any) => this.convertValueToPlainJavascript(v) ?? null,
       );
     }
     if (value.intValue !== undefined) {
@@ -1969,17 +1976,17 @@ export class OtelIngestionProcessor {
     // Vercel AI SDK
     if (instrumentationScopeName === "ai") {
       input =
-        attributes["ai.prompt.messages"] != null
+        "ai.prompt.messages" in attributes
           ? attributes["ai.prompt.messages"]
-          : attributes["ai.prompt"] != null
+          : "ai.prompt" in attributes
             ? attributes["ai.prompt"]
-            : attributes["ai.toolCall.args"] != null
+            : "ai.toolCall.args" in attributes
               ? attributes["ai.toolCall.args"]
               : undefined;
 
       if (
-        attributes["ai.response.text"] != null &&
-        attributes["ai.response.toolCalls"] != null
+        "ai.response.text" in attributes &&
+        "ai.response.toolCalls" in attributes
       ) {
         output = JSON.stringify({
           role: "assistant",
@@ -1988,20 +1995,20 @@ export class OtelIngestionProcessor {
         });
       } else {
         output =
-          attributes["ai.response.text"] != null &&
+          "ai.response.text" in attributes &&
           Boolean(attributes["ai.response.text"])
             ? attributes["ai.response.text"]
-            : attributes["ai.result.text"] != null // Legacy support for ai SDK versions < 4.0.0
+            : "ai.result.text" in attributes // Legacy support for ai SDK versions < 4.0.0
               ? attributes["ai.result.text"]
-              : attributes["ai.toolCall.result"] != null
+              : "ai.toolCall.result" in attributes
                 ? attributes["ai.toolCall.result"]
-                : attributes["ai.response.object"] != null
+                : "ai.response.object" in attributes
                   ? attributes["ai.response.object"]
-                  : attributes["ai.result.object"] != null // Legacy support for ai SDK versions < 4.0.0
+                  : "ai.result.object" in attributes // Legacy support for ai SDK versions < 4.0.0
                     ? attributes["ai.result.object"]
-                    : attributes["ai.response.toolCalls"] != null
+                    : "ai.response.toolCalls" in attributes
                       ? attributes["ai.response.toolCalls"]
-                      : attributes["ai.result.toolCalls"] != null // Legacy support for ai SDK versions < 4.0.0
+                      : "ai.result.toolCalls" in attributes // Legacy support for ai SDK versions < 4.0.0
                         ? attributes["ai.result.toolCalls"]
                         : undefined;
       }
@@ -2053,7 +2060,8 @@ export class OtelIngestionProcessor {
       const eventAttributes: Record<string, unknown> =
         event.attributes?.reduce(
           (acc: Record<string, unknown>, attr: any) => {
-            acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+            const value = this.convertValueToPlainJavascript(attr.value);
+            if (value !== undefined) acc[attr.key] = value;
             return acc;
           },
           {} as Record<string, unknown>,
@@ -2084,9 +2092,8 @@ export class OtelIngestionProcessor {
           ? inputEvents.map((event: any) => {
               const eventAttributes =
                 event.attributes?.reduce((acc: any, attr: any) => {
-                  acc[attr.key] = this.convertValueToPlainJavascript(
-                    attr.value,
-                  );
+                  const value = this.convertValueToPlainJavascript(attr.value);
+                  if (value !== undefined) acc[attr.key] = value;
                   return acc;
                 }, {}) ?? {};
 
@@ -2102,9 +2109,8 @@ export class OtelIngestionProcessor {
           ? outputEvents.map((event: any) => {
               const eventAttributes =
                 event.attributes?.reduce((acc: any, attr: any) => {
-                  acc[attr.key] = this.convertValueToPlainJavascript(
-                    attr.value,
-                  );
+                  const value = this.convertValueToPlainJavascript(attr.value);
+                  if (value !== undefined) acc[attr.key] = value;
                   return acc;
                 }, {}) ?? {};
 
@@ -2136,12 +2142,14 @@ export class OtelIngestionProcessor {
     if (input || output) {
       input =
         input?.reduce((acc: any, attr: any) => {
-          acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+          const value = this.convertValueToPlainJavascript(attr.value);
+          if (value !== undefined) acc[attr.key] = value;
           return acc;
         }, {}) ?? {};
       output =
         output?.reduce((acc: any, attr: any) => {
-          acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+          const value = this.convertValueToPlainJavascript(attr.value);
+          if (value !== undefined) acc[attr.key] = value;
           return acc;
         }, {}) ?? {};
 
@@ -2304,11 +2312,11 @@ export class OtelIngestionProcessor {
     }
 
     // TraceLoop uses attributes property
-    const inputAttributes = Object.keys(attributes).filter(
-      (key) => attributes[key] != null && key.startsWith("gen_ai.prompt"),
+    const inputAttributes = Object.keys(attributes).filter((key) =>
+      key.startsWith("gen_ai.prompt"),
     );
-    const outputAttributes = Object.keys(attributes).filter(
-      (key) => attributes[key] != null && key.startsWith("gen_ai.completion"),
+    const outputAttributes = Object.keys(attributes).filter((key) =>
+      key.startsWith("gen_ai.completion"),
     );
     if (inputAttributes.length > 0 || outputAttributes.length > 0) {
       input = inputAttributes.reduce((acc: any, key) => {
@@ -2327,11 +2335,11 @@ export class OtelIngestionProcessor {
     }
 
     // OpenInference llm.input_messages and llm.output_messages (used by Agno, BeeAI, etc.)
-    const llmInputAttributes = Object.keys(attributes).filter(
-      (key) => attributes[key] != null && key.startsWith("llm.input_messages"),
+    const llmInputAttributes = Object.keys(attributes).filter((key) =>
+      key.startsWith("llm.input_messages"),
     );
-    const llmOutputAttributes = Object.keys(attributes).filter(
-      (key) => attributes[key] != null && key.startsWith("llm.output_messages"),
+    const llmOutputAttributes = Object.keys(attributes).filter((key) =>
+      key.startsWith("llm.output_messages"),
     );
     if (llmInputAttributes.length > 0 || llmOutputAttributes.length > 0) {
       const llmInput = llmInputAttributes.reduce((acc: any, key) => {
@@ -2517,7 +2525,7 @@ export class OtelIngestionProcessor {
     }
 
     // Genkit
-    if (attributes["genkit:name"] != null) {
+    if ("genkit:name" in attributes) {
       return attributes["genkit:name"] as string;
     }
 
@@ -2532,14 +2540,14 @@ export class OtelIngestionProcessor {
     }
 
     // Vercel AI SDK
-    if (attributes["ai.toolCall.name"] != null) {
+    if ("ai.toolCall.name" in attributes) {
       return attributes["ai.toolCall.name"] as string;
     }
 
     const functionIdAttribute = "ai.telemetry.functionId";
     const operationIdAttribute = "ai.operationId";
 
-    if (attributes[operationIdAttribute] != null) {
+    if (operationIdAttribute in attributes) {
       const prefix = attributes[functionIdAttribute]
         ? attributes[functionIdAttribute] + ":"
         : "";
@@ -2564,7 +2572,7 @@ export class OtelIngestionProcessor {
     // reaches the parser: count it here, emission-only. Falsy compat values
     // survive the fallback and are counted by the parser itself.
     const primaryValue = attributes[metadataKeyPrefix];
-    if (primaryValue !== undefined && !primaryValue) {
+    if (primaryValue !== undefined && primaryValue !== null && !primaryValue) {
       const isString = typeof primaryValue === "string";
       this.recordMetadataDropped(
         isString ? "parse_failure" : "primitive",
@@ -2698,15 +2706,15 @@ export class OtelIngestionProcessor {
             ? (attributes["gen_ai.request.max_tokens"]?.toString() ?? null)
             : null,
         finishReason:
-          attributes["gen_ai.response.finish_reasons"] != null
+          "gen_ai.response.finish_reasons" in attributes
             ? (attributes["gen_ai.response.finish_reasons"]?.toString() ?? null)
-            : attributes["gen_ai.finishReason"] != null //  Legacy support for ai SDK versions < 4.0.0
+            : "gen_ai.finishReason" in attributes //  Legacy support for ai SDK versions < 4.0.0
               ? (attributes["gen_ai.finishReason"]?.toString() ?? null)
               : null,
         system:
-          attributes["gen_ai.system"] != null
+          "gen_ai.system" in attributes
             ? (attributes["gen_ai.system"]?.toString() ?? null)
-            : attributes["ai.model.provider"] != null
+            : "ai.model.provider" in attributes
               ? (attributes["ai.model.provider"]?.toString() ?? null)
               : null,
         maxRetries:
@@ -2766,7 +2774,7 @@ export class OtelIngestionProcessor {
     return this.sanitizeModelParams(
       modelParameters.reduce((acc: any, { key, prefix }) => {
         const modelParamKey = key.replace(prefix, "");
-        if (modelParamKey !== "model" && attributes[key] != null) {
+        if (modelParamKey !== "model") {
           acc[modelParamKey] = attributes[key];
         }
         return acc;
@@ -2876,29 +2884,29 @@ export class OtelIngestionProcessor {
       try {
         const usageDetails: Record<string, number | undefined> = {
           input:
-            attributes["gen_ai.usage.prompt_tokens"] != null // Backward compat, input_tokens used in latest ai SDK versions
+            "gen_ai.usage.prompt_tokens" in attributes // Backward compat, input_tokens used in latest ai SDK versions
               ? parseInt(
                   attributes["gen_ai.usage.prompt_tokens"]?.toString() ?? "0",
                 )
-              : attributes["gen_ai.usage.input_tokens"] != null
+              : "gen_ai.usage.input_tokens" in attributes
                 ? parseInt(
                     attributes["gen_ai.usage.input_tokens"]?.toString() ?? "0",
                   )
                 : undefined,
 
           output:
-            attributes["gen_ai.usage.completion_tokens"] != null // Backward compat, output_tokens used in latest ai SDK versions
+            "gen_ai.usage.completion_tokens" in attributes // Backward compat, output_tokens used in latest ai SDK versions
               ? parseInt(
                   attributes["gen_ai.usage.completion_tokens"]?.toString() ??
                     "0",
                 )
-              : attributes["gen_ai.usage.output_tokens"] != null
+              : "gen_ai.usage.output_tokens" in attributes
                 ? parseInt(
                     attributes["gen_ai.usage.output_tokens"]?.toString() ?? "0",
                   )
                 : undefined,
           total:
-            attributes["ai.usage.tokens"] != null
+            "ai.usage.tokens" in attributes
               ? parseInt(attributes["ai.usage.tokens"]?.toString() ?? "0")
               : undefined,
         };
@@ -2907,18 +2915,18 @@ export class OtelIngestionProcessor {
 
         // Try reading token details from ai.usage
         if (
-          ["ai.usage.cachedInputTokens", "ai.usage.reasoningTokens"].some(
-            (k) => attributes[k] != null,
+          ["ai.usage.cachedInputTokens", "ai.usage.reasoningTokens"].some((k) =>
+            Object.keys(attributes).includes(k),
           )
         ) {
-          if (attributes["ai.usage.cachedInputTokens"] != null) {
+          if ("ai.usage.cachedInputTokens" in attributes) {
             const value = attributes["ai.usage.cachedInputTokens"] as string;
             const parsed = JSON.parse(value);
 
             usageDetails["input_cached_tokens"] =
               typeof parsed === "number" ? parsed : JSON.parse(value).intValue;
           }
-          if (attributes["ai.usage.reasoningTokens"] != null) {
+          if ("ai.usage.reasoningTokens" in attributes) {
             const value = attributes["ai.usage.reasoningTokens"] as string;
             const parsed = JSON.parse(value);
 
@@ -3091,8 +3099,6 @@ export class OtelIngestionProcessor {
 
     const rawUsageDetails = usageDetails.reduce(
       (acc: Record<string, number>, key) => {
-        if (attributes[key] == null) return acc;
-
         const usageDetailKey = key
           .replace("gen_ai.usage.", "")
           .replace("llm.token_count.", "");
@@ -3396,7 +3402,7 @@ export class OtelIngestionProcessor {
     value: unknown,
     context: MetadataDropContext,
   ): Record<string, unknown> {
-    if (value === undefined) {
+    if (value === undefined || value === null) {
       return {};
     }
 
@@ -3418,7 +3424,7 @@ export class OtelIngestionProcessor {
       }
     }
 
-    if (value !== null && typeof value === "object") {
+    if (typeof value === "object") {
       return value as Record<string, unknown>;
     }
 
