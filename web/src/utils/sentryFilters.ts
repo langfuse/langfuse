@@ -405,9 +405,22 @@ function isSafariAddMoreClickMessage(value: string): boolean {
 }
 
 /**
+ * Cursor / Electron computer-use stale snapshot refs. The injected page-world
+ * helper throws this exact wording when a previously snapshotted element id
+ * is reused after the DOM re-rendered. Observed as a global `onerror` with
+ * Electron sandbox frames (`assertDescriptionMatches`) and no Langfuse
+ * frames. Distinct from Selenium/Playwright stale-element wording, which
+ * does not include "Take a new snapshot."
+ *
+ * Trailing period is omitted because {@link coreMessage} strips one.
+ */
+const CURSOR_COMPUTER_USE_STALE_ELEMENT_RE =
+  /^Stale element reference: \S+ now points to .+ but was expected to be .+\. The page may have changed\. Take a new snapshot$/;
+
+/**
  * True when any stack frame is a first-party Next.js chunk. Used as a
  * negative guard so a future first-party throw that happens to share
- * WebKit's wording still reaches Sentry.
+ * WebKit or Cursor wording still reaches Sentry.
  */
 function hasFirstPartyChunkFrame(event: ErrorEvent): boolean {
   const frames = event.exception?.values?.[0]?.stacktrace?.frames;
@@ -676,7 +689,12 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // All three are anchored to a Sentry browser-API / global-handler
+    // Cursor computer-use stale snapshot refs are the same class: the
+    // Electron helper throws `Stale element reference: … Take a new
+    // snapshot.` into the page. `denyUrls` cannot match Electron sandbox
+    // frames. A first-party `/_next/` frame keeps the event.
+    //
+    // All four are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
     // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
@@ -695,6 +713,14 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       if (
         exceptionType === "TypeError" &&
         isSafariAddMoreClickMessage(exceptionValue) &&
+        !hasFirstPartyChunkFrame(event)
+      ) {
+        return true;
+      }
+      if (
+        CURSOR_COMPUTER_USE_STALE_ELEMENT_RE.test(
+          coreMessage(exceptionValue),
+        ) &&
         !hasFirstPartyChunkFrame(event)
       ) {
         return true;
