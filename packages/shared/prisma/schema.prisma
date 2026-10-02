@@ -31,6 +31,8 @@ model Account {
   session_state            String?
   refresh_token_expires_in Int?
   created_at               Int? // GitLab
+  not_before               Int? // Azure AD B2C
+  id_token_expires_in      Int? // Azure AD B2C
   user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
