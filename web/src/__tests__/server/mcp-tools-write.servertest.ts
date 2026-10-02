@@ -309,11 +309,11 @@ describe("MCP Write Tools", () => {
               type: "DECISION_MODEL",
               questions: [
                 {
-                  id: "topic",
-                  type: "choice",
-                  scoreName: "topic",
-                  instructions: "Classify the input.",
-                  options: [{ value: "support" }, { value: "sales" }],
+                  id: "relevant",
+                  type: "noul",
+                  scoreName: "relevant",
+                  instructions: "Determine whether the input is relevant.",
+                  criteria: null,
                 },
               ],
               modelConfig: {
@@ -340,11 +340,11 @@ describe("MCP Write Tools", () => {
             type: "DECISION_MODEL",
             questions: [
               {
-                id: "topic",
-                type: "choice",
-                scoreName: "topic",
-                instructions: "Classify the input.",
-                options: [{ value: "support" }, { value: "sales" }],
+                id: "relevant",
+                type: "noul",
+                scoreName: "relevant",
+                instructions: "Determine whether the input is relevant.",
+                criteria: null,
               },
             ],
             provider: "typesafe",

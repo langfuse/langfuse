@@ -1,3 +1,4 @@
+import { DecisionModelQuestionsSchema } from "@langfuse/shared";
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -29,36 +30,42 @@ const TestEvaluatorInputBase = z
   })
   .strict();
 
-const TestEvaluatorInput = TestEvaluatorInputBase.superRefine((input, ctx) => {
-  const hasDraftDefinition = DRAFT_FIELD_NAMES.some(
-    (field) => input[field] !== undefined,
-  );
+const TestEvaluatorRuntimeInputBase = TestEvaluatorInputBase.extend({
+  questions: DecisionModelQuestionsSchema.optional(),
+});
 
-  if (Boolean(input.evaluatorId) === hasDraftDefinition) {
-    ctx.addIssue({
-      code: "custom",
-      message:
-        "Provide either evaluatorId or a draft evaluator definition, but not both.",
+const TestEvaluatorInput = TestEvaluatorRuntimeInputBase.superRefine(
+  (input, ctx) => {
+    const hasDraftDefinition = DRAFT_FIELD_NAMES.some(
+      (field) => input[field] !== undefined,
+    );
+
+    if (Boolean(input.evaluatorId) === hasDraftDefinition) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Provide either evaluatorId or a draft evaluator definition, but not both.",
+      });
+      return;
+    }
+
+    if (!hasDraftDefinition) return;
+
+    const parsedDraft = McpEvaluatorInput.safeParse({
+      ...input,
+      name: "Evaluator test",
     });
-    return;
-  }
+    if (parsedDraft.success) return;
 
-  if (!hasDraftDefinition) return;
-
-  const parsedDraft = McpEvaluatorInput.safeParse({
-    ...input,
-    name: "Evaluator test",
-  });
-  if (parsedDraft.success) return;
-
-  for (const issue of parsedDraft.error.issues) {
-    ctx.addIssue({
-      code: "custom",
-      path: issue.path,
-      message: issue.message,
-    });
-  }
-}).transform((input) => ({
+    for (const issue of parsedDraft.error.issues) {
+      ctx.addIssue({
+        code: "custom",
+        path: issue.path,
+        message: issue.message,
+      });
+    }
+  },
+).transform((input) => ({
   ...input,
   startTime: new Date(input.startTime),
 }));

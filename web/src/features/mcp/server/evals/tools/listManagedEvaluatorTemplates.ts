@@ -22,8 +22,11 @@ export const [
   handleListManagedEvaluatorTemplates,
 ] = defineTool({
   name: "listManagedEvaluatorTemplates",
-  description:
-    "List the evaluator templates maintained by Langfuse and partners. Copy a returned definition into createEvaluator to create a project evaluator.",
+  description: [
+    "List the evaluator templates maintained by Langfuse and partners.",
+    "LLM-as-a-judge and code definitions can be copied into createEvaluator.",
+    "For decision-model templates, copy questions, convert each state entry into a variableMapping entry, and provide a TypeSafe modelConfig.",
+  ].join(" "),
   action: "evaluator:read",
   baseSchema: ListManagedEvaluatorTemplatesInput,
   inputSchema: ListManagedEvaluatorTemplatesInput,

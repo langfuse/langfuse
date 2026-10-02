@@ -79,6 +79,50 @@ describe("MCP evaluator input", () => {
     }
   });
 
+  it("rejects invalid decision-model state keys", () => {
+    const result = McpEvaluatorInput.safeParse({
+      ...decisionModelInput,
+      variableMapping: [
+        {
+          templateVariable: "support topic",
+          selectedColumnId: "input",
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: ["variableMapping", 0, "templateVariable"],
+          }),
+        ]),
+      );
+    }
+  });
+
+  it("rejects model parameters for decision-model evaluators", () => {
+    const result = McpEvaluatorInput.safeParse({
+      ...decisionModelInput,
+      modelConfig: {
+        ...decisionModelInput.modelConfig,
+        modelParams: { temperature: 0 },
+      },
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: ["modelConfig", "modelParams"],
+          }),
+        ]),
+      );
+    }
+  });
+
   it("exposes decision-model assignments in MCP evaluation rules", () => {
     const createdAt = new Date("2026-10-02T00:00:00.000Z");
     const updatedAt = new Date("2026-10-02T01:00:00.000Z");

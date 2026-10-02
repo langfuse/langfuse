@@ -4,6 +4,7 @@ import {
   DecisionModelChoiceQuestionSchema,
   DecisionModelQuestionType,
   DecisionModelQuestionsSchema,
+  DecisionModelStateKeySchema,
   EvalOutputDataTypeSchema,
   EvalTemplateType,
   observationVariableMapping,
@@ -234,6 +235,31 @@ function validateEvaluatorInput(
       message:
         "Decision-model evaluators require at least one state variable mapping.",
     });
+  }
+
+  if (input.type === EvalTemplateType.DECISION_MODEL) {
+    input.variableMapping?.forEach(({ templateVariable }, index) => {
+      const parsedStateKey =
+        DecisionModelStateKeySchema.safeParse(templateVariable);
+      if (parsedStateKey.success) return;
+
+      for (const issue of parsedStateKey.error.issues) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["variableMapping", index, "templateVariable"],
+          message: issue.message,
+        });
+      }
+    });
+
+    if (input.modelConfig?.modelParams !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["modelConfig", "modelParams"],
+        message:
+          "Decision-model evaluators do not support model parameters. Provide only provider and model.",
+      });
+    }
   }
 
   if (
