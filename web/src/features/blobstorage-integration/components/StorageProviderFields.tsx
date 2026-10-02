@@ -12,7 +12,10 @@ import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { BlobStorageIntegrationType } from "@langfuse/shared";
+import {
+  BlobStorageIntegrationType,
+  GCS_USE_DEFAULT_CREDENTIALS,
+} from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
 
@@ -30,6 +33,9 @@ export const StorageProviderFields = ({
   const integrationType =
     useWatch({ control, name: "type" }) ?? BlobStorageIntegrationType.S3;
   const isGcs = integrationType === "GOOGLE_CLOUD_STORAGE";
+  const secretAccessKey = useWatch({ control, name: "secretAccessKey" });
+  const isGcsDefaultCredentials =
+    isGcs && secretAccessKey === GCS_USE_DEFAULT_CREDENTIALS;
 
   return (
     <>
@@ -54,17 +60,10 @@ export const StorageProviderFields = ({
                     value: BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
                     label: "Azure Blob Storage",
                   },
-                  // Keyless: runs as the deployment's own GCP identity, so it is
-                  // self-hosted only and limited to operator-allowlisted buckets.
-                  ...(isSelfHosted
-                    ? [
-                        {
-                          value:
-                            BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE,
-                          label: "Google Cloud Storage",
-                        },
-                      ]
-                    : []),
+                  {
+                    value: BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE,
+                    label: "Google Cloud Storage",
+                  },
                 ]}
               />
             </FormControl>
@@ -92,9 +91,11 @@ export const StorageProviderFields = ({
             <FormDescription>
               {integrationType === "AZURE_BLOB_STORAGE"
                 ? "Azure container name (3-63 chars, lowercase letters, numbers, and hyphens only)"
-                : isGcs
-                  ? "GCS bucket name. Must be listed in LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS; Langfuse writes as its own service account, no keys needed"
-                  : "The S3 bucket name"}
+                : isGcsDefaultCredentials
+                  ? "GCS bucket name. With default credentials it must be listed in LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS"
+                  : isGcs
+                    ? "GCS bucket name"
+                    : "The S3 bucket name"}
             </FormDescription>
             <FormMessage />
           </FormItem>
@@ -170,7 +171,63 @@ export const StorageProviderFields = ({
         />
       )}
 
-      {/* Credentials - not shown for GCS, which uses the deployment identity */}
+      {/* GCS credentials: service account JSON key, or (self-hosted) default
+          credentials, mirroring the Vertex AI LLM connection form. */}
+      {isGcs && isSelfHosted && (
+        <FormField
+          control={control}
+          name="secretAccessKey"
+          render={({ field }) => (
+            <FormItem>
+              <span className="flex">
+                <span className="flex-1">
+                  <FormLabel>
+                    Use Application Default Credentials (ADC)
+                  </FormLabel>
+                  <FormDescription>
+                    Write as this deployment&apos;s own GCP identity instead of
+                    a service account key. The bucket must be listed in
+                    LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS.
+                  </FormDescription>
+                </span>
+                <FormControl>
+                  <Switch
+                    checked={field.value === GCS_USE_DEFAULT_CREDENTIALS}
+                    onCheckedChange={(checked) =>
+                      field.onChange(checked ? GCS_USE_DEFAULT_CREDENTIALS : "")
+                    }
+                  />
+                </FormControl>
+              </span>
+            </FormItem>
+          )}
+        />
+      )}
+      {isGcs && !isGcsDefaultCredentials && (
+        <FormField
+          control={control}
+          name="secretAccessKey"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>GCP Service Account Key (JSON)</FormLabel>
+              <FormControl>
+                <PasswordInput
+                  placeholder='{"type": "service_account", ...}'
+                  {...field}
+                  value={field.value || ""}
+                />
+              </FormControl>
+              <FormDescription>
+                Stored encrypted. Leave empty to keep the saved key. The key
+                needs write access to the bucket.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
+
+      {/* S3/Azure credentials */}
       {!isGcs && (
         <FormField
           control={control}

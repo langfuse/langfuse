@@ -8,6 +8,8 @@ import {
   type ObservationFieldGroupFull,
   BLOB_STORAGE_REGION_INVALID_MESSAGE,
   normalizeBlobStorageRegion,
+  GCPServiceAccountKeySchema,
+  GCS_USE_DEFAULT_CREDENTIALS,
 } from "@langfuse/shared";
 import { assertPersistedExportSourceAllowed } from "@/src/features/analytics-integrations/server";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -37,6 +39,21 @@ type UpsertBlobStorageIntegrationInput = {
   exportFieldGroups?: ObservationFieldGroupFull[];
   compressed?: boolean;
 };
+
+// Same shape check the Vertex AI LLM connection applies to its JSON key.
+function assertValidGcsServiceAccountKey(secret: string): void {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(secret);
+  } catch {
+    throw new InvalidRequestError(
+      "GCS credentials must be a GCP service account JSON key",
+    );
+  }
+  if (!GCPServiceAccountKeySchema.safeParse(parsed).success) {
+    throw new InvalidRequestError("Invalid GCP service account JSON key");
+  }
+}
 
 function resolveExportStartDate(params: {
   exportMode: BlobStorageExportMode;
@@ -74,20 +91,18 @@ export async function upsertBlobStorageIntegration(params: {
   const canUseHostCredentials =
     isSelfHosted && data.type === BlobStorageIntegrationType.S3;
 
-  if (isGcs) {
-    try {
-      assertGcsBlobStorageBucketAllowed(data.bucketName);
-    } catch (error) {
-      throw new InvalidRequestError(
-        error instanceof Error ? error.message : "GCS bucket not allowed",
-      );
-    }
+  // GCS, like the Vertex AI LLM connection, takes either a service account JSON
+  // key (stored encrypted, in secretAccessKey) or the default-credentials
+  // sentinel (ADC; self-hosted only, bucket must be allowlisted). An omitted
+  // secret on UPDATE keeps whatever is stored. GCS never uses accessKeyId.
+  const rawSecret = data.secretAccessKey?.trim() || null;
+  const isKeylessGcs = isGcs && rawSecret === GCS_USE_DEFAULT_CREDENTIALS;
+  if (isGcs && rawSecret && !isKeylessGcs) {
+    assertValidGcsServiceAccountKey(rawSecret);
   }
 
-  // GCS always runs as the deployment identity: drop any keys rather than store
-  // credentials that would never be used.
   const accessKeyId = isGcs ? null : data.accessKeyId?.trim() || null;
-  const secretAccessKey = isGcs ? null : data.secretAccessKey?.trim() || null;
+  const secretAccessKey = isKeylessGcs ? null : rawSecret;
   let region: string;
   try {
     region = normalizeBlobStorageRegion(data.region);
@@ -137,20 +152,47 @@ export async function upsertBlobStorageIntegration(params: {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.blobStorageIntegration.findUnique({
       where: { projectId },
-      // createdAt/exportSource feed the post-upsert backstop below.
+      // createdAt/exportSource feed the post-upsert backstop below;
+      // type/secretAccessKey decide whether a GCS update keeps a stored key.
       select: {
         exportMode: true,
         lastError: true,
         runStartedAt: true,
         createdAt: true,
         exportSource: true,
+        type: true,
+        secretAccessKey: true,
       },
     });
 
+    // A GCS integration that will run keyless: explicitly requested, or an
+    // update that sends no secret and has no stored GCS key to keep. Keyless
+    // runs as the deployment identity, so it is gated by the bucket allowlist.
+    const keepsStoredGcsKey =
+      existing?.type === BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE &&
+      Boolean(existing.secretAccessKey);
+    const willRunKeyless =
+      isGcs && (isKeylessGcs || (!secretAccessKey && !keepsStoredGcsKey));
+    if (willRunKeyless) {
+      try {
+        assertGcsBlobStorageBucketAllowed(data.bucketName);
+      } catch (error) {
+        throw new InvalidRequestError(
+          error instanceof Error ? error.message : "GCS bucket not allowed",
+        );
+      }
+    }
+
     // Require secret key for new integrations (unless using host credentials)
     if (!existing) {
+      if (isGcs && !isKeylessGcs && !secretAccessKey) {
+        throw new InvalidRequestError(
+          "A GCP service account JSON key or default credentials is required",
+        );
+      }
       const isUsingHostCredentials =
-        isGcs || (canUseHostCredentials && (!accessKeyId || !secretAccessKey));
+        isKeylessGcs ||
+        (canUseHostCredentials && (!accessKeyId || !secretAccessKey));
       if (!isUsingHostCredentials && !secretAccessKey) {
         throw new InvalidRequestError(
           "Secret access key is required for new configuration",
@@ -161,12 +203,13 @@ export async function upsertBlobStorageIntegration(params: {
     const modeChanged = existing && existing.exportMode !== data.exportMode;
     const encryptedSecret = secretAccessKey ? encrypt(secretAccessKey) : null;
     // Only overwrite secretAccessKey when a new value is provided, so partial
-    // updates don't wipe the existing encrypted secret. Switching to GCS clears
-    // it: GCS never uses stored keys.
+    // updates don't wipe the existing encrypted secret. A GCS integration that
+    // will run keyless clears it, so a stale S3 secret or old GCS key is never
+    // kept around unused.
     let secretAccessKeyUpdate: { secretAccessKey: string | null } | object = {};
     if (encryptedSecret) {
       secretAccessKeyUpdate = { secretAccessKey: encryptedSecret };
-    } else if (isGcs) {
+    } else if (willRunKeyless) {
       secretAccessKeyUpdate = { secretAccessKey: null };
     }
 

@@ -30,7 +30,9 @@ export const BlobStorageIntegrationContainer = ({
   projectId,
   writeMode,
 }: {
-  config: Partial<BlobStorageIntegration> | null;
+  config:
+    | (Partial<BlobStorageIntegration> & { hasSecretAccessKey?: boolean })
+    | null;
   projectId: string;
   writeMode: V4WriteMode;
 }) => {

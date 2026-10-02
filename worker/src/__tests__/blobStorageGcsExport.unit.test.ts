@@ -48,6 +48,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 
 import { createRequire } from "node:module";
 import { prisma } from "@langfuse/shared/src/db";
+import { encrypt } from "@langfuse/shared/encryption";
 import { handleBlobStorageIntegrationProjectJob } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
 import type { Job } from "bullmq";
 
@@ -67,13 +68,13 @@ const makeJob = (): Job<any> =>
     data: { id: "payload-1", payload: { projectId: "project-1" } },
   }) as unknown as Job<any>;
 
-const gcsRow = (bucketName: string) => ({
+const gcsRow = (bucketName: string, secretAccessKey: string | null = null) => ({
   projectId: "project-1",
   type: "GOOGLE_CLOUD_STORAGE",
   bucketName,
   prefix: "",
   accessKeyId: null,
-  secretAccessKey: null,
+  secretAccessKey,
   region: "auto",
   endpoint: null,
   forcePathStyle: false,
@@ -149,5 +150,37 @@ describe("handleBlobStorageIntegrationProjectJob — GOOGLE_CLOUD_STORAGE", () =
       where: { projectId: "project-1", enabled: true },
       data: { enabled: false },
     });
+  });
+
+  it("exports with a stored service account key, bypassing the allowlist", async () => {
+    const key = JSON.stringify({ type: "service_account", project_id: "p" });
+    sharedEnv.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS = [];
+    (prisma.blobStorageIntegration.findUnique as any).mockResolvedValue(
+      gcsRow("customer-bucket", encrypt(key)),
+    );
+
+    await handleBlobStorageIntegrationProjectJob(makeJob());
+
+    expect(factoryCalls).toHaveLength(1);
+    expect(factoryCalls[0]).toMatchObject({
+      bucketName: "customer-bucket",
+      useGoogleCloudStorage: true,
+      googleCloudCredentials: key,
+      accessKeyId: undefined,
+      secretAccessKey: undefined,
+    });
+    expect(uploadCalls.length).toBeGreaterThan(0);
+  });
+
+  it("never reads a non-JSON stored secret as a key file path", async () => {
+    (prisma.blobStorageIntegration.findUnique as any).mockResolvedValue(
+      gcsRow("customer-bucket", encrypt("/var/run/secrets/key.json")),
+    );
+
+    await expect(
+      handleBlobStorageIntegrationProjectJob(makeJob()),
+    ).rejects.toThrow(/service account JSON key/);
+    expect(factoryCalls).toHaveLength(0);
+    expect(uploadCalls).toHaveLength(0);
   });
 });

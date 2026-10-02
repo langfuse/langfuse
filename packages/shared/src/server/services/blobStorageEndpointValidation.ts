@@ -90,16 +90,18 @@ export async function validateBlobStorageEndpoint(
 }
 
 /**
- * GOOGLE_CLOUD_STORAGE blob exports authenticate as the deployment's own GCP
- * identity (ADC) rather than with customer-supplied keys, so the bucket is the
+ * Keyless GOOGLE_CLOUD_STORAGE blob exports (no service account key stored)
+ * authenticate as the deployment's own GCP identity (ADC), so the bucket is the
  * only thing a project owner controls. Restrict it to operator-approved buckets.
  * Self-hosted only: on Langfuse Cloud the ADC identity is Langfuse's own.
+ * Exports with a customer service account key are scoped by that key instead,
+ * like the Vertex AI LLM connection, and need no allowlist.
  */
 export function assertGcsBlobStorageBucketAllowed(bucketName: string): void {
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     throw new OutboundUrlValidationError(
       "gcs-not-allowed",
-      "Google Cloud Storage blob exports are only available on self-hosted deployments",
+      "Google Cloud Storage exports with default credentials are only available on self-hosted deployments. Provide a service account key instead.",
     );
   }
   const allowed = env.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS ?? [];
@@ -107,8 +109,8 @@ export function assertGcsBlobStorageBucketAllowed(bucketName: string): void {
     throw new OutboundUrlValidationError(
       "gcs-bucket-not-allowed",
       allowed.length === 0
-        ? "Google Cloud Storage blob exports are disabled. Set LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS to enable them."
-        : `Bucket "${bucketName}" is not in LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS`,
+        ? "Google Cloud Storage exports with default credentials are disabled. Set LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS to enable them, or provide a service account key."
+        : `Bucket "${bucketName}" is not in LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS. Use an allowed bucket or provide a service account key.`,
     );
   }
 }

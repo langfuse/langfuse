@@ -99,17 +99,21 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         projectId: input.projectId,
       });
       try {
-        const config = await ctx.prisma.blobStorageIntegration.findFirst({
+        const row = await ctx.prisma.blobStorageIntegration.findFirst({
           where: {
             projectId: input.projectId,
           },
-          omit: {
-            secretAccessKey: true,
-          },
         });
+        // Never return the (encrypted) secret; only whether one is stored, so the
+        // form can tell a keyless GCS integration from one with a key.
+        let config = null;
+        if (row) {
+          const { secretAccessKey, ...rest } = row;
+          config = { ...rest, hasSecretAccessKey: Boolean(secretAccessKey) };
+        }
 
         return {
-          config: config ?? null,
+          config,
           writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
         };
       } catch (e) {
@@ -391,12 +395,17 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           await validateBlobStorageEndpoint(endpoint);
         }
         const isGcs = type === BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE;
-        if (isGcs) assertGcsBlobStorageBucketAllowed(bucketName);
+        // GCS: stored secret = customer service account JSON key; none = the
+        // deployment's default credentials, which only allowlisted buckets get.
+        const gcsServiceAccountKey = isGcs ? secretAccessKey : undefined;
+        if (isGcs && !gcsServiceAccountKey) {
+          assertGcsBlobStorageBucketAllowed(bucketName);
+        }
 
         // Create storage service with provided configuration
         const storageService = StorageServiceFactory.getInstance({
-          accessKeyId: accessKeyId || undefined,
-          secretAccessKey,
+          accessKeyId: isGcs ? undefined : accessKeyId || undefined,
+          secretAccessKey: isGcs ? undefined : secretAccessKey,
           bucketName,
           endpoint: endpoint || undefined,
           region: region || undefined,
@@ -404,7 +413,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           useAzureBlob: type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
           useGoogleCloudStorage: isGcs,
           useOCIObjectStorage: false, // Not supported in blob storage integration
-          googleCloudCredentials: undefined,
+          googleCloudCredentials: gcsServiceAccountKey,
           awsSse: undefined,
           awsSseKmsKeyId: undefined,
           externalEndpoint: undefined,
@@ -421,16 +430,16 @@ Timestamp: ${new Date().toISOString()}
 Configuration: ${type} storage
 This file can be safely deleted.`;
 
-        // Upload the test file. GCS skips the signed URL: V4 signing needs a
-        // private key, which ADC identities (e.g. GKE metadata) don't have, and
-        // the export itself never signs.
+        // Upload the test file. Keyless GCS skips the signed URL: V4 signing
+        // needs a private key, which ADC identities (e.g. GKE metadata) don't
+        // have, and the export itself never signs. A GCS key can sign.
         const testFile = {
           fileName: testFileName,
           fileType: "text/plain",
           data: testContent,
         };
         let signedUrl: string | undefined;
-        if (isGcs) {
+        if (isGcs && !gcsServiceAccountKey) {
           await storageService.uploadFile(testFile);
         } else {
           ({ signedUrl } = await storageService.uploadWithSignedUrl({

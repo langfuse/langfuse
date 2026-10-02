@@ -363,13 +363,24 @@ const createBlobStorageService = (
 ): StorageService => {
   const useGoogleCloudStorage =
     config.type === BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE;
-  // Re-checked per run so removing a bucket from the allowlist stops exports
-  // that were saved while it was allowed.
-  if (useGoogleCloudStorage)
+  // GCS: a stored secret is the customer's service account JSON key; none means
+  // default credentials (the deployment identity).
+  const gcsServiceAccountKey = useGoogleCloudStorage
+    ? config.secretAccessKey
+    : undefined;
+  if (useGoogleCloudStorage && !gcsServiceAccountKey) {
+    // Re-checked per run so removing a bucket from the allowlist stops keyless
+    // exports that were saved while it was allowed.
     assertGcsBlobStorageBucketAllowed(config.bucketName);
+  }
+  // The GCS client treats a non-JSON string as a key *file path*; a customer
+  // secret must never be read as one.
+  if (gcsServiceAccountKey && !gcsServiceAccountKey.trim().startsWith("{")) {
+    throw new Error("GCS credentials must be a service account JSON key");
+  }
   return StorageServiceFactory.getInstance({
-    accessKeyId: config.accessKeyId,
-    secretAccessKey: config.secretAccessKey,
+    accessKeyId: useGoogleCloudStorage ? undefined : config.accessKeyId,
+    secretAccessKey: useGoogleCloudStorage ? undefined : config.secretAccessKey,
     bucketName: config.bucketName,
     endpoint: config.endpoint ?? undefined,
     region: config.region,
@@ -377,10 +388,10 @@ const createBlobStorageService = (
     awsSse: undefined,
     awsSseKmsKeyId: undefined,
     useAzureBlob: config.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
-    // GCS uses the deployment's own identity (LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS
-    // or ADC), never customer-supplied keys.
+    // Undefined → the deployment identity (LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS
+    // or ADC), allowlist-gated above.
     useGoogleCloudStorage,
-    googleCloudCredentials: undefined,
+    googleCloudCredentials: gcsServiceAccountKey,
     useOCIObjectStorage: false, // Not supported in blob storage integration
     connectionValidation: blobStorageEndpointConnectionValidationOptions(),
   });

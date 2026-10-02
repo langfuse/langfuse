@@ -514,10 +514,11 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
-  // Buckets that GOOGLE_CLOUD_STORAGE blob exports may write to. Those exports
-  // run as the deployment's own GCP identity (ADC), so without this allowlist any
-  // project owner could export into any bucket that identity can write. Empty
-  // disables the GOOGLE_CLOUD_STORAGE integration type.
+  // Buckets that keyless GOOGLE_CLOUD_STORAGE blob exports (default credentials,
+  // no service account key) may write to. Those run as the deployment's own GCP
+  // identity (ADC), so without this allowlist any project owner could export into
+  // any bucket that identity can write. Empty disables keyless GCS exports;
+  // exports with a service account key are unaffected.
   LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS: z
     .string()
     .optional()
