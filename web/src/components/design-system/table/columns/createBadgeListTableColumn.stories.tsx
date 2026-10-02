@@ -14,7 +14,7 @@ type Row = {
 
 const columns = [
   // Narrow enough that a second chip never fits beside the first, so a row
-  // shows either one chip plus the overflow chip or the overflow chip alone.
+  // holding more than one item overflows rather than wrapping.
   createBadgeListTableColumn<Row>({
     accessorKey: "providers",
     header: "SSO Provider",
