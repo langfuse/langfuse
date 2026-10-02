@@ -1,13 +1,8 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import { DECISION_MODEL_LIMITS } from "@langfuse/shared";
 import { InfoIcon } from "lucide-react";
 
 import { Badge } from "@/src/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { QUESTION_TYPE_COPY } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionTypeSelector/QuestionTypeSelector";
 import { cn } from "@/src/utils/tailwind";
 
@@ -59,15 +54,17 @@ function LevelDescriptionTooltip({
   description: string;
 }) {
   return (
-    <Tooltip>
-      <TooltipTrigger
-        type="button"
-        className="text-muted-foreground focus-visible:ring-ring cursor-help rounded-sm focus-visible:ring-2 focus-visible:outline-none"
-        aria-label={`Level ${index} description`}
-      >
-        <InfoIcon className="h-3.5 w-3.5" aria-hidden="true" />
-      </TooltipTrigger>
-      <TooltipContent className="max-w-xs">{description}</TooltipContent>
+    <Tooltip label={description} delay={300}>
+      {({ getTriggerProps }) => (
+        <button
+          {...getTriggerProps()}
+          type="button"
+          className="text-muted-foreground focus-visible:ring-ring cursor-help rounded-sm focus-visible:ring-2 focus-visible:outline-none"
+          aria-label={`Level ${index} description`}
+        >
+          <InfoIcon className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      )}
     </Tooltip>
   );
 }
