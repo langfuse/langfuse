@@ -1155,6 +1155,14 @@ function TableBlock({ children }: { children: ReactNode }) {
     copy(text).catch(() => undefined);
   };
 
+  const handleCopyTableCsv = () => {
+    copyTable("csv");
+  };
+
+  const handleCopyTableMarkdown = () => {
+    copyTable("md");
+  };
+
   return (
     <div className="group/table max-w-full">
       <div
@@ -1174,9 +1182,7 @@ function TableBlock({ children }: { children: ReactNode }) {
             isCopied={csvCopy.isCopied}
             isInteractive={isCopied}
             caption=".csv"
-            onClick={() => {
-              copyTable("csv");
-            }}
+            onClick={handleCopyTableCsv}
           />
           <TableCopyButton
             label="Copy table as Markdown"
@@ -1184,9 +1190,7 @@ function TableBlock({ children }: { children: ReactNode }) {
             isCopied={markdownCopy.isCopied}
             isInteractive={isCopied}
             caption=".md"
-            onClick={() => {
-              copyTable("md");
-            }}
+            onClick={handleCopyTableMarkdown}
           />
         </div>
       </div>
