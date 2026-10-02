@@ -147,6 +147,7 @@ export class TraceDeleteBatchActionRunner extends PeriodicExclusiveRunner {
 
         const result = await processTraceDeleteBatchAction({
           batchActionId: batchAction.id,
+          projectId: batchAction.projectId,
           batchSize: this.batchSize,
           maxBatchesPerRun: this.maxBatchesPerRun,
           canCommitProgress: () => this.lock.isHeldByCurrentProcess(),
