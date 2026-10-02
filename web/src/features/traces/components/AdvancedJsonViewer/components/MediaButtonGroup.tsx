@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import { useMemo, useState, useRef } from "react";
 import { type MediaReturnType } from "@/src/features/media";
 import { File, Image as ImageIcon, Volume2, Video } from "lucide-react";
@@ -26,9 +25,7 @@ interface GroupedMedia {
 /**
  * AudioPlayer - Renders HTML5 audio player with controls
  */
-function AudioPlayer({ src }: { src?: string }) {
-  if (!src) return null;
-
+function AudioPlayer({ src }: { src: string }) {
   return (
     <audio controls className="w-full" preload="metadata">
       <source src={src} />
@@ -40,9 +37,7 @@ function AudioPlayer({ src }: { src?: string }) {
 /**
  * VideoPlayer - Renders HTML5 video player with controls
  */
-function VideoPlayer({ src }: { src?: string }) {
-  if (!src) return null;
-
+function VideoPlayer({ src }: { src: string }) {
   return (
     <video controls className="w-full" preload="metadata" playsInline>
       <source src={src} />
@@ -54,9 +49,7 @@ function VideoPlayer({ src }: { src?: string }) {
 /**
  * ImagePreview - Renders 96x96px image that opens in new tab when clicked
  */
-function ImagePreview({ src }: { src?: string }) {
-  if (!src) return null;
-
+function ImagePreview({ src }: { src: string }) {
   const openInNewTab = () => {
     window.open(src, "_blank", "noopener,noreferrer");
   };
@@ -83,7 +76,7 @@ function ImagePreview({ src }: { src?: string }) {
 function MediaPreview({ mediaItem }: { mediaItem: MediaReturnType }) {
   const projectId = useProjectIdFromURL();
 
-  const { data } = api.media.getById.useQuery(
+  const mediaQuery = api.media.getById.useQuery(
     {
       mediaId: mediaItem.mediaId,
       projectId: projectId as string,
@@ -98,9 +91,23 @@ function MediaPreview({ mediaItem }: { mediaItem: MediaReturnType }) {
     },
   );
 
-  const mediaUrl = data?.url;
+  const mediaUrl = mediaQuery.data?.url;
 
-  if (!mediaUrl) return null;
+  if (projectId && mediaQuery.isPending) {
+    return (
+      <p role="status" className="text-muted-foreground p-2 text-sm">
+        Loading media...
+      </p>
+    );
+  }
+
+  if (!mediaUrl) {
+    return (
+      <p className="text-muted-foreground p-2 text-sm">
+        Media preview unavailable.
+      </p>
+    );
+  }
 
   const contentType = mediaItem.contentType;
 
@@ -175,10 +182,6 @@ export function MediaButtonGroup({ media }: MediaButtonGroupProps) {
 
     return groups;
   }, [media]);
-
-  if (groupedMedia.length === 0) {
-    return null;
-  }
 
   return (
     <div
