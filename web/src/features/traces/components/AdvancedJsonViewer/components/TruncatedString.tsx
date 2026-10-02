@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /**
  * TruncatedString - String value with truncation and popover
  *
@@ -8,11 +7,7 @@
 
 import { useRef, useState, useEffect } from "react";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type JSONTheme } from "../types";
 import {
   highlightTextWithComments,
@@ -90,15 +85,17 @@ export function TruncatedString({
 
           if (segment.type === "comment" && segment.preview) {
             return (
-              <Tooltip key={index}>
-                <TooltipTrigger asChild>{highlightedSpan}</TooltipTrigger>
-                <TooltipContent
-                  side="top"
-                  align="start"
-                  className="max-w-xs px-2 py-1 text-xs"
-                >
-                  {segment.preview}
-                </TooltipContent>
+              <Tooltip
+                key={index}
+                label={segment.preview}
+                placement="top-start"
+                delay={300}
+              >
+                {({ getTriggerProps }) => (
+                  <span {...getTriggerProps()} style={{ backgroundColor }}>
+                    {segment.text}
+                  </span>
+                )}
               </Tooltip>
             );
           }
