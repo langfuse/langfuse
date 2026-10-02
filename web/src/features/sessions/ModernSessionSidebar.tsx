@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable no-nested-ternary */
 import React, { useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";

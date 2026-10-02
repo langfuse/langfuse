@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable @repo/no-style-props */
 import { type HeatmapCell } from "@/src/features/score-analytics/lib/heatmap-utils";
 import { getContrastColor } from "@/src/features/score-analytics/lib/color-scales";

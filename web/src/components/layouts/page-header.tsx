@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { Badge } from "@/src/components/design-system/Badge/Badge";

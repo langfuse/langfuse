@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import { Webhook } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";

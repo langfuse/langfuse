@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import { DECISION_MODEL_LIMITS } from "@langfuse/shared";
 import { InfoIcon } from "lucide-react";
 
