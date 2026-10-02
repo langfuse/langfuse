@@ -137,6 +137,34 @@ describe("SessionConversationTimelineTrace", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("reveals the no-conversational-content marker's meaning on hover", async () => {
+    const emptyAgentTurn = prepareSessionTimelineObservations([
+      observation("agent-turn", null, "AGENT", new Date(0)),
+    ]);
+
+    render(
+      <SessionConversationTimelineTrace
+        trace={{ ...trace, observationCount: 1 }}
+        turnNumber={1}
+        state={{ type: "loaded", observations: emptyAgentTurn }}
+        onOpenTrace={vi.fn()}
+        onOpenObservation={vi.fn()}
+        scrollTarget={null}
+      />,
+    );
+
+    const marker = screen.getByRole("img", {
+      name: "No conversational content",
+    });
+    expect(marker).toBeInTheDocument();
+
+    fireEvent.focus(marker);
+
+    expect(
+      await screen.findAllByText("No conversational content"),
+    ).not.toHaveLength(0);
+  });
+
   it("decodes Unicode escapes in truncated observation previews", () => {
     const truncated = prepareSessionTimelineObservations([
       {
