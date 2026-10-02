@@ -111,6 +111,10 @@ export const ObservationDetailViewHeader = memo(
         : commentActionLabel;
     const { isV4: isV4Enabled } = useReadPath();
     const { trace, serverScores } = useTraceData();
+    const prompt = api.prompts.byId.useQuery(
+      { id: observation.promptId ?? "", projectId },
+      { enabled: Boolean(observation.promptId) },
+    );
 
     // Get trace-level scores for V4 dual annotation
     const traceScores = useMemo(
@@ -546,9 +550,10 @@ export const ObservationDetailViewHeader = memo(
             {observation.level !== "DEFAULT" && (
               <ObservationLevelBadge level={observation.level} />
             )}
-            {observation.promptId && (
+            {observation.promptId && !prompt.isLoading && prompt.data && (
               <PromptBadge
-                promptId={observation.promptId}
+                promptName={prompt.data.name}
+                promptVersion={prompt.data.version}
                 projectId={projectId}
               />
             )}
