@@ -29,13 +29,15 @@ export function SectionToolDefinitions({
         <div className="io-message-header px-1 py-1 text-sm font-bold capitalize">
           Tools
         </div>
-        <ToolCallDefinitionCard
-          tools={tools}
-          toolCallCounts={toolCallCounts}
-          toolCallsByName={toolCallsByName}
-          toolNameToDefinitionNumber={toolNameToDefinitionNumber}
-          className="px-2"
-        />
+        {tools.length > 0 && (
+          <ToolCallDefinitionCard
+            tools={tools}
+            toolCallCounts={toolCallCounts}
+            toolCallsByName={toolCallsByName}
+            toolNameToDefinitionNumber={toolNameToDefinitionNumber}
+            className="px-2"
+          />
+        )}
       </div>
     </div>
   );
