@@ -1,11 +1,7 @@
 import { Queue } from "bullmq";
 import { logger } from "../logger";
 import { TQueueJobTypes, QueueName } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { getShardIndex } from "./sharding";
 import { env } from "../../env";
 
@@ -59,16 +55,11 @@ export class LLMAsJudgeExecutionQueue {
       return LLMAsJudgeExecutionQueue.instances.get(shardIndex) || null;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
     const name = `${QueueName.LLMAsJudgeExecution}${shardIndex > 0 ? `-${shardIndex}` : ""}`;
-    const queueInstance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(name);
+    const queueInstance = queueOptionsWithRedis
       ? new Queue<TQueueJobTypes[QueueName.LLMAsJudgeExecution]>(name, {
-          connection: newRedis,
-          prefix: getQueuePrefix(name),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 10_000,

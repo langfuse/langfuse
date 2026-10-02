@@ -308,7 +308,7 @@ export function applyFullMapping(props: {
  */
 export function generateJsonPathSuggestions(
   data: unknown,
-  prefix: string = "$",
+  prefix = "$",
 ): string[] {
   const suggestions: string[] = [];
 

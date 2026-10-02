@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   Card,
   CardContent,
@@ -14,7 +15,7 @@ import { type HeatmapCell } from "@/src/features/score-analytics/lib/heatmap-uti
 import { useCallback } from "react";
 import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
 import { type ScoreDataTypeType } from "@langfuse/shared";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 interface HeatmapTooltipContentProps {
   cell: HeatmapCell;
@@ -48,7 +49,7 @@ function HeatmapTooltipContent({
     <div className="space-y-2">
       {/* Header Section */}
       <div className="border-border border-b pb-2">
-        <p className="text-muted-foreground text-sm font-medium">
+        <p className="text-muted-foreground text-sm font-bold">
           {dataType === "NUMERIC"
             ? `Bin ${cell.row}×${cell.col}`
             : `${cell.metadata?.rowCategory as string} → ${cell.metadata?.colCategory as string}`}
@@ -57,7 +58,7 @@ function HeatmapTooltipContent({
 
       {/* Primary Metrics Section */}
       <div className="space-y-1">
-        <p className="text-foreground text-base font-semibold">
+        <p className="text-foreground text-base font-bold">
           {cell.value.toLocaleString()} observations
         </p>
         <p className="text-muted-foreground text-xs">
@@ -197,14 +198,18 @@ export function HeatmapCard() {
   const title =
     dataType === "NUMERIC" ? "Score Comparison Heatmap" : "Confusion Matrix";
 
-  const description =
-    mode === "single"
-      ? dataType === "NUMERIC"
-        ? "Distribution of matched score pairs showing correlation patterns"
-        : "Agreement matrix between categorical scores"
-      : dataType === "NUMERIC"
-        ? `${totalMatchedPairs.toLocaleString()} matched pairs showing correlation patterns`
-        : `${totalMatchedPairs.toLocaleString()} matched pairs showing agreement`;
+  const description = (() => {
+    if (mode === "single") {
+      if (dataType === "NUMERIC") {
+        return "Distribution of matched score pairs showing correlation patterns";
+      }
+      return "Agreement matrix between categorical scores";
+    }
+    if (dataType === "NUMERIC") {
+      return `${totalMatchedPairs.toLocaleString()} matched pairs showing correlation patterns`;
+    }
+    return `${totalMatchedPairs.toLocaleString()} matched pairs showing agreement`;
+  })();
 
   // Single score mode - show placeholder
   if (mode === "single") {
@@ -222,7 +227,7 @@ export function HeatmapCard() {
             showLabels={true}
             showAxisLabels={true}
           />
-          <p className="text-muted-foreground text-center text-sm font-light">
+          <p className="text-muted-foreground text-center text-sm">
             Select a second score to view comparison heatmap
           </p>
         </CardContent>
@@ -236,12 +241,15 @@ export function HeatmapCard() {
   // Calculate dynamic cell height based on available space
   // Magic number 230px represents approximate available height for grid
   // (card height minus header, labels, legend, gaps)
-  const numRows =
-    dataType === "NUMERIC"
-      ? 10
-      : heatmap && "rows" in heatmap
-        ? heatmap.rows
-        : 10;
+  const numRows = (() => {
+    if (dataType === "NUMERIC") {
+      return 10;
+    }
+    if (heatmap && "rows" in heatmap) {
+      return heatmap.rows;
+    }
+    return 10;
+  })();
   const calculatedCellHeight = Math.floor(200 / numRows);
 
   return (

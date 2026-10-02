@@ -1,10 +1,6 @@
 import { Queue } from "bullmq";
 import { QueueName } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
 export class MixpanelIntegrationProcessingQueue {
@@ -15,15 +11,12 @@ export class MixpanelIntegrationProcessingQueue {
       return MixpanelIntegrationProcessingQueue.instance;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    MixpanelIntegrationProcessingQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.MixpanelIntegrationProcessingQueue,
+    );
+    MixpanelIntegrationProcessingQueue.instance = queueOptionsWithRedis
       ? new Queue(QueueName.MixpanelIntegrationProcessingQueue, {
-          connection: newRedis,
-          prefix: getQueuePrefix(QueueName.MixpanelIntegrationProcessingQueue),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100_000,

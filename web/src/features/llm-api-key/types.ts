@@ -2,21 +2,24 @@ import { z } from "zod";
 import {
   LLMAdapter,
   BedrockConfigSchema,
+  OpenAIConfigSchema,
   VertexAIConfigSchema,
   LLMApiKeySchema,
 } from "@langfuse/shared";
 
-export const LlmApiKeySchema = z.object({
+const LlmApiKeySchema = z.object({
   projectId: z.string(),
   provider: z
     .string()
     .min(1)
     .regex(/^[^:]+$/, "Provider name cannot contain colons"),
   adapter: z.enum(LLMAdapter),
-  baseURL: z.url().optional(),
+  baseURL: z.url().nullish(),
   withDefaultModels: z.boolean().optional(),
   customModels: z.array(z.string().min(1)).optional(),
-  config: z.union([VertexAIConfigSchema, BedrockConfigSchema]).optional(),
+  config: z
+    .union([VertexAIConfigSchema, BedrockConfigSchema, OpenAIConfigSchema])
+    .optional(),
   extraHeaders: z.record(z.string(), z.string()).optional(),
 });
 
@@ -54,5 +57,3 @@ export const SafeLlmApiKeySchema = LLMApiKeySchema.extend({
   extraHeaders: z.undefined(),
   authMethod: BedrockAuthMethodSchema.optional(),
 });
-
-export type SafeLlmApiKey = z.infer<typeof SafeLlmApiKeySchema>;

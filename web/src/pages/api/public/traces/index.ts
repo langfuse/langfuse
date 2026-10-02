@@ -14,8 +14,9 @@ import {
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { processEventBatch } from "@langfuse/shared/src/server";
 import {
+  processEventBatch,
+  createIngestionAttribution,
   eventTypes,
   logger,
   traceDeletionProcessor,
@@ -24,21 +25,27 @@ import {
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   generateTracesForPublicApi,
   getTracesCountForPublicApi,
 } from "@/src/features/public-api/server/traces";
 import { env } from "@/src/env.mjs";
-
+import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { TRACES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 export default withMiddlewares(
   {
     POST: createAuthedProjectAPIRoute({
       name: "Create Trace (Legacy)",
+      action: "traces:create",
       bodySchema: PostTracesV1Body,
       responseSchema: PostTracesV1Response, // Adjust this if you have a specific response schema
       rateLimitResource: "legacy-ingestion",
-      fn: async ({ body, auth, res }) => {
+      // Legacy POST writes a trace-create event that lands in the legacy traces
+      // ClickHouse table; events_only deployments expect OTel ingestion.
+      rejectInEventsOnlyMode: true,
+      fn: async ({ body, auth, req, res }) => {
         await telemetry();
         const event = {
           id: v4(),
@@ -49,7 +56,12 @@ export default withMiddlewares(
         if (!event.body.id) {
           event.body.id = v4();
         }
-        const result = await processEventBatch([event], auth);
+        const result = await processEventBatch([event], auth, {
+          attribution: createIngestionAttribution({
+            headers: req.headers,
+            authCheck: auth,
+          }),
+        });
         if (result.errors.length > 0) {
           const error = result.errors[0];
           res
@@ -67,8 +79,13 @@ export default withMiddlewares(
 
     GET: createAuthedProjectAPIRoute({
       name: "Get Traces",
+      action: "traces:read",
+      rateLimitResource: "public-api-legacy",
       querySchema: GetTracesV1Query,
       responseSchema: GetTracesV1Response,
+      deprecation: TRACES_DEPRECATION,
+      rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.tracesList,
+      rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {
         // Api-performance controls.
         // 1. Reject if no date range and rejection is enabled
@@ -93,6 +110,35 @@ export default withMiddlewares(
             referenceDateMs - defaultDateRangeDays * 24 * 60 * 60 * 1000,
           ).toISOString();
         }
+
+        const dataAccessWindow = clampToDataAccessDays({
+          plan: auth.scope.plan,
+          fromTimestamp: effectiveFromTimestamp,
+        });
+        effectiveFromTimestamp =
+          dataAccessWindow.effectiveFromTimestamp?.toISOString();
+
+        const advancedFilters = dataAccessWindow.accessFloor
+          ? [
+              ...(query.filter ?? []),
+              {
+                column: "timestamp",
+                operator: ">=" as const,
+                value: dataAccessWindow.effectiveFromTimestamp!,
+                type: "datetime" as const,
+              },
+              ...(query.toTimestamp
+                ? [
+                    {
+                      column: "timestamp",
+                      operator: "<" as const,
+                      value: new Date(query.toTimestamp),
+                      type: "datetime" as const,
+                    },
+                  ]
+                : []),
+            ]
+          : query.filter;
 
         // 3. Apply default fields if configured and no fields query param provided
         let effectiveFields = query.fields ?? undefined;
@@ -123,22 +169,16 @@ export default withMiddlewares(
           toTimestamp: query.toTimestamp ?? undefined,
         };
 
-        // Use events table if query parameter is explicitly set, otherwise use environment variable
-        const useEventsTable =
-          query.useEventsTable !== undefined && query.useEventsTable !== null
-            ? query.useEventsTable === true
-            : env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
-
-        if (useEventsTable) {
+        if (query.useEventsTable) {
           const [items, count] = await Promise.all([
             getTracesFromEventsTableForPublicApi({
               ...filterProps,
-              advancedFilters: query.filter,
+              advancedFilters,
               orderBy: query.orderBy ?? null,
             }),
             getTracesCountFromEventsTableForPublicApi({
               ...filterProps,
-              advancedFilters: query.filter,
+              advancedFilters,
             }),
           ]);
 
@@ -160,12 +200,12 @@ export default withMiddlewares(
         const [items, count] = await Promise.all([
           generateTracesForPublicApi({
             props: filterProps,
-            advancedFilters: query.filter,
+            advancedFilters,
             orderBy: query.orderBy ?? null,
           }),
           getTracesCountForPublicApi({
             props: filterProps,
-            advancedFilters: query.filter,
+            advancedFilters,
           }),
         ]);
 
@@ -187,6 +227,7 @@ export default withMiddlewares(
 
     DELETE: createAuthedProjectAPIRoute({
       name: "Delete Multiple Traces",
+      action: "traces:delete",
       bodySchema: DeleteTracesV1Body,
       responseSchema: DeleteTracesV1Response,
       rateLimitResource: "trace-delete",

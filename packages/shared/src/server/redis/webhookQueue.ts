@@ -1,10 +1,6 @@
 import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
-import {
-  createNewRedisInstance,
-  getQueuePrefix,
-  redisQueueRetryOptions,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
 export class WebhookQueue {
@@ -17,17 +13,14 @@ export class WebhookQueue {
   > | null {
     if (WebhookQueue.instance) return WebhookQueue.instance;
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    WebhookQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.WebhookQueue,
+    );
+    WebhookQueue.instance = queueOptionsWithRedis
       ? new Queue<TQueueJobTypes[QueueName.WebhookQueue]>(
           QueueName.WebhookQueue,
           {
-            connection: newRedis,
-            prefix: getQueuePrefix(QueueName.WebhookQueue),
+            ...queueOptionsWithRedis,
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 100_000,

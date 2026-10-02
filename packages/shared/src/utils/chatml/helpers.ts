@@ -1,3 +1,38 @@
+import { parseJsonIfString as parseIfString } from "../json";
+
+type SchemaWithSafeParse<T> = {
+  safeParse: (data: unknown) => T;
+};
+
+/** Failure from a `safeParse` path that threw before Zod returned a result. */
+export type SafeParseCatchFailure = { success: false };
+
+/**
+ * Zod 4 `safeParse` constructs a `$ZodError` on failure and assigns
+ * `inst.name`. That assignment throws when `Error.name` is non-writable
+ * (SES/lockdown and some browser extensions). Treat a throw as a failed parse.
+ *
+ * Catch returns `{ success: false }` only — do not invent a `ZodError` here;
+ * constructing one can hit the same non-writable `Error.name` path under SES.
+ */
+export function safeSchemaParse<T extends { success: boolean }>(
+  schema: SchemaWithSafeParse<T>,
+  data: unknown,
+): T | SafeParseCatchFailure {
+  try {
+    return schema.safeParse(data);
+  } catch {
+    return { success: false };
+  }
+}
+
+export function schemaMatches(
+  schema: SchemaWithSafeParse<{ success: boolean }>,
+  data: unknown,
+): boolean {
+  return safeSchemaParse(schema, data).success;
+}
+
 export function removeNullFields(obj: unknown): Record<string, unknown> {
   if (!obj || typeof obj !== "object") return {};
 
@@ -96,4 +131,96 @@ export function getNestedProperty(
     current = (current as Record<string, unknown>)[key];
   }
   return current;
+}
+
+function parseArrayIfString(value: unknown): unknown[] | undefined {
+  if (Array.isArray(value)) return value;
+  const parsed = parseIfString(value);
+  return Array.isArray(parsed) ? parsed : undefined;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Normalize available tool definitions from provider-specific shapes to ChatML.
+ * Built-in provider tools often have no `name`, so we fall back to `id`/`type`
+ * for display while backend column extraction can still ignore unnamed tools.
+ */
+export function normalizeToolDefinitionForChatMl(
+  tool: unknown,
+): Record<string, unknown> | null {
+  const parsedTool = parseIfString(tool);
+  if (!isPlainRecord(parsedTool)) return null;
+
+  const nestedFunction = isPlainRecord(parsedTool.function)
+    ? parsedTool.function
+    : undefined;
+  const source = nestedFunction ?? parsedTool;
+
+  const rawName =
+    source.name ??
+    parsedTool.name ??
+    parsedTool.id ??
+    (parsedTool.type !== "function" ? parsedTool.type : undefined);
+
+  if (typeof rawName !== "string" || rawName.length === 0) return null;
+
+  const rawDescription = source.description ?? parsedTool.description;
+  const rawParameters =
+    source.parameters ??
+    source.parameters_json_schema ??
+    source.inputSchema ??
+    parsedTool.parameters ??
+    parsedTool.parameters_json_schema ??
+    parsedTool.inputSchema;
+
+  const normalized: Record<string, unknown> = {
+    name: rawName,
+    description: typeof rawDescription === "string" ? rawDescription : "",
+  };
+
+  if (isPlainRecord(rawParameters)) {
+    normalized.parameters = rawParameters;
+  }
+
+  return normalized;
+}
+
+export function normalizeToolDefinitionsForChatMl(
+  tools: unknown,
+): Array<Record<string, unknown>> {
+  const parsedTools = parseArrayIfString(tools);
+  if (!parsedTools) return [];
+
+  return parsedTools
+    .map(normalizeToolDefinitionForChatMl)
+    .filter((tool): tool is Record<string, unknown> => tool !== null);
+}
+
+function dedupeToolDefinitionsForChatMl(
+  tools: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  const seenNames = new Set<string>();
+  return tools.filter((tool) => {
+    const name = tool.name;
+    if (typeof name !== "string" || name.length === 0) return false;
+    if (seenNames.has(name)) return false;
+    seenNames.add(name);
+    return true;
+  });
+}
+
+export function attachToolDefinitionsToMessages(
+  messages: unknown[],
+  tools: Array<Record<string, unknown>>,
+): unknown[] {
+  const dedupedTools = dedupeToolDefinitionsForChatMl(tools);
+  if (dedupedTools.length === 0) return messages;
+
+  return messages.map((msg) => ({
+    ...(isPlainRecord(msg) ? msg : {}),
+    tools: dedupedTools,
+  }));
 }

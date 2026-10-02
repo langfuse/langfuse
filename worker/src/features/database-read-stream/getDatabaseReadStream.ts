@@ -13,8 +13,11 @@ import {
   FullObservationsWithScores,
   DatabaseReadStream,
   getScoresUiTable,
+  getScoresUiTableFromEvents,
+  getTraceMetadataByIdsFromEvents,
   getPublicSessionsFilter,
   getSessionsWithMetrics,
+  getSessionsWithMetricsFromEvents,
   getDistinctScoreNames,
   getObservationsTableWithModelData,
   getScoresForObservations,
@@ -25,6 +28,7 @@ import {
   getTracesByIds,
   getScoresForTraces,
   getDatasetItems,
+  type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { env } from "../../env";
@@ -41,6 +45,7 @@ const tableNameToTimeFilterColumn: Record<BatchTableNames, string> = {
   traces: "timestamp",
   observations: "startTime",
   events: "startTime",
+  datasets: "createdAt",
   dataset_run_items: "createdAt",
   dataset_items: "createdAt", // TODO: flip to validFrom once we write in new format
   audit_logs: "createdAt",
@@ -51,6 +56,7 @@ const tableNameToTimeFilterColumnCh: Record<BatchTableNames, string> = {
   traces: "timestamp",
   observations: "startTime",
   events: "startTime",
+  datasets: "createdAt",
   dataset_run_items: "createdAt",
   dataset_items: "createdAt",
   audit_logs: "createdAt",
@@ -85,13 +91,56 @@ export const getChunkWithFlattenedScores = <
           ...acc,
           [key]: value,
         };
-      } else {
-        return acc;
       }
+
+      return acc;
     }, emptyScoreColumns);
     return {
       ...data,
       ...scoreColumns,
+    };
+  });
+};
+
+// Events-backed replacement for the legacy getScoresUiTable traces JOIN:
+// loads score rows without trace enrichment, then fills traceName /
+// traceUserId / traceTags from the events table for the page's trace ids.
+const getScoresWithTraceMetadataFromEvents = async (props: {
+  projectId: string;
+  filter: FilterCondition[];
+  orderBy: OrderByState;
+  limit: number;
+  offset: number;
+  clickhouseConfigs: Parameters<
+    typeof getScoresUiTableFromEvents
+  >[0]["clickhouseConfigs"];
+}) => {
+  const scores = await getScoresUiTableFromEvents({
+    ...props,
+    excludeMetadata: false,
+  });
+
+  const traceMetadata = await getTraceMetadataByIdsFromEvents({
+    projectId: props.projectId,
+    traceIds: [
+      ...new Set(
+        scores
+          .map((score) => score.traceId)
+          .filter((traceId): traceId is string => Boolean(traceId)),
+      ),
+    ],
+    clickhouseConfigs: props.clickhouseConfigs,
+  });
+
+  return scores.map((score) => {
+    const trace = traceMetadata.find((t) => t.id === score.traceId);
+    // `?? null` (not `|| null`): preserve explicit empty strings/arrays so
+    // rows serialize the same as the legacy traces-JOIN export path.
+    return {
+      ...score,
+      traceName: trace?.name ?? null,
+      traceUserId: trace?.user_id ?? null,
+      traceTags: trace?.tags ?? null,
     };
   });
 };
@@ -104,6 +153,8 @@ export const getDatabaseReadStreamPaginated = async ({
   cutoffCreatedAt,
   searchQuery,
   searchType,
+  useEventsTable,
+  preferredClickhouseService,
   rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
 }: {
   projectId: string;
@@ -111,6 +162,7 @@ export const getDatabaseReadStreamPaginated = async ({
   searchQuery?: string;
   searchType?: TracingSearchType[];
   rowLimit?: number;
+  preferredClickhouseService?: PreferredClickhouseService;
 } & BatchExportQueryType): Promise<DatabaseReadStream<unknown>> => {
   // Set createdAt cutoff to prevent exporting data that was created after the job was queued
   const createdAtCutoffFilter: FilterCondition = {
@@ -141,16 +193,32 @@ export const getDatabaseReadStreamPaginated = async ({
     case "scores": {
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
-          const scores = await getScoresUiTable({
-            projectId,
-            filter: filter
-              ? [...filter, createdAtCutoffFilter]
-              : [createdAtCutoffFilter],
-            orderBy,
-            limit: pageSize,
-            offset,
-            clickhouseConfigs,
-          });
+          const scoresFilter = filter
+            ? [...filter, createdAtCutoffFilter]
+            : [createdAtCutoffFilter];
+
+          // v4-enabled users (snapshotted as useEventsTable at dispatch) read
+          // scores without the legacy traces JOIN; trace metadata (name,
+          // userId, tags) is loaded from the events table instead, mirroring
+          // the scores UI (scores.allFromEvents + scores.metricsFromEvents).
+          const scores = useEventsTable
+            ? await getScoresWithTraceMetadataFromEvents({
+                projectId,
+                filter: scoresFilter,
+                orderBy,
+                limit: pageSize,
+                offset,
+                clickhouseConfigs,
+              })
+            : await getScoresUiTable({
+                projectId,
+                filter: scoresFilter,
+                orderBy,
+                limit: pageSize,
+                offset,
+                clickhouseConfigs,
+                preferredClickhouseService,
+              });
 
           // Get author user info for scores
           // Only users that have valid project write access may write scores
@@ -209,14 +277,28 @@ export const getDatabaseReadStreamPaginated = async ({
             projectId,
             finalFilter ?? [],
           );
-          const sessions = await getSessionsWithMetrics({
-            projectId: projectId,
-            filter: sessionsFilter,
-            orderBy: orderBy,
-            limit: pageSize,
-            page: Math.floor(offset / pageSize),
-            clickhouseConfigs,
-          });
+          // v4-enabled users (snapshotted as useEventsTable at dispatch) read
+          // sessions from the ClickHouse events table. Both readers apply the
+          // same filter (incl. the createdAt cutoff) and clickhouseConfigs, and
+          // expose the same field names, so the row mapping below is shared.
+          const sessions = useEventsTable
+            ? await getSessionsWithMetricsFromEvents({
+                projectId: projectId,
+                filter: sessionsFilter,
+                orderBy: orderBy,
+                limit: pageSize,
+                page: Math.floor(offset / pageSize),
+                clickhouseConfigs,
+              })
+            : await getSessionsWithMetrics({
+                projectId: projectId,
+                filter: sessionsFilter,
+                orderBy: orderBy,
+                limit: pageSize,
+                page: Math.floor(offset / pageSize),
+                clickhouseConfigs,
+                preferredClickhouseService,
+              });
 
           const prismaSessionInfo = await prisma.traceSession.findMany({
             where: {
@@ -484,6 +566,7 @@ export const getDatabaseReadStreamPaginated = async ({
             },
             offset,
             clickhouseConfigs,
+            preferredClickhouseService,
           });
 
           // fetch all project dataset names

@@ -1,9 +1,6 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { prisma } from "@langfuse/shared/src/db";
-import { redis } from "@langfuse/shared/src/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   CreateBlobStorageIntegrationRequest,
   toInternalExportSource,
@@ -11,17 +8,13 @@ import {
   type BlobStorageIntegrationResponseType,
 } from "@/src/features/public-api/types/blob-storage-integrations";
 import {
-  AnalyticsIntegrationExportSource,
   type ObservationFieldGroupFull,
   LangfuseNotFoundError,
-  UnauthorizedError,
-  ForbiddenError,
-  isLegacyBlobExportAllowed,
 } from "@langfuse/shared";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
-import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { env } from "@/src/env.mjs";
+import { resolveExportSource } from "@/src/features/analytics-integrations/server";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { authorizeBlobStorageRequest } from "@/src/features/blobstorage-integration/authorizeBlobStorageRequest";
 
 export default withMiddlewares({
   GET: handleGetBlobStorageIntegrations,
@@ -32,40 +25,11 @@ async function handleGetBlobStorageIntegrations(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey) {
-    throw new UnauthorizedError(authCheck.error ?? "Unauthorized");
-  }
-
-  // Check if using an organization API key
-  if (
-    authCheck.scope.accessLevel !== "organization" ||
-    !authCheck.scope.orgId
-  ) {
-    throw new ForbiddenError(
-      "Organization-scoped API key required for this operation.",
-    );
-  }
-
-  // Check scheduled-blob-exports entitlement
-  if (
-    !hasEntitlementBasedOnPlan({
-      plan: authCheck.scope.plan,
-      entitlement: "scheduled-blob-exports",
-    })
-  ) {
-    throw new ForbiddenError(
-      "scheduled-blob-exports entitlement required for this feature.",
-    );
-  }
+  const scope = await authorizeBlobStorageRequest(req);
 
   // Get all projects for the organization
   const projects = await prisma.project.findMany({
-    where: { orgId: authCheck.scope.orgId },
+    where: { orgId: scope.orgId },
     select: { id: true },
   });
 
@@ -96,10 +60,7 @@ async function handleGetBlobStorageIntegrations(
       compressed: integration.compressed,
       exportSource: toPublicExportSource(integration.exportSource),
       exportFieldGroups:
-        integration.exportSource ===
-        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
-          ? null
-          : (integration.exportFieldGroups as ObservationFieldGroupFull[]),
+        integration.exportFieldGroups as ObservationFieldGroupFull[],
       nextSyncAt: integration.nextSyncAt,
       lastSyncAt: integration.lastSyncAt,
       lastError: integration.lastError,
@@ -118,36 +79,7 @@ async function handleUpsertBlobStorageIntegration(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey) {
-    throw new UnauthorizedError(authCheck.error ?? "Unauthorized");
-  }
-
-  // Check if using an organization API key
-  if (
-    authCheck.scope.accessLevel !== "organization" ||
-    !authCheck.scope.orgId
-  ) {
-    throw new ForbiddenError(
-      "Organization-scoped API key required for this operation.",
-    );
-  }
-
-  // Check scheduled-blob-exports entitlement
-  if (
-    !hasEntitlementBasedOnPlan({
-      plan: authCheck.scope.plan,
-      entitlement: "scheduled-blob-exports",
-    })
-  ) {
-    throw new ForbiddenError(
-      "scheduled-blob-exports entitlement required for this feature.",
-    );
-  }
+  const scope = await authorizeBlobStorageRequest(req);
 
   // Validate request body
   const validatedData = CreateBlobStorageIntegrationRequest.parse(req.body);
@@ -157,39 +89,50 @@ async function handleUpsertBlobStorageIntegration(
     where: { id: validatedData.projectId },
     select: { id: true, orgId: true, createdAt: true },
   });
-  if (!project || project.orgId !== authCheck.scope.orgId) {
+  if (!project || project.orgId !== scope.orgId) {
     throw new LangfuseNotFoundError("Project not found");
   }
 
-  const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+  const internalExportSource =
+    validatedData.exportSource != null
+      ? toInternalExportSource(validatedData.exportSource)
+      : undefined;
 
-  if (validatedData.exportSource) {
-    assertLegacyBlobExportSourceAllowed({
-      project,
-      nextInternalExportSource: toInternalExportSource(
-        validatedData.exportSource,
-      ),
-      isCloud,
-    });
-  }
+  // Feeds both write-time gates: the legacy upsert gate needs the row's
+  // createdAt when exportSource is provided; the enriched gate needs the
+  // persisted exportSource when it is omitted (partial PUT), so a stale
+  // enriched value is rejected.
+  const existingIntegration = await prisma.blobStorageIntegration.findUnique({
+    where: { projectId: validatedData.projectId },
+    select: { createdAt: true, exportSource: true },
+  });
+
+  // Explicit sources must pass every check; an omitted source keeps the
+  // persisted one, capability-checked only, and a create falls back to the
+  // shared default. Same call the tRPC routers make, so a PUT and a settings
+  // save agree. See export-source-policy.ts.
+  const createExportSource = await resolveExportSource({
+    db: prisma,
+    projectId: validatedData.projectId,
+    // Already loaded above for the org-ownership check; reuse it rather than
+    // making the helper re-read the same row.
+    projectCreatedAt: project.createdAt,
+    requestedExportSource: internalExportSource,
+    existingIntegration,
+  });
 
   await auditLog({
     action: "update",
     resourceType: "blobStorageIntegration",
     resourceId: validatedData.projectId,
-    apiKeyId: authCheck.scope.apiKeyId,
-    orgId: authCheck.scope.orgId,
+    apiKeyId: scope.apiKeyId,
+    orgId: scope.orgId,
   });
 
   const integration = await upsertBlobStorageIntegration({
     prisma,
     projectId: validatedData.projectId,
-    // When exportSource is absent and the project is post-cutoff Cloud, have
-    // the service substitute EVENTS on CREATE inside its own transaction —
-    // eliminating the TOCTOU window that a pre-flight findUnique would create.
-    forceEventsOnCreate:
-      validatedData.exportSource == null &&
-      !isLegacyBlobExportAllowed(project.createdAt, isCloud),
+    createExportSource,
     data: {
       type: validatedData.type,
       bucketName: validatedData.bucketName,
@@ -205,10 +148,7 @@ async function handleUpsertBlobStorageIntegration(
       exportMode: validatedData.exportMode,
       exportStartDate: validatedData.exportStartDate ?? null,
       compressed: validatedData.compressed,
-      exportSource:
-        validatedData.exportSource != null
-          ? toInternalExportSource(validatedData.exportSource)
-          : undefined,
+      exportSource: internalExportSource,
       exportFieldGroups: validatedData.exportFieldGroups ?? undefined,
     },
   });
@@ -232,10 +172,7 @@ async function handleUpsertBlobStorageIntegration(
     compressed: integration.compressed,
     exportSource: toPublicExportSource(integration.exportSource),
     exportFieldGroups:
-      integration.exportSource ===
-      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
-        ? null
-        : (integration.exportFieldGroups as ObservationFieldGroupFull[]),
+      integration.exportFieldGroups as ObservationFieldGroupFull[],
     nextSyncAt: integration.nextSyncAt,
     lastSyncAt: integration.lastSyncAt,
     lastError: integration.lastError,

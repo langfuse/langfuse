@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import { AnnotationQueuesTable } from "@/src/features/annotation-queues/components/AnnotationQueuesTable";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { SupportOrUpgradePage } from "@/src/ee/features/billing";
 import Page from "@/src/components/layouts/page";
 import { AnnotationQueuesOnboarding } from "@/src/components/onboarding/AnnotationQueuesOnboarding";
 import { api } from "@/src/utils/api";
@@ -40,7 +40,7 @@ export default function AnnotationQueues() {
         help: {
           description:
             "Annotation queues are used to manage scoring workflows for your LLM projects. See docs to learn more.",
-          href: "https://langfuse.com/docs/evaluation/evaluation-methods/annotation",
+          href: "https://langfuse.com/docs/evaluation/evaluation-methods/annotation-queues",
         },
         actionButtonsRight: (
           <CreateOrEditAnnotationQueueButton

@@ -15,6 +15,12 @@ import {
 
 const { Readable } = require("stream");
 
+const describeIfConnectionValidationSupported =
+  env.LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE === "true" ||
+  env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE === "true"
+    ? describe.skip
+    : describe;
+
 describe("StorageService", () => {
   let storageService: StorageService;
   let storageServiceWithExternalEndpoint: StorageService;
@@ -297,5 +303,69 @@ describe("StorageService", () => {
     // Verify the file was uploaded correctly
     const file = await storageService.download(fileName);
     expect(file).toBe(data);
+  });
+
+  describeIfConnectionValidationSupported("connection validation", () => {
+    test("uploadJson succeeds when the storage endpoint host is whitelisted", async () => {
+      expect(env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT).toBeDefined();
+      if (!env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT) return;
+
+      const fileName = `${s3Prefix}${randomUUID()}.json`;
+      const data = [{ hello: "validated world" }];
+      const endpointHost = new URL(env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT)
+        .hostname;
+      const storageServiceWithConnectionValidation =
+        StorageServiceFactory.getInstance({
+          accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+          secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+          bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+          endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+          region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          connectionValidation: {
+            whitelist: { hosts: [endpointHost], ips: [], ip_ranges: [] },
+            logContext: "Blob storage endpoint",
+          },
+        });
+
+      await storageServiceWithConnectionValidation.uploadJson(fileName, data);
+
+      const file =
+        await storageServiceWithConnectionValidation.download(fileName);
+      expect(JSON.parse(file)).toEqual(data);
+    });
+
+    test("uploadJson fails when connection-time validation blocks the endpoint IP", async () => {
+      const blockedStorageService = StorageServiceFactory.getInstance({
+        accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+        secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+        bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+        endpoint: "http://localhost:1",
+        region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+        forcePathStyle:
+          env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+        connectionValidation: {
+          whitelist: { hosts: [], ips: [], ip_ranges: [] },
+          logContext: "Blob storage endpoint",
+        },
+      });
+
+      const error = await blockedStorageService
+        .uploadJson("test.json", [])
+        .catch((err: unknown) => err);
+
+      const expectedMessage =
+        env.LANGFUSE_USE_AZURE_BLOB === "true"
+          ? "Failed to upload JSON to Azure Blob Storage"
+          : "Failed to upload JSON to S3";
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe(expectedMessage);
+      expect((error as Error).cause).toMatchObject({
+        message: "Blocked IP address detected",
+      });
+    }, 20_000);
   });
 });

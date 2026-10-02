@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef } from "react";
 import { useInlineCommentSelectionOptional } from "../contexts/InlineCommentSelectionContext";
+import { containsNode } from "../lib/containsNode";
 import { selectionToPath } from "../lib/selectionToPath";
 
 interface UseTextSelectionOptions {
@@ -37,7 +38,8 @@ export function useTextSelection({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSelectionChange = useCallback(() => {
-    if (!enabled || !containerRef.current || !context) return;
+    const container = containerRef.current;
+    if (!enabled || !container || !context) return;
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
@@ -47,7 +49,7 @@ export function useTextSelection({
         // Only clear if the interaction was INSIDE our container
         // If user clicked elsewhere (like comment textarea), keep the pending selection
         const focusNode = selection?.focusNode;
-        if (focusNode && containerRef.current?.contains(focusNode)) {
+        if (containsNode(container, focusNode)) {
           context.clearSelection();
         }
         // Otherwise, don't clear - user might be interacting with comment UI
@@ -55,7 +57,7 @@ export function useTextSelection({
       }
 
       const range = selection.getRangeAt(0);
-      if (!containerRef.current?.contains(range.commonAncestorContainer)) {
+      if (!containsNode(container, range.commonAncestorContainer)) {
         return; // Selection outside our container
       }
 
@@ -66,11 +68,7 @@ export function useTextSelection({
         return;
       }
 
-      const result = selectionToPath(
-        selection,
-        containerRef.current,
-        effectiveDataField,
-      );
+      const result = selectionToPath(selection, container, effectiveDataField);
       if (result) {
         // Get the position of the selection START (not the full bounding box)
         // This gives us where to position the comment bubble

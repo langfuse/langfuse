@@ -127,7 +127,7 @@ describe("Projects API", () => {
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "GET",
         "/api/public/projects",
         undefined,
@@ -138,7 +138,7 @@ describe("Projects API", () => {
     });
 
     it("should return 405 for non-GET methods", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "PUT", // Changed from POST to PUT since we now support POST
         "/api/public/projects",
         {},
@@ -150,7 +150,7 @@ describe("Projects API", () => {
 
     it("should handle different authentication formats", async () => {
       // Test with Bearer token format
-      const bearerResult = await makeAPICall(
+      const bearerResult = await makeAPICall<{ message: string }>(
         "GET",
         "/api/public/projects",
         undefined,
@@ -159,7 +159,7 @@ describe("Projects API", () => {
       expect(bearerResult.status).toBe(401);
 
       // Test with just the secret key (no Bearer prefix)
-      const secretKeyResult = await makeAPICall(
+      const secretKeyResult = await makeAPICall<{ message: string }>(
         "GET",
         "/api/public/projects",
         undefined,
@@ -175,6 +175,7 @@ describe("Projects API", () => {
       // Delete any test projects created during tests
       await prisma.project.deleteMany({
         where: {
+          orgId: "seed-org-id",
           name: {
             startsWith: "Test Project",
           },
@@ -248,7 +249,7 @@ describe("Projects API", () => {
       "should reject create when metadata is %s",
       async (_label, metadataValue) => {
         const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ message: string }>(
           "POST",
           "/api/public/projects",
           {
@@ -286,7 +287,7 @@ describe("Projects API", () => {
 
     it("should reject create when metadata is a literal null", async () => {
       const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         "/api/public/projects",
         {
@@ -331,7 +332,7 @@ describe("Projects API", () => {
       const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
 
       // Test with invalid retention days (less than 3 and not 0)
-      const invalidResult = await makeAPICall(
+      const invalidResult = await makeAPICall<{ message: string }>(
         "POST",
         "/api/public/projects",
         {
@@ -347,7 +348,7 @@ describe("Projects API", () => {
     it("should return 403 when using project API key instead of organization API key", async () => {
       const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         "/api/public/projects",
         {
@@ -364,7 +365,7 @@ describe("Projects API", () => {
     it("should return 401 when invalid API keys are provided", async () => {
       const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         "/api/public/projects",
         {
@@ -378,7 +379,7 @@ describe("Projects API", () => {
 
     it("should return 400 when project name is invalid", async () => {
       // Test with a name that's too short
-      const shortNameResult = await makeAPICall(
+      const shortNameResult = await makeAPICall<{ message: string }>(
         "POST",
         "/api/public/projects",
         {
@@ -390,7 +391,7 @@ describe("Projects API", () => {
       expect(shortNameResult.body.message).toContain("Invalid project name");
 
       // Test with a name that's too long
-      const longNameResult = await makeAPICall(
+      const longNameResult = await makeAPICall<{ message: string }>(
         "POST",
         "/api/public/projects",
         {
@@ -406,7 +407,7 @@ describe("Projects API", () => {
       const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
 
       // First create a project
-      await makeAPICall(
+      await makeAPICall<{ message: string }>(
         "POST",
         "/api/public/projects",
         {
@@ -416,7 +417,7 @@ describe("Projects API", () => {
       );
 
       // Try to create another project with the same name
-      const duplicateResult = await makeAPICall(
+      const duplicateResult = await makeAPICall<{ message: string }>(
         "POST",
         "/api/public/projects",
         {
@@ -482,7 +483,7 @@ describe("Projects API", () => {
 
     it("should validate retention days on update", async () => {
       // Test with invalid retention days (less than 3 and not 0)
-      const invalidResult = await makeAPICall(
+      const invalidResult = await makeAPICall<{ message: string }>(
         "PUT",
         `/api/public/projects/${testProjectId}`,
         {
@@ -577,7 +578,7 @@ describe("Projects API", () => {
           data: { metadata: seedMetadata },
         });
 
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ message: string }>(
           "PUT",
           `/api/public/projects/${testProjectId}`,
           {
@@ -631,7 +632,7 @@ describe("Projects API", () => {
         data: { metadata: seedMetadata },
       });
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "PUT",
         `/api/public/projects/${testProjectId}`,
         {
@@ -650,7 +651,7 @@ describe("Projects API", () => {
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "PUT",
         `/api/public/projects/${testProjectId}`,
         {
@@ -666,7 +667,7 @@ describe("Projects API", () => {
 
     it("should return 404 when project does not exist", async () => {
       const nonExistentProjectId = randomUUID();
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "PUT",
         `/api/public/projects/${nonExistentProjectId}`,
         {
@@ -726,7 +727,7 @@ describe("Projects API", () => {
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "DELETE",
         `/api/public/projects/${testProjectId}`,
         undefined,
@@ -739,7 +740,7 @@ describe("Projects API", () => {
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "DELETE",
         `/api/public/projects/${testProjectId}`,
         undefined,
@@ -751,7 +752,7 @@ describe("Projects API", () => {
 
     it("should return 404 when project does not exist", async () => {
       const nonExistentProjectId = randomUUID();
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "DELETE",
         `/api/public/projects/${nonExistentProjectId}`,
         undefined,
@@ -780,7 +781,7 @@ describe("Projects API", () => {
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "GET",
         `/api/public/projects/${projectId}/apiKeys`,
         undefined,
@@ -791,7 +792,7 @@ describe("Projects API", () => {
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "GET",
         `/api/public/projects/${projectId}/apiKeys`,
         undefined,
@@ -805,7 +806,7 @@ describe("Projects API", () => {
 
     it("should return 404 when project does not exist", async () => {
       const nonExistentProjectId = randomUUID();
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "GET",
         `/api/public/projects/${nonExistentProjectId}/apiKeys`,
         undefined,
@@ -816,7 +817,7 @@ describe("Projects API", () => {
     });
 
     it("should return 405 for non-GET/POST methods", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "PUT",
         `/api/public/projects/${projectId}/apiKeys`,
         {},
@@ -873,12 +874,19 @@ describe("Projects API", () => {
       expect(apiKey?.note).toBe(note);
       expect(apiKey?.projectId).toBe(projectId);
       expect(apiKey?.scope).toBe("PROJECT");
+
+      // Verify the creating org API key is referenced
+      const orgKeyRecord = await prisma.apiKey.findUnique({
+        where: { publicKey: orgApiKey },
+      });
+      expect(apiKey?.createdByApiKeyId).toBe(orgKeyRecord?.id);
+      expect(apiKey?.createdByUserId).toBeNull();
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
       const note = `Test API Key ${randomUUID().substring(0, 8)}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         `/api/public/projects/${projectId}/apiKeys`,
         {
@@ -895,7 +903,7 @@ describe("Projects API", () => {
     it("should return 401 when invalid API keys are provided", async () => {
       const note = `Test API Key ${randomUUID().substring(0, 8)}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         `/api/public/projects/${projectId}/apiKeys`,
         {
@@ -911,7 +919,7 @@ describe("Projects API", () => {
       const nonExistentProjectId = randomUUID();
       const note = `Test API Key ${randomUUID().substring(0, 8)}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         `/api/public/projects/${nonExistentProjectId}/apiKeys`,
         {
@@ -962,7 +970,7 @@ describe("Projects API", () => {
       const note = `Test API Key ${randomUUID().substring(0, 8)}`;
       const predefinedPublicKey = `pk-lf-${randomUUID()}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         `/api/public/projects/${projectId}/apiKeys`,
         {
@@ -982,7 +990,7 @@ describe("Projects API", () => {
       const note = `Test API Key ${randomUUID().substring(0, 8)}`;
       const predefinedSecretKey = `sk-lf-${randomUUID()}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         `/api/public/projects/${projectId}/apiKeys`,
         {
@@ -1003,7 +1011,7 @@ describe("Projects API", () => {
       const invalidPublicKey = `invalid-${randomUUID()}`;
       const predefinedSecretKey = `sk-lf-${randomUUID()}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         `/api/public/projects/${projectId}/apiKeys`,
         {
@@ -1023,7 +1031,7 @@ describe("Projects API", () => {
       const predefinedPublicKey = `pk-lf-${randomUUID()}`;
       const invalidSecretKey = `invalid-${randomUUID()}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         `/api/public/projects/${projectId}/apiKeys`,
         {
@@ -1045,7 +1053,7 @@ describe("Projects API", () => {
       const secretKey2 = `sk-lf-${randomUUID()}`;
 
       // Create first API key with predefined keys
-      const firstResponse = await makeAPICall(
+      const firstResponse = await makeAPICall<{ id: string }>(
         "POST",
         `/api/public/projects/${projectId}/apiKeys`,
         {
@@ -1059,7 +1067,7 @@ describe("Projects API", () => {
       createdApiKeyId = firstResponse.body.id;
 
       // Try to create second API key with same publicKey but different secretKey
-      const secondResponse = await makeAPICall(
+      const secondResponse = await makeAPICall<{ message: string }>(
         "POST",
         `/api/public/projects/${projectId}/apiKeys`,
         {
@@ -1123,7 +1131,7 @@ describe("Projects API", () => {
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "DELETE",
         `/api/public/projects/${projectId}/apiKeys/${deleteTestApiKeyId}`,
         undefined,
@@ -1136,7 +1144,7 @@ describe("Projects API", () => {
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "DELETE",
         `/api/public/projects/${projectId}/apiKeys/${deleteTestApiKeyId}`,
         undefined,
@@ -1148,7 +1156,7 @@ describe("Projects API", () => {
 
     it("should return 404 when API key does not exist", async () => {
       const nonExistentApiKeyId = randomUUID();
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "DELETE",
         `/api/public/projects/${projectId}/apiKeys/${nonExistentApiKeyId}`,
         undefined,
@@ -1160,7 +1168,7 @@ describe("Projects API", () => {
 
     it("should return 404 when project does not exist", async () => {
       const nonExistentProjectId = randomUUID();
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "DELETE",
         `/api/public/projects/${nonExistentProjectId}/apiKeys/${deleteTestApiKeyId}`,
         undefined,
@@ -1172,7 +1180,7 @@ describe("Projects API", () => {
   });
 
   it("should return 405 for unallowed methods", async () => {
-    const result = await makeAPICall(
+    const result = await makeAPICall<{ message: string }>(
       "PATCH",
       `/api/public/projects/${projectId}`,
       undefined,

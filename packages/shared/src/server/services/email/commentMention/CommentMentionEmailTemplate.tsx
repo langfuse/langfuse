@@ -117,5 +117,3 @@ export const CommentMentionEmailTemplate = ({
     </Html>
   );
 };
-
-export default CommentMentionEmailTemplate;

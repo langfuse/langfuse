@@ -1,8 +1,7 @@
-import { createTransport } from "nodemailer";
-import { parseConnectionUrl } from "nodemailer/lib/shared/index.js";
 import { render } from "@react-email/render";
+import { createMailTransport } from "../transport";
 
-import MembershipInvitationTemplate from "./MembershipInvitationEmailTemplate";
+import { MembershipInvitationTemplate } from "./MembershipInvitationEmailTemplate";
 import { logger } from "../../../logger";
 
 const langfuseUrls = {
@@ -70,7 +69,7 @@ export const sendMembershipInvitationEmail = async ({
     : `${authUrl}/auth/sign-up?targetPath=${encodeURIComponent(`/organization/${orgId}`)}&email=${encodeURIComponent(to)}`;
 
   try {
-    const mailer = createTransport(parseConnectionUrl(env.SMTP_CONNECTION_URL));
+    const mailer = createMailTransport(env.SMTP_CONNECTION_URL);
 
     const htmlTemplate = await render(
       MembershipInvitationTemplate({

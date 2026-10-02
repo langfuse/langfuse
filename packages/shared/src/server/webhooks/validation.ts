@@ -1,5 +1,6 @@
 import { env } from "../../env";
 import {
+  OutboundUrlValidationError,
   type OutboundUrlValidationWhitelist,
   parseOutboundUrl,
   resolveHost,
@@ -10,6 +11,11 @@ export type WebhookValidationWhitelist = OutboundUrlValidationWhitelist;
 export { resolveHost };
 
 export const WEBHOOK_URL_VALIDATION_LOG_CONTEXT = "Webhook";
+const DEFAULT_WEBHOOK_ALLOWED_PORTS = ["443", "80"] as const;
+
+export type WebhookUrlValidationOptions = {
+  allowedPorts?: readonly string[] | "any";
+};
 
 export function whitelistFromEnv(): WebhookValidationWhitelist {
   return {
@@ -30,15 +36,28 @@ export function whitelistFromEnv(): WebhookValidationWhitelist {
 export async function validateWebhookURL(
   urlString: string,
   whitelist: WebhookValidationWhitelist = whitelistFromEnv(),
+  options: WebhookUrlValidationOptions = {},
 ): Promise<void> {
   const url = parseOutboundUrl(urlString);
 
+  // Coded, not bare Error: callers classify rejections off the `code` rather
+  // than the message. validateBlobStorageEndpoint already does this for the
+  // protocol check; these two were the only outbound-URL rejections in the repo
+  // that reached callers uncoded, which silently excluded them from
+  // customer-fault classification. Messages are unchanged.
   if (!["https:", "http:"].includes(url.protocol)) {
-    throw new Error("Only HTTP and HTTPS protocols are allowed");
+    throw new OutboundUrlValidationError(
+      "protocol-not-allowed",
+      "Only HTTP and HTTPS protocols are allowed",
+    );
   }
 
-  if (url.port && !["443", "80"].includes(url.port)) {
-    throw new Error("Only ports 80 and 443 are allowed");
+  const allowedPorts = options.allowedPorts ?? DEFAULT_WEBHOOK_ALLOWED_PORTS;
+  if (url.port && allowedPorts !== "any" && !allowedPorts.includes(url.port)) {
+    throw new OutboundUrlValidationError(
+      "port-not-allowed",
+      "Only ports 80 and 443 are allowed",
+    );
   }
 
   await validateOutboundUrlHost({

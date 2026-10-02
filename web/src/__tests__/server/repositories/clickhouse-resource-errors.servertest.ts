@@ -1,9 +1,16 @@
 import {
   queryClickhouse,
   queryClickhouseStream,
+  queryClickhouseStreamRawText,
+  queryClickhouseExecRaw,
+  queryClickhouseWithProgress,
   ClickHouseResourceError,
 } from "@langfuse/shared/src/server";
 import { fail } from "assert";
+import { randomUUID } from "node:crypto";
+
+const QUERY_ID_PATTERN =
+  /\[query_id: [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\]/;
 
 describe("ClickHouse Resource Error Handling", () => {
   describe("queryClickhouse", () => {
@@ -16,6 +23,11 @@ describe("ClickHouse Resource Error Handling", () => {
             res = await queryClickhouse<any>({
               query: `SELECT throwIf(number >= 2, 'memory limit exceeded: would use 10.23 GiB') AS v FROM system.numbers LIMIT 2000`,
               clickhouseSettings: { max_block_size: `${blockSize}` },
+              tags: {
+                surface: "trpc",
+                route: "test.resource-error",
+                projectId: "project-1",
+              },
             });
             fail(
               "Should have thrown an error, observed instead " +
@@ -24,6 +36,12 @@ describe("ClickHouse Resource Error Handling", () => {
           } catch (error: any) {
             expect(error).toBeInstanceOf(ClickHouseResourceError);
             expect(error.errorType).toBe("MEMORY_LIMIT");
+            expect(error.tags).toEqual({
+              tag_schema_version: "1",
+              surface: "trpc",
+              route: "test.resource-error",
+              projectId: "project-1",
+            });
           }
         });
       });
@@ -107,8 +125,11 @@ describe("ClickHouse Resource Error Handling", () => {
       });
 
       it("should stream successful queries", async () => {
+        const queryId = randomUUID();
         const generator = queryClickhouseStream({
-          query: "SELECT number FROM system.numbers LIMIT 3",
+          query:
+            "SELECT number, queryID() AS query_id FROM system.numbers LIMIT 3",
+          queryId,
         });
 
         const results = [];
@@ -120,7 +141,98 @@ describe("ClickHouse Resource Error Handling", () => {
         expect(Array.isArray(results)).toBe(true);
         expect(results.length).toBe(3);
         expect(results[0]).toHaveProperty("number");
+        expect(results[0]).toHaveProperty("query_id", queryId);
       });
+    });
+
+    describe("query_id propagation (LFE-11043)", () => {
+      it("should include query_id in errors thrown mid-stream", async () => {
+        const generator = queryClickhouseStream({
+          query: `SELECT throwIf(number = 2, 'memory limit exceeded: would use 10.23 GiB') as V FROM numbers(10)`,
+          clickhouseSettings: { max_block_size: "1" },
+        });
+
+        const rows: unknown[] = [];
+        try {
+          for await (const item of generator) {
+            rows.push(item);
+          }
+          fail("Should have thrown an error");
+        } catch (error: any) {
+          expect(error).toBeInstanceOf(ClickHouseResourceError);
+          expect(error.message).toMatch(QUERY_ID_PATTERN);
+        }
+      });
+
+      it("should include query_id in errors thrown before streaming starts", async () => {
+        const generator = queryClickhouseStream({
+          query: `SELECT * FROM non_existent_table_xyz123`,
+        });
+
+        const rows: unknown[] = [];
+        try {
+          for await (const item of generator) {
+            rows.push(item);
+          }
+          fail("Should have thrown an error");
+        } catch (error: any) {
+          expect(error.message).toMatch(QUERY_ID_PATTERN);
+          expect(error.message.match(/\[query_id:/g)).toHaveLength(1);
+        }
+      });
+    });
+  });
+
+  describe("queryClickhouseStreamRawText", () => {
+    it("should include query_id in errors thrown before streaming starts", async () => {
+      const generator = queryClickhouseStreamRawText({
+        query: `SELECT * FROM non_existent_table_xyz123`,
+      });
+
+      const rows: string[] = [];
+      try {
+        for await (const item of generator) {
+          rows.push(item);
+        }
+        fail("Should have thrown an error");
+      } catch (error: any) {
+        expect(error.message).toMatch(QUERY_ID_PATTERN);
+        expect(error.message.match(/\[query_id:/g)).toHaveLength(1);
+      }
+    });
+  });
+
+  describe("queryClickhouseWithProgress", () => {
+    it("should include query_id exactly once in errors thrown before streaming starts", async () => {
+      const generator = queryClickhouseWithProgress({
+        query: `SELECT * FROM non_existent_table_xyz123`,
+      });
+
+      const rows: unknown[] = [];
+      try {
+        for await (const item of generator) {
+          rows.push(item);
+        }
+        fail("Should have thrown an error");
+      } catch (error: any) {
+        expect(error.message).toMatch(QUERY_ID_PATTERN);
+        expect(error.message.match(/\[query_id:/g)).toHaveLength(1);
+      }
+    });
+  });
+
+  describe("queryClickhouseExecRaw", () => {
+    it("should include query_id exactly once in errors thrown before streaming", async () => {
+      try {
+        await queryClickhouseExecRaw({
+          query: `SELECT * FROM non_existent_table_xyz123`,
+          format: "Parquet",
+        });
+        fail("Should have thrown an error");
+      } catch (error: any) {
+        expect(error.message).toMatch(QUERY_ID_PATTERN);
+        expect(error.message.match(/\[query_id:/g)).toHaveLength(1);
+      }
     });
   });
 
@@ -138,6 +250,33 @@ describe("ClickHouse Resource Error Handling", () => {
         name: "OvercommitTracker error",
         errorMessage:
           "OvercommitTracker decision: Query was selected to stop by OvercommitTracker: While executing WaitForAsyncInsert",
+        shouldBeResourceError: true,
+        errorType: "OVERCOMMIT",
+      },
+      {
+        name: "Memory limit for query exceeded (capitalized)",
+        errorMessage:
+          "Memory limit (for query) exceeded: would use 2.25 GiB (attempt to allocate chunk of 0.00 B), current RSS: 1.42 GiB, maximum: 2.25 GiB",
+        shouldBeResourceError: true,
+        errorType: "MEMORY_LIMIT",
+      },
+      {
+        name: "Memory limit total exceeded (capitalized)",
+        errorMessage:
+          "Memory limit (total) exceeded: would use 2.25 GiB, current RSS: 1.42 GiB, maximum: 2.25 GiB",
+        shouldBeResourceError: true,
+        errorType: "MEMORY_LIMIT",
+      },
+      {
+        name: "Memory limit for user exceeded (capitalized)",
+        errorMessage: "Memory limit (for user) exceeded: would use 2.25 GiB",
+        shouldBeResourceError: true,
+        errorType: "MEMORY_LIMIT",
+      },
+      {
+        name: "Overcommit decision with memory limit message",
+        errorMessage:
+          "(total) memory limit exceeded: would use 2.25 GiB. OvercommitTracker decision: Query was selected to stop by OvercommitTracker: While executing AggregatingTransform",
         shouldBeResourceError: true,
         errorType: "OVERCOMMIT",
       },
@@ -176,12 +315,14 @@ describe("ClickHouse Resource Error Handling", () => {
           const isResourceError = ((err: Error) => {
             if (err instanceof ClickHouseResourceError) {
               return true;
-            } else {
-              return false;
             }
+            return false;
           })(wrappedError);
 
           expect(isResourceError).toBe(shouldBeResourceError);
+          expect(ClickHouseResourceError.is(wrappedError)).toBe(
+            shouldBeResourceError,
+          );
 
           const resourceError = wrappedError as ClickHouseResourceError;
           if (shouldBeResourceError && errorType) {

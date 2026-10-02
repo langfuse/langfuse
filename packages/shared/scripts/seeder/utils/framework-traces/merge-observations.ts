@@ -4,10 +4,10 @@ import { readFileSync, writeFileSync } from "fs";
  * Merges detailed observation data (input/output/metadata) into the base trace file.
  * how to use? SEE README.md
  *
- * Usage: ts-node merge-observations.ts <base-file> <detailed-obs-file> <output-file>
+ * Usage: tsx merge-observations.ts <base-file> <detailed-obs-file> <output-file>
  *
  * Example:
- *   ts-node merge-observations.ts pydantic-base.json pydantic-details.json pydantic-ai.json
+ *   tsx merge-observations.ts pydantic-base.json pydantic-details.json pydantic-ai.json
  *
  */
 
@@ -15,7 +15,7 @@ const [baseFile, detailedFile, outputFile] = process.argv.slice(2);
 
 if (!baseFile || !detailedFile || !outputFile) {
   console.error(
-    "Usage: ts-node merge-observations.ts <base-file> <detailed-obs-file> <output-file>",
+    "Usage: tsx merge-observations.ts <base-file> <detailed-obs-file> <output-file>",
   );
   process.exit(1);
 }

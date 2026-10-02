@@ -1,11 +1,7 @@
-import React, { useMemo, useState } from "react";
-import {
-  ChartActiveReferenceLine,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/src/components/ui/chart";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { useMemo } from "react";
+
+import { AreaChart as DesignSystemAreaChart } from "@/src/components/design-system/charts/AreaChart/AreaChart";
+import { type LineChartLegend } from "@/src/components/design-system/charts/LineChart/LineChart";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
@@ -13,9 +9,19 @@ import {
   groupDataByTimeDimension,
   toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
-import { cn } from "@/src/utils/tailwind";
+import { prepareDenseSeries } from "@/src/features/widgets/chart-library/prepareDenseSeries";
+import {
+  parseChartTimestamp,
+  prepareTimeAxis,
+} from "@/src/features/widgets/chart-library/prepareTimeAxis";
+import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
+import {
+  seriesColor,
+  SeriesOverflowNote,
+} from "@/src/features/widgets/chart-library/TimeSeriesLegend";
+import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 
-export const AreaChartTimeSeries: React.FC<ChartProps> = ({
+export function AreaChartTimeSeries({
   data,
   config = {
     metric: {
@@ -25,120 +31,140 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
       },
     },
   },
-  accessibilityLayer = true,
   metricFormatter = (value, options) => formatMetric(value, options),
-  legendPosition = "none",
-  subtleFill = false,
-}) => {
-  const [highlightedDimension, setHighlightedDimension] = useState<
-    string | null
-  >(null);
-
-  const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
-  const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
-
-  const tooltipFormatter = (value: number) =>
+  legendPosition = "auto",
+  legendSummary = "none",
+  legendInteraction = "highlight",
+  maxVisibleSeries,
+  sync,
+  missingValue = "gap",
+  connectNulls = false,
+  hideXAxisLabels = false,
+}: ChartProps) {
+  const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
+  const groupedData = useMemo(
+    () =>
+      prepareDenseSeries(
+        groupDataByTimeDimension(data),
+        allDimensions,
+        missingValue,
+      ),
+    [data, allDimensions, missingValue],
+  );
+  const visibleSeries = useMemo(
+    () => prepareVisibleSeries(data, allDimensions),
+    [data, allDimensions],
+  );
+  const dimensions = visibleSeries.visible;
+  const hasNonTimestampBucket = groupedData.some(
+    (datum) => !parseChartTimestamp(datum.time_dimension),
+  );
+  const timeAxis = useMemo(
+    () =>
+      prepareTimeAxis(
+        groupedData.map((datum) => datum.time_dimension),
+        undefined,
+        { hideCategoryTickLabels: hideXAxisLabels },
+      ),
+    [groupedData, hideXAxisLabels],
+  );
+  const dateAxis = useMemo(() => {
+    if (timeAxis.mode !== "category") return timeAxis;
+    const dates = groupedData.flatMap((datum) => {
+      const date = parseChartTimestamp(datum.time_dimension);
+      return date ? [date.getTime()] : [];
+    });
+    return dates.length ? prepareTimeAxis(dates) : timeAxis;
+  }, [groupedData, timeAxis]);
+  const formatValue = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
-
-  const handleLegendClick = (dimension: string) => {
-    setHighlightedDimension((prev) => (prev === dimension ? null : dimension));
-  };
+  const chartData = useMemo(
+    () =>
+      groupedData.map((datum) => ({
+        x: String(datum.time_dimension ?? ""),
+        values: Object.fromEntries(
+          dimensions.map((dimension) => {
+            const value = datum[dimension];
+            return [dimension, typeof value === "number" ? value : null];
+          }),
+        ),
+      })),
+    [dimensions, groupedData],
+  );
+  const chartSeries = dimensions.map((dimension, index) => ({
+    id: dimension,
+    label:
+      getPlainTextFromReactNode(config?.[dimension]?.label ?? dimension) ??
+      dimension,
+    color: seriesColor(index),
+  }));
+  let chartLegend: LineChartLegend = { visibility: "hidden" };
+  if (legendPosition !== "none" && legendInteraction === "toggle") {
+    chartLegend = {
+      visibility: legendPosition === "auto" ? "auto" : "visible",
+      interaction: "toggle",
+      summary: legendSummary,
+      maxVisibleSeries,
+    };
+  } else if (legendPosition !== "none") {
+    chartLegend = {
+      visibility: legendPosition === "auto" ? "auto" : "visible",
+      interaction: "highlight",
+      summary: legendSummary,
+    };
+  }
+  const chart =
+    timeAxis.mode === "category" || hasNonTimestampBucket ? (
+      <DesignSystemAreaChart
+        data={chartData}
+        series={chartSeries}
+        valueFormatter={formatValue}
+        connectNulls={connectNulls}
+        sync={sync}
+        legend={chartLegend}
+        xAxis={{
+          type: "category",
+          labels: hideXAxisLabels ? "hidden" : "visible",
+          tickFormatter: (value) => {
+            const date = parseChartTimestamp(value);
+            return date
+              ? dateAxis.formatTick(date.getTime())
+              : timeAxis.formatTick(value);
+          },
+          tooltipFormatter: (value) => {
+            const date = parseChartTimestamp(value);
+            return date
+              ? dateAxis.formatTooltip(date.getTime())
+              : timeAxis.formatTooltip(value);
+          },
+        }}
+      />
+    ) : (
+      <DesignSystemAreaChart
+        data={chartData.flatMap((datum) => {
+          const date = parseChartTimestamp(datum.x);
+          return date ? [{ ...datum, x: date }] : [];
+        })}
+        series={chartSeries}
+        valueFormatter={formatValue}
+        connectNulls={connectNulls}
+        sync={sync}
+        legend={chartLegend}
+        xAxis={{
+          type: "time",
+        }}
+      />
+    );
 
   return (
-    <div className="flex h-full w-full min-w-0 flex-col">
-      {legendPosition === "above" && dimensions.length > 0 && (
-        <div className="min-w-0 shrink-0 overflow-x-auto overflow-y-hidden pb-3">
-          <div className="flex w-max min-w-full flex-nowrap justify-end gap-4">
-            {dimensions.map((dimension, index) => {
-              const isHighlighted =
-                highlightedDimension === null ||
-                highlightedDimension === dimension;
-              const isMuted = highlightedDimension !== null && !isHighlighted;
-              return (
-                <button
-                  key={dimension}
-                  type="button"
-                  onClick={() => handleLegendClick(dimension)}
-                  className={cn(
-                    "flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap transition-opacity",
-                    "cursor-pointer hover:opacity-80",
-                    isMuted && "opacity-40",
-                  )}
-                  aria-pressed={isHighlighted}
-                  aria-label={
-                    isHighlighted ? `Show only ${dimension}` : "Show all series"
-                  }
-                >
-                  <div
-                    className="h-2 w-2 shrink-0 rounded-[2px]"
-                    style={{
-                      backgroundColor: `hsl(var(--chart-${(index % 8) + 1}))`,
-                    }}
-                  />
-                  <span className="text-muted-foreground">{dimension}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      <ChartContainer config={config} className="min-h-0 flex-1">
-        <AreaChart accessibilityLayer={accessibilityLayer} data={groupedData}>
-          <CartesianGrid stroke="hsl(var(--chart-grid))" vertical={false} />
-          <XAxis
-            dataKey="time_dimension"
-            stroke="hsl(var(--chart-grid))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-            interval="preserveStartEnd"
-            minTickGap={24}
-          />
-          <YAxis
-            type="number"
-            stroke="hsl(var(--chart-grid))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-            niceTicks="auto"
-            tickFormatter={(value) => tooltipFormatter(Number(value))}
-          />
-          {dimensions.map((dimension, index) => {
-            const isMuted =
-              highlightedDimension !== null &&
-              highlightedDimension !== dimension;
-            return (
-              <Area
-                key={dimension}
-                type="monotone"
-                dataKey={dimension}
-                stroke={`hsl(var(--chart-${(index % 8) + 1}))`}
-                fill={`hsl(var(--chart-${(index % 8) + 1}))`}
-                fillOpacity={isMuted ? 0.15 : subtleFill ? 0.3 : 0.75}
-                strokeWidth={2.5}
-                strokeOpacity={isMuted ? 0.2 : 1}
-                connectNulls
-              />
-            );
-          })}
-          <ChartActiveReferenceLine />
-          <ChartTooltip
-            contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-            content={({ active, payload, label }) => (
-              <ChartTooltipContent
-                active={active}
-                payload={payload}
-                label={label}
-                indicator="line"
-                valueFormatter={tooltipFormatter}
-                sortPayloadByValue="desc"
-              />
-            )}
-          />
-        </AreaChart>
-      </ChartContainer>
+    <div className="flex size-full min-w-0 flex-col">
+      {visibleSeries.total > dimensions.length ? (
+        <SeriesOverflowNote
+          visibleCount={dimensions.length}
+          totalCount={visibleSeries.total}
+        />
+      ) : null}
+      <div className="min-h-0 flex-1">{chart}</div>
     </div>
   );
-};
-
-export default AreaChartTimeSeries;
+}

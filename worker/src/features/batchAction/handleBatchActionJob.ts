@@ -1,12 +1,16 @@
+/* eslint-disable no-nested-ternary */
 import {
   BatchActionProcessingEventType,
   CreateEvalQueue,
+  getEventsStreamForEval,
   getCurrentSpan,
   logger,
   QueueJobs,
   QueueName,
   TQueueJobTypes,
+  findDatasetIdsForBatchDeletion,
   traceDeletionProcessor,
+  applyCommentFilters,
 } from "@langfuse/shared/src/server";
 import {
   BatchActionType,
@@ -14,6 +18,9 @@ import {
   BatchTableNames,
   FilterCondition,
   EvalTargetObject,
+  EvalTemplateType,
+  JobConfigState,
+  normalizeEvaluationRuleTarget,
 } from "@langfuse/shared";
 import Decimal from "decimal.js";
 import {
@@ -32,19 +39,51 @@ import { randomUUID } from "node:crypto";
 import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDelete";
 import { getObservationStream } from "../database-read-stream/observation-stream";
 import {
-  getEventsStreamForEval,
   getEventsStreamForDataset,
   getEventsStreamForAnnotationQueue,
 } from "../database-read-stream/event-stream";
 import { processAddObservationsToDataset } from "./processAddObservationsToDataset";
 import { ObservationAddToDatasetConfigSchema } from "@langfuse/shared";
 import { processBatchedObservationEval } from "./processBatchedObservationEval";
+import { processDeleteDatasets } from "./processDeleteDatasets";
 
 const CHUNK_SIZE = 1000;
 const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
   return filters.map((f: FilterCondition) =>
     f.type === "datetime" ? { ...f, value: new Date(f.value) } : f,
   );
+};
+
+const resolveObservationCommentFilters = async ({
+  projectId,
+  filter,
+}: {
+  projectId: string;
+  filter: FilterCondition[];
+}): Promise<FilterCondition[]> => {
+  // Observation comments live in Postgres, while the event and legacy
+  // observation streams query ClickHouse. Resolve comment predicates to an
+  // observation ID predicate before constructing either stream.
+  const { filterState, hasNoMatches } = await applyCommentFilters({
+    filterState: filter,
+    prisma,
+    projectId,
+    objectType: "OBSERVATION",
+  });
+
+  // applyCommentFilters removes the resolved comment predicates. If none
+  // matched, passing filterState alone could leave the stream unconstrained,
+  // so encode an explicitly empty selection and let the batch action complete.
+  return hasNoMatches
+    ? [
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "id",
+          value: [],
+        },
+      ]
+    : filterState;
 };
 
 type HandleBatchActionJobDeps = {
@@ -64,6 +103,8 @@ async function processActionChunk(
   try {
     switch (actionId) {
       case "trace-delete":
+        // Legacy queue path. Durable trace-delete BatchActions are processed
+        // by TraceDeleteBatchActionRunner.
         await traceDeletionProcessor(projectId, chunkIds, { delayMs: 0 });
         break;
 
@@ -89,6 +130,10 @@ async function processActionChunk(
 
       case "score-delete":
         await processClickhouseScoreDelete(projectId, chunkIds);
+        break;
+
+      case "dataset-delete":
+        await processDeleteDatasets(projectId, chunkIds);
         break;
 
       default:
@@ -165,7 +210,8 @@ export const handleBatchActionJob = async (
     actionId === "trace-add-to-annotation-queue" ||
     actionId === "session-add-to-annotation-queue" ||
     actionId === "observation-add-to-annotation-queue" ||
-    actionId === "score-delete"
+    actionId === "score-delete" ||
+    actionId === "dataset-delete"
   ) {
     const { projectId, tableName, query, cutoffCreatedAt, targetId, type } =
       batchActionEvent;
@@ -174,29 +220,47 @@ export const handleBatchActionJob = async (
       throw new Error(`Target ID is required for create action`);
     }
 
+    const convertedFilter = convertDatesInFiltersFromStrings(
+      query.filter ?? [],
+    );
+    const filter =
+      actionId === "observation-add-to-annotation-queue"
+        ? await resolveObservationCommentFilters({
+            projectId,
+            filter: convertedFilter,
+          })
+        : convertedFilter;
+
     const streamParams = {
       projectId: projectId,
       cutoffCreatedAt: new Date(cutoffCreatedAt),
-      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+      filter,
       searchQuery: query.searchQuery ?? undefined,
       searchType: query.searchType ?? ["id" as const],
     };
 
     const dbReadStream =
-      actionId === "trace-delete"
-        ? await getTraceIdentifierStream({
-            ...streamParams,
-            orderBy: query.orderBy,
+      actionId === "dataset-delete"
+        ? await findDatasetIdsForBatchDeletion({
+            projectId,
+            cutoffCreatedAt: new Date(cutoffCreatedAt),
+            query,
           })
-        : tableName === BatchTableNames.Events
-          ? await getEventsStreamForAnnotationQueue(streamParams)
-          : tableName === BatchTableNames.Observations
-            ? await getObservationStream(streamParams)
-            : await getDatabaseReadStreamPaginated({
-                ...streamParams,
-                orderBy: query.orderBy,
-                tableName: tableName as BatchTableNames,
-              });
+        : actionId === "trace-delete"
+          ? await getTraceIdentifierStream({
+              ...streamParams,
+              orderBy: query.orderBy,
+            })
+          : tableName === BatchTableNames.Events
+            ? await getEventsStreamForAnnotationQueue(streamParams)
+            : tableName === BatchTableNames.Observations
+              ? await getObservationStream(streamParams)
+              : await getDatabaseReadStreamPaginated({
+                  ...streamParams,
+                  orderBy: query.orderBy,
+                  tableName: tableName as BatchTableNames,
+                  useEventsTable: query.useEventsTable,
+                });
 
     // Process stream in database-sized batches
     // 1. Read all records
@@ -224,17 +288,39 @@ export const handleBatchActionJob = async (
     const { projectId, query, targetObject, configId, cutoffCreatedAt } =
       batchActionEvent;
 
-    const config = await prisma.jobConfiguration.findUnique({
+    const ruleConfig = await prisma.evaluationRule.findUnique({
       where: {
         id: configId,
         projectId: projectId,
       },
+      select: {
+        delay: true,
+        assignments: {
+          take: 1,
+          select: {
+            evaluator: { select: { type: true } },
+          },
+        },
+      },
     });
 
-    if (!config) {
+    if (!ruleConfig) {
       logger.error(
         `Eval config ${configId} not found for project ${projectId}`,
       );
+      return;
+    }
+
+    if (
+      ruleConfig.assignments.length !== 1 ||
+      ruleConfig.assignments[0]?.evaluator.type !==
+        EvalTemplateType.LLM_AS_JUDGE
+    ) {
+      logger.info(`Skipping historical eval-create for non-LLM evaluator`, {
+        projectId,
+        configId,
+        evaluatorType: ruleConfig.assignments[0]?.evaluator.type ?? null,
+      });
       return;
     }
 
@@ -308,7 +394,7 @@ export const handleBatchActionJob = async (
             timestamp: new Date(),
             name: QueueJobs.CreateEvalJob as const,
           },
-          { delay: config.delay },
+          { delay: ruleConfig.delay },
         );
         count++;
       } else {
@@ -335,10 +421,18 @@ export const handleBatchActionJob = async (
     const parsedConfig = ObservationAddToDatasetConfigSchema.parse(config);
 
     // Get observation stream — use events table when tableName indicates it
+    const convertedFilter = convertDatesInFiltersFromStrings(
+      query.filter ?? [],
+    );
+    const filter = await resolveObservationCommentFilters({
+      projectId,
+      filter: convertedFilter,
+    });
+
     const streamParams = {
       projectId,
       cutoffCreatedAt: new Date(cutoffCreatedAt),
-      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+      filter,
       searchQuery: query.searchQuery ?? undefined,
       searchType: query.searchType ?? ["id" as const],
     };
@@ -376,8 +470,17 @@ export const handleBatchActionJob = async (
       observations,
     });
   } else if (actionId === "observation-run-batched-evaluation") {
-    const { projectId, query, cutoffCreatedAt, evaluatorIds, batchActionId } =
-      batchActionEvent;
+    const {
+      projectId,
+      query,
+      cutoffCreatedAt,
+      evaluatorIds,
+      batchActionId,
+      evalVersion,
+      evaluatorMappings,
+      sampling = 1,
+      rowLimit = env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+    } = batchActionEvent;
 
     if (!batchActionId) {
       throw new Error(
@@ -388,34 +491,107 @@ export const handleBatchActionJob = async (
     const selectedEvaluatorIds = Array.from(new Set(evaluatorIds));
 
     let evaluators;
+    let evaluatorLabels: string[];
     try {
-      const rawEvaluators = await prisma.jobConfiguration.findMany({
-        where: {
-          id: { in: selectedEvaluatorIds },
-          projectId,
-          // Preserve the selected evaluators as-is. Executability is checked
-          // later when each scheduling attempt runs.
-        },
-        select: {
-          id: true,
-          projectId: true,
-          evalTemplateId: true,
-          scoreName: true,
-          targetObject: true,
-          variableMapping: true,
-          status: true,
-          blockedAt: true,
-        },
-      });
+      // for jobs dispatched after eval v2 migration
+      if (evalVersion === "v2") {
+        const stableEvaluators = await prisma.evaluator.findMany({
+          where: { id: { in: selectedEvaluatorIds }, projectId },
+          select: {
+            id: true,
+            name: true,
+            projectId: true,
+            type: true,
+            blockedAt: true,
+            versions: {
+              orderBy: { version: "desc" },
+              take: 1,
+              select: { id: true, variableMapping: true },
+            },
+            assignments: {
+              where: { projectId },
+              orderBy: { evaluationRuleId: "asc" },
+              take: 1,
+              select: { evaluationRuleId: true },
+            },
+          },
+        });
 
-      // For batch evaluation the user's table-level selection determines which
-      // observations to evaluate, so we intentionally set filter=[] and
-      // sampling=1 to ensure every streamed observation is evaluated.
-      evaluators = rawEvaluators.map((e) => ({
-        ...e,
-        filter: [] as [],
-        sampling: new Decimal(1),
-      }));
+        evaluatorLabels = stableEvaluators.map(({ name }) => name);
+        const mappingByEvaluatorId = new Map(
+          (evaluatorMappings ?? []).map((mapping) => [
+            mapping.evaluatorId,
+            mapping.variableMapping,
+          ]),
+        );
+        // A batch run addresses the evaluator directly (`ruleId` stays null),
+        // but uses a deterministic associated rule as its legacy execution
+        // anchor so existing readers can still find it.
+        evaluators = stableEvaluators.map((evaluator) => ({
+          // use the first rule ID so that we stay compatible with the way the old job execution
+          // log works
+          id: evaluator.assignments[0]?.evaluationRuleId ?? evaluator.id,
+          ruleId: null,
+          projectId,
+          filter: [] as [],
+          sampling: new Decimal(sampling),
+          status: JobConfigState.ACTIVE,
+          targetObject: EvalTargetObject.EVENT,
+          assignments: [
+            {
+              id: evaluator.id,
+              evaluatorId: evaluator.id,
+              variableMapping: mappingByEvaluatorId.get(evaluator.id) ?? null,
+              evaluator: {
+                id: evaluator.id,
+                projectId: evaluator.projectId,
+                type: evaluator.type,
+                blockedAt: evaluator.blockedAt,
+                versions: evaluator.versions,
+              },
+            },
+          ],
+        }));
+      } else {
+        // for jobs dispatched before eval v2 migration but processed by new workers
+        const rawEvaluators = await prisma.evaluationRule.findMany({
+          where: {
+            id: { in: selectedEvaluatorIds },
+            projectId,
+          },
+          include: {
+            assignments: {
+              include: {
+                evaluator: {
+                  include: {
+                    versions: {
+                      orderBy: { version: "desc" },
+                      take: 1,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        evaluatorLabels = rawEvaluators.map(({ name }) => name);
+        // For batch evaluation the user's table-level selection determines
+        // which observations to evaluate, so every config matches every row.
+        // The experiment target still has to keep its root-span constraint,
+        // which the canonical representation expresses as a filter.
+        evaluators = rawEvaluators.map((rule) => ({
+          ...rule,
+          ruleId: rule.id,
+          ...normalizeEvaluationRuleTarget({
+            targetObject: rule.targetObject as
+              | typeof EvalTargetObject.EVENT
+              | typeof EvalTargetObject.EXPERIMENT,
+            filter: [],
+          }),
+          sampling: new Decimal(sampling),
+        }));
+      }
     } catch (error) {
       await prisma.batchAction.update({
         where: { id: batchActionId },
@@ -435,19 +611,28 @@ export const handleBatchActionJob = async (
       return;
     }
 
+    const filter = await resolveObservationCommentFilters({
+      projectId,
+      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+    });
+
     const dbReadStream = await getEventsStreamForEval({
       projectId,
       cutoffCreatedAt: new Date(cutoffCreatedAt),
-      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+      filter,
       searchQuery: query.searchQuery ?? undefined,
       searchType: query.searchType ?? ["id", "content"],
-      rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+      rowLimit: Math.min(
+        rowLimit,
+        env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+      ),
     });
 
     await processBatchedObservationEval({
       projectId,
       batchActionId,
       evaluators,
+      evaluatorLabels,
       observationStream: dbReadStream,
     });
   }

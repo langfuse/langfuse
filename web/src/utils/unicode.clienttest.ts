@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 
 describe("decodeUnicodeEscapesOnly", () => {

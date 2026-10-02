@@ -26,18 +26,18 @@ Use this skill when changing the shared agent setup for the repository.
 ## Workflow
 
 1. Edit the canonical files under `.agents/`, not generated provider outputs.
-2. Keep root `AGENTS.md` and `CLAUDE.md` as discovery symlinks; do not turn
-   them back into manually maintained copies.
+2. Keep root `AGENTS.md` as a symlink to `.agents/AGENTS.md`. Write folder
+   instructions in `AGENTS.md` directly; do not generate `CLAUDE.md` companions.
 3. Treat tool-specific directories such as `.claude/`, `.cursor/`, `.codex/`,
    `.vscode/`, and `.mcp.json` as generated discovery surfaces unless the tool
    requires a truly tool-specific feature.
-4. Keep root `AGENTS.md` concise and router-like. Move detailed or conditional
-   workflows into shared skills or package `AGENTS.md` files.
+4. Keep root `AGENTS.md` concise. Move detailed or conditional workflows into
+   shared skills or package `AGENTS.md` files.
 5. Treat developer feedback as a learning loop: when a task reveals a durable
    repo convention, recurring pitfall, reusable workflow, or verification
    pattern, update the smallest relevant `AGENTS.md` or shared skill.
-6. When adding or changing a shared skill, update `skills/README.md` and link
-   it from root `AGENTS.md` if it changes the default reusable workflow.
+6. When adding or changing a shared skill, keep `SKILL.md` as the entrypoint; do
+   not add skill-by-skill links to root `AGENTS.md`.
 7. When shared setup behavior changes materially, update `README.md` and
    contributor-facing docs in the same PR.
 
@@ -56,6 +56,7 @@ Run after changing shared agent setup:
 
 - `pnpm run agents:sync`
 - `pnpm run agents:check`
+- `node --test scripts/agents/sync-agent-shims.test.mjs` when sync behavior changes
 
 Run additional verification when relevant:
 

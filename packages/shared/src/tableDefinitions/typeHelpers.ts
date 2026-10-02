@@ -7,12 +7,16 @@ export function formatColumnOptions<T extends ColumnDefinition>(
     ? MultiValueOption[]
     : T extends { type: "stringOptions" | "arrayOptions" }
       ? SingleValueOption[]
-      : T extends { type: "numberObject" | "stringObject" }
+      : T extends { type: "numberObject" | "stringObject" | "booleanObject" }
         ? string[]
         : never,
 ): T {
-  // For numberObject type, set keyOptions instead of options
-  if (col.type === "numberObject" || col.type === "stringObject") {
+  // For keyed object filters, set keyOptions instead of options.
+  if (
+    col.type === "numberObject" ||
+    col.type === "stringObject" ||
+    col.type === "booleanObject"
+  ) {
     return { ...col, keyOptions: newOptions };
   }
 

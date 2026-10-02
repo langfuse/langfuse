@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { ChevronDownIcon } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";

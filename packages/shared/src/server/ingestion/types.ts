@@ -102,8 +102,48 @@ const RawUsageDetails = z.record(z.string(), z.unknown()).transform((val) => {
     }
   }
 
+  splitAnthropicCacheCreation(val.cache_creation, result);
+
   return Object.keys(result).length > 0 ? result : undefined;
 });
+
+/**
+ * Native Anthropic usage nests cache writes by TTL under `cache_creation`.
+ * The 5-minute and 1-hour writes are priced differently, so they are stored
+ * as `input_cache_creation_5m` / `input_cache_creation_1h`; the aggregate
+ * `cache_creation_input_tokens` keeps only the unattributed remainder so no
+ * write is priced twice.
+ */
+function splitAnthropicCacheCreation(
+  cacheCreation: unknown,
+  result: Record<string, number>,
+) {
+  if (typeof cacheCreation !== "object" || cacheCreation === null) return;
+
+  const split = cacheCreation as Record<string, unknown>;
+  const isCount = (value: unknown): value is number =>
+    typeof value === "number" && Number.isInteger(value) && value >= 0;
+  const fiveMinute = split["ephemeral_5m_input_tokens"];
+  const oneHour = split["ephemeral_1h_input_tokens"];
+  if (!isCount(fiveMinute) && !isCount(oneHour)) return;
+
+  let attributed = 0;
+  if (isCount(fiveMinute)) {
+    result["input_cache_creation_5m"] = fiveMinute;
+    attributed += fiveMinute;
+  }
+  if (isCount(oneHour)) {
+    result["input_cache_creation_1h"] = oneHour;
+    attributed += oneHour;
+  }
+
+  const remainder = (result["cache_creation_input_tokens"] ?? 0) - attributed;
+  if (remainder > 0) {
+    result["cache_creation_input_tokens"] = remainder;
+  } else {
+    delete result["cache_creation_input_tokens"];
+  }
+}
 
 const OpenAICompletionUsageSchema = z
   .object({
@@ -229,8 +269,12 @@ const PublicEnvironmentName = z
   .string()
   .toLowerCase()
   .transform((val) => {
-    // Strip leading "langfuse" prefix (with optional separator)
-    const stripped = val.replace(/^langfuse[-_]?/, "");
+    // Strip all leading "langfuse" prefixes (with optional separator). The
+    // repeated strip keeps normalization idempotent — values now pass through
+    // this schema twice on the OTel path (extractEnvironment, then the
+    // ingestion event parse) — and closes the reserved-namespace bypass where
+    // "langfuselangfuse-x" survived a single-pass strip as "langfuse-x".
+    const stripped = val.replace(/^(?:langfuse[-_]?)+/, "");
     // Truncate to 40 chars, validate allowed chars
     const truncated = stripped.slice(0, 40);
     if (!truncated || !/^[a-z0-9-_]+$/.test(truncated)) {
@@ -255,6 +299,22 @@ const InternalEnvironmentName = z
 
 /** @deprecated Use PublicEnvironmentName or InternalEnvironmentName instead */
 export const EnvironmentName = PublicEnvironmentName;
+
+/**
+ * Normalizes an environment value outside of a full ingestion event parse,
+ * e.g. for the direct OTel events_full write path. Applies the same rules as
+ * the ingestion event schemas: public values are lowercased and lose the
+ * reserved "langfuse" prefix; internal values keep it so internal traces stay
+ * in the "langfuse-*" namespace (see createIngestionEventSchema).
+ */
+export const normalizeEnvironment = (
+  value: unknown,
+  opts?: { isLangfuseInternal?: boolean },
+): string =>
+  (opts?.isLangfuseInternal
+    ? InternalEnvironmentName
+    : PublicEnvironmentName
+  ).parse(value);
 
 export const eventTypes = {
   TRACE_CREATE: "trace-create",

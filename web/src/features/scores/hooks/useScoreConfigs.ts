@@ -19,15 +19,19 @@ import { type ScoreConfigDomain } from "@langfuse/shared";
 export function useAnnotationScoreConfigs({
   projectId,
   configSelection,
+  emptySelectedConfigIdsStorageKey,
 }: {
   projectId: string;
   configSelection: ScoreConfigSelection;
+  emptySelectedConfigIdsStorageKey?: string;
 }): {
   isLoading: boolean;
   availableConfigs: ScoreConfigDomain[];
   selectedConfigIds: string[];
+  setSelectedConfigIds: (ids: string[]) => void;
 } {
-  const { emptySelectedConfigIds } = useEmptyScoreConfigs();
+  const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
+    useEmptyScoreConfigs(emptySelectedConfigIdsStorageKey);
 
   const configs = api.scoreConfigs.all.useQuery(
     {
@@ -43,12 +47,13 @@ export function useAnnotationScoreConfigs({
       isLoading: false,
       selectedConfigIds: configSelection.configs.map((c) => c.id),
       availableConfigs: configSelection.configs,
-    };
-  } else {
-    return {
-      isLoading: configs.isLoading,
-      selectedConfigIds: emptySelectedConfigIds,
-      availableConfigs: configs.data?.configs ?? [],
+      setSelectedConfigIds: setEmptySelectedConfigIds,
     };
   }
+  return {
+    isLoading: configs.isLoading,
+    selectedConfigIds: emptySelectedConfigIds,
+    availableConfigs: configs.data?.configs ?? [],
+    setSelectedConfigIds: setEmptySelectedConfigIds,
+  };
 }

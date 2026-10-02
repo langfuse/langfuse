@@ -3,7 +3,8 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodError } from "zod";
 import {
-  BaseError,
+  type BaseError,
+  isBaseError,
   LangfuseNotFoundError,
   MethodNotAllowedError,
   UnauthorizedError,
@@ -16,15 +17,15 @@ import {
 } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 import {
-  sendUnstablePublicApiErrorResponse,
-  toUnstablePublicApiError,
-  unstablePublicEvalsErrorContract,
+  sendStructuredPublicApiErrorResponse,
+  structuredPublicApiErrorContract,
+  toStructuredPublicApiError,
   type PublicApiErrorContract,
-} from "@/src/features/public-api/server/unstable-public-api-error-contract";
+} from "./structuredPublicApiErrorContract";
+import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
-export const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
+const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
 export type HttpMethod = (typeof httpMethods)[number];
 type Handlers = {
   [Method in HttpMethod]?: (
@@ -62,6 +63,23 @@ type MiddlewareOptions = {
   clickHouseResourceErrorMessage?: string;
 };
 
+const logBaseError = (error: BaseError) => {
+  if (
+    error instanceof LangfuseNotFoundError ||
+    error instanceof UnauthorizedError
+  ) {
+    logger.info(error);
+    return;
+  }
+
+  if (error.isUserError()) {
+    logger.warn(error);
+    return;
+  }
+
+  logger.error(error);
+};
+
 export function withMiddlewares(
   handlers: Handlers,
   options?: MiddlewareOptions,
@@ -69,6 +87,10 @@ export function withMiddlewares(
   return async (req: NextApiRequest, res: NextApiResponse) => {
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
+      clickhouse: {
+        surface: "publicapi",
+        route: clickHouseRouteForRequest(req),
+      },
     });
 
     return opentelemetry.context.with(ctx, async () => {
@@ -91,43 +113,56 @@ export function withMiddlewares(
 
         return await finalHandlers[method](req, res);
       } catch (error) {
-        if (
-          error instanceof LangfuseNotFoundError ||
-          error instanceof UnauthorizedError
-        ) {
-          logger.info(error);
-        } else {
-          logger.error(error);
+        if (error instanceof ClickHouseResourceError) {
+          const errorMessage =
+            options?.clickHouseResourceErrorMessage ??
+            DEFAULT_CLICKHOUSE_RESOURCE_ERROR_MESSAGE;
+
+          logger.warn("ClickHouse resource limit exceeded", {
+            errorType: error.errorType,
+            message: error.message,
+            suggestion: errorMessage,
+            tags: error.tags,
+          });
+
+          if (options?.errorContract === structuredPublicApiErrorContract) {
+            return sendStructuredPublicApiErrorResponse(
+              res,
+              toStructuredPublicApiError(error),
+            );
+          }
+
+          return res.status(422).json({
+            message: errorMessage,
+            error: "Request timed out",
+          });
         }
 
-        if (options?.errorContract === unstablePublicEvalsErrorContract) {
-          if (
-            error instanceof BaseError &&
-            error.httpCode >= 500 &&
-            error.httpCode < 600
-          ) {
+        if (options?.errorContract === structuredPublicApiErrorContract) {
+          if (isBaseError(error)) {
+            logBaseError(error);
+          } else if (isZodError(error)) {
+            logger.warn(error);
+          } else {
+            logger.error(error);
+          }
+
+          if (isBaseError(error)) {
+            if (error.httpCode >= 500 && error.httpCode < 600) {
+              traceException(error);
+            }
+          } else if (!isZodError(error)) {
             traceException(error);
           }
 
-          if (isPrismaException(error)) {
-            traceException(error);
-          }
-
-          if (
-            !(error instanceof BaseError) &&
-            !(error instanceof ClickHouseResourceError) &&
-            !isZodError(error)
-          ) {
-            traceException(error);
-          }
-
-          return sendUnstablePublicApiErrorResponse(
+          return sendStructuredPublicApiErrorResponse(
             res,
-            toUnstablePublicApiError(error),
+            toStructuredPublicApiError(error),
           );
         }
 
-        if (error instanceof BaseError) {
+        if (isBaseError(error)) {
+          logBaseError(error);
           if (error.httpCode >= 500 && error.httpCode < 600) {
             traceException(error);
           }
@@ -137,26 +172,8 @@ export function withMiddlewares(
           });
         }
 
-        // Handle ClickHouse resource errors
-        if (error instanceof ClickHouseResourceError) {
-          const resourceError = error as ClickHouseResourceError;
-          const errorMessage =
-            options?.clickHouseResourceErrorMessage ??
-            DEFAULT_CLICKHOUSE_RESOURCE_ERROR_MESSAGE;
-
-          logger.warn("ClickHouse resource limit exceeded", {
-            errorType: resourceError.errorType,
-            message: resourceError.message,
-            suggestion: errorMessage,
-          });
-
-          return res.status(422).json({
-            message: errorMessage,
-            error: "Request timed out",
-          });
-        }
-
         if (isPrismaException(error)) {
+          logger.error(error);
           traceException(error);
           return res.status(500).json({
             message: "Internal Server Error",
@@ -166,12 +183,14 @@ export function withMiddlewares(
 
         // Instanceof check fails here as shared package zod has different instances
         if (isZodError(error)) {
+          logger.warn(error);
           return res.status(400).json({
             message: "Invalid request data",
             error: error.issues,
           });
         }
 
+        logger.error(error);
         traceException(error);
         return res.status(500).json({
           message: "Internal Server Error",

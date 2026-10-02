@@ -30,5 +30,6 @@ export interface ProviderAdapter {
     kind: "input" | "output",
     ctx: NormalizerContext,
   ): unknown;
+  getConsumedInputKeys?(data: unknown): string[];
   extractToolEvents?(message: Record<string, unknown>): ToolEvent[];
 }

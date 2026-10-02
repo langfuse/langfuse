@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
@@ -6,7 +7,7 @@ import { PanelRightClose, PanelRightOpen } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
-import { ResizableDesktopLayout } from "./ResizableDesktopLayout";
+import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
 
 // --- Toggle Button ---
 
@@ -46,18 +47,18 @@ interface OverviewPanelLayoutProps {
   mainContent: React.ReactNode;
   overviewContent: React.ReactNode;
   persistId?: string;
-  defaultMainSize?: number;
-  defaultSidebarSize?: number;
-  minMainSize?: number;
-  maxSidebarSize?: number;
-  sidebarPosition?: "left" | "right";
+  defaultPrimarySize?: number;
+  defaultSecondarySize?: number;
+  minPrimarySize?: number;
+  maxSecondarySize?: number;
+  secondaryPosition?: "left" | "right";
   className?: string;
 }
 
 /**
  * A responsive layout component that displays main content alongside an overview panel.
  *
- * - On desktop: Uses ResizableDesktopLayout with a collapsible sidebar
+ * - On desktop: Uses ResizableSplitLayout with a collapsible overview panel
  * - On mobile: Stacks the overview panel above the main content
  *
  * The open/close state is controlled externally via the `open` prop.
@@ -68,11 +69,11 @@ function OverviewPanelLayout({
   mainContent,
   overviewContent,
   persistId,
-  defaultMainSize = 75,
-  defaultSidebarSize = 25,
-  minMainSize = 50,
-  maxSidebarSize = 40,
-  sidebarPosition = "right",
+  defaultPrimarySize = 75,
+  defaultSecondarySize = 25,
+  minPrimarySize = 50,
+  maxSecondarySize = 40,
+  secondaryPosition = "right",
   className,
 }: OverviewPanelLayoutProps) {
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
@@ -91,20 +92,20 @@ function OverviewPanelLayout({
 
   // Desktop: resizable layout
   return (
-    <ResizableDesktopLayout
+    <ResizableSplitLayout
       className={className}
-      mainContent={mainContent}
-      sidebarContent={
+      primaryContent={mainContent}
+      secondaryContent={
         <div className="flex h-full flex-col overflow-y-auto p-4">
           {overviewContent}
         </div>
       }
       open={open}
-      defaultMainSize={defaultMainSize}
-      defaultSidebarSize={defaultSidebarSize}
-      minMainSize={minMainSize}
-      maxSidebarSize={maxSidebarSize}
-      sidebarPosition={sidebarPosition}
+      defaultPrimarySize={defaultPrimarySize}
+      defaultSecondarySize={defaultSecondarySize}
+      minPrimarySize={minPrimarySize}
+      maxSecondarySize={maxSecondarySize}
+      secondaryPosition={secondaryPosition}
       persistId={persistId}
     />
   );
@@ -142,7 +143,7 @@ const OverviewPanelHeader = React.forwardRef<
     {...props}
   >
     <div>
-      {title && <h3 className="text-lg font-semibold">{title}</h3>}
+      {title && <h3 className="text-lg font-bold">{title}</h3>}
       {subtitle && <p className="text-muted-foreground text-sm">{subtitle}</p>}
     </div>
     {actions && <div className="flex items-center gap-2">{actions}</div>}
@@ -203,20 +204,11 @@ const OverviewPanelSection = React.forwardRef<
 >(({ title, className, children, ...props }, ref) => (
   <div ref={ref} className={cn("space-y-3", className)} {...props}>
     {title && (
-      <h4 className="text-muted-foreground text-sm font-medium">{title}</h4>
+      <h4 className="text-muted-foreground text-sm font-bold">{title}</h4>
     )}
     {children}
   </div>
 ));
 OverviewPanelSection.displayName = "OverviewPanelSection";
 
-export {
-  OverviewPanelToggle,
-  OverviewPanelLayout,
-  OverviewPanel,
-  OverviewPanelHeader,
-  OverviewPanelContent,
-  OverviewPanelFooter,
-  OverviewPanelField,
-  OverviewPanelSection,
-};
+export { OverviewPanelToggle, OverviewPanelLayout };

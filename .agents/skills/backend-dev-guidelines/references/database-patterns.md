@@ -57,7 +57,7 @@ const project = await prisma.project.create({
 
 // ✅ GOOD: Read with projectId filter
 const trace = await prisma.trace.findUnique({
-  where: { id: traceId, projectId },  // ← Always include projectId for tenant isolation
+  where: { id: traceId, projectId }, // ← Always include projectId for tenant isolation
   include: {
     scores: true,
     project: { select: { id: true, name: true } },
@@ -77,12 +77,12 @@ await prisma.user.update({
 
 // ✅ GOOD: Delete with projectId
 await prisma.apiKey.delete({
-  where: { id: apiKeyId, projectId },  // ← Always include projectId
+  where: { id: apiKeyId, projectId }, // ← Always include projectId
 });
 
 // ✅ GOOD: Count with projectId
 const traceCount = await prisma.trace.count({
-  where: { projectId, userId },  // ← Always include projectId
+  where: { projectId, userId }, // ← Always include projectId
 });
 ```
 
@@ -225,7 +225,7 @@ const rows = await queryClickhouse<{ id: string; name: string }>({
     LIMIT {limit: UInt32}
   `,
   params: {
-    projectId,  // ← Required for tenant isolation
+    projectId, // ← Required for tenant isolation
     startTime: convertDateToClickhouseDateTime(startDate),
     limit: 100,
   },
@@ -341,6 +341,7 @@ const query = `
 ```
 
 **Why this is important:**
+
 - Langfuse is multi-tenant - each project's data must be isolated
 - The `project_id` filter ensures queries only access data from the intended tenant
 - All queries on project-scoped tables (traces, observations, scores, sessions, etc.) must filter by `project_id`
@@ -357,6 +358,34 @@ const query = `
   LIMIT 1 BY id, project_id
 `;
 ```
+
+**`is_deleted` on `traces`, `observations`, `scores`, and `dataset_run_items_rmt` is dormant — avoid new filters.**
+
+These four tables are declared as
+`ReplacingMergeTree(event_ts, is_deleted)`, but no production
+code writes `is_deleted = 1` for them — all deletes use
+ClickHouse's lightweight `DELETE FROM` mutation (e.g.
+`deleteObservationsByTraceIds`,
+`deleteObservationsByProjectId`,
+`deleteObservationsOlderThanDays`), which marks rows via the
+engine-managed `_row_exists` column. `_row_exists` is handled
+transparently by the read path; no special query handling is
+needed.
+
+What this means for query authors:
+
+- **`WHERE is_deleted = 0` filters on these four tables are
+  dead weight in practice.** A few legacy reads still carry
+  them (e.g. `web/src/features/score-analytics/server/`); new
+  code should not add them unless soft-delete writes have
+  actually been introduced.
+
+**Separate case: `blob_storage_file_log`.** This table is also
+a `ReplacingMergeTree` but **does** use soft-delete
+intentionally — `ingestionFileDeletion.ts` writes
+`is_deleted: "1"`, `batch-project-blob-cleaner` reads with
+`countIf(is_deleted = 1)`. The guidance above does not apply
+to it.
 
 **3. Use time-based filtering for performance:**
 
@@ -520,6 +549,7 @@ export const getScoresByTraceId = async (
 ### Project-Scoped vs Global Tables
 
 **Project-scoped tables (MUST filter by `project_id`):**
+
 - `traces` - All trace queries require `project_id`
 - `observations` - All observation queries require `project_id`
 - `scores` - All score queries require `project_id`
@@ -527,6 +557,7 @@ export const getScoresByTraceId = async (
 - `dataset_run_items_rmt` - All dataset run queries require `project_id`
 
 **Global tables (no `project_id` filter needed):**
+
 - `users` - User management (use `id` for filtering)
 - `organizations` - Organization data (use `id` for filtering)
 - System configuration tables
@@ -599,12 +630,12 @@ try {
 
 **Common Prisma error codes:**
 
-| Code     | Meaning                      | Typical Cause                         |
-| -------- | ---------------------------- | ------------------------------------- |
-| `P2002`  | Unique constraint violation  | Duplicate email, API key, etc.        |
-| `P2003`  | Foreign key constraint       | Referenced record doesn't exist       |
-| `P2025`  | Record not found             | Update/delete of non-existent record  |
-| `P2018`  | Required relation not found  | Connect to non-existent related record |
+| Code    | Meaning                     | Typical Cause                          |
+| ------- | --------------------------- | -------------------------------------- |
+| `P2002` | Unique constraint violation | Duplicate email, API key, etc.         |
+| `P2003` | Foreign key constraint      | Referenced record doesn't exist        |
+| `P2025` | Record not found            | Update/delete of non-existent record   |
+| `P2018` | Required relation not found | Connect to non-existent related record |
 
 ### ClickHouse Errors
 
@@ -636,11 +667,11 @@ try {
 
 **ClickHouse error types:**
 
-| Error Type      | Discriminator           | Meaning                      | Solution                                           |
-| --------------- | ----------------------- | ---------------------------- | -------------------------------------------------- |
-| `MEMORY_LIMIT`  | "memory limit exceeded" | Query used too much memory   | Use more specific filters or shorter time range    |
-| `OVERCOMMIT`    | "OvercommitTracker"     | Memory overcommit limit hit  | Reduce query complexity or result set size         |
-| `TIMEOUT`       | "Timeout", "timed out"  | Query took too long          | Add filters, reduce time range, or optimize query  |
+| Error Type     | Discriminator           | Meaning                     | Solution                                          |
+| -------------- | ----------------------- | --------------------------- | ------------------------------------------------- |
+| `MEMORY_LIMIT` | "memory limit exceeded" | Query used too much memory  | Use more specific filters or shorter time range   |
+| `OVERCOMMIT`   | "OvercommitTracker"     | Memory overcommit limit hit | Reduce query complexity or result set size        |
+| `TIMEOUT`      | "Timeout", "timed out"  | Query took too long         | Add filters, reduce time range, or optimize query |
 
 **ClickHouse retries:**
 
@@ -648,13 +679,13 @@ ClickHouse queries automatically retry network errors (socket hang up) with expo
 
 ```typescript
 // In packages/shared/src/env.ts
-LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().positive().default(3)
+LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().positive().default(3);
 ```
 
 ---
 
 **Related Files:**
 
-- [../AGENTS.md](../AGENTS.md) - Main backend development guidelines
+- [../SKILL.md](../SKILL.md) - Main backend development guidelines
 - [architecture-overview.md](architecture-overview.md) - System architecture
 - [configuration.md](configuration.md) - Environment variable configuration

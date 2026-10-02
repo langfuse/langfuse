@@ -1,5 +1,4 @@
-import { z } from "zod";
-import { singleFilter } from "../../interfaces/filters";
+import { singleFilterList } from "../../interfaces/filters";
 import type { ColumnDefinition } from "../../tableDefinitions";
 import {
   evalDatasetFormFilterCols,
@@ -7,8 +6,8 @@ import {
 } from "../../tableDefinitions/tracesTable";
 import type { FilterCondition, FilterState } from "../../types";
 import {
+  eventsEvalFilterColumns,
   experimentEvalFilterColumns,
-  observationEvalFilterColumns,
 } from "./observationForEval";
 import { COMPATIBLE_FILTER_TYPES } from "../../server/queries/clickhouse-sql/filterTypeCompatibility";
 import {
@@ -36,7 +35,7 @@ export type EvaluatorFilterValidationResult = {
   issues: EvaluatorFilterValidationIssue[];
 };
 
-const parsedFilterSchema = z.array(singleFilter).nullable();
+const parsedFilterSchema = singleFilterList.nullable();
 
 const getSupportedColumnsForTarget = (
   targetObject: EvalTargetObjectType,
@@ -47,7 +46,7 @@ const getSupportedColumnsForTarget = (
     case EvalTargetObject.DATASET:
       return evalDatasetFormFilterCols;
     case EvalTargetObject.EVENT:
-      return observationEvalFilterColumns;
+      return eventsEvalFilterColumns;
     case EvalTargetObject.EXPERIMENT:
       return experimentEvalFilterColumns;
   }

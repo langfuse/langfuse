@@ -1,3 +1,5 @@
+import type { EvalExecutionContext } from "../../features/evals/evalExecutionMetadata";
+
 export enum LangfuseOtelSpanAttributes {
   // Langfuse-Trace attributes
   TRACE_NAME = "langfuse.trace.name",
@@ -33,6 +35,7 @@ export enum LangfuseOtelSpanAttributes {
 
   // Internal
   AS_ROOT = "langfuse.internal.as_root",
+  IS_APP_ROOT = "langfuse.internal.is_app_root",
 
   // Compatibility - Map properties that were documented in https://langfuse.com/docs/opentelemetry/get-started#property-mapping,
   // but have a new assignment
@@ -50,4 +53,33 @@ export enum LangfuseOtelSpanAttributes {
   EXPERIMENT_ITEM_METADATA = "langfuse.experiment.item.metadata",
   EXPERIMENT_ITEM_ROOT_OBSERVATION_ID = "langfuse.experiment.item.root_observation_id",
   EXPERIMENT_ITEM_EXPECTED_OUTPUT = "langfuse.experiment.item.expected_output",
+
+  // Evaluator execution attributes
+  EVALUATOR_ID = "langfuse.evaluator.id",
+  EVALUATION_RULE_ID = "langfuse.evaluation.rule.id",
+  EVALUATOR_EXECUTION_IS_TEST = "langfuse.evaluator.execution.is_test",
 }
+
+export function buildEvaluationAttributes(
+  evaluationContext: EvalExecutionContext,
+) {
+  return {
+    ...(evaluationContext.evaluatorId
+      ? {
+          [LangfuseOtelSpanAttributes.EVALUATOR_ID]:
+            evaluationContext.evaluatorId,
+        }
+      : {}),
+    ...(evaluationContext.evaluationRuleId
+      ? {
+          [LangfuseOtelSpanAttributes.EVALUATION_RULE_ID]:
+            evaluationContext.evaluationRuleId,
+        }
+      : {}),
+    [LangfuseOtelSpanAttributes.EVALUATOR_EXECUTION_IS_TEST]:
+      evaluationContext.evaluatorExecutionIsTest,
+  };
+}
+
+/** SDK name for internally published AI-feature product traces. */
+export const AI_FEATURE_OTEL_SDK_NAME = "langfuse-internal-ai-features";

@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Mock } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
@@ -38,6 +39,8 @@ const prepare = async () => {
           plan: "cloud:hobby",
           cloudConfig: undefined,
           metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
           projects: [
             {
               id: project.id,
@@ -45,15 +48,14 @@ const prepare = async () => {
               retentionDays: 30,
               deletedAt: null,
               name: project.name,
+              hasTraces: false,
               metadata: {},
+              createdAt: new Date().toISOString(),
             },
           ],
         },
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-      },
+      featureFlags: testFeatureFlags(),
       admin: true,
     },
     environment: {

@@ -9,15 +9,41 @@ import {
   getScoresForAnalyticsIntegrations,
   getEventsForAnalyticsIntegrations,
   getCurrentSpan,
+  recordIncrement,
 } from "@langfuse/shared/src/server";
 import { decrypt } from "@langfuse/shared/encryption";
 import { MixpanelClient } from "./mixpanelClient";
+import { recordExportVolume } from "../../services/exportVolumeMetric";
 import {
   transformTraceForMixpanel,
   transformGenerationForMixpanel,
   transformScoreForMixpanel,
   transformEventForMixpanel,
 } from "./transformers";
+import { env, v4WritesToLegacyTables } from "../../env";
+import { assertExportSourceWritable } from "../exportWriteModeGuard";
+import { classifyCustomerFault } from "../integrations/customerFaultClassification";
+
+export const MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC =
+  "langfuse.mixpanel.integration_customer_fault.count";
+
+const sleep = (ms: number) =>
+  ms > 0
+    ? new Promise((resolve) => setTimeout(resolve, ms))
+    : Promise.resolve();
+
+// Throttle exports after each flush so a single project sync cannot burst the
+// target Mixpanel instance with an unbounded event rate (issue #12786).
+const flushWithDelay = async (mixpanel: MixpanelClient) => {
+  // flush() is a no-op on an empty batch, so only throttle when we actually
+  // sent something. Avoids a wasted delay when the terminal flush has nothing
+  // left to send (e.g. event count is an exact multiple of the flush size).
+  const hadEvents = mixpanel.getBatchSize() > 0;
+  await mixpanel.flush();
+  if (hadEvents) {
+    await sleep(env.LANGFUSE_MIXPANEL_FLUSH_DELAY_MS);
+  }
+};
 
 type MixpanelExecutionConfig = {
   projectId: string;
@@ -25,6 +51,12 @@ type MixpanelExecutionConfig = {
   minTimestamp: Date;
   maxTimestamp: Date;
   decryptedMixpanelProjectToken: string;
+  // Plain string at use time. The Mixpanel settings dropdown is currently the
+  // only input that can set this (`api` | `api-eu` | `api-in`). If that ever
+  // becomes free-form, `validateAnalyticsIntegrationUrl` (called from the
+  // Mixpanel sender) is the remaining guard against IP-literal, credentialed,
+  // and non-HTTP destinations — the connect-time DNS hook never fires for a
+  // literal.
   mixpanelRegion: string;
   // First attempt uses ClickHouse `auto` join algorithm. We only fall back to
   // `grace_hash` (slower, but spills to disk) on retries so an OOM on the first
@@ -32,7 +64,10 @@ type MixpanelExecutionConfig = {
   useGraceHash: boolean;
 };
 
-const processMixpanelTraces = async (config: MixpanelExecutionConfig) => {
+const processMixpanelTraces = async (
+  mixpanel: MixpanelClient,
+  config: MixpanelExecutionConfig,
+) => {
   const traces = getTracesForAnalyticsIntegrations(
     config.projectId,
     config.projectName,
@@ -45,11 +80,6 @@ const processMixpanelTraces = async (config: MixpanelExecutionConfig) => {
     `[MIXPANEL] Sending traces for project ${config.projectId} to Mixpanel`,
   );
 
-  const mixpanel = new MixpanelClient({
-    projectToken: config.decryptedMixpanelProjectToken,
-    region: config.mixpanelRegion,
-  });
-
   let count = 0;
   for await (const trace of traces) {
     count++;
@@ -57,19 +87,22 @@ const processMixpanelTraces = async (config: MixpanelExecutionConfig) => {
     mixpanel.addEvent(event);
 
     if (count % 1000 === 0) {
-      await mixpanel.flush();
+      await flushWithDelay(mixpanel);
       logger.info(
         `[MIXPANEL] Sent ${count} traces to Mixpanel for project ${config.projectId}`,
       );
     }
   }
-  await mixpanel.flush();
+  await flushWithDelay(mixpanel);
   logger.info(
     `[MIXPANEL] Sent ${count} traces to Mixpanel for project ${config.projectId}`,
   );
 };
 
-const processMixpanelGenerations = async (config: MixpanelExecutionConfig) => {
+const processMixpanelGenerations = async (
+  mixpanel: MixpanelClient,
+  config: MixpanelExecutionConfig,
+) => {
   const generations = getGenerationsForAnalyticsIntegrations(
     config.projectId,
     config.projectName,
@@ -82,11 +115,6 @@ const processMixpanelGenerations = async (config: MixpanelExecutionConfig) => {
     `[MIXPANEL] Sending generations for project ${config.projectId} to Mixpanel`,
   );
 
-  const mixpanel = new MixpanelClient({
-    projectToken: config.decryptedMixpanelProjectToken,
-    region: config.mixpanelRegion,
-  });
-
   let count = 0;
   for await (const generation of generations) {
     count++;
@@ -94,35 +122,37 @@ const processMixpanelGenerations = async (config: MixpanelExecutionConfig) => {
     mixpanel.addEvent(event);
 
     if (count % 1000 === 0) {
-      await mixpanel.flush();
+      await flushWithDelay(mixpanel);
       logger.info(
         `[MIXPANEL] Sent ${count} generations to Mixpanel for project ${config.projectId}`,
       );
     }
   }
-  await mixpanel.flush();
+  await flushWithDelay(mixpanel);
   logger.info(
     `[MIXPANEL] Sent ${count} generations to Mixpanel for project ${config.projectId}`,
   );
 };
 
-const processMixpanelScores = async (config: MixpanelExecutionConfig) => {
+const processMixpanelScores = async (
+  mixpanel: MixpanelClient,
+  config: MixpanelExecutionConfig,
+) => {
   const scores = getScoresForAnalyticsIntegrations(
     config.projectId,
     config.projectName,
     config.minTimestamp,
     config.maxTimestamp,
-    { useGraceHash: config.useGraceHash },
+    {
+      useGraceHash: config.useGraceHash,
+      // events_only no longer writes the traces table (LFE-11009)
+      traceAttributesSource: v4WritesToLegacyTables(env) ? "traces" : "events",
+    },
   );
 
   logger.info(
     `[MIXPANEL] Sending scores for project ${config.projectId} to Mixpanel`,
   );
-
-  const mixpanel = new MixpanelClient({
-    projectToken: config.decryptedMixpanelProjectToken,
-    region: config.mixpanelRegion,
-  });
 
   let count = 0;
   for await (const score of scores) {
@@ -131,19 +161,22 @@ const processMixpanelScores = async (config: MixpanelExecutionConfig) => {
     mixpanel.addEvent(event);
 
     if (count % 1000 === 0) {
-      await mixpanel.flush();
+      await flushWithDelay(mixpanel);
       logger.info(
         `[MIXPANEL] Sent ${count} scores to Mixpanel for project ${config.projectId}`,
       );
     }
   }
-  await mixpanel.flush();
+  await flushWithDelay(mixpanel);
   logger.info(
     `[MIXPANEL] Sent ${count} scores to Mixpanel for project ${config.projectId}`,
   );
 };
 
-const processMixpanelEvents = async (config: MixpanelExecutionConfig) => {
+const processMixpanelEvents = async (
+  mixpanel: MixpanelClient,
+  config: MixpanelExecutionConfig,
+) => {
   const events = getEventsForAnalyticsIntegrations(
     config.projectId,
     config.projectName,
@@ -155,11 +188,6 @@ const processMixpanelEvents = async (config: MixpanelExecutionConfig) => {
     `[MIXPANEL] Sending events for project ${config.projectId} to Mixpanel`,
   );
 
-  const mixpanel = new MixpanelClient({
-    projectToken: config.decryptedMixpanelProjectToken,
-    region: config.mixpanelRegion,
-  });
-
   let count = 0;
   for await (const analyticsEvent of events) {
     count++;
@@ -167,13 +195,13 @@ const processMixpanelEvents = async (config: MixpanelExecutionConfig) => {
     mixpanel.addEvent(event);
 
     if (count % 1000 === 0) {
-      await mixpanel.flush();
+      await flushWithDelay(mixpanel);
       logger.info(
         `[MIXPANEL] Sent ${count} events to Mixpanel for project ${config.projectId}`,
       );
     }
   }
-  await mixpanel.flush();
+  await flushWithDelay(mixpanel);
   logger.info(
     `[MIXPANEL] Sent ${count} events to Mixpanel for project ${config.projectId}`,
   );
@@ -221,35 +249,46 @@ export const handleMixpanelIntegrationProjectJob = async (
     return;
   }
 
-  // Fetch relevant data and send it to Mixpanel
-  const executionConfig: MixpanelExecutionConfig = {
-    projectId,
-    projectName: mixpanelIntegration.project.name,
-    // Start from 2000-01-01 if no lastSyncAt. Workaround because 1970-01-01 leads to subtle bugs in ClickHouse
-    minTimestamp: mixpanelIntegration.lastSyncAt || new Date("2000-01-01"),
-    maxTimestamp: new Date(new Date().getTime() - 30 * 60 * 1000), // 30 minutes ago
-    decryptedMixpanelProjectToken: decrypt(
-      mixpanelIntegration.encryptedMixpanelProjectToken,
-    ),
-    mixpanelRegion: mixpanelIntegration.mixpanelRegion,
-    useGraceHash: job.attemptsMade > 0,
-  };
-
   try {
-    const processPromises: Promise<void>[] = [];
+    // Fetch relevant data and send it to Mixpanel
+    const executionConfig: MixpanelExecutionConfig = {
+      projectId,
+      projectName: mixpanelIntegration.project.name,
+      // Start from 2000-01-01 if no lastSyncAt. Workaround because 1970-01-01 leads to subtle bugs in ClickHouse
+      minTimestamp: mixpanelIntegration.lastSyncAt || new Date("2000-01-01"),
+      maxTimestamp: new Date(new Date().getTime() - 30 * 60 * 1000), // 30 minutes ago
+      decryptedMixpanelProjectToken: decrypt(
+        mixpanelIntegration.encryptedMixpanelProjectToken,
+      ),
+      mixpanelRegion: mixpanelIntegration.mixpanelRegion,
+      useGraceHash: job.attemptsMade > 0,
+    };
+
+    // Fail loudly before exporting empty data and advancing lastSyncAt
+    // (LFE-10148, LFE-11009); the catch below logs and BullMQ retries.
+    assertExportSourceWritable(
+      mixpanelIntegration.exportSource,
+      "Select the enriched observations export source in the Mixpanel integration settings.",
+    );
+
+    // Reuse a single client and run streams sequentially so the per-job export
+    // rate stays bounded. Running the streams in parallel with one client each
+    // produced an unbounded burst that overwhelmed the target (issue #12786).
+    const mixpanel = new MixpanelClient({
+      projectToken: executionConfig.decryptedMixpanelProjectToken,
+      region: executionConfig.mixpanelRegion,
+    });
 
     // Always include scores
-    processPromises.push(processMixpanelScores(executionConfig));
+    await processMixpanelScores(mixpanel, executionConfig);
 
     // Traces and observations - for TRACES_OBSERVATIONS and TRACES_OBSERVATIONS_EVENTS
     if (
       mixpanelIntegration.exportSource === "TRACES_OBSERVATIONS" ||
       mixpanelIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
     ) {
-      processPromises.push(
-        processMixpanelTraces(executionConfig),
-        processMixpanelGenerations(executionConfig),
-      );
+      await processMixpanelTraces(mixpanel, executionConfig);
+      await processMixpanelGenerations(mixpanel, executionConfig);
     }
 
     // Events - for EVENTS and TRACES_OBSERVATIONS_EVENTS
@@ -257,10 +296,8 @@ export const handleMixpanelIntegrationProjectJob = async (
       mixpanelIntegration.exportSource === "EVENTS" ||
       mixpanelIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
     ) {
-      processPromises.push(processMixpanelEvents(executionConfig));
+      await processMixpanelEvents(mixpanel, executionConfig);
     }
-
-    await Promise.all(processPromises);
 
     // Update the last run information for the mixpanelIntegration record.
     await prisma.mixpanelIntegration.update({
@@ -271,13 +308,32 @@ export const handleMixpanelIntegrationProjectJob = async (
         lastSyncAt: executionConfig.maxTimestamp,
       },
     });
+    // Record gzipped on-wire export volume once the run has succeeded.
+    recordExportVolume({
+      integration: "mixpanel",
+      bytes: mixpanel.getSerializedBytes(),
+      projectId,
+    });
     logger.info(
       `[MIXPANEL] Mixpanel integration processing complete for project ${projectId}`,
     );
   } catch (error) {
+    const mixpanelFaultReason = classifyCustomerFault(error);
+    if (mixpanelFaultReason !== undefined) {
+      recordIncrement(MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC, 1, {
+        reason: mixpanelFaultReason,
+        attempt: job.attemptsMade,
+      });
+    }
     logger.error(
       `[MIXPANEL] Error processing Mixpanel integration for project ${projectId}`,
-      error,
+      {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        mixpanelFaultReason,
+        attempt: job.attemptsMade,
+      },
     );
     throw error;
   }

@@ -1,13 +1,11 @@
 import {
   createObservation as createObservationObject,
   createTrace,
-} from "@langfuse/shared/src/server";
-import {
   createObservationsCh as createObservationsInClickhouse,
   createTracesCh,
+  getUserMetrics,
 } from "@langfuse/shared/src/server";
 import { v4 as uuidv4 } from "uuid";
-import { getUserMetrics } from "@langfuse/shared/src/server";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 

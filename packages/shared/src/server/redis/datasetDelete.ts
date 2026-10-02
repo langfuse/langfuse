@@ -1,10 +1,6 @@
 import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
 export class DatasetDeleteQueue {
@@ -17,17 +13,14 @@ export class DatasetDeleteQueue {
   > | null {
     if (DatasetDeleteQueue.instance) return DatasetDeleteQueue.instance;
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    DatasetDeleteQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.DatasetDelete,
+    );
+    DatasetDeleteQueue.instance = queueOptionsWithRedis
       ? new Queue<TQueueJobTypes[QueueName.DatasetDelete]>(
           QueueName.DatasetDelete,
           {
-            connection: newRedis,
-            prefix: getQueuePrefix(QueueName.DatasetDelete),
+            ...queueOptionsWithRedis,
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 100_000,

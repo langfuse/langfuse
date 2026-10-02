@@ -1,12 +1,19 @@
 import { type z } from "zod";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
-import { paginationZod } from "@langfuse/shared";
+import {
+  BatchTableNames,
+  normalizeOrderByForTable,
+  paginationZod,
+} from "@langfuse/shared";
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
-import { getObservationsTableCount } from "@langfuse/shared/src/server";
-import { applyCommentFilters } from "@langfuse/shared/src/server";
+import {
+  getObservationsTableCount,
+  applyCommentFilters,
+} from "@langfuse/shared/src/server";
+import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server";
 
-const GetAllGenerationsInput = GenerationTableOptions.extend({
+const GetAllGenerationsInput = GenerationTableOptions.safeExtend({
   ...paginationZod,
 });
 
@@ -16,6 +23,12 @@ export const getAllQueries = {
   all: protectedProjectProcedure
     .input(GetAllGenerationsInput)
     .query(async ({ input, ctx }) => {
+      const search = sanitizeLegacyTracingSearch({
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        tableName: BatchTableNames.Observations,
+      });
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -31,14 +44,26 @@ export const getAllQueries = {
         input: {
           ...input,
           filter: filterState,
+          orderBy: normalizeOrderByForTable({
+            orderBy: input.orderBy,
+            expectedTimeColumn: "startTime",
+          }),
+          searchQuery: search.searchQuery ?? null,
+          searchType: search.searchType ?? ["id"],
         },
         selectIOAndMetadata: false,
       });
       return { generations };
     }),
   countAll: protectedProjectProcedure
-    .input(GetAllGenerationsInput)
+    .input(GenerationTableOptions)
     .query(async ({ input, ctx }) => {
+      const search = sanitizeLegacyTracingSearch({
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        tableName: BatchTableNames.Observations,
+      });
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -53,6 +78,8 @@ export const getAllQueries = {
       const queryOpts = {
         projectId: ctx.session.projectId,
         filter: filterState,
+        searchQuery: search.searchQuery,
+        searchType: search.searchType ?? ["id"],
         limit: 1,
         offset: 0,
       };

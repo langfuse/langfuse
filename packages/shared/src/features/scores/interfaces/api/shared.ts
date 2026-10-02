@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { publicApiPaginationZod } from "../../../../utils/zod";
+import {
+  commaSeparatedEnumArray,
+  publicApiPaginationZod,
+} from "../../../../utils/zod";
 import { stringDateTime } from "../../../../utils/typeChecks";
 import { applyScoreValidation } from "../../../../utils/scores";
 import { PostScoreBodyFoundationSchema } from "../shared";
@@ -12,13 +15,12 @@ import {
   ScoreSourceEnum,
   TEXT_SCORE_MAX_LENGTH,
 } from "../../../../domain/scores";
-import { singleFilter } from "../../../../interfaces/filters";
+import { singleFilterList } from "../../../../interfaces/filters";
 import { InvalidRequestError } from "../../../../errors";
 
 const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
 
-export const SCORE_FIELD_GROUPS = ["score", "trace"] as const;
-export type ScoreFieldGroup = (typeof SCORE_FIELD_GROUPS)[number];
+const SCORE_FIELD_GROUPS = ["score", "trace"] as const;
 
 /**
  * Endpoints
@@ -51,17 +53,9 @@ export const GetScoresQuery = z.object({
       message: "Each score ID must be a string",
     })
     .nullish(),
-  fields: z
-    .string()
-    .nullish()
-    .transform((v) => {
-      if (!v) return null;
-      return v
-        .split(",")
-        .map((f) => f.trim())
-        .filter((f) => SCORE_FIELD_GROUPS.includes(f as ScoreFieldGroup));
-    })
-    .pipe(z.array(z.enum(SCORE_FIELD_GROUPS)).nullable()),
+  fields: commaSeparatedEnumArray(SCORE_FIELD_GROUPS, null, {
+    unknownValues: "filter",
+  }),
   filter: z
     .string()
     .optional()
@@ -75,7 +69,7 @@ export const GetScoresQuery = z.object({
         throw new InvalidRequestError("Invalid JSON in filter parameter");
       }
     })
-    .pipe(z.array(singleFilter).optional()),
+    .pipe(singleFilterList.optional()),
 });
 
 // POST /scores

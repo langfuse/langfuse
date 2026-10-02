@@ -1,4 +1,4 @@
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { AlertTriangle } from "lucide-react";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import {
@@ -9,30 +9,25 @@ import {
 } from "@/src/features/evals/utils/typeHelpers";
 
 interface EvalVersionCalloutProps {
-  targetObject: string;
-  evalCapabilities: EvalCapabilities;
+  content: CalloutContent;
 }
 
 interface CalloutContent {
-  visible: boolean;
   title: string;
   description: React.ReactNode;
 }
 
-const getCalloutContent = (
+export const getEvalVersionCalloutContent = (
   targetObject: string,
   evalCapabilities: EvalCapabilities,
-): CalloutContent => {
-  const hidden = { visible: false, title: "", description: "" };
-
+) => {
   // For event/observation target
   if (isEventTarget(targetObject)) {
     if (evalCapabilities.isNewCompatible) {
-      return hidden;
+      return null;
     }
 
     return {
-      visible: true,
       title: "Please verify your SDK version",
       description: (
         <>
@@ -43,7 +38,7 @@ const getCalloutContent = (
             href="https://langfuse.com/docs/observability/sdk/upgrade-path"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-dark-blue font-medium hover:opacity-80"
+            className="text-dark-blue font-bold hover:opacity-80"
           >
             Learn more
           </a>
@@ -57,7 +52,6 @@ const getCalloutContent = (
   if (isExperimentTarget(targetObject)) {
     if (!evalCapabilities.isNewCompatible) {
       return {
-        visible: true,
         title: "Please verify you are using the Experiment Runner SDK",
         description: (
           <>
@@ -68,7 +62,7 @@ const getCalloutContent = (
               href="https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-dark-blue font-medium hover:opacity-80"
+              className="text-dark-blue font-bold hover:opacity-80"
             >
               Learn more about the Experiment Runner SDK.
             </a>
@@ -78,13 +72,18 @@ const getCalloutContent = (
       };
     }
 
-    return hidden;
+    return null;
   }
 
   // For dataset target (legacy dataset run methods)
   if (isDatasetTarget(targetObject)) {
+    // Forced-v3 projects keep trace evaluators as their intended experience —
+    // no upgrade nag.
+    if (evalCapabilities.forceV3Experience) {
+      return null;
+    }
+
     return {
-      visible: true,
       title: "Legacy low-level SDK methods",
       description: (
         <>
@@ -96,7 +95,7 @@ const getCalloutContent = (
             href="https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-dark-blue font-medium hover:opacity-80"
+            className="text-dark-blue font-bold hover:opacity-80"
           >
             Learn more
           </a>
@@ -108,8 +107,13 @@ const getCalloutContent = (
 
   // For trace target
   if (isTraceTarget(targetObject)) {
+    // Forced-v3 projects keep trace evaluators as their intended experience —
+    // no upgrade nag.
+    if (evalCapabilities.forceV3Experience) {
+      return null;
+    }
+
     return {
-      visible: true,
       title: "Consider upgrading to observation evaluators",
       description: (
         <>
@@ -119,7 +123,7 @@ const getCalloutContent = (
             href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-dark-blue font-medium hover:opacity-80"
+            className="text-dark-blue font-bold hover:opacity-80"
           >
             Learn more
           </a>
@@ -129,35 +133,24 @@ const getCalloutContent = (
     };
   }
 
-  return hidden;
+  return null;
 };
 
-export function EvalVersionCallout({
-  targetObject,
-  evalCapabilities,
-}: EvalVersionCalloutProps) {
-  const content = getCalloutContent(targetObject, evalCapabilities);
-
-  if (!content.visible) {
-    return null;
-  }
-
+export function EvalVersionCallout({ content }: EvalVersionCalloutProps) {
   return (
-    <Alert
-      variant="default"
-      className="border-dark-yellow bg-light-yellow mt-2 max-w-4xl"
-    >
-      <AlertTriangle className="text-dark-yellow h-4 w-4" />
-      <AlertDescription>
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-col gap-1">
-            <span className="text-foreground font-medium">{content.title}</span>
-            <span className="text-foreground text-sm">
-              {content.description}
-            </span>
+    <div className="mt-2 w-full max-w-4xl">
+      <Alert variant="warning" icon={AlertTriangle}>
+        <Alert.Description>
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
+              <span className="text-foreground font-bold">{content.title}</span>
+              <span className="text-foreground text-sm">
+                {content.description}
+              </span>
+            </div>
           </div>
-        </div>
-      </AlertDescription>
-    </Alert>
+        </Alert.Description>
+      </Alert>
+    </div>
   );
 }

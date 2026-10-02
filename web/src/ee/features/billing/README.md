@@ -26,7 +26,7 @@ See `web/src/ee/features/billing/server/cloudBillingRouter.ts`.
 
 ### Checkout and Subscription Management
 
-Implemented in `web/src/ee/features/billing/server/stripeBillingService.ts`.
+Implemented in `web/src/ee/features/billing/server/stripe/stripeBillingService.ts`.
 
 1. **Checkout**
    - Initiated from billing settings; only products from the catalogue are allowed.
@@ -60,7 +60,7 @@ Implemented in `web/src/ee/features/billing/server/stripeBillingService.ts`.
 
 ### Webhooks
 
-See `web/src/ee/features/billing/server/stripeWebhookHandler.ts`.
+See `web/src/ee/features/billing/server/stripe/stripeWebhookHandler.ts`.
 
 - Validates signature; ensures events are handled only in the correct `cloudRegion`.
 - Ensures subscription metadata (`orgId`, `cloudRegion`) is set (falls back to checkout session lookup if needed).

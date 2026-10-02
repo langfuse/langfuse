@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { type RouterInputs, api } from "@/src/utils/api";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import { MAX_FILE_SIZE_BYTES } from "@/src/features/datasets/components/UploadDatasetCsv";
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 import chunk from "lodash/chunk";

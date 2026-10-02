@@ -1,8 +1,9 @@
-import { expect, describe, it, afterEach } from "vitest";
+import { expect, describe, it, afterEach, vi } from "vitest";
 import { randomUUID } from "crypto";
 import {
   BatchProjectCleaner,
   BATCH_DELETION_TABLES,
+  BATCH_PROJECT_CLEANER_COUNT_LOCK_KEY,
   BATCH_PROJECT_CLEANER_LOCK_PREFIX,
 } from "../features/batch-project-cleaner";
 import {
@@ -16,6 +17,17 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
+import type { RedisLock } from "../utils/RedisLock";
+
+type TestableBatchProjectCleaner = {
+  countQueryLock: RedisLock;
+  lock: RedisLock;
+  getCountsAfterDeleteFailure: (
+    projectIds: string[],
+  ) => Promise<Map<string, number> | undefined>;
+  getProjectCounts: (projectIds: string[]) => Promise<Map<string, number>>;
+  markRunFailed: (error: unknown) => void;
+};
 
 async function getClickhouseCount(
   table: string,
@@ -34,6 +46,7 @@ describe("BatchProjectCleaner", () => {
 
   // Clean up Redis locks after each test
   afterEach(async () => {
+    await redis?.del(BATCH_PROJECT_CLEANER_COUNT_LOCK_KEY);
     for (const table of BATCH_DELETION_TABLES) {
       await redis?.del(`${BATCH_PROJECT_CLEANER_LOCK_PREFIX}:${table}`);
     }
@@ -77,7 +90,7 @@ describe("BatchProjectCleaner", () => {
         env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS,
       );
 
-      // Verify lock was not taken
+      // Verify lock was released
       const lockValue = await redis?.get(TEST_LOCK_KEY);
       expect(lockValue).toBeNull();
     });
@@ -102,11 +115,16 @@ describe("BatchProjectCleaner", () => {
 
       // Run processBatch
       const cleaner = new BatchProjectCleaner(TEST_TABLE);
+      const extendLockSpy = vi.spyOn(
+        (cleaner as unknown as TestableBatchProjectCleaner).lock,
+        "extend",
+      );
       const nextDelayMs = await cleaner.processBatch();
 
       // Verify traces were deleted
       const countAfter = await getClickhouseCount(TEST_TABLE, projectId);
       expect(countAfter).toBe(0);
+      expect(extendLockSpy).toHaveBeenCalledOnce();
 
       // Verify returned check interval (work was done)
       expect(nextDelayMs).toBe(
@@ -198,13 +216,77 @@ describe("BatchProjectCleaner", () => {
 
       // Run processBatch - should skip because lock is held
       const cleaner = new BatchProjectCleaner(TEST_TABLE);
+      const getProjectCountsSpy = vi.spyOn(
+        cleaner as unknown as TestableBatchProjectCleaner,
+        "getProjectCounts",
+      );
       const nextDelayMs = await cleaner.processBatch();
+
+      expect(getProjectCountsSpy).not.toHaveBeenCalled();
 
       // Verify traces were NOT deleted (lock blocked processing)
       expect(await getClickhouseCount(TEST_TABLE, projectId)).toBe(1);
       expect(nextDelayMs).toBe(
-        env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS,
+        env.LANGFUSE_BATCH_PROJECT_CLEANER_CHECK_INTERVAL_MS,
       );
+    });
+
+    it("should back off when the global count lock is held", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { deletedAt: new Date() },
+      });
+      await redis?.set(
+        BATCH_PROJECT_CLEANER_COUNT_LOCK_KEY,
+        "locked",
+        "EX",
+        60,
+        "NX",
+      );
+
+      const cleaner = new BatchProjectCleaner(TEST_TABLE);
+      const getProjectCountsSpy = vi.spyOn(
+        cleaner as unknown as TestableBatchProjectCleaner,
+        "getProjectCounts",
+      );
+      const nextDelayMs = await cleaner.processBatch();
+
+      expect(getProjectCountsSpy).not.toHaveBeenCalled();
+      expect(nextDelayMs).toBeGreaterThanOrEqual(60_000);
+      expect(nextDelayMs).toBeLessThan(120_000);
+    });
+
+    it("should not fail the run when the count lock cannot be released", async () => {
+      const cleaner = new BatchProjectCleaner(TEST_TABLE);
+      const testableCleaner = cleaner as unknown as TestableBatchProjectCleaner;
+      const markRunFailedSpy = vi.spyOn(testableCleaner, "markRunFailed");
+
+      expect(await testableCleaner.countQueryLock.acquire()).toBe("acquired");
+      await redis?.del(BATCH_PROJECT_CLEANER_COUNT_LOCK_KEY);
+      expect(await testableCleaner.countQueryLock.release()).toBe(false);
+
+      expect(markRunFailedSpy).not.toHaveBeenCalled();
+    });
+
+    it("should bypass the count lock when rechecking a failed delete", async () => {
+      const cleaner = new BatchProjectCleaner(TEST_TABLE);
+      const testableCleaner = cleaner as unknown as TestableBatchProjectCleaner;
+      const extendSpy = vi
+        .spyOn(testableCleaner.lock, "extend")
+        .mockResolvedValue(true);
+      const acquireSpy = vi
+        .spyOn(testableCleaner.countQueryLock, "acquire")
+        .mockResolvedValue("held_by_other");
+      const countSpy = vi
+        .spyOn(testableCleaner, "getProjectCounts")
+        .mockResolvedValue(new Map());
+
+      await testableCleaner.getCountsAfterDeleteFailure(["project-id"]);
+
+      expect(extendSpy).toHaveBeenCalledOnce();
+      expect(acquireSpy).not.toHaveBeenCalled();
+      expect(countSpy).toHaveBeenCalledWith(["project-id"]);
     });
 
     it("should release lock after processing completes", async () => {

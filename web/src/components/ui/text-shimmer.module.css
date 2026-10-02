@@ -1,0 +1,32 @@
+.textShimmer {
+  animation: text-shimmer 2s linear infinite;
+  background-image: linear-gradient(
+    90deg,
+    hsl(var(--muted-foreground)) 35%,
+    hsl(var(--foreground)) 50%,
+    hsl(var(--muted-foreground)) 65%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  padding-block: 0.25em;
+  margin-block: -0.25em;
+}
+
+@keyframes text-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .textShimmer {
+    animation: none;
+    background-image: none;
+    color: inherit;
+  }
+}

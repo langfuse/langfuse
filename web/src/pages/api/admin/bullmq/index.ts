@@ -1,6 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import {
+  CodeEvalExecutionQueue,
   EvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
   SecondaryEvalExecutionQueue,
@@ -14,8 +15,7 @@ import {
   OtelIngestionQueue,
   SecondaryOtelIngestionQueue,
 } from "@langfuse/shared/src/server";
-import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
-
+import { AdminApiAuthService } from "@/src/ee/features/admin-api/server";
 /* 
 This API route is used by Langfuse Cloud to retry failed bullmq jobs.
 */
@@ -75,6 +75,7 @@ export default async function handler(
           ...EvalExecutionQueue.getShardNames(),
           ...SecondaryEvalExecutionQueue.getShardNames(),
           ...LLMAsJudgeExecutionQueue.getShardNames(),
+          ...CodeEvalExecutionQueue.getShardNames(),
           ...TraceUpsertQueue.getShardNames(),
           ...OtelIngestionQueue.getShardNames(),
           ...SecondaryOtelIngestionQueue.getShardNames(),
@@ -104,6 +105,10 @@ export default async function handler(
               queue = LLMAsJudgeExecutionQueue.getInstance({
                 shardName: queueName,
               });
+            } else if (queueName.startsWith(QueueName.CodeEvalExecution)) {
+              queue = CodeEvalExecutionQueue.getInstance({
+                shardName: queueName,
+              });
             } else if (queueName.startsWith(QueueName.TraceUpsert)) {
               queue = TraceUpsertQueue.getInstance({ shardName: queueName });
             } else if (
@@ -123,6 +128,7 @@ export default async function handler(
                   | QueueName.EvaluationExecution
                   | QueueName.EvaluationExecutionSecondaryQueue
                   | QueueName.LLMAsJudgeExecution
+                  | QueueName.CodeEvalExecution
                   | QueueName.TraceUpsert
                   | QueueName.OtelIngestionQueue
                   | QueueName.OtelIngestionSecondaryQueue
@@ -170,6 +176,10 @@ export default async function handler(
           queue = LLMAsJudgeExecutionQueue.getInstance({
             shardName: queueName,
           });
+        } else if (queueName.startsWith(QueueName.CodeEvalExecution)) {
+          queue = CodeEvalExecutionQueue.getInstance({
+            shardName: queueName,
+          });
         } else if (queueName.startsWith(QueueName.TraceUpsert)) {
           queue = TraceUpsertQueue.getInstance({ shardName: queueName });
         } else if (
@@ -189,6 +199,7 @@ export default async function handler(
               | QueueName.EvaluationExecution
               | QueueName.EvaluationExecutionSecondaryQueue
               | QueueName.LLMAsJudgeExecution
+              | QueueName.CodeEvalExecution
               | QueueName.TraceUpsert
               | QueueName.OtelIngestionQueue
               | QueueName.OtelIngestionSecondaryQueue
@@ -246,6 +257,10 @@ export default async function handler(
           queue = LLMAsJudgeExecutionQueue.getInstance({
             shardName: queueName,
           });
+        } else if (queueName.startsWith(QueueName.CodeEvalExecution)) {
+          queue = CodeEvalExecutionQueue.getInstance({
+            shardName: queueName,
+          });
         } else if (queueName.startsWith(QueueName.TraceUpsert)) {
           queue = TraceUpsertQueue.getInstance({ shardName: queueName });
         } else if (
@@ -265,6 +280,7 @@ export default async function handler(
               | QueueName.EvaluationExecution
               | QueueName.EvaluationExecutionSecondaryQueue
               | QueueName.LLMAsJudgeExecution
+              | QueueName.CodeEvalExecution
               | QueueName.TraceUpsert
               | QueueName.OtelIngestionQueue
               | QueueName.OtelIngestionSecondaryQueue

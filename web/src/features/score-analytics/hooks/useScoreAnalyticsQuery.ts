@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
 import { api } from "@/src/utils/api";
 import type { IntervalConfig } from "@/src/utils/date-range-utils";
@@ -19,17 +20,12 @@ import {
 
 export type DataType = "NUMERIC" | "CATEGORICAL" | "BOOLEAN";
 
-export type ObjectType =
-  | "all"
-  | "trace"
-  | "session"
-  | "observation"
-  | "dataset_run";
+type ObjectType = "all" | "trace" | "session" | "observation" | "dataset_run";
 
 /**
  * Parsed score identifier
  */
-export interface ParsedScore {
+interface ParsedScore {
   name: string;
   dataType: DataType;
   source: string;
@@ -58,7 +54,7 @@ export interface ScoreAnalyticsQueryParams {
 /**
  * Statistics for a single score
  */
-export interface ScoreStatistics {
+interface ScoreStatistics {
   total: number;
   mean: number | null;
   std: number | null;
@@ -69,7 +65,7 @@ export interface ScoreStatistics {
 /**
  * Comparison statistics between two scores
  */
-export interface ComparisonStatistics {
+interface ComparisonStatistics {
   matchedCount: number;
   pearsonCorrelation: number | null;
   spearmanCorrelation: number | null;
@@ -85,7 +81,7 @@ export interface ComparisonStatistics {
 /**
  * Distribution data structure
  */
-export interface Distribution {
+interface Distribution {
   score1: Array<{ binIndex: number; count: number }>;
   score2: Array<{ binIndex: number; count: number }> | null;
   categories?: string[]; // For categorical/boolean
@@ -118,7 +114,7 @@ export interface Distribution {
 /**
  * Time series data structure
  */
-export interface TimeSeries {
+interface TimeSeries {
   numeric: {
     all: Array<{ timestamp: Date; [key: string]: unknown }>;
     matched: Array<{ timestamp: Date; [key: string]: unknown }>;
@@ -136,7 +132,7 @@ export interface TimeSeries {
 /**
  * Sampling metadata for query transparency
  */
-export interface SamplingMetadata {
+interface SamplingMetadata {
   isSampled: boolean;
   samplingMethod: "none" | "hash" | "limit";
   samplingRate: number; // 0-1 (e.g., 0.1 = 10% sample)
@@ -159,7 +155,7 @@ export interface SamplingMetadata {
 /**
  * Complete transformed score analytics data
  */
-export interface ScoreAnalyticsData {
+interface ScoreAnalyticsData {
   statistics: {
     score1: ScoreStatistics;
     score2: ScoreStatistics | null;
@@ -496,20 +492,23 @@ export function useScoreAnalyticsQuery(
       : null;
 
     // For Score 2: If same score selected twice, reuse Score 1 data
-    const score2ModeMetrics =
-      !isNumeric && mode === "two"
-        ? isSameScore
-          ? calculateModeMetrics({
-              distribution: isBoolean ? distribution1 : apiData.distribution1, // Reuse Score 1 data
-              timeSeries: apiData.timeSeriesCategorical1, // Reuse Score 1 data
-              totalCount: apiData.counts.score2Total,
-            })
-          : calculateModeMetrics({
-              distribution: isBoolean ? distribution2 : apiData.distribution2,
-              timeSeries: apiData.timeSeriesCategorical2,
-              totalCount: apiData.counts.score2Total,
-            })
-        : null;
+    const score2ModeMetrics = (() => {
+      if (!isNumeric && mode === "two") {
+        if (isSameScore) {
+          return calculateModeMetrics({
+            distribution: isBoolean ? distribution1 : apiData.distribution1, // Reuse Score 1 data
+            timeSeries: apiData.timeSeriesCategorical1, // Reuse Score 1 data
+            totalCount: apiData.counts.score2Total,
+          });
+        }
+        return calculateModeMetrics({
+          distribution: isBoolean ? distribution2 : apiData.distribution2,
+          timeSeries: apiData.timeSeriesCategorical2,
+          totalCount: apiData.counts.score2Total,
+        });
+      }
+      return null;
+    })();
 
     // ========================================================================
     // 6. Fill time series gaps

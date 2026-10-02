@@ -3,6 +3,22 @@ export type PersistedSidebarFilterQueryState = {
   query: string;
 };
 
+/**
+ * The page-level entity an embedded table is scoped to. Such a table bounds its
+ * rows with a hidden filter (a user's traces, a session's events), so it
+ * persists its sidebar filters separately from the project-wide table: an
+ * inherited User ID would AND with the page's own and return nothing
+ * (LFE-14824).
+ */
+export type EmbeddedFilterScope = "user" | "session" | "prompt" | "model";
+
+export function buildSidebarFilterSessionContextId(
+  projectId: string,
+  embeddedScope?: EmbeddedFilterScope,
+): string {
+  return embeddedScope ? `${projectId}:${embeddedScope}` : projectId;
+}
+
 export function buildSidebarFilterQueryStorageKey(params: {
   tableName: string;
   contextId?: string | null;
@@ -19,7 +35,7 @@ export function createPersistedSidebarFilterQueryState(
   return { contextId, query };
 }
 
-export function parsePersistedSidebarFilterQueryState(
+function parsePersistedSidebarFilterQueryState(
   rawState: string | null,
 ): PersistedSidebarFilterQueryState | null {
   if (!rawState) return null;
@@ -29,12 +45,15 @@ export function parsePersistedSidebarFilterQueryState(
 
     if (!parsed || typeof parsed !== "object") return null;
 
-    const contextId =
-      "contextId" in parsed && typeof parsed.contextId === "string"
-        ? parsed.contextId
-        : "contextId" in parsed && parsed.contextId === null
-          ? null
-          : undefined;
+    const contextId = (() => {
+      if ("contextId" in parsed && typeof parsed.contextId === "string") {
+        return parsed.contextId;
+      }
+      if ("contextId" in parsed && parsed.contextId === null) {
+        return null;
+      }
+      return undefined;
+    })();
     const query =
       "query" in parsed && typeof parsed.query === "string"
         ? parsed.query

@@ -1,10 +1,12 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { useEffect, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { SLOW_QUERY_HINT_TEXT } from "@langfuse/shared";
 import { type QueryProgress } from "@/src/hooks/useSSEDashboardQuery";
 import { QueryProgressBar } from "@/src/features/widgets/chart-library/QueryProgressBar";
 import { Button } from "@/src/components/ui/button";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 const DEFAULT_HINT_DELAY_MS = 2000;
 const PROGRESS_REVEAL_DELAY_MS = 1000;
@@ -107,12 +109,15 @@ export function ChartLoadingState({
     );
   }
 
-  const statusTitle =
-    isPendingProgressState || shouldShowProgress
-      ? "Running query"
-      : showSpinner
-        ? "Loading widget"
-        : "Query needs attention";
+  const statusTitle = (() => {
+    if (isPendingProgressState || shouldShowProgress) {
+      return "Running query";
+    }
+    if (showSpinner) {
+      return "Loading widget";
+    }
+    return "Query needs attention";
+  })();
 
   return (
     <div
@@ -141,7 +146,7 @@ export function ChartLoadingState({
           {shouldRenderStatusTitle ? (
             <p
               className={cn(
-                "text-foreground font-medium",
+                "text-foreground font-bold",
                 shouldShowProgress ? "text-left" : "text-center",
                 isTight ? "text-xs" : "text-sm",
               )}

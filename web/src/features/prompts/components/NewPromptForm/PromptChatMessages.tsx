@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useEffect, useState, useCallback, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { PlusIcon } from "lucide-react";
@@ -78,13 +79,12 @@ export const PromptChatMessages: React.FC<PromptChatMessagesProps> = ({
             id,
             type: ChatMessageType.Placeholder,
           } as ChatMessageWithId;
-        } else {
-          return {
-            ...message,
-            id,
-            type: ChatMessageType.PublicAPICreated,
-          } as ChatMessageWithId;
         }
+        return {
+          ...message,
+          id,
+          type: ChatMessageType.PublicAPICreated,
+        } as ChatMessageWithId;
       }),
     );
 

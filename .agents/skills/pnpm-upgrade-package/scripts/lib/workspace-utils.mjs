@@ -60,12 +60,18 @@ function stripInlineComment(line) {
   return line;
 }
 
+function unquoteYamlScalar(value) {
+  return value.trim().replace(/^['"]|['"]$/g, "");
+}
+
 export function readWorkspaceConfig(path) {
   const raw = readFileSync(path, "utf8");
   const lines = raw.split(/\r?\n/);
   let minimumReleaseAge = 0;
   const minimumReleaseAgeExclude = [];
-  let inExcludeBlock = false;
+  const overrides = {};
+  const patchedDependencies = {};
+  let activeBlock = null;
 
   for (const line of lines) {
     const uncommented = stripInlineComment(line);
@@ -76,30 +82,58 @@ export function readWorkspaceConfig(path) {
     const ageMatch = trimmed.match(/^minimumReleaseAge:\s*(\d+)\s*$/);
     if (ageMatch) {
       minimumReleaseAge = Number(ageMatch[1]);
+      activeBlock = null;
       continue;
     }
 
     if (/^minimumReleaseAgeExclude:\s*$/.test(trimmed)) {
-      inExcludeBlock = true;
+      activeBlock = "minimumReleaseAgeExclude";
       continue;
     }
 
-    if (inExcludeBlock) {
+    if (/^overrides:\s*$/.test(trimmed)) {
+      activeBlock = "overrides";
+      continue;
+    }
+
+    if (/^patchedDependencies:\s*$/.test(trimmed)) {
+      activeBlock = "patchedDependencies";
+      continue;
+    }
+
+    if (/^\S/.test(uncommented)) {
+      activeBlock = null;
+      continue;
+    }
+
+    if (activeBlock === "minimumReleaseAgeExclude") {
       const excludeMatch = uncommented.match(/^\s*-\s+(.+?)\s*$/);
       if (excludeMatch) {
-        minimumReleaseAgeExclude.push(
-          excludeMatch[1].replace(/^['"]|['"]$/g, ""),
-        );
-        continue;
+        minimumReleaseAgeExclude.push(unquoteYamlScalar(excludeMatch[1]));
       }
+      continue;
+    }
 
-      if (/^\S/.test(uncommented)) {
-        inExcludeBlock = false;
+    if (activeBlock === "overrides" || activeBlock === "patchedDependencies") {
+      const entryMatch = uncommented.match(/^\s+(.+?):\s+(.+?)\s*$/);
+      if (!entryMatch) continue;
+
+      const selector = unquoteYamlScalar(entryMatch[1]);
+      const value = unquoteYamlScalar(entryMatch[2]);
+      if (activeBlock === "overrides") {
+        overrides[selector] = value;
+      } else {
+        patchedDependencies[selector] = value;
       }
     }
   }
 
-  return { minimumReleaseAge, minimumReleaseAgeExclude };
+  return {
+    minimumReleaseAge,
+    minimumReleaseAgeExclude,
+    overrides,
+    patchedDependencies,
+  };
 }
 
 export function collectPackageJsonPaths(repoRoot) {
@@ -193,14 +227,16 @@ export function findLocalPackageReferences(repoRoot, wantedPackage) {
 }
 
 export function getRootPnpmControls(repoRoot, packageName) {
-  const rootPackageJson = readJson(join(repoRoot, "package.json"));
+  const workspaceConfig = readWorkspaceConfig(
+    join(repoRoot, "pnpm-workspace.yaml"),
+  );
 
   return {
-    overrideMatches: Object.entries(rootPackageJson.pnpm?.overrides ?? {})
+    overrideMatches: Object.entries(workspaceConfig.overrides)
       .filter(([selector]) => matchesPackageSelector(selector, packageName))
       .map(([selector, value]) => ({ selector, value })),
     patchedDependencyMatches: Object.entries(
-      rootPackageJson.pnpm?.patchedDependencies ?? {},
+      workspaceConfig.patchedDependencies,
     )
       .filter(([selector]) => matchesPackageSelector(selector, packageName))
       .map(([selector, value]) => ({ selector, value })),

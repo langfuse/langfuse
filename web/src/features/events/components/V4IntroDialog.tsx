@@ -30,7 +30,7 @@ export function V4IntroDialog({
           />
           <ul className="flex flex-col gap-3">
             <li className="text-muted-foreground text-sm">
-              <span className="text-foreground block font-medium">
+              <span className="text-foreground block font-bold">
                 Welcome to a faster Langfuse
               </span>{" "}
               We&apos;ve rebuilt the data model around observations rather than
@@ -38,18 +38,16 @@ export function V4IntroDialog({
               faster.
             </li>
             <li className="text-muted-foreground text-sm">
-              <span className="text-foreground block font-medium">
+              <span className="text-foreground block font-bold">
                 New Observations table
               </span>{" "}
               Your traces are still here. The default view now shows all
               observations. To see a table with just your root traces, filter by{" "}
-              <span className="font-medium">
-                Is Root Observation &rarr; True
-              </span>
+              <span className="font-bold">Is Root Observation &rarr; True</span>
               .
             </li>
             <li className="text-muted-foreground text-sm">
-              <span className="text-foreground block font-medium">
+              <span className="text-foreground block font-bold">
                 New Saved Table Views
               </span>{" "}
               Save your table filters as an org-wide saved view so your whole
@@ -58,7 +56,7 @@ export function V4IntroDialog({
                 href="https://langfuse.com/faq/all/explore-observations-in-v4"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary font-medium hover:underline"
+                className="text-primary font-bold hover:underline"
               >
                 Best practices &rarr;
               </a>
@@ -66,14 +64,14 @@ export function V4IntroDialog({
           </ul>
           <div className="mt-3 rounded-md border border-yellow-300 bg-yellow-50 p-3 text-sm dark:border-yellow-700 dark:bg-yellow-950">
             <p className="text-yellow-900 dark:text-yellow-200">
-              <span className="font-medium">Want traces to appear live?</span>{" "}
+              <span className="font-bold">Want traces to appear live?</span>{" "}
               Upgrade your SDK to the latest version. Older SDKs still work but
               traces may take ~10 minutes to appear.{" "}
               <a
                 href="https://langfuse.com/docs/observability/sdk/upgrade-path"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-medium underline hover:no-underline"
+                className="font-bold underline hover:no-underline"
               >
                 Upgrade guide &rarr;
               </a>
@@ -85,7 +83,7 @@ export function V4IntroDialog({
             href="https://langfuse.com/docs/v4"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-primary text-sm font-medium hover:underline"
+            className="text-primary text-sm font-bold hover:underline"
           >
             Read the v4 docs &rarr;
           </a>

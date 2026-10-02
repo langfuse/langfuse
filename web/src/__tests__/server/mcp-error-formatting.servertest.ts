@@ -14,8 +14,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
-import { ZodError } from "zod";
-import { z } from "zod";
+import { ZodError, z } from "zod";
 import {
   formatErrorForUser,
   wrapErrorHandling,
@@ -27,7 +26,9 @@ import {
   LangfuseNotFoundError,
   InvalidRequestError,
   BaseError,
+  ApiError,
 } from "@langfuse/shared";
+import { ClickHouseResourceError } from "@langfuse/shared/src/server";
 
 describe("MCP Error Formatting", () => {
   describe("formatErrorForUser", () => {
@@ -165,6 +166,33 @@ describe("MCP Error Formatting", () => {
     });
 
     describe("Langfuse standard errors", () => {
+      it("should format ClickHouse timeouts with actionable guidance", () => {
+        const error = new ClickHouseResourceError(
+          "TIMEOUT",
+          new Error("ClickHouse internal timeout details"),
+        );
+        const mcpError = formatErrorForUser(error);
+
+        expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
+        expect(mcpError.message).toContain("ClickHouse query timed out");
+        expect(mcpError.message).toContain("Narrow the query");
+        expect(mcpError.message).not.toContain("internal timeout details");
+      });
+
+      it("should format other ClickHouse resource errors without internal details", () => {
+        const error = new ClickHouseResourceError(
+          "MEMORY_LIMIT",
+          new Error("Memory limit exceeded at 215 GiB"),
+        );
+        const mcpError = formatErrorForUser(error);
+
+        expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
+        expect(mcpError.message).toContain(
+          ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+        );
+        expect(mcpError.message).not.toContain("215 GiB");
+      });
+
       it("should format UnauthorizedError with auth message", () => {
         const error = new UnauthorizedError("Invalid API key");
         const mcpError = formatErrorForUser(error);
@@ -172,6 +200,17 @@ describe("MCP Error Formatting", () => {
         expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
         expect(mcpError.message).toContain("Authentication failed");
         expect(mcpError.message).toContain("API key");
+      });
+
+      it("should pass through ApiError 401 message for connection auth", () => {
+        const error = new ApiError(
+          "Invalid credentials. Confirm that you've configured the correct host.",
+          401,
+        );
+        const mcpError = formatErrorForUser(error);
+
+        expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
+        expect(mcpError.message).toContain("Invalid credentials");
       });
 
       it("should format ForbiddenError with permission message", () => {
@@ -203,18 +242,33 @@ describe("MCP Error Formatting", () => {
         );
       });
 
-      it("should format BaseError as InvalidRequest", () => {
+      it("should format client-side BaseError as InvalidRequest", () => {
         const error = new BaseError(
           "Generic base error",
-          500,
+          400,
           "Generic base error",
           true,
         );
         const mcpError = formatErrorForUser(error);
 
         expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
-        // BaseError is a base class - message handling may vary
-        expect(mcpError).toBeInstanceOf(McpError);
+        expect(mcpError.message).toContain("Generic base error");
+      });
+
+      it("should sanitize server-side BaseError as InternalError", () => {
+        const error = new BaseError(
+          "Database connection failed",
+          500,
+          "Database connection failed",
+          true,
+        );
+        const mcpError = formatErrorForUser(error);
+
+        expect(mcpError.code).toBe(ErrorCode.InternalError);
+        expect(mcpError.message).toContain(
+          "An internal server error occurred.",
+        );
+        expect(mcpError.message).not.toContain("Database");
       });
     });
 

@@ -7,8 +7,10 @@ import {
   createMockSchedulerDeps,
 } from "./fixtures";
 import {
+  type FilterState,
   type ObservationForEval,
   EvalTargetObject,
+  normalizeEvaluationRuleTarget,
   observationForEvalSchema,
 } from "@langfuse/shared";
 
@@ -820,11 +822,15 @@ describe("Filter Evaluation for Observation Evals", () => {
       observation: ObservationForEval,
       filter: unknown[] = [],
     ): Promise<boolean> {
+      // Callers hand the scheduler canonical configs, so an experiment target
+      // arrives as `event` plus its root-span filter.
       const config = createTestEvalConfig({
         projectId,
-        filter,
         sampling: { toNumber: () => 1 } as unknown as Prisma.Decimal,
-        targetObject: EvalTargetObject.EXPERIMENT,
+        ...normalizeEvaluationRuleTarget({
+          targetObject: EvalTargetObject.EXPERIMENT,
+          filter: filter as FilterState,
+        }),
       });
 
       const deps = createMockSchedulerDeps();
@@ -1047,6 +1053,33 @@ describe("Filter Evaluation for Observation Evals", () => {
       expect(matched).toBe(true);
     });
 
+    it("should treat an empty parentObservationId as null", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        parent_span_id: "",
+      });
+
+      const isNullMatch = await testFilterMatch(observation, [
+        {
+          column: "parentObservationId",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ]);
+      const isNotNullMatch = await testFilterMatch(observation, [
+        {
+          column: "parentObservationId",
+          type: "null",
+          operator: "is not null",
+          value: "",
+        },
+      ]);
+
+      expect(isNullMatch).toBe(true);
+      expect(isNotNullMatch).toBe(false);
+    });
+
     it("should not match observations where parentObservationId is not null (child observations)", async () => {
       const observation = createTestObservation({
         project_id: projectId,
@@ -1151,6 +1184,33 @@ describe("Filter Evaluation for Observation Evals", () => {
       expect(matched).toBe(false);
     });
   });
+
+  it.each([
+    ["physical root", null, false, true],
+    ["app root", "external-parent", true, true],
+    ["ordinary child", "parent", false, false],
+  ] as const)(
+    "matches semantic roots for a %s",
+    async (_name, parentObservationId, isAppRoot, expected) => {
+      expect(
+        await testFilterMatch(
+          createTestObservation({
+            project_id: projectId,
+            parent_span_id: parentObservationId,
+            is_app_root: isAppRoot,
+          }),
+          [
+            {
+              column: "isRootObservation",
+              type: "boolean",
+              operator: "=",
+              value: true,
+            },
+          ],
+        ),
+      ).toBe(expected);
+    },
+  );
 });
 
 describe("tool_calls computation", () => {

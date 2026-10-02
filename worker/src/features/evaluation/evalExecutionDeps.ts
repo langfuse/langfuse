@@ -1,27 +1,46 @@
 import { randomUUID } from "crypto";
+import { z } from "zod";
 import { JobExecutionStatus } from "@prisma/client";
+import type { EvalExecutionContext } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { decrypt } from "@langfuse/shared/encryption";
 import {
+  buildEventBucketPrefix,
+  compileLangfuseMediaMessages,
+  createLLMOutput,
+  createTypeSafeDecisionModelClient,
+  decryptAndParseExtraHeaders,
   DefaultEvalModelService,
-  fetchLLMCompletion,
+  generateLLMText,
   IngestionQueue,
   LLMAdapter,
+  mapLegacyLLMCompletionParams,
   QueueJobs,
   ScoreEventType,
+  UNKNOWN_INGESTION_SDK_VALUE,
+  type ChatMessage,
+  type DecisionModelEvaluation,
+  type DecisionModelRequest,
+  type InternalTraceWriter,
+  writeInternalTraceViaOtelIngestion,
 } from "@langfuse/shared/src/server";
-import { env } from "../../env";
-import { buildEvalMessages } from "./evalRuntime";
+import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { getEvalS3StorageClient } from "./s3StorageClient";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
+import { recordExportVolume } from "../../services/exportVolumeMetric";
 
-type StructuredOutputSchema = NonNullable<
-  Parameters<typeof fetchLLMCompletion>[0]["structuredOutputSchema"]
->;
+type StructuredOutputSchema = z.ZodObject<{
+  reasoning: z.ZodString;
+  score: z.ZodType;
+}>;
+
+const MODEL_FACING_OUTPUT_SCHEMA_DESCRIPTION =
+  'Return only top-level "score" and "scoreExplanation". Put other requested fields inside "scoreExplanation".';
 
 /**
  * Result of fetching model configuration.
  */
-export type ModelConfigResult =
+type ModelConfigResult =
   | {
       valid: true;
       config: {
@@ -43,8 +62,8 @@ export type ModelConfigResult =
 /**
  * Parameters for calling the LLM.
  */
-export interface LLMCallParams {
-  messages: ReturnType<typeof buildEvalMessages>;
+interface LLMCallParams {
+  messages: ChatMessage[];
   modelConfig: Extract<ModelConfigResult, { valid: true }>["config"];
   structuredOutputSchema: StructuredOutputSchema;
   traceSinkParams: {
@@ -53,13 +72,22 @@ export interface LLMCallParams {
     traceName: string;
     environment: string;
     metadata: Record<string, unknown>;
+    evaluationContext?: EvalExecutionContext;
   };
+}
+
+/**
+ * Parameters for asking a decision model one Choice question.
+ */
+interface DecisionModelCallParams {
+  modelConfig: Extract<ModelConfigResult, { valid: true }>["config"];
+  request: DecisionModelRequest;
 }
 
 /**
  * Update data for job execution status.
  */
-export interface UpdateJobExecutionData {
+interface UpdateJobExecutionData {
   status: JobExecutionStatus;
   endTime?: Date;
   jobOutputScoreId?: string;
@@ -69,7 +97,7 @@ export interface UpdateJobExecutionData {
 /**
  * Parameters for uploading a score to S3.
  */
-export interface UploadScoreParams {
+interface UploadScoreParams {
   projectId: string;
   scoreId: string;
   eventId: string;
@@ -79,7 +107,7 @@ export interface UploadScoreParams {
 /**
  * Parameters for enqueueing score ingestion.
  */
-export interface EnqueueScoreIngestionParams {
+interface EnqueueScoreIngestionParams {
   projectId: string;
   scoreId: string;
   eventId: string;
@@ -88,7 +116,7 @@ export interface EnqueueScoreIngestionParams {
 /**
  * Parameters for updating a job execution.
  */
-export interface UpdateJobExecutionParams {
+interface UpdateJobExecutionParams {
   id: string;
   projectId: string;
   data: UpdateJobExecutionData;
@@ -97,7 +125,7 @@ export interface UpdateJobExecutionParams {
 /**
  * Parameters for fetching model configuration.
  */
-export interface FetchModelConfigParams {
+interface FetchModelConfigParams {
   projectId: string;
   provider?: string;
   model?: string;
@@ -128,6 +156,27 @@ export interface EvalExecutionDeps {
   fetchModelConfig: (
     params: FetchModelConfigParams,
   ) => Promise<ModelConfigResult>;
+
+  // Decision-model operations (experimental)
+  callDecisionModel: (
+    params: DecisionModelCallParams,
+  ) => Promise<DecisionModelEvaluation>;
+  writeInternalTrace: InternalTraceWriter;
+}
+
+// Measure the schema as the JSON Schema LangChain ships, not Zod's _def.
+function serializeSchemaForEgress(schema: unknown): string {
+  try {
+    return JSON.stringify(z.toJSONSchema(schema as z.ZodType));
+  } catch {
+    return JSON.stringify(schema);
+  }
+}
+
+function serializeProviderMessagesForEgress(messages: unknown): string {
+  return JSON.stringify(messages, (_key, value) =>
+    value instanceof Uint8Array ? Buffer.from(value).toString("base64") : value,
+  );
 }
 
 /**
@@ -144,7 +193,12 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
     },
 
     uploadScore: async (params) => {
-      const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${params.projectId}/score/${params.scoreId}/${params.eventId}.json`;
+      const bucketPrefix = buildEventBucketPrefix({
+        projectId: params.projectId,
+        entityType: "score",
+        entityId: params.scoreId,
+      });
+      const bucketPath = `${bucketPrefix}${params.eventId}.json`;
 
       await getEvalS3StorageClient().uploadJson(bucketPath, [
         params.event as unknown as Record<string, unknown>,
@@ -158,6 +212,12 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         throw new Error("Ingestion queue not available");
       }
 
+      const bucketPrefix = buildEventBucketPrefix({
+        projectId: params.projectId,
+        entityType: "score",
+        entityId: params.scoreId,
+      });
+
       await queue.add(QueueJobs.IngestionJob, {
         id: randomUUID(),
         timestamp: new Date(),
@@ -167,6 +227,10 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
             type: "score-create",
             eventBodyId: params.scoreId,
             fileKey: params.eventId,
+            bucketPrefix,
+            ingestionApiKey: "",
+            ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,
+            ingestionSdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
           },
           authCheck: {
             validKey: true,
@@ -179,38 +243,85 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
     },
 
     callLLM: async (params) => {
-      // Type assertion needed because the deps interface uses a simplified apiKey type for testability
-      // while the actual fetchLLMCompletion requires a full LlmApiKey type
-      const llmConnection = params.modelConfig.apiKey as unknown as Parameters<
-        typeof fetchLLMCompletion
-      >[0]["llmConnection"];
+      // The dependency interface deliberately keeps the stored connection
+      // shape small for testability. The boundary mapper owns conversion from
+      // persisted Langfuse settings into the native AI SDK call contract.
+      const connection = params.modelConfig.apiKey as unknown as Parameters<
+        typeof mapLegacyLLMCompletionParams
+      >[0]["connection"];
 
       const adapter = params.modelConfig.apiKey
         .adapter as unknown as Parameters<
-        typeof fetchLLMCompletion
+        typeof mapLegacyLLMCompletionParams
       >[0]["modelParams"]["adapter"];
 
-      return fetchLLMCompletion({
-        streaming: false,
-        llmConnection,
+      const modelParams = {
+        provider: params.modelConfig.provider,
+        model: params.modelConfig.model,
+        adapter,
+        ...params.modelConfig.modelParams,
+      };
+      const llmParams = mapLegacyLLMCompletionParams({
+        connection,
         messages: params.messages,
-        modelParams: {
-          provider: params.modelConfig.provider,
-          model: params.modelConfig.model,
+        modelParams,
+      });
+      const { providerMessages, traceMessages } =
+        await compileLangfuseMediaMessages({
+          projectId: params.traceSinkParams.targetProjectId,
+          messages: params.messages,
           adapter,
-          ...params.modelConfig.modelParams,
-        },
-        structuredOutputSchema: params.structuredOutputSchema,
+        });
+
+      // Keep the evaluator contract unchanged while the model-facing schema
+      // resolves custom output instructions into the supported fields.
+      const modelFacingStructuredOutputSchema = z
+        .object({
+          scoreExplanation: params.structuredOutputSchema.shape.reasoning,
+          score: params.structuredOutputSchema.shape.score,
+        })
+        .describe(MODEL_FACING_OUTPUT_SCHEMA_DESCRIPTION);
+
+      // llmaj egress: provider-bound messages (including base64-expanded inline
+      // media) plus schema, uncompressed.
+      const bytes =
+        Buffer.byteLength(
+          serializeProviderMessagesForEgress(providerMessages),
+          "utf8",
+        ) +
+        Buffer.byteLength(
+          serializeSchemaForEgress(modelFacingStructuredOutputSchema),
+          "utf8",
+        );
+
+      const result = await generateLLMText({
+        ...llmParams,
+        messages: providerMessages,
+        traceInput: traceMessages,
+        output: createLLMOutput(modelFacingStructuredOutputSchema),
         maxRetries: 1,
-        traceSinkParams: {
+        trace: {
           targetProjectId: params.traceSinkParams.targetProjectId,
           traceId: params.traceSinkParams.traceId,
           traceName: params.traceSinkParams.traceName,
           environment: params.traceSinkParams.environment,
           metadata: params.traceSinkParams.metadata,
+          evaluationContext: params.traceSinkParams.evaluationContext,
           eventsWriter: createInternalEventsWriter(),
         },
       });
+
+      // Record only after a successful send, like the other integrations.
+      recordExportVolume({
+        integration: "llmaj",
+        bytes,
+        projectId: params.traceSinkParams.targetProjectId,
+      });
+
+      return {
+        score: result.output.score,
+        reasoning: result.output.scoreExplanation,
+      };
     },
 
     fetchModelConfig: async ({ projectId, provider, model, modelParams }) => {
@@ -224,6 +335,45 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
       // Cast to our simplified ModelConfigResult type for the interface
       return result as ModelConfigResult;
     },
+
+    callDecisionModel: async (params) => {
+      const { apiKey } = params.modelConfig;
+      if (apiKey.adapter !== LLMAdapter.TypeSafe) {
+        throw new Error(
+          `Decision-model adapter is not supported: ${apiKey.adapter}`,
+        );
+      }
+      const secretKey = apiKey.secretKey;
+      if (typeof secretKey !== "string") {
+        throw new UnrecoverableError(
+          "TypeSafe connection is missing its secret key",
+        );
+      }
+
+      let decryptedSecretKey: string;
+      let extraHeaders: Record<string, string> | undefined;
+      try {
+        decryptedSecretKey = decrypt(secretKey);
+        extraHeaders = decryptAndParseExtraHeaders(
+          typeof apiKey.extraHeaders === "string" ? apiKey.extraHeaders : null,
+        );
+      } catch {
+        throw new UnrecoverableError(
+          "TypeSafe connection secrets could not be decrypted",
+        );
+      }
+
+      const client = createTypeSafeDecisionModelClient({
+        apiKey: decryptedSecretKey,
+        model: params.modelConfig.model,
+        baseURL: typeof apiKey.baseURL === "string" ? apiKey.baseURL : null,
+        extraHeaders,
+      });
+
+      return client.evaluate(params.request);
+    },
+
+    writeInternalTrace: (trace) => writeInternalTraceViaOtelIngestion(trace),
   };
 }
 
@@ -244,6 +394,36 @@ export function createMockEvalExecutionDeps(
       valid: false,
       error: "Mock - no config",
     }),
+    callDecisionModel: async ({ request }) => ({
+      model: "mock-decision-model",
+      answers: Object.fromEntries(
+        Object.entries(request.questions).map(([id, question]) => {
+          switch (question.type) {
+            case "choice": {
+              const [choice = "mock"] = Object.keys(question.criteria);
+              return [
+                id,
+                {
+                  type: "choice",
+                  choice,
+                  probabilities: { [choice]: 1 },
+                  confidence: 1,
+                },
+              ];
+            }
+            case "score":
+              return [
+                id,
+                { type: "score", score: 0, probabilities: {}, confidence: 1 },
+              ];
+            case "boolean":
+              return [id, { type: "boolean", probability: 1 }];
+          }
+        }),
+      ),
+      usage: null,
+    }),
+    writeInternalTrace: async () => {},
   };
 
   return { ...defaultMock, ...overrides };

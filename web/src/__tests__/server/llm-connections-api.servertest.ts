@@ -239,7 +239,24 @@ describe("/api/public/llm-connections API Endpoints", () => {
     });
 
     it("should return 400 for invalid query parameters", async () => {
-      const [negativePageResponse, negativeLimitResponse] = await Promise.all([
+      const [
+        zeroPageResponse,
+        fractionalPageResponse,
+        negativePageResponse,
+        negativeLimitResponse,
+      ] = await Promise.all([
+        makeAPICall(
+          "GET",
+          "/api/public/llm-connections?page=0&limit=10",
+          undefined,
+          auth,
+        ),
+        makeAPICall(
+          "GET",
+          "/api/public/llm-connections?page=0.5&limit=10",
+          undefined,
+          auth,
+        ),
         makeAPICall(
           "GET",
           "/api/public/llm-connections?page=-1&limit=10",
@@ -254,6 +271,8 @@ describe("/api/public/llm-connections API Endpoints", () => {
         ),
       ]);
 
+      expect(zeroPageResponse.status).toBe(400);
+      expect(fractionalPageResponse.status).toBe(400);
       expect(negativePageResponse.status).toBe(400);
       expect(negativeLimitResponse.status).toBe(400);
     });
@@ -382,7 +401,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
     });
 
     it("should reject creating a connection with a localhost baseURL", async () => {
-      const response = await makeAPICall(
+      const response = await makeAPICall<{ message: string }>(
         "PUT",
         "/api/public/llm-connections",
         {
@@ -1095,13 +1114,36 @@ describe("/api/public/llm-connections API Endpoints", () => {
         expect(response.body.config).toBeNull();
       });
 
-      it("should reject OpenAI connection with config", async () => {
+      it("should create OpenAI connection with Responses API config", async () => {
+        const createData = {
+          provider: generateUniqueProvider("openai-responses-api"),
+          adapter: LLMAdapter.OpenAI,
+          secretKey: "sk-test123",
+          config: {
+            useResponsesApi: true,
+          },
+        };
+
+        const response = await makeZodVerifiedAPICall(
+          PutLlmConnectionV1Response,
+          "PUT",
+          "/api/public/llm-connections",
+          createData,
+          auth,
+          201,
+        );
+
+        expect(response.status).toBe(201);
+        expect(response.body.config).toEqual({ useResponsesApi: true });
+      });
+
+      it("should reject OpenAI connection with unsupported config", async () => {
         const createData = {
           provider: generateUniqueProvider("openai-with-config"),
           adapter: LLMAdapter.OpenAI,
           secretKey: "sk-test123",
           config: {
-            region: "us-east-1", // OpenAI doesn't support config
+            region: "us-east-1",
           },
         };
 
@@ -1114,7 +1156,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
 
         expect(response.status).toBe(400);
         expect(JSON.stringify(response.body)).toContain(
-          "Config is not supported for openai adapter",
+          "Invalid OpenAI config",
         );
       });
 

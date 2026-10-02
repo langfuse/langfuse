@@ -152,6 +152,7 @@ describe("Usage Threshold Cache Invalidation", () => {
       cloudCurrentCycleUsage: 150_000, // Below blocking threshold
       cloudFreeTierUsageThresholdState: null, // Not blocked yet
       aiFeaturesEnabled: false,
+      aiTelemetryEnabled: false,
       createdAt: new Date("2024-01-01T00:00:00Z"),
       updatedAt: new Date("2024-01-01T00:00:00Z"),
     };
@@ -256,6 +257,7 @@ describe("Usage Threshold Cache Invalidation", () => {
       cloudCurrentCycleUsage: 250_000,
       cloudFreeTierUsageThresholdState: "BLOCKED", // Previously blocked
       aiFeaturesEnabled: false,
+      aiTelemetryEnabled: false,
       createdAt: new Date("2024-01-01T00:00:00Z"),
       updatedAt: new Date("2024-01-01T00:00:00Z"),
     };
@@ -330,6 +332,7 @@ describe("Usage Threshold Cache Invalidation", () => {
       cloudCurrentCycleUsage: 30_000,
       cloudFreeTierUsageThresholdState: null,
       aiFeaturesEnabled: false,
+      aiTelemetryEnabled: false,
       createdAt: new Date("2024-01-01T00:00:00Z"),
       updatedAt: new Date("2024-01-01T00:00:00Z"),
     };
@@ -446,6 +449,7 @@ describe("Usage Threshold Cache Invalidation", () => {
       cloudCurrentCycleUsage: 150_000,
       cloudFreeTierUsageThresholdState: null,
       aiFeaturesEnabled: false,
+      aiTelemetryEnabled: false,
       createdAt: new Date("2024-01-01T00:00:00Z"),
       updatedAt: new Date("2024-01-01T00:00:00Z"),
     };

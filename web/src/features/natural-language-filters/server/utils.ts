@@ -1,23 +1,10 @@
-import { LLMAdapter } from "@langfuse/shared/src/server";
 import { Langfuse } from "langfuse";
-import { env } from "@/src/env.mjs";
-import { type FilterCondition, singleFilter } from "@langfuse/shared";
-import { z } from "zod";
+import { type FilterCondition, singleFilterList } from "@langfuse/shared";
+import { getProductBaseUrl } from "@/src/utils/base-url";
 
 let langfuseClient: Langfuse | null = null;
 
-export function getDefaultModelParams() {
-  return {
-    provider: "bedrock",
-    adapter: LLMAdapter.Bedrock,
-    model: env.LANGFUSE_AWS_BEDROCK_MODEL ?? "",
-    temperature: 0.1,
-    maxTokens: 1000,
-    topP: 0.9,
-  };
-}
-
-const FilterArraySchema = z.array(singleFilter);
+const FilterArraySchema = singleFilterList;
 
 export function parseFiltersFromCompletion(
   completion: string,
@@ -56,7 +43,10 @@ export function getLangfuseClient(
     langfuseClient = new Langfuse({
       publicKey,
       secretKey,
-      baseUrl,
+      // Without LANGFUSE_AI_FEATURES_HOST the SDK would default to
+      // cloud.langfuse.com; self-referential deployments (e.g. PR previews)
+      // must talk to themselves instead.
+      baseUrl: baseUrl ?? getProductBaseUrl().toString(),
       enabled: enabled ?? true,
     });
   }

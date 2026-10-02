@@ -28,6 +28,12 @@ export type PlaceholderMessageFillIn = {
   isUsed: boolean;
 };
 
+export type PlaygroundSourcePrompt = {
+  name: string;
+  version: number;
+  initialMessagesFingerprint: string;
+};
+
 export type PlaygroundCache = {
   messages: (ChatMessage | PlaceholderMessage)[];
   modelParams?: Partial<UIModelParams> &
@@ -37,6 +43,7 @@ export type PlaygroundCache = {
   messagePlaceholders?: PlaceholderMessageFillIn[];
   tools?: PlaygroundTool[];
   structuredOutputSchema?: PlaygroundSchema | null;
+  sourcePrompt?: PlaygroundSourcePrompt | null;
 } | null;
 
 // Multi-window types and interfaces

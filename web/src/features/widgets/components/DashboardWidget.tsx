@@ -1,47 +1,67 @@
+/* eslint-disable no-nested-ternary */
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
 import {
-  type views,
-  type metricAggregations,
-  type QueryType,
-  mapLegacyUiTableFilterToView,
+  buildWidgetOrderBy,
   getResultUnit,
-} from "@/src/features/query";
+  isV2BreakdownChart,
+  resolveWidgetRenderVersion,
+  toQueryChartConfig,
+  validateQuery,
+  type QueryType,
+  type metricAggregations,
+  type views,
+} from "@langfuse/shared/query";
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
   PencilIcon,
   TrashIcon,
-  CopyIcon,
   GripVerticalIcon,
+  MoreVerticalIcon,
+  CopyIcon,
+  CopyPlusIcon,
+  FileJsonIcon,
+  DownloadIcon,
+  TableIcon,
 } from "lucide-react";
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
+import {
+  buildTableFilterHref,
+  buildViewAsTableHint,
+} from "@/src/features/dashboard";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
+import {
+  buildWidgetExport,
+  downloadWidgetJson,
+  type WidgetExportSource,
+} from "@/src/features/widgets/utils/import-export-utils";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { useCaptureWidgetHighCardinalityError } from "@/src/features/widgets/hooks/useWidgetQueryErrorCapture";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
   formatMetricName,
+  mergeWidgetAndDashboardFilters,
   shouldUseWidgetSSE,
   sanitizePivotTableDefaultSort,
   getWidgetMetricPresentation,
+  getWidgetMissingBucketValue,
 } from "@/src/features/widgets/utils";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {
   getChartLoadingProgress,
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { type ViewVersion } from "@/src/features/query";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
-import {
-  validateQuery,
-  toQueryChartConfig,
-  isV2BreakdownChart,
-  buildWidgetOrderBy,
-} from "@/src/features/query/validateQuery";
-import { requiresV2 } from "@/src/features/query/dataModel";
+import type { ResolvedReadPath } from "@/src/features/events";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { Badge } from "@/src/components/ui/badge";
 
 export interface WidgetPlacement {
   id: string;
@@ -56,25 +76,50 @@ export interface WidgetPlacement {
 export function DashboardWidget({
   projectId,
   dashboardId,
+  chartSync,
+  readPath,
   placement,
   dateRange,
   filterState,
   onDeleteWidget,
   dashboardOwner,
   schedulerId,
+  onLockedEditAttempt,
+  readOnly,
+  onDuplicateWidget,
 }: {
   projectId: string;
   dashboardId: string;
+  chartSync: ChartProps["sync"];
+  /** Resolved by the page controller — the widget must not guess the version. */
+  readPath: ResolvedReadPath;
   placement: WidgetPlacement;
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
   onDeleteWidget: (tileId: string) => void;
   dashboardOwner: "LANGFUSE" | "PROJECT";
   schedulerId?: string;
+  /**
+   * Present on Langfuse-managed (read-only) dashboards: edit affordances stay
+   * visible and any edit attempt routes here (clone-first flow) instead of
+   * mutating.
+   */
+  onLockedEditAttempt?: () => void;
+  /** Pure viewing surface (e.g. Home): render no edit affordances. */
+  readOnly?: boolean;
+  /**
+   * Clones this widget (new widget row seeded from `widget`) next to this
+   * tile. Passed only on editable (non-locked) dashboards.
+   */
+  onDuplicateWidget?: (
+    anchor: WidgetPlacement,
+    widget: WidgetExportSource,
+  ) => void;
 }) {
   const router = useRouter();
   const utils = api.useUtils();
-  const { isBetaEnabled } = useV4Beta();
+  const capture = usePostHogClientCapture();
+  const isV4 = readPath === "v4";
   const widget = api.dashboardWidgets.get.useQuery(
     {
       widgetId: placement.widgetId,
@@ -84,24 +129,29 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
-  const widgetRequiresV2 = requiresV2({
-    view: widget.data?.view ?? "traces",
-    dimensions: widget.data?.dimensions ?? [],
-    measures:
-      widget.data?.metrics.map((metric) => ({ measure: metric.measure })) ?? [],
-    filters: widget.data?.filters ?? [],
+  const metricsVersion = resolveWidgetRenderVersion({
+    shape: {
+      view: widget.data?.view ?? "traces",
+      dimensions: widget.data?.dimensions ?? [],
+      measures:
+        widget.data?.metrics.map((metric) => ({ measure: metric.measure })) ??
+        [],
+      filters: widget.data?.filters ?? [],
+    },
+    persistedMinVersion: widget.data?.minVersion,
+    newestReadableVersion: isV4 ? "v2" : "v1",
   });
-  // If widget requires v2 features (minVersion >= 2), must use v2.
-  // Otherwise follow the beta toggle.
-  const metricsVersion: ViewVersion =
-    widgetRequiresV2 || (widget.data?.minVersion ?? 1) >= 2
-      ? "v2"
-      : isBetaEnabled && (widget.data?.view ?? "traces") !== "traces"
-        ? "v2"
-        : "v1";
-  const hasCUDAccess =
-    useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
-    dashboardOwner !== "LANGFUSE";
+  const hasRbacCUDAccess = useHasProjectAccess({
+    projectId,
+    scope: "dashboards:CUD",
+  });
+  const hasCUDAccess = hasRbacCUDAccess && dashboardOwner !== "LANGFUSE";
+  // Langfuse-managed dashboard, but the user could edit a clone: show the
+  // same edit affordances and route attempts through the clone-first flow.
+  const isLockedEditable =
+    hasRbacCUDAccess &&
+    dashboardOwner === "LANGFUSE" &&
+    Boolean(onLockedEditAttempt);
 
   // Initialize sort state for pivot tables
   const defaultSort =
@@ -116,6 +166,7 @@ export function DashboardWidget({
     return defaultSort || null;
   });
   const [retryCount, setRetryCount] = useState(0);
+  const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
 
   // Apply defaultSort when it becomes available (after widget data loads)
   // but only if user hasn't interacted yet
@@ -165,24 +216,26 @@ export function DashboardWidget({
         })
       : { type: chartType };
 
+    const view = (widget.data?.view as z.infer<typeof views>) ?? "traces";
+
+    // A widget's own environment filter overrides the dashboard's global
+    // environment selector; other dashboard-global filters still merge in.
+    // (LFE-14333 — see mergeWidgetAndDashboardFilters.)
+    const mergedFilters = mergeWidgetAndDashboardFilters({
+      view,
+      widgetFilters: widget.data?.filters ?? [],
+      dashboardFilters: filterState,
+    });
+
     return {
-      view: (widget.data?.view as z.infer<typeof views>) ?? "traces",
+      view,
       dimensions: widget.data?.dimensions ?? [],
       metrics:
         widget.data?.metrics.map((metric) => ({
           measure: metric.measure,
           aggregation: metric.agg as z.infer<typeof metricAggregations>,
         })) ?? [],
-      filters: [
-        ...mapLegacyUiTableFilterToView(
-          (widget.data?.view as z.infer<typeof views>) ?? "traces",
-          widget.data?.filters ?? [],
-        ),
-        ...mapLegacyUiTableFilterToView(
-          (widget.data?.view as z.infer<typeof views>) ?? "traces",
-          filterState,
-        ),
-      ],
+      filters: mergedFilters,
       timeDimension: isTimeSeries ? { granularity: "auto" as const } : null,
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
@@ -198,6 +251,12 @@ export function DashboardWidget({
         : ({ valid: true } as const),
     [widgetQuery, metricsVersion, widget.data],
   );
+  useCaptureWidgetHighCardinalityError({
+    validation: queryValidation,
+    surface: "dashboard_tile",
+    chartType: widget.data?.chartType,
+    isV4: metricsVersion === "v2",
+  });
   const queryResult = useScheduledDashboardExecuteQuery(
     {
       projectId,
@@ -212,11 +271,11 @@ export function DashboardWidget({
       },
       queryId: `${schedulerId ?? `dashboard-widget:${placement.id}`}:execute`,
       meta: {
-        silentHttpCodes: [422],
+        silentHttpCodes: [412, 422],
       },
       refreshKey: retryCount,
       useSSE: shouldUseWidgetSSE({
-        isV4Enabled: isBetaEnabled,
+        isV4Enabled: isV4,
         version: metricsVersion,
       }),
       enabled:
@@ -230,15 +289,18 @@ export function DashboardWidget({
     errorMessage: queryResult.error,
   });
   const usesBackendProgress = shouldUseWidgetSSE({
-    isV4Enabled: isBetaEnabled,
+    isV4Enabled: isV4,
     version: metricsVersion,
   });
-  const loadingStateLayout =
-    placement.y_size <= 2
-      ? "tight"
-      : placement.x_size <= 4
-        ? "compact"
-        : "default";
+  const loadingStateLayout = (() => {
+    if (placement.y_size <= 2) {
+      return "tight";
+    }
+    if (placement.x_size <= 4) {
+      return "compact";
+    }
+    return "default";
+  })();
   const loadingProgress = getChartLoadingProgress({
     isPending: queryResult.isPending,
     progress: queryResult.progress,
@@ -276,17 +338,45 @@ export function DashboardWidget({
       };
       const metricField = `${metric.agg}_${metric.measure}`;
       const metricValue = item[metricField];
+      const isTimeSeries = isTimeSeriesChart(widget.data.chartType);
 
       const dimensionField =
         widget.data.dimensions.slice().shift()?.field ?? "none";
+      const dimensionValue = item[dimensionField];
+
+      // A gap-filled empty bucket arrives as a row with no dimension and the
+      // metric column's type default: NULL for nullable aggregations
+      // (avg/percentiles), 0 for non-nullable ones (count/uniq/sum). Keep it
+      // as a pure bucket marker (holds the spot on the time axis) instead of
+      // inventing an "n/a" series. The 0 form is only treated as filler for
+      // additive metrics, where the marker is lossless (prepareDenseSeries
+      // re-derives the honest 0 for any series that exists); a real
+      // dimension-less avg/percentile 0 stays a visible data point. (LFE-10694)
+      const isFillerMetricValue =
+        metricValue == null ||
+        (getWidgetMissingBucketValue(metric.agg) === "zero" &&
+          Number(metricValue) === 0);
+      if (
+        isTimeSeries &&
+        (dimensionValue === null || dimensionValue === "") &&
+        isFillerMetricValue
+      ) {
+        return {
+          dimension: undefined,
+          metric: null,
+          time_dimension: item["time_dimension"],
+        };
+      }
+
       return {
         dimension:
-          item[dimensionField] !== undefined
+          dimensionValue !== undefined
             ? (() => {
-                const val = item[dimensionField];
-                if (typeof val === "string") return val;
+                const val = dimensionValue;
+                // Empty first: "" is a string, so the order matters. (LFE-10694)
                 if (val === null || val === undefined || val === "")
                   return "n/a";
+                if (typeof val === "string") return val;
                 if (Array.isArray(val)) return val.join(", ");
                 // Objects / numbers / booleans are stringified to avoid React key issues
                 return String(val);
@@ -294,7 +384,11 @@ export function DashboardWidget({
             : formatMetricName(metricField),
         metric: Array.isArray(metricValue)
           ? metricValue
-          : Number(metricValue || 0),
+          : // On a time series a missing value stays null — the chart renders
+            // it by the metric's missing-bucket semantics instead of a fake 0.
+            isTimeSeries && metricValue == null
+            ? null
+            : Number(metricValue || 0),
         time_dimension: item["time_dimension"],
       };
     });
@@ -321,6 +415,94 @@ export function DashboardWidget({
     });
   }, [metricsVersion, widget.data]);
 
+  // Memoize the Chart's config/chartConfig objects so the scheduler's page
+  // re-renders don't hand Chart fresh literals every tick (transformedData is
+  // already memoized) — letting Chart's React.memo bail. (LFE-10549)
+  const chartConfigForRender = useMemo(() => {
+    const data = widget.data;
+    if (!data) return undefined;
+    return {
+      ...data.chartConfig,
+      // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
+      ...(data.chartType === "PIVOT_TABLE" && {
+        dimensions: data.dimensions.map((dim) => dim.field),
+        metrics: data.metrics.map(
+          (metric) => `${metric.agg}_${metric.measure}`,
+        ),
+        units: data.metrics.map((metric) =>
+          getResultUnit(data.view, metric.measure, metric.agg, metricsVersion),
+        ),
+        defaultSort,
+      }),
+      ...(data.chartType !== "PIVOT_TABLE" && {
+        unit: getResultUnit(
+          data.view,
+          data.metrics[0]?.measure ?? "",
+          data.metrics[0]?.agg,
+          metricsVersion,
+        ),
+      }),
+    };
+  }, [widget.data, metricsVersion, defaultSort]);
+
+  const chartMetricConfig = useMemo(
+    () =>
+      chartPresentation
+        ? { metric: { label: chartPresentation.label } }
+        : undefined,
+    [chartPresentation],
+  );
+
+  // "View as table" navigation: the widget's own filters (config + dashboard
+  // global) translated to the traces/observations table's applicable filters,
+  // plus the widget's time range. Filters the table can't express are dropped
+  // (surfaced as a hint), never errored. The widget-filter merge mirrors the
+  // query build above via mergeWidgetAndDashboardFilters, so the environment
+  // override applies here too: a widget with its own environment filter must
+  // deep-link to a table scoped to ITS environment, not one carrying both the
+  // widget's and the dashboard selector's contradictory environment filters
+  // (which the table treats as applicable → empty table). (LFE-14333)
+  // buildTableFilterHref maps to view space again internally; that re-map is
+  // idempotent for the already-canonical columns this helper returns
+  // (isCanonicalViewFilterColumn short-circuits them), so no filter is
+  // double-mapped or dropped.
+  const tableView = useMemo(() => {
+    const view = widget.data?.view;
+    if (!view) return undefined;
+    const mergedFilters = mergeWidgetAndDashboardFilters({
+      view: view as z.infer<typeof views>,
+      widgetFilters: widget.data?.filters ?? [],
+      dashboardFilters: filterState,
+    });
+    return buildTableFilterHref(
+      projectId,
+      view as z.infer<typeof views>,
+      mergedFilters,
+      dateRange,
+      readPath,
+    );
+  }, [projectId, widget.data, filterState, dateRange, readPath]);
+
+  const handleViewAsTable = () => {
+    if (!tableView) return;
+    capture("dashboard:widget_view_as_table", {
+      widget_id: placement.widgetId,
+      dashboard_id: dashboardId,
+      view: widget.data?.view,
+      filters_not_applicable: tableView.notApplicable.size,
+      filters_dropped_for_length: tableView.droppedForLength,
+    });
+    router.push(tableView.href);
+  };
+
+  // Hint combines both reasons a widget filter can be missing from the table:
+  // dimensions the table can't express AND applicable filters dropped to keep
+  // the ?filter= URL within budget. A length-drop must never be silent.
+  const viewAsTableHint = useMemo(
+    () => (tableView ? buildViewAsTableHint(tableView) : null),
+    [tableView],
+  );
+
   const handleEdit = () => {
     router.push(
       `/project/${projectId}/widgets/${placement.widgetId}?dashboardId=${dashboardId}`,
@@ -329,6 +511,11 @@ export function DashboardWidget({
 
   const copyMutation = api.dashboardWidgets.copyToProject.useMutation({
     onSuccess: (data) => {
+      capture("dashboard:widget_copied_to_project", {
+        source_widget_id: placement.widgetId,
+        new_widget_id: data.widgetId,
+        dashboard_id: dashboardId,
+      });
       utils.dashboard.getDashboard.invalidate().then(() => {
         router.push(
           `/project/${projectId}/widgets/${data.widgetId}?dashboardId=${dashboardId}`,
@@ -349,6 +536,11 @@ export function DashboardWidget({
   };
 
   const handleDelete = () => {
+    if (isLockedEditable) {
+      // The clone-first dialog is the confirmation on locked dashboards.
+      onDeleteWidget(placement.id);
+      return;
+    }
     if (onDeleteWidget && confirm("Please confirm deletion")) {
       onDeleteWidget(placement.id);
     }
@@ -356,9 +548,7 @@ export function DashboardWidget({
 
   if (widget.isPending) {
     return (
-      <div
-        className={`bg-background flex items-center justify-center rounded-lg border p-4`}
-      >
+      <div className="bg-background flex items-center justify-center rounded-lg border p-4">
         <div className="text-muted-foreground">Loading...</div>
       </div>
     );
@@ -366,33 +556,103 @@ export function DashboardWidget({
 
   if (!widget.data) {
     return (
-      <div
-        className={`bg-background flex items-center justify-center rounded-lg border p-4`}
-      >
+      <div className="bg-background flex items-center justify-center rounded-lg border p-4">
         <div className="text-muted-foreground">Widget not found</div>
       </div>
     );
   }
 
+  // Portable configuration of this widget, used by the copy / download /
+  // duplicate menu actions.
+  const widgetExportSource: WidgetExportSource = {
+    name: widget.data.name,
+    description: widget.data.description,
+    view: widget.data.view,
+    dimensions: widget.data.dimensions,
+    metrics: widget.data.metrics.map((metric) => ({
+      measure: metric.measure,
+      agg: metric.agg as z.infer<typeof metricAggregations>,
+    })),
+    filters: widget.data.filters,
+    chartType: widget.data.chartType,
+    chartConfig: widget.data.chartConfig,
+    minVersion: widget.data.minVersion,
+  };
+
+  const handleCopyToClipboard = async () => {
+    try {
+      await copyTextToClipboard(
+        JSON.stringify(buildWidgetExport(widgetExportSource), null, 2),
+      );
+      capture("dashboard:widget_copied_to_clipboard", {
+        surface: "grid_menu",
+        kind: "widget",
+        widget_id: placement.widgetId,
+        dashboard_id: dashboardId,
+      });
+      showSuccessToast({
+        title: "Widget copied",
+        description: "Paste it on any dashboard with Cmd/Ctrl+V.",
+      });
+    } catch {
+      showErrorToast("Copy failed", "Could not write to the clipboard.");
+    }
+  };
+
+  const handleDownloadJson = () => {
+    downloadWidgetJson(widgetExportSource);
+    capture("dashboard:widget_json_downloaded", {
+      surface: "grid_menu",
+      widget_id: placement.widgetId,
+      dashboard_id: dashboardId,
+    });
+  };
+
   return (
-    <div
-      className={`bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4`}
-    >
+    <div className="bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4">
+      {isCopyDialogOpen && (
+        <CopyWidgetDialog
+          open={isCopyDialogOpen}
+          onOpenChange={setIsCopyDialogOpen}
+          widgetName={widget.data.name}
+          onConfirm={handleCopy}
+          isPending={copyMutation.isPending}
+        />
+      )}
       <div className="flex items-center justify-between">
-        <span className="truncate font-medium" title={widget.data.name}>
-          {widget.data.name}{" "}
-          {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE"
-            ? " ( 🪢 )"
-            : null}
+        <span
+          className="flex min-w-0 items-center gap-1.5 truncate text-base font-bold"
+          title={widget.data.name}
+        >
+          <span className="truncate" title={widget.data.name}>
+            {widget.data.name}
+          </span>
+          {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE" && (
+            <Badge
+              variant="secondary"
+              className="shrink-0"
+              title="Maintained by Langfuse — editing creates your own copy"
+            >
+              Langfuse
+            </Badge>
+          )}
         </span>
         <div className="flex space-x-2">
-          {hasCUDAccess && (
+          {!readOnly && (hasCUDAccess || isLockedEditable) && (
             <>
               <GripVerticalIcon
                 size={16}
                 className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
               />
-              {widget.data.owner === "PROJECT" ? (
+              {isLockedEditable ? (
+                <button
+                  onClick={onLockedEditAttempt}
+                  className="text-muted-foreground hover:text-foreground hidden group-hover:block"
+                  aria-label="Edit widget"
+                >
+                  <PencilIcon size={16} />
+                </button>
+              ) : widget.data.owner === "PROJECT" ? (
                 <button
                   onClick={handleEdit}
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
@@ -402,30 +662,108 @@ export function DashboardWidget({
                 </button>
               ) : widget.data.owner === "LANGFUSE" ? (
                 <button
-                  onClick={handleCopy}
+                  onClick={() => {
+                    capture("dashboard:widget_copy_first_open", {
+                      widget_id: placement.widgetId,
+                      dashboard_id: dashboardId,
+                    });
+                    setIsCopyDialogOpen(true);
+                  }}
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
-                  aria-label="Copy widget"
+                  aria-label="Edit widget"
                 >
-                  <CopyIcon size={16} />
+                  <PencilIcon size={16} />
                 </button>
               ) : null}
-              <button
-                onClick={handleDelete}
-                className="text-muted-foreground hover:text-destructive hidden group-hover:block"
-                aria-label="Delete widget"
-              >
-                <TrashIcon size={16} />
-              </button>
             </>
           )}
-          {/* Download button is available once chart data has loaded */}
-          {!queryResult.isPending ? (
-            <DownloadButton
-              data={transformedData}
-              fileName={widget.data.name}
-              className="hidden group-hover:block"
-            />
-          ) : null}
+          <DropdownMenu
+            placement="bottom-end"
+            items={[
+              ...(tableView
+                ? [
+                    {
+                      type: "item" as const,
+                      id: "view-as-table",
+                      title: viewAsTableHint
+                        ? `View as table (${viewAsTableHint.count} filter${viewAsTableHint.count === 1 ? "" : "s"} not shown in the table)`
+                        : "View as table",
+                      tooltip: viewAsTableHint?.title,
+                      icon: TableIcon,
+                      onClick: handleViewAsTable,
+                    },
+                    {
+                      id: "table-separator",
+                      type: "separator" as const,
+                    },
+                  ]
+                : []),
+              {
+                type: "item",
+                id: "copy",
+                title: "Copy widget",
+                icon: CopyIcon,
+                onClick: handleCopyToClipboard,
+              },
+              ...(onDuplicateWidget
+                ? [
+                    {
+                      type: "item" as const,
+                      id: "clone",
+                      title: "Clone",
+                      icon: CopyPlusIcon,
+                      onClick: () =>
+                        onDuplicateWidget(placement, widgetExportSource),
+                    },
+                  ]
+                : []),
+              { id: "download-separator", type: "separator" },
+              {
+                type: "item",
+                id: "download-json",
+                title: "Download as JSON",
+                icon: FileJsonIcon,
+                onClick: handleDownloadJson,
+              },
+              {
+                type: "item",
+                id: "download-csv",
+                title: "Download data as CSV",
+                icon: DownloadIcon,
+                disabled: queryResult.isPending
+                  ? { reason: "Chart data is still loading" }
+                  : undefined,
+                onClick: () =>
+                  downloadChartDataCsv(transformedData, widget.data.name),
+              },
+              ...(!readOnly && (hasCUDAccess || isLockedEditable)
+                ? [
+                    {
+                      id: "delete-separator",
+                      type: "separator" as const,
+                    },
+                    {
+                      type: "item" as const,
+                      id: "delete",
+                      title: "Delete",
+                      icon: TrashIcon,
+                      variant: "destructive" as const,
+                      onClick: handleDelete,
+                    },
+                  ]
+                : []),
+            ]}
+          >
+            {({ getTriggerProps }) => (
+              <button
+                className="text-muted-foreground hover:text-foreground hidden group-hover:block aria-expanded:block"
+                aria-label="Widget actions"
+                {...getTriggerProps()}
+              >
+                <MoreVerticalIcon size={16} />
+              </button>
+            )}
+          </DropdownMenu>
         </div>
       </div>
       <div
@@ -448,61 +786,38 @@ export function DashboardWidget({
           </div>
         ) : (
           <div className="relative min-h-0 flex-1">
-            <Chart
-              chartType={widget.data.chartType}
-              data={transformedData}
-              config={
-                chartPresentation
-                  ? {
-                      metric: {
-                        label: chartPresentation.label,
-                      },
-                    }
-                  : undefined
-              }
-              rowLimit={
-                widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
-                widget.data.chartConfig.type === "BAR_TIME_SERIES" ||
-                widget.data.chartConfig.type === "AREA_TIME_SERIES"
-                  ? 100
-                  : (widget.data.chartConfig.row_limit ?? 100)
-              }
-              chartConfig={{
-                ...widget.data.chartConfig,
-                // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
-                ...(widget.data.chartType === "PIVOT_TABLE" && {
-                  dimensions: widget.data.dimensions.map((dim) => dim.field),
-                  metrics: widget.data.metrics.map(
-                    (metric) => `${metric.agg}_${metric.measure}`,
-                  ),
-                  units: widget.data.metrics.map((metric) =>
-                    getResultUnit(
-                      widget.data.view,
-                      metric.measure,
-                      metric.agg,
-                      metricsVersion,
-                    ),
-                  ),
-                  defaultSort,
-                }),
-                ...(widget.data.chartType !== "PIVOT_TABLE" && {
-                  unit: getResultUnit(
-                    widget.data.view,
-                    widget.data.metrics[0]?.measure ?? "",
-                    widget.data.metrics[0]?.agg,
-                    metricsVersion,
-                  ),
-                }),
-              }}
-              sortState={
-                widget.data.chartType === "PIVOT_TABLE" ? sortState : undefined
-              }
-              onSortChange={
-                widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
-              }
-              isLoading={queryResult.isPending}
-              metricFormatter={chartPresentation?.metricFormatter}
-            />
+            <div className="absolute inset-0">
+              <Chart
+                chartType={widget.data.chartType}
+                data={transformedData}
+                syncId={dashboardId}
+                sync={chartSync}
+                config={chartMetricConfig}
+                rowLimit={
+                  widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
+                  widget.data.chartConfig.type === "BAR_TIME_SERIES" ||
+                  widget.data.chartConfig.type === "AREA_TIME_SERIES"
+                    ? 100
+                    : (widget.data.chartConfig.row_limit ?? 100)
+                }
+                chartConfig={chartConfigForRender}
+                sortState={
+                  widget.data.chartType === "PIVOT_TABLE"
+                    ? sortState
+                    : undefined
+                }
+                onSortChange={
+                  widget.data.chartType === "PIVOT_TABLE"
+                    ? updateSort
+                    : undefined
+                }
+                isLoading={queryResult.isPending}
+                metricFormatter={chartPresentation?.metricFormatter}
+                missingValue={getWidgetMissingBucketValue(
+                  widget.data.metrics[0]?.agg ?? "count",
+                )}
+              />
+            </div>
             <ChartLoadingState
               isLoading={chartLoadingState.isLoading}
               showSpinner={chartLoadingState.showSpinner}

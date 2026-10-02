@@ -1,10 +1,7 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
+import { scheduleRecurringJob } from "./scheduleRecurringJob";
 import { logger } from "../logger";
 
 export class DataRetentionQueue {
@@ -15,15 +12,12 @@ export class DataRetentionQueue {
       return DataRetentionQueue.instance;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    DataRetentionQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.DataRetentionQueue,
+    );
+    DataRetentionQueue.instance = queueOptionsWithRedis
       ? new Queue(QueueName.DataRetentionQueue, {
-          connection: newRedis,
-          prefix: getQueuePrefix(QueueName.DataRetentionQueue),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,
@@ -42,17 +36,10 @@ export class DataRetentionQueue {
 
     if (DataRetentionQueue.instance) {
       logger.debug("Scheduling jobs for DataRetentionQueue");
-      DataRetentionQueue.instance
-        .add(
-          QueueJobs.DataRetentionJob,
-          {},
-          {
-            repeat: { pattern: "15 3 * * *" }, // every day at 3:15am
-          },
-        )
-        .catch((err) => {
-          logger.error("Error adding DataRetentionQueue schedule", err);
-        });
+      scheduleRecurringJob(DataRetentionQueue.instance, {
+        jobName: QueueJobs.DataRetentionJob,
+        pattern: "15 3 * * *", // every day at 3:15am
+      });
     }
 
     return DataRetentionQueue.instance;

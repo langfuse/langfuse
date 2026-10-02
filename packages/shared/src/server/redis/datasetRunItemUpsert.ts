@@ -1,10 +1,6 @@
 import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
 export class DatasetRunItemUpsertQueue {
@@ -18,17 +14,14 @@ export class DatasetRunItemUpsertQueue {
     if (DatasetRunItemUpsertQueue.instance)
       return DatasetRunItemUpsertQueue.instance;
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    DatasetRunItemUpsertQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.DatasetRunItemUpsert,
+    );
+    DatasetRunItemUpsertQueue.instance = queueOptionsWithRedis
       ? new Queue<TQueueJobTypes[QueueName.DatasetRunItemUpsert]>(
           QueueName.DatasetRunItemUpsert,
           {
-            connection: newRedis,
-            prefix: getQueuePrefix(QueueName.DatasetRunItemUpsert),
+            ...queueOptionsWithRedis,
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 10_000,

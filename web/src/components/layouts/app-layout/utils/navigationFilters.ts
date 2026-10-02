@@ -3,25 +3,27 @@
  * Each filter is a pure function that can be tested in isolation
  */
 
-import type { Route } from "@/src/components/layouts/routes";
+import { RouteGroup, type Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
-import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import type { User } from "next-auth";
+import { hasProjectAccess, hasOrganizationAccess } from "@/src/features/rbac";
+import type { Session } from "next-auth";
 
 /** Organization type from user session (can be null when not in project/org context) */
-type Organization = User["organizations"][number] | null | undefined;
+type Organization =
+  | NonNullable<Session["user"]>["organizations"][number]
+  | null
+  | undefined;
 
 /**
  * Individual filter functions - each handles one concern
  * Exported for testing and composition
  */
-export const filters = {
+const filters = {
   /**
    * Filter routes that require a project ID when none is available
    */
   projectScope: (route: Route, ctx: NavigationFilterContext): Route | null => {
-    if (!ctx.routerProjectId && route.pathname.includes("[projectId]")) {
+    if (!ctx.routerProjectId && route.href.includes("[projectId]")) {
       return null;
     }
     return route;
@@ -34,10 +36,7 @@ export const filters = {
     route: Route,
     ctx: NavigationFilterContext,
   ): Route | null => {
-    if (
-      !ctx.routerOrganizationId &&
-      route.pathname.includes("[organizationId]")
-    ) {
+    if (!ctx.routerOrganizationId && route.href.includes("[organizationId]")) {
       return null;
     }
     return route;
@@ -72,16 +71,16 @@ export const filters = {
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
 
+    if (route.featureFlag === "internalFeatures") {
+      return ctx.internalFeaturesEnabled ? route : null;
+    }
+
     if (route.featureFlag === "experimentsV4Enabled") {
-      return ctx.isLangfuseCloud && ctx.session?.user?.v4BetaEnabled === true
-        ? route
-        : null;
+      return ctx.session?.user?.v4BetaEnabled === true ? route : null;
     }
 
     if (route.featureFlag === "v4BetaToggleVisible") {
-      const isDev = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV";
-      const canToggleV4 = isDev || ctx.session?.user?.canToggleV4 === true;
-      return canToggleV4 && ctx.isLangfuseCloud ? route : null;
+      return ctx.session?.user?.canToggleV4 === true ? route : null;
     }
 
     const hasFlag =
@@ -162,12 +161,21 @@ export const filters = {
    */
   customShow: (
     route: Route,
-    _ctx: NavigationFilterContext,
+    ctx: NavigationFilterContext,
     organization: Organization,
   ): Route | null => {
     if (!route.show) return route;
     // Convert null to undefined for route.show compatibility
-    return route.show({ organization: organization ?? undefined })
+    return route.show({
+      organization: organization ?? undefined,
+      projectId: ctx.routerProjectId,
+      isLangfuseCloud: ctx.isLangfuseCloud,
+      hasActiveCloudIncident: ctx.hasActiveCloudIncident,
+      canToggleV4: ctx.session?.user?.canToggleV4 === true,
+      forceV3Experience: ctx.forceV3Experience,
+      v4WriteMode: ctx.session?.environment?.v4WriteMode,
+      v4UpgradeUiAvailable: ctx.session?.user?.v4UpgradeUiAvailable === true,
+    })
       ? route
       : null;
   },
@@ -234,5 +242,10 @@ export function applyNavigationFilters(
 ): Route[] {
   return routes
     .map((route) => applyFiltersToRoute(route, ctx, organization))
-    .filter((route): route is Route => route !== null);
+    .filter((route): route is Route => route !== null)
+    .map((route) =>
+      ctx.internalFeaturesEnabled && route.group === RouteGroup.PromptManagement
+        ? { ...route, group: RouteGroup.ContextManagement }
+        : route,
+    );
 }

@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
-import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
-import { type QueryType } from "@/src/features/query/types";
-import { executeQuery } from "@/src/features/query/server/queryExecutor";
+import { QueryBuilder, executeQuery } from "@langfuse/shared/query/server";
+import { type QueryType } from "@langfuse/shared/query";
 import { InvalidRequestError } from "@langfuse/shared";
 
 /**
@@ -48,8 +47,9 @@ describe("QueryBuilder SQL Injection Tests", () => {
       // Comment: The view property is restricted to specific enum values,
       // but a determined attacker might try to bypass zod validation or
       // supply a maliciously crafted view name
+      // Intentionally invalid payload: bypasses the QueryType view enum.
       const maliciousQuery = {
-        view: "traces; DROP TABLE users" as any,
+        view: "traces; DROP TABLE users",
         dimensions: [],
         metrics: [{ measure: "count", aggregation: "count" }],
         filters: [],
@@ -57,7 +57,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-      };
+      } as unknown as QueryType;
 
       // Should throw an error rather than allow the injection
       await expect(

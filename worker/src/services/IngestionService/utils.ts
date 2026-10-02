@@ -1,4 +1,6 @@
+/* eslint-disable no-nested-ternary */
 import { JsonNested, Prisma } from "@langfuse/shared";
+import { AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME } from "@langfuse/shared/src/server";
 import { mergeWith, merge } from "lodash";
 
 // Theoretically this returns Record<string, unknown>, but it would be hard to align the typing accordingly.
@@ -9,7 +11,11 @@ export const convertJsonSchemaToRecord = (
   const record: Record<string, string> = {};
 
   // if it's a literal, return the value with "metadata" prefix
-  if (typeof jsonSchema === "string" || typeof jsonSchema === "number") {
+  if (
+    typeof jsonSchema === "string" ||
+    typeof jsonSchema === "number" ||
+    typeof jsonSchema === "boolean"
+  ) {
     record["metadata"] = jsonSchema.toString();
     return record;
   }
@@ -45,12 +51,27 @@ export const convertPostgresJsonToMetadataRecord = (
 export const convertRecordValuesToString = (
   record: Record<string, unknown>,
 ): Record<string, string> => {
-  const result: Record<string, string> = {};
-  for (const key in record) {
-    const value = record[key];
-    result[key] = typeof value === "string" ? value : JSON.stringify(value);
-  }
-  return result;
+  // Built via Object.fromEntries rather than `result[key] = ...` so a key
+  // named `__proto__` becomes an ordinary own property instead of invoking
+  // Object.prototype's `__proto__` setter, which would silently drop it.
+  return Object.fromEntries(
+    Object.entries(record).map(([key, value]) => [
+      key,
+      typeof value === "string" ? value : JSON.stringify(value),
+    ]),
+  );
+};
+
+// OTel-ingested observation events carry the instrumentation scope as
+// `metadata.scope` ({ name, version, attributes }).
+export const hasAiGatewayScope = (metadata: unknown): boolean => {
+  if (!metadata || typeof metadata !== "object") return false;
+  const scope = (metadata as { scope?: unknown }).scope;
+  return (
+    typeof scope === "object" &&
+    scope !== null &&
+    (scope as { name?: unknown }).name === AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME
+  );
 };
 
 export function overwriteObject(
@@ -75,9 +96,9 @@ export function overwriteObject(
         Object.keys(srcValue).length === 0) // empty object check for cost / usage details
     ) {
       return objValue;
-    } else {
-      return srcValue;
     }
+
+    return srcValue;
   });
 
   result.metadata =

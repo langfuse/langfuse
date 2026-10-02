@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 // This file exports the prisma db connection, the Prisma Object, and the Typescript types.
 // This is not imported in the index.ts file of this package, as we must not import this into FE code.
 
@@ -29,6 +30,17 @@ const createPrismaInstance = () => {
       { emit: "event", level: "error" },
       { emit: "event", level: "warn" },
     ],
+    // Secret-bearing columns are excluded from every query result by default.
+    // Delivery paths that need them must opt back in with an explicit `select`.
+    omit: {
+      dataset: {
+        remoteExperimentSecretKey: true,
+        remoteExperimentRequestHeaders: true,
+      },
+      gatewayAiConnection: {
+        encryptedCredential: true,
+      },
+    },
   });
 
   if (env.NODE_ENV === "development") {

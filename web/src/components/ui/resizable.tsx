@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as ResizablePrimitive from "react-resizable-panels";
@@ -59,5 +60,3 @@ export {
   usePanelRef,
   useDefaultLayout,
 };
-type ImperativePanelHandle = ResizablePrimitive.PanelImperativeHandle;
-export type { ImperativePanelHandle };

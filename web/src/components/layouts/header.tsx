@@ -1,11 +1,19 @@
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 import Link from "next/link";
 import DocPopup from "@/src/components/layouts/doc-popup";
-import { type Status, StatusBadge } from "./status-badge";
+import { Badge } from "@/src/components/ui/badge";
+import {
+  type Status,
+  StatusBadge,
+} from "@/src/components/ui/StatusBadge/StatusBadge";
 import { cn } from "@/src/utils/tailwind";
 
 type HeaderProps = {
   title: string;
+  titleClassName?: string;
   status?: Status;
+  /** Plain informational badge next to the title, e.g. "Demo Org". Not a status. */
+  labelBadge?: string;
   label?: {
     text: string;
     href: string;
@@ -30,17 +38,29 @@ export function SubHeaderLabel({ ...props }: HeaderProps) {
 function HeaderTitle({
   level,
   title,
+  className,
 }: {
   level: "h3" | "h4" | "h5";
   title: string;
+  className?: string;
 }) {
+  // Top-level titles are bold (the font-relative role) and sit on the
+  // primary emphasis tier (the shell's sidebar tint would dim them);
+  // sub-levels follow the text-* token weight — hierarchy below h3 is
+  // carried by size.
   switch (level) {
     case "h3":
-      return <h3 className="text-xl leading-7 font-bold">{title}</h3>;
+      return (
+        <h3
+          className={cn("text-primary text-lg leading-7 font-bold", className)}
+        >
+          {title}
+        </h3>
+      );
     case "h4":
-      return <h4 className="text-lg leading-6 font-medium">{title}</h4>;
+      return <h4 className={cn("text-lg", className)}>{title}</h4>;
     case "h5":
-      return <h5 className="text-base leading-6 font-medium">{title}</h5>;
+      return <h5 className={cn("text-base", className)}>{title}</h5>;
   }
 }
 
@@ -50,7 +70,11 @@ function BaseHeader({ ...props }: HeaderProps & { level: "h3" | "h4" | "h5" }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3 md:gap-5">
           <div className="flex min-w-0 flex-row items-center">
-            <HeaderTitle title={props.title} level={props.level} />
+            <HeaderTitle
+              title={props.title}
+              level={props.level}
+              className={props.titleClassName}
+            />
             {props.help ? (
               <DocPopup
                 description={props.help.description}
@@ -60,6 +84,9 @@ function BaseHeader({ ...props }: HeaderProps & { level: "h3" | "h4" | "h5" }) {
             ) : null}
           </div>
           {props.status && <StatusBadge type={props.status} />}
+          {props.labelBadge && (
+            <Badge variant="secondary">{props.labelBadge}</Badge>
+          )}
           {props.label && (
             <Link href={props.label.href}>
               <StatusBadge type={props.label.text} />
