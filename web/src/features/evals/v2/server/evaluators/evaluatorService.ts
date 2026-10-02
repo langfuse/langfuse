@@ -483,6 +483,7 @@ export class EvaluatorService {
       evaluatorId,
     });
     if (!evaluator) throw new LangfuseNotFoundError("Evaluator not found");
+    assertEditableEvaluator(evaluator);
     if (!evaluator.blockedAt)
       return normalizeEvaluatorPromptMessages(evaluator);
 
@@ -631,7 +632,11 @@ export class EvaluatorService {
     if (definition) {
       if (evaluatorId) {
         const evaluator = await this.prisma.evaluator.findFirst({
-          where: { id: evaluatorId, projectId: params.projectId },
+          where: {
+            id: evaluatorId,
+            projectId: params.projectId,
+            type: { not: EvalTemplateType.FACET },
+          },
           select: { id: true },
         });
         // The setup editor pre-generates a UUID so a test run can be attributed
@@ -729,8 +734,21 @@ async function deleteEvaluator(params: {
   projectId: string;
   evaluatorId: string;
 }) {
+  const evaluator = await repository.findEvaluator({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    evaluatorId: params.evaluatorId,
+  });
+  if (!evaluator) throw new LangfuseNotFoundError("Evaluator not found");
+  assertEditableEvaluator(evaluator);
   const deleted = await repository.deleteEvaluator(params);
   if (!deleted) throw new LangfuseNotFoundError("Evaluator not found");
+}
+
+function assertEditableEvaluator(evaluator: { isBuiltIn: boolean }) {
+  if (evaluator.isBuiltIn) {
+    throw new InvalidRequestError("Built-in evaluators cannot be edited");
+  }
 }
 
 async function patchEvaluator(params: {
@@ -748,6 +766,7 @@ async function patchEvaluator(params: {
     evaluatorId: input.evaluatorId,
   });
   if (!current) throw new LangfuseNotFoundError("Evaluator not found");
+  assertEditableEvaluator(current);
   if (input.definition && current.type !== input.definition.type) {
     throw new LangfuseConflictError("Evaluator type cannot be changed");
   }
@@ -811,6 +830,7 @@ async function updateEvaluator(params: {
     evaluatorId: input.evaluatorId,
   });
   if (!current) throw new LangfuseNotFoundError("Evaluator not found");
+  assertEditableEvaluator(current);
   if (current.type !== input.definition.type) {
     throw new LangfuseConflictError("Evaluator type cannot be changed");
   }

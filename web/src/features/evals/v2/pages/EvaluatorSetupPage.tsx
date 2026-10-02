@@ -77,7 +77,7 @@ type InitialEvaluator = {
   id: string;
   name: string;
   description: string | null;
-  type: EvalTemplateType;
+  type: Exclude<EvalTemplateType, "FACET">;
   definition: NormalizedEvaluatorDefinition;
   blockedAt: Date | null;
   blockReason: EvaluatorBlockReason | null;
@@ -103,6 +103,9 @@ export function applyEvaluatorSuggestion(
 export function getEvaluatorVersionDefinition(
   version: EvaluatorVersion,
 ): NormalizedEvaluatorDefinition {
+  if (version.type === "FACET") {
+    throw new Error("Facets cannot be edited as evaluators");
+  }
   if (version.type === "CODE") {
     return {
       type: version.type,
@@ -167,7 +170,7 @@ export function EvaluatorSetupPage(
         mode: "create";
         projectId: string;
         initialDraft: EvaluatorSetupDraft | null;
-        initialType: EvalTemplateType;
+        initialType: Exclude<EvalTemplateType, "FACET">;
         creationSource: EvaluatorCreationSource;
       }
     | {
