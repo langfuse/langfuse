@@ -42,6 +42,12 @@ export const DisabledTrigger = meta.story({
 
 export const TestHoverAndFocus = meta.story({
   name: "(Test) Hover and focus",
+  args: {
+    // The hover bridge stays open until a later move leaves its polygon.
+    // Storybook's unhover jumps the pointer away in one event, so that
+    // follow-up never arrives and the tooltip stays mounted.
+    hoverableContent: false,
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
