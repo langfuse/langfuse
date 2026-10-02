@@ -186,7 +186,7 @@ const PeekViewEvaluatorConfigDetail = ({
                 type="button"
                 aria-label="Evaluator author"
               >
-                {evalConfig.evalTemplate.projectId === null ? (
+                {evalConfig.evalTemplate?.projectId === null ? (
                   <LangfuseIcon size={16} />
                 ) : (
                   <UserCircle2Icon className="icon-base" />
