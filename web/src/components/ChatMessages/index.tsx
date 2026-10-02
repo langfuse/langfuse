@@ -1,15 +1,9 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable @repo/component-file-structure */
 import { ChevronDownIcon, PlusCircleIcon } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
 
 import { Button } from "@/src/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -350,28 +344,25 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              className="flex-1"
-              onClick={addPlaceholderMessage}
-            >
-              <PlusCircleIcon className="icon-base text-icon-foreground mr-2" />
-              <p>Placeholder</p>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p className="text-xs">
-              Adds a placeholder to inject message pairs, e.g. a message history
-              (with &quot;role&quot;, &quot;content&quot; pairs) when compiling
-              the message in the SDK.
-            </p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Tooltip
+        label={
+          'Adds a placeholder to inject message pairs, e.g. a message history (with "role", "content" pairs) when compiling the message in the SDK.'
+        }
+        delay={300}
+      >
+        {({ getTriggerProps }) => (
+          <Button
+            {...getTriggerProps()}
+            type="button"
+            variant="outline"
+            className="flex-1"
+            onClick={addPlaceholderMessage}
+          >
+            <PlusCircleIcon className="icon-base text-icon-foreground mr-2" />
+            <p>Placeholder</p>
+          </Button>
+        )}
+      </Tooltip>
     </div>
   );
 };
