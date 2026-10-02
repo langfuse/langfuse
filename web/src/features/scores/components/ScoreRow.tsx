@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import * as React from "react";
 import {
   type ScoreSourceType,
@@ -6,11 +5,7 @@ import {
 } from "@langfuse/shared";
 import { MessageCircleMore } from "lucide-react";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { api } from "@/src/utils/api";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -160,22 +155,8 @@ export const ScoreRow = ({
                 <ScoreDetailRow
                   label="Metadata"
                   value={
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="line-clamp-1 cursor-help">
-                          {(() => {
-                            try {
-                              return metadata &&
-                                Object.keys(metadata).length > 0
-                                ? JSON.stringify(metadata)
-                                : "Loading...";
-                            } catch {
-                              return "Invalid JSON";
-                            }
-                          })()}
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent className="w-[400px] text-xs wrap-break-word">
+                    <CustomTooltip size="wide" delay={300} content={
+                      <div className="w-[400px] max-w-full text-xs wrap-break-word">
                         {metadata && Object.keys(metadata).length > 0 ? (
                           <JSONView
                             codeClassName="border-none p-0 overflow-y-auto max-h-[40vh]"
@@ -184,8 +165,20 @@ export const ScoreRow = ({
                         ) : (
                           <Skeleton className="h-12 w-full" />
                         )}
-                      </TooltipContent>
-                    </Tooltip>
+                      </div>
+                    }>
+                      {({ getTriggerProps }) => (
+                        <span {...getTriggerProps()} className="line-clamp-1 cursor-help">
+                          {(() => {
+                            try {
+                              return metadata && Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : "Loading...";
+                            } catch {
+                              return "Invalid JSON";
+                            }
+                          })()}
+                        </span>
+                      )}
+                    </CustomTooltip>
                   }
                 />
               )}
