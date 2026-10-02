@@ -8,6 +8,10 @@ import {
   formatRedisErrorMessage,
   getLastNodeError,
 } from "./redisErrorContext";
+import {
+  bindManagedCredentialToRedis,
+  getRedisManagedCredentialProviderFromEnv,
+} from "../auth/credentials/redisCredentials";
 
 const logRedisError = (
   prefix: string,
@@ -303,6 +307,18 @@ export const createNewRedisInstance = (
     return null;
   }
 
+  // Managed credentials are wired only into the single-node path below. The env
+  // schema rejects this combination, but DOCKER_BUILD=1 bypasses it entirely.
+  if (
+    env.REDIS_AUTH_METHOD !== "static" &&
+    (env.REDIS_CLUSTER_ENABLED === "true" ||
+      env.REDIS_SENTINEL_ENABLED === "true")
+  ) {
+    logger.warn(
+      `REDIS_AUTH_METHOD=${env.REDIS_AUTH_METHOD} is only supported for single-node Redis; cluster and sentinel modes use static credentials.`,
+    );
+  }
+
   if (env.REDIS_CLUSTER_ENABLED === "true") {
     return trackRedisInstance(createRedisClusterInstance(additionalOptions));
   }
@@ -313,27 +329,45 @@ export const createNewRedisInstance = (
 
   const tlsOptions = buildTlsOptions();
 
+  // null unless an opt-in short-lived credential method is configured.
+  const managedCredentialProvider = getRedisManagedCredentialProviderFromEnv();
+  const lazyConnectOptions = managedCredentialProvider
+    ? { lazyConnect: true }
+    : {};
+
   const instance = (() => {
     if (env.REDIS_CONNECTION_STRING) {
       return new Redis(env.REDIS_CONNECTION_STRING, {
         ...defaultRedisOptions,
         ...additionalOptions,
         ...tlsOptions,
+        ...lazyConnectOptions,
       });
     }
     if (env.REDIS_HOST) {
       return new Redis({
         host: String(env.REDIS_HOST),
         port: Number(env.REDIS_PORT),
-        username: env.REDIS_USERNAME || undefined,
-        password: env.REDIS_AUTH || undefined,
+        username: managedCredentialProvider
+          ? managedCredentialProvider.username
+          : env.REDIS_USERNAME || undefined,
+        password: managedCredentialProvider
+          ? undefined
+          : env.REDIS_AUTH || undefined,
         ...defaultRedisOptions,
         ...additionalOptions,
         ...tlsOptions,
+        ...lazyConnectOptions,
       });
     }
     return null;
   })();
+
+  if (instance && managedCredentialProvider) {
+    // Tracks the connection so it holds the current token and is re-AUTHed ahead
+    // of expiry. Connecting stays lazy until a caller triggers it.
+    bindManagedCredentialToRedis(instance, managedCredentialProvider);
+  }
 
   instance?.on("error", (error) => {
     logRedisError("Redis error", error);
