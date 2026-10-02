@@ -5,7 +5,14 @@ import {
   type TraceReviewPanelStore,
 } from "../state/traceReviewPanelStore";
 
-import { type AnnotationPanelData } from "@/src/features/scores/types";
+const ReviewPanelOpenContext = createContext<
+  | ((panel: "annotation" | "comments", target?: CommentTarget) => void)
+  | undefined
+>(undefined);
+
+export function useReviewPanelOpen() {
+  return useContext(ReviewPanelOpenContext);
+}
 
 const TraceReviewPanelContext = createContext<TraceReviewPanelStore | null>(
   null,
@@ -14,29 +21,26 @@ const TraceReviewPanelContext = createContext<TraceReviewPanelStore | null>(
 export function TraceReviewPanelProvider({
   projectId,
   initialComments,
-  initialAnnotation,
-  followTraceSelection = false,
+  onOpen,
   children,
 }: {
   projectId: string;
   initialComments?: CommentTarget;
-  initialAnnotation?: AnnotationPanelData;
-  /** Trace workspaces derive the active mode and target from URL selection. */
-  followTraceSelection?: boolean;
+  onOpen?: (panel: "annotation" | "comments", target?: CommentTarget) => void;
   children: ReactNode;
 }) {
   const [store] = useState(() =>
     createTraceReviewPanelStore({
       projectId,
       initialComments,
-      initialAnnotation,
-      followTraceSelection,
     }),
   );
 
   return (
     <TraceReviewPanelContext.Provider value={store}>
-      {children}
+      <ReviewPanelOpenContext.Provider value={onOpen}>
+        {children}
+      </ReviewPanelOpenContext.Provider>
     </TraceReviewPanelContext.Provider>
   );
 }

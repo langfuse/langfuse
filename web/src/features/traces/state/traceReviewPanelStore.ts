@@ -40,13 +40,9 @@ type TraceReviewPanelState = {
 export function createTraceReviewPanelStore({
   projectId,
   initialComments,
-  initialAnnotation,
-  followTraceSelection = false,
 }: {
   projectId: string;
   initialComments?: CommentTarget;
-  initialAnnotation?: AnnotationPanelData;
-  followTraceSelection?: boolean;
 }) {
   let commentsKey = 0;
   const annotationFormRef: { current: AnnotationRefreshHandle | null } = {
@@ -149,9 +145,7 @@ export function createTraceReviewPanelStore({
       },
     },
   }));
-  if (initialAnnotation)
-    store.getState().actions.openAnnotation(initialAnnotation);
-  return Object.assign(store, { annotationFormRef, followTraceSelection });
+  return Object.assign(store, { annotationFormRef });
 }
 
 export type TraceReviewPanelStore = ReturnType<

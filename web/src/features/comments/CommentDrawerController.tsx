@@ -3,7 +3,10 @@ import { useRef, useState, type ReactNode } from "react";
 import { type CommentObjectType } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
-import { useTraceReviewPanelOptional } from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import {
+  useTraceReviewPanelOptional,
+  useReviewPanelOpen,
+} from "@/src/features/traces/contexts/TraceReviewPanelContext";
 import {
   createCommentOverlayStore,
   type CommentTarget,
@@ -55,6 +58,7 @@ export function CommentDrawerController({
   onCommentChange,
 }: CommentDrawerControllerProps) {
   const router = useRouter();
+  const onOpen = useReviewPanelOpen();
   const reviewPanel = useTraceReviewPanelOptional();
   const [store] = useState(createCommentOverlayStore);
   const triggerRef = useRef<HTMLElement | null>(null);
@@ -91,25 +95,11 @@ export function CommentDrawerController({
             });
             const current = reviewPanel.getState();
             if (
-              reviewPanel.followTraceSelection &&
               current.active === "comments" &&
               current.comments?.target.objectId === target.objectId &&
               current.comments.target.objectType === target.objectType
             ) {
-              const { annotation, ...query } = router.query;
-              router.replace(
-                {
-                  pathname: router.pathname,
-                  query: {
-                    ...query,
-                    comments: "open",
-                    commentObjectId: target.objectId,
-                    commentObjectType: target.objectType,
-                  },
-                },
-                undefined,
-                { shallow: true },
-              );
+              onOpen?.("comments", target);
             }
             return;
           }

@@ -1,4 +1,3 @@
-import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { DrawerContent, DrawerController } from "@/src/components/ui/drawer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -11,7 +10,10 @@ import { getAnnotationTargetType } from "@/src/features/scores/lib/annotationAna
 import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { AnnotationPanelContent } from "./AnnotationPanelContent";
-import { useTraceReviewPanelOptional } from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import {
+  useTraceReviewPanelOptional,
+  useReviewPanelOpen,
+} from "@/src/features/traces/contexts/TraceReviewPanelContext";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 
 export type AnnotateDrawerControllerProps<Target extends ScoreTarget> = {
@@ -39,7 +41,7 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
   children,
   projectId,
 }: AnnotateDrawerControllerProps<Target>) {
-  const router = useRouter();
+  const onOpen = useReviewPanelOpen();
   const capture = usePostHogClientCapture();
   const reviewPanel = useTraceReviewPanelOptional();
   const isMobile = useIsMobile();
@@ -92,22 +94,7 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
                 .getState()
                 .actions.rememberTrigger(triggerRef.current);
               reviewPanel.getState().actions.openAnnotation(payload);
-              if (reviewPanel.followTraceSelection) {
-                const {
-                  comments,
-                  commentObjectId,
-                  commentObjectType,
-                  ...query
-                } = router.query;
-                router.replace(
-                  {
-                    pathname: router.pathname,
-                    query: { ...query, annotation: "open" },
-                  },
-                  undefined,
-                  { shallow: true },
-                );
-              }
+              onOpen?.("annotation");
             } else openDrawer(payload);
           },
         })

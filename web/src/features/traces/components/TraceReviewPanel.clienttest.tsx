@@ -9,7 +9,6 @@ const state = vi.hoisted(() => ({
 }));
 const store = createTraceReviewPanelStore({
   projectId: "project",
-  followTraceSelection: true,
 });
 vi.mock("next/router", () => ({
   useRouter: () => ({

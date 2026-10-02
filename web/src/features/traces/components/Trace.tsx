@@ -227,33 +227,40 @@ function DesktopTraceContent({
 }: {
   desktopLayout: DesktopLayout;
 }) {
-  const { trace, observations } = useTraceData();
-  const { selectedNodeId } = useSelection();
+  const { trace } = useTraceData();
   const router = useRouter();
-  const selectedObservation = observations.find(
-    (observation) => observation.id === selectedNodeId,
-  );
-  const initialComments =
-    getCommentDrawerInitialStateFromUrl(router.query) ??
-    (router.query.comments === "open"
-      ? {
-          type: "comments" as const,
-          objectId: selectedObservation?.id ?? trace.id,
-          objectType: selectedObservation
-            ? ("OBSERVATION" as const)
-            : ("TRACE" as const),
-          objectStartTime: selectedObservation?.startTime ?? trace.timestamp,
-        }
-      : undefined);
   if (desktopLayout.groupId === DESKTOP_LAYOUTS.annotation.groupId) {
     return <DesktopTraceWorkspace desktopLayout={desktopLayout} />;
   }
   return (
     <TraceReviewPanelProvider
-      followTraceSelection
       key={`${trace.projectId}:${trace.id}`}
       projectId={trace.projectId}
-      initialComments={initialComments}
+      initialComments={getCommentDrawerInitialStateFromUrl(router.query)}
+      onOpen={(panel, target) => {
+        const {
+          annotation,
+          comments,
+          commentObjectId,
+          commentObjectType,
+          ...query
+        } = router.query;
+        router.replace(
+          {
+            pathname: router.pathname,
+            query: {
+              ...query,
+              [panel]: "open",
+              ...(target && {
+                commentObjectId: target.objectId,
+                commentObjectType: target.objectType,
+              }),
+            },
+          },
+          undefined,
+          { shallow: true },
+        );
+      }}
     >
       <DesktopTraceReviewWorkspace
         desktopLayout={desktopLayout}
