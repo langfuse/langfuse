@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 import { Button } from "@/src/components/ui/button";
 import { Label } from "@/src/components/ui/label";
 import {
@@ -6,11 +5,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { cloneElement } from "react";
 import { useReadPath } from "@/src/features/events";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -282,9 +278,10 @@ const Base = (props: {
             if (!props.tooltip) return trigger;
             // Suppress the hover tooltip while the share popover is open.
             return (
-              <Tooltip open={isOpen ? false : undefined}>
-                <TooltipTrigger asChild>{trigger}</TooltipTrigger>
-                <TooltipContent>{props.tooltip}</TooltipContent>
+              <Tooltip label={props.tooltip} disabled={isOpen} delay={300}>
+                {({ getTriggerProps }) =>
+                  cloneElement(trigger, getTriggerProps())
+                }
               </Tooltip>
             );
           })()}
