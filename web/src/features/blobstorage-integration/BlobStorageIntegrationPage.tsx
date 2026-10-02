@@ -152,22 +152,28 @@ export default function BlobStorageIntegrationPage() {
           {!state.data ? (
             <IntegrationSettingsSkeleton />
           ) : showDetails ? (
-            <>
-              {selectedConfig && (
-                <BlobStorageStatusSection config={selectedConfig} />
-              )}
-              <Header title="Integration details" className="mt-8" />
-              <Card className="p-3">
-                <BlobStorageIntegrationContainer
-                  config={selectedConfig ?? null}
-                  projectId={projectId}
-                  writeMode={state.data.writeMode}
-                  showMediaStorage={showMediaStorage}
-                  onDeleted={closeIntegration}
-                  onSaved={openIntegration}
-                />
+            integrationId !== "new" && !selectedConfig ? (
+              <Card className="p-4 text-sm">
+                This blob storage integration could not be found.
               </Card>
-            </>
+            ) : (
+              <>
+                {selectedConfig && (
+                  <BlobStorageStatusSection config={selectedConfig} />
+                )}
+                <Header title="Integration details" className="mt-8" />
+                <Card className="p-3">
+                  <BlobStorageIntegrationContainer
+                    config={selectedConfig ?? null}
+                    projectId={projectId}
+                    writeMode={state.data.writeMode}
+                    showMediaStorage={showMediaStorage}
+                    onDeleted={closeIntegration}
+                    onSaved={openIntegration}
+                  />
+                </Card>
+              </>
+            )
           ) : (
             <BlobStorageIntegrationTable
               integrations={state.data.configs}

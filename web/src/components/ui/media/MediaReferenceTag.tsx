@@ -71,6 +71,13 @@ function S3MediaTag({ descriptor }: { descriptor: S3Descriptor }) {
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
         if (nextOpen) setArmed(true);
+        if (
+          nextOpen &&
+          resolved.data &&
+          new Date(resolved.data.expiresAt).getTime() <= Date.now() + 30_000
+        ) {
+          resolved.refetch();
+        }
       }}
     />
   );

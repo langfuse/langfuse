@@ -1207,7 +1207,12 @@ const removeBlobExportDeprecationNotice = async (params: {
 export const handleBlobStorageIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.BlobStorageIntegrationProcessingQueue]>,
 ) => {
-  const { projectId, integrationId } = job.data.payload;
+  const {
+    projectId: legacyProjectId,
+    integrationId,
+    ownerProjectId,
+  } = job.data.payload;
+  const projectId = ownerProjectId ?? legacyProjectId;
 
   const span = getCurrentSpan();
   if (span) {
@@ -1561,8 +1566,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
             name: QueueJobs.BlobStorageIntegrationProcessingJob,
             timestamp: new Date(),
             payload: {
-              projectId,
+              projectId: blobStorageIntegration.id,
               integrationId: blobStorageIntegration.id,
+              ownerProjectId: projectId,
             },
           },
           { jobId, removeOnFail: true },
