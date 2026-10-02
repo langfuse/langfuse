@@ -23,6 +23,7 @@ import {
   dropEmptyAssistantMessages,
   dropUnpairedAssistantToolCalls,
   type AgUiMessage,
+  type CreateAndTestRoutineToolInput,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
 import { isActiveInAppAgentRunStatus } from "../watchFrames";
@@ -205,7 +206,10 @@ type InAppAiAgentContextType = {
     content: string,
     options?: InAppAgentSubmitOptions,
   ) => Promise<boolean>;
-  approveToolCall: (approvalId: string) => Promise<void>;
+  approveToolCall: (
+    approvalId: string,
+    editedArgs?: CreateAndTestRoutineToolInput,
+  ) => Promise<void>;
   alwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   rejectToolCall: (approvalId: string) => Promise<void>;
   submitFeedback: (params: {
@@ -872,6 +876,7 @@ function InAppAiAgentProviderInner({
             toolCallId: input.toolCallId,
             approved: input.approved,
             approvalScope: input.approvalScope,
+            ...(input.editedArgs ? { editedArgs: input.editedArgs } : {}),
           }),
         onHydratedSnapshot: ({ messages }) => {
           performToolSideEffectsForCompletedToolCalls({
@@ -1307,6 +1312,7 @@ function InAppAiAgentProviderInner({
       approved: boolean;
       approvalScope: "once" | "conversation";
       conversationId: string;
+      editedArgs?: CreateAndTestRoutineToolInput;
     }) => {
       const runId =
         params.approval.runId ?? params.approval.approvalRequest.runId;
@@ -1328,6 +1334,7 @@ function InAppAiAgentProviderInner({
           toolCallId: params.approval.approvalRequest.toolCallId,
           approved: params.approved,
           approvalScope: params.approvalScope,
+          ...(params.editedArgs ? { editedArgs: params.editedArgs } : {}),
         });
         return true;
       } catch (error) {
@@ -1343,6 +1350,7 @@ function InAppAiAgentProviderInner({
       approvalId: string,
       approved: boolean,
       approvalScope: "once" | "conversation" = "once",
+      editedArgs?: CreateAndTestRoutineToolInput,
     ) => {
       const approval = effectivePendingToolApprovals.find(
         (approval) => approval.id === approvalId,
@@ -1362,6 +1370,7 @@ function InAppAiAgentProviderInner({
         approved,
         approvalScope,
         conversationId: selectedConversationId,
+        editedArgs,
       });
       if (decisionAccepted) {
         capture("in_app_agent:tool_approval_decided", {
@@ -1415,7 +1424,8 @@ function InAppAiAgentProviderInner({
   );
 
   const approveToolCall = useCallback(
-    (approvalId: string) => resumeToolApproval(approvalId, true),
+    (approvalId: string, editedArgs?: CreateAndTestRoutineToolInput) =>
+      resumeToolApproval(approvalId, true, "once", editedArgs),
     [resumeToolApproval],
   );
 

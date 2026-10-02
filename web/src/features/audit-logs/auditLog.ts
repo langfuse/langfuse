@@ -52,6 +52,7 @@ type AuditableResource =
   | "ssoConfig"
   | "gatewayConfig"
   | "gatewayAiConnection"
+  | "inAppAgentRoutine"
   // legacy resources
   | "membership";
 

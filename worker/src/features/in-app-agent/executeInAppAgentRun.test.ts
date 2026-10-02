@@ -283,6 +283,12 @@ async function seedApprovedContinuation(opts?: {
   rootRunId?: string;
   traceStartedAt?: string;
   approvalRequestedAt?: string;
+  approvedToolArgs?: {
+    name: string;
+    prompt: string;
+    cron: string;
+    timezone: string;
+  };
 }) {
   const seeded = await seedBackgroundRun({
     alwaysAllowedTools: opts?.alwaysAllowedTools,
@@ -325,6 +331,9 @@ async function seedApprovedContinuation(opts?: {
         approved: true,
         ...(opts?.continuationNumber
           ? { continuationNumber: opts.continuationNumber }
+          : {}),
+        ...(opts?.approvedToolArgs
+          ? { approvedToolArgs: opts.approvedToolArgs }
           : {}),
         ...(opts?.context ? { context: opts.context } : {}),
       },
@@ -746,6 +755,40 @@ describe("executeInAppAgentRun", () => {
     expect(fenced.errorCode).toBe("worker_lost");
     expect(fenced.errorMessage).toBe("The run was interrupted.");
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
+  });
+
+  it("prefers schema-validated approvedToolArgs over the persisted interrupt args", async () => {
+    const approvedToolArgs = {
+      name: "Monday scan",
+      prompt: "Look for 5xx spikes.",
+      cron: "0 9 * * 1",
+      timezone: "Europe/Berlin",
+    };
+    const { projectId, run } = await seedApprovedContinuation({
+      approvedToolArgs,
+    });
+
+    scenarioRef.current = async ({ input, options }) => {
+      expect(
+        (
+          input.forwardedProps as {
+            command: {
+              resume: { approvalRequest: { args: unknown; toolName: string } };
+            };
+          }
+        ).command.resume.approvalRequest,
+      ).toMatchObject({
+        toolName: "langfuse_createTextPrompt",
+        args: approvedToolArgs,
+      });
+      await options.onComplete();
+      await options.onFinish();
+    };
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+
+    const finished = await getRun(projectId, run.id);
+    expect(finished.status).toBe("SUCCEEDED");
   });
 
   it("finishes an approved continuation without a persisted tool result as FAILED (outcome_unknown)", async () => {

@@ -7,17 +7,21 @@ import {
   ScoreSourceEnum,
   TEXT_SCORE_MAX_LENGTH,
 } from "@langfuse/shared";
+import { InAppAgentRoutineStatus } from "@langfuse/shared/src/db";
+import {
+  AgUiContextSchema,
+  CreateAndTestRoutineToolInputSchema,
+  getInAppAgentInstrumentationObservationId,
+  getInAppAgentInstrumentationTraceId,
+  IN_APP_AGENT_PRODUCT_ENVIRONMENT,
+  IN_APP_AGENT_ROUTINE_NAME_MAX_LENGTH,
+  IN_APP_AGENT_ROUTINE_PROMPT_MAX_LENGTH,
+} from "@langfuse/shared/in-app-agent";
 import {
   convertDateToClickhouseDateTime,
   upsertScore,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import {
-  AgUiContextSchema,
-  getInAppAgentInstrumentationObservationId,
-  getInAppAgentInstrumentationTraceId,
-  IN_APP_AGENT_PRODUCT_ENVIRONMENT,
-} from "@langfuse/shared/in-app-agent";
 import { InAppAgentMessageFeedbackValueSchema } from "../schema";
 import {
   assertInAppAgentAvailable,
@@ -46,6 +50,14 @@ import {
   serializeConversationLatestRun,
   startBackgroundRun,
 } from "@/src/features/in-app-agent/server/backgroundRunService";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  createOwnedRoutine,
+  deleteOwnedRoutine,
+  listOwnedRoutines,
+  runOwnedRoutineNow,
+  updateOwnedRoutine,
+} from "@/src/features/in-app-agent/server/routineService";
 
 const CONVERSATION_LIST_LIMIT = 50;
 const MAX_IN_APP_AGENT_MESSAGE_LENGTH = 32_000;
@@ -83,16 +95,57 @@ const DecideToolApprovalInput = ConversationIdInput.extend({
   approved: z.boolean(),
   // "conversation" also approves this call; it never means approve-without-run.
   approvalScope: z.enum(["once", "conversation"]).default("once"),
-}).refine((input) => input.approved || input.approvalScope === "once", {
-  message: "A rejection cannot grant a tool",
-  path: ["approvalScope"],
-});
+  editedArgs: CreateAndTestRoutineToolInputSchema.optional(),
+})
+  .refine((input) => input.approved || input.approvalScope === "once", {
+    message: "A rejection cannot grant a tool",
+    path: ["approvalScope"],
+  })
+  .refine((input) => input.approved || input.editedArgs === undefined, {
+    message: "A rejection cannot include edited tool arguments",
+    path: ["editedArgs"],
+  });
 
 const SubmitFeedbackInput = ConversationIdInput.extend({
   messageId: z.string(),
   runId: z.string(),
   value: InAppAgentMessageFeedbackValueSchema.nullable(),
   comment: z.string().trim().max(TEXT_SCORE_MAX_LENGTH).nullable().optional(),
+});
+
+const RoutineIdInput = z.object({
+  projectId: z.string(),
+  routineId: z.string(),
+});
+
+const RoutineScheduleInput = z.object({
+  cron: z.string().trim().min(1).max(128),
+  timezone: z.string().trim().min(1).max(64),
+});
+
+const CreateRoutineInput = RoutineScheduleInput.extend({
+  projectId: z.string(),
+  name: z.string().trim().min(1).max(IN_APP_AGENT_ROUTINE_NAME_MAX_LENGTH),
+  prompt: z.string().trim().min(1).max(IN_APP_AGENT_ROUTINE_PROMPT_MAX_LENGTH),
+  enabled: z.boolean().optional(),
+});
+
+const UpdateRoutineInput = RoutineIdInput.extend({
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(IN_APP_AGENT_ROUTINE_NAME_MAX_LENGTH)
+    .optional(),
+  prompt: z
+    .string()
+    .trim()
+    .min(1)
+    .max(IN_APP_AGENT_ROUTINE_PROMPT_MAX_LENGTH)
+    .optional(),
+  cron: z.string().trim().min(1).max(128).optional(),
+  timezone: z.string().trim().min(1).max(64).optional(),
+  status: z.enum(InAppAgentRoutineStatus).optional(),
 });
 
 const IN_APP_AGENT_FEEDBACK_SCORE_NAME = "in_app_agent_feedback";
@@ -261,9 +314,9 @@ export const inAppAgentRouter = createTRPCRouter({
   /**
    * Decide a pending tool approval.
    *
-   * The client sends only IDs and a boolean. The tool name and arguments are
-   * read server-side from the persisted interrupt event, so there is nothing
-   * to tamper with on the way back and no fingerprint to keep in sync.
+   * The client sends IDs and a boolean. Tool name still comes from the
+   * persisted interrupt. Create-routine approvals may also send schema-
+   * validated `editedArgs` after the user edits the prompt in the card.
    */
   decideToolApproval: protectedProjectProcedureWithoutTracing
     .input(DecideToolApprovalInput)
@@ -300,6 +353,7 @@ export const inAppAgentRouter = createTRPCRouter({
         toolCallId: input.toolCallId,
         approved: input.approved,
         approvalScope: input.approvalScope,
+        editedArgs: input.editedArgs,
         userId: ctx.session.user.id,
         model: modelConfig.modelId,
       });
@@ -448,5 +502,129 @@ export const inAppAgentRouter = createTRPCRouter({
       }
 
       return { feedback: { value: input.value, comment } };
+    }),
+
+  listRoutines: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertInAppAgentAvailable({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        user: ctx.session.user,
+      });
+
+      return listOwnedRoutines({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        userId: ctx.session.user.id,
+      });
+    }),
+
+  createRoutine: protectedProjectProcedureWithoutTracing
+    .input(CreateRoutineInput)
+    .mutation(async ({ ctx, input }) => {
+      await assertInAppAgentAvailable({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        user: ctx.session.user,
+      });
+
+      const routine = await createOwnedRoutine({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        userId: ctx.session.user.id,
+        name: input.name,
+        prompt: input.prompt,
+        cron: input.cron,
+        timezone: input.timezone,
+        enabled: input.enabled,
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "inAppAgentRoutine",
+        resourceId: routine.id,
+        action: "create",
+        after: routine,
+      });
+
+      return { routine };
+    }),
+
+  updateRoutine: protectedProjectProcedureWithoutTracing
+    .input(UpdateRoutineInput)
+    .mutation(async ({ ctx, input }) => {
+      await assertInAppAgentAvailable({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        user: ctx.session.user,
+      });
+
+      const routine = await updateOwnedRoutine({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        userId: ctx.session.user.id,
+        routineId: input.routineId,
+        name: input.name,
+        prompt: input.prompt,
+        cron: input.cron,
+        timezone: input.timezone,
+        status: input.status,
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "inAppAgentRoutine",
+        resourceId: routine.id,
+        action: "update",
+        after: routine,
+      });
+
+      return { routine };
+    }),
+
+  deleteRoutine: protectedProjectProcedureWithoutTracing
+    .input(RoutineIdInput)
+    .mutation(async ({ ctx, input }) => {
+      await assertInAppAgentAvailable({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        user: ctx.session.user,
+      });
+
+      const routine = await deleteOwnedRoutine({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        userId: ctx.session.user.id,
+        routineId: input.routineId,
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "inAppAgentRoutine",
+        resourceId: routine.id,
+        action: "delete",
+        before: routine,
+      });
+
+      return { routineId: routine.id };
+    }),
+
+  runRoutineNow: protectedProjectProcedureWithoutTracing
+    .input(RoutineIdInput)
+    .mutation(async ({ ctx, input }) => {
+      await assertInAppAgentAvailable({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        user: ctx.session.user,
+      });
+      assertInAppAgentModelConfigured();
+
+      return runOwnedRoutineNow({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        userId: ctx.session.user.id,
+        routineId: input.routineId,
+      });
     }),
 });

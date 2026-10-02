@@ -17,6 +17,7 @@ import { LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE } from "@langfuse/shared/in-app-
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
+  IN_APP_AGENT_CREATE_ROUTINE_TOOL_NAME,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
 } from "@langfuse/shared/in-app-agent";
@@ -343,6 +344,8 @@ describe("in-app agent background runs", () => {
     toolCallId: string;
     context?: Array<{ description: string; value: string }>;
     parkedAt?: Date;
+    toolName?: string;
+    args?: unknown;
   }) => {
     const runId = createInAppAgentRunId();
 
@@ -374,8 +377,8 @@ describe("in-app agent background runs", () => {
           value: {
             type: "mastra_suspend",
             toolCallId: params.toolCallId,
-            toolName: "langfuse_createTextPrompt",
-            args: { name: "from-persisted-event" },
+            toolName: params.toolName ?? "langfuse_createTextPrompt",
+            args: params.args ?? { name: "from-persisted-event" },
             runId,
           },
         },
@@ -849,6 +852,79 @@ describe("in-app agent background runs", () => {
         },
       }),
     ).toBe(1);
+  });
+
+  it("stores schema-validated create-routine edits on the continuation", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const parkedRunId = await parkRunForApproval({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      toolCallId: "tool-call-1",
+      toolName: IN_APP_AGENT_CREATE_ROUTINE_TOOL_NAME,
+      args: {
+        name: "Monday scan",
+        prompt: "Check for errors",
+        cron: "0 9 * * 1",
+        timezone: "Europe/Berlin",
+      },
+    });
+
+    const { runId: continuationRunId } = await caller.decideToolApproval({
+      projectId,
+      conversationId: conversation.id,
+      runId: parkedRunId,
+      toolCallId: "tool-call-1",
+      approved: true,
+      editedArgs: {
+        name: "Monday scan",
+        prompt: "Look for 5xx spikes.",
+        cron: "0 9 * * 1",
+        timezone: "Europe/Berlin",
+      },
+    });
+
+    const continuation = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: continuationRunId, projectId },
+    });
+    expect(continuation.request).toMatchObject({
+      kind: "approvalDecision",
+      approved: true,
+      approvedToolArgs: {
+        name: "Monday scan",
+        prompt: "Look for 5xx spikes.",
+        cron: "0 9 * * 1",
+        timezone: "Europe/Berlin",
+      },
+    });
+  });
+
+  it("rejects edited args for tools that are not create-routine", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const parkedRunId = await parkRunForApproval({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      toolCallId: "tool-call-1",
+    });
+
+    await expect(
+      caller.decideToolApproval({
+        projectId,
+        conversationId: conversation.id,
+        runId: parkedRunId,
+        toolCallId: "tool-call-1",
+        approved: true,
+        editedArgs: {
+          name: "Monday scan",
+          prompt: "Look for 5xx spikes.",
+          cron: "0 9 * * 1",
+          timezone: "Europe/Berlin",
+        },
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   it("preserves context through an approved then rejected chained continuation", async () => {

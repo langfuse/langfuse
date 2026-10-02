@@ -54,7 +54,11 @@ import type {
   InAppAgentMessageFeedbackValue,
   InAppAgentMessageSource,
 } from "../schema";
-import { IN_APP_AGENT_GENERIC_ERROR_MESSAGE } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_CREATE_ROUTINE_TOOL_NAME,
+  IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
+  type CreateAndTestRoutineToolInput,
+} from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 import type { SettledActivityOutcome } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
@@ -62,6 +66,7 @@ import { ConversationActivityIndicator } from "@/src/features/in-app-agent/compo
 import { InAppAgentBackgroundHint } from "@/src/features/in-app-agent/components/InAppAgentBackgroundHint";
 import { InAppAgentNotice } from "@/src/features/in-app-agent/components/InAppAgentNotice";
 import { useInAppAgentBackgroundHint } from "@/src/features/in-app-agent/lib/useInAppAgentBackgroundHint";
+import { InAppAgentCreateRoutineApprovalCard } from "@/src/features/in-app-agent/components/InAppAgentCreateRoutineApprovalCard";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
 import {
   getInAppAgentActivityProgressLabel,
@@ -887,7 +892,10 @@ export type InAppAgentWindowProps = {
   onDeleteConversation: (conversation: InAppAgentWindowConversation) => void;
   onLoadMoreConversations: () => void;
   onNewConversation: () => void;
-  onApproveToolCall: (approvalId: string) => Promise<void>;
+  onApproveToolCall: (
+    approvalId: string,
+    editedArgs?: CreateAndTestRoutineToolInput,
+  ) => Promise<void>;
   onAlwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall: (approvalId: string) => Promise<void>;
   onOpenConversationHistory: () => void;
@@ -910,6 +918,7 @@ export type InAppAgentWindowProps = {
   /** Titles the window. Null until the server has named the conversation,
    * which is when the product name shows instead. */
   selectedConversationTitle: string | null;
+  headerActions?: ReactNode;
 } & InAppAgentWindowCloseButtonProps;
 
 function InAppAgentRateLimitError({
@@ -1002,6 +1011,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     screenContextDescription,
     selectedConversationId,
     selectedConversationTitle,
+    headerActions,
   } = props;
   const screenContextNotice = formatScreenContextNotice(
     screenContextDescription,
@@ -1204,6 +1214,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </TooltipTrigger>
             <TooltipContent>Start new conversation</TooltipContent>
           </Tooltip>
+          {headerActions}
           <DropdownMenu
             open={isConversationHistoryOpen}
             onOpenChange={(nextOpen) => {
@@ -1506,17 +1517,29 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 isExpanded && "mx-auto max-w-3xl",
               )}
             >
-              {pendingToolCalls.map((tool, index) => (
-                <InAppAgentToolCallCard
-                  key={`${tool.approval?.id ?? tool.name}-${index}`}
-                  tool={tool}
-                  isCompact={!isExpanded}
-                  isDisabled={isRateLimited}
-                  onApproveToolCall={onApproveToolCall}
-                  onAlwaysAllowToolCall={onAlwaysAllowToolCall}
-                  onRejectToolCall={onRejectToolCall}
-                />
-              ))}
+              {pendingToolCalls.map((tool, index) =>
+                tool.name === IN_APP_AGENT_CREATE_ROUTINE_TOOL_NAME &&
+                tool.approval ? (
+                  <InAppAgentCreateRoutineApprovalCard
+                    key={`${tool.approval.id}-${index}`}
+                    tool={tool}
+                    isCompact={!isExpanded}
+                    isDisabled={isRateLimited}
+                    onApproveToolCall={onApproveToolCall}
+                    onRejectToolCall={onRejectToolCall}
+                  />
+                ) : (
+                  <InAppAgentToolCallCard
+                    key={`${tool.approval?.id ?? tool.name}-${index}`}
+                    tool={tool}
+                    isCompact={!isExpanded}
+                    isDisabled={isRateLimited}
+                    onApproveToolCall={onApproveToolCall}
+                    onAlwaysAllowToolCall={onAlwaysAllowToolCall}
+                    onRejectToolCall={onRejectToolCall}
+                  />
+                ),
+              )}
             </div>
           </div>
         ) : null}

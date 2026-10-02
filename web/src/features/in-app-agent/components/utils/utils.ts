@@ -58,6 +58,7 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   batchUpsertDatasetItems: "Saving dataset items",
   createAnnotationQueueAssignment: "Assigning annotation queue",
   createAnnotationQueueItem: "Adding to annotation queue",
+  createAndTestRoutine: "Creating and testing routine",
   createChatPrompt: "Creating chat prompt",
   createDashboardWidget: "Creating widget",
   createTextPrompt: "Creating text prompt",

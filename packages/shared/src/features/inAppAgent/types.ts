@@ -1,4 +1,5 @@
 import z from "zod";
+import { CreateAndTestRoutineToolInputSchema } from "../../in-app-agent/routines";
 import { AgUiContextSchema } from "../../in-app-agent/schema";
 
 /**
@@ -101,6 +102,12 @@ export const InAppAgentRunRequestSchema = z.discriminatedUnion("kind", [
     continuationNumber: z.number().int().positive().optional(),
     toolCallId: z.string(),
     approved: z.boolean(),
+    /**
+     * Schema-validated create-routine args after the user edited the approval
+     * card. Absent for other tools and for approvals that keep the interrupt
+     * args.
+     */
+    approvedToolArgs: CreateAndTestRoutineToolInputSchema.optional(),
     /** Inherited sanitized context; defaults for legacy continuation rows. */
     context: z.array(AgUiContextSchema).default([]),
   }),

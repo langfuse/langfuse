@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import { EventType } from "@ag-ui/core";
 import {
+  IN_APP_AGENT_CREATE_ROUTINE_TOOL_NAME,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
   type AgUiMessage,
@@ -461,6 +462,109 @@ describe("in-app agent execution", () => {
       expect(
         screen.queryByLabelText(/^createDashboardWidget:/),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  it("approves a create-routine card with the edited prompt", async () => {
+    const editedArgs = {
+      name: "Monday scan",
+      prompt: "Look for 5xx spikes.",
+      cron: "0 9 * * 1",
+      timezone: "Europe/Berlin",
+    };
+    providerMocks.conversationQuery.data = {
+      conversation: {
+        id: "conversation-1",
+      },
+      messages: [
+        {
+          id: "persisted-user",
+          role: "user",
+          content: "Schedule a Monday check",
+        },
+        {
+          id: "persisted-assistant",
+          role: "assistant",
+          content: "I can create that routine.",
+          toolCalls: [
+            {
+              id: "tool-call-1",
+              type: "function",
+              function: {
+                name: IN_APP_AGENT_CREATE_ROUTINE_TOOL_NAME,
+                arguments: JSON.stringify({
+                  name: "Monday scan",
+                  prompt: "Check for errors",
+                  cron: "0 9 * * 1",
+                  timezone: "Europe/Berlin",
+                }),
+              },
+            },
+          ],
+        },
+      ],
+      eventCursor: 12,
+      latestRun: {
+        id: "run-1",
+        status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        errorCode: null,
+        cancelRequested: false,
+      },
+      pendingToolApprovals: [
+        {
+          runId: "run-1",
+          approvalRequest: {
+            type: "tool_approval_request",
+            toolCallId: "tool-call-1",
+            toolName: IN_APP_AGENT_CREATE_ROUTINE_TOOL_NAME,
+            runId: "run-1",
+            args: {
+              name: "Monday scan",
+              prompt: "Check for errors",
+              cron: "0 9 * * 1",
+              timezone: "Europe/Berlin",
+            },
+          },
+        },
+      ],
+    };
+    providerMocks.decideToolApproval.mockResolvedValueOnce({});
+    providerMocks.utils.inAppAgent.getConversation.fetch.mockResolvedValueOnce({
+      conversation: { id: "conversation-1" },
+      messages: [],
+      eventCursor: 13,
+      latestRun: {
+        id: "run-2",
+        status: InAppAgentRunStatus.RUNNING,
+        errorCode: null,
+        cancelRequested: false,
+      },
+      pendingToolApprovals: [],
+    });
+    window.sessionStorage.setItem(
+      "langfuse:in-app-ai-agent-selected-conversation:project-1",
+      JSON.stringify("conversation-1"),
+    );
+
+    renderExecutionUi();
+
+    expect(await screen.findByLabelText("Routine prompt")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Routine prompt"), {
+      target: { value: editedArgs.prompt },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+    await waitFor(() => {
+      expect(providerMocks.decideToolApproval).toHaveBeenCalledOnce();
+      expect(providerMocks.decideToolApproval).toHaveBeenCalledWith({
+        projectId: "project-1",
+        conversationId: "conversation-1",
+        runId: "run-1",
+        toolCallId: "tool-call-1",
+        approved: true,
+        approvalScope: "once",
+        editedArgs,
+      });
     });
   });
 

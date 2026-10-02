@@ -30,14 +30,18 @@ import {
   TABLE_AGGREGATION_OPTIONS,
   TracingSearchType,
 } from "@langfuse/shared";
+import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
+  CreateAndTestRoutineToolInputSchema,
   InAppAgentSandboxBashArgsSchema,
   InAppAgentSandboxEditArgsSchema,
   InAppAgentSandboxReadArgsSchema,
   InAppAgentSandboxWriteArgsSchema,
+  IN_APP_AGENT_CREATE_ROUTINE_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
 } from "@langfuse/shared/in-app-agent";
+import { createAndTestInAppAgentRoutine } from "@langfuse/shared/in-app-agent/server/routineWrite";
 import {
   isSilentInAppAgentMcpToolOutput,
   toAiSdkToolModelOutput,
@@ -443,6 +447,33 @@ const InAppAgentRedirectToolInputSchema = InAppAgentRedirectBaseSchema.extend({
 type InAppAgentRedirectToolInput = z.infer<
   typeof InAppAgentRedirectToolInputStrictSchema
 >;
+
+export function createAndTestRoutineTool({
+  prisma,
+  projectId,
+  userId,
+}: {
+  prisma: PrismaClient;
+  projectId: string;
+  userId: string;
+}) {
+  return createTool({
+    id: IN_APP_AGENT_CREATE_ROUTINE_TOOL_NAME,
+    description:
+      "Create a disabled scheduled assistant routine and immediately start one test conversation. The routine will not run on the schedule until the user enables it.",
+    inputSchema: CreateAndTestRoutineToolInputSchema,
+    execute: async (input) =>
+      createAndTestInAppAgentRoutine({
+        prisma,
+        projectId,
+        userId,
+        name: input.name,
+        prompt: input.prompt,
+        cron: input.cron,
+        timezone: input.timezone,
+      }),
+  });
+}
 
 export function createRedirectActionTool({
   projectId,
