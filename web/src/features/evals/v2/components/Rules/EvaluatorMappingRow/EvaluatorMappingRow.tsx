@@ -1,8 +1,8 @@
 /* eslint-disable no-nested-ternary */
 import { Check, ChevronDown, TriangleAlert, Unlink } from "lucide-react";
 import {
+  type DecisionModelVariableMapping,
   type EvalTemplateType,
-  type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { memo, type ReactNode, useState } from "react";
 import { useStore } from "zustand";
@@ -34,7 +34,7 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
   evaluatorId: string;
   evaluatorName: string;
   evaluatorType: EvalTemplateType;
-  defaultVariableMapping: ObservationVariableMapping[];
+  defaultVariableMapping: DecisionModelVariableMapping[];
   store: RuleSetupStore;
   sampleObject: Record<string, unknown> | null;
   unvalidatedSourceColumnIds?: string[];
@@ -63,12 +63,21 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
   const mapping = variableMappingOverride ?? defaultVariableMapping;
   const mappings = mapping.map((entry) => ({
     variable: entry.templateVariable,
-    fieldState: {
-      selectedColumnId: entry.selectedColumnId || null,
-      jsonSelector: entry.jsonSelector ?? null,
-    },
+    fieldState:
+      "constantValue" in entry
+        ? {
+            selectedColumnId: null,
+            jsonSelector: null,
+            valueSource: "constant" as const,
+            constantValue: JSON.stringify(entry.constantValue),
+          }
+        : {
+            selectedColumnId: entry.selectedColumnId || null,
+            jsonSelector: entry.jsonSelector ?? null,
+          },
   }));
   const mappedVariableCount = mapping.filter((entry) => {
+    if ("constantValue" in entry) return true;
     if (!entry.selectedColumnId) return false;
     if (unvalidatedSourceColumnIds.includes(entry.selectedColumnId))
       return true;
@@ -94,7 +103,7 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
       mapping.map((entry) =>
         entry.templateVariable === templateVariable
           ? {
-              ...entry,
+              templateVariable,
               selectedColumnId: fieldState.selectedColumnId ?? "",
               jsonSelector: fieldState.jsonSelector,
             }

@@ -1,7 +1,7 @@
 import type {
+  DecisionModelVariableMapping,
   EvalTemplateType,
   FilterState,
-  ObservationVariableMapping,
 } from "@langfuse/shared";
 import type { StoreApi } from "zustand/vanilla";
 import type { TableSelectionStore } from "@/src/components/table/table-selection-store";
@@ -12,8 +12,8 @@ type RuleDraftAssignment = {
   evaluatorId: string;
   evaluatorName: string;
   evaluatorType: EvalTemplateType;
-  defaultVariableMapping: ObservationVariableMapping[];
-  variableMapping: ObservationVariableMapping[] | null;
+  defaultVariableMapping: DecisionModelVariableMapping[];
+  variableMapping: DecisionModelVariableMapping[] | null;
   requiredVariables?: string[];
 };
 
@@ -30,8 +30,8 @@ export type RuleEvaluatorOption = {
   type: EvalTemplateType;
   updatedAt?: Date;
   createdByUser?: { name: string | null; email: string | null } | null;
-  defaultVariableMapping: ObservationVariableMapping[];
-  initialVariableMapping: ObservationVariableMapping[] | null;
+  defaultVariableMapping: DecisionModelVariableMapping[];
+  initialVariableMapping: DecisionModelVariableMapping[] | null;
   requiredVariables?: string[];
 };
 
@@ -56,7 +56,7 @@ type RuleSetupStoreActions = {
   detachEvaluator: (evaluatorId: string) => void;
   setVariableMapping: (
     evaluatorId: string,
-    variableMapping: ObservationVariableMapping[],
+    variableMapping: DecisionModelVariableMapping[],
   ) => void;
   setSelectedObservation: (observation: SampleObservation | null) => void;
 };

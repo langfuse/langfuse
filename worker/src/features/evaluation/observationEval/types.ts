@@ -9,9 +9,9 @@ import {
 } from "@langfuse/shared/src/db";
 import { type EvalExecutionMode } from "@langfuse/shared";
 import type {
+  DecisionModelVariableMapping,
   EvalTargetObject,
   FilterState,
-  ObservationVariableMapping,
 } from "@langfuse/shared";
 
 /**
@@ -122,6 +122,6 @@ export interface ObservationEvalSchedulerDeps {
      * Mapping override for a ruleless batch run. Omitted to inherit the
      * evaluator version mapping.
      */
-    variableMapping?: ObservationVariableMapping[];
+    variableMapping?: DecisionModelVariableMapping[];
   }) => Promise<void>;
 }

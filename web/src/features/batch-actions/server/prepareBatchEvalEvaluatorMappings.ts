@@ -7,6 +7,7 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import { findEvaluatorsByIds } from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
 import { reconcileEvaluatorPromptMessages } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
 import {
+  assertCompleteDecisionModelVariableMapping,
   assertCompleteEvaluatorVariableMapping,
   extractEvaluatorPromptVariables,
 } from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
@@ -65,19 +66,23 @@ export async function prepareBatchEvalEvaluatorMappings(params: {
       );
       const storedVariableMapping =
         mapping.variableMapping ?? prepared.initialVariableMapping;
-      const promptMessages = reconcileEvaluatorPromptMessages({
-        prompt: latestVersion.prompt,
-        promptMessages: latestVersion.promptMessages,
-      });
-      const requiredVariables =
-        evaluator.type === EvalTemplateType.DECISION_MODEL
-          ? latestVersion.vars
-          : extractEvaluatorPromptVariables(promptMessages);
-      assertCompleteEvaluatorVariableMapping({
-        promptVariables: requiredVariables,
-        variableMapping:
-          storedVariableMapping ?? prepared.defaultVariableMapping,
-      });
+      const variableMapping =
+        storedVariableMapping ?? prepared.defaultVariableMapping;
+      if (evaluator.type === EvalTemplateType.DECISION_MODEL) {
+        assertCompleteDecisionModelVariableMapping({
+          stateKeys: latestVersion.vars,
+          variableMapping,
+        });
+      } else {
+        const promptMessages = reconcileEvaluatorPromptMessages({
+          prompt: latestVersion.prompt,
+          promptMessages: latestVersion.promptMessages,
+        });
+        assertCompleteEvaluatorVariableMapping({
+          promptVariables: extractEvaluatorPromptVariables(promptMessages),
+          variableMapping,
+        });
+      }
 
       return {
         evaluatorId: mapping.evaluatorId,

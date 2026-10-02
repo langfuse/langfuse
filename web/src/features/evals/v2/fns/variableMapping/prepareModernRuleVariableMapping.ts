@@ -1,14 +1,24 @@
 import {
+  decisionModelVariableMappingList,
   EvalTemplateType,
   getCodeEvalVariableMapping,
   observationVariableMappingList,
-  type ObservationVariableMapping,
+  type DecisionModelVariableMapping,
 } from "@langfuse/shared";
 
 export type ModernRuleVariableMapping = {
-  defaultVariableMapping: ObservationVariableMapping[];
-  initialVariableMapping: ObservationVariableMapping[] | null;
+  defaultVariableMapping: DecisionModelVariableMapping[];
+  initialVariableMapping: DecisionModelVariableMapping[] | null;
 };
+
+export function parseModernRuleVariableMapping(
+  value: unknown,
+  evaluatorType: EvalTemplateType,
+): DecisionModelVariableMapping[] {
+  return evaluatorType === EvalTemplateType.DECISION_MODEL
+    ? decisionModelVariableMappingList.catch([]).parse(value)
+    : observationVariableMappingList.catch([]).parse(value);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -62,9 +72,10 @@ export function prepareModernRuleVariableMapping(
   }
 
   return {
-    defaultVariableMapping: observationVariableMappingList
-      .catch([])
-      .parse(value),
+    defaultVariableMapping: parseModernRuleVariableMapping(
+      value,
+      evaluatorType,
+    ),
     initialVariableMapping: null,
   };
 }

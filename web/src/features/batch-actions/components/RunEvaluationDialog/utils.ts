@@ -4,6 +4,7 @@ import {
   extractValueFromObjectAsString,
   zipToolCallsFromRecord,
   type BatchActionQuery,
+  type DecisionModelVariableMapping,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { type RouterOutputs } from "@/src/utils/api";
@@ -105,8 +106,8 @@ export function getBatchEvalCostObservationCount(params: {
 export function hasCompleteBatchEvalMappings(
   assignments: Array<{
     evaluatorType: EvalTemplateType;
-    variableMapping: ObservationVariableMapping[] | null;
-    defaultVariableMapping: ObservationVariableMapping[];
+    variableMapping: DecisionModelVariableMapping[] | null;
+    defaultVariableMapping: DecisionModelVariableMapping[];
     requiredVariables?: string[];
   }>,
 ): boolean {
@@ -118,7 +119,10 @@ export function hasCompleteBatchEvalMappings(
       assignment.variableMapping ?? assignment.defaultVariableMapping;
     const mappedVariables = new Set(
       mapping
-        .filter((entry) => Boolean(entry.selectedColumnId?.trim()))
+        .filter(
+          (entry) =>
+            "constantValue" in entry || Boolean(entry.selectedColumnId.trim()),
+        )
         .map((entry) => entry.templateVariable),
     );
     const requiredVariables = assignment.requiredVariables ?? [];
@@ -127,7 +131,10 @@ export function hasCompleteBatchEvalMappings(
         mappedVariables.has(variable),
       );
     }
-    return mapping.every((entry) => Boolean(entry.selectedColumnId?.trim()));
+    return mapping.every(
+      (entry) =>
+        "constantValue" in entry || Boolean(entry.selectedColumnId.trim()),
+    );
   });
 }
 

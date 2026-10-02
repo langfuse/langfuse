@@ -1,6 +1,6 @@
 import {
+  decisionModelVariableMappingList,
   EvalTemplateTypeEnum,
-  observationVariableMappingList,
 } from "@langfuse/shared";
 import { formatDistanceToNowStrict } from "date-fns";
 import { RotateCcw } from "lucide-react";
@@ -29,7 +29,7 @@ function toEvaluatorDefinition(
   }
 
   if (version.type === EvalTemplateTypeEnum.DECISION_MODEL) {
-    const variableMapping = observationVariableMappingList.safeParse(
+    const variableMapping = decisionModelVariableMappingList.safeParse(
       version.variableMapping,
     );
     return {

@@ -1,4 +1,4 @@
-import type { ObservationVariableMapping } from "@langfuse/shared";
+import type { DecisionModelVariableMapping } from "@langfuse/shared";
 import {
   type ObservationForEval,
   type ObservationEvalAssignment,
@@ -21,7 +21,7 @@ import {
   canRunEvalRule,
   coerceLegacyEmptyMetadataFilters,
   mapEventEvalFilterColumnIdToField,
-  observationVariableMappingList,
+  decisionModelVariableMappingList,
 } from "@langfuse/shared";
 import { createW3CTraceId } from "../../utils";
 import { isInternalEvalEnvironment } from "../isEvalTargetEnvironmentAllowed";
@@ -301,7 +301,7 @@ type ScheduledObservationEvalAssignment = {
    * inherit the evaluator version mapping, and never set for rule-backed jobs
    * (those load the assignment row at pickup).
    */
-  variableMapping?: ObservationVariableMapping[];
+  variableMapping?: DecisionModelVariableMapping[];
 };
 
 function getExecutableAssignments(
@@ -333,7 +333,7 @@ function getExecutableAssignments(
       return [];
     }
 
-    const parsedMapping = observationVariableMappingList.safeParse(
+    const parsedMapping = decisionModelVariableMappingList.safeParse(
       assignment.variableMapping,
     );
 

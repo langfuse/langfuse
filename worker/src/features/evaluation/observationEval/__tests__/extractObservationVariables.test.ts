@@ -120,6 +120,41 @@ describe("extractObservationVariables", () => {
   };
 
   describe("basic variable extraction", () => {
+    it("uses constant values without reading an observation column", () => {
+      const variableMapping = [
+        {
+          templateVariable: "policy",
+          constantValue: {
+            tone: "friendly",
+            limits: { maxWords: 100 },
+          },
+        },
+        { templateVariable: "output", selectedColumnId: "output" },
+      ] as unknown as ObservationVariableMapping[];
+
+      const result = extractObservationVariables({
+        observation: mockObservation,
+        variableMapping,
+      });
+
+      expect(result).toEqual([
+        {
+          var: "policy",
+          value: {
+            tone: "friendly",
+            limits: { maxWords: 100 },
+          },
+        },
+        {
+          var: "output",
+          value: {
+            response: "I am fine, thank you!",
+            sentiment: "positive",
+          },
+        },
+      ]);
+    });
+
     it("should extract input variable", () => {
       const variableMapping: ObservationVariableMapping[] = [
         { templateVariable: "input", selectedColumnId: "input" },

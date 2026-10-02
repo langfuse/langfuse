@@ -8,6 +8,7 @@ import {
   BatchEvalSourceTable as SourceTable,
   extractVariables,
   observationVariableMappingList,
+  type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { api, sendAsPostOption } from "@/src/utils/api";
 import {
@@ -193,7 +194,11 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
           const requiredVariables =
             evaluator.type === "CODE"
               ? []
-              : extractVariables(evaluator.latestVersion?.prompt ?? "");
+              : evaluator.type === "DECISION_MODEL"
+                ? prepared.defaultVariableMapping.map(
+                    ({ templateVariable }) => templateVariable,
+                  )
+                : extractVariables(evaluator.latestVersion?.prompt ?? "");
 
           return {
             id: evaluator.id,
@@ -201,10 +206,13 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
             type: evaluator.type,
             updatedAt: evaluator.updatedAt,
             createdByUser: evaluator.createdByUser,
-            defaultVariableMapping: coverEvaluatorPromptVariables(
-              prepared.defaultVariableMapping,
-              requiredVariables,
-            ),
+            defaultVariableMapping:
+              evaluator.type === "DECISION_MODEL"
+                ? prepared.defaultVariableMapping
+                : coverEvaluatorPromptVariables(
+                    prepared.defaultVariableMapping as ObservationVariableMapping[],
+                    requiredVariables,
+                  ),
             initialVariableMapping: prepared.initialVariableMapping,
             requiredVariables,
           };

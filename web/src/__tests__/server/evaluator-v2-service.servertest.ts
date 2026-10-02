@@ -1,4 +1,8 @@
-import { EvalTargetObject, getCodeEvalVariableMapping } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  getCodeEvalVariableMapping,
+  type DecisionModelVariableMapping,
+} from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   ChatMessageRole,
@@ -409,7 +413,7 @@ describe("EvaluatorService", () => {
         instructions: "Does `question` request a refund?",
       },
     ];
-    const variableMapping = [
+    const variableMapping: DecisionModelVariableMapping[] = [
       {
         templateVariable: "question",
         selectedColumnId: "input",
@@ -419,6 +423,13 @@ describe("EvaluatorService", () => {
         templateVariable: "reply",
         selectedColumnId: "output",
         jsonSelector: null,
+      },
+      {
+        templateVariable: "policy",
+        constantValue: {
+          tone: "friendly",
+          maxWords: 100,
+        },
       },
     ];
 
@@ -432,7 +443,7 @@ describe("EvaluatorService", () => {
           questions,
           provider: "typesafe",
           model: "jev-1.13.0",
-          vars: ["question", "reply"],
+          vars: ["question", "reply", "policy"],
           variableMapping,
         },
       },
@@ -443,7 +454,7 @@ describe("EvaluatorService", () => {
     expect(created.versions[0]).toMatchObject({
       provider: "typesafe",
       model: "jev-1.13.0",
-      vars: ["question", "reply"],
+      vars: ["question", "reply", "policy"],
       variableMapping,
       questions,
       promptMessages: null,

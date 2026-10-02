@@ -11,8 +11,8 @@ import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
 import {
   BatchEvalEvaluatorMappingSchema,
+  decisionModelVariableMappingList,
   EvalTargetObjectSchema,
-  observationVariableMappingList,
 } from "../features/evals/types";
 import { EvalExecutionMode } from "../features/evals/evalConfigBlocking";
 import {
@@ -164,7 +164,7 @@ export const ObservationEvalExecutionEventSchema = z.object({
   // Ruleless manual batch runs have no assignment row to hold a mapping
   // override. Optional for jobs queued before this field existed; those
   // inherit the evaluator version mapping.
-  variableMapping: observationVariableMappingList.optional(),
+  variableMapping: decisionModelVariableMappingList.optional(),
 });
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),

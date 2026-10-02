@@ -1,5 +1,6 @@
 import {
   EvalTemplateTypeEnum,
+  decisionModelVariableMappingList,
   experimentTargetEvalVariableColumns,
   observationVariableMappingList,
   type FilterState,
@@ -52,9 +53,10 @@ function buildInitialVariableFields(
     return {};
   }
 
-  const parsed = observationVariableMappingList.safeParse(
-    definition.variableMapping,
-  );
+  const parsed =
+    definition.type === "DECISION_MODEL"
+      ? decisionModelVariableMappingList.safeParse(definition.variableMapping)
+      : observationVariableMappingList.safeParse(definition.variableMapping);
   return Object.fromEntries(
     definition.vars.map((variable) => {
       const stored = parsed.success
@@ -62,13 +64,21 @@ function buildInitialVariableFields(
         : undefined;
       return [
         variable,
-        {
-          selectedColumnId:
-            stored?.selectedColumnId ??
-            inferDefaultMapping(variable).selectedColumnId ??
-            null,
-          jsonSelector: stored?.jsonSelector ?? null,
-        },
+        stored && "constantValue" in stored
+          ? {
+              selectedColumnId: null,
+              jsonSelector: null,
+              valueSource: "constant" as const,
+              constantValue: JSON.stringify(stored.constantValue, null, 2),
+            }
+          : {
+              selectedColumnId:
+                stored?.selectedColumnId ??
+                inferDefaultMapping(variable).selectedColumnId ??
+                null,
+              jsonSelector: stored?.jsonSelector ?? null,
+              valueSource: "observation" as const,
+            },
       ];
     }),
   );
@@ -324,16 +334,17 @@ export function createEvaluatorSetupStore({
             selectedColumnId: null,
             jsonSelector: null,
           };
-          const fieldState = current.selectedColumnId
-            ? current
-            : {
-                selectedColumnId: experimentTargetEvalVariableColumns.some(
-                  (column) => column.id === next,
-                )
-                  ? next
-                  : null,
-                jsonSelector: null,
-              };
+          const fieldState =
+            current.valueSource === "constant" || current.selectedColumnId
+              ? current
+              : {
+                  selectedColumnId: experimentTargetEvalVariableColumns.some(
+                    (column) => column.id === next,
+                  )
+                    ? next
+                    : null,
+                  jsonSelector: null,
+                };
           // Plain string replacement: the token is a literal, so no regex is
           // built from user input.
           const oldReference = `\`${key}\``;

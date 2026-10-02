@@ -1,7 +1,7 @@
 import { type JobConfiguration } from "@prisma/client";
 import {
+  decisionModelVariableMappingList,
   EvalTargetObject,
-  observationVariableMappingList,
   singleFilterList,
   variableMappingList,
 } from "@langfuse/shared";
@@ -30,12 +30,12 @@ const getVariableSourceFields = (
     targetObject === EvalTargetObject.EXPERIMENT
   ) {
     const parsedObservationMapping =
-      observationVariableMappingList.safeParse(variableMappingJson);
+      decisionModelVariableMappingList.safeParse(variableMappingJson);
     if (!parsedObservationMapping.success) return [];
 
     return dedupeStrings(
-      parsedObservationMapping.data.map(
-        ({ selectedColumnId }) => selectedColumnId,
+      parsedObservationMapping.data.flatMap((mapping) =>
+        "selectedColumnId" in mapping ? [mapping.selectedColumnId] : [],
       ),
     );
   }

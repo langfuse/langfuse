@@ -5,7 +5,7 @@ import {
   type ObservationEvalVariableColumn,
   type ObservationForEval,
 } from "../../features/evals/observationForEval";
-import type { ObservationVariableMapping } from "../../features/evals/types";
+import type { DecisionModelVariableMapping } from "../../features/evals/types";
 import { extractValueFromObject } from "../../features/evals/utilities";
 import { deepParseJson } from "../../utils/json";
 import { logger } from "../logger";
@@ -19,7 +19,7 @@ export interface ExtractedVariable {
 export function extractObservationVariables(
   params: {
     observation: ObservationForEval;
-    variableMapping: ObservationVariableMapping[];
+    variableMapping: DecisionModelVariableMapping[];
   },
   columns: ObservationEvalVariableColumn[] = observationEvalVariableColumns,
 ): ExtractedVariable[] {
@@ -36,6 +36,7 @@ export function extractObservationVariables(
 
   const parsedFields = new Map<string, unknown>();
   for (const mapping of variableMapping) {
+    if ("constantValue" in mapping) continue;
     const fieldId = mapping.selectedColumnId;
     if (parsedFields.has(fieldId)) continue;
 
@@ -59,6 +60,13 @@ export function extractObservationVariables(
   }
 
   for (const mapping of variableMapping) {
+    if ("constantValue" in mapping) {
+      variables.push({
+        var: mapping.templateVariable,
+        value: mapping.constantValue,
+      });
+      continue;
+    }
     const internal = columns.find(
       (col) => col.id === mapping.selectedColumnId,
     )?.internal;

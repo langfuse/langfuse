@@ -212,4 +212,62 @@ describe("prepareEvaluatorDraft", () => {
       }).definition,
     ).toBeNull();
   });
+
+  it("prepares decision-model state with constant values", () => {
+    const result = prepareEvaluatorDraft({
+      type: "DECISION_MODEL",
+      promptMessages: [],
+      questions: [
+        {
+          id: "q1",
+          type: DecisionModelQuestionType.NOUL,
+          scoreName: "matches_policy",
+          instructions: "Does `output` follow `policy`?",
+          options: [],
+          levels: [],
+          criteria: { true: "", false: "" },
+        },
+      ],
+      stateKeys: ["output", "policy"],
+      name: "",
+      sourceCode: "",
+      sourceCodeLanguage: "TYPESCRIPT",
+      scoreOutput: {
+        dataType: ScoreDataTypeEnum.NUMERIC,
+        scoreDescription: "",
+        reasoningDescription: "",
+        choices: [],
+        shouldAllowMultipleMatches: false,
+        minValue: "",
+        maxValue: "",
+      },
+      variableFields: {
+        output: { selectedColumnId: "output", jsonSelector: null },
+        policy: {
+          selectedColumnId: null,
+          jsonSelector: null,
+          valueSource: "constant",
+          constantValue: '{"tone":"friendly","maxWords":100}',
+        },
+      },
+      modelMode: "custom",
+      selectedModel: { provider: "typesafe", model: "jev-latest" },
+      modelParams: null,
+      initialDefinition: undefined,
+    });
+
+    expect(result.definition).toMatchObject({
+      variableMapping: [
+        {
+          templateVariable: "output",
+          selectedColumnId: "output",
+          jsonSelector: null,
+        },
+        {
+          templateVariable: "policy",
+          constantValue: { tone: "friendly", maxWords: 100 },
+        },
+      ],
+    });
+  });
 });
