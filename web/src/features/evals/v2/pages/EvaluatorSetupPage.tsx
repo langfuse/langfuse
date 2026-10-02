@@ -69,6 +69,7 @@ import {
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
 import { createEvalOnboardingAnalytics } from "@/src/features/evals/v2/fns/createEvalOnboardingAnalytics";
 import { EvalOnboardingAnalyticsProvider } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
+import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 
 type InitialEvaluator = {
   id: string;
@@ -298,6 +299,11 @@ export function EvaluatorSetupPage(
     queryParams: ["observation", "display", "timestamp", "traceId"],
     tableName: "evaluators-v2",
     isV4: true,
+    extractParamsValuesFromRow: (observation: SampleObservation) => ({
+      observation: observation.id,
+      traceId: observation.traceId ?? "",
+      timestamp: observation.startTime.toISOString(),
+    }),
     expandConfig: {
       basePath: `/project/${projectId}/traces`,
       reader: "trace",
@@ -754,7 +760,7 @@ export function EvaluatorSetupPage(
               {},
             );
             if (observation.traceId) {
-              sampleTracePeekNavigation.openPeek(observation.traceId);
+              sampleTracePeekNavigation.openPeek(observation.id, observation);
             }
           }}
         />
