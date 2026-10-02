@@ -171,7 +171,7 @@ export function ExperimentGridSummaryValues({
                 >
                   {dataType === "CATEGORICAL" ? (
                     <span aria-label={`${movement.changed} changed items`}>
-                      ↻ {movement.changed}
+                      {movement.changed} changed
                     </span>
                   ) : (
                     <>
