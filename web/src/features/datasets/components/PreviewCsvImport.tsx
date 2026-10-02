@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tooltip usage pending migration to design-system tooltips. */
 /* eslint-disable no-nested-ternary */
 import { CsvColumnsCard } from "./CsvColumnsCard";
 import { MappingCard } from "./MappingCard";
@@ -17,11 +16,7 @@ import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 import { CsvImportValidationError } from "./CsvImportValidationError";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Label } from "@/src/components/ui/label";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { InfoIcon, GripVertical } from "lucide-react";
 import { useCsvMapping } from "@/src/features/datasets/hooks/useCsvMapping";
 import { useCsvDragAndDrop } from "@/src/features/datasets/hooks/useCsvDragAndDrop";
@@ -249,15 +244,18 @@ export function PreviewCsvImport({
             >
               Force Objects
             </Label>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <InfoIcon className="text-muted-foreground h-3.5 w-3.5" />
-              </TooltipTrigger>
-              <TooltipContent className="max-w-[300px]">
-                When a single csv column is mapped to a dataset item field, wrap
-                its value in an object instead of using the raw value. Example:{" "}
-                {`{"columnName": "value"}`} instead of {`"value"`}
-              </TooltipContent>
+            <Tooltip
+              label={
+                'When a single csv column is mapped to a dataset item field, wrap its value in an object instead of using the raw value. Example: {"columnName": "value"} instead of "value"'
+              }
+              delay={300}
+            >
+              {({ getTriggerProps }) => (
+                <InfoIcon
+                  {...getTriggerProps()}
+                  className="text-muted-foreground h-3.5 w-3.5"
+                />
+              )}
             </Tooltip>
           </div>
         )}
