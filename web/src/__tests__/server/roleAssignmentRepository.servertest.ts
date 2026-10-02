@@ -31,6 +31,7 @@ describe("role assignment integrity", () => {
 
     await expect(
       assignRole(prisma, {
+        tenantId: OrganizationId(project.orgId),
         principalId: UserId(v4()),
         ownerId: ProjectId(project.id),
         roleId: SystemRoleId("VIEWER"),
@@ -193,6 +194,7 @@ describe("role assignment foreign keys", () => {
         data: { email: `${v4()}@example.com` },
       });
       const assignment = {
+        tenantId: OrganizationId(orgId),
         principalId: principal === "user" ? UserId(user.id) : ApiKeyId(key.id),
         ownerId:
           owner === "organization"
@@ -266,6 +268,7 @@ describe("role assignment foreign keys", () => {
       });
       const userAssignment = await addUserAssignment(orgId, projectId);
       await assignRole(prisma, {
+        tenantId: OrganizationId(orgId),
         ownerId: OrganizationId(orgId),
         principalId: UserId(userAssignment.principalUserId),
         roleId: SystemRoleId("VIEWER"),
@@ -301,12 +304,13 @@ describe("role assignment foreign keys", () => {
     },
   );
 
-  it("loads tagged principal, owner, role, and tenant identifiers for both principal kinds", async () => {
+  it("loads tagged identifiers with the caller-supplied tenant for both principal kinds", async () => {
     const { projectId, orgId } = await createOrgProjectAndApiKey();
     const key = await prisma.apiKey.findFirstOrThrow({ where: { projectId } });
     const assignment = await addUserAssignment(orgId, projectId);
     const principalId = UserId(assignment.principalUserId);
     await assignRole(prisma, {
+      tenantId: OrganizationId(orgId),
       ownerId: OrganizationId(orgId),
       principalId,
       roleId: SystemRoleId("ADMIN"),

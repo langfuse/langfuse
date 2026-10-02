@@ -7,6 +7,7 @@ import { env } from "../../env";
 import { InvalidRequestError } from "../../errors";
 import {
   ApiKeyId,
+  OrganizationId,
   hasApiKeyKind,
   hasOrganizationKind,
   hasProjectKind,
@@ -175,7 +176,16 @@ async function insertApiKey(
   opts: { owner: OwnerId; role: RoleId },
 ) {
   const apiKey = await tx.apiKey.create({ data });
+  const orgId = hasOrganizationKind(opts.owner)
+    ? untag(opts.owner)
+    : (
+        await tx.project.findFirstOrThrow({
+          where: { id: untag(opts.owner) },
+          select: { orgId: true },
+        })
+      ).orgId;
   await assignRole(tx, {
+    tenantId: OrganizationId(orgId),
     principalId: ApiKeyId(apiKey.id),
     roleId: opts.role,
     ownerId: opts.owner,

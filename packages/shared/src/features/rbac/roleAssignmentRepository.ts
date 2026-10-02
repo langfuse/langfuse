@@ -3,11 +3,7 @@ import {
   type Prisma,
   type RoleAssignment as StoredRoleAssignment,
 } from "@prisma/client";
-import {
-  InternalServerError,
-  InvalidRequestError,
-  NotImplementedError,
-} from "../../errors";
+import { InternalServerError, NotImplementedError } from "../../errors";
 import { withTransaction } from "../../server/utils/withTransaction";
 import {
   systemRoleAccessRights,
@@ -21,7 +17,6 @@ import {
   SystemRoleId,
   UserId,
   hasApiKeyKind,
-  hasOrganizationKind,
   hasProjectKind,
   hasSystemRoleKind,
   toSystemRole,
@@ -29,7 +24,6 @@ import {
   type OwnerId,
   type PrincipalId,
   type RoleAssignment,
-  type TenantId,
 } from "./types";
 
 type Tx = PrismaClient | Prisma.TransactionClient;
@@ -50,13 +44,22 @@ export async function getRoleAssignmentsForPrincipal(
   return assignments.map(toRoleAssignment);
 }
 
-/** assignRole persists the assignment, deriving the owner's tenant from the database. */
+/** assignRole persists a system-role assignment in the supplied tenant. */
 export async function assignRole(
   tx: Tx,
-  ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt" | "tenantId">,
+  ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">,
 ): Promise<void> {
-  const tenantId = await resolveTenant(tx, ra.ownerId);
-  await createRoleAssignment(tx, { ...ra, tenantId });
+  if (!hasSystemRoleKind(ra.roleId)) {
+    throw new NotImplementedError("custom roles not yet supported");
+  }
+  await tx.roleAssignment.create({
+    data: {
+      orgId: untag(ra.tenantId),
+      ...principalFields(ra.principalId),
+      ...ownerFields(ra.ownerId),
+      systemRole: toSystemRole(ra.roleId),
+    },
+  });
 }
 
 /** transferRoleAssignments moves a transferred project's api-key assignments to the destination organization and drops its user assignments, mirroring the membership wipe. */
@@ -74,38 +77,6 @@ export async function transferRoleAssignments(
       where: { ownerProjectId: projectId, principalUserId: { not: null } },
     });
   });
-}
-
-/** resolveTenant derives the organization that scopes an owner. */
-async function resolveTenant(tx: Tx, ownerId: OwnerId): Promise<TenantId> {
-  if (hasOrganizationKind(ownerId)) return OrganizationId(untag(ownerId));
-  if (hasProjectKind(ownerId)) {
-    const { orgId } = await tx.project.findFirstOrThrow({
-      where: { id: untag(ownerId) },
-      select: { orgId: true },
-    });
-    return OrganizationId(orgId);
-  }
-  throw new InvalidRequestError("owner must be an organization or project");
-}
-
-/** createRoleAssignment persists a system-role assignment; custom roles are a later ticket. */
-async function createRoleAssignment(
-  tx: Tx,
-  ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">,
-): Promise<void> {
-  if (hasSystemRoleKind(ra.roleId)) {
-    await tx.roleAssignment.create({
-      data: {
-        orgId: untag(ra.tenantId),
-        ...principalFields(ra.principalId),
-        ...ownerFields(ra.ownerId),
-        systemRole: toSystemRole(ra.roleId),
-      },
-    });
-  } else {
-    throw new NotImplementedError("custom roles not yet supported");
-  }
 }
 
 /** principalFields selects the foreign key for a tagged principal. */

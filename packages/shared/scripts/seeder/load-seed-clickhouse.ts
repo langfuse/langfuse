@@ -4,6 +4,7 @@ import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
 import { assignRole } from "../../src/features/rbac/roleAssignmentRepository";
 import {
   ApiKeyId,
+  OrganizationId,
   ProjectId,
   SystemRoleId,
 } from "../../src/features/rbac/types";
@@ -39,7 +40,7 @@ const prepareProjectsAndApiKeys = async (
       },
     });
 
-    await prisma.project.upsert({
+    const project = await prisma.project.upsert({
       where: { id: projectId },
       update: {},
       create: {
@@ -74,6 +75,7 @@ const prepareProjectsAndApiKeys = async (
           },
         });
         await assignRole(tx, {
+          tenantId: OrganizationId(project.orgId),
           principalId: ApiKeyId(apiKeyId),
           roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
           ownerId: ProjectId(projectId),

@@ -1,7 +1,12 @@
 import { v4 } from "uuid";
 import { prisma } from "../../db";
 import { env } from "../../env";
-import { ApiKeyId, ProjectId, SystemRoleId } from "../../features/rbac/types";
+import {
+  ApiKeyId,
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+} from "../../features/rbac/types";
 import { CloudConfigSchema } from "../../interfaces/cloudConfigSchema";
 import { assignRole } from "../../features/rbac/roleAssignmentRepository";
 import { createShaHash, getDisplaySecretKey } from "../auth/apiKeys";
@@ -68,6 +73,7 @@ export const createOrgProjectAndApiKey = async (
 
     // Give the fixture key its legacy project permissions.
     await assignRole(tx, {
+      tenantId: OrganizationId(org.id),
       principalId: ApiKeyId(apiKeyRowId),
       roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       ownerId: ProjectId(projectId),
