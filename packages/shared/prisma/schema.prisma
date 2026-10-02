@@ -1169,6 +1169,7 @@ model EvaluationRule {
   filter          Json
   sampling        Decimal
   delay           Int
+  idleTime        Int?           @map("idle_time") // milliseconds
   timeScope       String[]       @default(["NEW"]) @map("time_scope")
 
   assignments EvaluationRuleEvaluatorAssignment[]
