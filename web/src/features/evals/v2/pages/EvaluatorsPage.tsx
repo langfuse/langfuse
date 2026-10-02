@@ -487,6 +487,7 @@ export default function EvaluatorsPage() {
         header: "Actions",
         size: 170,
         isFixedPosition: true,
+        isPinnedRight: true,
         enableSorting: false,
         enableResizing: false,
         cell: ({ row }) => (
