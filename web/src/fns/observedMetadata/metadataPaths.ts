@@ -8,17 +8,13 @@
 // caveat: metadata the user has never loaded is never suggested.
 //
 // Top-level keys ONLY — deliberately not flattened into nested dot-paths.
-// Metadata is stored as a flat Map(String, String): nested object values are
-// JSON-encoded strings under their top-level key, and the stringObject filter
-// matches the LITERAL top-level key ("we can only filter on the first level",
-// StringObjectFilter in clickhouse-filter.ts; the metadata view's filter
-// shortcut resolves the top-level key for the same reason — ValueCell.tsx).
-// A flattened `metadata.scope.name` suggestion would lower to key
-// "scope.name" and match nothing. Dot-paths still appear whenever producers
-// use dotted top-level keys (the OTel-attribute shape, e.g.
-// `gen_ai.request.model`) — those ARE literal keys and filter correctly.
-// Object-valued keys are suggested with type "object"; their nested content
-// is matched as a substring of the JSON-encoded branch (`metadata.scope:*v*`).
+// Nested `metadata.scope.name` filters do match (v4-flattened leaf or
+// migrated JSON under `scope`), but suggestions stay top-level so the
+// dropdown does not explode into every nested path. Dot-paths still appear
+// whenever producers use dotted top-level keys (the OTel-attribute shape,
+// e.g. `gen_ai.request.model`) — those ARE literal keys. Object-valued keys
+// are suggested with type "object"; their nested content can also be matched
+// as a substring of the JSON-encoded branch (`metadata.scope:*v*`).
 //
 // Types are DISPLAY-ONLY hints: metadata filters always lower to
 // `stringObject` (see fields.ts operatorIssue — numeric metadata comparisons
