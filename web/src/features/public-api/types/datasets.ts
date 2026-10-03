@@ -222,6 +222,7 @@ export const PostDatasetItemsV1Response = APIDatasetItem;
 // GET /dataset-items
 export const GetDatasetItemsV1Query = z
   .object({
+    datasetId: z.string().nullish(),
     datasetName: z.string().nullish(),
     sourceTraceId: z.string().nullish(),
     sourceObservationId: z.string().nullish(),
@@ -230,15 +231,15 @@ export const GetDatasetItemsV1Query = z
   })
   .refine(
     (data) => {
-      // If version is provided, datasetName must also be provided
-      if (data.version && !data.datasetName) {
+      // If version is provided, either datasetId or datasetName must be provided
+      if (data.version && !data.datasetId && !data.datasetName) {
         return false;
       }
       return true;
     },
     {
-      message: "datasetName is required when version parameter is provided",
-      path: ["datasetName"],
+      message: "datasetId or datasetName is required when version parameter is provided",
+      path: ["datasetId"],
     },
   );
 export const GetDatasetItemsV1Response = z
