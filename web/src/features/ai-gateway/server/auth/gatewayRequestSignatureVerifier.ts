@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { context, propagation, trace, type Context } from "@opentelemetry/api";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod/v4";
 
@@ -23,6 +24,8 @@ const resolveBodySchema = z
 const modelsQuerySchema = z
   .object({ api_format: GatewayApiFormatSchema })
   .strict();
+const GATEWAY_REQUEST_ID_HEADER = "langfuse-gateway-request-id";
+const GATEWAY_REQUEST_ID_KEY = "langfuse.gateway.request.id";
 const gatewayAuthorizationSchema =
   /^HMAC timestamp=(\d+),signature=([0-9a-f]{64})$/;
 
@@ -74,6 +77,25 @@ function verifyGatewayRequestSignatureAndHashApiKey(input: {
   }
 
   return createShaHash(input.virtualSecretKey, env.SALT);
+}
+
+/**
+ * Adds the gateway's request ID to the active span and to the baggage the logger
+ * copies onto every line, so Web resolution logs join the gateway's. Call it
+ * only after the gateway signature is verified; the header itself is unsigned,
+ * so only a single UUID is accepted.
+ */
+export function contextWithGatewayRequestId(
+  req: Pick<NextApiRequest, "headers">,
+  parent: Context = context.active(),
+): Context {
+  const requestId = singleHeader(req.headers[GATEWAY_REQUEST_ID_HEADER]);
+  if (!requestId || !z.uuid().safeParse(requestId).success) return parent;
+  trace.getSpan(parent)?.setAttribute(GATEWAY_REQUEST_ID_KEY, requestId);
+  const baggage = (
+    propagation.getBaggage(parent) ?? propagation.createBaggage()
+  ).setEntry(GATEWAY_REQUEST_ID_KEY, { value: requestId });
+  return propagation.setBaggage(parent, baggage);
 }
 
 export function withGatewayResolveSignatureVerification(
@@ -170,12 +192,14 @@ function withGatewayControlPlaneAuth<
         ),
       });
 
-      return await handler({
-        req,
-        res,
-        fastHashedSecretKey,
-        body: body.data,
-      });
+      return await context.with(contextWithGatewayRequestId(req), () =>
+        handler({
+          req,
+          res,
+          fastHashedSecretKey,
+          body: body.data,
+        }),
+      );
     } catch (error) {
       if (error instanceof GatewayControlPlaneError) {
         return res.status(error.status).json({ error: error.message });
