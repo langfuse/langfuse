@@ -6,6 +6,7 @@ import {
   EXPECTED_TRPC_BAD_REQUEST_PATHS,
   EXPECTED_TRPC_CONFLICT_PATHS,
   EXPECTED_TRPC_ERROR_CODES,
+  EXPECTED_TRPC_PRECONDITION_FAILED_PATHS,
   captureBuildId,
   fetchWithParseErrorStatus,
   getApproxTrpcGetUrlBytes,
@@ -509,6 +510,47 @@ describe("isExpectedTrpcClientError", () => {
         ),
       ).toBe(true);
     }
+  });
+
+  it("treats a transient evaluator model-preflight failure as expected", () => {
+    // evalsV2.create / update throw PRECONDITION_FAILED when live
+    // model preflight hits a retryable provider, timeout, abort, or
+    // unknown model-call error. The setup page already toasts it.
+    for (const path of EXPECTED_TRPC_PRECONDITION_FAILED_PATHS) {
+      expect(
+        isExpectedTrpcClientError(
+          trpcServerError({
+            code: "PRECONDITION_FAILED",
+            httpStatus: 412,
+            path,
+            message:
+              "Could not verify the evaluator model right now. Retry, or pick another model.",
+          }),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("does not treat PRECONDITION_FAILED on other procedures as expected", () => {
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "PRECONDITION_FAILED",
+          httpStatus: 412,
+          path: "evals.createTemplate",
+          message: "Model configuration not valid for evaluation",
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "INTERNAL_SERVER_ERROR",
+          httpStatus: 500,
+          path: EXPECTED_TRPC_PRECONDITION_FAILED_PATHS[0],
+        }),
+      ),
+    ).toBe(false);
   });
 
   it("does not treat BAD_REQUEST on other procedures as expected", () => {

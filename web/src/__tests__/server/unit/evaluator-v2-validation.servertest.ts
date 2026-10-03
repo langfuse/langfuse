@@ -20,6 +20,10 @@ vi.mock("@/src/features/evals/server/isCodeEvalEnabled", () => ({
 
 import { assertEvaluatorConfigurationValid } from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
 import {
+  EvaluatorConfigurationError,
+  EvaluatorModelConfigurationError,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
+import {
   CreateEvaluatorSchema,
   ListEvaluatorsSchema,
 } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
@@ -139,10 +143,9 @@ describe("evaluator configuration validation", () => {
     expect(mocks.getEvaluatorDefinitionPreflightError).toHaveBeenCalledOnce();
   });
 
-  it("propagates transient model preflight failures", async () => {
-    const transientError = new Error("Provider rate limit");
+  it("maps transient model preflight failures to a 412 that does not block-persist", async () => {
     mocks.getEvaluatorDefinitionPreflightError.mockRejectedValue(
-      transientError,
+      new Error("Provider rate limit"),
     );
 
     await expect(
@@ -164,7 +167,13 @@ describe("evaluator configuration validation", () => {
           },
         },
       }),
-    ).rejects.toBe(transientError);
+    ).rejects.toSatisfy(
+      (error) =>
+        error instanceof EvaluatorConfigurationError &&
+        !(error instanceof EvaluatorModelConfigurationError) &&
+        error.message ===
+          "Could not verify the evaluator model right now. Retry, or pick another model.",
+    );
   });
 
   // The schema is the only boundary that can see a caller-supplied mapping:
