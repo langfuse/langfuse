@@ -227,7 +227,6 @@ describe("gateway metadata", () => {
         "langfuse.gateway.provider.request.id": "req-test",
         "langfuse.gateway.api-key.id": "key-test",
         attributes: {
-          ...(scope === "langfuse-ai-gateway" ? {} : canonicalAttributes),
           "custom.attribute": "keep-custom",
           "langfuse.observation.custom": "keep-unknown",
         },
