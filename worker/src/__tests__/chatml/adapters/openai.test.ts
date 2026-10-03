@@ -82,6 +82,33 @@ describe("OpenAI Adapter", () => {
       expect(openAIAdapter.detect({ metadata: {}, data: input })).toBe(false);
     });
 
+    it("should reject top-level parts in Chat Completions {messages, tools} wrapper", () => {
+      // OTel GenAI wraps Microsoft.Extensions.AI input as {messages, tools}.
+      // That wrapper is not OpenAI Chat Completions; claiming it leaves
+      // System/User as JSON path trees of parts instead of text.
+      const input = {
+        messages: [
+          {
+            role: "system",
+            parts: [{ type: "text", content: "You are helpful." }],
+          },
+          {
+            role: "user",
+            parts: [{ type: "text", content: "Hello" }],
+          },
+        ],
+        tools: [{ type: "function", function: { name: "get_weather" } }],
+      };
+
+      expect(openAIAdapter.detect({ metadata: input })).toBe(false);
+      expect(openAIAdapter.detect({ metadata: {}, data: input })).toBe(false);
+
+      const result = normalizeInput(input);
+      expect(result.success).toBe(true);
+      expect(result.data?.[0].content).toBe("You are helpful.");
+      expect(result.data?.[1].content).toBe("Hello");
+    });
+
     it("should not crash when detecting messages array with null items", () => {
       // tests for bug when detection code tried to access .type on null items
       const messagesWithNull = {
