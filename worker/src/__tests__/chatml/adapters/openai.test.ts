@@ -80,6 +80,14 @@ describe("OpenAI Adapter", () => {
 
       // Should also reject when passed as data
       expect(openAIAdapter.detect({ metadata: {}, data: input })).toBe(false);
+
+      // Should also reject when wrapped with tool definitions as
+      // {messages, tools}, matching the bare-array rejection above
+      const wrappedInput = { messages: input, tools: [{ type: "function" }] };
+      expect(openAIAdapter.detect({ metadata: wrappedInput })).toBe(false);
+      expect(openAIAdapter.detect({ metadata: {}, data: wrappedInput })).toBe(
+        false,
+      );
     });
 
     it("should not crash when detecting messages array with null items", () => {
