@@ -132,13 +132,15 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  * Zod input validation (`BAD_REQUEST` whose message is a Zod 4 issue list or
  * whose `data.zodError` is populated), plus CONFLICT on
  * {@link EXPECTED_TRPC_CONFLICT_PATHS}, plus BAD_REQUEST on
- * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}. Empty/too-short fields, stale
- * in-app-agent approvals, and a rejected user-configured remote-experiment
- * URL are the product working as designed — the toast is the UX; Sentry
- * must not log them.
+ * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}, plus PRECONDITION_FAILED on
+ * {@link EXPECTED_TRPC_PRECONDITION_FAILED_PATHS}. Empty/too-short fields, stale
+ * in-app-agent approvals, a rejected user-configured remote-experiment
+ * URL, and a transient evaluator model-preflight failure are the product
+ * working as designed — the toast is the UX; Sentry must not log them.
  * A 5xx (`INTERNAL_SERVER_ERROR`), a non-Zod `BAD_REQUEST` outside the
- * allowlist, a CONFLICT outside the allowlist, an unrecognized code, or
- * any non-tRPC error is not expected and keeps flowing to Sentry.
+ * allowlist, a CONFLICT outside the allowlist, a PRECONDITION_FAILED
+ * outside the allowlist, an unrecognized code, or any non-tRPC error is
+ * not expected and keeps flowing to Sentry.
  */
 export const EXPECTED_TRPC_ERROR_CODES = [
   "NOT_FOUND",
@@ -175,6 +177,19 @@ export const EXPECTED_TRPC_CONFLICT_PATHS = [
 export const EXPECTED_TRPC_BAD_REQUEST_PATHS = [
   "datasets.triggerRemoteExperiment",
   "datasets.upsertRemoteExperiment",
+] as const;
+
+/**
+ * PRECONDITION_FAILED is usually a setup invariant we still want
+ * (a missing default model the UI should have blocked). These
+ * procedures throw 412 only as a live model-preflight miss the product
+ * already toasts — a retryable provider, timeout, abort, or unknown
+ * model call while saving an evaluator. Expected user-facing state,
+ * not a regression.
+ */
+export const EXPECTED_TRPC_PRECONDITION_FAILED_PATHS = [
+  "evalsV2.create",
+  "evalsV2.update",
 ] as const;
 
 const getTrpcErrorData = (
@@ -218,7 +233,8 @@ export const getTrpcErrorFingerprint = (error: unknown): string[] => [
  * True when `error` is a TRPCClientError whose code is an EXPECTED, user-facing
  * state that should not be captured to Sentry.
  * See {@link EXPECTED_TRPC_ERROR_CODES}, {@link EXPECTED_TRPC_CONFLICT_PATHS},
- * and {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}.
+ * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}, and
+ * {@link EXPECTED_TRPC_PRECONDITION_FAILED_PATHS}.
  */
 export const isExpectedTrpcClientError = (error: unknown): boolean => {
   const code = getTrpcErrorCode(error);
@@ -240,6 +256,15 @@ export const isExpectedTrpcClientError = (error: unknown): boolean => {
     code === "BAD_REQUEST" &&
     path !== undefined &&
     (EXPECTED_TRPC_BAD_REQUEST_PATHS as readonly string[]).includes(path)
+  ) {
+    return true;
+  }
+  if (
+    code === "PRECONDITION_FAILED" &&
+    path !== undefined &&
+    (EXPECTED_TRPC_PRECONDITION_FAILED_PATHS as readonly string[]).includes(
+      path,
+    )
   ) {
     return true;
   }

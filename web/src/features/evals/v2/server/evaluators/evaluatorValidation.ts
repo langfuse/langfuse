@@ -6,6 +6,7 @@ import {
 } from "@langfuse/shared";
 import {
   DefaultEvalModelService,
+  getLLMErrorInfo,
   isDecisionModelAdapter,
 } from "@langfuse/shared/src/server";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
@@ -167,21 +168,35 @@ export async function assertEvaluatorConfigurationValid(params: {
     }
   }
 
-  const error = await getEvaluatorDefinitionPreflightError(
-    {
-      projectId: params.projectId,
-      template: {
-        name: params.name,
-        type: params.definition.type,
-        provider: params.definition.provider,
-        model: params.definition.model,
-        modelParams: params.definition.modelParams,
-        outputDefinition: params.definition.outputDefinition,
+  try {
+    const error = await getEvaluatorDefinitionPreflightError(
+      {
+        projectId: params.projectId,
+        template: {
+          name: params.name,
+          type: params.definition.type,
+          provider: params.definition.provider,
+          model: params.definition.model,
+          modelParams: params.definition.modelParams,
+          outputDefinition: params.definition.outputDefinition,
+        },
       },
-    },
-    { throwOnOperationalError: true },
-  );
-  if (error) throw new EvaluatorModelConfigurationError(error);
+      { throwOnOperationalError: true },
+    );
+    if (error) throw new EvaluatorModelConfigurationError(error);
+  } catch (error) {
+    if (error instanceof EvaluatorModelConfigurationError) throw error;
+    // Transient provider / timeout / unknown model-call failures must abort
+    // the save (do not persist a blocked evaluator) but they are not 500s.
+    // EvaluatorConfigurationError is 412 and is not the model-config
+    // subclass, so validateEvaluatorForPersistence rethrows it.
+    const llmError = getLLMErrorInfo(error);
+    throw new EvaluatorConfigurationError(
+      llmError
+        ? `Could not verify the evaluator model. ${llmError.message}`
+        : "Could not verify the evaluator model right now. Retry, or pick another model.",
+    );
+  }
 }
 
 export async function getDecisionModelConfigurationError(params: {
