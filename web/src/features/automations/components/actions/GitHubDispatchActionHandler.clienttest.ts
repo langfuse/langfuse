@@ -5,13 +5,22 @@ import { GitHubDispatchActionHandler } from "./GitHubDispatchActionHandler";
 
 const handler = new GitHubDispatchActionHandler();
 
-const formData = (overrides: Record<string, string> = {}) => ({
+const formData = (
+  overrides: {
+    url?: string;
+    originalUrl?: string;
+    githubToken?: string;
+    displayGitHubToken?: string;
+    includePromptContent?: boolean;
+  } = {},
+) => ({
   githubDispatch: {
     url: overrides.url ?? "https://api.github.com/repos/owner/repo/dispatches",
     originalUrl: overrides.originalUrl,
     eventType: "repository-updated",
     githubToken: overrides.githubToken ?? "",
     displayGitHubToken: overrides.displayGitHubToken ?? "ghp_...ken",
+    includePromptContent: overrides.includePromptContent ?? true,
   },
 });
 
@@ -39,5 +48,19 @@ describe("GitHubDispatchActionHandler URL and token validation", () => {
     );
 
     expect(result).toEqual({ isValid: true });
+  });
+
+  it("includes includePromptContent in the built action config", () => {
+    expect(
+      handler.buildActionConfig(
+        formData({
+          githubToken: "ghp_token",
+          includePromptContent: false,
+        }),
+      ),
+    ).toMatchObject({
+      type: "GITHUB_DISPATCH",
+      includePromptContent: false,
+    });
   });
 });
