@@ -14,6 +14,55 @@ type CommentMentionPayload = Omit<
   "type"
 >;
 
+const isUniqueConstraintError = (error: unknown): boolean =>
+  typeof error === "object" &&
+  error !== null &&
+  "code" in error &&
+  (error as { code: unknown }).code === "P2002";
+
+/**
+ * Insert the unique (commentId, userId) row *before* SMTP so concurrent
+ * workers cannot both send. P2002 means another attempt already claimed
+ * (or completed) this recipient — skip without sending.
+ */
+async function tryClaimCommentMentionEmailSend(
+  commentId: string,
+  userId: string,
+): Promise<boolean> {
+  try {
+    await prisma.commentMentionEmail.create({
+      data: { commentId, userId },
+    });
+    return true;
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Drop the claim when SMTP did not deliver so a later BullMQ retry can
+ * insert again and send. Failures here are logged; a stuck row can skip
+ * a retry (prefer that over sending a duplicate).
+ */
+async function releaseCommentMentionEmailClaim(
+  commentId: string,
+  userId: string,
+): Promise<void> {
+  try {
+    await prisma.commentMentionEmail.deleteMany({
+      where: { commentId, userId },
+    });
+  } catch (error) {
+    logger.error(
+      `Failed to release comment mention email claim for comment ${commentId} user ${userId}`,
+      error,
+    );
+  }
+}
+
 async function buildCommentLink(opts: {
   baseUrl: string;
   projectId: string;
@@ -143,8 +192,13 @@ export async function handleCommentMentionNotification(
       );
     })();
 
-    // Process each mentioned user
+    // Process each mentioned user. Per-user failures are collected so the rest
+    // of the loop can finish; the job then throws so BullMQ retries only the
+    // recipients whose unique claim was released (or never inserted).
+    const failedUserIds: string[] = [];
+
     for (const userId of mentionedUserIds) {
+      let claimed = false;
       try {
         // Verify user has access to the project (from our single query above)
         if (!userMap.has(userId)) {
@@ -200,10 +254,19 @@ export async function handleCommentMentionNotification(
           continue;
         }
 
+        // Claim before SMTP so overlapping jobs cannot both send. Unique
+        // (commentId, userId) is the lock; P2002 means skip.
+        claimed = await tryClaimCommentMentionEmailSend(commentId, userId);
+        if (!claimed) {
+          logger.info(
+            `Comment mention email already sent for comment ${commentId} to user ${userId}. Skipping.`,
+          );
+          continue;
+        }
+
         const settingsLink = `${baseUrl}/project/${encodeURIComponent(projectId)}/settings/notifications`;
 
-        // Send email
-        await sendCommentMentionEmail({
+        const { delivered } = await sendCommentMentionEmail({
           env: {
             EMAIL_FROM_ADDRESS: env.EMAIL_FROM_ADDRESS,
             SMTP_CONNECTION_URL: env.SMTP_CONNECTION_URL,
@@ -217,16 +280,31 @@ export async function handleCommentMentionNotification(
           settingsLink,
         });
 
+        if (!delivered) {
+          await releaseCommentMentionEmailClaim(commentId, userId);
+          claimed = false;
+          continue;
+        }
+
         logger.info(
           `Comment mention email sent successfully for comment ${commentId} to user ${userId}`,
         );
       } catch (error) {
+        if (claimed) {
+          await releaseCommentMentionEmailClaim(commentId, userId);
+        }
         logger.error(
           `Failed to send comment mention notification to user ${userId}`,
           error,
         );
-        // Continue processing other users even if one fails
+        failedUserIds.push(userId);
       }
+    }
+
+    if (failedUserIds.length > 0) {
+      throw new Error(
+        `Failed to send comment mention emails for comment ${commentId} to ${failedUserIds.length} user(s): ${failedUserIds.join(", ")}`,
+      );
     }
 
     logger.info(
