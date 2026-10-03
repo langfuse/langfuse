@@ -327,10 +327,20 @@ export const listDatasetsForApi = async ({
   name,
   page,
   limit,
+  fromTimestamp,
+  toTimestamp,
 }: ListDatasetsInput) => {
   const where: Prisma.DatasetWhereInput = {
     projectId,
     ...(name ? { name: { contains: name, mode: "insensitive" } } : {}),
+    ...(fromTimestamp || toTimestamp
+      ? {
+          createdAt: {
+            ...(fromTimestamp ? { gte: new Date(fromTimestamp) } : {}),
+            ...(toTimestamp ? { lt: new Date(toTimestamp) } : {}),
+          },
+        }
+      : {}),
   };
 
   const [datasets, totalItems] = await Promise.all([
