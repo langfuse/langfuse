@@ -2,10 +2,14 @@
 
 import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
+import * as PopoverPrimitive from "@radix-ui/react-popover";
+import { Command as CommandPrimitive } from "cmdk";
 
-import { useCallback } from "react";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { Badge } from "../Badge/Badge";
+import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
 import { InputControl } from "../internal/InputControl/InputControl";
 import { InputDropdown } from "../internal/InputDropdown/InputDropdown";
 
@@ -13,12 +17,18 @@ type SelectOption<V> =
   | {
       value: V;
       label: string;
+      badges?: Array<
+        Pick<React.ComponentProps<typeof Badge>, "text" | "color" | "title">
+      >;
       disabled?: false;
       disabledReason?: never;
     }
   | {
       value: V;
       label: string;
+      badges?: Array<
+        Pick<React.ComponentProps<typeof Badge>, "text" | "color" | "title">
+      >;
       disabled: true;
       disabledReason: string;
     };
@@ -38,6 +48,7 @@ type SelectInputProps<V> = {
   onValueChange: (newValue: V) => void;
   placeholder: string;
   emptyMessage?: string;
+  search?: { placeholder: string };
   error?: boolean;
 } & Pick<
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>,
@@ -55,6 +66,7 @@ function SelectInputInner<V extends string>(
     onValueChange,
     placeholder,
     emptyMessage = "No options available.",
+    search,
     error,
     ...triggerProps
   }: SelectInputProps<V>,
@@ -68,55 +80,161 @@ function SelectInputInner<V extends string>(
   const hasOptions = options.some((node) =>
     isSelectGroup(node) ? node.options.length > 0 : true,
   );
-  const renderNode = useCallback(
-    (
-      node: SelectInputNode<V>,
-      hasPreviousGroup: boolean,
-    ): React.ReactElement => {
-      if (isSelectGroup(node)) {
-        return (
-          <React.Fragment key={node.id}>
-            {hasPreviousGroup && (
-              <SelectPrimitive.Separator className="bg-border my-2 h-px" />
-            )}
-            <SelectPrimitive.Group>
-              <SelectPrimitive.Label className="text-muted-foreground px-1 py-1.5 text-xs font-bold">
-                {node.label}
-              </SelectPrimitive.Label>
-              {node.options.map((option) => renderNode(option, false))}
-            </SelectPrimitive.Group>
-          </React.Fragment>
-        );
-      }
+  const listId = React.useId();
 
-      return (
-        <React.Fragment key={node.value}>
-          {hasPreviousGroup && <div aria-hidden="true" className="h-4" />}
-          <InputDropdown.Option highlight="focus">
-            <SelectPrimitive.SelectItem
-              value={node.value}
-              disabled={node.disabled}
+  if (search) {
+    return (
+      <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+        <InputControl
+          contentLayout="spread"
+          error={error}
+          disabled={triggerProps.disabled}
+        >
+          <PopoverPrimitive.Trigger
+            ref={ref}
+            type="button"
+            role="combobox"
+            aria-controls={listId}
+            aria-expanded={open}
+            title={selectedOption?.label}
+            {...triggerProps}
+          >
+            <span
+              className="min-w-0 flex-1 truncate text-left"
+              title={selectedOption?.label}
             >
-              <InputDropdown.OptionContent
-                label={
-                  <SelectPrimitive.ItemText>
-                    {node.label}
-                  </SelectPrimitive.ItemText>
-                }
-                title={node.disabled ? node.disabledReason : node.label}
-                indicator={
-                  <SelectPrimitive.ItemIndicator>
-                    <InputDropdown.CheckIndicator checked />
-                  </SelectPrimitive.ItemIndicator>
-                }
-              />
-            </SelectPrimitive.SelectItem>
-          </InputDropdown.Option>
+              {selectedOption?.label ?? placeholder}
+            </span>
+            <DropdownIndicator />
+          </PopoverPrimitive.Trigger>
+        </InputControl>
+        <PopoverPrimitive.Portal container={container}>
+          <InputDropdown.Content width="popover-trigger">
+            <PopoverPrimitive.Content
+              align="start"
+              sideOffset={4}
+              onWheel={stopScrollPropagation()}
+              onTouchMove={stopScrollPropagation()}
+            >
+              <InputDropdown.Root>
+                <CommandPrimitive>
+                  <InputDropdown.Search>
+                    <CommandPrimitive.Input placeholder={search.placeholder} />
+                  </InputDropdown.Search>
+                  <InputDropdown.Empty>
+                    <CommandPrimitive.Empty>
+                      {emptyMessage}
+                    </CommandPrimitive.Empty>
+                  </InputDropdown.Empty>
+                  <InputDropdown.List>
+                    <CommandPrimitive.List id={listId}>
+                      {options.map((node) => {
+                        const group = isSelectGroup(node);
+                        const items = group ? node.options : [node];
+                        const content = items.map((option) => (
+                          <InputDropdown.Option
+                            key={option.value}
+                            highlight="aria-selected"
+                            checked={value === option.value}
+                          >
+                            <CommandPrimitive.Item
+                              value={option.value}
+                              keywords={[option.label]}
+                              disabled={option.disabled}
+                              onSelect={() => {
+                                onValueChange(option.value);
+                                setOpen(false);
+                              }}
+                            >
+                              <InputDropdown.OptionContent
+                                type="radio"
+                                checked={value === option.value}
+                                label={option.label}
+                                title={
+                                  option.disabled
+                                    ? option.disabledReason
+                                    : option.label
+                                }
+                                badges={option.badges?.map((badge, index) => (
+                                  <Badge key={index} {...badge} />
+                                ))}
+                              />
+                            </CommandPrimitive.Item>
+                          </InputDropdown.Option>
+                        ));
+
+                        if (!group) {
+                          return (
+                            <React.Fragment key={node.value}>
+                              {content}
+                            </React.Fragment>
+                          );
+                        }
+                        return (
+                          <CommandPrimitive.Group
+                            key={node.id}
+                            heading={node.label}
+                          >
+                            {content}
+                          </CommandPrimitive.Group>
+                        );
+                      })}
+                    </CommandPrimitive.List>
+                  </InputDropdown.List>
+                </CommandPrimitive>
+              </InputDropdown.Root>
+            </PopoverPrimitive.Content>
+          </InputDropdown.Content>
+        </PopoverPrimitive.Portal>
+      </PopoverPrimitive.Root>
+    );
+  }
+  const renderNode = (
+    node: SelectInputNode<V>,
+    hasPreviousGroup: boolean,
+  ): React.ReactElement => {
+    if (isSelectGroup(node)) {
+      return (
+        <React.Fragment key={node.id}>
+          {hasPreviousGroup && (
+            <SelectPrimitive.Separator className="bg-border my-2 h-px" />
+          )}
+          <SelectPrimitive.Group>
+            <SelectPrimitive.Label className="text-muted-foreground px-1 py-1.5 text-xs font-bold">
+              {node.label}
+            </SelectPrimitive.Label>
+            {node.options.map((option) => renderNode(option, false))}
+          </SelectPrimitive.Group>
         </React.Fragment>
       );
-    },
-    [],
-  );
+    }
+
+    return (
+      <React.Fragment key={node.value}>
+        {hasPreviousGroup && <div aria-hidden="true" className="h-4" />}
+        <InputDropdown.Option highlight="focus">
+          <SelectPrimitive.SelectItem
+            value={node.value}
+            disabled={node.disabled}
+          >
+            <InputDropdown.OptionContent
+              type="radio"
+              checked={value === node.value}
+              label={
+                <SelectPrimitive.ItemText>
+                  {node.label}
+                </SelectPrimitive.ItemText>
+              }
+              title={node.disabled ? node.disabledReason : node.label}
+              badges={node.badges?.map((badge, index) => (
+                <Badge key={index} {...badge} />
+              ))}
+            />
+          </SelectPrimitive.SelectItem>
+        </InputDropdown.Option>
+      </React.Fragment>
+    );
+  };
 
   return (
     <SelectPrimitive.Root
@@ -138,7 +256,7 @@ function SelectInputInner<V extends string>(
             <SelectPrimitive.SelectValue placeholder={placeholder} />
           </span>
           <SelectPrimitive.Icon asChild>
-            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+            <DropdownIndicator />
           </SelectPrimitive.Icon>
         </SelectPrimitive.Trigger>
       </InputControl>
@@ -147,7 +265,7 @@ function SelectInputInner<V extends string>(
           <SelectPrimitive.Content position="popper" sideOffset={4}>
             <SelectPrimitive.ScrollUpButton
               aria-label="Scroll up"
-              className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 top-0 z-3 flex h-6 items-center justify-center duration-300 [animation-delay:.5s]"
+              className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 top-0 z-3 flex h-6 cursor-pointer items-center justify-center duration-300 [animation-delay:.5s]"
             >
               <ChevronUp className="size-4" />
             </SelectPrimitive.ScrollUpButton>
@@ -169,7 +287,7 @@ function SelectInputInner<V extends string>(
             </InputDropdown.List>
             <SelectPrimitive.ScrollDownButton
               aria-label="Scroll down"
-              className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 bottom-0 z-3 flex h-6 items-center justify-center duration-300 [animation-delay:.5s]"
+              className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 bottom-0 z-3 flex h-6 cursor-pointer items-center justify-center duration-300 [animation-delay:.5s]"
             >
               <ChevronDown className="size-4" />
             </SelectPrimitive.ScrollDownButton>

@@ -13,7 +13,7 @@ import { PasswordInput } from "@/src/components/design-system/PasswordInput/Pass
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { BlobStorageIntegrationType } from "@langfuse/shared";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
 
 // Provider selection plus the connection fields whose labels and visibility
@@ -44,7 +44,7 @@ export const StorageProviderFields = ({
                 onValueChange={field.onChange}
                 placeholder="Select provider"
                 options={[
-                  { value: BlobStorageIntegrationType.S3, label: "AWS S3" },
+                  { value: BlobStorageIntegrationType.S3, label: "Amazon S3" },
                   {
                     value: BlobStorageIntegrationType.S3_COMPATIBLE,
                     label: "S3 Compatible Storage",
@@ -109,7 +109,7 @@ export const StorageProviderFields = ({
         />
       )}
 
-      {/* Region field - Only shown for AWS S3 or compatible storage */}
+      {/* Region field - Only shown for Amazon S3 or compatible storage */}
       {integrationType !== "AZURE_BLOB_STORAGE" && (
         <FormField
           control={control}

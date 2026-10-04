@@ -9,8 +9,7 @@ import {
   getDailyMetricsCount,
 } from "@/src/features/public-api/server/dailyMetrics";
 import { METRICS_DEPRECATION } from "@/src/features/public-api/server/deprecations";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
-
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Daily Metrics",

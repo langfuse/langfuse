@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { EvaluatorRecommendedCard } from "./components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
@@ -27,11 +27,13 @@ export function EvaluatorGallerySection({
   section: GallerySection;
   expanded: boolean;
   onExpandedChange?: (expanded: boolean) => void;
-  onSelectTemplate: (template: GalleryTemplate) => void;
+  onSelectTemplate: (template: GalleryTemplate, sectionKey: string) => void;
 }) {
   const isRecommended =
     section.key === EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY;
   const isSafety = section.key === EVALUATOR_GALLERY_SAFETY_SECTION_KEY;
+  const selectTemplate = (template: GalleryTemplate) =>
+    onSelectTemplate(template, section.key);
   const shownTemplates = expanded
     ? section.templates
     : section.templates.slice(0, EVALUATOR_GALLERY_PREVIEW_SIZE);
@@ -48,7 +50,7 @@ export function EvaluatorGallerySection({
             <EvaluatorRecommendedCard
               key={getGalleryTemplateId(template)}
               template={template}
-              onSelect={onSelectTemplate}
+              onSelect={selectTemplate}
             />
           ))}
         </EvaluatorRecommendedCards>
@@ -73,7 +75,7 @@ export function EvaluatorGallerySection({
               <EvaluatorTemplateRow
                 key={getGalleryTemplateId(template)}
                 template={template}
-                onSelect={onSelectTemplate}
+                onSelect={selectTemplate}
               />
             ))}
           </div>
@@ -86,9 +88,9 @@ export function EvaluatorGallerySection({
           onClick={() => onExpandedChange(!expanded)}
         >
           {expanded ? (
-            <ChevronUp className="h-3.5 w-3.5" />
+            <DropdownIndicator direction="up" nudge />
           ) : (
-            <ChevronDown className="h-3.5 w-3.5" />
+            <DropdownIndicator nudge />
           )}
           {expanded ? "Show fewer" : `Show all ${totalCount} templates`}
         </button>

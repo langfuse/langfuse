@@ -463,6 +463,7 @@ export const TraceEventsRow = React.memo(
                     </div>
                   </Link>
                   <SessionTraceActionButtons
+                    isV4={true}
                     projectId={projectId}
                     traceId={trace.id}
                     timestamp={new Date(trace.timestamp)}

@@ -26,7 +26,9 @@ export function EvaluationTypeConfiguration({
           <InfoTooltip label="About evaluation types">
             Use custom code for deterministic checks like exact matches, regex,
             or schema validation. Use an LLM when the check needs judgment, such
-            as rating helpfulness, tone, or answer quality.
+            as rating helpfulness, tone, or answer quality. Use a decision model
+            (experimental) for a fast, cheap label with calibrated probabilities
+            when the possible answers are known upfront.
           </InfoTooltip>
         </span>
       </Label>

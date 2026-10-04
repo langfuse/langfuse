@@ -20,6 +20,24 @@ export type PreferredClickhouseService =
   | "ReadOnly"
   | "EventsReadOnly";
 
+/** Node a query actually lands on once unset replica URLs fall back. */
+export type ClickhouseService = "main" | "read_replica" | "events_read_replica";
+
+export function resolveClickhouseService(
+  preferredClickhouseService: PreferredClickhouseService = "ReadWrite",
+): ClickhouseService {
+  switch (preferredClickhouseService) {
+    case "ReadWrite":
+      return "main";
+    case "EventsReadOnly":
+      if (env.CLICKHOUSE_EVENTS_READ_ONLY_URL) return "events_read_replica";
+      return env.CLICKHOUSE_READ_ONLY_URL ? "read_replica" : "main";
+    case "ReadOnly":
+    default:
+      return env.CLICKHOUSE_READ_ONLY_URL ? "read_replica" : "main";
+  }
+}
+
 type ServiceClickhouseSettings = ClickHouseSettings & {
   enable_full_text_index?: 1;
 };
@@ -66,6 +84,7 @@ export class ClickHouseClientManager {
     preferredClickhouseService: PreferredClickhouseService = "ReadWrite",
   ): {
     settings: NodeClickHouseClientConfigOptions;
+    extraClickhouseSettings: ClickHouseSettings;
     serviceClickhouseSettings: ServiceClickhouseSettings;
   } {
     const jsonBadUnicodeEscapeMode = getClickHouseJsonBadUnicodeEscapeMode();
@@ -82,6 +101,9 @@ export class ClickHouseClientManager {
             },
           }
         : {};
+    const extraClickhouseSettings = this.getExtraClickhouseSettings(
+      preferredClickhouseService,
+    );
     const serviceClickhouseSettings: ServiceClickhouseSettings = {
       ...this.getServiceClickhouseSettings(preferredClickhouseService),
       ...jsonBadUnicodeEscapeClickhouseSettings,
@@ -94,6 +116,7 @@ export class ClickHouseClientManager {
       http_headers: opts?.http_headers ?? {},
       ...jsonBadUnicodeEscapeClientSettings,
       settings: {
+        ...extraClickhouseSettings,
         ...serviceClickhouseSettings,
         ...opts?.clickhouse_settings,
       },
@@ -106,6 +129,7 @@ export class ClickHouseClientManager {
     };
     return {
       settings: keyParams,
+      extraClickhouseSettings,
       serviceClickhouseSettings,
     };
   }
@@ -133,6 +157,21 @@ export class ClickHouseClientManager {
     };
   }
 
+  private getExtraClickhouseSettings(
+    preferredClickhouseService: PreferredClickhouseService,
+  ): ClickHouseSettings {
+    const serviceExtraSettings = {
+      ReadWrite: undefined,
+      ReadOnly: env.CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY,
+      EventsReadOnly: env.CLICKHOUSE_EXTRA_SETTINGS_EVENTS_READ_ONLY,
+    }[preferredClickhouseService];
+
+    return {
+      ...env.CLICKHOUSE_EXTRA_SETTINGS,
+      ...serviceExtraSettings,
+    } as ClickHouseSettings;
+  }
+
   private getRequestTimeoutClickHouseSettings(
     requestTimeout?: number,
   ): RequestTimeoutClickHouseSettings {
@@ -149,18 +188,13 @@ export class ClickHouseClientManager {
   private getClickhouseUrl = (
     preferredClickhouseService: PreferredClickhouseService,
   ) => {
-    switch (preferredClickhouseService) {
-      case "ReadWrite":
+    switch (resolveClickhouseService(preferredClickhouseService)) {
+      case "events_read_replica":
+        return env.CLICKHOUSE_EVENTS_READ_ONLY_URL;
+      case "read_replica":
+        return env.CLICKHOUSE_READ_ONLY_URL;
+      case "main":
         return env.CLICKHOUSE_URL;
-      case "EventsReadOnly":
-        return (
-          env.CLICKHOUSE_EVENTS_READ_ONLY_URL ||
-          env.CLICKHOUSE_READ_ONLY_URL ||
-          env.CLICKHOUSE_URL
-        );
-      case "ReadOnly":
-      default:
-        return env.CLICKHOUSE_READ_ONLY_URL || env.CLICKHOUSE_URL;
     }
   };
 
@@ -173,10 +207,8 @@ export class ClickHouseClientManager {
     opts: NodeClickHouseClientConfigOptions,
     preferredClickhouseService: PreferredClickhouseService = "ReadWrite",
   ): ClickhouseClientType {
-    const { settings, serviceClickhouseSettings } = this.generateClientSettings(
-      opts,
-      preferredClickhouseService,
-    );
+    const { settings, extraClickhouseSettings, serviceClickhouseSettings } =
+      this.generateClientSettings(opts, preferredClickhouseService);
     const key = JSON.stringify(settings);
     if (!this.clientMap.has(key)) {
       const activeSpan = getCurrentSpan();
@@ -203,6 +235,8 @@ export class ClickHouseClientManager {
           level: mapLogLevel(env.LANGFUSE_LOG_LEVEL ?? "info"),
         },
         clickhouse_settings: {
+          // Operator-supplied extras first, so every setting below wins.
+          ...extraClickhouseSettings,
           // Overwrite async insert settings to tune throughput
           ...(env.CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE
             ? {

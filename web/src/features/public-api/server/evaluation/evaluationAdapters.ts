@@ -3,6 +3,7 @@ import {
   EvalTemplateType,
   extractVariables,
   InternalServerError,
+  InvalidRequestError,
   observationVariableMappingList,
   PersistedEvalOutputDefinitionSchema,
   resolvePersistedEvalOutputDefinition,
@@ -66,10 +67,26 @@ const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
   experiment_item_metadata: "experiment_item_metadata",
 };
 
+export const PUBLIC_API_EVALUATOR_TYPES: EvalTemplateType[] = [
+  EvalTemplateType.LLM_AS_JUDGE,
+  EvalTemplateType.CODE,
+];
+
+export function isPublicApiEvaluatorType(type: EvalTemplateType) {
+  return PUBLIC_API_EVALUATOR_TYPES.includes(type);
+}
+
 export function toPublicEvaluatorType(type: EvalTemplateType) {
-  return type === EvalTemplateType.CODE
-    ? PUBLIC_EVALUATOR_TYPE_CODE
-    : PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE;
+  switch (type) {
+    case EvalTemplateType.CODE:
+      return PUBLIC_EVALUATOR_TYPE_CODE;
+    case EvalTemplateType.LLM_AS_JUDGE:
+      return PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE;
+    case EvalTemplateType.DECISION_MODEL:
+      throw new InvalidRequestError(
+        "Decision-model evaluators are experimental and not available through the public API",
+      );
+  }
 }
 
 export function toStoredMappingList(
@@ -266,6 +283,12 @@ export function toPublicEvaluatorVersion(
     createdAt: version.createdAt,
     createdBy: toCreator(version.createdByUser),
   };
+
+  if (evaluatorType === EvalTemplateType.DECISION_MODEL) {
+    throw new InvalidRequestError(
+      "Decision-model evaluators are experimental and not available through the public API",
+    );
+  }
 
   if (evaluatorType === EvalTemplateType.CODE) {
     if (!version.sourceCode || !version.sourceCodeLanguage) {

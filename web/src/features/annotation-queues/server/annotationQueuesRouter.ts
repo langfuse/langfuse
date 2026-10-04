@@ -1,4 +1,5 @@
 import { env } from "@/src/env.mjs";
+import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
@@ -507,10 +508,15 @@ export const queueRouter = createTRPCRouter({
 
         return queue;
       } catch (error) {
-        logger.error(error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || isBaseError(error)) {
           throw error;
         }
+
+        if (isPrismaRecordNotFoundError(error)) {
+          throw new LangfuseNotFoundError("Queue not found in project");
+        }
+
+        logger.error(error);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Deleting annotation queue failed.",
