@@ -43,6 +43,7 @@ export const projectApiKeysRouter = createTRPCRouter({
               id: true,
               name: true,
               email: true,
+              image: true,
             },
           },
           createdByApiKey: {

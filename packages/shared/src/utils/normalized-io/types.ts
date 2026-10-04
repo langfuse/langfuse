@@ -172,6 +172,7 @@ export type NormalizedIO = {
   // Input messages followed by output messages. Message and part order is preserved.
   messages: NormalizedMessage[];
   toolDefinitions: ToolDefinition[];
+  additionalInput?: Record<string, unknown>;
   /** Raw pre-normalization values compiled from the source; always returned for now. */
   span: SpanIO;
 };

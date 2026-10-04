@@ -63,11 +63,14 @@ const composerTokenVariants = cva("max-w-full", {
 type TokenKind = "filter" | "freeText" | "operator" | "paren" | "invalid";
 
 function renderPlainText(text: string, keyPrefix: string): React.ReactNode[] {
+  // Element wrappers, not fragments: an IME writes into whatever text node
+  // the caret sits in, and React will not rewrite a fragment-emitted node
+  // whose last rendered value is still `" "`. A span is a node React owns,
+  // so compositionend can remount it instead of leaving a stuck sibling.
   return text
     .split(/(\s+)/)
-    .map((part, index) => (
-      <React.Fragment key={`${keyPrefix}:${index}`}>{part}</React.Fragment>
-    ));
+    .filter((part) => part.length > 0)
+    .map((part, index) => <span key={`${keyPrefix}:${index}`}>{part}</span>);
 }
 
 function FilterTokenBody({ segment }: { segment: FilterSegment }) {

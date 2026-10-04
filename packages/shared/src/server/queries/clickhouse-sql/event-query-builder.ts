@@ -1488,6 +1488,10 @@ const EVENTS_SESSION_AGGREGATION_FIELDS = {
     "groupUniqArrayIf(user_id, user_id IS NOT NULL AND user_id != '') AS user_ids",
   trace_count: "uniq(trace_id) AS trace_count",
   trace_tags: "groupUniqArrayArrayIf(tags, notEmpty(tags)) AS trace_tags",
+  tool_names: "groupUniqArrayArray(mapKeys(tool_definitions)) AS tool_names",
+  called_tool_names:
+    "groupUniqArrayArray(tool_call_names) AS called_tool_names",
+  tool_calls_count: "sum(length(tool_calls)) AS tool_calls_count",
   environment:
     "argMaxIf(environment, event_ts, environment <> '') AS environment",
   metadata_names:
@@ -1520,9 +1524,13 @@ const SESSION_AGGREGATION_FIELD_SETS = {
     keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS
   >,
   base: Object.keys(EVENTS_SESSION_AGGREGATION_FIELDS).filter(
-    (field) => field !== "metadata_names" && field !== "metadata_values",
+    (field) =>
+      field !== "metadata_names" &&
+      field !== "metadata_values" &&
+      !["tool_names", "called_tool_names", "tool_calls_count"].includes(field),
   ) as Array<keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS>,
   metadata: ["metadata_names", "metadata_values"],
+  tools: ["tool_names", "called_tool_names", "tool_calls_count"],
 } as const;
 
 /**
@@ -1963,7 +1971,7 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
   experimentId: "e.experiment_id AS experiment_id",
   experimentName: "any(e.experiment_name) AS experiment_name",
   experimentDescription:
-    "any(e.experiment_description) AS experiment_description",
+    "anyIf(e.experiment_description, e.span_id = e.experiment_item_root_span_id) AS experiment_description",
   experimentDatasetId:
     "nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id",
   startTime: "min(e.start_time) AS start_time",

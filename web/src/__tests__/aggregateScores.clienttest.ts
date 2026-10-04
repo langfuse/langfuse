@@ -1,9 +1,6 @@
 // @vitest-environment node
 
-import {
-  aggregateScores,
-  type ScoreToAggregate,
-} from "@/src/features/scores/lib/aggregateScores";
+import { aggregateScores, type ScoreToAggregate } from "@/src/features/scores";
 
 describe("aggregateScores", () => {
   it("should return an empty object for an empty array", () => {

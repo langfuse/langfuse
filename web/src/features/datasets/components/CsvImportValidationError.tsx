@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
@@ -38,12 +38,12 @@ export const CsvImportValidationError: React.FC<
               variant="ghost"
               size="sm"
               onClick={() => setIsExpanded(!isExpanded)}
-              className="h-auto p-0 text-sm font-bold hover:bg-transparent"
+              className="h-auto gap-1 p-0 text-sm font-bold hover:bg-transparent"
             >
               {isExpanded ? (
-                <ChevronDown className="mr-1 h-4 w-4" />
+                <DropdownIndicator nudge />
               ) : (
-                <ChevronRight className="mr-1 h-4 w-4" />
+                <DropdownIndicator direction="right" nudge />
               )}
               {isExpanded ? "Hide" : "Show"} error details
             </Button>

@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
 import { redis as defaultRedis } from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";
@@ -75,5 +74,11 @@ function compareModels(
   left: GatewayModelCatalogEntry,
   right: GatewayModelCatalogEntry,
 ) {
-  return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
+  if (left.id < right.id) {
+    return -1;
+  }
+  if (left.id > right.id) {
+    return 1;
+  }
+  return 0;
 }

@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import type { Mock } from "vitest";
 import { useRouter } from "next/router";
 
@@ -22,7 +23,46 @@ vi.mock("@/src/features/sessions/SessionPages", () => ({
 }));
 
 vi.mock("@/src/features/events/hooks/useReadPath", () => ({
-  useReadPath: () => ({ isV4: false }),
+  useReadPath: () => ({ isV4: false, isResolved: true }),
+}));
+
+vi.mock("@/src/features/widgets", () => ({
+  WidgetForm: ({ projectId }: { projectId: string }) => (
+    <div data-testid="widget-form">{projectId}</div>
+  ),
+}));
+
+vi.mock("@/src/features/widgets/utils", () => ({
+  getDefaultView: () => "traces",
+}));
+
+vi.mock("@/src/features/dashboard/components/SelectDashboardDialog", () => ({
+  SelectDashboardDialog: () => null,
+}));
+
+vi.mock("@/src/utils/api", () => ({
+  api: {
+    dashboardWidgets: {
+      create: {
+        useMutation: () => ({ mutate: vi.fn(), isPending: false }),
+      },
+    },
+    dashboard: {
+      allDashboards: {
+        useQuery: () => ({ data: undefined, refetch: vi.fn() }),
+      },
+    },
+  },
+}));
+
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
+  usePostHogClientCapture: () => vi.fn(),
+}));
+
+vi.mock("@/src/components/layouts/page", () => ({
+  default: ({ children }: { children: ReactNode }) => (
+    <div data-testid="page">{children}</div>
+  ),
 }));
 
 vi.mock(
@@ -63,12 +103,13 @@ vi.mock("@/src/features/experiments/components/table", () => ({
 }));
 
 import TracePageRoute from "@/src/pages/project/[projectId]/traces/[traceId]";
-import SessionPageRoute from "@/src/pages/project/[projectId]/sessions/[sessionId]";
+import SessionPageRoute from "@/src/features/sessions/SessionDetailPage";
 import AnnotationQueueItemRoute from "@/src/pages/project/[projectId]/annotation-queues/[queueId]/items/[itemId]";
 import AnnotationQueueItemsIndexRoute from "@/src/pages/project/[projectId]/annotation-queues/[queueId]/index";
 import DatasetExperimentsRoute from "@/src/pages/project/[projectId]/datasets/[datasetId]/experiments/index";
+import NewWidgetRoute from "@/src/pages/project/[projectId]/widgets/new";
 
-function mockRouterQuery(query: Record<string, string | undefined>) {
+function mockRouterQuery(query: Record<string, string | string[] | undefined>) {
   (useRouter as Mock).mockReturnValue({
     query,
     isReady: Object.keys(query).length > 0,
@@ -131,5 +172,23 @@ describe("detail page deep-link route params", () => {
     render(<DatasetExperimentsRoute />);
     expect(screen.queryByTestId("dataset-runs-table")).toBeNull();
     expect(screen.queryByTestId("experiments-table")).toBeNull();
+  });
+
+  test("new widget does not mount the form while router.query is empty", () => {
+    mockRouterQuery({});
+    render(<NewWidgetRoute />);
+    expect(screen.queryByTestId("widget-form")).toBeNull();
+  });
+
+  test("new widget mounts the form once projectId is a string", () => {
+    mockRouterQuery({ projectId: "p1" });
+    render(<NewWidgetRoute />);
+    expect(screen.getByTestId("widget-form")).toHaveTextContent("p1");
+  });
+
+  test("new widget does not mount the form when projectId is a duplicate query array", () => {
+    mockRouterQuery({ projectId: ["p1", "p1"] });
+    render(<NewWidgetRoute />);
+    expect(screen.queryByTestId("widget-form")).toBeNull();
   });
 });
